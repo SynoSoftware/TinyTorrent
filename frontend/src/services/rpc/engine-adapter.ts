@@ -7,8 +7,6 @@ import type {
     SessionStats,
     ServerClass,
 } from "./entities";
-// TODO: Remove `TinyTorrentCapabilities` once RPC extensions are removed; Transmission RPC is the only daemon contract.
-// TODO: Deprecate `ServerClass` as a UX concept; keep only if needed for diagnostics/logging (see `src/services/rpc/entities.ts`).
 import type {
     TransmissionSessionSettings,
     TransmissionFreeSpace,
@@ -24,24 +22,20 @@ export interface EngineCapabilities {
     executionModel: EngineExecutionModel;
     hasHostFileSystemAccess: boolean;
     canCheckFreeSpace: boolean;
-    canCreateDirectory: boolean;
 }
 
 export const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = {
     executionModel: "remote",
     hasHostFileSystemAccess: false,
     canCheckFreeSpace: false,
-    canCreateDirectory: false,
 };
 
 export interface EngineAdapter {
     getServerClass?(): ServerClass;
-    // TODO: Remove `getServerClass`. Daemon identity should not drive UI capabilities; Transmission-only.
     getCapabilities?(): EngineCapabilities;
     handshake?(): Promise<unknown>;
     notifyUiReady?(): Promise<void>;
     notifyUiDetached?(): Promise<void>;
-    // TODO: Remove `notifyUiReady/notifyUiDetached` once `session-ui-attach/detach` is deleted (RPC extensions: NONE).
     fetchSessionSettings?(): Promise<TransmissionSessionSettings>;
     updateSessionSettings?(
         settings: Partial<TransmissionSessionSettings>
@@ -81,8 +75,6 @@ export interface EngineAdapter {
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
-    createDirectory?(path: string): Promise<void>;
-    // TODO: Remove `createDirectory` from EngineAdapter. Directory creation is a host filesystem operation and must be handled by ShellAgent (local-only) rather than daemon RPC.
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     destroy?(): void;
     resetConnection?(): void;

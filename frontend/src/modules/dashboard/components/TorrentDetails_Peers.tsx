@@ -25,10 +25,6 @@ import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 
-// TODO: Keep PeersTab presentational:
-// TODO: - No RPC calls and no ShellExtensions calls here. Emit `PeerContextAction` and let a higher layer execute (command bus/view-model).
-// TODO: - Avoid inventing additional global listeners/timers inside the view; centralize if needed (todo.md task 19).
-// TODO: - If hover/selection state needs to be shared across peer list + peer map, define a small `PeersViewModel` contract and keep computation outside render.
 
 type PeerContextMenuState = {
     peer: TorrentPeerEntity;

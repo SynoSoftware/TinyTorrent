@@ -262,19 +262,6 @@
     outline: none;
 }
 
-:focus-visible {
-    outline: 2px solid var(--nextui-focus);
-    outline-offset: 2px;
-}
-/* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
-@layer components {
-    main [data-slot="input-wrapper"],
-    main [data-slot="trigger"],
-    main [data-slot="inner-wrapper"] {
-        background-color: hsl(var(--heroui-content1)) !important;
-    }
-}
-
 @layer components {
     button:not(:disabled) {
         transition: transform 0.16s ease, filter 0.16s ease;
@@ -339,6 +326,25 @@
     }
     .min-w-button {
         min-width: var(--tt-button-min-w);
+    }
+
+    /* HeroUI Input focus rectangle fix (global, but scoped to HeroUI slots).
+       HeroUI applies `!outline-solid` to the real <input>, which can render as a
+       harsh inner rectangle (black/white) depending on browser/theme. We keep
+       focus styling on wrappers (e.g. `focus-within:border-*`) and forbid
+       outlines on the inner input element itself. */
+    [data-slot="input"],
+    [data-slot="textarea"] {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    [data-slot="input"]:focus,
+    [data-slot="input"]:focus-visible,
+    [data-slot="textarea"]:focus,
+    [data-slot="textarea"]:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
     }
 
     [data-tt-column-resizing="true"] * {

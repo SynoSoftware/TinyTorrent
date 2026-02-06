@@ -174,6 +174,11 @@ const VERIFY_WATCH_TIMEOUT_MS = 30000;
 const FREE_SPACE_UNSUPPORTED_MESSAGE = "free_space_check_not_supported";
 const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
 
+export function resetRecoveryControllerState() {
+    VERIFY_GUARD.clear();
+    IN_FLIGHT_RECOVERY.clear();
+}
+
 function getExpectedBytes(
     torrent: TorrentEntity | TorrentDetailEntity,
 ): number {
@@ -418,7 +423,6 @@ export async function runMissingFilesRecoverySequence(
                 client,
                 path: downloadDir,
                 options: sequenceOptions,
-                engineCapabilities,
             });
             if (!ensure.ready) {
                 if (ensure.blockingOutcome) {
@@ -489,22 +493,19 @@ interface EnsurePathParams {
     client: EngineAdapter;
     path: string;
     options?: RecoverySequenceOptions;
-    engineCapabilities: EngineCapabilities;
 }
 
 async function ensurePathReady({
     client,
     path,
     options,
-    engineCapabilities,
 }: EnsurePathParams): Promise<{
     ready: boolean;
     blockingOutcome?: RecoveryOutcome;
 }> {
-    // TODO: Boundary: this helper must not rely on daemon RPC for host filesystem mutations.
-    // TODO: - `checkFreeSpace(path)` is a Transmission RPC call and reports *daemon-side* free space. Keep it, but ensure UI copy clarifies that remote daemons report remote disk.
-    // TODO: - Creating folders (`createDirectory`) is NOT a Transmission RPC feature. Remove `EngineAdapter.createDirectory` usage and route folder creation through ShellAgent/ShellExtensions *only when* `uiMode="Full"` (localhost + ShellAgent bridge).
-    // TODO: - In `uiMode="Rpc"` (remote/browser), auto-create must be disabled and surfaced as an explicit unsupported outcome, not a silent best-effort.
+    // This helper never creates folders; host filesystem mutation must go
+    // through ShellAgent in local Full mode, not through daemon RPC.
+    // In Rpc mode we surface explicit unsupported outcomes.
     // Capability flags are advisory; if the adapter provides `checkFreeSpace`, we can probe.
     // Tests and some adapters use DEFAULT_ENGINE_CAPABILITIES while still supporting this call.
     if (!client.checkFreeSpace) {
@@ -538,36 +539,6 @@ async function ensurePathReady({
                 Boolean(options?.recreateFolder) ||
                 Boolean(options?.autoCreateMissingFolder);
             if (shouldCreateFolder) {
-                if (
-                    engineCapabilities.canCreateDirectory &&
-                    client.createDirectory
-                ) {
-                    // TODO: Remove `client.createDirectory` call. This is a host concern and must be implemented by the ShellAgent adapter, not the daemon RPC adapter.
-                    try {
-                        await client.createDirectory(path);
-                        return { ready: true };
-                    } catch (createErr) {
-                        const createKind = interpretFsError(createErr);
-                        if (createKind === "eacces") {
-                            return {
-                                ready: false,
-                                blockingOutcome: {
-                                    kind: "path-needed",
-                                    reason: "unwritable",
-                                    message: "directory_creation_denied",
-                                },
-                            };
-                        }
-                        return {
-                            ready: false,
-                            blockingOutcome: {
-                                kind: "path-needed",
-                                reason: "missing",
-                                message: "directory_creation_failed",
-                            },
-                        };
-                    }
-                }
                 return {
                     ready: false,
                     blockingOutcome: {

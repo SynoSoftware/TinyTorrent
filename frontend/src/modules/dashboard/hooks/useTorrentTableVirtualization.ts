@@ -11,10 +11,6 @@ import type {
 import { useMarqueeSelection } from "./useMarqueeSelection";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 
-// TODO: This hook is a wiring hub with a very large dependency surface. Reduce cognitive load:
-// TODO: - Create a `TorrentTableViewModel` that owns selection/virtualization/column measurement wiring and passes only minimal callbacks/state into the view.
-// TODO: - Avoid threading through both “data” and “behavior” deps separately; group them into stable objects.
-// TODO: - Ensure scheduling/measurement is consistent with the app’s single scheduling authority (todo.md task 19).
 
 // Strongly-typed deps for the virtualization hook. Avoids use of `any` and
 // documents the exact surface the parent must provide.

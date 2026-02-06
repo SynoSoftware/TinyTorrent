@@ -10,6 +10,7 @@ import {
 import type { CollectionChildren } from "@react-types/shared";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
@@ -23,11 +24,31 @@ type RowMenuAction = {
     disabled?: boolean;
 };
 
+type ContextMenuKey = TorrentTableAction | "copy-hash" | "copy-magnet";
+
 const getTorrentKey = (
     entry?: { id?: string | number; hash?: string } | null
 ) => entry?.id?.toString() ?? entry?.hash ?? "";
 
-type QueueMenuAction = { key: string; label: string };
+type QueueMenuAction = { key: TorrentTableAction; label: string };
+
+const mapRecommendedActionToEmphasis = (
+    action?: string
+): "setLocation" | "openFolder" | "reDownload" | "pause" | "reannounce" | "forceRecheck" | undefined => {
+    switch (action) {
+        case "locate":
+        case "chooseLocation":
+            return "setLocation";
+        case "openFolder":
+            return "openFolder";
+        case "downloadMissing":
+            return "reDownload";
+        case "retry":
+            return "forceRecheck";
+        default:
+            return undefined;
+    }
+};
 
 interface RowMenuViewModel {
     actions: RowMenuAction[];
@@ -60,7 +81,7 @@ export default function TorrentTable_RowMenu({
     onClose: () => void;
     handleContextMenuAction: (key?: string) => Promise<void>;
     queueMenuActions: QueueMenuAction[];
-    getContextMenuShortcut: (key: string) => string | undefined;
+    getContextMenuShortcut: (key: ContextMenuKey) => string;
     t: (k: string, opts?: Record<string, unknown>) => string;
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
@@ -100,17 +121,11 @@ function TorrentTable_RowMenuInner({
     onClose: () => void;
     handleContextMenuAction: (key?: string) => Promise<void>;
     queueMenuActions: QueueMenuAction[];
-    getContextMenuShortcut: (key: string) => string | undefined;
+    getContextMenuShortcut: (key: ContextMenuKey) => string;
     t: (k: string, opts?: Record<string, unknown>) => string;
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
-    // TODO: ViewModel boundary: this component should be a pure View.
-    // TODO: Replace this inline prop-bag (translator + callbacks + capability checks) with a single `RowMenuViewModel`:
-    // TODO: - `items`: prebuilt menu items with ids/labels/shortcuts/enabled/emphasis
-    // TODO: - `setLocation`: { canSetLocation, inlineEditorState, outcomeMessageKey, onOpen, onChange, onSubmit, onCancel }
-    // TODO: - `clipboard`: { supported }
-    // TODO: This removes local decision logic and prevents regressions when AI edits only one surface.
     const {
         inlineSetLocationState,
         releaseInlineSetLocation,
@@ -125,8 +140,10 @@ function TorrentTable_RowMenuInner({
     const shouldShowOpenFolder = Boolean(canOpenFolder);
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
-    // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
     const classification = useResolvedRecoveryClassification(contextTorrent);
+    const primaryEmphasisAction =
+        mapRecommendedActionToEmphasis(classification?.recommendedActions?.[0]) ??
+        contextMenu.torrent.errorEnvelope?.primaryAction;
     const showUnknownConfidence = classification?.confidence === "unknown";
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
     const currentKey = getTorrentKey(contextTorrent);
@@ -276,10 +293,9 @@ function TorrentTable_RowMenuInner({
                     key="open-folder"
                     isDisabled={rowMenuViewModel.openFolderDisabled}
                     className={cn(
-                        contextMenu.torrent.errorEnvelope?.primaryAction ===
-                            "openFolder"
+                        primaryEmphasisAction === "openFolder"
                             ? getEmphasisClassForAction?.(
-                                  contextMenu.torrent.errorEnvelope?.primaryAction
+                                  primaryEmphasisAction
                               )
                             : ""
                     )}
@@ -294,10 +310,9 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="set-download-path"
                 className={cn(
-                    contextMenu.torrent.errorEnvelope?.primaryAction ===
-                        "setLocation"
+                    primaryEmphasisAction === "setLocation"
                         ? getEmphasisClassForAction?.(
-                              contextMenu.torrent.errorEnvelope?.primaryAction
+                              primaryEmphasisAction
                           )
                         : ""
                 )}
@@ -396,7 +411,6 @@ function TorrentTable_RowMenuInner({
         t,
     ]);
 
-    // TODO: Inline editor UX: ensure outcome/confidence messaging aligns with Recovery UX spec (“Location unavailable” on unknown) and avoid closing the menu until recovery gate reports completion.
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     if (!rect) return null;
     return (

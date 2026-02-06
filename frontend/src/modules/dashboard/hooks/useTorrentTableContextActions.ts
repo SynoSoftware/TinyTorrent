@@ -64,7 +64,12 @@ export const useTorrentTableContextActions = (
             if (!contextMenu) return;
             const contextTorrent = contextMenu.torrent;
             if (!contextTorrent) return;
-            if (selectionTargets.length > 1) {
+            const isQueueAction =
+                action === "queue-move-top" ||
+                action === "queue-move-bottom" ||
+                action === "queue-move-up" ||
+                action === "queue-move-down";
+            if (!isQueueAction && selectionTargets.length > 1) {
                 await handleBulkAction(action);
                 return;
             }
@@ -124,6 +129,18 @@ export const useTorrentTableContextActions = (
                         break;
                     case "remove-with-data":
                         await executeTableAction("remove-with-data");
+                        break;
+                    case "queue-move-top":
+                        await executeTableAction("queue-move-top");
+                        break;
+                    case "queue-move-bottom":
+                        await executeTableAction("queue-move-bottom");
+                        break;
+                    case "queue-move-up":
+                        await executeTableAction("queue-move-up");
+                        break;
+                    case "queue-move-down":
+                        await executeTableAction("queue-move-down");
                         break;
                     default:
                         // Unknown key: no-op under intent-only migration

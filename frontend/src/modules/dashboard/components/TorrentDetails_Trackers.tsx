@@ -26,10 +26,6 @@ interface TrackersTabProps {
     isStandalone?: boolean;
 }
 
-// TODO: Keep TrackersTab view-only:
-// TODO: - Any tracker actions (reannounce, add/remove trackers) must be expressed as UI intents and executed by the dashboard/app view-model through EngineAdapter (Transmission RPC).
-// TODO: - Do not add host/ShellExtensions dependencies here; this tab must work in Browser + remote daemon mode.
-// TODO: - If Transmission RPC lacks a needed tracker mutation, document it as “not supported” rather than inventing an RPC extension.
 
 const formatCountdown = (seconds: number) => {
     if (seconds <= 0) return "--:--";

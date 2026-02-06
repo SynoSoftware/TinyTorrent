@@ -84,58 +84,51 @@ export function createTorrentDispatch({
                 await activeClient.verify([String(intent.torrentId)]);
             });
             break;
-            case "SET_TORRENT_FILES_WANTED": {
-                const updateFileSelection = activeClient.updateFileSelection;
-                if (!updateFileSelection) return;
+        case "SET_TORRENT_FILES_WANTED": {
+            if (!activeClient.updateFileSelection) return;
+            await runWithRefresh(async () => {
+                await activeClient.updateFileSelection(
+                    String(intent.torrentId),
+                    intent.fileIndexes,
+                    intent.wanted
+                );
+            });
+            break;
+        }
+        case "SET_TORRENT_SEQUENTIAL": {
+            if (!activeClient.setSequentialDownload) return;
+            const setSequentialDownload =
+                activeClient.setSequentialDownload.bind(activeClient);
                 await runWithRefresh(
                     async () => {
-                        await updateFileSelection(
+                        await setSequentialDownload(
                             String(intent.torrentId),
-                            intent.fileIndexes,
-                            intent.wanted
+                            intent.enabled,
                         );
                     }
                 );
-                break;
-            }
-            case "SET_TORRENT_SEQUENTIAL":
-                if (!activeClient.setSequentialDownload) return;
-                {
-                    const setSequential = activeClient.setSequentialDownload;
-                    await runWithRefresh(
-                        async () => {
-                            await setSequential(
-                                String(intent.torrentId),
-                                intent.enabled
-                            );
-                        }
-                    );
-                    break;
-                }
-            case "SET_TORRENT_SUPERSEEDING":
-                if (!activeClient.setSuperSeeding) return;
-                {
-                    const setSuperSeeding = activeClient.setSuperSeeding;
-                    await runWithRefresh(
-                        async () => {
-                            await setSuperSeeding(
-                                String(intent.torrentId),
-                                intent.enabled
-                            );
-                        }
-                    );
-                    break;
-                }
-            case "ENSURE_SELECTION_ACTIVE":
-                await activeClient.resume(
-                    (intent.torrentIds || []).map(String)
+            break;
+        }
+        case "SET_TORRENT_SUPERSEEDING": {
+            if (!activeClient.setSuperSeeding) return;
+            const setSuperSeeding =
+                activeClient.setSuperSeeding.bind(activeClient);
+                await runWithRefresh(
+                    async () => {
+                        await setSuperSeeding(
+                            String(intent.torrentId),
+                            intent.enabled,
+                        );
+                    }
                 );
-                break;
-            case "ENSURE_SELECTION_PAUSED":
-                await activeClient.pause(
-                    (intent.torrentIds || []).map(String)
-                );
-                break;
+            break;
+        }
+        case "ENSURE_SELECTION_ACTIVE":
+            await activeClient.resume((intent.torrentIds || []).map(String));
+            break;
+        case "ENSURE_SELECTION_PAUSED":
+            await activeClient.pause((intent.torrentIds || []).map(String));
+            break;
         case "ENSURE_SELECTION_REMOVED":
             await activeClient.remove(
                 (intent.torrentIds || []).map(String),
@@ -195,9 +188,11 @@ export function createTorrentDispatch({
                     });
 
                     if (intent.sequentialDownload) {
-                        const setSequential = activeClient.setSequentialDownload;
-                        if (setSequential) {
-                            await setSequential(result.id, true);
+                        if (activeClient.setSequentialDownload) {
+                            await activeClient.setSequentialDownload(
+                                result.id,
+                                true
+                            );
                         }
                     }
 
@@ -210,9 +205,9 @@ export function createTorrentDispatch({
             );
             break;
         case "FINALIZE_EXISTING_TORRENT": {
-            const setTorrentLocation = activeClient.setTorrentLocation;
-            if (!setTorrentLocation) return;
-            const updateFileSelection = activeClient.updateFileSelection;
+            if (!activeClient.setTorrentLocation) return;
+            const setTorrentLocation =
+                activeClient.setTorrentLocation.bind(activeClient);
             await runWithRefresh(
                 async () => {
                     await setTorrentLocation(
@@ -220,8 +215,11 @@ export function createTorrentDispatch({
                         intent.downloadDir,
                         true
                     );
-                    if (intent.filesUnwanted.length && updateFileSelection) {
-                        await updateFileSelection(
+                    if (
+                        intent.filesUnwanted.length &&
+                        activeClient.updateFileSelection
+                    ) {
+                        await activeClient.updateFileSelection(
                             String(intent.torrentId),
                             intent.filesUnwanted,
                             false

@@ -692,6 +692,34 @@
         "light": "Light",
         "toggle_label": "Theme: {{value}}"
     },
+    "actions": {
+        "search": "Search",
+        "expand_all": "Expand all",
+        "collapse_all": "Collapse all"
+    },
+    "fields": {
+        "name": "Name",
+        "priority": "Priority",
+        "progress": "Progress",
+        "size": "Size"
+    },
+    "status": {
+        "all": "All"
+    },
+    "types": {
+        "video": "Video",
+        "audio": "Audio"
+    },
+    "errors": {
+        "no_results": "No results found."
+    },
+    "priority": {
+        "high": "High",
+        "normal": "Normal",
+        "low": "Low",
+        "skip": "Skip",
+        "dont_download": "Do Not Download"
+    },
     "toolbar": {
         "add_magnet": "Add Magnet",
         "add_torrent": "Add Torrent",

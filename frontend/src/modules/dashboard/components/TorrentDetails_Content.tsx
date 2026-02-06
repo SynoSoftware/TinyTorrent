@@ -28,11 +28,6 @@ interface ContentTabProps {
     isStandalone?: boolean;
 }
 
-// TODO: View-model boundary: this tab currently dispatches intents directly via TorrentActionsContext.
-// TODO: That is acceptable as a stopgap, but target architecture is:
-// TODO: - Tabs emit UI intents/events
-// TODO: - A single Dashboard/App view-model decides how to execute them (EngineAdapter) and when to refresh.
-// TODO: This keeps tab components stable and reduces regressions when AI edits the dispatch layer.
 
 export const ContentTab = ({
     files,

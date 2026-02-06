@@ -237,11 +237,7 @@ const MissingFilesStatusCell = ({
     const [primaryBusy, setPrimaryBusy] = useState(false);
     const [secondaryBusy, setSecondaryBusy] = useState(false);
 
-    const { uiMode, setLocationCapability, canOpenFolder } =
-        useRecoveryContext();
-    // TODO: ViewModel boundary: this cell renderer should not re-run recovery classification logic or derive side channels.
-    // TODO: Render from recovery gate outputs (state/confidence/recommendedActions + uiMode = Full | Rpc) instead of `errorEnvelope` heuristics.
-    // TODO: After migration, `classifyMissingFilesState(...)` must live only inside the recovery controller/gate, not in table cells.
+    const { setLocationCapability, canOpenFolder } = useRecoveryContext();
     const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
     const classification = useResolvedRecoveryClassification(torrent);
     if (!classification) {
@@ -735,9 +731,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 handleDownloadMissing,
                 handleSetLocation,
             } = useRecoveryContext();
-            // TODO: Status rendering should consume gate-provided state/confidence, not errorEnvelope; keep retry/missing/download actions going through the single gate.
+            const classification = useResolvedRecoveryClassification(torrent);
 
-            // Determine effective state (recovery overlay overrides engine state)
+            // Recovery state from envelope remains authoritative for transient machine states
+            // (verifying/transientWaiting/blocked), while missing-files details come from
+            // gate-resolved classification.
             const effectiveState =
                 torrent.errorEnvelope &&
                 torrent.errorEnvelope.recoveryState &&
@@ -745,25 +743,34 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     ? torrent.errorEnvelope.recoveryState
                     : torrent.state;
 
+            const isMissingFilesCell =
+                effectiveState === "missing_files" ||
+                classification?.kind === "pathLoss" ||
+                classification?.kind === "volumeLoss" ||
+                classification?.kind === "accessDenied";
             const conf = statusMap[effectiveState] ?? statusMap.paused;
             const Icon = conf.icon;
 
-            const statusLabel = formatRecoveryStatus(
-                torrent.errorEnvelope,
-                t,
-                torrent.state,
-                conf.labelKey
-            );
+            const statusLabel = classification
+                ? formatRecoveryStatusFromClassification(classification, t)
+                : formatRecoveryStatus(
+                      torrent.errorEnvelope,
+                      t,
+                      torrent.state,
+                      conf.labelKey
+                  );
 
             let tooltip =
-                formatRecoveryTooltip(
-                    torrent.errorEnvelope,
-                    t,
-                    torrent.state,
-                    conf.labelKey
-                ) || t(conf.labelKey);
+                (classification
+                    ? formatRecoveryStatusFromClassification(classification, t)
+                    : formatRecoveryTooltip(
+                          torrent.errorEnvelope,
+                          t,
+                          torrent.state,
+                          conf.labelKey
+                      )) || t(conf.labelKey);
 
-            if (effectiveState === "missing_files") {
+            if (isMissingFilesCell) {
                 return (
                     <MissingFilesStatusCell
                         torrent={torrent}

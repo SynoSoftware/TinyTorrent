@@ -17,7 +17,7 @@ import {
 } from "@/app/commandRegistry";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { RecoveryContextValue } from "@/app/context/RecoveryContext";
-import type { TorrentRecoveryModalProps } from "@/modules/dashboard/components/TorrentRecoveryModal";
+import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { AddTorrentModalProps } from "@/modules/torrent-add/components/AddTorrentModal";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import {
@@ -27,7 +27,7 @@ import {
     useHudViewModel,
     useNavbarViewModel,
     useRecoveryContextModel,
-    useRecoveryModalProps,
+    useRecoveryModalViewModel,
     useAddMagnetModalProps,
     useAddTorrentModalProps,
     useSettingsModalViewModel,
@@ -64,7 +64,6 @@ import {
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useHudCards } from "@/app/hooks/useHudCards";
-import { clearProbe } from "@/services/recovery/missingFilesStore";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 export interface WorkspaceShellController {
@@ -92,14 +91,8 @@ export interface WorkspaceShellController {
     };
     recoveryContext: RecoveryContextValue;
     recoveryModalProps: Pick<
-        TorrentRecoveryModalProps,
-        | "isOpen"
-        | "torrent"
-        | "outcome"
-        | "onClose"
-        | "onRecreate"
-        | "onAutoRetry"
-        | "isBusy"
+        { viewModel: RecoveryModalViewModel },
+        "viewModel"
     >;
     addMagnetModalProps: AddMagnetModalProps;
     addTorrentModalProps: AddTorrentModalProps | null;
@@ -377,9 +370,8 @@ export function useWorkspaceShellViewModel({
             (torrent) => torrent.id === detailKey || torrent.hash === detailKey,
         );
         if (isStillPresent) return;
-        clearProbe(detailKey);
         handleCloseDetail();
-    }, [detailData, clearDetail, torrents, handleCloseDetail]);
+    }, [detailData, torrents, handleCloseDetail]);
 
     const { dispatch } = useRequiredTorrentActions();
 
@@ -903,13 +895,18 @@ export function useWorkspaceShellViewModel({
         ],
     );
 
-    const recoveryModalProps = useRecoveryModalProps({
+    const recoveryModalViewModel = useRecoveryModalViewModel({
+        t,
         recoverySession,
         lastOutcome: lastRecoveryOutcome,
         isBusy: isRecoveryBusy,
         onClose: handleRecoveryClose,
         onRecreate: handleRecoveryRecreateFolder,
         onAutoRetry: handleRecoveryAutoRetry,
+        inlineEditor,
+        setLocationCapability,
+        handleSetLocation,
+        handleDownloadMissing,
     });
 
     const addMagnetModalProps = useAddMagnetModalProps({
@@ -947,7 +944,7 @@ export function useWorkspaceShellViewModel({
             handleCloseDetail,
         },
         recoveryContext,
-        recoveryModalProps,
+        recoveryModalProps: { viewModel: recoveryModalViewModel },
         addMagnetModalProps,
         addTorrentModalProps,
     };

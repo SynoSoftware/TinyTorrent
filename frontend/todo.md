@@ -9,41 +9,58 @@
 
 ## Active Tasks
 
-[_] 30. architectural - Remove residual dashboard TODO stopgaps
+[x] 30. architectural - Remove residual dashboard TODO stopgaps
 Resolve or delete TODO notes that are outdated after authority consolidation.
 Keep only TODOs that map to explicit tracked tasks in this file.
 
-[ ] 31. medium - Action parity audit (toolbar/context/hotkeys)
+[x] 31. medium - Action parity audit (toolbar/context/hotkeys)
 Verify Pause/Resume/Recheck/Remove/Queue actions use one command path across toolbar buttons, context menus, and hotkeys.
 If divergences exist, normalize through the same command dispatcher/view-model boundary.
 
-[ ] 28. feature - Implement AddTorrentFileTable (Step 3: Reuse Logic)
-Create `AddTorrentFileTable.tsx` using `useFileExplorerViewModel`.
-This proves the architecture allows the same file logic to drive two different UI presentations (readonly-ish details vs editable add-modal).
+[x] 28. feature - Refactor AddTorrentFileTable (Strategy Shift: Tree Adoption)
+  - Replaced the heavy `AddTorrentFileTable` with an adapter using the newly polished `FileExplorerTree`.
+  - Achieved UI consistency between "Details" and "Add" workflows.
+  - Eliminated ~500 lines of duplicate virtualization logic.
 
-[ ] 13d. medium - Settings/Recovery view-model cleanup
+[x] 28b. cleanup - Remove redundant AddTorrentModal search
+  - Removed the parent `Input` component that was duplicating the functionality of the new Tree's sticky search bar.
+  - Replaced it with a clean "Files" label to maintain toolbar layout balance.
+
+[x] 13d. medium - Settings/Recovery view-model cleanup
 Ensure Settings components, recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic.
 Acceptance: settings/recovery surfaces consume view-model outputs for `uiMode` and recovery state; obsolete TODOs removed.
+  - Moved recovery modal derivation/action wiring into `useRecoveryModalViewModel` in `workspaceShellModels.ts`.
+  - Converted `TorrentRecoveryModal` into a pure view that only renders a `viewModel` prop.
+  - Removed obsolete task-13d inline TODO from `SetLocationInlineEditor`.
 
-[ ] 13b. high - Torrent table view-model
-Build a `useTorrentTableViewModel` that owns filtering, selection, virtualization, column sizing, and capability checks, then feed it into `TorrentTable`/`TorrentTable_Body`/`TorrentTable_Header` so these components are pure.
-Acceptance: table body/header receive a single view-model + command callbacks, `useColumnSizingController`/virtualization/marquee selection are owned by the table VM provider, and table task-13 TODOs are cleared.
-Current progress: typed contracts for table hooks and persistence cleanup are complete.
-Remaining: move virtualization/selection/interaction orchestration out of `TorrentTable.tsx` into a single table VM.
+[x] 13b. high - Torrent table view-model
+  - `useTorrentTableViewModel` now owns filtering, selection, virtualization, column sizing, queue DnD, and context/header menu orchestration.
+  - `TorrentTable.tsx` now renders from the VM output and no longer owns table orchestration state.
+  - Build validation passed after wiring (`npm run build`).
 
-[ ] 22. architectural - Recovery capability clarity
+[x] 22. architectural - Recovery capability clarity
 Explicitly surface host-side filesystem expectations (missing-files classification, directory creation, free-space checks) through EngineAdapter/ShellAgent capabilities and guard UI code on those explicit capabilities.
 Remove residual conditional logic that infers Local vs Remote behavior.
+  - Torrent table status and row-menu now prioritize recovery gate classification outputs over raw error-envelope action hints.
+  - Removed `createDirectory` from `EngineAdapter`/`TransmissionAdapter` contract.
+  - Recovery sequence now returns explicit `directory_creation_not_supported` instead of attempting host folder mutation via daemon RPC.
 
-[ ] 23. architectural - Recovery lifetime ownership
+[x] 23. architectural - Recovery lifetime ownership
 Attach `missingFilesStore`/probe caches to a clear owner (client/session/recovery gate) instead of module-level maps that must be manually cleared from unrelated helpers; recovery state must reset when client/session changes.
-Inventory all polling/timers (heartbeat, UiClock, recovery probes, modal timers).  
-Consolidate behind a single scheduling authority or provider.  
-Document what runs, when, and how it scales with list size.  
-Files: `src/services/rpc/heartbeat.ts`, `src/shared/hooks/useUiClock.ts`, `src/modules/dashboard/hooks/useRecoveryController.ts`, `src/modules/dashboard/components/TorrentRecoveryModal.tsx`
+  - Session boundary now resets `missingFilesStore` plus recovery-controller runtime state (`verifyGuard` + in-flight recovery map) on client instance changes.
+  - Recovery controller now owns stale probe/classification cache pruning based on active torrent identities.
+  - Removed probe-cache clearing from `useWorkspaceShellViewModel` detail-close flow so unrelated UI handlers no longer mutate recovery cache state.
 
-[ ] 25. architectural – Scheduling authority
+[x] 25. architectural – Scheduling authority
 Polling and timers (heartbeat, UI clock, recovery probes, modal delays) are currently created across multiple modules with no single owner. This makes scaling behavior, teardown correctness, and regression analysis unclear. Inventory existing timers and document ownership, then consolidate under a single scheduling authority or provider in a future pass.
+  - Final boundary decision documented:
+    - `HeartbeatManager` is transport polling authority (adaptive network cadence).
+    - Shared `scheduler` is UI timer authority (clock/probes/modal delays/UI placeholders).
+  - Consolidation completed:
+    - `useUiClock.ts` uses shared `scheduler`.
+    - `useRecoveryController.ts` probe loops and local delays use shared `scheduler`.
+    - `useTorrentData.ts` ghost placeholder timeout moved to shared `scheduler`.
+    - `TorrentRecoveryModal.tsx` remains timer-free (pure view).
 
 ## Completed Tasks (Do Not Revisit)
 

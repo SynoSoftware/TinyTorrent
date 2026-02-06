@@ -14,8 +14,6 @@ interface SetLocationInlineEditorProps {
     statusMessage?: string;
     disableCancel?: boolean;
 }
-// TODO: Ensure this component receives confidence-aware status/help text from the recovery gate (e.g., “Location unavailable” on unknown) and stays mounted until the gate resolves; avoid embedding recovery logic here.
-
 export function SetLocationInlineEditor({
     value,
     error,

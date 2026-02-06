@@ -19,6 +19,7 @@ import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import { resetMissingFilesStore } from "@/services/recovery/missingFilesStore";
+import { resetRecoveryControllerState } from "@/services/recovery/recovery-controller";
 
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
@@ -70,6 +71,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     useEffect(() => {
         if (previousClientRef.current !== torrentClient) {
             resetMissingFilesStore();
+            resetRecoveryControllerState();
             previousClientRef.current = torrentClient;
         }
     }, [torrentClient]);

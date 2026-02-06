@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
-import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import { useSession } from "@/app/context/SessionContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
@@ -10,6 +9,7 @@ import STATUS from "@/shared/status";
 import { GHOST_TIMEOUT_MS } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
 import { isRpcCommandError } from "@/services/rpc/errors";
+import { scheduler } from "@/app/services/scheduler";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -17,16 +17,6 @@ type UseTorrentDataOptions = {
     pollingIntervalMs: number;
     markTransportConnected?: () => void;
 };
-// TODO: Make `useTorrentData` the single authority for “torrents list truth in UI” (polling/heartbeat subscription + snapshot reconciliation).
-// TODO: Current risks / sources of regressions:
-// TODO: - Multiple scheduling sources across the app (heartbeat manager, UiClock, orchestrator probes) can cause duplicated fetches and race conditions.
-// TODO: - This hook owns hidden caches (`snapshotCacheRef`, `snapshotOrderRef`, `ghostTimersRef`) and reconciliation rules that are easy to break.
-// TODO: Target architecture:
-// TODO: - Expose a `TorrentListViewModel` from a single provider that owns refresh cadence and emits typed updates (torrents, session stats, transport status).
-// TODO: - Keep ghost torrents as a dedicated store with explicit lifecycle rules (creation, timeout, reconciliation).
-// TODO: - Ensure no UI layer re-derives “order” or “initial load finished” differently.
-// TODO: Align with todo.md task 7 (Session+UiMode provider) and task 19 (unify timers/scheduling authority).
-
 export type QueueActionHandlers = {
     moveToTop: (ids: string[]) => Promise<void>;
     moveUp: (ids: string[]) => Promise<void>;
@@ -117,7 +107,7 @@ export function useTorrentData({
     const snapshotCacheRef = useRef<Map<string, Torrent>>(new Map());
     const snapshotOrderRef = useRef<string[]>([]);
     const [ghosts, setGhosts] = useState<Torrent[]>([]);
-    const ghostTimersRef = useRef<Map<string, number>>(new Map());
+    const ghostTimersRef = useRef<Map<string, () => void>>(new Map());
 
     const commitTorrentSnapshot = useCallback(
         (data: Torrent[]) => {
@@ -213,13 +203,19 @@ export function useTorrentData({
     });
 
     const clearGhostTimer = useCallback((id: string) => {
-        const timerId = ghostTimersRef.current.get(id);
-        if (timerId) {
-            if (typeof window !== "undefined") {
-                window.clearTimeout(timerId);
-            }
+        const cancelTimer = ghostTimersRef.current.get(id);
+        if (cancelTimer) {
+            cancelTimer();
             ghostTimersRef.current.delete(id);
         }
+    }, []);
+
+    const clearAllGhostTimers = useCallback(() => {
+        const timerMap = ghostTimersRef.current;
+        timerMap.forEach((cancelTimer) => {
+            cancelTimer();
+        });
+        timerMap.clear();
     }, []);
 
     const removeGhostTorrent = useCallback(
@@ -233,19 +229,18 @@ export function useTorrentData({
     const addGhostTorrent = useCallback(
         (options: GhostTorrentOptions) => {
             const ghost = buildGhostTorrent(options);
+            clearGhostTimer(ghost.id);
             setGhosts((prev) => {
                 const filtered = prev.filter((item) => item.id !== ghost.id);
                 return [...filtered, ghost];
             });
-            if (typeof window !== "undefined") {
-                const timerId = window.setTimeout(() => {
-                    removeGhostTorrent(ghost.id);
-                }, GHOST_TIMEOUT_MS);
-                ghostTimersRef.current.set(ghost.id, timerId);
-            }
+            const cancelTimer = scheduler.scheduleTimeout(() => {
+                removeGhostTorrent(ghost.id);
+            }, GHOST_TIMEOUT_MS);
+            ghostTimersRef.current.set(ghost.id, cancelTimer);
             return ghost.id;
         },
-        [removeGhostTorrent],
+        [clearGhostTimer, removeGhostTorrent],
     );
 
     const refresh = useCallback(async () => {
@@ -267,15 +262,8 @@ export function useTorrentData({
         };
     }, []);
     useEffect(() => {
-        return () => {
-            ghostTimersRef.current.forEach((timerId) => {
-                if (typeof window !== "undefined") {
-                    window.clearTimeout(timerId);
-                }
-            });
-            ghostTimersRef.current.clear();
-        };
-    }, []);
+        return clearAllGhostTimers;
+    }, [clearAllGhostTimers]);
 
     const handleHeartbeatUpdate = useCallback(
         ({ torrents: heartbeatTorrents, changedIds }: HeartbeatPayload) => {
