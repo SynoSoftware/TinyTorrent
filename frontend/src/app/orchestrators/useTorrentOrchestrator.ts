@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useRef } from "react";
+import type { MutableRefObject } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
@@ -11,17 +11,13 @@ import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentContro
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 
 export interface UseTorrentOrchestratorParams {
-    client: EngineAdapter | null | undefined;
     clientRef: MutableRefObject<EngineAdapter | null>;
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshDetailData: () => Promise<void>;
     torrents: Array<Torrent | TorrentDetail>;
     detailData: TorrentDetail | null;
-    settingsFlow: {
-        settingsConfig: SettingsConfig;
-        setSettingsConfig: Dispatch<SetStateAction<SettingsConfig>>;
-    };
+    settingsConfig: SettingsConfig;
     clearDetail: () => void;
 }
 
@@ -31,17 +27,15 @@ export interface UseTorrentOrchestratorResult {
 }
 
 export function useTorrentOrchestrator({
-    client,
     clientRef,
     refreshTorrentsRef,
     refreshSessionStatsDataRef,
     refreshDetailData,
     torrents,
     detailData,
-    settingsFlow,
+    settingsConfig,
     clearDetail,
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
-    const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
@@ -68,58 +62,6 @@ export function useTorrentOrchestrator({
             pendingDeletionHashesRef,
         },
     });
-
-    const findTorrentById = useCallback(
-        (idOrHash?: string | null) => {
-            if (!idOrHash) return null;
-            if (
-                detailData &&
-                (detailData.id === idOrHash || detailData.hash === idOrHash)
-            ) {
-                return detailData;
-            }
-            return null;
-        },
-        [detailData],
-    );
-
-    // stable alias for effect dependency (avoid depending on whole `recovery` object)
-    const executeRedownload = recovery.actions.executeRedownload;
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-
-        const handleRedownloadEvent = async (ev: Event) => {
-            const detail = (ev as CustomEvent).detail;
-            const target = findTorrentById(detail?.id ?? detail?.hash);
-            if (target) await executeRedownload(target);
-        };
-
-        window.addEventListener(
-            "tiny-torrent:redownload",
-            handleRedownloadEvent as EventListener,
-        );
-        return () => {
-            window.removeEventListener(
-                "tiny-torrent:redownload",
-                handleRedownloadEvent as EventListener,
-            );
-        };
-    }, [executeRedownload, findTorrentById]);
-
-    useEffect(() => {
-        if (!client) return;
-        void client.notifyUiReady?.();
-        const detachUi = () => {
-            try {
-                void client.notifyUiDetached?.();
-            } catch {
-                // ignore detach errors
-            }
-        };
-        window.addEventListener("beforeunload", detachUi);
-        return () => window.removeEventListener("beforeunload", detachUi);
-    }, [client]);
 
     return {
         addTorrent,

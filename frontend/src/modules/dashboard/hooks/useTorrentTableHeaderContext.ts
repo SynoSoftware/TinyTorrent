@@ -1,9 +1,49 @@
 import { useCallback, useMemo } from "react";
+import type { MouseEvent } from "react";
+import type { TFunction } from "i18next";
+import type { Column, Table } from "@tanstack/react-table";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+
+type HeaderContextMenuState = {
+    virtualElement: ContextMenuVirtualElement;
+    columnId: string | null;
+};
+
+type HeaderMenuActionOptions = {
+    keepOpen?: boolean;
+};
+
+type HeaderMenuItem = {
+    column: Column<Torrent>;
+    label: string;
+    isPinned: boolean;
+};
+
+type UseTorrentTableHeaderContextParams = {
+    createVirtualElement: (
+        x: number,
+        y: number,
+        options?: { margin?: number }
+    ) => ContextMenuVirtualElement;
+    fileContextMenuMargin: number;
+    table: Table<Torrent>;
+    columnOrder: string[];
+    getColumnLabel: (column: Column<Torrent>) => string;
+    t: TFunction;
+    setHeaderContextMenu: (
+        value: HeaderContextMenuState | null
+    ) => void;
+    headerContextMenu: HeaderContextMenuState | null;
+    columnVisibility: Record<string, boolean>;
+};
 
 // Hook: header context/menu helpers for the torrent table.
 // Extracted from `TorrentTable.tsx`; accepts parameters to avoid outer-scope
 // dependencies and keep header logic focused.
-export const useTorrentTableHeaderContext = (params: any) => {
+export const useTorrentTableHeaderContext = (
+    params: UseTorrentTableHeaderContextParams
+) => {
     const {
         createVirtualElement,
         fileContextMenuMargin,
@@ -15,7 +55,7 @@ export const useTorrentTableHeaderContext = (params: any) => {
     } = params;
 
     const handleHeaderContextMenu = useCallback(
-        (event: React.MouseEvent, columnId: string | null) => {
+        (event: MouseEvent, columnId: string | null) => {
             event.preventDefault();
             event.stopPropagation();
             const virtualElement = createVirtualElement(
@@ -29,7 +69,7 @@ export const useTorrentTableHeaderContext = (params: any) => {
     );
 
     const handleHeaderContainerContextMenu = useCallback(
-        (event: React.MouseEvent<HTMLDivElement>) => {
+        (event: MouseEvent<HTMLDivElement>) => {
             const target = event.target as HTMLElement;
             if (target.closest("[role='columnheader']")) return;
             handleHeaderContextMenu(event, null);
@@ -43,7 +83,7 @@ export const useTorrentTableHeaderContext = (params: any) => {
     }, [params.headerContextMenu, table, params.columnVisibility]);
 
     const handleHeaderMenuAction = useCallback(
-        (action: () => void, options: any = {}) => {
+        (action: () => void, options: HeaderMenuActionOptions = {}) => {
             action();
             if (!options.keepOpen) {
                 setHeaderContextMenu(null);
@@ -67,18 +107,18 @@ export const useTorrentTableHeaderContext = (params: any) => {
 
     const headerMenuItems = useMemo(() => {
         if (!params.headerContextMenu) return [];
-        const byId = new Map();
-        table.getAllLeafColumns().forEach((column: any) => {
+        const byId = new Map<string, Column<Torrent>>();
+        table.getAllLeafColumns().forEach((column) => {
             byId.set(column.id, column);
         });
 
-        const items: any[] = [];
+        const items: HeaderMenuItem[] = [];
         const seen = new Set<string>();
         const orderedIds =
             columnOrder.length > 0
                 ? columnOrder
-                : table.getAllLeafColumns().map((c: any) => c.id);
-        orderedIds.forEach((id: string) => {
+                : table.getAllLeafColumns().map((column) => column.id);
+        orderedIds.forEach((id) => {
             if (id === "selection") return;
             const column = byId.get(id) ?? table.getColumn(id);
             if (!column) return;
@@ -93,7 +133,7 @@ export const useTorrentTableHeaderContext = (params: any) => {
             });
         });
 
-        table.getAllLeafColumns().forEach((column: any) => {
+        table.getAllLeafColumns().forEach((column) => {
             if (column.id === "selection") return;
             if (seen.has(column.id)) return;
             items.push({

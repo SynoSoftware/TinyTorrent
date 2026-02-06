@@ -1,8 +1,26 @@
 import React, { useCallback } from "react";
+import type { Row, RowSelectionState } from "@tanstack/react-table";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
 
 // Wiring-friendly keyboard hook. Parent must provide the dependencies
 // previously captured by the inline implementation.
-export const useTorrentTableKeyboard = (deps: any) => {
+type TorrentTableKeyboardDeps = {
+    table: {
+        getRowModel: () => { rows: Array<Row<Torrent>> };
+    };
+    rowVirtualizer: {
+        scrollToIndex: (index: number) => void;
+    };
+    anchorIndex: number | null;
+    focusIndex: number | null;
+    setRowSelection: (next: RowSelectionState) => void;
+    setAnchorIndex: (index: number | null) => void;
+    setFocusIndex: (index: number | null) => void;
+    setHighlightedRowId: (id: string | null) => void;
+    selectAllRows: () => void;
+};
+
+export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
     const {
         table,
         rowVirtualizer,
@@ -41,7 +59,7 @@ export const useTorrentTableKeyboard = (deps: any) => {
                     normalizedStart <= normalizedEnd
                         ? [normalizedStart, normalizedEnd]
                         : [normalizedEnd, normalizedStart];
-                const nextSelection: any = {};
+                const nextSelection: RowSelectionState = {};
                 for (let i = from; i <= to; i += 1) {
                     const row = allRows[i];
                     if (row) {

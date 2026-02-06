@@ -1,5 +1,12 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import type { Column, Table } from "@tanstack/react-table";
+import type { SetStateAction } from "react";
+import type {
+    Column,
+    ColumnSizingInfoState,
+    Table,
+} from "@tanstack/react-table";
+
+type ColumnSizingUpdater = SetStateAction<ColumnSizingInfoState>;
 
 export function useColumnResizing<TData>({
     table,
@@ -15,7 +22,7 @@ export function useColumnResizing<TData>({
             | Record<string, number>
             | ((prev: Record<string, number>) => Record<string, number>)
     ) => void;
-    setColumnSizingInfo: (info: any) => void;
+    setColumnSizingInfo: (info: ColumnSizingUpdater) => void;
     setColumnWidthVar: (columnId: string, widthPx: number) => void;
     setTableTotalWidthVar: (widthPx: number) => void;
     getMeasuredColumnMinWidth: (columnId: string, fallbackWidth: number) => number;

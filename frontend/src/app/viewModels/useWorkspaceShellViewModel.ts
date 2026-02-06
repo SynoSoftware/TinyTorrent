@@ -240,14 +240,13 @@ export function useWorkspaceShellViewModel({
     }, [refreshDetailData, refreshDetailDataRef]);
 
     const orchestrator = useTorrentOrchestrator({
-        client: torrentClient,
         clientRef: torrentClientRef,
         refreshTorrentsRef,
         refreshSessionStatsDataRef,
         refreshDetailData,
         torrents,
         detailData,
-        settingsFlow,
+        settingsConfig: settingsFlow.settingsConfig,
         clearDetail,
     });
 

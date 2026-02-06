@@ -7,10 +7,9 @@ import {
     type FileExplorerContextAction,
     type FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
-import { useFileTree } from "@/shared/hooks/useFileTree";
-import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
+import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
     files?: TorrentFileEntity[];
@@ -29,12 +28,6 @@ interface ContentTabProps {
     isStandalone?: boolean;
 }
 
-const NOOP_FILE_TOGGLE: NonNullable<
-    ContentTabProps["onFilesToggle"]
-> = async () => {
-    /* no-op */
-};
-
 // TODO: View-model boundary: this tab currently dispatches intents directly via TorrentActionsContext.
 // TODO: That is acceptable as a stopgap, but target architecture is:
 // TODO: - Tabs emit UI intents/events
@@ -52,28 +45,11 @@ export const ContentTab = ({
     isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
-
-    const fileEntries = useFileTree(files);
-    const filesCount = fileEntries.length;
-
-    const { optimisticState, toggle } = useOptimisticToggle(
-        onFilesToggle ?? NOOP_FILE_TOGGLE
+    const explorer = useFileExplorerViewModel(
+        files,
+        onFilesToggle
     );
-
-    const displayFiles = useMemo(() => {
-        if (!Object.keys(optimisticState).length) return fileEntries;
-        return fileEntries.map((entry) => {
-            if (
-                Object.prototype.hasOwnProperty.call(
-                    optimisticState,
-                    entry.index
-                )
-            ) {
-                return { ...entry, wanted: optimisticState[entry.index] };
-            }
-            return entry;
-        });
-    }, [fileEntries, optimisticState]);
+    const filesCount = explorer.files.length;
 
     const fileCountLabel =
         filesCount === 1
@@ -84,12 +60,12 @@ export const ContentTab = ({
 
     const fileExplorerViewModel = useMemo(
         () => ({
-            files: displayFiles,
+            files: explorer.files,
             emptyMessage,
-            onFilesToggle: toggle,
+            onFilesToggle: explorer.toggle,
             onFileContextAction,
         }),
-        [displayFiles, emptyMessage, toggle, onFileContextAction]
+        [explorer.files, explorer.toggle, emptyMessage, onFileContextAction]
     );
 
     if (filesCount === 0) {

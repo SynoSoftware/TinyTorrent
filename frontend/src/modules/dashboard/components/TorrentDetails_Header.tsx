@@ -1,15 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
-import {
-    formatPrimaryActionHint,
-    formatPrimaryActionHintFromClassification,
-    formatRecoveryStatus,
-    formatRecoveryStatusFromClassification,
-    formatRecoveryTooltip,
-    formatRecoveryTooltipFromClassification,
-} from "@/shared/utils/recoveryFormat";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -51,6 +40,9 @@ interface TorrentDetailHeaderProps {
     onClose?: () => void;
     activeTab: DetailTab;
     onTabChange: (tab: DetailTab) => void;
+    statusLabel?: string | null;
+    statusTooltip?: string | null;
+    primaryHint?: string | null;
 }
 
 export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
@@ -63,6 +55,9 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         onClose,
         activeTab,
         onTabChange,
+        statusLabel,
+        statusTooltip,
+        primaryHint,
     } = props;
 
     const { t } = useTranslation();
@@ -71,39 +66,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         t("general.unknown")
     );
 
-    const torrentKey =
-        torrent?.id?.toString() ?? torrent?.hash ?? torrent?.name ?? null;
-    const { getRecoverySessionForKey } = useRecoveryContext();
-    const sessionClassification = getRecoverySessionForKey(torrentKey ?? null)
-        ?.classification ?? null;
-    const storedClassification = useMissingFilesClassification(
-        torrent?.id ?? torrent?.hash ?? undefined
-    );
-    const classification = resolveRecoveryClassification({
-        sessionClassification,
-        storedClassification,
-    });
-    const hasClassification = Boolean(classification);
-
-    const statusLabel = hasClassification
-        ? formatRecoveryStatusFromClassification(classification, t)
-        : formatRecoveryStatus(
-              torrent?.errorEnvelope,
-              t,
-              torrent?.state,
-              "general.unknown"
-          );
-    const tooltip = hasClassification
-        ? formatRecoveryTooltipFromClassification(classification, t)
-        : formatRecoveryTooltip(
-              torrent?.errorEnvelope,
-              t,
-              torrent?.state,
-              "general.unknown"
-          );
-    const primaryHint = hasClassification
-        ? formatPrimaryActionHintFromClassification(classification, t)
-        : formatPrimaryActionHint(torrent?.errorEnvelope ?? null, t);
+    const hasStatus = Boolean(statusLabel);
 
     return (
         <div
@@ -126,10 +89,10 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 />
                 <span className="truncate min-w-0 text-foreground font-semibold">
                     {renderedName}
-                    {hasClassification ? (
+                    {hasStatus ? (
                         <span
                             className="text-label text-foreground/60 block"
-                            title={tooltip}
+                            title={statusTooltip ?? undefined}
                         >
                             {statusLabel}
                             {primaryHint && (
@@ -138,42 +101,9 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                 </em>
                             )}
                         </span>
-                    ) : torrent?.errorEnvelope ? (
-                        <span
-                            className="text-label text-foreground/60 block"
-                            title={
-                                formatRecoveryTooltip(
-                                    torrent.errorEnvelope,
-                                    t,
-                                    torrent?.state,
-                                    "general.unknown"
-                                )
-                            }
-                        >
-                            {formatRecoveryStatus(
-                                torrent.errorEnvelope,
-                                t,
-                                torrent?.state,
-                                "general.unknown"
-                            )}{" "}
-                            {formatPrimaryActionHint(
-                                torrent.errorEnvelope,
-                                t
-                            ) ? (
-                                <em className="text-label text-foreground/50">
-                                    —{" "}
-                                    {formatPrimaryActionHint(
-                                        torrent.errorEnvelope,
-                                        t
-                                    )}
-                                </em>
-                            ) : null}
-                        </span>
                     ) : null}
                 </span>
             </div>
-
-            {/* TODO: Replace local recovery formatting with gate-driven state/confidence; avoid deriving UI hints from errorEnvelope directly. */}
 
             {/* CENTER */}
             <div className="flex  items-center w-full gap-panel">
