@@ -28,8 +28,8 @@ import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { UiMode } from "@/app/utils/uiMode";
 import type {
     AddTorrentModalProps,
-    AddTorrentSource,
 } from "@/modules/torrent-add/components/AddTorrentModal";
+import type { AddTorrentSource } from "@/modules/torrent-add/types";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import type { TorrentRecoveryModalProps } from "@/modules/dashboard/components/TorrentRecoveryModal";

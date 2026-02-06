@@ -139,6 +139,7 @@
             "col_priority": "Priority",
             "col_select": "Select",
             "col_size": "Size",
+            "resize_select_column": "Resize select column",
             "resize_size_column": "Resize size column",
             "resize_priority_column": "Resize priority column",
              "destination": "DESTINATION",
