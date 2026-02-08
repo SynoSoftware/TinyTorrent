@@ -6,16 +6,17 @@ import type {
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
+    RpcConnectionOutcome,
 } from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
-import { useRpcConnection } from "./useRpcConnection";
+import { useRpcConnection } from "@/app/hooks/useRpcConnection";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 
 type UseTransmissionSessionResult = {
     client: EngineAdapter;
     rpcStatus: ConnectionStatus;
     isReady: boolean;
-    reconnect: () => void;
+    reconnect: () => Promise<RpcConnectionOutcome>;
     sessionSettings: TransmissionSessionSettings | null;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
@@ -24,6 +25,7 @@ type UseTransmissionSessionResult = {
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
+    lastConnectionAttempt: RpcConnectionOutcome | null;
 };
 
 export function useTransmissionSession(
@@ -33,6 +35,7 @@ export function useTransmissionSession(
     const {
         rpcStatus,
         isReady,
+        lastConnectionAttempt,
         reconnect,
         markTransportConnected,
         reportCommandError,
@@ -110,5 +113,6 @@ export function useTransmissionSession(
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,
+        lastConnectionAttempt,
     };
 }

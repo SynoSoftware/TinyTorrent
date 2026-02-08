@@ -7,10 +7,10 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import STATUS from "@/shared/status";
 import { GHOST_TIMEOUT_MS } from "@/config/logic";
-import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
+import { buildUniqueTorrentOrder } from "@/modules/dashboard/hooks/utils/torrent-order.ts";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import { scheduler } from "@/app/services/scheduler";
-import { subscribeToTableHeartbeat } from "@/app/services/tableHeartbeat";
+import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -157,6 +157,7 @@ export function useTorrentData({
     markTransportConnected,
 }: UseTorrentDataOptions): UseTorrentDataResult {
     const { reportReadError } = useSession();
+    const heartbeatDomain = useEngineHeartbeatDomain(client);
     const [torrents, setTorrents] = useState<Torrent[]>([]);
     const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
     const isMountedRef = useRef(false);
@@ -401,8 +402,7 @@ export function useTorrentData({
     useEffect(() => {
         if (!sessionReady) return;
         const intervalMs = Math.max(1000, pollingIntervalMs);
-        const subscription = subscribeToTableHeartbeat({
-            client,
+        const subscription = heartbeatDomain.subscribeTable({
             pollingIntervalMs: intervalMs,
             onUpdate: handleHeartbeatUpdate,
             onError: () => {
@@ -414,7 +414,7 @@ export function useTorrentData({
             subscription.unsubscribe();
         };
     }, [
-        client,
+        heartbeatDomain,
         sessionReady,
         pollingIntervalMs,
         handleHeartbeatUpdate,

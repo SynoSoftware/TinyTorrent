@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeUiMode, deriveUiCapabilities } from "../uiMode";
+import { computeUiMode, deriveUiCapabilities } from "@/app/utils/uiMode";
 
 describe("UiMode helper", () => {
     it("returns Full when loopback host has ShellAgent bridge", () => {

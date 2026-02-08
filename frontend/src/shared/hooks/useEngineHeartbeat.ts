@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { HeartbeatMode, HeartbeatPayload } from "@/services/rpc/heartbeat";
+import type {
+    HeartbeatErrorEvent,
+    HeartbeatMode,
+    HeartbeatPayload,
+} from "@/services/rpc/heartbeat";
 import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
 // Pure subscription hook to the engine heartbeat.
@@ -9,6 +13,7 @@ export const useEngineHeartbeat = (params?: {
     mode?: HeartbeatMode;
     detailId?: string | null;
     pollingIntervalMs?: number;
+    onError?: (event: HeartbeatErrorEvent) => void;
 }) => {
     const heartbeatDomain = useEngineHeartbeatDomain();
     const [tick, setTick] = useState(0);
@@ -20,8 +25,10 @@ export const useEngineHeartbeat = (params?: {
             lastPayload.current = payload;
             setTick((t) => t + 1);
         };
-        const handleError = () => {
-            // Ignore — consumers may surface errors via other mechanisms.
+        const handleError = (event: HeartbeatErrorEvent) => {
+            // Intentionally explicit: callers may provide onError if they want to
+            // surface heartbeat errors; this hook defaults to a local no-op.
+            params?.onError?.(event);
         };
 
         if (mode === "table") {
@@ -45,6 +52,7 @@ export const useEngineHeartbeat = (params?: {
         heartbeatDomain,
         params?.detailId,
         params?.mode,
+        params?.onError,
         params?.pollingIntervalMs,
     ]);
 

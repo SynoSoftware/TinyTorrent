@@ -5,14 +5,22 @@ import type {
     TorrentDetailEntity,
     TorrentEntity,
     NetworkTelemetry,
-} from "./entities";
-import { processHeartbeat } from "./recoveryAutomation";
-import { enforceStateTransition } from "./normalizers";
+} from "@/services/rpc/entities";
+import { processHeartbeat } from "@/services/rpc/recoveryAutomation";
+import { enforceStateTransition } from "@/services/rpc/normalizers";
 import STATUS from "@/shared/status";
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
 export type HeartbeatSource = "polling";
+
+export interface HeartbeatErrorEvent {
+    kind: "heartbeat_error";
+    mode: HeartbeatMode;
+    detailId?: string | null;
+    stage: "detail_fetch" | "tick";
+    error: unknown;
+}
 
 export interface HeartbeatPayload {
     torrents: TorrentEntity[];
@@ -30,7 +38,7 @@ export interface HeartbeatSubscriberParams {
     detailId?: string | null;
     pollingIntervalMs?: number;
     onUpdate: (payload: HeartbeatPayload) => void;
-    onError?: (error: unknown) => void;
+    onError?: (event: HeartbeatErrorEvent) => void;
 }
 
 export interface HeartbeatSubscription {
@@ -974,7 +982,13 @@ export class HeartbeatManager {
                     // swallow
                 }
                 if (detailEntry?.error) {
-                    params.onError?.(detailEntry.error);
+                    params.onError?.({
+                        kind: "heartbeat_error",
+                        mode: params.mode,
+                        detailId: params.detailId ?? null,
+                        stage: "detail_fetch",
+                        error: detailEntry.error,
+                    });
                 }
             }
         } catch (error) {
@@ -1052,7 +1066,13 @@ export class HeartbeatManager {
 
     private notifyError(snapshot: HeartbeatSubscriber[], error: unknown) {
         snapshot.forEach(({ params }) => {
-            params.onError?.(error);
+            params.onError?.({
+                kind: "heartbeat_error",
+                mode: params.mode,
+                detailId: params.detailId ?? null,
+                stage: "tick",
+                error,
+            });
         });
     }
 }

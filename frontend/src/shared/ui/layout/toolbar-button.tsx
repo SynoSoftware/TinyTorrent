@@ -3,6 +3,7 @@ import {
     cloneElement,
     forwardRef,
     isValidElement,
+    type CSSProperties,
     type ComponentPropsWithoutRef,
     type ReactElement,
     type ReactNode,
@@ -58,6 +59,11 @@ export const ToolbarIconButton = forwardRef<
     const strokeWidth = iconStrokeWidth ?? ICON_STROKE_WIDTH;
     const iconClass = ICON_SIZE_CLASSES[iconSize];
 
+    type IconElementProps = {
+        className?: string;
+        style?: CSSProperties;
+    };
+
     const iconContent = (() => {
         if (Icon) {
             const sizeVar = ICON_SIZE_VARS[iconSize];
@@ -76,20 +82,18 @@ export const ToolbarIconButton = forwardRef<
         }
 
         if (isValidElement(node)) {
-            const element = node as ReactElement<{
-                className?: string;
-            }>;
+            const element = node as ReactElement<IconElementProps>;
             const sizeVar = ICON_SIZE_VARS[iconSize];
-            const elProps = (element.props || {}) as any;
-            const mergedStyle = {
-                ...(elProps.style || {}),
+            const elProps = element.props ?? {};
+            const mergedStyle: CSSProperties = {
+                ...(elProps.style ?? {}),
                 width: sizeVar,
                 height: sizeVar,
-            } as any;
+            };
             return cloneElement(element, {
                 className: cn(iconClass, "text-current", elProps.className),
                 style: mergedStyle,
-            } as any);
+            });
         }
 
         return <span className={cn(iconClass, "text-current")}>{node}</span>;

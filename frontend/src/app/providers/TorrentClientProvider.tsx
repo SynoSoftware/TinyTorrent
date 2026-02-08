@@ -6,60 +6,69 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import {
-    useConnectionConfig,
-    buildRpcEndpoint,
-} from "@/app/context/ConnectionConfigContext";
+import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { resetRecoveryRuntimeSessionState } from "@/services/recovery/recovery-runtime-lifecycle";
+import { resetTransportSessionRuntimeOwner } from "@/services/transport";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
+const destroyClient = (client: EngineAdapter | null) => {
+    if (!client) return;
+    try {
+        client.destroy();
+    } catch {}
+};
+
 export function ClientProvider({ children }: { children: ReactNode }) {
-    const { activeProfile } = useConnectionConfig();
+    const { activeProfile, activeRpcConnection } = useConnectionConfig();
     const clientRef = useRef<EngineAdapter | null>(null);
-    const [client, setClient] = useState<EngineAdapter>(
-        () =>
-            new TransmissionAdapter({
-                endpoint: buildRpcEndpoint(activeProfile),
-                username: activeProfile.username,
-                password: activeProfile.password,
-            })
-    );
+    const lastConfigKeyRef = useRef<string>("");
+    const configKey = `${activeRpcConnection.endpoint}::${activeRpcConnection.username}::${activeRpcConnection.password}::${activeProfile.id}`;
 
-    // Recreate client when profile changes. Destroy previous client before creating new one.
-    useEffect(() => {
-        const prev = clientRef.current;
-        if (prev && typeof (prev as any).destroy === "function") {
-            try {
-                (prev as any).destroy();
-            } catch {}
-        }
-        const next = new TransmissionAdapter({
-            endpoint: buildRpcEndpoint(activeProfile),
-            username: activeProfile.username,
-            password: activeProfile.password,
+    const createClient = () =>
+        new TransmissionAdapter({
+            endpoint: activeRpcConnection.endpoint,
+            username: activeRpcConnection.username,
+            password: activeRpcConnection.password,
         });
-        clientRef.current = next;
-        setClient(next);
 
+    const [client, setClient] = useState<EngineAdapter>(() => {
+        const next = createClient();
+        clientRef.current = next;
+        lastConfigKeyRef.current = configKey;
+        return next;
+    });
+
+    // Session-boundary resets and teardown are tied to the concrete adapter
+    // instance lifecycle.
+    useEffect(() => {
+        resetTransportSessionRuntimeOwner();
+        resetRecoveryRuntimeSessionState();
+    }, []);
+
+    useEffect(() => {
+        if (clientRef.current && lastConfigKeyRef.current === configKey) {
+            return;
+        }
+        resetTransportSessionRuntimeOwner();
+        resetRecoveryRuntimeSessionState();
+        const prev = clientRef.current;
+        destroyClient(prev);
+        const next = createClient();
+        clientRef.current = next;
+        lastConfigKeyRef.current = configKey;
+        setClient(next);
+    }, [configKey]);
+
+    useEffect(() => {
         return () => {
             const cur = clientRef.current;
-            if (cur && typeof (cur as any).destroy === "function") {
-                try {
-                    (cur as any).destroy();
-                } catch {}
-            }
+            destroyClient(cur);
             clientRef.current = null;
         };
-    }, [
-        activeProfile.scheme,
-        activeProfile.host,
-        activeProfile.port,
-        activeProfile.username,
-        activeProfile.password,
-        activeProfile.id,
-    ]);
+    }, []);
 
     return (
         <ClientContext.Provider value={client}>

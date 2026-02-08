@@ -8,7 +8,7 @@ import type {
     RowSelectionState,
     Table,
 } from "@tanstack/react-table";
-import { useMarqueeSelection } from "./useMarqueeSelection";
+import { useMarqueeSelection } from "@/modules/dashboard/hooks/useMarqueeSelection";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 
 

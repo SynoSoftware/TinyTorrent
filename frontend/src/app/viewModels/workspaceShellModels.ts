@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import Runtime from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type {
-    CommandAction,
-    CommandPaletteContext,
-} from "@/app/components/CommandPalette";
-import type { CommandPaletteDeps } from "@/app/commandRegistry";
 import type {
     DashboardViewModel,
     NavbarViewModel,
     SettingsModalViewModel,
     StatusBarViewModel,
+    WorkspaceCommandPaletteViewModel,
+    WorkspaceDeletionViewModel,
+    WorkspaceDragAndDropViewModel,
+    WorkspaceHudViewModel,
     WorkspaceShellViewModel,
 } from "@/app/viewModels/useAppViewModel";
 import type { StatusBarTransportStatus } from "@/app/viewModels/useAppViewModel";
 import type { CapabilityStore } from "@/app/types/capabilities";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type {
     DetailTab,
@@ -35,8 +33,12 @@ import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMa
 import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { SettingsConfig } from "@/modules/settings/data/config";
-import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
+import type {
+    AddTorrentCommandOutcome,
+    UseAddTorrentControllerResult,
+} from "@/app/orchestrators/useAddTorrentController";
 import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import { scheduler } from "@/app/services/scheduler";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
@@ -45,30 +47,21 @@ import type {
     RecoveryRecommendedAction,
 } from "@/services/recovery/recovery-controller";
 
-export interface DashboardLayoutState {
+export interface DashboardViewModelParams {
     workspaceStyle: WorkspaceStyle;
     filter: DashboardFilter;
     searchQuery: string;
     isDragActive: boolean;
     tableWatermarkEnabled: boolean;
-}
-
-export interface DashboardTableState {
     torrents: Torrent[];
     ghostTorrents: Torrent[];
     isInitialLoadFinished: boolean;
     optimisticStatuses: OptimisticStatusMap;
     removedIds: Set<string>;
-}
-
-export interface DashboardDetailState {
     detailData: TorrentDetail | null;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
     isDetailRecoveryBlocked: boolean;
-}
-
-export interface DashboardDetailControls {
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
     handleFileSelectionChange: (
@@ -84,73 +77,100 @@ export interface DashboardDetailControls {
         path: string
     ) => Promise<void>;
     setInspectorTabCommand: (value: DetailTab | null) => void;
-}
-
-export interface DashboardCapabilities {
     capabilities: CapabilityStore;
 }
-
-export interface DashboardViewModelDeps {
-    layout: DashboardLayoutState;
-    table: DashboardTableState;
-    detail: DashboardDetailState;
-    controls: DashboardDetailControls;
-    caps: DashboardCapabilities;
-}
-
 export function useDashboardViewModel(
     {
-        layout,
-        table,
-        detail,
-        controls,
-        caps,
-    }: DashboardViewModelDeps,
+        workspaceStyle,
+        filter,
+        searchQuery,
+        isDragActive,
+        tableWatermarkEnabled,
+        torrents,
+        ghostTorrents,
+        isInitialLoadFinished,
+        optimisticStatuses,
+        removedIds,
+        detailData,
+        peerSortStrategy,
+        inspectorTabCommand,
+        isDetailRecoveryBlocked,
+        handleRequestDetails,
+        closeDetail,
+        handleFileSelectionChange,
+        handleEnsureValid,
+        handleEnsureDataPresent,
+        handleEnsureAtLocation,
+        setInspectorTabCommand,
+        capabilities,
+    }: DashboardViewModelParams,
 ): DashboardViewModel {
     return useMemo(
         () => ({
-            workspaceStyle: layout.workspaceStyle,
-            filter: layout.filter,
-            searchQuery: layout.searchQuery,
+            workspaceStyle,
+            filter,
+            searchQuery,
             detailSplitDirection: undefined,
             table: {
-                torrents: table.torrents,
-                ghostTorrents: table.ghostTorrents,
-                isLoading: !table.isInitialLoadFinished,
-                capabilities: caps.capabilities,
-                optimisticStatuses: table.optimisticStatuses,
-                tableWatermarkEnabled: layout.tableWatermarkEnabled,
-                filter: layout.filter,
-                searchQuery: layout.searchQuery,
-                isDropActive: layout.isDragActive,
-                removedIds: table.removedIds,
+                torrents,
+                ghostTorrents,
+                isLoading: !isInitialLoadFinished,
+                capabilities,
+                optimisticStatuses,
+                tableWatermarkEnabled,
+                filter,
+                searchQuery,
+                isDropActive: isDragActive,
+                removedIds,
             },
             detail: {
-                detailData: detail.detailData,
-                handleRequestDetails: controls.handleRequestDetails,
-                closeDetail: controls.closeDetail,
-                isDetailRecoveryBlocked: detail.isDetailRecoveryBlocked,
+                detailData,
+                handleRequestDetails,
+                closeDetail,
+                isDetailRecoveryBlocked,
                 tabs: {
                     navigation: {
-                        inspectorTabCommand: detail.inspectorTabCommand,
+                        inspectorTabCommand,
                         onInspectorTabCommandHandled: () =>
-                            controls.setInspectorTabCommand(null),
+                            setInspectorTabCommand(null),
                     },
                     content: {
-                        handleFileSelectionChange:
-                            controls.handleFileSelectionChange,
-                        handleEnsureValid: controls.handleEnsureValid,
-                        handleEnsureDataPresent: controls.handleEnsureDataPresent,
-                        handleEnsureAtLocation: controls.handleEnsureAtLocation,
+                        handleFileSelectionChange,
+                        handleEnsureValid,
+                        handleEnsureDataPresent,
+                        handleEnsureAtLocation,
                     },
                     peers: {
-                        peerSortStrategy: detail.peerSortStrategy,
+                        peerSortStrategy,
                         handlePeerContextAction: undefined,
                     },
                 },
             },
         }),
-        [layout, table, detail, controls, caps]
+        [
+            workspaceStyle,
+            filter,
+            searchQuery,
+            torrents,
+            ghostTorrents,
+            isInitialLoadFinished,
+            capabilities,
+            optimisticStatuses,
+            tableWatermarkEnabled,
+            isDragActive,
+            removedIds,
+            detailData,
+            handleRequestDetails,
+            closeDetail,
+            isDetailRecoveryBlocked,
+            inspectorTabCommand,
+            setInspectorTabCommand,
+            handleFileSelectionChange,
+            handleEnsureValid,
+            handleEnsureDataPresent,
+            handleEnsureAtLocation,
+            peerSortStrategy,
+        ]
     );
 }
 
@@ -208,90 +228,89 @@ export function useStatusBarViewModel({
     );
 }
 
-export interface NavbarQueryState {
+export interface NavbarViewModelParams {
     filter: DashboardFilter;
     searchQuery: string;
     setFilter: (value: DashboardFilter) => void;
     setSearchQuery: (value: string) => void;
     hasSelection: boolean;
-}
-
-export interface NavbarDerivedState {
     emphasizeActions: NavbarViewModel["emphasizeActions"];
     selectionActions: NavbarViewModel["selectionActions"];
     rehashStatus?: NavbarViewModel["rehashStatus"];
-}
-
-export interface NavbarNavigation {
     openAddTorrentPicker: () => void;
     openAddMagnet: () => void;
     openSettings: () => void;
-}
-
-export interface NavbarShellControls {
     workspaceStyle: WorkspaceStyle;
     handleWindowCommand: (command: "minimize" | "maximize" | "close") => void;
 }
-
-export interface NavbarViewModelDeps {
-    query: NavbarQueryState;
-    derived: NavbarDerivedState;
-    navigation: NavbarNavigation;
-    shell: NavbarShellControls;
-}
-
 export function useNavbarViewModel(
     {
-        query,
-        derived,
-        navigation,
-        shell,
-    }: NavbarViewModelDeps,
+        filter,
+        searchQuery,
+        setFilter,
+        setSearchQuery,
+        hasSelection,
+        emphasizeActions,
+        selectionActions,
+        rehashStatus,
+        openAddTorrentPicker,
+        openAddMagnet,
+        openSettings,
+        workspaceStyle,
+        handleWindowCommand,
+    }: NavbarViewModelParams,
 ): NavbarViewModel {
     return useMemo(
         () => ({
-            filter: query.filter,
-            searchQuery: query.searchQuery,
-            setFilter: query.setFilter,
-            setSearchQuery: query.setSearchQuery,
-            onAddTorrent: navigation.openAddTorrentPicker,
-            onAddMagnet: navigation.openAddMagnet,
-            onSettings: navigation.openSettings,
-            hasSelection: query.hasSelection,
-            emphasizeActions: derived.emphasizeActions,
-            selectionActions: derived.selectionActions,
-            rehashStatus: derived.rehashStatus,
-            workspaceStyle: shell.workspaceStyle,
-            onWindowCommand: shell.handleWindowCommand,
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            onAddTorrent: openAddTorrentPicker,
+            onAddMagnet: openAddMagnet,
+            onSettings: openSettings,
+            hasSelection,
+            emphasizeActions,
+            selectionActions,
+            rehashStatus,
+            workspaceStyle,
+            onWindowCommand: handleWindowCommand,
         }),
-        [query, derived, navigation, shell]
+        [
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+            hasSelection,
+            emphasizeActions,
+            selectionActions,
+            rehashStatus,
+            workspaceStyle,
+            handleWindowCommand,
+        ]
     );
 }
 
-export interface SettingsSnapshot {
+export interface SettingsModalViewModelParams {
     config: SettingsConfig;
     isSaving: boolean;
     loadError: boolean;
     capabilities: {
         blocklistSupported: boolean;
     };
-}
-
-export interface SettingsActions {
     handleSave: (config: SettingsConfig) => Promise<void>;
+    // TODO(section 20.2/20.5): replace boolean test-port result with typed outcome variants.
     handleTestPort: () => Promise<boolean>;
     applyUserPreferencesPatch: (patch: Partial<{
         refresh_interval_ms: number;
         request_timeout_ms: number;
         table_watermark_enabled: boolean;
     }>) => void;
-}
-
-export interface SettingsModalViewModelDeps {
     isSettingsOpen: boolean;
     closeSettings: () => void;
-    snapshot: SettingsSnapshot;
-    actions: SettingsActions;
     toggleWorkspaceStyle: () => void;
     reconnect: () => void;
     workspaceStyle: WorkspaceStyle;
@@ -301,40 +320,50 @@ export interface SettingsModalViewModelDeps {
 }
 
 export function useSettingsModalViewModel({
+    config,
+    isSaving,
+    loadError,
+    capabilities,
+    handleSave,
+    handleTestPort,
+    applyUserPreferencesPatch,
     isSettingsOpen,
     closeSettings,
-    snapshot,
-    actions,
     toggleWorkspaceStyle,
     reconnect,
     workspaceStyle,
     hasDismissedInsights,
     openSettings,
     restoreHudCards,
-}: SettingsModalViewModelDeps): SettingsModalViewModel {
+}: SettingsModalViewModelParams): SettingsModalViewModel {
     return useMemo(
         () => ({
             isOpen: isSettingsOpen,
             onClose: closeSettings,
-            initialConfig: snapshot.config,
-            isSaving: snapshot.isSaving,
-            onSave: actions.handleSave,
-            settingsLoadError: snapshot.loadError,
-            onTestPort: actions.handleTestPort,
-            capabilities: snapshot.capabilities,
+            initialConfig: config,
+            isSaving,
+            onSave: handleSave,
+            settingsLoadError: loadError,
+            onTestPort: handleTestPort,
+            capabilities,
             onRestoreInsights: restoreHudCards,
             onToggleWorkspaceStyle: toggleWorkspaceStyle,
             onReconnect: reconnect,
             isImmersive: workspaceStyle === "immersive",
             hasDismissedInsights,
-            onApplyUserPreferencesPatch: actions.applyUserPreferencesPatch,
+            onApplyUserPreferencesPatch: applyUserPreferencesPatch,
             onOpen: openSettings,
         }),
         [
+            config,
+            isSaving,
+            loadError,
+            capabilities,
+            handleSave,
+            handleTestPort,
+            applyUserPreferencesPatch,
             isSettingsOpen,
             closeSettings,
-            snapshot,
-            actions,
             toggleWorkspaceStyle,
             reconnect,
             workspaceStyle,
@@ -369,7 +398,9 @@ export function useHudViewModel({
 export interface DeletionViewModelDeps {
     pendingDelete: DeleteIntent | null;
     clearPendingDelete: () => void;
-    confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
+    confirmDelete: (
+        overrideDeleteData?: boolean,
+    ) => Promise<TorrentCommandOutcome>;
 }
 
 export function useDeletionViewModel({
@@ -387,89 +418,23 @@ export function useDeletionViewModel({
     );
 }
 
-export function useCommandPaletteDeps(
-    deps: CommandPaletteDeps
-): CommandPaletteDeps {
-    const {
-        t,
-        focusSearchInput,
-        openAddTorrentPicker,
-        openAddMagnet,
-        openSettings,
-        refreshTorrents,
-        setFilter,
-        selectedTorrents,
-        detailData,
-        handleBulkAction,
-        handleRequestDetails,
-        handleFileSelectionChange,
-        setInspectorTabCommand,
-        peerSortStrategy,
-        setPeerSortStrategy,
-    } = deps;
-
-    return useMemo(
-        () => ({
-            t,
-            focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
-            openSettings,
-            refreshTorrents,
-            setFilter,
-            selectedTorrents,
-            detailData,
-            handleBulkAction,
-            handleRequestDetails,
-            handleFileSelectionChange,
-            setInspectorTabCommand,
-            peerSortStrategy,
-            setPeerSortStrategy,
-        }),
-        [
-            t,
-            focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
-            openSettings,
-            refreshTorrents,
-            setFilter,
-            selectedTorrents,
-            detailData,
-            handleBulkAction,
-            handleRequestDetails,
-            handleFileSelectionChange,
-            setInspectorTabCommand,
-            peerSortStrategy,
-            setPeerSortStrategy,
-        ]
-    );
-}
-
 export interface WorkspaceShellModelDeps {
-    dragDrop: {
-        getRootProps: () => Record<string, unknown>;
-        getInputProps: () => Record<string, unknown>;
-        isDragActive: boolean;
-    };
+    dragDrop: WorkspaceDragAndDropViewModel;
     workspaceStyle: WorkspaceStyle;
+    isNativeHost: boolean;
     toggleWorkspaceStyle: () => void;
     settingsModal: SettingsModalViewModel;
     dashboard: DashboardViewModel;
-    hud: ReturnType<typeof useHudViewModel>;
-    deletion: ReturnType<typeof useDeletionViewModel>;
+    hud: WorkspaceHudViewModel;
+    deletion: WorkspaceDeletionViewModel;
     navbar: NavbarViewModel;
-    commandPalette: {
-        actions: CommandAction[];
-        getContextActions: (
-            context: CommandPaletteContext
-        ) => CommandAction[];
-    };
+    commandPalette: WorkspaceCommandPaletteViewModel;
 }
 
 export function useWorkspaceShellModel({
     dragDrop,
     workspaceStyle,
+    isNativeHost,
     toggleWorkspaceStyle,
     settingsModal,
     dashboard,
@@ -490,12 +455,13 @@ export function useWorkspaceShellModel({
             hud,
             deletion,
             navbar,
-            isNativeHost: Runtime.isNativeHost,
+            isNativeHost,
             commandPalette,
         }),
         [
             dragDrop,
             workspaceStyle,
+            isNativeHost,
             toggleWorkspaceStyle,
             settingsModal,
             dashboard,
@@ -507,21 +473,12 @@ export function useWorkspaceShellModel({
     );
 }
 
-export interface RecoveryContextEnv {
-    uiMode: UiMode;
-    canOpenFolder: boolean;
-}
-
 export interface RecoveryInlineEditorControls {
     state: RecoveryControllerResult["inlineEditor"]["state"];
     cancel: RecoveryControllerResult["inlineEditor"]["cancel"];
     release: RecoveryControllerResult["inlineEditor"]["release"];
     confirm: RecoveryControllerResult["inlineEditor"]["confirm"];
     change: RecoveryControllerResult["inlineEditor"]["change"];
-}
-
-export interface RecoveryContextSessionState {
-    recoverySession: RecoveryControllerResult["state"]["session"];
 }
 
 export interface RecoveryContextSnapshot {
@@ -532,50 +489,52 @@ export interface RecoveryContextSnapshot {
     releaseInlineSetLocation: RecoveryInlineEditorControls["release"];
     confirmInlineSetLocation: RecoveryInlineEditorControls["confirm"];
     handleInlineLocationChange: RecoveryInlineEditorControls["change"];
-    recoverySession: RecoveryContextSessionState["recoverySession"];
+    recoverySession: RecoveryControllerResult["state"]["session"];
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
     getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
 }
 
-export interface RecoveryContextModelDeps {
-    env: RecoveryContextEnv;
+export interface RecoveryContextModelParams {
+    uiMode: UiMode;
+    canOpenFolder: boolean;
     inlineEditor: RecoveryInlineEditorControls;
-    session: RecoveryContextSessionState;
+    recoverySession: RecoveryControllerResult["state"]["session"];
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
     getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
 }
 
 export function useRecoveryContextModel(
     {
-        env,
+        uiMode,
+        canOpenFolder,
         inlineEditor,
-        session,
+        recoverySession,
         setLocationCapability,
         getRecoverySessionForKey,
-    }: RecoveryContextModelDeps,
+    }: RecoveryContextModelParams,
 ): RecoveryContextSnapshot {
     return useMemo(
         () => ({
-            uiMode: env.uiMode,
-            canOpenFolder: env.canOpenFolder,
+            uiMode,
+            canOpenFolder,
             inlineSetLocationState: inlineEditor.state,
             cancelInlineSetLocation: inlineEditor.cancel,
             releaseInlineSetLocation: inlineEditor.release,
             confirmInlineSetLocation: inlineEditor.confirm,
             handleInlineLocationChange: inlineEditor.change,
-            recoverySession: session.recoverySession,
+            recoverySession,
             setLocationCapability,
             getRecoverySessionForKey,
         }),
         [
-            env.uiMode,
-            env.canOpenFolder,
+            uiMode,
+            canOpenFolder,
             inlineEditor.state,
             inlineEditor.cancel,
             inlineEditor.release,
             inlineEditor.confirm,
             inlineEditor.change,
-            session.recoverySession,
+            recoverySession,
             setLocationCapability,
             getRecoverySessionForKey,
         ]
@@ -858,7 +817,7 @@ export interface AddMagnetModalPropsDeps {
     isOpen: boolean;
     initialValue: string;
     onClose: () => void;
-    onSubmit: (value: string) => Promise<void>;
+    onSubmit: (value: string) => Promise<AddTorrentCommandOutcome>;
 }
 
 export function useAddMagnetModalProps({
@@ -881,7 +840,7 @@ export function useAddMagnetModalProps({
 export interface AddTorrentModalPropsDeps {
     addSource: AddTorrentSource | null;
     addTorrentDefaults: UseAddTorrentControllerResult["addTorrentDefaults"];
-    settingsConfig: SettingsSnapshot["config"];
+    settingsConfig: SettingsConfig;
     isAddingTorrent: boolean;
     isFinalizingExisting: boolean;
     onCancel: () => void;
@@ -939,3 +898,4 @@ export function useAddTorrentModalProps({
         browseDirectory,
     ]);
 }
+

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
-import { TransmissionAdapter } from "../rpc-base";
+import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 
 describe("RPC Deduplication (in-flight coalescing)", () => {
     let adapter: TransmissionAdapter;

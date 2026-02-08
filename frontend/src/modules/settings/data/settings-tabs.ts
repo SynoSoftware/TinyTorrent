@@ -10,7 +10,7 @@ import {
     Plug,
     Settings as SettingsIcon,
 } from "lucide-react";
-import { type SettingsConfig, type ConfigKey } from "./config";
+import { type SettingsConfig, type ConfigKey } from "@/modules/settings/data/config";
 
 // TODO: Treat `settings-tabs.ts` as *pure UI schema* (what controls exist), not as an engine/runtime policy layer.
 // TODO: Policy/ownership rules:

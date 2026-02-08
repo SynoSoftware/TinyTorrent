@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "../hooks/utils/constants";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
 import {
     getAvailabilityColor,
     useCanvasPalette,

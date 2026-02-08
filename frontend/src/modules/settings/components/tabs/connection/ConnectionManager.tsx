@@ -7,15 +7,12 @@ import { STATUS } from "@/shared/status";
 import { useConnectionConfig, buildRpcEndpoint, buildRpcServerUrl, DEFAULT_PROFILE_ID } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
+import { useSettingsFormActions } from "@/modules/settings/context/SettingsFormContext";
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)
 // TODO: Host-backed UI features are NOT a different server type; they are a locality-derived capability (localhost + ShellAgent/ShellExtensions available).
 // TODO: The “TinyTorrent server” label must be removed from this UX to avoid implying a different daemon protocol.
-
-interface ConnectionManagerProps {
-    onReconnect: () => void;
-}
 
 interface ConnectionManagerState {
     activeProfile: ConnectionProfile;
@@ -53,13 +50,12 @@ function useConnectionManagerState(): ConnectionManagerState {
 }
 // TODO: Remove `token` from ConnectionProfile update shape once TT tokens are removed.
 
-export function ConnectionCredentialsCard({
-    onReconnect,
-}: ConnectionManagerProps) {
+export function ConnectionCredentialsCard() {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
     const { activeProfile, handleUpdate, isOffline } =
         useConnectionManagerState();
+    const { onReconnect } = useSettingsFormActions();
     const { rpcStatus, uiCapabilities } = useSession();
     const connectionStatusLabel = useMemo(() => {
         const map: Record<string, string> = {
@@ -304,8 +300,4 @@ export function ConnectionCredentialsCard({
             </div>
         </div>
     );
-}
-
-export function ConnectionManager(props: ConnectionManagerProps) {
-    return <ConnectionCredentialsCard {...props} />;
 }

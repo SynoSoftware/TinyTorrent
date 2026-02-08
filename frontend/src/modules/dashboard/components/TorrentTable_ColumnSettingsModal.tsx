@@ -17,7 +17,7 @@ import {
 import {
     TORRENTTABLE_COLUMN_DEFS,
     type ColumnId,
-} from "./TorrentTable_ColumnDefs";
+} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { INTERACTION_CONFIG } from "@/config/logic";
 
 interface Props {

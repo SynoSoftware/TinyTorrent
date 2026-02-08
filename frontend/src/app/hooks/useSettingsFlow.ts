@@ -333,6 +333,7 @@ export function useSettingsFlow({
         ],
     );
 
+    // TODO(section 20.2/20.5): replace boolean/throw contract with typed test-port outcomes.
     const handleTestPort = useCallback(async (): Promise<boolean> => {
         try {
             return await sessionDomain.testPort();

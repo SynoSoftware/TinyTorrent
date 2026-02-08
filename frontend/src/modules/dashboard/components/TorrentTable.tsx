@@ -8,15 +8,15 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { BLOCK_SHADOW } from "@/shared/ui/layout/glass-surface";
 import {
     ColumnMeasurementLayer,
-} from "./TorrentTable_Shared";
+} from "@/modules/dashboard/components/TorrentTable_Shared";
 import {
     ColumnHeaderPreview,
     TorrentTable_Headers,
-} from "./TorrentTable_Headers";
-import TorrentTable_Body from "./TorrentTable_Body";
-import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
-import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
-import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
+} from "@/modules/dashboard/components/TorrentTable_Headers";
+import TorrentTable_Body from "@/modules/dashboard/components/TorrentTable_Body";
+import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
+import TorrentTable_HeaderMenu from "@/modules/dashboard/components/TorrentTable_HeaderMenu";
+import TorrentTable_ColumnSettingsModal from "@/modules/dashboard/components/TorrentTable_ColumnSettingsModal";
 import { useTorrentTableViewModel } from "@/modules/dashboard/viewModels/useTorrentTableViewModel";
 
 interface TorrentTableProps {
@@ -34,6 +34,10 @@ export function TorrentTable({
     onRequestDetails,
     onRequestDetailsFullscreen,
 }: TorrentTableProps) {
+    // TODO(section 21.8/21.9): detail-open behavior is threaded via props through
+    // table surfaces; prefer consuming a command/context at the leaf interaction boundary.
+    // TODO(section 20.3/20.5): avoid dual detail-open callbacks; use one explicit
+    // command intent that selects docked/fullscreen mode.
     const tableViewModel = useTorrentTableViewModel({
         viewModel,
         disableDetailOpen,

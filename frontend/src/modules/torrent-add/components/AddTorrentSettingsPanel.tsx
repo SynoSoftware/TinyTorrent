@@ -6,10 +6,11 @@ import {
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
+    Input,
     Tooltip,
     cn,
 } from "@heroui/react";
-import type { DragEvent, ReactNode } from "react";
+import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
     AlertTriangle,
@@ -22,56 +23,30 @@ import {
     ListOrdered,
 } from "lucide-react";
 import { describePathKind } from "@/modules/torrent-add/utils/destination";
-import type { AddTorrentDestinationStatusKind } from "@/modules/torrent-add/utils/destinationStatus";
+import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
+import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 
-export interface AddTorrentSettingsPanelProps {
-    renderDestinationInput: (wrapperClass?: string) => ReactNode;
-    onDrop: (event: DragEvent<HTMLDivElement>) => void;
-    onDragOver: (event: DragEvent) => void;
-    onDragLeave: () => void;
-    showBrowseAction: boolean;
-    handleBrowse: () => Promise<void>;
-    isTouchingDirectory: boolean;
-    recentPaths: string[];
-    applyRecentPath: (path?: string) => void;
-    step2StatusKind: AddTorrentDestinationStatusKind;
-    step2StatusMessage: string;
-    spaceErrorDetail: string | null;
-    showTransferFlags: boolean;
-    sequential: boolean;
-    skipHashCheck: boolean;
-    setSequential: (next: boolean) => void;
-    setSkipHashCheck: (next: boolean) => void;
-}
+const DESTINATION_INPUT_CLASSNAMES = {
+    input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
+    inputWrapper:
+        "surface-layer-1 transition-colors shadow-none group-hover:border-default/10",
+};
 
-export function AddTorrentSettingsPanel({
-    renderDestinationInput,
-    onDrop,
-    onDragOver,
-    onDragLeave,
-    showBrowseAction,
-    handleBrowse,
-    isTouchingDirectory,
-    recentPaths,
-    applyRecentPath,
-    step2StatusKind,
-    step2StatusMessage,
-    spaceErrorDetail,
-    showTransferFlags,
-    sequential,
-    skipHashCheck,
-    setSequential,
-    setSkipHashCheck,
-}: AddTorrentSettingsPanelProps) {
+export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
+    const {
+        destinationInput,
+        destinationGate,
+        settings,
+    } = useAddTorrentModalContext();
 
     return (
         <div className="p-panel flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             <div
                 className="flex flex-col gap-panel mb-panel"
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
+                onDrop={settings.onDrop}
+                onDragOver={settings.onDragOver}
+                onDragLeave={settings.onDragLeave}
             >
                 <div className="flex flex-col gap-tools">
                     <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
@@ -83,19 +58,44 @@ export function AddTorrentSettingsPanel({
                 </div>
 
                 <div className="flex gap-tools group items-center">
-                    {renderDestinationInput("flex-1")}
-                    {showBrowseAction && (
+                    <motion.div
+                        layout
+                        layoutId={DESTINATION_INPUT_LAYOUT_ID}
+                        className="w-full flex-1"
+                    >
+                        <Input
+                            value={destinationInput.value}
+                            onChange={(e) =>
+                                destinationInput.onChange(e.target.value)
+                            }
+                            onBlur={destinationInput.onBlur}
+                            onKeyDown={destinationInput.onKeyDown}
+                            aria-label={t(
+                                "modals.add_torrent.destination_input_aria"
+                            )}
+                            placeholder={t(
+                                "modals.add_torrent.destination_placeholder"
+                            )}
+                            variant="flat"
+                            autoComplete="off"
+                            classNames={DESTINATION_INPUT_CLASSNAMES}
+                            startContent={
+                                <FolderOpen className="toolbar-icon-size-md text-primary mb-tight" />
+                            }
+                        />
+                    </motion.div>
+                    {destinationGate.showBrowseAction && (
                         <Tooltip
                             content={t(
                                 "modals.add_torrent.destination_prompt_browse"
                             )}
                         >
                             <Button
-                                onPress={handleBrowse}
+                                onPress={destinationGate.onBrowse}
                                 isIconOnly
                                 size="md"
                                 variant="flat"
-                                isLoading={isTouchingDirectory}
+                                isLoading={destinationGate.isTouchingDirectory}
                                 aria-label={t(
                                     "modals.add_torrent.destination_prompt_browse"
                                 )}
@@ -119,8 +119,8 @@ export function AddTorrentSettingsPanel({
                             </Button>
                         </DropdownTrigger>
                         <DropdownMenu aria-label={t("modals.add_torrent.history")}>
-                            {recentPaths.length > 0 ? (
-                                recentPaths.map((path) => (
+                            {settings.recentPaths.length > 0 ? (
+                                settings.recentPaths.map((path) => (
                                     <DropdownItem
                                         key={path}
                                         description={(() => {
@@ -145,7 +145,9 @@ export function AddTorrentSettingsPanel({
                                         startContent={
                                             <HardDrive className="toolbar-icon-size-md" />
                                         }
-                                        onPress={() => applyRecentPath(path)}
+                                        onPress={() =>
+                                            settings.applyRecentPath(path)
+                                        }
                                     >
                                         {path}
                                     </DropdownItem>
@@ -162,32 +164,34 @@ export function AddTorrentSettingsPanel({
                 <div
                     className={cn(
                         "h-status-chip flex items-center gap-tools text-label font-mono min-w-0",
-                        step2StatusKind === "danger"
+                        settings.statusKind === "danger"
                             ? "text-danger"
-                            : step2StatusKind === "warning"
+                            : settings.statusKind === "warning"
                                 ? "text-warning"
                                 : "text-foreground/60"
                     )}
                 >
-                    {step2StatusKind === "danger" ||
-                    step2StatusKind === "warning" ? (
+                    {settings.statusKind === "danger" ||
+                    settings.statusKind === "warning" ? (
                         <AlertTriangle className="toolbar-icon-size-md shrink-0" />
-                    ) : step2StatusKind === "ok" ? (
+                    ) : settings.statusKind === "ok" ? (
                         <CheckCircle2 className="toolbar-icon-size-md shrink-0 text-success" />
                     ) : (
                         <Info className="toolbar-icon-size-md shrink-0 text-foreground/40" />
                     )}
-                    {spaceErrorDetail ? (
-                        <Tooltip content={spaceErrorDetail}>
-                            <span className="truncate">{step2StatusMessage}</span>
+                    {settings.spaceErrorDetail ? (
+                        <Tooltip content={settings.spaceErrorDetail}>
+                            <span className="truncate">
+                                {settings.statusMessage}
+                            </span>
                         </Tooltip>
                     ) : (
-                        <span className="truncate">{step2StatusMessage}</span>
+                        <span className="truncate">{settings.statusMessage}</span>
                     )}
                 </div>
             </div>
 
-            {showTransferFlags && (
+            {settings.showTransferFlags && (
                 <>
                     <Divider className="my-panel bg-foreground/25" aria-hidden="true" />
                     <div className="flex flex-col gap-tools">
@@ -197,8 +201,8 @@ export function AddTorrentSettingsPanel({
                         </label>
                         <div className="flex flex-col gap-tools">
                             <Checkbox
-                                isSelected={sequential}
-                                onValueChange={setSequential}
+                                isSelected={settings.sequential}
+                                onValueChange={settings.setSequential}
                                 classNames={{
                                     label: "text-foreground/70 text-label",
                                 }}
@@ -212,8 +216,8 @@ export function AddTorrentSettingsPanel({
                             </Checkbox>
                             <Divider className="bg-content1/5" />
                             <Checkbox
-                                isSelected={skipHashCheck}
-                                onValueChange={setSkipHashCheck}
+                                isSelected={settings.skipHashCheck}
+                                onValueChange={settings.setSkipHashCheck}
                                 classNames={{
                                     label: "text-foreground/70 text-label",
                                 }}

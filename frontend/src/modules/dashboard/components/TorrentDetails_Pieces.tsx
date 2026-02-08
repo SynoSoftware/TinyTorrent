@@ -3,7 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
 import { PiecesMap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Map";
-import { TEXT_ROLES } from "../hooks/utils/textRoles";
+import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 
 interface PiecesTabProps {
     piecePercent: number;

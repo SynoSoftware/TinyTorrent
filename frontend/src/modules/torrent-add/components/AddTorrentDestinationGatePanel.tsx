@@ -13,8 +13,7 @@ import {
     HardDrive,
     Info,
 } from "lucide-react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { AddTorrentDestinationStatusKind } from "@/modules/torrent-add/utils/destinationStatus";
+import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 
 const DESTINATION_INPUT_CLASSNAMES = {
     inputWrapper:
@@ -25,50 +24,12 @@ const DESTINATION_INPUT_CLASSNAMES = {
 };
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
-interface GateInputProps {
-    value: string;
-    onChange: (next: string) => void;
-    onBlur: () => void;
-}
-
-interface GateStatusProps {
-    kind: AddTorrentDestinationStatusKind;
-    message: string;
-}
-
-interface GateActions {
-    onConfirm: () => void;
-    onBrowse: () => Promise<void>;
-}
-
-interface GateValidation {
-    isValid: boolean;
-    isLoading: boolean;
-    showBrowse: boolean;
-}
-
-export interface AddTorrentDestinationGatePanelProps {
-    input: GateInputProps;
-    status: GateStatusProps;
-    validation: GateValidation;
-    actions: GateActions;
-}
-
-export function AddTorrentDestinationGatePanel({
-    input,
-    status,
-    validation,
-    actions,
-}: AddTorrentDestinationGatePanelProps) {
+export function AddTorrentDestinationGatePanel() {
     const { t } = useTranslation();
-
-    const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            event.stopPropagation();
-            actions.onConfirm();
-        }
-    };
+    const {
+        destinationInput,
+        destinationGate,
+    } = useAddTorrentModalContext();
 
     return (
         <div className="surface-layer-1 border border-default/10 rounded-panel p-panel flex flex-col gap-panel">
@@ -87,10 +48,10 @@ export function AddTorrentDestinationGatePanel({
                 >
                     <Input
                         autoFocus
-                        value={input.value}
-                        onChange={(e) => input.onChange(e.target.value)}
-                        onBlur={input.onBlur}
-                        onKeyDown={handleKeyDown}
+                        value={destinationInput.value}
+                        onChange={(e) => destinationInput.onChange(e.target.value)}
+                        onBlur={destinationInput.onBlur}
+                        onKeyDown={destinationInput.onKeyDown}
                         aria-label={t("modals.add_torrent.destination_input_aria")}
                         placeholder={t("modals.add_torrent.destination_placeholder")}
                         variant="flat"
@@ -101,18 +62,18 @@ export function AddTorrentDestinationGatePanel({
                         }
                     />
                 </motion.div>
-                {validation.showBrowse && (
+                {destinationGate.showBrowseAction && (
                     <Tooltip
                         content={t(
                             "modals.add_torrent.destination_prompt_browse"
                         )}
                     >
                         <Button
-                            onPress={actions.onBrowse}
+                            onPress={destinationGate.onBrowse}
                             isIconOnly
                             size="md"
                             variant="flat"
-                            isLoading={validation.isLoading}
+                            isLoading={destinationGate.isTouchingDirectory}
                             aria-label={t(
                                 "modals.add_torrent.destination_prompt_browse"
                             )}
@@ -127,29 +88,32 @@ export function AddTorrentDestinationGatePanel({
             <div
                 className={cn(
                     "h-status-chip flex items-center gap-tools text-label font-mono",
-                    status.kind === "danger"
+                    destinationGate.statusKind === "danger"
                         ? "text-danger"
-                        : status.kind === "warning"
+                        : destinationGate.statusKind === "warning"
                             ? "text-warning"
                             : "text-foreground/60"
                 )}
             >
-                {status.kind === "danger" || status.kind === "warning" ? (
+                {destinationGate.statusKind === "danger" ||
+                destinationGate.statusKind === "warning" ? (
                     <AlertTriangle className="toolbar-icon-size-md shrink-0" />
-                ) : status.kind === "ok" ? (
+                ) : destinationGate.statusKind === "ok" ? (
                     <CheckCircle2 className="toolbar-icon-size-md shrink-0 text-success" />
                 ) : (
                     <Info className="toolbar-icon-size-md shrink-0 text-foreground/40" />
                 )}
-                <span className="font-bold truncate">{status.message}</span>
+                <span className="font-bold truncate">
+                    {destinationGate.statusMessage}
+                </span>
             </div>
 
             <div className="flex justify-end">
                 <Button
                     color="primary"
                     variant="shadow"
-                    onPress={actions.onConfirm}
-                    isDisabled={!validation.isValid}
+                    onPress={destinationGate.onConfirm}
+                    isDisabled={!destinationGate.isDestinationValid}
                     className="font-bold"
                 >
                     {t("modals.add_torrent.destination_gate_continue")}

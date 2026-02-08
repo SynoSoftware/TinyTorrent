@@ -6,7 +6,6 @@ import {
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
-    Input,
     Modal,
     ModalBody,
     ModalContent,
@@ -60,12 +59,12 @@ import type {
     AddTorrentSelection,
     AddTorrentSource,
 } from "@/modules/torrent-add/types";
+import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 import { AddTorrentFileTable } from "@/modules/torrent-add/components/AddTorrentFileTable";
 import type { SmartSelectCommand } from "@/modules/torrent-add/services/fileSelection";
-import {
-    AddTorrentDestinationGatePanel,
-    DESTINATION_INPUT_LAYOUT_ID,
-} from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
+import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
+import type { AddTorrentModalContextValue } from "@/modules/torrent-add/components/AddTorrentModalContext";
+import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
 import { useAddTorrentModalViewModel } from "@/modules/torrent-add/hooks/useAddTorrentModalViewModel";
 
@@ -78,22 +77,19 @@ export interface AddTorrentModalProps {
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     isSubmitting: boolean;
     onCancel: () => void;
-    onConfirm: (selection: AddTorrentSelection) => Promise<void>;
+    onConfirm: (
+        selection: AddTorrentSelection,
+    ) => Promise<AddTorrentCommandOutcome>;
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     onBrowseDirectory?: (
         currentPath: string,
     ) => Promise<string | null | undefined>;
+    // TODO(section 21.8/21.9): avoid threading browse behavior through modal props;
+    // consume a command context/authority at leaf usage.
 }
 
 // --- CONSTANTS & HELPERS ---
 
-const DESTINATION_INPUT_CLASSNAMES = {
-    // Keep HeroUI's outer wrapper focus ring only.
-    // The inner input outline creates a harsh black/white rectangle in light/dark mode.
-    input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
-    inputWrapper:
-        "surface-layer-1 transition-colors shadow-none group-hover:border-default/10",
-};
 const FULL_CONTENT_ANIMATION = {
     transition: INTERACTION_CONFIG.modalBloom.transition,
     visible: {
@@ -107,7 +103,7 @@ const FULL_CONTENT_ANIMATION = {
 };
 
 const MODAL_CLASSES =
-    "w-full overflow-hidden flex flex-col shadow-2xl border border-default/10 ";
+    "w-full overflow-hidden flex flex-col shadow-hud border border-default/10 ";
 const PANE_SURFACE =
     "flex flex-col min-h-0 overflow-hidden rounded-panel border border-default/20 shadow-small";
 // --- COMPONENT ---
@@ -186,10 +182,8 @@ export function AddTorrentModal({
         dragDrop;
     const {
         files,
-        filteredFiles,
         handleRowClick,
         handleSmartSelect,
-        isFileTableInteractive,
         isSelectionEmpty,
         layout,
         onCyclePriority,
@@ -220,38 +214,52 @@ export function AddTorrentModal({
     const { canConfirm, isDiskSpaceCritical, primaryBlockReason } = submission;
     const { sourceLabel } = sourceViewModel;
 
-    // -- Renderers --
-
-    const renderDestinationInput = (wrapperClass?: string) => (
-        <motion.div
-            layout
-            layoutId={DESTINATION_INPUT_LAYOUT_ID}
-            className={cn("w-full", wrapperClass)}
-        >
-            <Input
-                autoFocus={showDestinationGate}
-                value={destinationDraft}
-                onChange={(e) => {
-                    const next = e.target.value;
-                    updateDestinationDraft(next);
-                }}
-                onBlur={() => {
-                    handleDestinationInputBlur();
-                }}
-                onKeyDown={(e) => {
-                    handleDestinationInputKeyDown(e);
-                }}
-                aria-label={t("modals.add_torrent.destination_input_aria")}
-                placeholder={t("modals.add_torrent.destination_placeholder")}
-                variant="flat"
-                autoComplete="off"
-                classNames={DESTINATION_INPUT_CLASSNAMES}
-                startContent={
-                    <FolderOpen className="toolbar-icon-size-md text-primary mb-tight" />
-                }
-            />
-        </motion.div>
-    );
+    const modalContextValue: AddTorrentModalContextValue = {
+        destinationInput: {
+            value: destinationDraft,
+            onBlur: handleDestinationInputBlur,
+            onChange: updateDestinationDraft,
+            onKeyDown: handleDestinationInputKeyDown,
+        },
+        destinationGate: {
+            statusKind: step1StatusKind,
+            statusMessage: step1DestinationMessage,
+            isDestinationValid: isDestinationDraftValid,
+            isTouchingDirectory,
+            showBrowseAction,
+            onConfirm: handleDestinationGateContinue,
+            onBrowse: handleBrowse,
+        },
+        settings: {
+            onDrop: handleDrop,
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            recentPaths,
+            applyRecentPath: applyDroppedPath,
+            statusKind: step2StatusKind,
+            statusMessage: step2StatusMessage,
+            spaceErrorDetail,
+            showTransferFlags: source?.kind === "file",
+            sequential,
+            skipHashCheck,
+            setSequential,
+            setSkipHashCheck,
+        },
+        fileTable: {
+            files,
+            priorities,
+            resolvedState,
+            rowHeight: layout.rowHeight,
+            selectedCount,
+            selectedSize,
+            rowSelection,
+            onCyclePriority,
+            onRowClick: handleRowClick,
+            onRowSelectionChange,
+            onSetPriority,
+            onSmartSelect: handleSmartSelect,
+        },
+    };
 
     return (
         <Modal
@@ -277,29 +285,30 @@ export function AddTorrentModal({
                           : "max-h-modal-body",
                 ),
                 body: "p-tight  ",
-                header: "p-0 select-none backdrop-blur-sm",
-                footer: "p-0  select-none ",
+                header: "p-none select-none blur-glass",
+                footer: "p-none select-none",
             }}
         >
             <ModalContent>
-                {showDestinationGate ? (
-                    <div
-                        className="flex flex-col h-full"
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                                e.preventDefault();
-                                handleModalCancel();
-                                return;
-                            }
-                            if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleDestinationGateContinue();
-                            }
-                        }}
-                    >
+                <AddTorrentModalContextProvider value={modalContextValue}>
+                    {showDestinationGate ? (
+                        <div
+                            className="flex flex-col h-full"
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            onKeyDown={(e) => {
+                                if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    handleModalCancel();
+                                    return;
+                                }
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleDestinationGateContinue();
+                                }
+                            }}
+                        >
                         <ModalHeader className="flex justify-between items-center gap-panel px-stage py-panel">
                             <div className="flex flex-col overflow-hidden gap-tight">
                                 <h2 className="text-scaled font-bold tracking-widest uppercase text-foreground">
@@ -319,41 +328,21 @@ export function AddTorrentModal({
                                 className="text-foreground/60 hover:text-foreground"
                             />
                         </ModalHeader>
-                        <ModalBody className="flex-1 min-h-0 flex items-center justify-center">
-                            <div className="w-full max-w-modal">
-                                <AddTorrentDestinationGatePanel
-                                    input={{
-                                        value: destinationDraft,
-                                        onChange: updateDestinationDraft,
-                                        onBlur: handleDestinationInputBlur,
-                                    }}
-                                    status={{
-                                        kind: step1StatusKind,
-                                        message: step1DestinationMessage,
-                                    }}
-                                    validation={{
-                                        isValid: isDestinationDraftValid,
-                                        isLoading: isTouchingDirectory,
-                                        showBrowse: showBrowseAction,
-                                    }}
-                                    actions={{
-                                        onConfirm:
-                                            handleDestinationGateContinue,
-                                        onBrowse: handleBrowse,
-                                    }}
-                                />
-                            </div>
-                        </ModalBody>
-                    </div>
-                ) : (
-                    <form
+                            <ModalBody className="flex-1 min-h-0 flex items-center justify-center">
+                                <div className="w-full max-w-modal">
+                                    <AddTorrentDestinationGatePanel />
+                                </div>
+                            </ModalBody>
+                        </div>
+                    ) : (
+                        <form
                         ref={formRef}
                         className="flex flex-col min-h-0 flex-1 relative"
                         onSubmit={handleFormSubmit}
                         onKeyDown={handleFormKeyDown}
                     >
                         {shouldShowSubmittingOverlay && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal bg-background/40 backdrop-blur-sm">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal bg-background/40 blur-glass">
                                 {!shouldShowCloseConfirm ? (
                                     <>
                                         <Spinner color="primary" />
@@ -501,8 +490,8 @@ export function AddTorrentModal({
                         {/* --- SPLIT VIEW BODY --- */}
                         <ModalBody className="flex-1 min-h-0 relative p-add-modal-pane-gap">
                             {dropActive && (
-                                <div className="absolute inset-0 z-drop-overlay bg-primary/20 backdrop-blur-sm border-(--tt-divider-width) border-primary border-dashed m-panel rounded-xl flex items-center justify-center pointer-events-none">
-                                    <div className="bg-background px-stage py-tight rounded-full shadow-xl flex items-center gap-tools animate-pulse">
+                                <div className="absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none">
+                                    <div className="bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse">
                                         <FolderOpen className="toolbar-icon-size-lg text-primary" />
                                         <span className="text-scaled font-bold">
                                             {hasDestination
@@ -559,43 +548,7 @@ export function AddTorrentModal({
                                                     "min-w-0 w-0 border-none",
                                             )}
                                         >
-                                            <AddTorrentSettingsPanel
-                                                renderDestinationInput={
-                                                    renderDestinationInput
-                                                }
-                                                onDrop={handleDrop}
-                                                onDragOver={handleDragOver}
-                                                onDragLeave={handleDragLeave}
-                                                showBrowseAction={
-                                                    showBrowseAction
-                                                }
-                                                handleBrowse={handleBrowse}
-                                                isTouchingDirectory={
-                                                    isTouchingDirectory
-                                                }
-                                                recentPaths={recentPaths}
-                                                applyRecentPath={
-                                                    applyDroppedPath
-                                                }
-                                                step2StatusKind={
-                                                    step2StatusKind
-                                                }
-                                                step2StatusMessage={
-                                                    step2StatusMessage
-                                                }
-                                                spaceErrorDetail={
-                                                    spaceErrorDetail
-                                                }
-                                                showTransferFlags={
-                                                    source?.kind === "file"
-                                                }
-                                                sequential={sequential}
-                                                skipHashCheck={skipHashCheck}
-                                                setSequential={setSequential}
-                                                setSkipHashCheck={
-                                                    setSkipHashCheck
-                                                }
-                                            />
+                                            <AddTorrentSettingsPanel />
                                         </Panel>
                                         {/* === RESIZE HANDLE === */}
                                         {/* Keep splitter footprint always mounted to preserve stable modal geometry.
@@ -638,7 +591,7 @@ export function AddTorrentModal({
                                         >
                                             <div className="flex flex-col flex-1 min-h-0 outline-none border-default">
                                                 {/* Toolbar */}
-                                                <div className="p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 backdrop-blur-sm">
+                                                <div className="p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass">
                                                     {/* 3. Panel Toggle Button */}
                                                     <Tooltip
                                                         content={
@@ -678,7 +631,7 @@ export function AddTorrentModal({
                                                     </Tooltip>
 
                                                     {/* Search removed - FileExplorerTree has its own integrated search */}
-                                                    <div className="flex-1 text-xs text-foreground/40 font-semibold uppercase tracking-wider pl-2 select-none">
+                                                    <div className="flex-1 text-label text-foreground/40 font-semibold uppercase tracking-wider pl-tight select-none">
                                                         {files.length > 0
                                                             ? t(
                                                                   "torrent_modal.files_title",
@@ -758,34 +711,7 @@ export function AddTorrentModal({
                                                 </div>
 
                                                 {/* Content Area */}
-                                                <AddTorrentFileTable
-                                                    layoutEnabled={
-                                                        isFileTableInteractive
-                                                    }
-                                                    state={{
-                                                        files,
-                                                        filteredFiles,
-                                                        priorities,
-                                                        resolvedState,
-                                                        rowHeight:
-                                                            layout.rowHeight,
-                                                        selectedCount,
-                                                        selectedSize,
-                                                    }}
-                                                    actions={{
-                                                        onCyclePriority:
-                                                            onCyclePriority,
-                                                        onRowClick:
-                                                            handleRowClick,
-                                                        onRowSelectionChange:
-                                                            onRowSelectionChange,
-                                                        onSetPriority:
-                                                            onSetPriority,
-                                                        onSmartSelect:
-                                                            handleSmartSelect,
-                                                    }}
-                                                    rowSelection={rowSelection}
-                                                />
+                                                <AddTorrentFileTable />
                                             </div>
                                         </Panel>
                                     </PanelGroup>
@@ -945,8 +871,9 @@ export function AddTorrentModal({
                                 </div>
                             </div>
                         </ModalFooter>
-                    </form>
-                )}
+                        </form>
+                    )}
+                </AddTorrentModalContextProvider>
             </ModalContent>
         </Modal>
     );

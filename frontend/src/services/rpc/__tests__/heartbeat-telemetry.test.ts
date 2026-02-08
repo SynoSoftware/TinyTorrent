@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SessionStats, TorrentEntity } from "../entities";
-import { HeartbeatManager } from "../heartbeat";
+import type { SessionStats, TorrentEntity } from "@/services/rpc/entities";
+import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import STATUS from "@/shared/status";
 
 const dummyStats: SessionStats = {

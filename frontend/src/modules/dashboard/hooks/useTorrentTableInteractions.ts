@@ -9,7 +9,7 @@ import {
     type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { useTorrentTableKeyboard } from "./useTorrentTableKeyboard";
+import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
@@ -84,7 +84,8 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
                 const next = move(order, oldIndex, newIndex);
                 try {
                     table.setColumnOrder(next);
-                } catch {}
+                } catch {
+                }
                 return next;
             });
         }

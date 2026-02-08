@@ -1,9 +1,15 @@
-import type { ErrorEnvelope, TorrentEntity } from "./entities";
+import type { ErrorEnvelope, TorrentEntity } from "@/services/rpc/entities";
 
 // Minimal heartbeat processing: stamp `lastErrorAt` based on fingerprint
 // first-seen time. This module MUST NOT perform automation actions or
 // suppress engine-driven prompts — UI automation is removed per contract.
+// Session-scoped runtime cache.
+// Owner: `resetRecoveryRuntimeSessionState` in `services/recovery/recovery-runtime-lifecycle.ts`.
 let FIRST_SEEN_MS = new Map<string, number>();
+
+export function resetRecoveryAutomationRuntimeState() {
+    FIRST_SEEN_MS.clear();
+}
 
 export function configure(_opts: { coolDownMs?: number } = {}) {
     // no-op: automation knobs removed to enforce engine-first recovery
@@ -58,7 +64,7 @@ export function processHeartbeat(
 }
 
 export function _resetForTests() {
-    FIRST_SEEN_MS = new Map<string, number>();
+    resetRecoveryAutomationRuntimeState();
 }
 
 export default { processHeartbeat, configure, _resetForTests };

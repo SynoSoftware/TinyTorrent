@@ -3,7 +3,7 @@ import type { TFunction } from "i18next";
 import {
     formatPrimaryActionHintFromClassification,
     formatRecoveryTooltip,
-} from "../recoveryFormat";
+} from "@/shared/utils/recoveryFormat";
 import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 

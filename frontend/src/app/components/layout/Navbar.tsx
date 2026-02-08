@@ -24,9 +24,9 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { WindowControlButton } from "@/shared/ui/layout/window-control-button";
-import { useFocusState } from "@/app/context/FocusContext";
+import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
-import { useTheme } from "@/shared/hooks/useTheme";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -59,7 +59,11 @@ export function Navbar({ viewModel }: NavbarProps) {
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
     const shell = getShellTokens(workspaceStyle);
-    const { isDark, toggle } = useTheme();
+    const {
+        preferences: { theme },
+        toggleTheme,
+    } = usePreferences();
+    const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -333,7 +337,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                         : t("theme.light"),
                                 })}
                                 title={t("theme.toggle")}
-                                onPress={toggle}
+                                onPress={toggleTheme}
                                 className="text-default-400 hover:text-foreground"
                                 style={{ overflow: "visible" }}
                                 iconSize="lg"
@@ -379,7 +383,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                             value: isDark ? t("theme.dark") : t("theme.light"),
                         })}
                         title={t("theme.toggle")}
-                        onPress={toggle}
+                        onPress={toggleTheme}
                     />
 
                     <WindowControlButton
@@ -408,3 +412,4 @@ export function Navbar({ viewModel }: NavbarProps) {
         </header>
     );
 }
+

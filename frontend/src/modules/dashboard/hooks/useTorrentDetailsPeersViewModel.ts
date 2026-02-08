@@ -9,7 +9,6 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { formatSpeed } from "@/shared/utils/format";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
@@ -105,7 +104,13 @@ export const useTorrentDetailsPeersViewModel = ({
     const { copyToClipboard } = useTorrentClipboard();
     const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
         useLayoutMetrics();
-    const { hoveredPeer, setHoveredPeer, clearHoveredPeer } = usePeerHover();
+    const [hoveredPeer, setHoveredPeerState] = useState<string | null>(null);
+    const setHoveredPeer = useCallback((value: string | null) => {
+        setHoveredPeerState(value);
+    }, []);
+    const clearHoveredPeer = useCallback(() => {
+        setHoveredPeerState(null);
+    }, []);
 
     const [peerContextMenu, setPeerContextMenu] =
         useState<PeerContextMenuState | null>(null);

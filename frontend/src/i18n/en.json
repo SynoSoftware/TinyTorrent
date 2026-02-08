@@ -560,6 +560,8 @@
         "system": {
             "autorun_disabled": "Disabled",
             "autorun_enabled": "Enabled",
+            "autorun_toggle_failed": "Unable to change startup integration.",
+            "autorun_toggle_unsupported": "Startup integration is unavailable in this mode.",
             "autorun_unknown": "Unknown",
             "checkAssociation": "Check Association",
             "handlers_not_registered": "Handlers not registered",

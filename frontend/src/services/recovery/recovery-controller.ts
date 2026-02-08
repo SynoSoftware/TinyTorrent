@@ -127,6 +127,8 @@ export interface RecoverySequenceResult {
     log?: string;
 }
 
+// Session-scoped runtime caches.
+// Owner: `resetRecoveryRuntimeSessionState` in `services/recovery/recovery-runtime-lifecycle.ts`.
 const VERIFY_GUARD = new Map<string, number | null>();
 
 export function resetVerifyGuard() {

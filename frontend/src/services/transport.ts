@@ -1,4 +1,25 @@
-import { RpcCommandError } from "./rpc/errors";
+import { infraLogger } from "@/shared/utils/infraLogger";
+
+export type TransportOutcomeKind =
+    | "ok"
+    | "auth_error"
+    | "session_conflict"
+    | "unavailable"
+    | "aborted";
+
+type TransportFailureOutcome =
+    | { kind: "auth_error"; status: 401 | 403; message: string }
+    | { kind: "session_conflict"; message: string }
+    | { kind: "unavailable"; message: string }
+    | { kind: "aborted"; message: string };
+
+export type TransportRequestOutcome<T> =
+    | { kind: "ok"; value: T }
+    | TransportFailureOutcome;
+
+export type TransportFetchOutcome =
+    | { kind: "ok"; response: Response }
+    | TransportFailureOutcome;
 
 interface RpcRequest {
     method: string;
@@ -11,17 +32,43 @@ interface RpcResponse<T = unknown> {
     arguments: T;
 }
 
+type TransportSessionRuntime = {
+    sharedSessionId: string | null;
+    probePromise: Promise<string | null> | null;
+    sessionBarrier: Promise<void> | null;
+};
+
+const transportSessionRuntimeByKey = new Map<string, TransportSessionRuntime>();
+
+const getTransportSessionRuntime = (key: string): TransportSessionRuntime => {
+    const existing = transportSessionRuntimeByKey.get(key);
+    if (existing) return existing;
+    const runtime: TransportSessionRuntime = {
+        sharedSessionId: null,
+        probePromise: null,
+        sessionBarrier: null,
+    };
+    transportSessionRuntimeByKey.set(key, runtime);
+    return runtime;
+};
+
+export function resetTransportSessionRuntimeOwner() {
+    transportSessionRuntimeByKey.clear();
+}
+
 export class TransmissionRpcTransport {
     private sessionId: string | null = null;
-    // Shared session token across all Transport instances (helps React Strict Mode)
-    private static sharedSessionId: string | null = null;
     private endpoint: string;
     private authHeader?: string;
+    private readonly sessionRuntime: TransportSessionRuntime;
     // Track controllers for active fetches so we can abort them on reset.
     private inflightControllers = new Set<AbortController>();
 
     // 1. Request Coalescing Map (Deduplication)
-    private inflightRequests = new Map<string, Promise<unknown>>();
+    private inflightRequests = new Map<
+        string,
+        Promise<TransportRequestOutcome<unknown>>
+    >();
 
     // 2. Short-lived Cache (TTL)
     private responseCache = new Map<string, { val: unknown; ts: number }>();
@@ -73,21 +120,18 @@ export class TransmissionRpcTransport {
                 } catch {}
             }
         }
-        try {
-            // eslint-disable-next-line no-console
-            console.debug("[tiny-torrent][transport] created", {
-                endpoint: this.endpoint,
-            });
-        } catch {}
+        infraLogger.debug({
+            scope: "transport",
+            event: "created",
+            message: "Transmission RPC transport created",
+            details: { endpoint: this.endpoint },
+        });
+        this.sessionRuntime = getTransportSessionRuntime(
+            `${this.endpoint}::${this.authHeader ?? ""}`,
+        );
     }
     // TODO: This transport is Transmission-only. Do not add TinyTorrent token auth / websocket logic here.
     // TODO: Capability/locality decisions (localhost vs remote, ShellAgent/ShellExtensions bridge availability) belong to a UI capability provider, not this transport.
-
-    // Probe promise to dedupe concurrent probes for X-Transmission-Session-Id
-    // and sessionBarrier are static so multiple Transport instances (e.g.
-    // React Strict Mode duplicate mounts) share the same handshake coordination.
-    private static probePromise: Promise<string | null> | null = null;
-    private static sessionBarrier: Promise<void> | null = null;
 
     public clearResponseCache(): void {
         try {
@@ -105,7 +149,9 @@ export class TransmissionRpcTransport {
             this.sessionId = null;
         } catch {}
         try {
-            TransmissionRpcTransport.sharedSessionId = null;
+            this.sessionRuntime.sharedSessionId = null;
+            this.sessionRuntime.probePromise = null;
+            this.sessionRuntime.sessionBarrier = null;
         } catch {}
         try {
             this.clearResponseCache();
@@ -118,11 +164,7 @@ export class TransmissionRpcTransport {
     }
 
     public getSessionId(): string | undefined {
-        return (
-            this.sessionId ??
-            TransmissionRpcTransport.sharedSessionId ??
-            undefined
-        );
+        return this.sessionId ?? this.sessionRuntime.sharedSessionId ?? undefined;
     }
 
     public setSessionId(token: string | null | undefined): void {
@@ -130,15 +172,41 @@ export class TransmissionRpcTransport {
             this.sessionId = token ?? null;
         } catch {}
         try {
-            TransmissionRpcTransport.sharedSessionId = token ?? null;
+            this.sessionRuntime.sharedSessionId = token ?? null;
         } catch {}
     }
 
-    public async fetchWithSession(
+    private isAbortError(error: unknown): boolean {
+        if (!error || typeof error !== "object") return false;
+        const candidate = error as { name?: unknown; message?: unknown };
+        if (candidate.name === "AbortError") return true;
+        return (
+            typeof candidate.message === "string" &&
+            /abort(ed)?/i.test(candidate.message)
+        );
+    }
+
+    private mapFetchErrorToOutcome(
+        error: unknown,
+        fallbackMessage: string,
+    ): TransportFailureOutcome {
+        if (this.isAbortError(error)) {
+            return { kind: "aborted", message: "Transmission RPC request aborted" };
+        }
+        return {
+            kind: "unavailable",
+            message:
+                error instanceof Error && error.message
+                    ? error.message
+                    : fallbackMessage,
+        };
+    }
+
+    public async fetchWithSessionOutcome(
         requestInit: RequestInit,
         controller?: AbortController,
         keepalive = false
-    ): Promise<Response> {
+    ): Promise<TransportFetchOutcome> {
         // Create an internal controller so we can always abort the underlying
         // fetch if needed (reset/abortAll). If a caller provided a controller,
         // wire it to abort the internal controller as well.
@@ -166,34 +234,32 @@ export class TransmissionRpcTransport {
                 true;
         }
 
-        const attempt = async (retry = false): Promise<Response> => {
+        const attempt = async (retry = false): Promise<TransportFetchOutcome> => {
             // SESSION BARRIER: if we don't have a sessionId yet and this is not
             // a retry attempt, gate so only one leader will perform the probe.
             if (
-                !(this.sessionId ?? TransmissionRpcTransport.sharedSessionId) &&
+                !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
                 !retry
             ) {
-                if (!TransmissionRpcTransport.sessionBarrier) {
+                if (!this.sessionRuntime.sessionBarrier) {
                     // Synchronously install the barrier so concurrent callers
                     // observe a non-null value and will await the same promise.
                     let resolveBarrier: () => void = () => {};
-                    let rejectBarrier: (err?: any) => void = () => {};
-                    TransmissionRpcTransport.sessionBarrier = new Promise<void>(
+                    let rejectBarrier: (err?: Error) => void = () => {};
+                    this.sessionRuntime.sessionBarrier = new Promise<void>(
                         (res, rej) => {
                             resolveBarrier = res;
                             rejectBarrier = rej;
                         }
                     );
 
-                    try {
-                        // eslint-disable-next-line no-console
-                        console.debug(
-                            "[tiny-torrent][transport] sessionBarrier installed (leader)",
-                            {
-                                endpoint: this.endpoint,
-                            }
-                        );
-                    } catch {}
+                    infraLogger.debug({
+                        scope: "transport",
+                        event: "session_barrier_installed",
+                        message:
+                            "Session barrier installed for leader handshake",
+                        details: { endpoint: this.endpoint },
+                    });
 
                     // Leader: attempt a light-weight probe to obtain session id
                     // before sending POSTs. Use an independent controller so a
@@ -250,35 +316,38 @@ export class TransmissionRpcTransport {
                             if (token) {
                                 this.sessionId = token;
                                 try {
-                                    TransmissionRpcTransport.sharedSessionId =
-                                        token;
+                                    this.sessionRuntime.sharedSessionId = token;
                                 } catch {}
                             }
 
                             resolveBarrier();
                         } catch (err) {
                             try {
-                                rejectBarrier(err);
+                                rejectBarrier(
+                                    err instanceof Error
+                                        ? err
+                                        : new Error(
+                                              "Session barrier initialization failed"
+                                          )
+                                );
                             } catch {}
                         } finally {
                             // clear barrier after resolution so future handshakes
                             // may create a new barrier when needed.
-                            TransmissionRpcTransport.sessionBarrier = null;
+                            this.sessionRuntime.sessionBarrier = null;
                         }
                     })();
                 }
 
                 try {
-                    try {
-                        // eslint-disable-next-line no-console
-                        console.debug(
-                            "[tiny-torrent][transport] awaiting sessionBarrier (worker)",
-                            {
-                                endpoint: this.endpoint,
-                            }
-                        );
-                    } catch {}
-                    await TransmissionRpcTransport.sessionBarrier;
+                    infraLogger.debug({
+                        scope: "transport",
+                        event: "session_barrier_await",
+                        message:
+                            "Awaiting existing session barrier for worker request",
+                        details: { endpoint: this.endpoint },
+                    });
+                    await this.sessionRuntime.sessionBarrier;
                 } catch {
                     // If the leader's probe failed, fall through and attempt
                     // the normal POST flow which will perform the 409/handshake
@@ -290,7 +359,7 @@ export class TransmissionRpcTransport {
                 (requestInit.headers as Record<string, string>) ?? {}
             );
             const effectiveSessionId =
-                this.sessionId ?? TransmissionRpcTransport.sharedSessionId;
+                this.sessionId ?? this.sessionRuntime.sharedSessionId;
             if (effectiveSessionId) {
                 headers["X-Transmission-Session-Id"] =
                     effectiveSessionId as string;
@@ -303,6 +372,11 @@ export class TransmissionRpcTransport {
             let response: Response;
             try {
                 response = await fetch(this.endpoint, requestInit);
+            } catch (error) {
+                return this.mapFetchErrorToOutcome(
+                    error,
+                    "Transmission RPC unavailable",
+                );
             } finally {
                 try {
                     this.inflightControllers.delete(internalController);
@@ -343,18 +417,39 @@ export class TransmissionRpcTransport {
                 }
                 if (!token) {
                     this.sessionId = null;
-                    TransmissionRpcTransport.sharedSessionId = null;
-                    throw new Error("Transmission RPC missing session id");
+                    this.sessionRuntime.sharedSessionId = null;
+                    return {
+                        kind: "session_conflict",
+                        message: "Transmission RPC missing session id",
+                    };
                 }
                 this.sessionId = token;
                 try {
-                    TransmissionRpcTransport.sharedSessionId = token;
+                    this.sessionRuntime.sharedSessionId = token;
                 } catch {}
                 if (retry) {
                     this.sessionId = null;
-                    throw new Error("Transmission RPC session conflict");
+                    return {
+                        kind: "session_conflict",
+                        message: "Transmission RPC session conflict",
+                    };
                 }
                 return attempt(true);
+            }
+
+            if (status === 401) {
+                return {
+                    kind: "auth_error",
+                    status: 401,
+                    message: "Transmission RPC unauthorized",
+                };
+            }
+            if (status === 403) {
+                return {
+                    kind: "auth_error",
+                    status: 403,
+                    message: "Transmission RPC forbidden",
+                };
             }
 
             // Update session id if present on response headers (defensive)
@@ -367,15 +462,38 @@ export class TransmissionRpcTransport {
                 if (currentToken && currentToken !== this.sessionId) {
                     this.sessionId = currentToken;
                     try {
-                        TransmissionRpcTransport.sharedSessionId = currentToken;
+                        this.sessionRuntime.sharedSessionId = currentToken;
                     } catch {}
                 }
             } catch {}
 
-            return response;
+            return { kind: "ok", response };
         };
 
         return attempt(false);
+    }
+
+    public async fetchWithSession(
+        requestInit: RequestInit,
+        controller?: AbortController,
+        keepalive = false,
+    ): Promise<Response> {
+        const outcome = await this.fetchWithSessionOutcome(
+            requestInit,
+            controller,
+            keepalive,
+        );
+        if (outcome.kind === "ok") {
+            return outcome.response;
+        }
+        const error = new Error(outcome.message);
+        if (outcome.kind === "auth_error") {
+            (error as unknown as { status?: number }).status = outcome.status;
+        }
+        if (outcome.kind === "aborted") {
+            (error as unknown as { name?: string }).name = "AbortError";
+        }
+        throw error;
     }
 
     /**
@@ -401,15 +519,16 @@ export class TransmissionRpcTransport {
     ): Promise<string | null> {
         // Dedupe concurrent probes so we don't flood the server with
         // OPTIONS/HEAD/GET probes when multiple requests observe 409s.
-        if (TransmissionRpcTransport.probePromise)
-            return TransmissionRpcTransport.probePromise;
+        if (this.sessionRuntime.probePromise) {
+            return this.sessionRuntime.probePromise;
+        }
 
         // Prefer a simple GET probe without custom headers to avoid CORS preflight
         // failures (many Transmission endpoints don't implement OPTIONS/HEAD).
         const methods: Array<RequestInit["method"]> = ["GET"];
         const headersBase: Record<string, string> = {};
 
-        TransmissionRpcTransport.probePromise = (async (): Promise<
+        this.sessionRuntime.probePromise = (async (): Promise<
             string | null
         > => {
             try {
@@ -438,11 +557,56 @@ export class TransmissionRpcTransport {
                 return null;
             } finally {
                 // Clear the probe promise so future probes may run if needed.
-                TransmissionRpcTransport.probePromise = null;
+                this.sessionRuntime.probePromise = null;
             }
         })();
 
-        return TransmissionRpcTransport.probePromise;
+        return this.sessionRuntime.probePromise;
+    }
+
+    public async requestWithOutcome<T>(
+        method: string,
+        args: Record<string, unknown> = {},
+        options: { cache?: boolean } = {},
+        controller?: AbortController,
+    ): Promise<TransportRequestOutcome<T>> {
+        const cacheKey = `${method}:${this.stableStringify(args ?? null)}`;
+
+        if (options.cache) {
+            const cached = this.responseCache.get(cacheKey);
+            if (cached && Date.now() - cached.ts < this.CACHE_TTL_MS) {
+                return { kind: "ok", value: cached.val as T };
+            }
+        }
+
+        if (this.inflightRequests.has(cacheKey)) {
+            return this.inflightRequests.get(cacheKey)! as Promise<
+                TransportRequestOutcome<T>
+            >;
+        }
+
+        const allowCallerAbort = !options.cache;
+        const execController = allowCallerAbort ? controller : undefined;
+        const promise = this.executeWithStateLogic<T>(
+            method,
+            args,
+            execController,
+        ) as Promise<TransportRequestOutcome<unknown>>;
+
+        this.inflightRequests.set(cacheKey, promise);
+
+        try {
+            const outcome = (await promise) as TransportRequestOutcome<T>;
+            if (options.cache && outcome.kind === "ok") {
+                this.responseCache.set(cacheKey, {
+                    val: outcome.value,
+                    ts: Date.now(),
+                });
+            }
+            return outcome;
+        } finally {
+            this.inflightRequests.delete(cacheKey);
+        }
     }
 
     /**
@@ -455,49 +619,23 @@ export class TransmissionRpcTransport {
         options: { cache?: boolean } = {},
         controller?: AbortController
     ): Promise<T> {
-        const cacheKey = `${method}:${this.stableStringify(args ?? null)}`;
-
-        // A. Cache Check
-        if (options.cache) {
-            const cached = this.responseCache.get(cacheKey);
-            if (cached && Date.now() - cached.ts < this.CACHE_TTL_MS) {
-                return cached.val as T;
-            }
-        }
-
-        // B. Coalescing (Deduplication)
-        // If this exact request is already flying, return the existing promise
-        if (this.inflightRequests.has(cacheKey)) {
-            return this.inflightRequests.get(cacheKey) as Promise<T>;
-        }
-
-        // If this is a cached/coalesced read-only request, do NOT wire the
-        // caller's AbortSignal into the internal fetch. This prevents one
-        // consumer aborting the shared in-flight request for all waiters.
-        const allowCallerAbort = !options.cache;
-        const execController = allowCallerAbort ? controller : undefined;
-        const promise = this.executeWithStateLogic<T>(
+        const outcome = await this.requestWithOutcome<T>(
             method,
             args,
-            execController
+            options,
+            controller,
         );
-
-        this.inflightRequests.set(cacheKey, promise);
-
-        try {
-            const result = (await promise) as T;
-            // Update Cache on success
-            if (options.cache) {
-                this.responseCache.set(cacheKey, {
-                    val: result,
-                    ts: Date.now(),
-                });
-            }
-            return result;
-        } finally {
-            // Clean up inflight map
-            this.inflightRequests.delete(cacheKey);
+        if (outcome.kind === "ok") {
+            return outcome.value;
         }
+        const error = new Error(outcome.message);
+        if (outcome.kind === "auth_error") {
+            (error as unknown as { status?: number }).status = outcome.status;
+        }
+        if (outcome.kind === "aborted") {
+            (error as unknown as { name?: string }).name = "AbortError";
+        }
+        throw error;
     }
 
     /**
@@ -507,36 +645,41 @@ export class TransmissionRpcTransport {
         method: string,
         args: unknown,
         controller?: AbortController
-    ): Promise<T> {
+    ): Promise<TransportRequestOutcome<T>> {
         const requestInit: RequestInit = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ method, arguments: args }),
         };
 
-        const res = await this.fetchWithSession(requestInit, controller, false);
+        const fetchOutcome = await this.fetchWithSessionOutcome(
+            requestInit,
+            controller,
+            false,
+        );
+        if (fetchOutcome.kind !== "ok") {
+            return fetchOutcome;
+        }
+        const res = fetchOutcome.response;
 
         // Handle unauthorized responses explicitly so callers can react.
         // TODO: Rename these error messages to “Transmission RPC ...” (not “TinyTorrent RPC ...”) once the codebase is fully Transmission-only; keep errors consistent across transports/adapters.
-        if (res.status === 401) {
-            const e = new Error("TinyTorrent RPC unauthorized");
-            (e as unknown as { status?: number }).status = 401;
-            throw e;
+        if (!res.ok) {
+            return {
+                kind: "unavailable",
+                message: `HTTP Error ${res.status}`,
+            };
         }
-        if (res.status === 403) {
-            const e = new Error("TinyTorrent RPC forbidden");
-            (e as unknown as { status?: number }).status = 403;
-            throw e;
-        }
-
-        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
 
         const jsonRaw = await res.json();
         const json = jsonRaw as RpcResponse<T>;
         if (json.result !== "success") {
-            throw new RpcCommandError(json.result, json.result);
+            return {
+                kind: "unavailable",
+                message: `Transmission RPC responded with ${json.result}`,
+            };
         }
 
-        return json.arguments;
+        return { kind: "ok", value: json.arguments };
     }
 }

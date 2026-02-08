@@ -12,6 +12,8 @@ export function isValidDestinationForMode(
 
     const isWindowsAbs = /^[a-zA-Z]:[\\/]/.test(trimmed) || /^\\\\/.test(trimmed);
     const isPosixAbs = trimmed.startsWith("/");
+    // TODO(section 20.4/21.5): remove UA heuristic capability probing and derive
+    // destination policy from a single explicit runtime/session authority.
     const isProbablyWindows =
         typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
     if (uiMode === "Full") return isWindowsAbs || (!isProbablyWindows && isPosixAbs);

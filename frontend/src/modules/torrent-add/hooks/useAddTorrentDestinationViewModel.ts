@@ -1,11 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { describePathKind, isValidDestinationForMode } from "@/modules/torrent-add/utils/destination";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
 
 export interface UseAddTorrentDestinationViewModelParams {
     downloadDir: string;
-    uiMode: "Full" | "Rpc";
     onDownloadDirChange: (value: string) => void;
+    // TODO(section 21.9): avoid threading browse behavior callbacks through modal hooks;
+    // consume a single command surface at the leaf boundary.
     onBrowseDirectory?: (
         currentPath: string
     ) => Promise<string | null | undefined>;
@@ -33,12 +35,12 @@ export interface UseAddTorrentDestinationViewModelResult {
 
 export function useAddTorrentDestinationViewModel({
     downloadDir,
-    uiMode,
     onDownloadDirChange,
     onBrowseDirectory,
     addTorrentHistory,
     setAddTorrentHistory,
 }: UseAddTorrentDestinationViewModelParams): UseAddTorrentDestinationViewModelResult {
+    const { uiMode } = useUiModeCapabilities();
     const [destinationDraft, setDestinationDraft] = useState("");
     const [destinationGateCompleted, setDestinationGateCompleted] = useState(false);
     const [destinationGateTried, setDestinationGateTried] = useState(false);
@@ -161,6 +163,8 @@ export function useAddTorrentDestinationViewModel({
     }, []);
 
     const handleBrowse = useCallback(async () => {
+        // TODO(section 20.2/20.5): return typed browse outcomes
+        // (picked|cancelled|unsupported|failed) instead of Promise<void> + silent no-op.
         if (!onBrowseDirectory) return;
         setIsTouchingDirectory(true);
         try {
@@ -196,3 +200,4 @@ export function useAddTorrentDestinationViewModel({
         applyDroppedPath,
     };
 }
+

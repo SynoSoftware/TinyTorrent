@@ -225,6 +225,9 @@
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
     --tt-settings-min-h: calc(125 * var(--u));
+    --tt-settings-sidebar-w: calc(64 * var(--u) * var(--z));
+    --tt-settings-tab-indicator-w: calc(var(--u) * var(--z));
+    --tt-settings-tab-indicator-inset-y: var(--spacing-tight);
     /* Increased badge min width so status chips can display text without truncation */
     --tt-badge-min-width: calc(28 * var(--u) * var(--z));
     --tt-status-chip-w: calc(32 * var(--u) * var(--z));
@@ -317,6 +320,22 @@
     }
     .min-w-add-file-table {
         min-width: var(--tt-add-file-table-min-w);
+    }
+    .grid-cols-file-tree {
+        grid-template-columns: var(--tt-file-grid-template);
+    }
+    .pl-file-tree-indent {
+        padding-left: calc(
+            var(--tt-file-row-padding-left) +
+                (var(--tt-file-depth, 0) * var(--tt-file-depth-indent))
+        );
+    }
+    .file-tree-chevron-hit {
+        padding: var(--tt-file-checkbox-padding);
+        margin-right: var(--spacing-tight);
+    }
+    .w-file-tree-indent-spacer {
+        width: calc(var(--tt-file-icon-size) + var(--spacing-tight));
     }
     .w-add-modal-pane-gap {
         width: var(--tt-add-modal-pane-gap);
@@ -928,6 +947,9 @@ main .torrent-table-watermark {
     .p-tight {
         padding: var(--spacing-tight);
     }
+    .p-none {
+        padding: 0;
+    }
     .p-add-modal-pane-gap {
         padding: var(--tt-add-modal-pane-gap);
     }
@@ -961,9 +983,26 @@ main .torrent-table-watermark {
         padding-top: var(--spacing-tight);
         padding-bottom: var(--spacing-tight);
     }
+    .pl-tight {
+        padding-left: var(--spacing-tight);
+    }
+
+    .gap-none {
+        gap: 0;
+    }
 
     .rounded-panel {
         border-radius: var(--r-md);
+    }
+    .rounded-tight {
+        border-radius: var(--r-sm);
+    }
+    .rounded-pill {
+        border-radius: 9999px;
+    }
+    .rounded-r-pill {
+        border-top-right-radius: 9999px;
+        border-bottom-right-radius: 9999px;
     }
 
     .h-sep {
@@ -1035,6 +1074,13 @@ main .torrent-table-watermark {
     .min-h-settings {
         min-height: var(--tt-settings-min-h);
     }
+    .w-settings-sidebar {
+        width: var(--tt-settings-sidebar-w);
+    }
+
+    .border-divider {
+        border-width: var(--tt-divider-width);
+    }
 
     .max-w-dir-picker {
         max-width: var(--tt-directory-picker-max-w);
@@ -1098,6 +1144,13 @@ main .torrent-table-watermark {
         height: var(--tt-shell-accent-medium);
     }
 
+    .settings-tab-indicator {
+        left: 0;
+        top: var(--tt-settings-tab-indicator-inset-y);
+        bottom: var(--tt-settings-tab-indicator-inset-y);
+        width: var(--tt-settings-tab-indicator-w);
+    }
+
     /* Consolidated label typography */
     .text-label {
         font-size: var(--font-size-label);
@@ -1114,6 +1167,18 @@ main .torrent-table-watermark {
     }
     .h-peers-hud {
         height: var(--tt-peers-hud-height);
+    }
+}
+
+@layer components {
+    .settings-sidebar-shell {
+        width: 100%;
+    }
+
+    @media (min-width: 640px) {
+        .settings-sidebar-shell {
+            width: var(--tt-settings-sidebar-w);
+        }
     }
 }
 

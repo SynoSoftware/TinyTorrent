@@ -6,7 +6,7 @@ import type {
     TransmissionSessionStats,
     TransmissionTorrent,
     TransmissionTorrentDetail,
-} from "./types";
+} from "@/services/rpc/types";
 const zRpcResponse = z.object({
     result: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
@@ -42,9 +42,16 @@ const atobShim = (value: string) => {
         return atob(value);
     }
     const globalObj = typeof globalThis !== "undefined" ? globalThis : {};
-    const BufferCtor = (globalObj as any).Buffer;
-    if (BufferCtor && typeof BufferCtor.from === "function") {
-        return BufferCtor.from(value, "base64").toString("binary");
+    const globalWithBuffer = globalObj as {
+        Buffer?: {
+            from: (input: string, encoding: string) => {
+                toString: (encoding: string) => string;
+            };
+        };
+    };
+    const bufferCtor = globalWithBuffer.Buffer;
+    if (bufferCtor && typeof bufferCtor.from === "function") {
+        return bufferCtor.from(value, "base64").toString("binary");
     }
     throw new Error("Base64 decode unavailable");
 };
@@ -527,6 +534,17 @@ export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
 export const zTransmissionTorrentArray = zTorrentListResponse.transform(
     (v) => v.torrents
 );
+
+export const zTransmissionRecentlyActiveResponse = z
+    .object({
+        torrents: z.array(zTransmissionTorrent).catch([]),
+        removed: z.array(z.number()).optional(),
+    })
+    .passthrough()
+    .transform((value) => ({
+        torrents: value.torrents as TransmissionTorrent[],
+        removed: value.removed,
+    }));
 
 export const zTransmissionTorrentDetailSingle =
     zTorrentDetailResponse.transform((v) => {

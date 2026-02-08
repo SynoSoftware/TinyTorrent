@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { HeartbeatManager } from "../heartbeat";
+import { HeartbeatManager } from "@/services/rpc/heartbeat";
 
 const dummyStats = {
     downloadSpeed: 0,

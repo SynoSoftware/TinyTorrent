@@ -1,5 +1,6 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 type NativeShellEventPayload =
     | string
@@ -30,8 +31,10 @@ type NativeShellEventMessage = {
 };
 
 type PendingRequest = {
-    resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
+    resolve: (value: NativeShellRequestOutcome<unknown>) => void;
+    timeoutId?: ReturnType<typeof setTimeout>;
+    signal?: AbortSignal;
+    abortHandler?: () => void;
 };
 
 type NativeShellListener = (payload?: NativeShellEventPayload) => void;
@@ -53,8 +56,25 @@ const eventListeners = new Map<
     NativeShellEventName,
     Set<NativeShellListener>
 >();
+const DEFAULT_BRIDGE_TIMEOUT_MS = 10_000;
 let requestCounter = 1;
 let listenerInstalled = false;
+let teardownListenerInstalled = false;
+
+export type NativeShellRequestFailureKind =
+    | "unavailable"
+    | "timeout"
+    | "canceled"
+    | "failed";
+
+export type NativeShellRequestOutcome<T> =
+    | { kind: "ok"; value: T }
+    | { kind: NativeShellRequestFailureKind; message: string };
+
+export interface NativeShellRequestOptions {
+    timeoutMs?: number;
+    signal?: AbortSignal;
+}
 
 function hasNativeHostFlag(): boolean {
     if (typeof window === "undefined") {
@@ -88,6 +108,19 @@ function ensureBridgeListener() {
     listenerInstalled = true;
 }
 
+function ensureRuntimeTeardownListener() {
+    if (teardownListenerInstalled) {
+        return;
+    }
+    if (typeof window === "undefined") {
+        return;
+    }
+    window.addEventListener("beforeunload", () => {
+        resetNativeBridgePendingRequests();
+    });
+    teardownListenerInstalled = true;
+}
+
 function handleBridgeMessage(messageEvent: { data?: unknown }) {
     const payload = messageEvent.data;
     if (!payload || typeof payload !== "object") {
@@ -95,17 +128,16 @@ function handleBridgeMessage(messageEvent: { data?: unknown }) {
     }
     if ((payload as NativeShellResponseMessage).type === "response") {
         const response = payload as NativeShellResponseMessage;
-        const pending = pendingRequests.get(response.id);
-        if (!pending) {
-            return;
-        }
-        pendingRequests.delete(response.id);
         if (response.success) {
-            pending.resolve(response.payload);
+            resolvePendingRequest(response.id, {
+                kind: "ok",
+                value: response.payload,
+            });
         } else {
-            pending.reject(
-                new Error(response.error ?? "Native shell request failed")
-            );
+            resolvePendingRequest(response.id, {
+                kind: "failed",
+                message: response.error ?? "Native shell request failed",
+            });
         }
         return;
     }
@@ -120,22 +152,107 @@ function handleBridgeMessage(messageEvent: { data?: unknown }) {
                 listener(event.payload);
             } catch (error) {
                 // Swallow errors from listeners to keep channel stable.
-                // eslint-disable-next-line no-console
-                console.error("Native shell listener error", error);
+                infraLogger.error(
+                    {
+                        scope: "runtime",
+                        event: "native_shell_listener_error",
+                        message: "Native shell listener raised an exception",
+                    },
+                    error instanceof Error ? error : { error: String(error) },
+                );
             }
         }
     }
 }
 
-function sendBridgeRequest(name: string, payload?: unknown): Promise<unknown> {
+function disposePendingRequest(pending: PendingRequest) {
+    if (pending.timeoutId) {
+        clearTimeout(pending.timeoutId);
+    }
+    if (pending.signal && pending.abortHandler) {
+        pending.signal.removeEventListener("abort", pending.abortHandler);
+    }
+}
+
+function resolvePendingRequest(
+    id: string,
+    outcome: NativeShellRequestOutcome<unknown>,
+) {
+    const pending = pendingRequests.get(id);
+    if (!pending) {
+        return;
+    }
+    pendingRequests.delete(id);
+    disposePendingRequest(pending);
+    pending.resolve(outcome);
+}
+
+export function resetNativeBridgePendingRequests() {
+    for (const [id, pending] of pendingRequests) {
+        pendingRequests.delete(id);
+        disposePendingRequest(pending);
+        pending.resolve({
+            kind: "canceled",
+            message: "Native shell request canceled during teardown",
+        });
+    }
+}
+
+function sendBridgeRequestOutcome(
+    name: string,
+    payload?: unknown,
+    options?: NativeShellRequestOptions,
+): Promise<NativeShellRequestOutcome<unknown>> {
     const bridge = getBridge();
     if (!bridge || typeof bridge.postMessage !== "function") {
-        return Promise.reject(new Error("Native shell bridge unavailable"));
+        return Promise.resolve({
+            kind: "unavailable",
+            message: "Native shell bridge unavailable",
+        });
     }
     ensureBridgeListener();
+    ensureRuntimeTeardownListener();
     const id = `tt-${requestCounter++}`;
-    return new Promise((resolve, reject) => {
-        pendingRequests.set(id, { resolve, reject });
+    return new Promise((resolve) => {
+        const timeoutMs =
+            typeof options?.timeoutMs === "number" && options.timeoutMs >= 0
+                ? options.timeoutMs
+                : DEFAULT_BRIDGE_TIMEOUT_MS;
+        const signal = options?.signal;
+
+        if (signal?.aborted) {
+            resolve({
+                kind: "canceled",
+                message: "Native shell request canceled before dispatch",
+            });
+            return;
+        }
+
+        const pending: PendingRequest = {
+            resolve,
+            signal,
+        };
+
+        if (timeoutMs > 0) {
+            pending.timeoutId = setTimeout(() => {
+                resolvePendingRequest(id, {
+                    kind: "timeout",
+                    message: `Native shell request timed out after ${timeoutMs}ms`,
+                });
+            }, timeoutMs);
+        }
+
+        if (signal) {
+            pending.abortHandler = () => {
+                resolvePendingRequest(id, {
+                    kind: "canceled",
+                    message: "Native shell request canceled",
+                });
+            };
+            signal.addEventListener("abort", pending.abortHandler);
+        }
+
+        pendingRequests.set(id, pending);
         try {
             const message: NativeShellRequestMessage = {
                 type: "request",
@@ -145,10 +262,34 @@ function sendBridgeRequest(name: string, payload?: unknown): Promise<unknown> {
             };
             bridge.postMessage(message);
         } catch (error) {
-            pendingRequests.delete(id);
-            reject(error instanceof Error ? error : new Error(String(error)));
+            resolvePendingRequest(id, {
+                kind: "failed",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : String(error),
+            });
         }
     });
+}
+
+async function sendBridgeRequest(
+    name: string,
+    payload?: unknown,
+    options?: NativeShellRequestOptions,
+): Promise<unknown> {
+    const outcome = await sendBridgeRequestOutcome(name, payload, options);
+    if (outcome.kind === "ok") {
+        return outcome.value;
+    }
+    const error = new Error(outcome.message);
+    if (outcome.kind === "canceled") {
+        (error as { name?: string }).name = "AbortError";
+    }
+    if (outcome.kind === "timeout") {
+        (error as { name?: string }).name = "TimeoutError";
+    }
+    throw error;
 }
 
 function extractPathFromResponse(response: unknown): string | undefined {
@@ -169,8 +310,15 @@ export const NativeShell = {
     get isAvailable() {
         return Boolean(runtimeIsNativeHost() && getBridge());
     },
-    request(name: string, payload?: unknown) {
-        return sendBridgeRequest(name, payload);
+    requestWithOutcome(
+        name: string,
+        payload?: unknown,
+        options?: NativeShellRequestOptions,
+    ) {
+        return sendBridgeRequestOutcome(name, payload, options);
+    },
+    request(name: string, payload?: unknown, options?: NativeShellRequestOptions) {
+        return sendBridgeRequest(name, payload, options);
     },
     onEvent(name: NativeShellEventName, handler: NativeShellListener) {
         if (!eventListeners.has(name)) {
@@ -216,6 +364,9 @@ export const NativeShell = {
         associations?: boolean;
     }) {
         await sendBridgeRequest("set-system-integration", features);
+    },
+    resetPendingRequests() {
+        resetNativeBridgePendingRequests();
     },
 };
 // TODO: Treat `NativeShell` as a *low-level bridge* (WebView host IPC), not an app-level capability surface.

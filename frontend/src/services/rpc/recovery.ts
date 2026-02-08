@@ -1,11 +1,12 @@
-import type { TransmissionTorrentDetail, TransmissionTorrent } from "./types";
+import type { TransmissionTorrentDetail, TransmissionTorrent } from "@/services/rpc/types";
 import type {
     ErrorClass,
     RecoveryState,
     RecoveryAction,
     ErrorEnvelope,
     EngineCapabilities,
-} from "./entities";
+} from "@/services/rpc/entities";
+import { infraLogger } from "@/shared/utils/infraLogger";
 // TODO: Keep this module Transmission-only and deterministic.
 // TODO: This is a low-level “engine truth -> error envelope” projection and must not contain:
 // TODO: - UI mode / ShellExtensions gating (that is `uiMode = "Full" | "Rpc"` at the UI layer)
@@ -207,10 +208,11 @@ export const buildErrorEnvelope = (
 
     // Enforce invariants
     if (recoveryState === "ok" && primaryAction !== null) {
-        // eslint-disable-next-line no-console
-        console.warn(
-            "[tiny-torrent][recovery] Coercing primaryAction -> null for ok state"
-        );
+        infraLogger.warn({
+            scope: "recovery",
+            event: "primary_action_coerced",
+            message: "Coercing primaryAction to null for ok recovery state",
+        });
         primaryAction = null;
     }
     if (
@@ -219,10 +221,13 @@ export const buildErrorEnvelope = (
         primaryAction === null
     ) {
         // No allowed action available; log and keep null (UI must prompt user)
-        // eslint-disable-next-line no-console
-        console.warn(
-            `[tiny-torrent][recovery] needsUserAction but no allowed primaryAction for fingerprint=${envelopeFingerprint}`
-        );
+        infraLogger.warn({
+            scope: "recovery",
+            event: "missing_primary_action",
+            message:
+                "Recovery state requires user action but no allowed primaryAction was selected",
+            details: { fingerprint: envelopeFingerprint },
+        });
     }
 
     const envelope: ErrorEnvelope = {
@@ -268,16 +273,28 @@ export const buildErrorEnvelope = (
             // Defensive fix: log and coerce to first allowed state.
             // This preserves engine-truth-first behavior while preventing
             // contradictory envelopes.
-            // eslint-disable-next-line no-console
-            console.error(
-                `[tiny-torrent][recovery] Invariant violation for fingerprint=${fingerprintLabel}: errorClass=${errorClass} mapped to recoveryState=${envelope.recoveryState}`
-            );
+            infraLogger.error({
+                scope: "recovery",
+                event: "envelope_invariant_violation",
+                message: "Recovery envelope invariant violation detected",
+                details: {
+                    fingerprint: fingerprintLabel,
+                    errorClass,
+                    recoveryState: envelope.recoveryState,
+                },
+            });
             reportedInvariantViolations.add(fingerprint);
         } else if (fingerprintLabel === "<unknown>") {
-            // eslint-disable-next-line no-console
-            console.error(
-                `[tiny-torrent][recovery] Invariant violation for fingerprint=${fingerprintLabel}: errorClass=${errorClass} mapped to recoveryState=${envelope.recoveryState}`
-            );
+            infraLogger.error({
+                scope: "recovery",
+                event: "envelope_invariant_violation",
+                message: "Recovery envelope invariant violation detected",
+                details: {
+                    fingerprint: fingerprintLabel,
+                    errorClass,
+                    recoveryState: envelope.recoveryState,
+                },
+            });
         }
         envelope.recoveryState = allowedStates[0];
     } else if (fingerprint) {

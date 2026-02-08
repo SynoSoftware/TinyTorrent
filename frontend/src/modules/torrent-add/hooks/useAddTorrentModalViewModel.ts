@@ -15,6 +15,7 @@ import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { INTERACTION_CONFIG, KEY_SCOPE } from "@/config/logic";
+import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 import { useAddTorrentDestinationViewModel } from "@/modules/torrent-add/hooks/useAddTorrentDestinationViewModel";
 import { useAddTorrentFileSelectionViewModel } from "@/modules/torrent-add/hooks/useAddTorrentFileSelectionViewModel";
 import { useAddTorrentViewportViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewportViewModel";
@@ -46,8 +47,12 @@ export interface UseAddTorrentModalViewModelParams {
     onBrowseDirectory?: (
         currentPath: string
     ) => Promise<string | null | undefined>;
+    // TODO(section 21.8/21.9): this behavior callback should come from one command
+    // surface, not be threaded through modal/view-model layers.
     onCancel: () => void;
-    onConfirm: (selection: AddTorrentSelection) => Promise<void>;
+    onConfirm: (
+        selection: AddTorrentSelection
+    ) => Promise<AddTorrentCommandOutcome>;
     onDownloadDirChange: (value: string) => void;
     source: AddTorrentSource | null;
 }
@@ -221,7 +226,6 @@ export function useAddTorrentModalViewModel({
         applyDroppedPath,
     } = useAddTorrentDestinationViewModel({
         downloadDir,
-        uiMode,
         onDownloadDirChange,
         onBrowseDirectory,
         addTorrentHistory,
@@ -479,7 +483,7 @@ export function useAddTorrentModalViewModel({
             });
 
             try {
-                await onConfirm({
+                const outcome = await onConfirm({
                     downloadDir: submitDir,
                     commitMode,
                     filesUnwanted,
@@ -491,7 +495,19 @@ export function useAddTorrentModalViewModel({
                         skipHashCheck,
                     },
                 });
-                pushRecentPath(submitDir);
+                if (outcome.status === "added" || outcome.status === "finalized") {
+                    pushRecentPath(submitDir);
+                    return;
+                }
+                if (
+                    outcome.status === "failed" ||
+                    outcome.status === "invalid_input" ||
+                    outcome.status === "blocked_pending_delete"
+                ) {
+                    if (isMountedRef.current) {
+                        setSubmitError(t("modals.add_error_default"));
+                    }
+                }
             } catch {
                 if (isMountedRef.current) {
                     setSubmitError(t("modals.add_error_default"));

@@ -1,4 +1,4 @@
-import defaultSettingsConfig from "./default-settings.json";
+import defaultSettingsConfig from "@/modules/settings/data/default-settings.json";
 
 export interface SettingsConfig {
     peer_port: number;

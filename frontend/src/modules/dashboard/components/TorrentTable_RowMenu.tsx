@@ -9,12 +9,14 @@ import {
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
     ContextMenuKey,
     QueueMenuAction,
     TableContextMenu,
     TorrentTableRowMenuViewModel,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
@@ -106,12 +108,15 @@ function TorrentTable_RowMenuInner({
 }: {
     contextMenu: TableContextMenu;
     onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<void>;
+    handleContextMenuAction: (key?: string) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
+    // TODO(section 20.4): consume centralized clipboard capability state from one
+    // authority instead of feature-local probing and threaded booleans.
     isClipboardSupported?: boolean;
 }) {
     const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const {
         inlineSetLocationState,
         releaseInlineSetLocation,
@@ -204,6 +209,7 @@ function TorrentTable_RowMenuInner({
         shouldShowInlineEditor,
     ]);
 
+    // TODO(section 20.5): stop inferring close behavior from boolean success; branch on typed outcomes.
     const handleInlineSubmit = useCallback(() => {
         void confirmInlineSetLocation().then((success) => {
             if (success) {
@@ -219,10 +225,21 @@ function TorrentTable_RowMenuInner({
         releaseInlineSetLocation();
         onClose();
     };
+    const handleMenuActionPress = useCallback(
+        async (key?: string) => {
+            const outcome = await handleContextMenuAction(key);
+            if (outcome.status === "unsupported") {
+                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
+            } else if (outcome.status === "failed") {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+            }
+        },
+        [handleContextMenuAction, showFeedback, t]
+    );
     const handleSetDownloadPath = useCallback(() => {
         if (!canSetLocation) return;
-        void handleContextMenuAction("set-download-path");
-    }, [canSetLocation, handleContextMenuAction]);
+        void handleMenuActionPress("set-download-path");
+    }, [canSetLocation, handleMenuActionPress]);
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
@@ -232,7 +249,7 @@ function TorrentTable_RowMenuInner({
                 <DropdownItem
                     key={item.key}
                     shortcut={item.shortcut}
-                    onPress={() => void handleContextMenuAction(item.key)}
+                    onPress={() => void handleMenuActionPress(item.key)}
                     isDisabled={item.disabled}
                 >
                     {item.label}
@@ -256,7 +273,7 @@ function TorrentTable_RowMenuInner({
                     key={action.key}
                     className="pl-stage text-sm"
                     shortcut={getContextMenuShortcut(action.key)}
-                    onPress={() => void handleContextMenuAction(action.key)}
+                    onPress={() => void handleMenuActionPress(action.key)}
                 >
                     {action.label}
                 </DropdownItem>
@@ -284,7 +301,7 @@ function TorrentTable_RowMenuInner({
                             ? getEmphasisClassForAction(primaryEmphasisAction)
                             : ""
                     )}
-                    onPress={() => void handleContextMenuAction("open-folder")}
+                    onPress={() => void handleMenuActionPress("open-folder")}
                 >
                     {t("table.actions.open_folder")}
                 </DropdownItem>
@@ -312,7 +329,7 @@ function TorrentTable_RowMenuInner({
                 key="copy-hash"
                 isDisabled={isClipboardSupported === false}
                 shortcut={getContextMenuShortcut("copy-hash")}
-                onPress={() => void handleContextMenuAction("copy-hash")}
+                onPress={() => void handleMenuActionPress("copy-hash")}
             >
                 {t("table.actions.copy_hash")}
             </DropdownItem>
@@ -323,7 +340,7 @@ function TorrentTable_RowMenuInner({
                 key="copy-magnet"
                 isDisabled={isClipboardSupported === false}
                 shortcut={getContextMenuShortcut("copy-magnet")}
-                onPress={() => void handleContextMenuAction("copy-magnet")}
+                onPress={() => void handleMenuActionPress("copy-magnet")}
             >
                 {t("table.actions.copy_magnet")}
             </DropdownItem>
@@ -334,7 +351,7 @@ function TorrentTable_RowMenuInner({
                 key="remove"
                 color="danger"
                 shortcut={getContextMenuShortcut("remove")}
-                onPress={() => void handleContextMenuAction("remove")}
+                onPress={() => void handleMenuActionPress("remove")}
             >
                 {t("table.actions.remove")}
             </DropdownItem>
@@ -345,7 +362,7 @@ function TorrentTable_RowMenuInner({
                 key="remove-with-data"
                 color="danger"
                 shortcut={getContextMenuShortcut("remove-with-data")}
-                onPress={() => void handleContextMenuAction("remove-with-data")}
+                onPress={() => void handleMenuActionPress("remove-with-data")}
             >
                 {t("table.actions.remove_with_data")}
             </DropdownItem>
@@ -386,7 +403,7 @@ function TorrentTable_RowMenuInner({
         isClipboardSupported,
         inlineSetLocationState,
         getContextMenuShortcut,
-        handleContextMenuAction,
+        handleMenuActionPress,
         handleInlineCancel,
         handleInlineLocationChange,
         handleInlineSubmit,
@@ -422,3 +439,4 @@ function TorrentTable_RowMenuInner({
         </Dropdown>
     );
 }
+

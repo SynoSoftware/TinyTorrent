@@ -15,13 +15,35 @@ import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 export interface UseAddTorrentControllerParams {
-    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
+    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
     settingsConfig: SettingsConfig;
     torrents: Array<Torrent | TorrentDetail>;
     pendingDeletionHashesRef: MutableRefObject<Set<string>>;
 }
+
+export type AddTorrentCommandOutcome =
+    | { status: "added" }
+    | { status: "finalized" }
+    | {
+          status: "invalid_input";
+          reason:
+              | "invalid_magnet_link"
+              | "invalid_destination"
+              | "missing_target";
+      }
+    | { status: "blocked_pending_delete" }
+    | { status: "cancelled" }
+    | {
+          status: "failed";
+          reason:
+              | "magnet_add_failed"
+              | "metainfo_read_failed"
+              | "add_file_failed"
+              | "finalize_failed";
+      };
 
 export interface UseAddTorrentControllerResult {
     addModalState: ReturnType<typeof useAddModalState>;
@@ -30,10 +52,10 @@ export interface UseAddTorrentControllerResult {
     openAddTorrentPicker: () => void;
     openAddMagnet: (magnetLink?: string) => void;
     handleMagnetModalClose: () => void;
-    handleMagnetSubmit: (link: string) => Promise<void>;
+    handleMagnetSubmit: (link: string) => Promise<AddTorrentCommandOutcome>;
     handleTorrentWindowConfirm: (
         selection: AddTorrentSelection,
-    ) => Promise<void>;
+    ) => Promise<AddTorrentCommandOutcome>;
     closeAddTorrentWindow: () => void;
     isFinalizingExisting: boolean;
     isAddingTorrent: boolean;
@@ -113,31 +135,46 @@ export function useAddTorrentController({
     }, []);
 
     const handleMagnetSubmit = useCallback(
-        async (link: string) => {
+        async (link: string): Promise<AddTorrentCommandOutcome> => {
             const normalized = normalizeMagnetLink(link);
-            if (!normalized) return;
+            if (!normalized) {
+                showFeedback(t("modals.add_torrent.magnet_error"), "warning");
+                return {
+                    status: "invalid_input",
+                    reason: "invalid_magnet_link",
+                };
+            }
             const infoHash = normalizeInfoHashCandidate(normalized);
             if (infoHash && pendingDeletionHashesRef.current.has(infoHash)) {
                 showFeedback(t("toolbar.feedback.pending_delete"), "warning");
-                return;
+                return { status: "blocked_pending_delete" };
             }
-            setMagnetModalOpen(false);
-            setMagnetModalInitialValue("");
 
             const startNow = Boolean(settingsConfig.start_added_torrents);
             const defaultDir =
                 addTorrentDownloadDir || settingsConfig.download_dir;
 
             try {
-                await dispatch(
+                const outcome = await dispatch(
                     TorrentIntents.addMagnetTorrent(
                         normalized,
                         defaultDir,
                         !startNow,
                     ),
                 );
+                if (outcome.status !== "applied") {
+                    showFeedback(
+                        t("modals.add_torrent.magnet_error"),
+                        "danger",
+                    );
+                    return { status: "failed", reason: "magnet_add_failed" };
+                }
+                showFeedback(t("toolbar.feedback.added"), "success");
+                return { status: "added" };
             } catch (err) {
                 console.error("Failed to add magnet", err);
+                showFeedback(t("modals.add_torrent.magnet_error"), "danger");
+                return { status: "failed", reason: "magnet_add_failed" };
             }
         },
         [
@@ -155,12 +192,24 @@ export function useAddTorrentController({
     }, []);
 
     const handleTorrentWindowConfirm = useCallback(
-        async (selection: AddTorrentSelection) => {
-            if (!addSource) return;
-            const downloadDir = selection.downloadDir.trim();
-            if (downloadDir) {
-                setAddTorrentDownloadDir(downloadDir);
+        async (
+            selection: AddTorrentSelection,
+        ): Promise<AddTorrentCommandOutcome> => {
+            if (!addSource) {
+                return { status: "cancelled" };
             }
+            const downloadDir = selection.downloadDir.trim();
+            if (!downloadDir) {
+                showFeedback(
+                    t("modals.add_torrent.destination_prompt_invalid"),
+                    "warning",
+                );
+                return {
+                    status: "invalid_input",
+                    reason: "invalid_destination",
+                };
+            }
+            setAddTorrentDownloadDir(downloadDir);
 
             const startNow = selection.commitMode !== "paused";
 
@@ -170,12 +219,11 @@ export function useAddTorrentController({
                 );
                 if (!metainfo.ok) {
                     showFeedback(t("modals.file_tree_error"), "danger");
-                    closeAddTorrentWindow();
-                    return;
+                    return { status: "failed", reason: "metainfo_read_failed" };
                 }
                 setIsAddingTorrent(true);
                 try {
-                    await dispatch(
+                    const outcome = await dispatch(
                         TorrentIntents.addTorrentFromFile(
                             metainfo.metainfoBase64,
                             downloadDir,
@@ -188,26 +236,31 @@ export function useAddTorrentController({
                             selection.options.skipHashCheck,
                         ),
                     );
+                    if (outcome.status !== "applied") {
+                        showFeedback(t("modals.add_error_default"), "danger");
+                        return { status: "failed", reason: "add_file_failed" };
+                    }
                     showFeedback(t("toolbar.feedback.added"), "success");
                     closeAddTorrentWindow();
+                    return { status: "added" };
                 } catch (err) {
                     console.error("Failed to add torrent from file", err);
                     showFeedback(t("modals.add_error_default"), "danger");
-                    throw err;
+                    return { status: "failed", reason: "add_file_failed" };
                 } finally {
                     setIsAddingTorrent(false);
                 }
-                return;
             }
 
             const targetId = addSource.torrentId;
             if (!targetId) {
+                showFeedback(t("modals.add_error_source_missing"), "warning");
                 closeAddTorrentWindow();
-                return;
+                return { status: "invalid_input", reason: "missing_target" };
             }
             setIsFinalizingExisting(true);
             try {
-                await dispatch(
+                const outcome = await dispatch(
                     TorrentIntents.finalizeExistingTorrent(
                         targetId,
                         downloadDir,
@@ -215,12 +268,17 @@ export function useAddTorrentController({
                         startNow,
                     ),
                 );
+                if (outcome.status !== "applied") {
+                    showFeedback(t("modals.add_error_default"), "danger");
+                    return { status: "failed", reason: "finalize_failed" };
+                }
                 showFeedback(t("recovery.toast_location_updated"), "success");
                 closeAddTorrentWindow();
+                return { status: "finalized" };
             } catch (err) {
                 console.error("Failed to finalize existing torrent", err);
                 showFeedback(t("modals.add_error_default"), "danger");
-                throw err;
+                return { status: "failed", reason: "finalize_failed" };
             } finally {
                 setIsFinalizingExisting(false);
             }

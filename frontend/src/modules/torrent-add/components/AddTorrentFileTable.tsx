@@ -4,6 +4,7 @@ import {
     type FileExplorerTreeViewModel,
     type FileExplorerContextAction,
     type FileExplorerEntry,
+    type FileExplorerToggleOutcome,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type {
     TorrentFileEntity,
@@ -12,35 +13,8 @@ import type {
 import type {
     FileRow,
     FilePriority,
-    SmartSelectCommand,
 } from "@/modules/torrent-add/services/fileSelection";
-import type { RowSelectionState } from "@tanstack/react-table";
-
-// Adapter types to match the legacy table props without breaking parent
-export interface AddTorrentFileTableProps {
-    layoutEnabled: boolean;
-    state: {
-        files: FileRow[];
-        filteredFiles: FileRow[]; // Ignored in favor of tree's internal search
-        priorities: Map<number, FilePriority>;
-        resolvedState: "pending" | "ready" | "error";
-        rowHeight: number;
-        selectedCount: number;
-        selectedSize: number;
-    };
-    actions: {
-        onCyclePriority: (index: number) => void;
-        onRowClick: (index: number, shiftKey: boolean) => void;
-        onRowSelectionChange: (
-            next:
-                | RowSelectionState
-                | ((prev: RowSelectionState) => RowSelectionState),
-        ) => void;
-        onSetPriority: (index: number, value: FilePriority) => void;
-        onSmartSelect: (command: SmartSelectCommand) => void;
-    };
-    rowSelection: RowSelectionState;
-}
+import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 
 const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
     low: 1,
@@ -48,12 +22,15 @@ const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
     high: 7,
 };
 
-export const AddTorrentFileTable = ({
-    state,
-    actions,
-    rowSelection,
-}: AddTorrentFileTableProps) => {
-    const { files, priorities } = state;
+export const AddTorrentFileTable = () => {
+    const { fileTable } = useAddTorrentModalContext();
+    const {
+        files,
+        onRowSelectionChange,
+        onSetPriority,
+        priorities,
+        rowSelection,
+    } = fileTable;
 
     // 1. Adapt flat files to TorrentFileEntity for the Tree
     // We memoize this to prevent tree rebuilding on every render unless data changes
@@ -83,8 +60,8 @@ export const AddTorrentFileTable = ({
     // Tree calls: (indexes, wanted)
     // Table expects: setRowSelection(old => new)
     const handleFilesToggle = useCallback(
-        (indexes: number[], wanted: boolean) => {
-            actions.onRowSelectionChange((prev) => {
+        (indexes: number[], wanted: boolean): FileExplorerToggleOutcome => {
+            onRowSelectionChange((prev) => {
                 const next = { ...prev };
                 indexes.forEach((idx) => {
                     if (wanted) {
@@ -95,8 +72,9 @@ export const AddTorrentFileTable = ({
                 });
                 return next;
             });
+            return { status: "success" };
         },
-        [actions],
+        [onRowSelectionChange],
     );
 
     // 3. Adapt Context Menu / Priority Actions
@@ -104,19 +82,19 @@ export const AddTorrentFileTable = ({
         (action: FileExplorerContextAction, entry: FileExplorerEntry) => {
             switch (action) {
                 case "priority_high":
-                    actions.onSetPriority(entry.index, "high");
+                    onSetPriority(entry.index, "high");
                     break;
                 case "priority_normal":
-                    actions.onSetPriority(entry.index, "normal");
+                    onSetPriority(entry.index, "normal");
                     break;
                 case "priority_low":
-                    actions.onSetPriority(entry.index, "low");
+                    onSetPriority(entry.index, "low");
                     break;
                 default:
                     break;
             }
         },
-        [actions],
+        [onSetPriority],
     );
 
     // 4. Construct ViewModel
@@ -129,10 +107,6 @@ export const AddTorrentFileTable = ({
     }, [treeFiles, handleFilesToggle, handleFileContextAction]);
 
     // 5. Render
-    // We wrap in a nice container.
-    // Note: We ignore 'filteredFiles' and 'layoutEnabled' as the Tree handles its own virtualization and filtering.
-    // The parent (AddTorrentModal) search input will have no effect on this component now,
-    // but the component has its own internal search.
     return (
         <div className="h-full w-full min-h-0  rounded-xl overflow-hidden shadow-inner">
             <FileExplorerTree viewModel={viewModel} />

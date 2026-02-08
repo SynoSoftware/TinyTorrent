@@ -9,11 +9,12 @@ import type {
     Row,
     Table,
 } from "@tanstack/react-table";
-import type { Virtualizer } from "@tanstack/react-virtual";
+import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 
 export type QueueMenuAction = {
     key: TorrentTableAction;
@@ -43,6 +44,39 @@ export type HeaderContextMenu = {
 };
 
 export type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
+
+export interface TorrentTableRowInteractionViewModel {
+    contextMenuTorrentId?: string | null;
+    onRowClick: (
+        event: MouseEvent,
+        rowId: string,
+        index: number,
+    ) => void;
+    onRowDoubleClick: (row: Torrent) => void;
+    onRowContextMenu: (event: MouseEvent, row: Torrent) => void;
+    onDropTargetChange: (id: string | null) => void;
+}
+
+export interface TorrentTableRowStateViewModel {
+    canReorderQueue: boolean;
+    dropTargetRowId?: string | null;
+    activeRowId?: string | null;
+    highlightedRowId?: string | null;
+    isAnyColumnResizing: boolean;
+    columnOrder: string[];
+    isAnimationSuppressed: boolean;
+    isColumnOrderChanging: boolean;
+}
+
+export interface TorrentTableRowProps {
+    row: Row<Torrent>;
+    virtualRow: VirtualItem;
+    isSelected: boolean;
+    isContext: boolean;
+    isHighlighted: boolean;
+    interaction: TorrentTableRowInteractionViewModel;
+    state: TorrentTableRowStateViewModel;
+}
 
 export interface TorrentTableHeadersViewModel {
     headerContainerClass: string;
@@ -109,33 +143,14 @@ export interface TorrentTableBodyViewModel {
         renderVisibleCells: (row: Row<Torrent>) => ReactNode;
         activeDragRow?: Row<Torrent> | null;
     };
-    rowInteraction: {
-        contextMenuTorrentId?: string | null;
-        handleRowClick: (
-            event: MouseEvent,
-            rowId: string,
-            index: number,
-        ) => void;
-        handleRowDoubleClick: (row: Torrent) => void;
-        handleContextMenu: (event: MouseEvent, row: Torrent) => void;
-        handleDropTargetChange: (id: string | null) => void;
-    };
-    state: {
-        canReorderQueue: boolean;
-        dropTargetRowId?: string | null;
-        activeRowId?: string | null;
-        highlightedRowId?: string | null;
-        isAnyColumnResizing: boolean;
-        columnOrder: string[];
-        isAnimationSuppressed: boolean;
-        isColumnOrderChanging: boolean;
-    };
+    rowInteraction: TorrentTableRowInteractionViewModel;
+    state: TorrentTableRowStateViewModel;
 }
 
 export interface TorrentTableRowMenuViewModel {
     contextMenu: TableContextMenu | null;
     onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<void>;
+    handleContextMenuAction: (key?: string) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
     isClipboardSupported?: boolean;
@@ -162,3 +177,4 @@ export interface TorrentTableSurfaces {
     rowMenuViewModel: TorrentTableRowMenuViewModel;
     headerMenuViewModel: TorrentTableHeaderMenuViewModel;
 }
+

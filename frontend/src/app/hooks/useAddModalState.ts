@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 
-import { useShellAgent } from "@/app/hooks/useShellAgent";
+import { shellAgent } from "@/app/agents/shell-agent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
@@ -9,12 +9,18 @@ interface UseAddModalStateParams {
     onOpenAddTorrentFromFile: (file: File) => void;
 }
 
+type HandledMagnetEvent = {
+    link: string;
+    handledAtMs: number;
+};
+
+const MAGNET_EVENT_DEDUP_WINDOW_MS = 1000;
+
 export function useAddModalState({
     onOpenAddMagnet,
     onOpenAddTorrentFromFile,
 }: UseAddModalStateParams) {
-    const deepLinkHandledRef = useRef(false);
-    const { shellAgent } = useShellAgent();
+    const lastHandledMagnetRef = useRef<HandledMagnetEvent | null>(null);
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
@@ -38,7 +44,6 @@ export function useAddModalState({
 
     useEffect(() => {
         const handleMagnetEvent = (payload?: unknown) => {
-            if (deepLinkHandledRef.current) return;
             const link =
                 typeof payload === "string"
                     ? payload
@@ -47,7 +52,22 @@ export function useAddModalState({
                       : undefined;
             const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
-            deepLinkHandledRef.current = true;
+
+            // Treat deep links as per-event state: dedupe only rapid duplicate bridge events.
+            const now = Date.now();
+            const previous = lastHandledMagnetRef.current;
+            if (
+                previous &&
+                previous.link === normalized &&
+                now - previous.handledAtMs < MAGNET_EVENT_DEDUP_WINDOW_MS
+            ) {
+                return;
+            }
+
+            lastHandledMagnetRef.current = {
+                link: normalized,
+                handledAtMs: now,
+            };
             onOpenAddMagnet(normalized);
         };
         const cleanup = shellAgent.onMagnetLink(handleMagnetEvent);

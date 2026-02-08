@@ -1,10 +1,13 @@
 import { useCallback, useMemo } from "react";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
-import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import {
+    useTorrentCommands,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 
@@ -28,6 +31,24 @@ type UseTorrentTableContextParams = {
     >;
     openTorrentFolder?: (path?: string | null) => void;
     selectedTorrents: Torrent[];
+};
+
+const COMMAND_OUTCOME_SUCCESS: TorrentCommandOutcome = { status: "success" };
+const COMMAND_OUTCOME_QUEUED: TorrentCommandOutcome = {
+    status: "success",
+    reason: "queued",
+};
+const COMMAND_OUTCOME_UNSUPPORTED: TorrentCommandOutcome = {
+    status: "unsupported",
+    reason: "action_not_supported",
+};
+const COMMAND_OUTCOME_FAILED: TorrentCommandOutcome = {
+    status: "failed",
+    reason: "execution_failed",
+};
+const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
+    status: "canceled",
+    reason: "no_selection",
 };
 
 export const useTorrentTableContextActions = (
@@ -60,20 +81,19 @@ export const useTorrentTableContextActions = (
 
     const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
     const executeTableAction = useCallback(
-        async (action: TorrentTableAction) => {
-            if (!contextMenu) return;
+        async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
+            if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
             const contextTorrent = contextMenu.torrent;
-            if (!contextTorrent) return;
+            if (!contextTorrent) return COMMAND_OUTCOME_NO_SELECTION;
             const isQueueAction =
                 action === "queue-move-top" ||
                 action === "queue-move-bottom" ||
                 action === "queue-move-up" ||
                 action === "queue-move-down";
             if (!isQueueAction && selectionTargets.length > 1) {
-                await handleBulkAction(action);
-                return;
+                return handleBulkAction(action);
             }
-            await handleTorrentAction(action, contextTorrent);
+            return handleTorrentAction(action, contextTorrent);
         },
         [
             contextMenu,
@@ -84,71 +104,100 @@ export const useTorrentTableContextActions = (
     );
     const { handleSetLocation } = useRecoveryContext();
     const handleContextMenuAction = useCallback(
-        async (key?: string): Promise<void> => {
-            if (!contextMenu) return;
+        async (key?: string): Promise<TorrentCommandOutcome> => {
+            if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
             const torrent = contextMenu.torrent;
-            if (!torrent) return;
-            if (key === "cols") {
-                const rowElement = findRowElement(torrent.id);
-                openColumnModal(rowElement ?? null);
-            } else if (key === "open-folder") {
-                const path = resolveTorrentPath(torrent);
-                if (path) {
-                    await openTorrentFolder?.(path);
+            if (!torrent) return COMMAND_OUTCOME_NO_SELECTION;
+            if (!key) {
+                setContextMenu(null);
+                return COMMAND_OUTCOME_UNSUPPORTED;
+            }
+
+            const closeWithOutcome = (outcome: TorrentCommandOutcome) => {
+                setContextMenu(null);
+                return outcome;
+            };
+
+            try {
+                if (key === "cols") {
+                    const rowElement = findRowElement(torrent.id);
+                    openColumnModal(rowElement ?? null);
+                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
                 }
-            } else if (key === "set-download-path") {
-                // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
-                await handleSetLocation(torrent, {
-                    surface: "context-menu",
-                    mode: "manual",
-                });
-                return;
-            } else if (key === "reDownload" || key === "reDownloadHere") {
-                // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
-                await dispatch(
-                    TorrentIntents.ensureDataPresent(torrent.id ?? torrent.hash)
-                );
-            } else if (key === "copy-hash") {
-                await copyToClipboard(torrent.hash);
-            } else if (key === "copy-magnet") {
-                await copyToClipboard(buildMagnetLink(torrent));
-            } else if (key) {
+                if (key === "open-folder") {
+                    const path = resolveTorrentPath(torrent);
+                    if (!path || !openTorrentFolder) {
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
+                    }
+                    await openTorrentFolder(path);
+                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                }
+                if (key === "set-download-path") {
+                    // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
+                    await handleSetLocation(torrent, {
+                        surface: "context-menu",
+                        mode: "manual",
+                    });
+                    return COMMAND_OUTCOME_QUEUED;
+                }
+                if (key === "reDownload" || key === "reDownloadHere") {
+                    // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
+                    await dispatch(
+                        TorrentIntents.ensureDataPresent(
+                            torrent.id ?? torrent.hash
+                        )
+                    );
+                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                }
+                if (key === "copy-hash") {
+                    // TODO(section 20.2/20.5): map clipboard write result to explicit command outcome.
+                    await copyToClipboard(torrent.hash);
+                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                }
+                if (key === "copy-magnet") {
+                    // TODO(section 20.2/20.5): map clipboard write result to explicit command outcome.
+                    await copyToClipboard(buildMagnetLink(torrent));
+                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                }
+
                 // Map common table actions to intents when possible
                 switch (key) {
                     case "pause":
-                        await executeTableAction("pause");
-                        break;
+                        return closeWithOutcome(await executeTableAction("pause"));
                     case "resume":
-                        await executeTableAction("resume");
-                        break;
+                        return closeWithOutcome(await executeTableAction("resume"));
                     case "recheck":
-                        await executeTableAction("recheck");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("recheck")
+                        );
                     case "remove":
-                        await executeTableAction("remove");
-                        break;
+                        return closeWithOutcome(await executeTableAction("remove"));
                     case "remove-with-data":
-                        await executeTableAction("remove-with-data");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("remove-with-data")
+                        );
                     case "queue-move-top":
-                        await executeTableAction("queue-move-top");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("queue-move-top")
+                        );
                     case "queue-move-bottom":
-                        await executeTableAction("queue-move-bottom");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("queue-move-bottom")
+                        );
                     case "queue-move-up":
-                        await executeTableAction("queue-move-up");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("queue-move-up")
+                        );
                     case "queue-move-down":
-                        await executeTableAction("queue-move-down");
-                        break;
+                        return closeWithOutcome(
+                            await executeTableAction("queue-move-down")
+                        );
                     default:
-                        // Unknown key: no-op under intent-only migration
-                        break;
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                 }
+            } catch {
+                return closeWithOutcome(COMMAND_OUTCOME_FAILED);
             }
-            setContextMenu(null);
-            return;
         },
         [
             contextMenu,
@@ -168,3 +217,4 @@ export const useTorrentTableContextActions = (
 };
 
 export default useTorrentTableContextActions;
+
