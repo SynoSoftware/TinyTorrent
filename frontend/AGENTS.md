@@ -9,21 +9,7 @@ Single authoritative reference for the architecture, UI/UX rules, design tokens,
 
 # **1. Brand Identity**
 
-TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polish** × **VS Code workbench**.
-
-### Identity pillars
-
-- **Speed:** No lag. No hesitation.
-- **Stealth:** Dark-first visual identity (system mode respected automatically).
-- **Zero Bloat:** Extremely small executable size.
-- **World-Class Visuals:** Premium, jaw-dropping, and effortless. **Not compact—confident.**
-- **Native HUD Feel:** Glass, blur, depth, minimal chrome.
-- **Workbench, Not a Webpage:** Split panes, pinned inspectors, OS-level behavior.
-- **Accessibility:** Controls must be visually clear, easy to target, and comfortable. Use intentional whitespace and large hit-targets to create a "premium tool" feel.
-- **No duplicated semantics**
-- **No hidden state**
-- **No generic abstractions**
-- **No opinionated workflows**
+TinyTorrent is a fast, low-bloat desktop workbench for torrent control with deterministic behavior, native-grade interactions, and maintainable architecture.
 
 ---
 
@@ -35,10 +21,9 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 >
 > **Density is achieved through information design, not UI shrinkage.**
 
-- **Visual Excellence:** Bigger, confident controls. Large hit-targets that feel "expensive" and premium.
 - **Avoid Fragility:** No "precision clicking." If a design choice shows more rows but makes the UI feel cramped, it is a design error.
 - **Desktop Tool Feel:** This refers to **behavioral determinism** (shortcuts, selection, focus, right-click authority), not to the size of the buttons.
-- **HeroUI:** HeroUI is our premium control layer. Its components must **never** be visually neutered or shrunk to appear "compact." Default or larger sizing is preferred.
+- **HeroUI:** Its components must **never** be visually neutered or shrunk to appear "compact." Default or larger sizing is preferred.
 
 ---
 
@@ -47,38 +32,6 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 - All interactive element sizes are derived from central config and must respect Typography vs Geometry ownership (§2c).
 - Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
 - All sizing must reference scale tokens or semantic utility classes derived from config.
-
----
-
-## **2b. No Magic Numbers**
-
-All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
-
-**UI must be consistent and controlled by a small set of shared knobs.** If a UI change requires a number and no suitable semantic token exists, the element must be left unchanged and flagged instead.
-
-### **No-New-Numbers Rule**
-
-This restriction applies to component TSX/CSS usage; introducing numbers is allowed only in `constants.json` and `index.css @theme` as part of the token pipeline.
-
-When fixing zoom-related or css magic number issues:
-
-- You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
-- You may NOT introduce Tailwind numeric geometry or spacing utilities in components:
-  - **Forbidden:** `p-*`, `px-*`, `py-*`, `m-*`, `gap-*`, `space-*`, `w-*`, `h-*`, `text-*`, `leading-*`, `rounded-*`, `shadow-*`, `blur-*` when they encode a literal number.
-  - **Forbidden:** bracket classes (arbitrary values) like `w-[...]`, `h-[...]`, `text-[...]`, `shadow-[...]`, `rounded-[...]`, `blur-[...]`, `max-w-[...]`, `min-w-[...]`, `border-[...]`.
-
-- Replacements must use:
-
-  - existing semantic tokens, or
-  - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
-
-### **Consistency & Convergence Rule**
-
-- Do NOT introduce one-off variables.
-- If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
-- Before introducing or using any variable, check whether an existing variable already represents the same meaning.
-- If no such variable exists, DO NOT invent a new one — flag it instead.
-- Multiple variables for the same semantic role are forbidden.
 
 ---
 
@@ -856,18 +809,6 @@ This model guarantees IDE-like continuity: stable scroll state, predictable focu
 
 ---
 
-## **Layout Implementation Strategy**
-
-- The **main application layout** is built entirely using `react-resizable-panels`.
-- Flexbox/Grid is allowed **inside views**, not for structuring Parts.
-- Every Part (Main, Inspector) maps to a Pane.
-- Panes never unmount; collapse → size 0, expand → restore last size.
-- Handles are invisible until hovered, then show a 1 px separator line.
-- Pinning = assigning a non-zero `defaultSize` or `minSize`.
-- Unpinning = collapsing the pane back to size 0.
-
----
-
 # **9. RPC Layer (Protocol Strategy)**
 
 TinyTorrent is in a **Transition Phase**.
@@ -975,22 +916,7 @@ The frontend runs on a **dual transport**:
 
 # **13. UX Excellence Directive**
 
-All agents operate as **tool-UI designers**, not marketing site designers.
-
-TinyTorrent must deliver **Adaptive Excellence**:
-
-- **Unified Professional Interface**
-
-  - Single visual mode: Modern glass/blur workbench.
-  - Functionality remains dense and keyboard-friendly.
-  - Split-pane view: Details via Inspector, not popup chaos.
-
-- **Professional Tool, Not a Webpage**
-
-  - Behavior is deterministic and precise.
-  - Controls remain visually expressive and easy to target.
-  - Respect old µTorrent/Transmission muscle memory, but deliver a fluid, modern workbench.
-  - **Jaw-Dropping Aesthetics:** The app must look better than any desktop tool ever has.
+All agents operate as tool-UI engineers: behavior must be deterministic, traceable, and maintainable.
 
 ---
 
@@ -1001,8 +927,8 @@ TinyTorrent must deliver **Adaptive Excellence**:
     Tailwind + Motion define all shell surfaces, transitions, and layout behavior.
     No external UI frameworks beyond HeroUI + `react-resizable-panels`.
 
-- **One responsibility per unit.**
-    Every component, hook, and module does exactly one thing.
+- **One primary responsibility per unit. Cohesion beats atomization.**
+    Split only when responsibilities are independently reusable or duplication exists.
 
 - **Pure UI.**
     Components render. They don’t fetch, store, or decide business rules.
@@ -1032,6 +958,62 @@ TinyTorrent must deliver **Adaptive Excellence**:
 - **Don’t reinvent solved problems.**
     Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
 
+## **View–ViewModel–Model Rule (Hard)**
+
+### 1. View (UI Components)
+
+- Rendering only
+- Local visual state allowed
+- Emits typed intents
+- Must not:
+
+  - orchestrate workflows
+  - call adapters directly
+  - coordinate multiple domain concerns
+
+### 2. ViewModel (Feature Authority)
+
+- Owns **UI-facing feature state**
+- Aggregates domain data for a feature
+- Coordinates commands exposed to the View
+- Defines the **single tracing surface** for a feature
+- Must remain **cohesive**: a feature’s ViewModel should be readable in one place and must not be fragmented into multiple wrapper ViewModels unless responsibilities are independently reusable
+
+### 3. Model / Domain / Services
+
+- Business logic and engine interaction
+- No UI awareness
+- No UI state
+
+### **ViewModel Cohesion Rule (Hard)**
+
+A feature must expose **one primary ViewModel authority**.
+Splitting a ViewModel into multiple wrapper ViewModels is forbidden unless the split removes duplication or creates independently reusable domain boundaries.
+
+This directly prevents the “useXVM / useXSelectionVM / useXInteractionVM / useXStateVM” fragmentation pattern.
+
+### Why this matters
+
+Your architecture already enforces:
+
+- authority ownership
+- control-plane orchestration
+- adapter boundaries
+
+But without an explicit **ViewModel authority layer**, refactors can push responsibilities downward into many tiny hooks instead of keeping **feature-level cohesion**, which is where maintainability actually lives.
+
+Maintainable frontends almost always stabilize around:
+
+```
+View  ->  ViewModel  ->  Services / Domain
+```
+
+not:
+
+```
+View -> 6 wrapper hooks -> orchestrator -> adapter -> service
+```
+
 
 ## **Context Authority & Prop Budget (Hard Rule)**
 
@@ -1052,13 +1034,7 @@ If no suitable Context exists:
 - stop and flag the missing authority
 
 2. **Prop Budget**
-Components have a hard prop limit:
-
-- Leaf UI components: **≤ 5 props**
-- Layout / shell components: **≤ 8 props**
-
-Exceeding this limit is a spec violation.
-If the limit is exceeded, remove props by using Contexts or split the component.
+High prop counts are acceptable when the props belong to a single cohesive feature. Prop reduction must not be achieved by introducing artificial Contexts, wrappers, or forwarding layers.
 
 3. **Explicitly Forbidden**
 - pass-through props
@@ -1070,52 +1046,14 @@ If the limit is exceeded, remove props by using Contexts or split the component.
 
 - Values with a clear Context owner must not be threaded through hooks or orchestrators as parameters.
 
-### **Command Context Completeness Rule (Hard)**
+### **Command Surface Completeness Rule (Hard)**
 
-If UI components need to invoke behavior (actions, commands, intents):
+UI components must obtain commands from an authoritative command surface:
 
-- A **Context** exposing those commands **must exist**.
-- Absence of such a Context is a **spec violation**.
+• Feature scope → Feature ViewModel (preferred)
+• Cross-cutting/global scope → Context (required)
 
-**Agents must not:**
-
-- route commands via props to avoid creating a Context
-- implement “temporary” prop-based command wiring
-
-**Agent responsibility:**
-
-- If prop drilling is required to access behavior,
-  → stop
-  → create or restore the missing command Context
-  → wire it once at the App boundary
-
-If `/app/context` does not contain a command surface,
-**the architecture is incomplete and must be fixed before proceeding.**
-
-
-#### Detection Heuristic (Mandatory)
-
-
-If, while editing UI code, the agent is about to:
-
-- add a function prop whose purpose is to **trigger behavior**, or
-- forward a function prop through a component that does not own the behavior
-
-then this is **proof that a required Context is missing**.
-
-
-In this situation the agent must:
-
-1. STOP adding or forwarding the prop.
-2. Identify the missing command surface.
-3. Create or restore a Context that exposes the command.
-4. Wire that Context once at the App boundary.
-5. Consume the command via Context at the leaf.
-
-Passing the function as a prop is **not an acceptable workaround**.
-
-Any PR that introduces a new function prop for behavior without introducing
-a corresponding Context is invalid by definition.
+Prop-routing command callbacks across unrelated components is forbidden.
 
 
 # **15. Project Structure (Optimized for Single Developer)**
@@ -1307,7 +1245,7 @@ If an edited file already violates any of the following:
 - mixed concerns (UI + data shaping, UI + fetching, UI + layout orchestration)
 - god-components (too many unrelated props, effects, or render branches)
 
-then the agent must **reduce the violation**, even if only slightly.
+then the agent must reduce the violation **only when responsibilities are reused independently or when duplication exists**. Cohesive logic that changes together must remain together.
 
 **Required behavior:**
 
@@ -1334,7 +1272,7 @@ All control flow (intents, actions, commands, events, orchestration switches):
 - must not be constructed directly by UI components
 
 If typing is unclear, **the architecture is incomplete and must be fixed**.
-Breaking compilation is acceptable. Breaking type safety is not.
+Refactors must preserve a buildable state unless performing an explicitly declared staged migration. Breaking type safety is not.
 
 ---
 
@@ -1343,7 +1281,7 @@ Breaking compilation is acceptable. Breaking type safety is not.
 In all **new or modified code**, without exception:
 
 - `Any` is **forbidden**
-- `unknown` is **forbidden**
+- `unknown` is forbidden inside application logic but **required/allowed at IO, adapter, transport, or native boundaries** and must be narrowed immediately using schema validation (e.g., Zod).
 - untyped string identifiers are **forbidden**
 
 All code must be **fully statically typed** and **exhaustively checked**.
@@ -1351,7 +1289,7 @@ All code must be **fully statically typed** and **exhaustively checked**.
 If a change cannot be expressed without weakening the type system,
 **the architecture is incomplete and must be redesigned**.
 
-Breaking compilation is acceptable.
+Refactors must preserve a buildable state unless performing an explicitly declared staged migration.
 Breaking type safety is not.
 
 ### **D. Identifier Quality & Rename Reporting**
@@ -1529,35 +1467,11 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
 
 ---
 
-# **18. Final Authority Rule**
-
-When in doubt, the agent must ask:
-
-> **"Does this make the app feel more powerful, more confident, and more jaw-dropping?"**
-
-- If the answer is "It saves space" or "It looks compact," **reject it**.
-- If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
-
-**One-Line North Star:**
-TinyTorrent must behave like a desktop tool and look better than desktop tools ever have.
-
----
-
 # **19. Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 
 2. Run `npm run build` and fix build errors if possible.
-
-3. The build machine is Windows. Linux commands are available via msys
-
-4. Extra Windows executables available: `rg`, `fd`, `bat`.
-
-5. For code search, never use `Select-String`. Always use ripgrep:
-
-   - `rg -n -C 5 "<pattern>" <path>`
-
-6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
 
 ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
 
@@ -1692,3 +1606,20 @@ A refactor is likely wrong if it causes:
 - behavior to depend on caller position
 
 These indicate authority leakage.
+
+### **21.10 Traceability Rule (Hard)**
+
+A refactor is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without encountering redundant wrapper layers.
+
+### **21.11 Indirection Budget Rule (Hard)**
+
+New abstraction layers (wrappers, adapters, forwarding hooks) are permitted only if they eliminate duplicated logic, duplicated contracts, duplicated state, or divergent error semantics. Abstractions created solely for structural purity are forbidden.
+
+### **21.12 Single Contract Surface Rule (Hard)**
+
+For any operation domain there must be exactly one public contract surface exposed to the UI/control plane.
+
+UI-facing command surfaces MUST return typed outcomes (per §20.5).
+Exceptions may exist only internally and must be converted once at the boundary owner (ViewModel / orchestrator / service).
+
+Providing parallel “throw” and “outcome” variants for the same operations is forbidden.
