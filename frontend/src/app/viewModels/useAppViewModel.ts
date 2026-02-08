@@ -8,7 +8,7 @@ import type {
 } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { CapabilityStore } from "@/app/types/capabilities";
@@ -19,8 +19,9 @@ import type {
 } from "@/modules/dashboard/types/torrentDetail";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
-import type { ConnectionStatus } from "@/shared/types/rpc";
+import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 
 /**
  * View models describe **what** a view renders and **what** actions it exposes.
@@ -97,7 +98,7 @@ export interface SettingsModalViewModel {
     };
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
-    onReconnect: () => void;
+    onReconnect: () => Promise<RpcConnectionOutcome>;
     isImmersive?: boolean;
     hasDismissedInsights: boolean;
     onApplyUserPreferencesPatch?: (
@@ -111,34 +112,46 @@ export interface SettingsModalViewModel {
     onOpen?: () => void;
 }
 
+export interface WorkspaceDragAndDropViewModel {
+    getRootProps: () => HTMLAttributes<HTMLElement>;
+    getInputProps: () => InputHTMLAttributes<HTMLInputElement>;
+    isDragActive: boolean;
+}
+
+export interface WorkspaceStyleViewModel {
+    workspaceStyle: WorkspaceStyle;
+    toggleWorkspaceStyle: () => void;
+}
+
+export interface WorkspaceHudViewModel {
+    visibleHudCards: AmbientHudCard[];
+    dismissHudCard: (cardId: string) => void;
+    hasDismissedInsights: boolean;
+}
+
+export interface WorkspaceDeletionViewModel {
+    pendingDelete: DeleteIntent | null;
+    clearPendingDelete: () => void;
+    confirmDelete: (
+        overrideDeleteData?: boolean,
+    ) => Promise<TorrentCommandOutcome>;
+}
+
+export interface WorkspaceCommandPaletteViewModel {
+    actions: CommandAction[];
+    getContextActions: (context: CommandPaletteContext) => CommandAction[];
+}
+
 export interface WorkspaceShellViewModel {
-    dragAndDrop: {
-        getRootProps: () => HTMLAttributes<HTMLElement>;
-        getInputProps: () => InputHTMLAttributes<HTMLInputElement>;
-        isDragActive: boolean;
-    };
-    workspaceStyle: {
-        workspaceStyle: WorkspaceStyle;
-        toggleWorkspaceStyle: () => void;
-    };
+    dragAndDrop: WorkspaceDragAndDropViewModel;
+    workspaceStyle: WorkspaceStyleViewModel;
     settingsModal: SettingsModalViewModel;
     dashboard: DashboardViewModel;
-    hud: {
-        visibleHudCards: AmbientHudCard[];
-        dismissHudCard: (cardId: string) => void;
-        hasDismissedInsights: boolean;
-    };
-    deletion: {
-        pendingDelete: DeleteIntent | null;
-        clearPendingDelete: () => void;
-        confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
-    };
+    hud: WorkspaceHudViewModel;
+    deletion: WorkspaceDeletionViewModel;
     navbar: NavbarViewModel;
     isNativeHost: boolean;
-    commandPalette: {
-        actions: CommandAction[];
-        getContextActions: (context: CommandPaletteContext) => CommandAction[];
-    };
+    commandPalette: WorkspaceCommandPaletteViewModel;
 }
 
 export interface NavbarViewModel {
@@ -182,7 +195,7 @@ export interface StatusBarViewModel {
     telemetry: NetworkTelemetry | null;
     rpcStatus: ConnectionStatus;
     uiMode: UiMode;
-    handleReconnect: () => void;
+    handleReconnect: () => Promise<RpcConnectionOutcome>;
     selectedCount: number;
     activeDownloadCount: number;
     activeDownloadRequiredBytes: number;
@@ -191,24 +204,22 @@ export interface StatusBarViewModel {
 export interface AppViewModel {
     workspace: WorkspaceShellViewModel;
     statusBar: StatusBarViewModel;
-    dashboard: DashboardViewModel;
 }
 
 export interface UseAppViewModelParams {
     workspaceShell: WorkspaceShellViewModel;
     statusBar: StatusBarViewModel;
-    dashboard: DashboardViewModel;
 }
 
 export function useAppViewModel(params: UseAppViewModelParams): AppViewModel {
-    const { workspaceShell, statusBar, dashboard } = params;
+    const { workspaceShell, statusBar } = params;
 
     return useMemo(
         () => ({
             workspace: workspaceShell,
             statusBar,
-            dashboard,
         }),
-        [workspaceShell, statusBar, dashboard]
+        [workspaceShell, statusBar]
     );
 }
+

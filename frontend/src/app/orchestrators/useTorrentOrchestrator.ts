@@ -8,10 +8,11 @@ import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useReco
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 export interface UseTorrentOrchestratorParams {
     client: EngineAdapter;
-    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
+    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
     refreshTorrents: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;

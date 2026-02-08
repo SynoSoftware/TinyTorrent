@@ -677,15 +677,15 @@ export const SpeedChart = ({
                     <ButtonGroup
                         size="md"
                         variant="flat"
-                        className="bg-content1/20 rounded-lg p-0.5 gap-0 mr-2"
+                        className="bg-content1/20 rounded-panel p-tight gap-none mr-tight"
                     >
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
                             className={cn(
-                                "rounded-md",
+                                "rounded-tight",
                                 layout === "split"
-                                    ? "bg-background shadow-sm text-foreground"
+                                    ? "bg-background shadow-small text-foreground"
                                     : "bg-transparent text-foreground/50"
                             )}
                             onPress={() => setLayout("split")}
@@ -697,9 +697,9 @@ export const SpeedChart = ({
                             Icon={Layers}
                             iconSize="md"
                             className={cn(
-                                "rounded-md",
+                                "rounded-tight",
                                 layout === "combined"
-                                    ? "bg-background shadow-sm text-foreground"
+                                    ? "bg-background shadow-small text-foreground"
                                     : "bg-transparent text-foreground/50"
                             )}
                             onPress={() => setLayout("combined")}
@@ -709,7 +709,7 @@ export const SpeedChart = ({
                         />
                     </ButtonGroup>
 
-                    <div className="flex bg-content1/20 rounded-full p-0.5">
+                    <div className="flex bg-content1/20 rounded-pill p-tight">
                         {SPEED_WINDOW_OPTIONS.map((option) => (
                             <Button
                                 key={option.key}
@@ -725,9 +725,9 @@ export const SpeedChart = ({
                                         : "default"
                                 }
                                 className={cn(
-                                    "rounded-full px-3 h-8 min-w-0 font-medium",
+                                    "rounded-pill px-tight min-w-0 font-medium",
                                     selectedWindow === option.key
-                                        ? "bg-foreground text-background shadow-sm"
+                                        ? "bg-foreground text-background shadow-small"
                                         : "text-foreground/60"
                                 )}
                                 onPress={() => setSelectedWindow(option.key)}
@@ -742,14 +742,14 @@ export const SpeedChart = ({
             <div className="flex-1 min-h-0 flex flex-col gap-panel">
                 {layout === "split" ? (
                     <>
-                        <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                        <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className="absolute uppercase tracking-wider font-bold text-success/60 z-10 pointer-events-none text-label"
+                                className="absolute uppercase tracking-wider font-bold text-success/60 z-panel pointer-events-none text-label"
                             >
                                 Download
                             </span>
@@ -762,14 +762,14 @@ export const SpeedChart = ({
                                 tick={tick} // Passed tick
                             />
                         </div>
-                        <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                        <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className="absolute uppercase tracking-wider font-bold text-primary/60 z-10 pointer-events-none text-label"
+                                className="absolute uppercase tracking-wider font-bold text-primary/60 z-panel pointer-events-none text-label"
                             >
                                 Upload
                             </span>
@@ -784,7 +784,7 @@ export const SpeedChart = ({
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                    <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
                         {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
                             downTimed={downTimed.current}

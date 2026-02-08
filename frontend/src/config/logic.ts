@@ -1,5 +1,5 @@
 import type { MotionProps, Transition } from "framer-motion";
-import constants from "./constants.json";
+import constants from "@/config/constants.json";
 import { STATUS } from "@/shared/status";
 
 // Single-owner export for all config consumers
@@ -30,6 +30,8 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     value && typeof value === "object"
         ? (value as Record<string, unknown>)
         : {};
+
+type NativeHostWindow = Window & { __TINY_TORRENT_NATIVE__?: boolean };
 
 const readOptionalNumber = (value: unknown): number | undefined =>
     typeof value === "number" && Number.isFinite(value) ? value : undefined;
@@ -249,7 +251,7 @@ export const MODAL_SURFACE = (style: ShellStyle) =>
 
 export const IS_NATIVE_HOST =
     import.meta.env.VITE_INTERNAL_MODE === "true" ||
-    !!(window as any).__TINY_TORRENT_NATIVE__;
+    !!(window as NativeHostWindow).__TINY_TORRENT_NATIVE__;
 
 export const SHELL_RADIUS = classicOuterRadius;
 export const SHELL_HANDLE_HIT_AREA = classicHandleHitArea;
@@ -311,20 +313,20 @@ export const TABLE_LAYOUT = {
 } as const;
 
 // --- UI Token Bases from constants.json (used to initialize CSS variables) ---
-const uiLayout = (layoutConfig.ui ?? {}) as Record<string, any>;
+const uiLayout = asRecord(layoutConfig.ui);
 
 // Export canonical scale bases (single source of truth for unit/font/zoom).
 // These values are derived from `constants.json` and must be imported by
 // runtime readers (hooks/components) that need numeric scale tokens.
-const scaleCfgTop = uiLayout.scale ?? {};
+const scaleCfgTop = asRecord(uiLayout.scale);
 export const SCALE_BASES = {
-    unit: readNumber((scaleCfgTop as any).unit, 4),
+    unit: readNumber(scaleCfgTop.unit, 4),
     fontBase: readNumber(
-        (scaleCfgTop as any).font_base ?? (scaleCfgTop as any).fontBase,
+        scaleCfgTop.font_base ?? scaleCfgTop.fontBase,
         11
     ),
     zoom: readNumber(
-        (scaleCfgTop as any).zoom ?? (scaleCfgTop as any).level ?? 1,
+        scaleCfgTop.zoom ?? scaleCfgTop.level ?? 1,
         1
     ),
 };
@@ -392,8 +394,8 @@ export function applyCssTokenBases() {
     const root = document.documentElement.style;
     // Simplified: only export the canonical scale primitives.
     // All other UI tokens are derived in CSS from these two values.
-    const uiLayout = (layoutConfig.ui ?? {}) as Record<string, any>;
-    const scaleCfg = uiLayout.scale ?? {};
+    const uiLayout = asRecord(layoutConfig.ui);
+    const scaleCfg = asRecord(uiLayout.scale);
     // Preserve CSS defaults for unit and font base to avoid FOUC.
     // Only set runtime zoom-level here (JS-driven zoom overrides).
     const zoom = readNumber(scaleCfg.zoom ?? scaleCfg.level ?? 1, 1);

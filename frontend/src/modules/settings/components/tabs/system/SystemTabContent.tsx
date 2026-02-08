@@ -11,8 +11,8 @@ import { useTranslation } from "react-i18next";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
-import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import { shellAgent } from "@/app/agents/shell-agent";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
@@ -133,8 +133,7 @@ function StatusChip({
 
 export function SystemTabContent() {
     const { t } = useTranslation();
-    const { shellAgent } = useShellAgent();
-    const { uiMode } = useUiModeCapabilities();
+    const { uiMode, shellAgentAvailable } = useUiModeCapabilities();
 
     const [integrationStatus, setIntegrationStatus] = useState({
         autorun: false,
@@ -142,7 +141,10 @@ export function SystemTabContent() {
     });
     const [integrationLoading, setIntegrationLoading] = useState(true);
     const [associationPending, setAssociationPending] = useState(false);
-    const canUseShell = uiMode === "Full" && shellAgent.isAvailable;
+    const [autorunErrorMessage, setAutorunErrorMessage] = useState<
+        string | null
+    >(null);
+    const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
     const refreshIntegration = useCallback(async () => {
         if (!canUseShell) {
@@ -179,10 +181,43 @@ export function SystemTabContent() {
         Boolean(integrationStatus.autorun),
         setAutorunState,
         async (next) => {
-            if (!canUseShell) return;
+            if (!canUseShell) {
+                return {
+                    status: "unsupported",
+                    reason: "shell_unavailable",
+                } as const;
+            }
             await shellAgent.setSystemIntegration({ autorun: next });
             await refreshIntegration();
-        }
+            return { status: "applied" } as const;
+        },
+    );
+
+    const handleAutorunValueChange = useCallback(
+        (next: boolean) => {
+            void (async () => {
+                const outcome = await autorunToggle.onChange(next);
+                if (outcome.status === "applied") {
+                    setAutorunErrorMessage(null);
+                    return;
+                }
+                if (outcome.status === "unsupported") {
+                    setAutorunErrorMessage(
+                        t("settings.system.autorun_toggle_unsupported"),
+                    );
+                    void refreshIntegration();
+                    return;
+                }
+                if (outcome.status === "failed") {
+                    setAutorunErrorMessage(
+                        t("settings.system.autorun_toggle_failed"),
+                    );
+                    void refreshIntegration();
+                    return;
+                }
+            })();
+        },
+        [autorunToggle, refreshIntegration, t],
     );
 
     const handleAssociationRepair = useCallback(async () => {
@@ -292,13 +327,15 @@ export function SystemTabContent() {
                             size="md"
                             color="primary"
                             isSelected={integrationStatus.autorun}
-                            onValueChange={autorunToggle.onChange}
+                            onValueChange={handleAutorunValueChange}
                             isDisabled={autorunDisabled}
                         />
                     }
                     status={<StatusChip label={autorunLabel} color="default" />}
+                    helper={autorunErrorMessage ?? undefined}
                 />
             </SystemSectionCard>
         </div>
     );
 }
+

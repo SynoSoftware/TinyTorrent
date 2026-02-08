@@ -1,7 +1,6 @@
-import type { MutableRefObject } from "react";
-import { KEYMAP, KEY_SCOPE, ShortcutIntent } from "@/config/logic";
+import { KEY_SCOPE } from "@/config/logic";
 import { STATUS } from "@/shared/status";
-import type { FocusPart } from "@/app/context/FocusContext";
+import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -9,6 +8,16 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 import type { DetailTab, PeerSortStrategy } from "@/modules/dashboard/types/torrentDetail";
 import { DASHBOARD_FILTERS, type DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import type { TFunction } from "i18next";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    BASE_PALETTE_COMMANDS,
+    COMMAND_ID,
+    HOTKEY_COMMAND_ID,
+    HOTKEY_SHORTCUTS,
+    type BasePaletteCommandId,
+    type CommandGroupId,
+    type HotkeyCommandId,
+} from "@/app/commandCatalog";
 
 export interface CommandPaletteDeps {
     t: TFunction;
@@ -20,7 +29,9 @@ export interface CommandPaletteDeps {
     setFilter: (value: DashboardFilter) => void;
     selectedTorrents: Torrent[];
     detailData: TorrentDetail | null;
-    handleBulkAction: (action: TorrentTableAction) => void;
+    handleBulkAction: (
+        action: TorrentTableAction,
+    ) => Promise<TorrentCommandOutcome>;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleFileSelectionChange: (
         fileIndexes: number[],
@@ -47,71 +58,33 @@ export function buildCommandPaletteActions({
     refreshTorrents,
     setFilter,
 }: CommandPaletteDeps): CommandAction[] {
-    const groups: CommandPaletteBaseGroups = {
+    const groups: CommandPaletteBaseGroups &
+        Record<Exclude<CommandGroupId, "context">, string> = {
         actions: t("command_palette.group.actions"),
         filters: t("command_palette.group.filters"),
         search: t("command_palette.group.search"),
         context: t("command_palette.group.context"),
     };
 
-    return [
-        {
-            id: "add-torrent",
-            group: groups.actions,
-            title: t("command_palette.actions.add_torrent"),
-            description: t("command_palette.actions.add_torrent_description"),
-            onSelect: openAddTorrentPicker,
-        },
-        {
-            id: "add-magnet",
-            group: groups.actions,
-            title: t("command_palette.actions.add_magnet"),
-            description: t("command_palette.actions.add_magnet_description"),
-            onSelect: openAddMagnet,
-        },
-        {
-            id: "open-settings",
-            group: groups.actions,
-            title: t("command_palette.actions.open_settings"),
-            description: t("command_palette.actions.open_settings_description"),
-            onSelect: openSettings,
-        },
-        {
-            id: "refresh-torrents",
-            group: groups.actions,
-            title: t("command_palette.actions.refresh"),
-            description: t("command_palette.actions.refresh_description"),
-            onSelect: refreshTorrents,
-        },
-        {
-            id: "focus-search",
-            group: groups.search,
-            title: t("command_palette.actions.focus_search"),
-            description: t("command_palette.actions.focus_search_description"),
-            onSelect: focusSearchInput,
-        },
-        {
-            id: "filter-all",
-            group: groups.filters,
-            title: t("nav.filter_all"),
-            description: t("command_palette.filters.all_description"),
-            onSelect: () => setFilter(DASHBOARD_FILTERS.ALL),
-        },
-        {
-            id: "filter-downloading",
-            group: groups.filters,
-            title: t("nav.filter_downloading"),
-            description: t("command_palette.filters.downloading_description"),
-            onSelect: () => setFilter(DASHBOARD_FILTERS.DOWNLOADING),
-        },
-        {
-            id: "filter-seeding",
-            group: groups.filters,
-            title: t("nav.filter_seeding"),
-            description: t("command_palette.filters.seeding_description"),
-            onSelect: () => setFilter(DASHBOARD_FILTERS.SEEDING),
-        },
-    ];
+    const handlers: Record<BasePaletteCommandId, CommandAction["onSelect"]> = {
+        [COMMAND_ID.AddTorrent]: openAddTorrentPicker,
+        [COMMAND_ID.AddMagnet]: openAddMagnet,
+        [COMMAND_ID.OpenSettings]: openSettings,
+        [COMMAND_ID.RefreshTorrents]: refreshTorrents,
+        [COMMAND_ID.FocusSearch]: focusSearchInput,
+        [COMMAND_ID.FilterAll]: () => setFilter(DASHBOARD_FILTERS.ALL),
+        [COMMAND_ID.FilterDownloading]: () =>
+            setFilter(DASHBOARD_FILTERS.DOWNLOADING),
+        [COMMAND_ID.FilterSeeding]: () => setFilter(DASHBOARD_FILTERS.SEEDING),
+    };
+
+    return BASE_PALETTE_COMMANDS.map((entry) => ({
+        id: entry.id,
+        group: groups[entry.group],
+        title: t(entry.titleKey),
+        description: t(entry.descriptionKey),
+        onSelect: handlers[entry.id],
+    }));
 }
 
 export function buildContextCommandActions(
@@ -124,36 +97,36 @@ export function buildContextCommandActions(
     if (activePart === "table" && deps.selectedTorrents.length) {
         entries.push(
             {
-                id: "context.pause_selected",
+                id: COMMAND_ID.ContextPauseSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.pause_selected"),
                 description: deps.t(
                     "command_palette.actions.pause_selected_description"
                 ),
-                onSelect: () => {
-                    void deps.handleBulkAction("pause");
+                onSelect: async () => {
+                    await deps.handleBulkAction("pause");
                 },
             },
             {
-                id: "context.resume_selected",
+                id: COMMAND_ID.ContextResumeSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.resume_selected"),
                 description: deps.t(
                     "command_palette.actions.resume_selected_description"
                 ),
-                onSelect: () => {
-                    void deps.handleBulkAction("resume");
+                onSelect: async () => {
+                    await deps.handleBulkAction("resume");
                 },
             },
             {
-                id: "context.recheck_selected",
+                id: COMMAND_ID.ContextRecheckSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.recheck_selected"),
                 description: deps.t(
                     "command_palette.actions.recheck_selected_description"
                 ),
-                onSelect: () => {
-                    void deps.handleBulkAction("recheck");
+                onSelect: async () => {
+                    await deps.handleBulkAction("recheck");
                 },
             }
         );
@@ -161,7 +134,7 @@ export function buildContextCommandActions(
         const targetTorrent = deps.selectedTorrents[0];
         if (targetTorrent) {
             entries.push({
-                id: "context.open_inspector",
+                id: COMMAND_ID.ContextOpenInspector,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.open_inspector"),
                 description: deps.t(
@@ -177,7 +150,7 @@ export function buildContextCommandActions(
             deps.detailData.files?.map((file) => file.index) ?? [];
         if (fileIndexes.length) {
             entries.push({
-                id: "context.select_all_files",
+                id: COMMAND_ID.ContextSelectAllFiles,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.select_all_files"),
                 description: deps.t(
@@ -195,8 +168,8 @@ export function buildContextCommandActions(
             const isSpeedSorted = deps.peerSortStrategy === "speed";
             entries.push({
                 id: isSpeedSorted
-                    ? "context.inspector.reset_peer_sort"
-                    : "context.inspector.sort_peers_by_speed",
+                    ? COMMAND_ID.ContextResetPeerSort
+                    : COMMAND_ID.ContextSortPeersBySpeed,
                 group: contextGroup,
                 title: deps.t(
                     isSpeedSorted
@@ -231,60 +204,56 @@ export interface CommandHotkeyBinding {
     options?: CommandHotkeyOptions;
 }
 
-export interface CommandHotkeyBindings {
-    selectAll: CommandHotkeyBinding;
-    remove: CommandHotkeyBinding;
-    showDetails: CommandHotkeyBinding;
-    toggleInspector: CommandHotkeyBinding;
-    togglePause: CommandHotkeyBinding;
-    recheck: CommandHotkeyBinding;
-    removeWithData: CommandHotkeyBinding;
+export type CommandHotkeyBindings = Record<HotkeyCommandId, CommandHotkeyBinding>;
+
+export interface GlobalHotkeyStateSnapshot {
+    torrents: Torrent[];
+    selectedIds: string[];
+    selectedTorrents: Torrent[];
+    activeId: string | null;
+    detailData: TorrentDetail | null;
 }
 
-export interface GlobalHotkeyRefs {
-    torrentsRef: MutableRefObject<Torrent[]>;
-    selectedIdsRef: MutableRefObject<string[]>;
-    selectedTorrentsRef: MutableRefObject<Torrent[]>;
-    activeIdRef: MutableRefObject<string | null>;
-    detailDataRef: MutableRefObject<TorrentDetail | null>;
-    handleRequestDetailsRef: MutableRefObject<
-        ((torrent: Torrent) => Promise<void>) | undefined
-    >;
-    handleCloseDetailRef: MutableRefObject<(() => void) | undefined>;
-    handleBulkActionRef: MutableRefObject<
-        ((action: TorrentTableAction) => void) | undefined
-    >;
-    handleTorrentActionRef: MutableRefObject<
-        ((action: TorrentTableAction, torrent: Torrent) => void) | undefined
-    >;
+export interface GlobalHotkeyController {
+    getState: () => GlobalHotkeyStateSnapshot;
+    handleRequestDetails: (torrent: Torrent) => Promise<void>;
+    handleCloseDetail: () => void;
+    handleBulkAction: (
+        action: TorrentTableAction
+    ) => Promise<TorrentCommandOutcome>;
+    handleTorrentAction: (
+        action: TorrentTableAction,
+        torrent: Torrent
+    ) => Promise<TorrentCommandOutcome>;
 }
 
 export interface CreateGlobalHotkeyBindingsParams {
-    refs: GlobalHotkeyRefs;
-    setSelectedIds: (ids: string[]) => void;
+    controller: GlobalHotkeyController;
+    setSelectedIds: (ids: readonly string[]) => void;
     setActiveId: (id: string | null) => void;
     setActivePart: (part: FocusPart) => void;
 }
 
 function getPrimaryTorrentForAction(
-    refs: GlobalHotkeyRefs
+    state: GlobalHotkeyStateSnapshot
 ): Torrent | undefined {
-    const selection = refs.selectedTorrentsRef.current;
-    const primaryId = refs.activeIdRef.current;
+    const selection = state.selectedTorrents;
+    const primaryId = state.activeId;
     return (
         selection.find((torrent) => torrent.id === primaryId) ?? selection[0]
     );
 }
 
 export function createGlobalHotkeyBindings({
-    refs,
+    controller,
     setSelectedIds,
     setActiveId,
     setActivePart,
 }: CreateGlobalHotkeyBindingsParams): CommandHotkeyBindings {
     const selectAllHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const ids = refs.torrentsRef.current
+        const { torrents } = controller.getState();
+        const ids = torrents
             .filter((torrent) => !torrent.isGhost)
             .flatMap((torrent) => (torrent.id ? [torrent.id] : []));
         setSelectedIds(ids);
@@ -293,110 +262,115 @@ export function createGlobalHotkeyBindings({
 
     const removeHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const handleBulk = refs.handleBulkActionRef.current;
-        const selection = refs.selectedIdsRef.current;
-        if (!handleBulk || !selection.length) return;
-        void handleBulk("remove");
+        const { selectedIds } = controller.getState();
+        if (!selectedIds.length) return;
+        void controller.handleBulkAction("remove");
     };
 
     const showDetailsHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const handler = refs.handleRequestDetailsRef.current;
-        const primaryTorrent = getPrimaryTorrentForAction(refs);
-        if (!handler || !primaryTorrent) return;
-        handler(primaryTorrent);
+        const primaryTorrent = getPrimaryTorrentForAction(controller.getState());
+        if (!primaryTorrent) return;
+        void controller.handleRequestDetails(primaryTorrent);
     };
 
     const toggleInspectorHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const closeDetail = refs.handleCloseDetailRef.current;
-        const requestDetails = refs.handleRequestDetailsRef.current;
-        const selection = refs.selectedTorrentsRef.current;
-        const currentDetail = refs.detailDataRef.current;
+        const state = controller.getState();
+        const selection = state.selectedTorrents;
+        const currentDetail = state.detailData;
         if (currentDetail) {
-            closeDetail?.();
+            controller.handleCloseDetail();
             setActivePart("table");
             return;
         }
         const target =
-            selection.find((torrent) => torrent.id === refs.activeIdRef.current) ??
+            selection.find((torrent) => torrent.id === state.activeId) ??
             selection[0];
-        if (!target || !requestDetails) return;
+        if (!target) return;
         setActivePart("inspector");
-        requestDetails(target);
+        void controller.handleRequestDetails(target);
     };
 
     const togglePauseHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const handler = refs.handleTorrentActionRef.current;
-        const primaryTorrent = getPrimaryTorrentForAction(refs);
-        if (!handler || !primaryTorrent) return;
+        const primaryTorrent = getPrimaryTorrentForAction(controller.getState());
+        if (!primaryTorrent) return;
         const isActive =
             primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
             primaryTorrent.state === STATUS.torrent.SEEDING;
         const action: TorrentTableAction = isActive ? "pause" : "resume";
-        void handler(action, primaryTorrent);
+        void controller.handleTorrentAction(action, primaryTorrent);
     };
 
     const recheckHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const handleBulk = refs.handleBulkActionRef.current;
-        const selection = refs.selectedIdsRef.current;
-        if (!handleBulk || !selection.length) return;
-        void handleBulk("recheck");
+        const { selectedIds } = controller.getState();
+        if (!selectedIds.length) return;
+        void controller.handleBulkAction("recheck");
     };
 
     const removeWithDataHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const handleBulk = refs.handleBulkActionRef.current;
-        const selection = refs.selectedIdsRef.current;
-        if (!handleBulk || !selection.length) return;
-        void handleBulk("remove-with-data");
+        const { selectedIds } = controller.getState();
+        if (!selectedIds.length) return;
+        void controller.handleBulkAction("remove-with-data");
     };
 
     const baseOptions: CommandHotkeyOptions = {
         scopes: KEY_SCOPE.Dashboard,
     };
 
+    const hotkeyOptions: Record<HotkeyCommandId, CommandHotkeyOptions> = {
+        [HOTKEY_COMMAND_ID.SelectAll]: baseOptions,
+        [HOTKEY_COMMAND_ID.Remove]: baseOptions,
+        [HOTKEY_COMMAND_ID.ShowDetails]: baseOptions,
+        [HOTKEY_COMMAND_ID.ToggleInspector]: {
+            scopes: KEY_SCOPE.Dashboard,
+            enableOnFormTags: true,
+            enableOnContentEditable: true,
+        },
+        [HOTKEY_COMMAND_ID.TogglePause]: baseOptions,
+        [HOTKEY_COMMAND_ID.Recheck]: baseOptions,
+        [HOTKEY_COMMAND_ID.RemoveWithData]: baseOptions,
+    };
+
     return {
-        selectAll: {
-            keys: KEYMAP[ShortcutIntent.SelectAll],
+        [HOTKEY_COMMAND_ID.SelectAll]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.SelectAll],
             handler: selectAllHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.SelectAll],
         },
-        remove: {
-            keys: KEYMAP[ShortcutIntent.Delete],
+        [HOTKEY_COMMAND_ID.Remove]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.Remove],
             handler: removeHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.Remove],
         },
-        showDetails: {
-            keys: KEYMAP[ShortcutIntent.ShowDetails],
+        [HOTKEY_COMMAND_ID.ShowDetails]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.ShowDetails],
             handler: showDetailsHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.ShowDetails],
         },
-        toggleInspector: {
-            keys: "cmd+i,ctrl+i",
+        [HOTKEY_COMMAND_ID.ToggleInspector]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.ToggleInspector],
             handler: toggleInspectorHandler,
-            options: {
-                scopes: KEY_SCOPE.Dashboard,
-                enableOnFormTags: true,
-                enableOnContentEditable: true,
-            },
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.ToggleInspector],
         },
-        togglePause: {
-            keys: KEYMAP[ShortcutIntent.TogglePause],
+        [HOTKEY_COMMAND_ID.TogglePause]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.TogglePause],
             handler: togglePauseHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.TogglePause],
         },
-        recheck: {
-            keys: KEYMAP[ShortcutIntent.Recheck],
+        [HOTKEY_COMMAND_ID.Recheck]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.Recheck],
             handler: recheckHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.Recheck],
         },
-        removeWithData: {
-            keys: KEYMAP[ShortcutIntent.RemoveWithData],
+        [HOTKEY_COMMAND_ID.RemoveWithData]: {
+            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.RemoveWithData],
             handler: removeWithDataHandler,
-            options: baseOptions,
+            options: hotkeyOptions[HOTKEY_COMMAND_ID.RemoveWithData],
         },
     };
 }
+

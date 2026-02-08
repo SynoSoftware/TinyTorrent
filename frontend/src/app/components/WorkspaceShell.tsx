@@ -7,9 +7,9 @@ import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
-import { SettingsModal } from "@/modules/settings/components/SettingsModal";
-import { Navbar } from "./layout/Navbar";
-import { StatusBar } from "./layout/StatusBar";
+import { SettingsModal } from "@/modules/settings/components/SettingsModalView";
+import { Navbar } from "@/app/components/layout/Navbar";
+import { StatusBar } from "@/app/components/layout/StatusBar";
 import {
     ICON_STROKE_WIDTH,
     IMMERSIVE_CHROME_PADDING,
@@ -86,9 +86,7 @@ export function WorkspaceShell({
         <RemoveConfirmationModal
             isOpen={Boolean(pendingDelete)}
             onClose={() => clearPendingDelete()}
-            onConfirm={async (deleteData: boolean) => {
-                await confirmDelete(deleteData);
-            }}
+            onConfirm={(deleteData: boolean) => confirmDelete(deleteData)}
             torrentIds={pendingDelete?.torrents.map((t) => t.id) ?? []}
             torrentCount={pendingDelete?.torrents.length ?? 0}
             defaultDeleteData={Boolean(pendingDelete?.deleteData)}
@@ -107,13 +105,13 @@ export function WorkspaceShell({
             <input {...getInputProps()} />
 
             {isImmersiveShell && !isNativeHost && (
-                <div className="pointer-events-none absolute inset-0 z-0">
+                <div className="pointer-events-none absolute inset-0 z-floor">
                     <div className="absolute inset-0 bg-background/95" />
                     <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
                     <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
                     <div className="absolute inset-0 bg-noise opacity-20" />
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-full bg-primary/30 blur-glass opacity-40" />
-                    <div className="absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-full bg-primary/30 blur-glass opacity-35" />
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40" />
+                    <div className="absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35" />
                 </div>
             )}
 
@@ -124,7 +122,7 @@ export function WorkspaceShell({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
                         transition={TOAST_SPRING_TRANSITION}
-                        className="fixed z-40"
+                        className="fixed z-toast"
                         style={{
                             bottom: "var(--spacing-panel)",
                             right: "var(--spacing-panel)",
@@ -142,7 +140,7 @@ export function WorkspaceShell({
                 )}
             </AnimatePresence>
 
-            <div className="relative z-10 flex w-full flex-1">
+            <div className="relative z-panel flex w-full flex-1">
                 <div
                     className={cn(
                         "tt-shell-body mx-auto flex w-full flex-1 flex-col",
@@ -248,7 +246,7 @@ export function WorkspaceShell({
                                                                 card.id
                                                             )
                                                         }
-                                                        className="absolute rounded-full bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
+                                                        className="absolute rounded-pill bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
                                                         style={{
                                                             right: "var(--spacing-tight)",
                                                             top: "var(--spacing-tight)",
@@ -267,7 +265,7 @@ export function WorkspaceShell({
                                                     <div className="flex items-start gap-workbench">
                                                         <div
                                                             className={cn(
-                                                                "flex size-icon-btn-lg items-center justify-center rounded-2xl",
+                                                                "flex size-icon-btn-lg items-center justify-center rounded-panel",
                                                                 card.iconBgClass
                                                             )}
                                                         >
@@ -279,13 +277,13 @@ export function WorkspaceShell({
                                                         </div>
 
                                                         <div className="flex-1">
-                                                            <p className="text-sm text-foreground/60">
+                                                            <p className="text-label text-foreground/60">
                                                                 {card.title}
                                                             </p>
-                                                            <p className="mt-tight text-lg font-semibold text-foreground">
+                                                            <p className="mt-tight text-scaled font-semibold text-foreground">
                                                                 {card.label}
                                                             </p>
-                                                            <p className="mt-panel text-sm text-foreground/60">
+                                                            <p className="mt-panel text-label text-foreground/60">
                                                                 {
                                                                     card.description
                                                                 }
@@ -302,7 +300,7 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                                className="tt-shell-no-drag glass-panel border border-content1/10 bg-background/75 shadow-hud backdrop-blur-3xl"
+                                className="tt-shell-no-drag glass-panel border border-content1/10 bg-background/75 shadow-hud blur-glass"
                                 style={{
                                     borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                     padding: `${IMMERSIVE_CHROME_PADDING}px`,

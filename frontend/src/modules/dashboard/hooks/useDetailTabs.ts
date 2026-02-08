@@ -206,6 +206,8 @@ export const useTorrentDetailTabCoordinator = ({
                 files: torrent.files ?? [],
                 emptyMessage: t("torrent_modal.files_empty"),
                 onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
+                // TODO(section 21.8/21.9): these command callbacks are wired through tab surfaces;
+                // content tab should consume recovery/torrent command context directly at leaf usage.
                 onRecheck: torrentKey
                     ? () =>
                           void viewModel.tabs.content.handleEnsureValid?.(

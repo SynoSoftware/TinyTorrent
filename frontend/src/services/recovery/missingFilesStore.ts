@@ -6,6 +6,8 @@ import type {
 
 type Listener = () => void;
 
+// Session-scoped runtime caches.
+// Owner: `resetRecoveryRuntimeSessionState` in `services/recovery/recovery-runtime-lifecycle.ts`.
 const probeCache = new Map<string | number, MissingFilesProbeResult>();
 const listeners = new Set<Listener>();
 const classificationOverrides = new Map<

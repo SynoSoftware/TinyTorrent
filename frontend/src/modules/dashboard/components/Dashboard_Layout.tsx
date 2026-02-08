@@ -9,10 +9,10 @@ import {
 } from "react-resizable-panels";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useFocusState } from "@/app/context/FocusContext";
+import { useFocusState } from "@/app/context/AppShellStateContext";
 
-import { TorrentTable } from "./TorrentTable";
-import { TorrentDetails } from "./TorrentDetails";
+import { TorrentTable } from "@/modules/dashboard/components/TorrentTable";
+import { TorrentDetails } from "@/modules/dashboard/components/TorrentDetails";
 import {
     ICON_STROKE_WIDTH,
     getShellTokens,
@@ -98,6 +98,8 @@ export function Dashboard_Layout({
         },
         [handleRequestDetails, setActivePart]
     );
+    // TODO(section 20.3/20.5): table detail-open behavior should be one typed intent
+    // instead of separate docked/fullscreen callbacks threaded to child surfaces.
 
     const handleDetailClose = useCallback(() => {
         setIsDetailFullscreen(false);
@@ -391,3 +393,4 @@ export function Dashboard_Layout({
         </div>
     );
 }
+

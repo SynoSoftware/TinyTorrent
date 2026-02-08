@@ -17,7 +17,7 @@ import {
     CELL_PADDING_CLASS,
 } from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
-import { getColumnWidthCss } from "./TorrentTable_Shared";
+import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 

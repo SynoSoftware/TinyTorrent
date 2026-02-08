@@ -26,4 +26,6 @@ export type RecoveryGateCallback = (params: {
     torrent: Torrent | TorrentDetail;
     action: RecoveryGateAction;
     options?: RecoveryGateOptions;
+// TODO(section 20.2/20.5): remove nullable gate outcomes; use explicit variants
+// (no-op/unsupported/not-required/conflict) instead of `null`.
 }) => Promise<RecoveryGateOutcome | null>;

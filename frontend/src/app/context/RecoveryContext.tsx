@@ -59,6 +59,7 @@ export interface RecoveryContextValue {
     inlineSetLocationState: InlineSetLocationState | null;
     cancelInlineSetLocation: () => void;
     releaseInlineSetLocation: () => void;
+    // TODO(section 20.2/20.5): replace boolean submit result with typed inline-set-location outcomes.
     confirmInlineSetLocation: () => Promise<boolean>;
     handleInlineLocationChange: (value: string) => void;
     recoverySession: RecoverySessionInfo | null;

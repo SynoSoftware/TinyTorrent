@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { HeartbeatManager } from "../heartbeat";
+import { HeartbeatManager } from "@/services/rpc/heartbeat";
 
 // Minimal SessionStats
 const dummyStats = {

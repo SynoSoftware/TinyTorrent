@@ -22,12 +22,13 @@ import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 
 export interface AddMagnetModalProps {
     isOpen: boolean;
     initialValue?: string;
     onClose: () => void;
-    onSubmit: (link: string) => void;
+    onSubmit: (link: string) => Promise<AddTorrentCommandOutcome>;
 }
 
 // TODO: Keep AddMagnetModal as a pure view:
@@ -44,11 +45,13 @@ export function AddMagnetModal({
 }: AddMagnetModalProps) {
     const { t } = useTranslation();
     const [value, setValue] = useState(initialValue ?? "");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
         setValue(initialValue ?? "");
+        setIsSubmitting(false);
         textareaRef.current?.focus();
     }, [initialValue, isOpen]);
 
@@ -57,18 +60,26 @@ export function AddMagnetModal({
         onClose();
     }, [onClose]);
 
-    const handleConfirm = useCallback(() => {
+    const handleConfirm = useCallback(async () => {
+        if (isSubmitting) return;
         const trimmed = value.trim();
         if (!trimmed) return;
-        onSubmit(trimmed);
-        handleClose();
-    }, [value, onSubmit, handleClose]);
+        setIsSubmitting(true);
+        try {
+            const outcome = await onSubmit(trimmed);
+            if (outcome.status === "added") {
+                handleClose();
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [value, onSubmit, handleClose, isSubmitting]);
 
     const handleKeyDown = useCallback(
         (event: KeyboardEvent<HTMLInputElement>) => {
             if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                handleConfirm();
+                void handleConfirm();
             }
         },
         [handleConfirm]
@@ -135,7 +146,8 @@ export function AddMagnetModal({
                                 color="primary"
                                 variant="shadow"
                                 onPress={handleConfirm}
-                                isDisabled={!value.trim()}
+                                isLoading={isSubmitting}
+                                isDisabled={isSubmitting || !value.trim()}
                             >
                                 {t("modals.add_magnet.confirm")}
                             </Button>

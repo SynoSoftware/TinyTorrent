@@ -2,16 +2,15 @@ import { useCallback } from "react";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import { isRpcCommandError } from "@/services/rpc/errors";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
-import { RpcCommandError } from "@/services/rpc/errors";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;
     mutateDetail: (
         updater: (current: TorrentDetail) => TorrentDetail | null,
     ) => void;
     capabilities: CapabilityStore;
-    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
+    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
 }
 
 export function useDetailControls({
@@ -21,22 +20,6 @@ export function useDetailControls({
     dispatch,
 }: UseDetailControlsParams) {
     const { sequentialDownload, superSeeding } = capabilities;
-
-    const isUnsupportedCapabilityError = (error: Error) => {
-        if (!isRpcCommandError(error)) {
-            return false;
-        }
-        const normalizedCode = error.code?.toLowerCase();
-        if (normalizedCode === "invalid arguments") {
-            return true;
-        }
-        const message = error.message?.toLowerCase() ?? "";
-        return (
-            message.includes("invalid arguments") ||
-            message.includes("unsupported field") ||
-            message.includes("field not found")
-        );
-    };
 
     const handleFileSelectionChange = useCallback(
         async (indexes: number[], wanted: boolean) => {
@@ -63,13 +46,24 @@ export function useDetailControls({
                 );
                 return { ...current, files: updatedFiles };
             });
-            await dispatch(
+            const outcome = await dispatch(
                 TorrentIntents.setFilesWanted(
                     detailData.id,
                     boundedIndexes,
                     wanted,
                 ),
             );
+            if (outcome.status !== "applied") {
+                mutateDetail((current) => {
+                    if (!current.files) return current;
+                    const updatedFiles = current.files.map((file) =>
+                        boundedIndexes.includes(file.index)
+                            ? { ...file, wanted: !wanted }
+                            : file,
+                    );
+                    return { ...current, files: updatedFiles };
+                });
+            }
         },
         [detailData, mutateDetail, dispatch],
     );
@@ -83,25 +77,14 @@ export function useDetailControls({
                 ...current,
                 sequentialDownload: enabled,
             }));
-            try {
-                await dispatch(
-                    TorrentIntents.setSequentialDownload(
-                        detailData.id,
-                        enabled,
-                    ),
-                );
-            } catch (error) {
-                const typedError =
-                    error instanceof Error
-                        ? error
-                        : new RpcCommandError(String(error));
-                if (isUnsupportedCapabilityError(typedError)) {
-                    // revert optimistic update when capability is unsupported
-                    mutateDetail((current) => ({
-                        ...current,
-                        sequentialDownload: previous,
-                    }));
-                }
+            const outcome = await dispatch(
+                TorrentIntents.setSequentialDownload(detailData.id, enabled),
+            );
+            if (outcome.status !== "applied") {
+                mutateDetail((current) => ({
+                    ...current,
+                    sequentialDownload: previous,
+                }));
             }
         },
         [detailData, mutateDetail, dispatch, sequentialDownload],
@@ -113,22 +96,14 @@ export function useDetailControls({
             if (superSeeding !== "supported") return;
             const previous = detailData.superSeeding;
             mutateDetail((current) => ({ ...current, superSeeding: enabled }));
-            try {
-                await dispatch(
-                    TorrentIntents.setSuperSeeding(detailData.id, enabled),
-                );
-            } catch (error) {
-                const typedError =
-                    error instanceof Error
-                        ? error
-                        : new RpcCommandError(String(error));
-                if (isUnsupportedCapabilityError(typedError)) {
-                    // revert optimistic update when capability is unsupported
-                    mutateDetail((current) => ({
-                        ...current,
-                        superSeeding: previous,
-                    }));
-                }
+            const outcome = await dispatch(
+                TorrentIntents.setSuperSeeding(detailData.id, enabled),
+            );
+            if (outcome.status !== "applied") {
+                mutateDetail((current) => ({
+                    ...current,
+                    superSeeding: previous,
+                }));
             }
         },
         [detailData, mutateDetail, dispatch, superSeeding],

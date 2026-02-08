@@ -9,7 +9,7 @@ import type { Row } from "@tanstack/react-table";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useState } from "react";
-import { useSelection } from "@/app/context/SelectionContext";
+import { useSelection } from "@/app/context/AppShellStateContext";
 
 
 type RowSelectionControllerDeps = {
@@ -251,3 +251,4 @@ export const useRowSelectionController = (
 };
 
 export default useRowSelectionController;
+

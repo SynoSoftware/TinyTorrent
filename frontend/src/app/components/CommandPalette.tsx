@@ -3,12 +3,13 @@ import { Command } from "cmdk";
 import { cn } from "@heroui/react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useFocusState } from "@/app/context/FocusContext";
-import type { FocusPart } from "@/app/context/FocusContext";
+import { useFocusState } from "@/app/context/AppShellStateContext";
+import type { FocusPart } from "@/app/context/AppShellStateContext";
+import type { CommandId } from "@/app/commandCatalog";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 export interface CommandAction {
-    id: string;
+    id: CommandId;
     group: string;
     title: string;
     description?: string;
@@ -192,3 +193,4 @@ export function CommandPalette({
         </AnimatePresence>
     );
 }
+

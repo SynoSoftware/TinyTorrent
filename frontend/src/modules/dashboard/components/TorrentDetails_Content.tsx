@@ -6,6 +6,8 @@ import {
     FileExplorerTree,
     type FileExplorerContextAction,
     type FileExplorerEntry,
+    type FileExplorerToggleCommand,
+    type FileExplorerToggleOutcome,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
@@ -40,10 +42,27 @@ export const ContentTab = ({
     isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
-    const explorer = useFileExplorerViewModel(
-        files,
-        onFilesToggle
+    const fileToggleCommand = React.useCallback<FileExplorerToggleCommand>(
+        async (indexes: number[], wanted: boolean) => {
+            if (!onFilesToggle) {
+                return {
+                    status: "unsupported",
+                    reason: "missing_handler",
+                } satisfies FileExplorerToggleOutcome;
+            }
+            try {
+                await onFilesToggle(indexes, wanted);
+                return { status: "success" } satisfies FileExplorerToggleOutcome;
+            } catch {
+                return {
+                    status: "failed",
+                    reason: "execution_failed",
+                } satisfies FileExplorerToggleOutcome;
+            }
+        },
+        [onFilesToggle],
     );
+    const explorer = useFileExplorerViewModel(files, fileToggleCommand);
     const filesCount = explorer.files.length;
 
     const fileCountLabel =

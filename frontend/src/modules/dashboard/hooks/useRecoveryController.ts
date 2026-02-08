@@ -44,12 +44,13 @@ import type {
     SetLocationOptions,
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTranslation } from "react-i18next";
-import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
+import { shellAgent } from "@/app/agents/shell-agent";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
@@ -148,7 +149,7 @@ interface UseRecoveryControllerParams {
     services: RecoveryControllerServices;
     data: RecoveryControllerData;
     refresh: RecoveryControllerRefreshDeps;
-    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
+    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
 }
 
 interface RecoverySessionState {
@@ -213,6 +214,7 @@ export function useRecoveryController({
     dispatch,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
     const { client } = services;
+
     const { canBrowse, supportsManual } = useUiModeCapabilities();
     const setLocationCapability = useMemo(
         () => ({ canBrowse, supportsManual }),
@@ -221,7 +223,6 @@ export function useRecoveryController({
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
     const { t } = useTranslation();
-    const { shellAgent } = useShellAgent();
     const { torrents, detailData } = data;
     const {
         refreshTorrents,
@@ -787,18 +788,25 @@ export function useRecoveryController({
                     showFeedback(t(toastKey), tone);
                     return;
                 }
-                if (gateResult?.status === "continue") {
-                    await dispatch(TorrentIntents.ensureActive(id));
-                    return;
-                }
-                if (!gateResult) {
-                    await dispatch(TorrentIntents.ensureActive(id));
-                    return;
-                }
+            if (gateResult?.status === "continue") {
+                const outcome = await dispatch(
+                    TorrentIntents.ensureActive(id),
+                );
+                if (outcome.status !== "applied") return;
                 return;
             }
-            await dispatch(TorrentIntents.ensureActive(id));
-        },
+            if (!gateResult) {
+                const outcome = await dispatch(
+                    TorrentIntents.ensureActive(id),
+                );
+                if (outcome.status !== "applied") return;
+                return;
+            }
+            return;
+        }
+        const outcome = await dispatch(TorrentIntents.ensureActive(id));
+        if (outcome.status !== "applied") return;
+    },
         [
             dispatch,
             requestRecovery,
@@ -917,12 +925,13 @@ export function useRecoveryController({
     const handleRecoveryPickPath = useCallback(
         async (path: string) => {
             if (!recoverySession?.torrent) return;
-            await dispatch(
+            const outcome = await dispatch(
                 TorrentIntents.ensureAtLocation(
                     recoverySession.torrent.id ?? recoverySession.torrent.hash,
                     path,
                 ),
             );
+            if (outcome.status !== "applied") return;
             const updatedTorrent: Torrent | TorrentDetail = {
                 ...recoverySession.torrent,
                 downloadDir: path,
@@ -1454,3 +1463,4 @@ export function useRecoveryController({
 }
 
 export default useRecoveryController;
+

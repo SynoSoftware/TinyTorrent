@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from "react";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
 import {
     ANIMATION_SUPPRESSION_KEYS,
     type AnimationSuppressionKey,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
-import { useTorrentRowDrag } from "./useTorrentRowDrag";
+import { useTorrentRowDrag } from "@/modules/dashboard/hooks/useTorrentRowDrag";
 import type { SortingState, Row } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
@@ -114,3 +114,4 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
 };
 
 export default useQueueReorderController;
+

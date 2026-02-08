@@ -1,160 +1,125 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { useFocusState } from "@/app/context/FocusContext";
-import { useSelection } from "@/app/context/SelectionContext";
-import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import { useFocusState } from "@/app/context/AppShellStateContext";
+import { useSelection } from "@/app/context/AppShellStateContext";
+import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { createGlobalHotkeyBindings } from "@/app/commandRegistry";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { HOTKEY_COMMAND_ID } from "@/app/commandCatalog";
+import { useGlobalHotkeyContext } from "@/app/context/GlobalHotkeyContext";
 
-interface GlobalHotkeysHostProps {
-    torrents: Torrent[];
-    selectedTorrents: Torrent[];
-    detailData: TorrentDetail | null;
-    handleRequestDetails: (torrent: Torrent) => Promise<void>;
-    handleCloseDetail: () => void;
-}
-
-export function GlobalHotkeysHost({
-    torrents,
-    selectedTorrents,
-    detailData,
-    handleRequestDetails,
-    handleCloseDetail,
-}: GlobalHotkeysHostProps) {
+export function GlobalHotkeysHost() {
+    const {
+        torrents,
+        selectedTorrents,
+        detailData,
+        handleRequestDetails,
+        handleCloseDetail,
+    } = useGlobalHotkeyContext();
     const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const { setActivePart } = useFocusState();
     const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
 
-    const selectedIdsRef = useRef(selectedIds);
-    const activeIdRef = useRef(activeId);
-    const torrentsRef = useRef(torrents);
-    const selectedTorrentsRef = useRef(selectedTorrents);
-    const detailDataRef = useRef(detailData);
-    const handleRequestDetailsRef = useRef(handleRequestDetails);
-    const handleCloseDetailRef = useRef(handleCloseDetail);
-    const handleTorrentActionRef = useRef(handleTorrentAction);
-    const handleBulkActionRef = useRef(handleBulkAction);
+    const hotkeyController = useMemo(
+        () => ({
+            getState: () => ({
+                torrents,
+                selectedIds,
+                selectedTorrents,
+                activeId,
+                detailData,
+            }),
+            handleRequestDetails,
+            handleCloseDetail,
+            handleBulkAction,
+            handleTorrentAction,
+        }),
+        [
+            activeId,
+            detailData,
+            handleBulkAction,
+            handleCloseDetail,
+            handleRequestDetails,
+            handleTorrentAction,
+            selectedIds,
+            selectedTorrents,
+            torrents,
+        ]
+    );
 
-    useEffect(() => {
-        selectedIdsRef.current = selectedIds;
-    }, [selectedIds]);
-
-    useEffect(() => {
-        activeIdRef.current = activeId;
-    }, [activeId]);
-
-    useEffect(() => {
-        torrentsRef.current = torrents;
-    }, [torrents]);
-
-    useEffect(() => {
-        selectedTorrentsRef.current = selectedTorrents;
-    }, [selectedTorrents]);
-
-    useEffect(() => {
-        detailDataRef.current = detailData;
-    }, [detailData]);
-
-    useEffect(() => {
-        handleRequestDetailsRef.current = handleRequestDetails;
-    }, [handleRequestDetails]);
-
-    useEffect(() => {
-        handleCloseDetailRef.current = handleCloseDetail;
-    }, [handleCloseDetail]);
-
-    useEffect(() => {
-        handleTorrentActionRef.current = handleTorrentAction;
-    }, [handleTorrentAction]);
-
-    useEffect(() => {
-        handleBulkActionRef.current = handleBulkAction;
-    }, [handleBulkAction]);
+    const setSelectedIdsForHotkeys = useCallback(
+        (ids: readonly string[]) => {
+            setSelectedIds(ids);
+        },
+        [setSelectedIds]
+    );
 
     const hotkeys = useMemo(
         () =>
             createGlobalHotkeyBindings({
-                refs: {
-                    torrentsRef,
-                    selectedIdsRef,
-                    selectedTorrentsRef,
-                    activeIdRef,
-                    detailDataRef,
-                    handleRequestDetailsRef,
-                    handleCloseDetailRef,
-                    handleBulkActionRef,
-                    handleTorrentActionRef,
-                },
-                setSelectedIds,
+                controller: hotkeyController,
+                setSelectedIds: setSelectedIdsForHotkeys,
                 setActiveId,
                 setActivePart,
             }),
         [
-            torrentsRef,
-            selectedIdsRef,
-            selectedTorrentsRef,
-            activeIdRef,
-            detailDataRef,
-            handleRequestDetailsRef,
-            handleCloseDetailRef,
-            handleBulkActionRef,
-            handleTorrentActionRef,
-            setSelectedIds,
+            hotkeyController,
+            setSelectedIdsForHotkeys,
             setActiveId,
             setActivePart,
         ]
     );
 
     useHotkeys(
-        hotkeys.selectAll.keys,
-        hotkeys.selectAll.handler,
-        hotkeys.selectAll.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.SelectAll].keys,
+        hotkeys[HOTKEY_COMMAND_ID.SelectAll].handler,
+        hotkeys[HOTKEY_COMMAND_ID.SelectAll].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.remove.keys,
-        hotkeys.remove.handler,
-        hotkeys.remove.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.Remove].keys,
+        hotkeys[HOTKEY_COMMAND_ID.Remove].handler,
+        hotkeys[HOTKEY_COMMAND_ID.Remove].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.showDetails.keys,
-        hotkeys.showDetails.handler,
-        hotkeys.showDetails.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].keys,
+        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].handler,
+        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.toggleInspector.keys,
-        hotkeys.toggleInspector.handler,
-        hotkeys.toggleInspector.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].keys,
+        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].handler,
+        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.togglePause.keys,
-        hotkeys.togglePause.handler,
-        hotkeys.togglePause.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.TogglePause].keys,
+        hotkeys[HOTKEY_COMMAND_ID.TogglePause].handler,
+        hotkeys[HOTKEY_COMMAND_ID.TogglePause].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.recheck.keys,
-        hotkeys.recheck.handler,
-        hotkeys.recheck.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.Recheck].keys,
+        hotkeys[HOTKEY_COMMAND_ID.Recheck].handler,
+        hotkeys[HOTKEY_COMMAND_ID.Recheck].options,
+        [hotkeys]
     );
 
     useHotkeys(
-        hotkeys.removeWithData.keys,
-        hotkeys.removeWithData.handler,
-        hotkeys.removeWithData.options,
-        []
+        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].keys,
+        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].handler,
+        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].options,
+        [hotkeys]
     );
 
     return null;
 }
 
 export default GlobalHotkeysHost;
+

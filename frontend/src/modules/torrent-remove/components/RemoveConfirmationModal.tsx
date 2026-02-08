@@ -9,11 +9,12 @@ import {
     Button,
     Checkbox,
 } from "@heroui/react";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 
 interface RemoveConfirmationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (deleteData: boolean) => Promise<void> | void;
+    onConfirm: (deleteData: boolean) => Promise<TorrentCommandOutcome>;
     torrentCount: number;
     torrentIds?: string[];
     defaultDeleteData?: boolean;
@@ -31,10 +32,28 @@ export function RemoveConfirmationModal({
     const [loading, setLoading] = useState(false);
     const confirmRef = React.useRef<HTMLButtonElement | null>(null);
 
+    const isCloseEligibleOutcome = (outcome: TorrentCommandOutcome) =>
+        outcome.status === "success" || outcome.status === "canceled";
+
     // Keep state deterministic when reopening
     useEffect(() => {
         if (isOpen) setDeleteData(defaultDeleteData);
     }, [isOpen, defaultDeleteData]);
+
+    const handleConfirm = React.useCallback(async () => {
+        if (loading) return;
+        setLoading(true);
+        try {
+            const outcome = await onConfirm(deleteData);
+            if (isCloseEligibleOutcome(outcome)) {
+                onClose();
+            }
+        } catch (err) {
+            console.error("RemoveConfirmationModal onConfirm failed:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [deleteData, loading, onClose, onConfirm]);
 
     // Focus primary confirm when opened and wire keyboard shortcuts
     useEffect(() => {
@@ -58,20 +77,7 @@ export function RemoveConfirmationModal({
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [isOpen]);
-
-    const handleConfirm = async () => {
-        if (loading) return;
-        setLoading(true);
-        try {
-            await onConfirm(deleteData);
-        } catch (err) {
-            console.error("RemoveConfirmationModal onConfirm failed:", err);
-        } finally {
-            setLoading(false);
-            onClose();
-        }
-    };
+    }, [handleConfirm, isOpen, onClose]);
 
     return (
         <Modal isOpen={isOpen} onOpenChange={onClose}>

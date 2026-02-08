@@ -3,7 +3,7 @@ import {
     applySmartSelectCommand,
     buildSelectionCommit,
     type FileRow,
-} from "../fileSelection";
+} from "@/modules/torrent-add/services/fileSelection";
 
 describe("torrent-add fileSelection", () => {
     const files: FileRow[] = [

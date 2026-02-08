@@ -543,6 +543,8 @@ export function useTorrentTableViewModel({
     const handleRowDoubleClick = useCallback(
         (torrent: Torrent) => {
             if (disableDetailOpen) return;
+            // TODO(section 20.3/20.5): replace dual callback invocation with one
+            // typed detail-open intent (docked|fullscreen) owned by a single command surface.
             onRequestDetails?.(torrent);
             onRequestDetailsFullscreen?.(torrent);
         },
@@ -788,10 +790,10 @@ export function useTorrentTableViewModel({
             },
             rowInteraction: {
                 contextMenuTorrentId: contextMenu?.torrent.id ?? null,
-                handleRowClick: selection.handleRowClick,
-                handleRowDoubleClick,
-                handleContextMenu,
-                handleDropTargetChange,
+                onRowClick: selection.handleRowClick,
+                onRowDoubleClick: handleRowDoubleClick,
+                onRowContextMenu: handleContextMenu,
+                onDropTargetChange: handleDropTargetChange,
             },
             state: {
                 canReorderQueue,

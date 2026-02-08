@@ -6,15 +6,15 @@ import type {
     AddTorrentResult,
     SessionStats,
     ServerClass,
-} from "./entities";
+} from "@/services/rpc/entities";
 import type {
     TransmissionSessionSettings,
     TransmissionFreeSpace,
-} from "./types";
+} from "@/services/rpc/types";
 import type {
     HeartbeatSubscriberParams,
     HeartbeatSubscription,
-} from "./heartbeat";
+} from "@/services/rpc/heartbeat";
 
 export type EngineExecutionModel = "local" | "remote";
 
@@ -76,6 +76,6 @@ export interface EngineAdapter {
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
-    destroy?(): void;
+    destroy(): void;
     resetConnection?(): void;
 }

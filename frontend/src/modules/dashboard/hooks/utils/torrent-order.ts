@@ -1,4 +1,4 @@
-import type { Torrent } from "../../types/torrent.ts";
+import type { Torrent } from "@/modules/dashboard/types/torrent.ts";
 
 export function buildUniqueTorrentOrder(torrents: Torrent[]): string[] {
     const order: string[] = [];

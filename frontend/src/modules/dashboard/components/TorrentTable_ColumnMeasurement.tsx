@@ -3,7 +3,7 @@ import type { ColumnSizingInfoState } from "@tanstack/react-table";
 import {
     MEASURE_HEADER_SELECTOR,
     MEASURE_CELL_SELECTOR,
-} from "./TorrentTable_Shared";
+} from "@/modules/dashboard/components/TorrentTable_Shared";
 
 const readMeasuredWidth = (element: HTMLElement) => {
     const width = element.getBoundingClientRect().width;

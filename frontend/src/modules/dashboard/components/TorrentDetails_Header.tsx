@@ -9,7 +9,7 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
-import { DETAIL_TABS } from "../hooks/useDetailTabs";
+import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
 
 const DETAIL_TAB_LABELS: Record<string, string> = {
     general: "inspector.tab.general",

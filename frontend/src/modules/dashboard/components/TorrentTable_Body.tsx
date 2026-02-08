@@ -11,11 +11,11 @@ import {
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn, Skeleton } from "@heroui/react";
-import TorrentTable_Row from "./TorrentTable_Row";
+import TorrentTable_Row from "@/modules/dashboard/components/TorrentTable_Row";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
-import { getTableTotalWidthCss } from "./TorrentTable_Shared";
+import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 export interface TorrentTableBodyProps {
     viewModel: TorrentTableBodyViewModel;
@@ -52,20 +52,9 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
     } = viewModel.table;
     const {
         contextMenuTorrentId,
-        handleRowClick,
-        handleRowDoubleClick,
-        handleContextMenu,
-        handleDropTargetChange,
     } = viewModel.rowInteraction;
     const {
-        canReorderQueue,
-        dropTargetRowId,
-        activeRowId,
         highlightedRowId,
-        isAnyColumnResizing,
-        columnOrder,
-        isAnimationSuppressed,
-        isColumnOrderChanging,
     } = viewModel.state;
     const showSkeleton = isLoading && !hasSourceTorrents;
     const showEmptyState = !isLoading && !hasSourceTorrents;
@@ -177,27 +166,12 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                 contextMenuTorrentId ===
                                                 row.original.id
                                             }
-                                            onClick={handleRowClick}
-                                            onDoubleClick={handleRowDoubleClick}
-                                            onContextMenu={handleContextMenu}
-                                            isQueueSortActive={canReorderQueue}
-                                            dropTargetRowId={dropTargetRowId}
-                                            activeRowId={activeRowId}
                                             isHighlighted={
                                                 highlightedRowId === row.id &&
                                                 !row.getIsSelected()
                                             }
-                                            onDropTargetChange={
-                                                handleDropTargetChange
-                                            }
-                                            isAnyColumnResizing={
-                                                isAnyColumnResizing
-                                            }
-                                            columnOrder={columnOrder}
-                                            isAnimationSuppressed={
-                                                isAnimationSuppressed ||
-                                                isColumnOrderChanging
-                                            }
+                                            interaction={viewModel.rowInteraction}
+                                            state={viewModel.state}
                                         />
                                     );
                                 })}

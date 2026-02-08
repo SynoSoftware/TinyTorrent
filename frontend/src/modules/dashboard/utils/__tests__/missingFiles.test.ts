@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TFunction } from "i18next";
-import { formatMissingFileDetails } from "../missingFiles";
+import { formatMissingFileDetails } from "@/modules/dashboard/utils/missingFiles";
 import type { MissingFilesProbeResult } from "@/services/recovery/recovery-controller";
 
 describe("formatMissingFileDetails", () => {

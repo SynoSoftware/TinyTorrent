@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { formatMissingFileDetails } from "@/modules/dashboard/utils/missingFiles";
 import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import STATUS from "@/shared/status";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 
@@ -37,12 +38,13 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     showRemoveModal: boolean;
     openRemoveModal: () => void;
     closeRemoveModal: () => void;
-    onConfirmRemove: (deleteData: boolean) => Promise<void>;
+    onConfirmRemove: (deleteData: boolean) => Promise<TorrentCommandOutcome>;
     onToggleStartStop: () => void;
     onSetLocation: () => void;
     onDownloadMissing: () => void;
     onOpenFolder: () => void;
     onInlineChange: (value: string) => void;
+    // TODO(section 20.2/20.5): replace boolean submit result with typed inline outcome variants.
     onInlineSubmit: () => Promise<boolean>;
     onInlineCancel: () => void;
 };
@@ -165,14 +167,13 @@ export function useTorrentDetailsGeneralViewModel({
     }, [currentPath, openFolder]);
 
     const onConfirmRemove = useCallback(
-        async (deleteData: boolean) => {
-            setShowRemoveModal(false);
+        async (deleteData: boolean): Promise<TorrentCommandOutcome> => {
             const action = deleteData ? "remove-with-data" : "remove";
-            try {
-                await handleTorrentAction(action, torrent);
-            } catch (error) {
-                console.error("remove torrent action failed", error);
+            const outcome = await handleTorrentAction(action, torrent);
+            if (outcome.status === "success" || outcome.status === "canceled") {
+                setShowRemoveModal(false);
             }
+            return outcome;
         },
         [handleTorrentAction, torrent]
     );
@@ -214,3 +215,4 @@ export function useTorrentDetailsGeneralViewModel({
         onInlineCancel: cancelInlineSetLocation,
     };
 }
+

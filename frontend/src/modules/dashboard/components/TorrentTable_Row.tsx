@@ -2,13 +2,11 @@ import React, { memo, useEffect, useMemo, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { type VirtualItem } from "@tanstack/react-virtual";
-import type { Row } from "@tanstack/react-table";
 import { cn } from "@heroui/react";
 
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { TableCellContent } from "./TorrentTable_Shared";
-import { getTableTotalWidthCss } from "./TorrentTable_Shared";
+import type { TorrentTableRowProps } from "@/modules/dashboard/types/torrentTableSurfaces";
+import { TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const TorrentTable_Row = memo(
@@ -17,35 +15,32 @@ const TorrentTable_Row = memo(
         virtualRow,
         isSelected,
         isContext,
-        onClick,
-        onDoubleClick,
-        onContextMenu,
-        isQueueSortActive,
-        dropTargetRowId,
-        activeRowId,
         isHighlighted,
-        onDropTargetChange,
-        isAnyColumnResizing = false,
-        columnOrder,
-        isAnimationSuppressed: isAnimationSuppressed = false,
-    }: {
-        row: Row<Torrent>;
-        virtualRow: VirtualItem;
-        isSelected: boolean;
-        isContext: boolean;
-        onClick: (e: React.MouseEvent, rowId: string, index: number) => void;
-        onDoubleClick: (torrent: Torrent) => void;
-        onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
-        isQueueSortActive: boolean;
-        dropTargetRowId: string | null | undefined;
-        activeRowId: string | null | undefined;
-        isHighlighted: boolean;
-        onDropTargetChange?: (id: string | null) => void;
-        isAnyColumnResizing?: boolean;
-        columnOrder?: string[];
-        isAnimationSuppressed?: boolean;
-    }) => {
+        interaction,
+        state,
+    }: TorrentTableRowProps) => {
+        const {
+            onRowClick,
+            onRowDoubleClick,
+            onRowContextMenu,
+            onDropTargetChange,
+        } = interaction;
+        const {
+            canReorderQueue,
+            dropTargetRowId,
+            activeRowId,
+            isAnyColumnResizing,
+            columnOrder,
+            isAnimationSuppressed,
+            isColumnOrderChanging,
+        } = state;
+
         void columnOrder;
+        void isAnyColumnResizing;
+
+        const suppressRowAnimation =
+            isAnimationSuppressed || isColumnOrderChanging;
+
         // Inside VirtualRow component
         const {
             setNodeRef,
@@ -57,11 +52,11 @@ const TorrentTable_Row = memo(
             isOver,
         } = useSortable({
             id: row.id,
-            disabled: !isQueueSortActive,
+            disabled: !canReorderQueue,
             // FIX: Disable animation when the drag ends (wasDragging) to prevent
             // the row from animating "back" while the virtualizer moves it "to".
             animateLayoutChanges: (args) => {
-                if (isAnimationSuppressed) {
+                if (suppressRowAnimation) {
                     return false;
                 }
                 const { wasDragging } = args;
@@ -85,7 +80,7 @@ const TorrentTable_Row = memo(
                 style.transform = CSS.Translate.toString(transform);
             }
             // Retain drag transition, BUT we will remove highlight transition
-            if (transition && !isAnimationSuppressed) {
+            if (transition && !suppressRowAnimation) {
                 style.transition = transition;
             }
             style.opacity = isDragging ? 0 : 1;
@@ -100,12 +95,11 @@ const TorrentTable_Row = memo(
             transform,
             transition,
             isDragging,
-            isAnyColumnResizing,
-            isAnimationSuppressed,
+            suppressRowAnimation,
         ]);
 
         useEffect(() => {
-            if (!isQueueSortActive || !onDropTargetChange) return;
+            if (!canReorderQueue) return;
             if (row.id === activeRowId) return;
             if (isOver) {
                 onDropTargetChange(row.id);
@@ -117,7 +111,7 @@ const TorrentTable_Row = memo(
         }, [
             isOver,
             row.id,
-            isQueueSortActive,
+            canReorderQueue,
             onDropTargetChange,
             dropTargetRowId,
             activeRowId,
@@ -133,9 +127,9 @@ const TorrentTable_Row = memo(
                 role="row"
                 aria-selected={isSelected}
                 tabIndex={-1}
-                layout={!isAnimationSuppressed}
+                layout={!suppressRowAnimation}
                 layoutId={
-                    isAnimationSuppressed
+                    suppressRowAnimation
                         ? undefined
                         : `torrent-row-shell-${row.id}`
                 }
@@ -143,20 +137,20 @@ const TorrentTable_Row = memo(
                     "absolute top-0 left-0 border-b border-default/5",
                     "box-border",
                     // Dragging overrides
-                    isQueueSortActive ? "cursor-grab" : "cursor-default",
+                    canReorderQueue ? "cursor-grab" : "cursor-default",
                     isDragging &&
                         "opacity-50 grayscale scale-98 z-50 cursor-grabbing"
                 )}
                 style={rowStyle}
-                onClick={(e) => onClick(e, row.id, virtualRow.index)}
-                onDoubleClick={() => onDoubleClick(row.original)}
-                onContextMenu={(e) => onContextMenu(e, row.original)}
+                onClick={(e) => onRowClick(e, row.id, virtualRow.index)}
+                onDoubleClick={() => onRowDoubleClick(row.original)}
+                onContextMenu={(e) => onRowContextMenu(e, row.original)}
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <motion.div
-                    layout={!isAnimationSuppressed}
+                    layout={!suppressRowAnimation}
                     layoutId={
-                        isAnimationSuppressed
+                        suppressRowAnimation
                             ? undefined
                             : `torrent-row-${row.id}`
                     }
@@ -174,7 +168,7 @@ const TorrentTable_Row = memo(
                 </motion.div>
             </motion.div>
         );
-    }
+    },
 );
 
 export default TorrentTable_Row;

@@ -1,4 +1,4 @@
-import { normalizeHost, isLoopbackHost } from "./hosts";
+import { normalizeHost, isLoopbackHost } from "@/app/utils/hosts";
 
 export type UiMode = "Full" | "Rpc";
 
@@ -11,16 +11,23 @@ export interface UiCapabilities {
     supportsManual: boolean;
 }
 
-export function computeUiMode(
-    host: string,
-    shellAgentAvailable: boolean
+function resolveUiMode(
+    normalizedHost: string,
+    shellAgentAvailable: boolean,
 ): UiMode {
-    const normalizedHost = normalizeHost(host);
     const loopback = Boolean(normalizedHost) && isLoopbackHost(normalizedHost);
     if (shellAgentAvailable && loopback) {
         return "Full";
     }
     return "Rpc";
+}
+
+export function computeUiMode(
+    host: string,
+    shellAgentAvailable: boolean
+): UiMode {
+    const normalizedHost = normalizeHost(host);
+    return resolveUiMode(normalizedHost, shellAgentAvailable);
 }
 
 export function deriveUiCapabilities(
@@ -29,7 +36,7 @@ export function deriveUiCapabilities(
 ): UiCapabilities {
     const normalizedHost = normalizeHost(host);
     const loopback = Boolean(normalizedHost) && isLoopbackHost(normalizedHost);
-    const uiMode = shellAgentAvailable && loopback ? "Full" : "Rpc";
+    const uiMode = resolveUiMode(normalizedHost, shellAgentAvailable);
     return {
         uiMode,
         shellAgentAvailable,

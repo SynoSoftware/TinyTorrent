@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { subscribeToTableHeartbeat } from "@/app/services/tableHeartbeat";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { EngineInfo, SessionStats } from "@/services/rpc/entities";
-import type { HeartbeatMode, HeartbeatPayload } from "@/services/rpc/heartbeat";
+import type {
+    HeartbeatErrorEvent,
+    HeartbeatMode,
+    HeartbeatPayload,
+} from "@/services/rpc/heartbeat";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import {
     getSpeedHistoryStore,
@@ -13,7 +16,7 @@ import {
 type TableSubscriptionParams = {
     pollingIntervalMs?: number;
     onUpdate: (payload: HeartbeatPayload) => void;
-    onError?: () => void;
+    onError: (event: HeartbeatErrorEvent) => void;
 };
 
 type NonTableSubscriptionParams = {
@@ -21,7 +24,7 @@ type NonTableSubscriptionParams = {
     detailId?: string | null;
     pollingIntervalMs?: number;
     onUpdate: (payload: HeartbeatPayload) => void;
-    onError?: () => void;
+    onError: (event: HeartbeatErrorEvent) => void;
 };
 
 export interface EngineSessionDomain {
@@ -107,6 +110,7 @@ export function useEngineSessionDomain(
                 await updateSessionSettings.call(client, settings);
             },
             testPort: async () => {
+                // TODO(section 20.2/20.5): return typed test-port outcomes instead of boolean/throw.
                 if (typeof testPort !== "function") {
                     throw new Error("settings.modal.error_test_port");
                 }
@@ -140,11 +144,11 @@ export function useEngineHeartbeatDomain(
     return useMemo<EngineHeartbeatDomain>(
         () => ({
             subscribeTable: ({ pollingIntervalMs, onUpdate, onError }) =>
-                subscribeToTableHeartbeat({
-                    client,
+                client.subscribeToHeartbeat({
+                    mode: "table",
                     pollingIntervalMs,
                     onUpdate,
-                    onError: onError ?? (() => {}),
+                    onError,
                 }),
             subscribeNonTable: ({
                 mode,
@@ -158,7 +162,7 @@ export function useEngineHeartbeatDomain(
                     detailId: detailId ?? null,
                     pollingIntervalMs,
                     onUpdate,
-                    onError: onError ?? (() => {}),
+                    onError,
                 }),
         }),
         [client],

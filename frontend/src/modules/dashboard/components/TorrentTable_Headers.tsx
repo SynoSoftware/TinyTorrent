@@ -7,10 +7,10 @@ import type {
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { cn } from "@heroui/react";
-import { TableHeaderContent, getColumnWidthCss } from "./TorrentTable_Shared";
+import { TableHeaderContent, getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import TorrentTable_Header from "./TorrentTable_Header";
+import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 

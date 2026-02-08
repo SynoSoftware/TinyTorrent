@@ -1,5 +1,6 @@
-/** 
- * Central scheduler authority for all polling/timer tasks in the UI.
+/**
+ * Central scheduler authority for non-RPC UI timers.
+ * RPC heartbeat polling is owned by `HeartbeatManager`.
  *
  * This service runs < 1 timer (default step 250ms) and keeps track of registered
  * recurring/timeout jobs. When no work remains the loop stops automatically.

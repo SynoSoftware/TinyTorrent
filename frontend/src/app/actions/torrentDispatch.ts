@@ -5,6 +5,14 @@ import type {
     QueueMoveIntent,
 } from "@/app/intents/torrentIntents";
 
+export type TorrentDispatchOutcome =
+    | { status: "applied" }
+    | {
+          status: "unsupported";
+          reason: "client_unavailable" | "intent_unsupported" | "method_missing";
+      }
+    | { status: "failed"; reason: "execution_failed" };
+
 export interface CreateTorrentDispatchOptions {
     client: EngineAdapter | null | undefined;
     refreshTorrents: () => Promise<void>;
@@ -12,11 +20,327 @@ export interface CreateTorrentDispatchOptions {
     refreshDetailData: () => Promise<void>;
     reportCommandError?: (error: unknown) => void;
 }
-// TODO: This dispatch builder has a “do-everything” surface (client selection + refresh policy + intent mapping) and is another source of AI regressions.
-// TODO: Target architecture:
-// TODO: - Define a single “command bus” boundary (e.g., `TorrentCommandBus`) with a small, stable API.
-// TODO: - Move refresh policy into one owner (Session provider / ViewModel), not per-intent switch cases.
-// TODO: - Ensure intent mapping exists in exactly one place (avoid duplicates across hooks/orchestrators).
+
+type DispatchableIntentType =
+    | "ENSURE_TORRENT_ACTIVE"
+    | "ENSURE_TORRENT_PAUSED"
+    | "ENSURE_TORRENT_REMOVED"
+    | "ENSURE_TORRENT_VALID"
+    | "SET_TORRENT_FILES_WANTED"
+    | "SET_TORRENT_SEQUENTIAL"
+    | "SET_TORRENT_SUPERSEEDING"
+    | "ENSURE_SELECTION_ACTIVE"
+    | "ENSURE_SELECTION_PAUSED"
+    | "ENSURE_SELECTION_REMOVED"
+    | "ENSURE_SELECTION_VALID"
+    | "QUEUE_MOVE"
+    | "ADD_MAGNET_TORRENT"
+    | "ADD_TORRENT_FROM_FILE"
+    | "FINALIZE_EXISTING_TORRENT";
+
+type DispatchableIntent = Extract<
+    TorrentIntentExtended,
+    { type: DispatchableIntentType }
+>;
+
+type DispatchIntentByType<TType extends DispatchableIntentType> = Extract<
+    DispatchableIntent,
+    { type: TType }
+>;
+
+interface RefreshPolicy {
+    refreshTorrents?: boolean;
+    refreshDetail?: boolean;
+    refreshStats?: boolean;
+    reportError?: boolean;
+}
+
+interface DispatchContext {
+    client: EngineAdapter;
+}
+
+type DispatchHandlerOutcome =
+    | { status: "applied" }
+    | { status: "unsupported"; reason: "method_missing" };
+
+interface DispatchHandlerDefinition<TType extends DispatchableIntentType> {
+    run: (
+        intent: DispatchIntentByType<TType>,
+        context: DispatchContext,
+    ) => Promise<DispatchHandlerOutcome>;
+    refresh?: RefreshPolicy;
+}
+
+type DispatchHandlerTable = {
+    [TType in DispatchableIntentType]: DispatchHandlerDefinition<TType>;
+};
+
+const requireClientMethod = <TMethod extends keyof EngineAdapter>(
+    client: EngineAdapter,
+    method: TMethod,
+) => {
+    const methodRef = client[method];
+    if (!methodRef) {
+        return null;
+    }
+    return methodRef;
+};
+
+const runQueueMove = async (
+    intent: QueueMoveIntent,
+    context: DispatchContext,
+): Promise<DispatchHandlerOutcome> => {
+    const torrentId = String(intent.torrentId);
+    const steps = Math.max(1, Number(intent.steps ?? 1));
+    for (let step = 0; step < steps; step++) {
+        if (intent.direction === "up") {
+            await context.client.moveUp([torrentId]);
+            continue;
+        }
+        if (intent.direction === "down") {
+            await context.client.moveDown([torrentId]);
+            continue;
+        }
+        if (intent.direction === "top") {
+            await context.client.moveToTop([torrentId]);
+            continue;
+        }
+        await context.client.moveToBottom([torrentId]);
+    }
+    return { status: "applied" };
+};
+
+const runAddTorrentFromFile = async (
+    intent: DispatchIntentByType<"ADD_TORRENT_FROM_FILE">,
+    context: DispatchContext,
+): Promise<DispatchHandlerOutcome> => {
+    const shouldStart = !intent.paused;
+    const verifyBeforeStart = shouldStart && intent.skipHashCheck === false;
+    const addPaused = verifyBeforeStart ? true : intent.paused;
+
+    const result = await context.client.addTorrent({
+        metainfo: intent.metainfoBase64,
+        downloadDir: intent.downloadDir,
+        paused: addPaused,
+        filesUnwanted: intent.filesUnwanted,
+        priorityHigh: intent.priorityHigh,
+        priorityNormal: intent.priorityNormal,
+        priorityLow: intent.priorityLow,
+    });
+
+    if (intent.sequentialDownload && context.client.setSequentialDownload) {
+        await context.client.setSequentialDownload(result.id, true);
+    }
+
+    if (verifyBeforeStart) {
+        await context.client.verify([result.id]);
+        await context.client.resume([result.id]);
+    }
+    return { status: "applied" };
+};
+
+const runFinalizeExistingTorrent = async (
+    intent: DispatchIntentByType<"FINALIZE_EXISTING_TORRENT">,
+    context: DispatchContext,
+): Promise<DispatchHandlerOutcome> => {
+    const setTorrentLocation = requireClientMethod(
+        context.client,
+        "setTorrentLocation",
+    );
+    if (typeof setTorrentLocation !== "function") {
+        return { status: "unsupported", reason: "method_missing" };
+    }
+    const setTorrentLocationBound = setTorrentLocation.bind(context.client);
+    await setTorrentLocationBound(
+        String(intent.torrentId),
+        intent.downloadDir,
+        true,
+    );
+
+    if (intent.filesUnwanted.length && context.client.updateFileSelection) {
+        await context.client.updateFileSelection(
+            String(intent.torrentId),
+            intent.filesUnwanted,
+            false,
+        );
+    }
+    if (intent.resume) {
+        await context.client.resume([String(intent.torrentId)]);
+    }
+    return { status: "applied" };
+};
+
+const DISPATCH_HANDLERS: DispatchHandlerTable = {
+    ENSURE_TORRENT_ACTIVE: {
+        run: async (intent, context) => {
+            await context.client.resume([String(intent.torrentId)]);
+            return { status: "applied" };
+        },
+    },
+    ENSURE_TORRENT_PAUSED: {
+        run: async (intent, context) => {
+            await context.client.pause([String(intent.torrentId)]);
+            return { status: "applied" };
+        },
+    },
+    ENSURE_TORRENT_REMOVED: {
+        run: async (intent, context) => {
+            await context.client.remove(
+                [String(intent.torrentId)],
+                Boolean(intent.deleteData),
+            );
+            return { status: "applied" };
+        },
+    },
+    ENSURE_TORRENT_VALID: {
+        run: async (intent, context) => {
+            await context.client.verify([String(intent.torrentId)]);
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: true,
+            refreshStats: true,
+        },
+    },
+    SET_TORRENT_FILES_WANTED: {
+        run: async (intent, context) => {
+            const updateFileSelection = requireClientMethod(
+                context.client,
+                "updateFileSelection",
+            );
+            if (typeof updateFileSelection !== "function") {
+                return { status: "unsupported", reason: "method_missing" };
+            }
+            await updateFileSelection.bind(context.client)(
+                String(intent.torrentId),
+                intent.fileIndexes,
+                intent.wanted,
+            );
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: true,
+            refreshStats: true,
+        },
+    },
+    SET_TORRENT_SEQUENTIAL: {
+        run: async (intent, context) => {
+            const setSequentialDownload = requireClientMethod(
+                context.client,
+                "setSequentialDownload",
+            );
+            if (typeof setSequentialDownload !== "function") {
+                return { status: "unsupported", reason: "method_missing" };
+            }
+            await setSequentialDownload.bind(context.client)(
+                String(intent.torrentId),
+                intent.enabled,
+            );
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: true,
+            refreshStats: true,
+        },
+    },
+    SET_TORRENT_SUPERSEEDING: {
+        run: async (intent, context) => {
+            const setSuperSeeding = requireClientMethod(
+                context.client,
+                "setSuperSeeding",
+            );
+            if (typeof setSuperSeeding !== "function") {
+                return { status: "unsupported", reason: "method_missing" };
+            }
+            await setSuperSeeding.bind(context.client)(
+                String(intent.torrentId),
+                intent.enabled,
+            );
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: true,
+            refreshStats: true,
+        },
+    },
+    ENSURE_SELECTION_ACTIVE: {
+        run: async (intent, context) => {
+            await context.client.resume((intent.torrentIds || []).map(String));
+            return { status: "applied" };
+        },
+    },
+    ENSURE_SELECTION_PAUSED: {
+        run: async (intent, context) => {
+            await context.client.pause((intent.torrentIds || []).map(String));
+            return { status: "applied" };
+        },
+    },
+    ENSURE_SELECTION_REMOVED: {
+        run: async (intent, context) => {
+            await context.client.remove(
+                (intent.torrentIds || []).map(String),
+                Boolean(intent.deleteData),
+            );
+            return { status: "applied" };
+        },
+    },
+    ENSURE_SELECTION_VALID: {
+        run: async (intent, context) => {
+            await context.client.verify((intent.torrentIds || []).map(String));
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: true,
+            refreshStats: true,
+        },
+    },
+    QUEUE_MOVE: {
+        run: async (intent, context) => {
+            return runQueueMove(intent, context);
+        },
+    },
+    ADD_MAGNET_TORRENT: {
+        run: async (intent, context) => {
+            await context.client.addTorrent({
+                magnetLink: intent.magnetLink,
+                paused: intent.paused,
+                downloadDir: intent.downloadDir,
+            });
+            return { status: "applied" };
+        },
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: false,
+            refreshStats: false,
+        },
+    },
+    ADD_TORRENT_FROM_FILE: {
+        run: runAddTorrentFromFile,
+        refresh: {
+            refreshTorrents: true,
+            refreshDetail: false,
+            refreshStats: false,
+        },
+    },
+    FINALIZE_EXISTING_TORRENT: {
+        run: runFinalizeExistingTorrent,
+        refresh: {
+            refreshTorrents: false,
+            refreshDetail: false,
+            refreshStats: false,
+        },
+    },
+};
+
+const isDispatchableIntent = (
+    intent: TorrentIntentExtended,
+): intent is DispatchableIntent =>
+    Object.prototype.hasOwnProperty.call(DISPATCH_HANDLERS, intent.type);
 
 export function createTorrentDispatch({
     client,
@@ -26,209 +350,65 @@ export function createTorrentDispatch({
     reportCommandError,
 }: CreateTorrentDispatchOptions) {
     const runWithRefresh = async (
-        operation: () => Promise<void>,
-        options?: {
-            refreshTorrents?: boolean;
-            refreshDetail?: boolean;
-            refreshStats?: boolean;
-            reportError?: boolean;
-        }
-    ) => {
+        operation: () => Promise<DispatchHandlerOutcome>,
+        options?: RefreshPolicy,
+    ): Promise<TorrentDispatchOutcome> => {
+        const refreshPolicy = {
+            refreshTorrents: false,
+            refreshDetail: false,
+            refreshStats: false,
+            reportError: true,
+            ...options,
+        };
         try {
-            await operation();
-            if (options?.refreshTorrents ?? true) {
+            const outcome = await operation();
+            if (outcome.status !== "applied") {
+                return outcome;
+            }
+            if (refreshPolicy.refreshTorrents) {
                 await refreshTorrents();
             }
-            if (options?.refreshDetail ?? true) {
+            if (refreshPolicy.refreshDetail) {
                 await refreshDetailData();
             }
-            if (options?.refreshStats ?? true) {
+            if (refreshPolicy.refreshStats) {
                 await refreshSessionStatsData();
             }
+            return outcome;
         } catch (error) {
-            if ((options?.reportError ?? true) && reportCommandError) {
+            if (refreshPolicy.reportError && reportCommandError) {
                 if (!isRpcCommandError(error)) {
                     reportCommandError(error);
                 }
             }
-            throw error;
+            return { status: "failed", reason: "execution_failed" };
         }
     };
 
+    const executeIntent = async <TType extends DispatchableIntentType>(
+        intent: DispatchIntentByType<TType>,
+        context: DispatchContext,
+    ) => {
+        const handler = DISPATCH_HANDLERS[intent.type];
+        return runWithRefresh(
+            () => handler.run(intent, context),
+            handler.refresh,
+        );
+    };
+
     return async (intent: TorrentIntentExtended) => {
-        if (!client) return;
-        const activeClient = client;
-
-        // TODO: Replace this large `switch` with a table-driven mapping:
-        // TODO: - `intent.type` => `{ run(client), refresh: {torrents,detail,stats}, optimistic?: ... }`
-        // TODO: - makes behavior explicit, reduces chance of missing a refresh, and improves testability.
-        switch (intent.type) {
-        case "ENSURE_TORRENT_ACTIVE":
-            await activeClient.resume([String(intent.torrentId)]);
-            break;
-        case "ENSURE_TORRENT_PAUSED":
-            await activeClient.pause([String(intent.torrentId)]);
-            break;
-        case "ENSURE_TORRENT_REMOVED":
-            await activeClient.remove(
-                [String(intent.torrentId)],
-                Boolean(intent.deleteData)
-            );
-            break;
-        case "ENSURE_TORRENT_VALID":
-            await runWithRefresh(async () => {
-                await activeClient.verify([String(intent.torrentId)]);
-            });
-            break;
-        case "SET_TORRENT_FILES_WANTED": {
-            if (!activeClient.updateFileSelection) return;
-            await runWithRefresh(async () => {
-                await activeClient.updateFileSelection(
-                    String(intent.torrentId),
-                    intent.fileIndexes,
-                    intent.wanted
-                );
-            });
-            break;
+        if (!client) {
+            return {
+                status: "unsupported",
+                reason: "client_unavailable",
+            } as const;
         }
-        case "SET_TORRENT_SEQUENTIAL": {
-            if (!activeClient.setSequentialDownload) return;
-            const setSequentialDownload =
-                activeClient.setSequentialDownload.bind(activeClient);
-                await runWithRefresh(
-                    async () => {
-                        await setSequentialDownload(
-                            String(intent.torrentId),
-                            intent.enabled,
-                        );
-                    }
-                );
-            break;
+        if (!isDispatchableIntent(intent)) {
+            return {
+                status: "unsupported",
+                reason: "intent_unsupported",
+            } as const;
         }
-        case "SET_TORRENT_SUPERSEEDING": {
-            if (!activeClient.setSuperSeeding) return;
-            const setSuperSeeding =
-                activeClient.setSuperSeeding.bind(activeClient);
-                await runWithRefresh(
-                    async () => {
-                        await setSuperSeeding(
-                            String(intent.torrentId),
-                            intent.enabled,
-                        );
-                    }
-                );
-            break;
-        }
-        case "ENSURE_SELECTION_ACTIVE":
-            await activeClient.resume((intent.torrentIds || []).map(String));
-            break;
-        case "ENSURE_SELECTION_PAUSED":
-            await activeClient.pause((intent.torrentIds || []).map(String));
-            break;
-        case "ENSURE_SELECTION_REMOVED":
-            await activeClient.remove(
-                (intent.torrentIds || []).map(String),
-                Boolean(intent.deleteData)
-            );
-            break;
-        case "ENSURE_SELECTION_VALID":
-            await runWithRefresh(async () => {
-                await activeClient.verify(
-                    (intent.torrentIds || []).map(String)
-                );
-            });
-            break;
-        case "QUEUE_MOVE": {
-            const q = intent as QueueMoveIntent;
-            const tid = String(q.torrentId);
-            const steps = Math.max(1, Number(q.steps ?? 1));
-            for (let i = 0; i < steps; i++) {
-                if (q.direction === "up") await activeClient.moveUp([tid]);
-                else if (q.direction === "down")
-                    await activeClient.moveDown([tid]);
-                else if (q.direction === "top")
-                    await activeClient.moveToTop([tid]);
-                else if (q.direction === "bottom")
-                    await activeClient.moveToBottom([tid]);
-            }
-            break;
-        }
-        case "ADD_MAGNET_TORRENT":
-            await runWithRefresh(
-                async () => {
-                    await activeClient.addTorrent({
-                        magnetLink: intent.magnetLink,
-                        paused: intent.paused,
-                        downloadDir: intent.downloadDir,
-                    });
-                },
-                { refreshStats: false, refreshDetail: false }
-            );
-            break;
-        case "ADD_TORRENT_FROM_FILE":
-            await runWithRefresh(
-                async () => {
-                    const shouldStart = !intent.paused;
-                    const verifyBeforeStart =
-                        shouldStart && intent.skipHashCheck === false;
-                    const addPaused = verifyBeforeStart ? true : intent.paused;
-
-                    const result = await activeClient.addTorrent({
-                        metainfo: intent.metainfoBase64,
-                        downloadDir: intent.downloadDir,
-                        paused: addPaused,
-                        filesUnwanted: intent.filesUnwanted,
-                        priorityHigh: intent.priorityHigh,
-                        priorityNormal: intent.priorityNormal,
-                        priorityLow: intent.priorityLow,
-                    });
-
-                    if (intent.sequentialDownload) {
-                        if (activeClient.setSequentialDownload) {
-                            await activeClient.setSequentialDownload(
-                                result.id,
-                                true
-                            );
-                        }
-                    }
-
-                    if (verifyBeforeStart) {
-                        await activeClient.verify([result.id]);
-                        await activeClient.resume([result.id]);
-                    }
-                },
-                { refreshStats: false, refreshDetail: false }
-            );
-            break;
-        case "FINALIZE_EXISTING_TORRENT": {
-            if (!activeClient.setTorrentLocation) return;
-            const setTorrentLocation =
-                activeClient.setTorrentLocation.bind(activeClient);
-            await runWithRefresh(
-                async () => {
-                    await setTorrentLocation(
-                        String(intent.torrentId),
-                        intent.downloadDir,
-                        true
-                    );
-                    if (
-                        intent.filesUnwanted.length &&
-                        activeClient.updateFileSelection
-                    ) {
-                        await activeClient.updateFileSelection(
-                            String(intent.torrentId),
-                            intent.filesUnwanted,
-                            false
-                        );
-                    }
-                    if (intent.resume) {
-                        await activeClient.resume([String(intent.torrentId)]);
-                    }
-                },
-                { refreshTorrents: false, refreshStats: false, refreshDetail: false }
-            );
-            break;
-        }
-    }
+        return executeIntent(intent, { client });
     };
 }

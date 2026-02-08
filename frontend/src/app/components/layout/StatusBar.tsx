@@ -12,6 +12,7 @@ import {
     Cog as TransmissionIcon,
     RefreshCw,
     AlertCircle,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
@@ -33,9 +34,10 @@ import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 import type { SessionStats, NetworkTelemetry } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { StatusBarViewModel } from "@/app/viewModels/useAppViewModel";
+import type { StatusIconProps } from "@/shared/ui/components/StatusIcon";
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -66,6 +68,8 @@ interface StatusBarProps {
     viewModel: StatusBarViewModel;
 }
 
+type StatusBarIconComponent = StatusIconProps["Icon"];
+
 /* ------------------------------------------------------------------ */
 /* HOOKS */
 /* ------------------------------------------------------------------ */
@@ -83,7 +87,7 @@ function StatGroup({
 }: {
     label: string;
     value: string;
-    Icon?: React.ComponentType<any>;
+    Icon?: StatusBarIconComponent;
     className?: string;
     align?: "start" | "end";
 }) {
@@ -122,7 +126,7 @@ function TelemetryIcon({
     tone,
     title,
 }: {
-    Icon: React.ComponentType<any>;
+    Icon: LucideIcon;
     tone: "ok" | "warn" | "bad" | "muted";
     title: string;
 }) {
@@ -159,7 +163,7 @@ function SpeedModule({
 }: {
     labelKey: string;
     value: number;
-    Icon: React.ComponentType<any>;
+    Icon: LucideIcon;
     tone: "success" | "primary";
     history: number[];
     separator?: boolean;
@@ -187,7 +191,7 @@ function SpeedModule({
                     >
                         <NetworkGraph
                             data={history}
-                            color={tone as any}
+                            color={tone}
                             className="absolute inset-0 h-full w-full"
                         />
                         <div className="absolute inset-0 flex items-center justify-start px-panel pointer-events-none">

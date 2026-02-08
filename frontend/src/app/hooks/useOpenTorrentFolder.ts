@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
+import { shellAgent } from "@/app/agents/shell-agent";
 
 function normalizePath(value: string) {
     return value.replace(/[\\/]+$/, "");
@@ -33,7 +33,6 @@ function getDriveRoot(value: string) {
 
 export function useOpenTorrentFolder() {
     const { showFeedback } = useActionFeedback();
-    const { shellAgent } = useShellAgent();
     const { t } = useTranslation();
     return useCallback(
         async (path?: string | null) => {

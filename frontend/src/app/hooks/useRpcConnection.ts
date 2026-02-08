@@ -4,6 +4,8 @@ import type {
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
+    RpcConnectionAction,
+    RpcConnectionOutcome,
 } from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
@@ -11,7 +13,8 @@ import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
     isReady: boolean;
-    reconnect: () => Promise<void>;
+    lastConnectionAttempt: RpcConnectionOutcome | null;
+    reconnect: () => Promise<RpcConnectionOutcome>;
     markTransportConnected: () => void;
     reportCommandError: ReportCommandErrorFn;
     reportReadError: ReportReadErrorFn;
@@ -26,6 +29,8 @@ export function useRpcConnection(
         STATUS.connection.IDLE
     );
     const [isReady, setIsReady] = useState(false);
+    const [lastConnectionAttempt, setLastConnectionAttempt] =
+        useState<RpcConnectionOutcome | null>(null);
     const isMountedRef = useRef(false);
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
@@ -58,9 +63,20 @@ export function useRpcConnection(
         );
     }, []);
 
+    const recordAttempt = useCallback(
+        (outcome: RpcConnectionOutcome) => {
+            if (isMountedRef.current) {
+                setLastConnectionAttempt(outcome);
+            }
+            return outcome;
+        },
+        []
+    );
+
     // Probe to verify connectivity. Adapter/Transport handle Transmission RPC session handshakes.
     // TODO: Ensure this hook never triggers any TinyTorrent-only handshake (`tt-get-capabilities`, websocket setup, etc.). Those must be deleted from the adapter layer (see todo.md task 1).
-    const connect = useCallback(async () => {
+    const connect = useCallback(
+        async (action: RpcConnectionAction): Promise<RpcConnectionOutcome> => {
         updateStatus(STATUS.connection.IDLE);
         setIsReady(false);
         try {
@@ -68,20 +84,33 @@ export function useRpcConnection(
 
             updateStatus(STATUS.connection.CONNECTED);
             if (isMountedRef.current) setIsReady(true);
+            return recordAttempt({
+                status: "connected",
+                action,
+            });
         } catch (err) {
             console.error("[tiny-torrent][rpc] connection failed", err);
             updateStatus(STATUS.connection.ERROR);
             if (isMountedRef.current) setIsReady(false);
-            throw err;
+            return recordAttempt({
+                status: "failed",
+                action,
+                reason:
+                    action === "reconnect"
+                        ? "reconnect_failed"
+                        : "probe_failed",
+            });
         }
-    }, [sessionDomain, updateStatus]);
+        },
+        [sessionDomain, updateStatus, recordAttempt]
+    );
 
     useEffect(() => {
         isMountedRef.current = true;
         // `connect` already updates status state on failure. Swallow here to
         // avoid unhandled promise rejections during initial mount probing.
         const mountProbeTimer = window.setTimeout(() => {
-            void connect().catch(() => {});
+            void connect("probe");
         }, 0);
         return () => {
             window.clearTimeout(mountProbeTimer);
@@ -96,17 +125,23 @@ export function useRpcConnection(
         try {
             sessionDomain.resetConnection();
 
-            await connect();
+            return await connect("reconnect");
         } catch (err) {
             console.warn("[tiny-torrent][rpc] reconnect failed", err);
             reportTransportError(err);
             if (isMountedRef.current) setIsReady(false);
+            return recordAttempt({
+                status: "failed",
+                action: "reconnect",
+                reason: "reconnect_failed",
+            });
         }
-    }, [sessionDomain, connect, reportTransportError, updateStatus]);
+    }, [sessionDomain, connect, reportTransportError, updateStatus, recordAttempt]);
 
     return {
         rpcStatus,
         isReady,
+        lastConnectionAttempt,
         reconnect,
         markTransportConnected,
         reportCommandError,

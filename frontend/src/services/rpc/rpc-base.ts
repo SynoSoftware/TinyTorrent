@@ -15,7 +15,7 @@ import type {
     TransmissionSessionStats,
     TransmissionBandwidthGroupOptions,
     TransmissionTorrentRenameResult,
-} from "./types";
+} from "@/services/rpc/types";
 import { z } from "zod";
 import {
     parseRpcResponse,
@@ -27,6 +27,7 @@ import {
     zTransmissionTorrentRenameResult,
     zRpcSuccess,
     zTransmissionAddTorrentResponse,
+    zTransmissionRecentlyActiveResponse,
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
@@ -36,12 +37,12 @@ import {
     WS_RECONNECT_INITIAL_DELAY_MS,
     WS_RECONNECT_MAX_DELAY_MS,
 } from "@/config/logic";
-import type { EngineAdapter, EngineCapabilities } from "./engine-adapter";
-import { HeartbeatManager } from "./heartbeat";
+import type { EngineAdapter, EngineCapabilities } from "@/services/rpc/engine-adapter";
+import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import type {
     HeartbeatSubscriberParams,
     HeartbeatSubscription,
-} from "./heartbeat";
+} from "@/services/rpc/heartbeat";
 import type {
     TorrentEntity,
     TorrentDetailEntity,
@@ -50,11 +51,12 @@ import type {
     SessionStats,
     EngineInfo,
     ServerClass,
-} from "./entities";
-import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
-import { RpcCommandError } from "./errors";
-import { TransmissionRpcTransport } from "../transport";
-import type { NetworkTelemetry } from "./entities";
+} from "@/services/rpc/entities";
+import { normalizeTorrent, normalizeTorrentDetail } from "@/services/rpc/normalizers";
+import { RpcCommandError } from "@/services/rpc/errors";
+import { TransmissionRpcTransport } from "@/services/transport";
+import type { NetworkTelemetry } from "@/services/rpc/entities";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -86,9 +88,6 @@ const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
 
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
-
-const DEFAULT_ENDPOINT =
-    import.meta.env.VITE_RPC_ENDPOINT ?? CONFIG.defaults.rpc_endpoint;
 
 const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "id",
@@ -176,18 +175,26 @@ export class TransmissionAdapter implements EngineAdapter {
         const prev = this.handshakeState;
         if (prev === next) return;
         if (prev === "invalid" && next === "handshaking") {
-            console.debug(
-                "[tiny-torrent][rpc] session invalid -> handshaking",
-                {
-                    reason,
-                },
-            );
+            infraLogger.debug({
+                scope: "rpc",
+                event: "handshake_state_transition",
+                message: "Session state transitioned from invalid to handshaking",
+                details: { from: prev, to: next, reason },
+            });
         } else if (prev === "handshaking" && next === "ready") {
-            console.debug("[tiny-torrent][rpc] handshaking -> ready", {
-                reason,
+            infraLogger.debug({
+                scope: "rpc",
+                event: "handshake_state_transition",
+                message: "Session state transitioned from handshaking to ready",
+                details: { from: prev, to: next, reason },
             });
         } else if (prev === "ready" && next === "invalid") {
-            console.debug("[tiny-torrent][rpc] ready -> invalid", { reason });
+            infraLogger.debug({
+                scope: "rpc",
+                event: "handshake_state_transition",
+                message: "Session state transitioned from ready to invalid",
+                details: { from: prev, to: next, reason },
+            });
         }
         this.handshakeState = next;
     }
@@ -208,16 +215,16 @@ export class TransmissionAdapter implements EngineAdapter {
         this.transitionHandshakeState("invalid", reason);
     }
 
-    constructor(options?: {
-        endpoint?: string;
+    constructor(options: {
+        endpoint: string;
         username?: string;
         password?: string;
         requestTimeout?: number;
     }) {
-        this.endpoint = options?.endpoint ?? DEFAULT_ENDPOINT;
-        this.username = options?.username ?? "";
-        this.password = options?.password ?? "";
-        this.requestTimeout = options?.requestTimeout;
+        this.endpoint = options.endpoint;
+        this.username = options.username ?? "";
+        this.password = options.password ?? "";
+        this.requestTimeout = options.requestTimeout;
         // Transport encapsulates Transmission session id handling and probing
         this.transport = new TransmissionRpcTransport(this.endpoint);
     }
@@ -320,9 +327,16 @@ export class TransmissionAdapter implements EngineAdapter {
                 if (cur.count >= this.METHOD_CALL_WARNING_THRESHOLD) {
                     const lastWarn = recentWarningTs.get(m) ?? 0;
                     if (now - lastWarn >= WARNING_THROTTLE_MS) {
-                        console.warn(
-                            `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`,
-                        );
+                        infraLogger.warn({
+                            scope: "rpc",
+                            event: "rapid_method_calls",
+                            message: "Rapid repeated calls detected for RPC method",
+                            details: {
+                                method: m,
+                                count: cur.count,
+                                windowMs: this.METHOD_CALL_WINDOW_MS,
+                            },
+                        });
                         recentWarningTs.set(m, now);
                     }
                 }
@@ -353,11 +367,32 @@ export class TransmissionAdapter implements EngineAdapter {
                 if (keepalive) {
                     requestInit.keepalive = true;
                 }
-                const response = await this.transport.fetchWithSession(
-                    requestInit,
-                    controller,
-                    keepalive,
-                );
+                const transportOutcome =
+                    await this.transport.fetchWithSessionOutcome(
+                        requestInit,
+                        controller,
+                        keepalive,
+                    );
+                if (transportOutcome.kind !== "ok") {
+                    if (transportOutcome.kind === "auth_error") {
+                        this.handleUnauthorizedResponse();
+                        throw new Error(transportOutcome.message);
+                    }
+                    if (transportOutcome.kind === "session_conflict") {
+                        this.invalidateSession("409-session-conflict");
+                        throw new Error(transportOutcome.message);
+                    }
+                    if (transportOutcome.kind === "aborted") {
+                        const abortedError = new Error(
+                            transportOutcome.message,
+                        );
+                        (abortedError as { name?: string }).name =
+                            "AbortError";
+                        throw abortedError;
+                    }
+                    throw new Error(transportOutcome.message);
+                }
+                const response = transportOutcome.response;
 
                 if (response.status === 409) {
                     // Defensive: Transport should already handle 409/session-id
@@ -414,9 +449,16 @@ export class TransmissionAdapter implements EngineAdapter {
                         /method|not\s*found|not\s*recognized/.test(lower);
 
                     if (methodNotFound) {
-                        console.warn(
-                            `[tiny-torrent][rpc] method not recognized for '${payload.method}': ${code}`,
-                        );
+                        infraLogger.warn({
+                            scope: "rpc",
+                            event: "method_not_recognized",
+                            message:
+                                "RPC method not recognized by server response",
+                            details: {
+                                method: payload.method,
+                                code,
+                            },
+                        });
                         throw new RpcCommandError(
                             `Transmission RPC responded with ${code}`,
                             code,
@@ -436,10 +478,12 @@ export class TransmissionAdapter implements EngineAdapter {
                             "tt-debug-raw-torrent-detail",
                         ) === "2";
                     if (shouldLog && payload.method === "torrent-get") {
-                        console.debug(
-                            "[tiny-torrent][rpc-raw][torrent-get]",
-                            args,
-                        );
+                        infraLogger.debug({
+                            scope: "rpc",
+                            event: "raw_torrent_get",
+                            message: "Raw torrent-get payload",
+                            details: { args },
+                        });
                     }
                     try {
                         const shouldLogSessionGet =
@@ -451,10 +495,12 @@ export class TransmissionAdapter implements EngineAdapter {
                             shouldLogSessionGet &&
                             payload.method === "session-get"
                         ) {
-                            console.debug(
-                                "[tiny-torrent][rpc-raw][session-get]",
-                                args,
-                            );
+                            infraLogger.debug({
+                                scope: "rpc",
+                                event: "raw_session_get",
+                                message: "Raw session-get payload",
+                                details: { args },
+                            });
                         }
                     } catch (e) {
                         // ignore sessionStorage errors for session-get logging
@@ -470,7 +516,14 @@ export class TransmissionAdapter implements EngineAdapter {
                     return await attemptRequest(0);
                 } catch (e) {
                     if (!this.isAbortError(e)) {
-                        console.error("[tiny-torrent][rpc] send error:", e);
+                        infraLogger.error(
+                            {
+                                scope: "rpc",
+                                event: "send_error",
+                                message: "RPC send request failed",
+                            },
+                            e instanceof Error ? e : { error: String(e) },
+                        );
                     }
                     throw e;
                 } finally {
@@ -488,7 +541,14 @@ export class TransmissionAdapter implements EngineAdapter {
             return requestPromise;
         } catch (e) {
             if (!this.isAbortError(e)) {
-                console.error("[tiny-torrent][rpc] send error:", e);
+                infraLogger.error(
+                    {
+                        scope: "rpc",
+                        event: "send_error",
+                        message: "RPC send request failed",
+                    },
+                    e instanceof Error ? e : { error: String(e) },
+                );
             }
             throw e;
         }
@@ -517,11 +577,27 @@ export class TransmissionAdapter implements EngineAdapter {
                             t.setSessionId(this.sessionId);
                     }
                 } catch {}
-                const raw = await this.transport.request(
+                const rawOutcome = await this.transport.requestWithOutcome(
                     payload.method!,
                     args,
                     { cache: cacheEnabled },
                 );
+                if (rawOutcome.kind !== "ok") {
+                    if (rawOutcome.kind === "auth_error") {
+                        const authError = new Error(rawOutcome.message);
+                        (authError as { status?: number }).status =
+                            rawOutcome.status;
+                        throw authError;
+                    }
+                    if (rawOutcome.kind === "aborted") {
+                        const abortedError = new Error(rawOutcome.message);
+                        (abortedError as { name?: string }).name =
+                            "AbortError";
+                        throw abortedError;
+                    }
+                    throw new Error(rawOutcome.message);
+                }
+                const raw = rawOutcome.value;
 
                 // Sync transport-owned session id back into adapter state so
                 // subsequent mutating RPCs (which rely on adapter.sessionId)
@@ -567,14 +643,16 @@ export class TransmissionAdapter implements EngineAdapter {
     // Synchronously destroy the adapter and release resources.
     public destroy(): void {
         try {
-            const hb = this.heartbeat as unknown as {
-                dispose?: () => void;
-            };
-            if (typeof hb.dispose === "function") {
-                hb.dispose();
-            }
+            this.heartbeat.dispose();
         } catch (err) {
-            console.warn("[tiny-torrent][rpc] destroy error:", err);
+            infraLogger.warn(
+                {
+                    scope: "rpc",
+                    event: "destroy_error",
+                    message: "RPC adapter destroy failed while disposing heartbeat",
+                },
+                err instanceof Error ? err : { error: String(err) },
+            );
         }
         try {
             for (const ctrl of Array.from(this.activeControllers)) {
@@ -582,10 +660,16 @@ export class TransmissionAdapter implements EngineAdapter {
                     ctrl.abort();
                 } catch (err) {
                     if (!this.isAbortError(err)) {
-                        // eslint-disable-next-line no-console
-                        console.warn(
-                            "[tiny-torrent][rpc] abort controller error:",
-                            err,
+                        infraLogger.warn(
+                            {
+                                scope: "rpc",
+                                event: "abort_controller_error",
+                                message:
+                                    "RPC adapter destroy failed to abort request controller",
+                            },
+                            err instanceof Error
+                                ? err
+                                : { error: String(err) },
                         );
                     }
                 }
@@ -693,7 +777,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     fields: SUMMARY_FIELDS,
                 },
             },
-            z.any(),
+            zTransmissionRecentlyActiveResponse,
         );
 
         return {
@@ -832,9 +916,14 @@ export class TransmissionAdapter implements EngineAdapter {
         } catch (error) {
             // Best-effort fallback: log and return zeroed stats to avoid
             // disconnecting the UI on malformed or partial RPC responses.
-            console.warn(
-                "[tiny-torrent][rpc] failed to parse session-stats, returning zeroed stats",
-                error,
+            infraLogger.warn(
+                {
+                    scope: "rpc",
+                    event: "session_stats_parse_failed",
+                    message:
+                        "Failed to parse session-stats; returning zeroed fallback stats",
+                },
+                error instanceof Error ? error : { error: String(error) },
             );
             const zeroTotals = {
                 uploadedBytes: 0,
@@ -919,30 +1008,47 @@ export class TransmissionAdapter implements EngineAdapter {
         const attemptedCandidates: string[] = [];
         for (const candidate of fallbackCandidates) {
             attemptedCandidates.push(candidate);
-            console.debug("[tiny-torrent][rpc][free-space] candidate:start", {
-                requestedPath: normalizedPath,
-                candidate,
+            infraLogger.debug({
+                scope: "rpc",
+                event: "free_space_candidate_start",
+                message: "Attempting free-space candidate",
+                details: {
+                    requestedPath: normalizedPath,
+                    candidate,
+                },
             });
             try {
                 const fs = await this.send(
                     { method: "free-space", arguments: { path: candidate } },
                     zTransmissionFreeSpace,
                 );
-                console.debug("[tiny-torrent][rpc][free-space] candidate:ok", {
-                    requestedPath: normalizedPath,
-                    candidate,
-                    reportedPath: fs.path,
-                    sizeBytes: fs.sizeBytes,
-                    totalSize: fs.totalSize,
+                infraLogger.debug({
+                    scope: "rpc",
+                    event: "free_space_candidate_ok",
+                    message: "Free-space candidate succeeded",
+                    details: {
+                        requestedPath: normalizedPath,
+                        candidate,
+                        reportedPath: fs.path,
+                        sizeBytes: fs.sizeBytes,
+                        totalSize: fs.totalSize,
+                    },
                 });
                 return fs;
             } catch (error) {
                 lastError = error;
-                console.debug("[tiny-torrent][rpc][free-space] candidate:error", {
-                    requestedPath: normalizedPath,
-                    candidate,
-                    message:
-                        error instanceof Error ? error.message : String(error),
+                infraLogger.debug({
+                    scope: "rpc",
+                    event: "free_space_candidate_error",
+                    message: "Free-space candidate failed",
+                    details: {
+                        requestedPath: normalizedPath,
+                        candidate,
+                        errorMessage:
+                            error instanceof Error
+                                ? error.message
+                                : String(error),
+                    },
                 });
             }
         }
@@ -1445,10 +1551,6 @@ export class TransmissionAdapter implements EngineAdapter {
 
                 // If engine provided a concrete free-space value, we're done.
                 if (typeof telemetry.downloadDirFreeSpace === "number") {
-                    //    console.debug(
-                    //        "[telemetry] Normalized NetworkTelemetry:",
-                    //        telemetry
-                    //    );
                     return telemetry;
                 }
 
@@ -1472,17 +1574,34 @@ export class TransmissionAdapter implements EngineAdapter {
                 }
 
                 telemetry.downloadDirFreeSpace = fs.sizeBytes;
-                console.debug(
-                    "[telemetry] Normalized NetworkTelemetry (from free-space):",
-                    telemetry,
-                );
+                infraLogger.debug({
+                    scope: "rpc",
+                    event: "network_telemetry_normalized",
+                    message:
+                        "Normalized network telemetry from free-space fallback",
+                    details: { telemetry },
+                });
                 return telemetry;
             } catch (err) {
                 // Best-effort: on error, return null instead of throwing so callers
                 // can treat telemetry as optional and avoid thundering-herd errors.
-                console.debug(
-                    "[telemetry] fetchNetworkTelemetry failed, returning null",
-                    err,
+                infraLogger.debug({
+                    scope: "rpc",
+                    event: "network_telemetry_fetch_failed",
+                    message: "Network telemetry fetch failed; returning null",
+                    details: {
+                        errorMessage:
+                            err instanceof Error ? err.message : String(err),
+                    },
+                });
+                infraLogger.debug(
+                    {
+                        scope: "rpc",
+                        event: "network_telemetry_fetch_failed_error",
+                        message:
+                            "Network telemetry fetch failure detail (stack/object)",
+                    },
+                    err instanceof Error ? err : { error: String(err) },
                 );
                 return null;
             }

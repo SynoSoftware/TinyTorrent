@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
-import { TorrentDetailHeader } from "./TorrentDetails_Header";
-import { useTorrentDetailTabCoordinator } from "../hooks/useDetailTabs";
-import { useTorrentDetailHeaderStatus } from "../hooks/useTorrentDetailHeaderStatus";
+import { TorrentDetailHeader } from "@/modules/dashboard/components/TorrentDetails_Header";
+import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
+import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,

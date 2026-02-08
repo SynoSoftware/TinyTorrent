@@ -4,7 +4,7 @@ import { Button, Textarea, cn } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
-import { TEXT_ROLES } from "../hooks/utils/textRoles";
+import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";

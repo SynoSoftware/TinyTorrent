@@ -1,39 +1,39 @@
 import { useEffect, useMemo } from "react";
 import Runtime from "@/app/runtime";
-import useWorkbenchScale from "./hooks/useWorkbenchScale";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
-import { CommandPalette } from "./components/CommandPalette";
-import { WorkspaceShell } from "./components/WorkspaceShell";
-import { GlobalHotkeysHost } from "./components/GlobalHotkeysHost";
+import { CommandPalette } from "@/app/components/CommandPalette";
+import { WorkspaceShell } from "@/app/components/WorkspaceShell";
+import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import { RecoveryProvider } from "@/app/context/RecoveryContext";
-import { TorrentActionsProvider } from "@/app/context/TorrentActionsContext";
-import { SelectionProvider } from "@/app/context/SelectionContext";
-import { FocusProvider } from "./context/FocusContext";
-import { LifecycleProvider } from "@/app/context/LifecycleContext";
-import { TorrentCommandProvider } from "@/app/context/TorrentCommandContext";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
 import { useAppViewModel } from "@/app/viewModels/useAppViewModel";
+import { AppCommandProvider } from "@/app/context/AppCommandContext";
+import { GlobalHotkeyProvider } from "@/app/context/GlobalHotkeyContext";
 
 function AppContent() {
     const controller = useWorkspaceShellViewModel();
-    const actions = useMemo(
-        () => ({ dispatch: controller.commands.dispatch }),
-        [controller.commands.dispatch],
+    const appCommandValue = useMemo(
+        () => ({
+            dispatch: controller.commands.dispatch,
+            commandApi: controller.commands.commandApi,
+        }),
+        [controller.commands.commandApi, controller.commands.dispatch],
     );
 
     const viewModel = useAppViewModel({
         workspaceShell: controller.shell.workspace,
         statusBar: controller.shell.statusBar,
-        dashboard: controller.shell.workspace.dashboard,
     });
 
     return (
-        <TorrentActionsProvider actions={actions}>
-            <TorrentCommandProvider value={controller.commands.commandApi}>
-                <GlobalHotkeysHost {...controller.commands.globalHotkeys} />
+        <AppCommandProvider value={appCommandValue}>
+                <GlobalHotkeyProvider value={controller.commands.globalHotkeys}>
+                    <GlobalHotkeysHost />
+                </GlobalHotkeyProvider>
                 <RecoveryProvider value={controller.recovery.recoveryContext}>
                     <WorkspaceShell
                         workspaceViewModel={viewModel.workspace}
@@ -59,19 +59,16 @@ function AppContent() {
                         {...controller.addTorrent.addTorrentModalProps}
                     />
                 )}
-            </TorrentCommandProvider>
-        </TorrentActionsProvider>
+        </AppCommandProvider>
     );
 }
 
 export default function App() {
-    const { increase, decrease, reset } = useWorkbenchScale();
-
-    useEffect(() => {
-        if (Runtime.isNativeHost && typeof document !== "undefined") {
-            document.documentElement.dataset.nativeHost = "true";
-        }
-    }, []);
+    const {
+        increaseWorkbenchScale,
+        decreaseWorkbenchScale,
+        resetWorkbenchScale,
+    } = usePreferences();
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -83,7 +80,7 @@ export default function App() {
                 (e.code === "Equal" || e.code === "NumpadAdd")
             ) {
                 e.preventDefault();
-                increase();
+                increaseWorkbenchScale();
                 return;
             }
             if (
@@ -94,7 +91,7 @@ export default function App() {
                 (e.code === "Minus" || e.code === "NumpadSubtract")
             ) {
                 e.preventDefault();
-                decrease();
+                decreaseWorkbenchScale();
                 return;
             }
             if (
@@ -108,21 +105,17 @@ export default function App() {
                 if (Runtime.suppressBrowserZoomDefaults()) {
                     e.preventDefault();
                 }
-                reset();
+                resetWorkbenchScale();
             }
         };
 
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [increase, decrease, reset]);
+    }, [
+        increaseWorkbenchScale,
+        decreaseWorkbenchScale,
+        resetWorkbenchScale,
+    ]);
 
-    return (
-        <FocusProvider>
-            <LifecycleProvider>
-                <SelectionProvider>
-                    <AppContent />
-                </SelectionProvider>
-            </LifecycleProvider>
-        </FocusProvider>
-    );
+    return <AppContent />;
 }

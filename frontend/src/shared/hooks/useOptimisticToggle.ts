@@ -1,9 +1,18 @@
 import { useCallback, useState } from "react";
 
+export type OptimisticToggleCommitOutcome =
+    | { status: "applied" }
+    | { status: "rejected"; reason: "empty_indexes" | "commit_rejected" }
+    | {
+          status: "unsupported";
+          reason: "missing_handler" | "action_not_supported";
+      }
+    | { status: "failed"; reason: "execution_failed" };
+
 type ToggleCommitCallback = (
     indexes: number[],
-    state: boolean
-) => Promise<void> | void;
+    state: boolean,
+) => Promise<OptimisticToggleCommitOutcome> | OptimisticToggleCommitOutcome;
 
 export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
     const [optimisticState, setOptimisticState] = useState<
@@ -11,8 +20,13 @@ export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
     >({});
 
     const toggle = useCallback(
-        (indexes: number[], wanted: boolean) => {
-            if (!indexes.length) return;
+        async (
+            indexes: number[],
+            wanted: boolean,
+        ): Promise<OptimisticToggleCommitOutcome> => {
+            if (!indexes.length) {
+                return { status: "rejected", reason: "empty_indexes" };
+            }
             setOptimisticState((prev) => {
                 const next = { ...prev };
                 indexes.forEach((index) => {
@@ -35,21 +49,18 @@ export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
             };
 
             try {
-                const result = onCommit(indexes, wanted);
-                if (result && typeof (result as any).then === "function") {
-                    // Only revert on rejection.
-                    (result as Promise<void>).catch(() => {
-                        revert();
-                    });
+                const outcome = await onCommit(indexes, wanted);
+                if (outcome.status !== "applied") {
+                    revert();
                 }
-                // If onCommit is synchronous and succeeds, keep optimistic state
-                // until engine-confirmed reconciliation (heartbeat) clears it.
-            } catch (err) {
+                return outcome;
+            } catch {
                 // Synchronous failure — revert optimistic state immediately.
                 revert();
+                return { status: "failed", reason: "execution_failed" };
             }
         },
-        [onCommit]
+        [onCommit],
     );
 
     return { optimisticState, toggle };

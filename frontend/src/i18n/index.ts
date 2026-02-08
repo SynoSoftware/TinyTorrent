@@ -1,18 +1,20 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import en from "./en.json";
-import { getInitialLanguage } from "@/app/preferences/language";
-
-const FALLBACK_LANGUAGE = "en";
+import en from "@/i18n/en.json";
+import {
+    getFallbackLanguage,
+    getInitialLanguage,
+    SUPPORTED_LANGUAGE_CODES,
+} from "@/app/preferences/language";
 
 i18n.use(initReactI18next).init({
     resources: {
         en: { translation: en },
     },
-    fallbackLng: FALLBACK_LANGUAGE,
+    fallbackLng: getFallbackLanguage(),
     lng: getInitialLanguage(),
-    supportedLngs: ["en"],
+    supportedLngs: SUPPORTED_LANGUAGE_CODES,
     interpolation: { escapeValue: false },
 });
 

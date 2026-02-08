@@ -11,7 +11,7 @@ import type {
     EngineCapabilities,
 } from "@/services/rpc/engine-adapter";
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
-import type { ConnectionStatus } from "@/shared/types/rpc";
+import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { SessionStats, EngineInfo } from "@/services/rpc/entities";
 import { STATUS } from "@/shared/status";
@@ -19,19 +19,19 @@ import { deriveUiCapabilities } from "@/app/utils/uiMode";
 import type { UiCapabilities } from "@/app/utils/uiMode";
 import { normalizeHost } from "@/app/utils/hosts";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
+import Runtime from "@/app/runtime";
+import { shellAgent } from "@/app/agents/shell-agent";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
-import { resetMissingFilesStore } from "@/services/recovery/missingFilesStore";
-import { resetRecoveryControllerState } from "@/services/recovery/recovery-controller";
 import { useSessionSpeedHistoryFeed } from "@/shared/hooks/useSessionSpeedHistory";
 
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
     rpcStatus: ConnectionStatus;
-    reconnect: () => void;
+    reconnect: () => Promise<RpcConnectionOutcome>;
+    lastConnectionAttempt: RpcConnectionOutcome | null;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
     reportCommandError: (error: unknown) => void;
@@ -63,6 +63,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     const {
         rpcStatus,
         reconnect,
+        lastConnectionAttempt,
         refreshSessionSettings,
         markTransportConnected,
         reportCommandError,
@@ -72,25 +73,29 @@ export function SessionProvider({ children }: SessionProviderProps) {
         isDetectingEngine,
     } = useTransmissionSession(torrentClient);
 
-    const previousClientRef = useRef<EngineAdapter | null>(null);
-    useEffect(() => {
-        if (previousClientRef.current !== torrentClient) {
-            resetMissingFilesStore();
-            resetRecoveryControllerState();
-            previousClientRef.current = torrentClient;
-        }
-    }, [torrentClient]);
-
     const { activeProfile } = useConnectionConfig();
-    const { shellAgent } = useShellAgent();
     const normalizedHost = useMemo(
         () => normalizeHost(activeProfile.host || ""),
         [activeProfile.host],
     );
     const uiCapabilities = useMemo(
-        () => deriveUiCapabilities(normalizedHost, shellAgent.isAvailable),
-        [normalizedHost, shellAgent.isAvailable],
+        () => deriveUiCapabilities(normalizedHost, Runtime.isNativeHost),
+        [normalizedHost],
     );
+    useEffect(() => {
+        shellAgent.setUiMode(uiCapabilities.uiMode);
+    }, [uiCapabilities.uiMode]);
+    useEffect(() => {
+        if (typeof document === "undefined") {
+            return;
+        }
+        const root = document.documentElement;
+        if (uiCapabilities.shellAgentAvailable) {
+            root.dataset.nativeHost = "true";
+            return;
+        }
+        delete root.dataset.nativeHost;
+    }, [uiCapabilities.shellAgentAvailable]);
 
     const engineCapabilities = useMemo(
         () => torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
@@ -102,6 +107,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             torrentClient,
             rpcStatus,
             reconnect,
+            lastConnectionAttempt,
             refreshSessionSettings,
             markTransportConnected,
             reportCommandError,
@@ -116,6 +122,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             torrentClient,
             rpcStatus,
             reconnect,
+            lastConnectionAttempt,
             refreshSessionSettings,
             markTransportConnected,
             reportCommandError,
@@ -187,4 +194,9 @@ export function useSessionTelemetry() {
         );
     }
     return context;
+}
+
+export function useUiModeCapabilities(): UiCapabilities {
+    const { uiCapabilities } = useSession();
+    return uiCapabilities;
 }
