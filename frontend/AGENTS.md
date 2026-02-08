@@ -15,7 +15,7 @@ TinyTorrent is a fast, low-bloat desktop workbench for torrent control with dete
 
 # **2. Absolute Clarification: Desktop Feel ≠ Compact UI**
 
-**Compact UI is explicitly NOT a goal.** TinyTorrent is not a spreadsheet; it is a high-end command center.
+**Compact UI is explicitly NOT a goal.**
 
 ### **The Density Rule (Authoritative)**
 >
@@ -37,9 +37,7 @@ TinyTorrent is a fast, low-bloat desktop workbench for torrent control with dete
 
 ## **2c. Typography vs Geometry Ownership (Authoritative)**
 
-TinyTorrent uses **two root primitives** with **non-overlapping responsibilities**.
-
-This is NOT optional and NOT stylistic.
+TinyTorrent uses two root scaling systems with non-overlapping responsibilities. This is hard policy, not style.
 
 ### **Typography-Owned (Derived from `--fz`)**
 
@@ -54,9 +52,6 @@ The following MUST scale with font size:
 - Label text
 - Row height for data tables and lists
 
-These elements must visually track readability.
-If text grows, rows and icons must grow with it.
-
 ### **Geometry-Owned (Derived from `--u * --z`)**
 
 The following MUST scale with layout rhythm:
@@ -70,8 +65,6 @@ The following MUST scale with layout rhythm:
 - Focus ring thickness/offset
 - Scrollbar thickness
 - Resize/drag handle hit-target geometry
-
-These elements define spatial rhythm and must remain stable relative to each other.
 
 ### **Hard Rule**
 
@@ -114,17 +107,12 @@ Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typog
 
 # **3. Design System Authority & Token Pipeline**
 
-This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
+This section enforces the zero-literal mandate: no sizing/colors skip the token pipeline.
 
 ## **A. The Knob Registry (Authoritative, Single Source of Truth)**
 
-Theme and density configuration knobs are the **single source of truth** for all visual and layout decisions.
-
-Any visual or layout change **MUST**:
-
-- Consume an existing knob, or
-- Introduce a new knob through the token pipeline.
-
+Theme and density configuration knobs are the single source of truth for visual and layout decisions.
+Any visual or layout change must consume an existing knob or introduce one through the token pipeline.
 Component-local visual tuning is forbidden.
 
 **The only acceptable global knobs are:**
@@ -185,13 +173,13 @@ Repeating long Tailwind strings is a bug. Any visual recipe used in more than on
 
 ## **E. Forensic Mapping Rules**
 
-When modifying layout, you must categorize every spacing decision into a **Logical Role**:
+When modifying layout, every spacing decision must map to one logical role:
 
-- **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
-- **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
-- **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
-- **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
-- **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
+- Panel Padding (`p-panel`)
+- Tight Padding (`p-tight`)
+- Stage Gap (`gap-stage`)
+- Tool Gap (`gap-tools`)
+- Structural sizes: `h-nav`, `h-status`, `h-row`
 
 ## **F. The Scale Test (Pre-Commit Requirement)**
 
@@ -259,6 +247,143 @@ No workaround is acceptable.
 - `--z-cursor` (999)
 
 These must be defined in `constants.json`.
+
+---
+
+# **Structural Layout Primitives (Authoritative)**
+
+UI layout and visual framing must be built exclusively from approved structural primitives.
+Ad-hoc container styling that duplicates spacing, surface framing, or grouping behavior is forbidden.
+
+This rule exists to ensure deterministic layout rhythm, eliminate class drift, and guarantee visual consistency across panels, modals, inspectors, and feature surfaces.
+Structural primitives are the only allowed layout ownership layer; feature components must not introduce alternative layout abstractions.
+
+---
+
+## **1. Approved Structural Primitives**
+
+### **Surface**
+
+Owns:
+
+* background
+* blur
+* elevation/shadow
+* border
+* radius
+* surface padding
+
+Responsibilities:
+
+* defines the visual surface container for panels, cards, inspectors, tool areas, and modal bodies
+* may not define page centering or max-width behavior
+
+Prohibited inside features:
+
+* direct glass recipes
+* direct blur/shadow/radius application
+* ad-hoc card/panel surface construction
+
+---
+
+### **Section**
+
+Owns:
+
+* page/stage centering
+* horizontal alignment rhythm
+* max-width governance
+* stage padding
+
+Responsibilities:
+
+* defines top-level page/workbench stage containers
+* establishes horizontal rhythm and alignment for contained surfaces
+
+Must not:
+
+* define background, blur, elevation, or card framing
+
+---
+
+### **Stack**
+
+Owns:
+
+* vertical spacing between children
+
+Responsibilities:
+
+* replaces `space-y-*` and manual vertical spacing patterns
+* defines deterministic vertical rhythm
+
+Must not:
+
+* define surfaces
+* define horizontal layout or centering
+
+---
+
+### **Cluster**
+
+Owns:
+
+* horizontal grouping rhythm
+* toolbar/button/chip grouping spacing
+
+Responsibilities:
+
+* replaces ad-hoc `flex gap-*` clusters
+* defines deterministic horizontal spacing
+
+Must not:
+
+* define surfaces
+* define vertical spacing rules
+
+---
+
+## **2. Hard Usage Rules**
+
+1. Any container that visually frames content (panel, modal body, inspector block, card, table shell) **must use `Surface`**.
+
+2. Any container responsible for page/workbench centering or stage padding **must use `Section`**.
+
+3. Vertical grouping must use `Stack`; horizontal grouping must use `Cluster`.
+
+4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
+
+5. Repeated layout class recipes are considered architecture violations and must be replaced by primitives.
+
+6. Surface/Section/Stack/Cluster primitives must live in shared UI primitives (single authority location) and be reused across the application.
+   Feature modules must never define local variants.
+
+7. Feature code must not stack multiple Surface recipes for the same intent (double borders/shadows). If nested surfaces are required (e.g., modal shell + inner pane), each layer must have a distinct declared intent (Shell / Pane / Card) and use the corresponding primitive.
+
+---
+
+## **3. Migration Rule**
+
+During refactors:
+
+* If a container applies background + border + radius + blur -> replace with `Surface`.
+* If a container applies centering/max-width/stage padding -> replace with `Section`.
+* Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster`.
+
+Incremental migration is allowed; primitives must be used for all newly written UI.
+
+---
+
+## **4. Architectural Intent**
+
+Layout ownership must be deterministic:
+
+* **Surface** controls visual framing
+* **Section** controls page alignment
+* **Stack** controls vertical rhythm
+* **Cluster** controls horizontal rhythm
+
+No other component may assume these responsibilities.
 
 ---
 
@@ -373,8 +498,16 @@ When an agent changes UI, it must include a short “Token Mapping” note in th
 
 # **6. Architecture**
 
-**Frontend Core Philosophy:**
-The front end is a UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final purpose.
+TinyTorrent is a local UI controlling a local daemon.  
+Remote connections exist only for debugging/convenience and must not alter feature behavior or UX.
+
+## **§6a. Frontend Runtime Model (Hard)**
+
+- Local vs remote runtime must never change capability or UX behavior.
+- Web technology is an implementation detail used for footprint/runtime goals, not the product model.
+- TinyTorrent must not be designed as a browser-constrained client.
+- Browser-layer limitations must not remove native-grade capabilities.
+- If a native Windows UI can do it, TinyTorrent must be able to do it.
 
 ### **Stack:**
 
@@ -390,51 +523,6 @@ The front end is a UI that runs for a single purpose: to control the daemon that
 - **Layout Engine:** `react-resizable-panels` (**CRITICAL**). This library provides the VS Code–like split-pane behavior (smooth resizing, min/max constraints, collapsing).
 - **Window Controls:** Custom Titlebar implementation (frameless window).
 - **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
-
----
-
-## **§6a. Frontend Runtime Model (Authoritative)**
-
-**TinyTorrent’s frontend is not a client in a client–server product.**
-
-It is a **local UI** whose **single purpose** is to control the **local daemon it ships with**, running on the **same machine**, as part of one product.
-
-The default and primary runtime model is:
-
-- UI ↔ daemon
-- local
-- trusted
-- no network concepts exposed to the user
-
-Remote connections are allowed **only** for debugging or convenience and must **never**:
-
-- alter core behavior
-- reduce available features
-- influence UX decisions
-- impose artificial limitations
-
-If a feature behaves differently because the server is “remote”, that is a **design error**.
-
----
-
-### **Web Technology Is an Implementation Detail**
-
-Web technology is used **only** to:
-
-- minimize final executable size
-- avoid shipping heavy UI frameworks (Qt, GTK, etc.)
-
-It does **not** define the product model.
-
-TinyTorrent must **not** be designed as:
-
-- a web app
-- a browser-constrained client
-- a network-first system
-
-Web-related limitations must **not** restrict features that a native Windows UI would reasonably have.
-
-If a native Windows UI can do something, **TinyTorrent must be able to do it**.
 
 ---
 
@@ -547,9 +635,9 @@ To prevent "Slow Table / Fast CPU Burn":
 
 # **7. UI/UX Philosophy**
 
-### **The "Tool" Interaction Model**
+Framer Motion is required for interactive state transitions and layout transitions.
 
-TinyTorrent is an **OS-level tool**, not a webpage.
+### **The "Tool" Interaction Model**
 
 1. **OS-Style Selection**
 
@@ -558,27 +646,35 @@ TinyTorrent is an **OS-level tool**, not a webpage.
     - Shift + Click = Range selection
     - Right Click = Context Menu (acting on **all** selected items)
 
-2. **Optimistic UI**
-
-    - Actions (Pause, Start, Delete) must reflect in the UI **instantly**.
-    - Do not wait for the RPC roundtrip. Revert only if the RPC errors.
-
-3. **The "Viewport" Rule**
+2. **The "Viewport" Rule**
 
     - `body` and `#root` must be `h-screen w-screen overflow-hidden`.
     - The window **never** has a scrollbar.
     - Only specific panels (Table, Inspector, long lists) have internal scrollbars.
     - **Overlay Scrollbars Only:** Default OS scrollbars are forbidden inside panes. All scrollable areas must use a custom, overlay-style scrollbar (thin, rounded, transparent track, semi-opaque thumb) that sits *on top* of the content layer to prevent layout shifts when content changes length.
 
-4. **Selection vs Text**
+3. **Selection vs Text**
 
-    - Global default: `user-select: none;` (the app behaves like UI, not a document).
-    - Exception: specific text fields (hash, file paths, error logs, tracker URLs) explicitly allow selection (`select-text`).
+    - Global default: `user-select: none;` (tool behavior over document behavior).
+    - Exceptions: explicit `select-text` only for copy-required fields (hashes, paths, logs, tracker URLs).
 
-5. **Cursor Discipline**
+4. **Cursor Discipline**
 
-    - Never show the I-beam cursor unless hovering an editable input/textarea.
-    - Standard interaction zones use `cursor-default` or `cursor-pointer`.
+    - I-beam cursor is allowed only over editable inputs/textarea.
+    - Non-editable interaction zones must use `cursor-default` or `cursor-pointer`.
+
+5. **Optimistic UI Action Feedback**
+
+    - UI actions reflect immediately; rollback only on explicit engine failure. UIActions must follow the UIActions — Hard Rules contract.
+
+### **Interaction Behavioral Contracts (Hard)**
+
+- Keyboard-first operation is required for core navigation and commands; pointer interaction must not be the only path.
+- Context menus are required on action-bearing surfaces and must expose the same command authority as toolbar/shortcut paths.
+- Interactive actions must provide immediate feedback (state, motion, or status) and must not produce silent dead states.
+- Workspace interactions (selection, resize, drag, focus transitions) must remain deterministic and reversible.
+- Drag-and-drop must provide full-window detection with explicit overlay affordance and immediate cancel on drag-out.
+- Motion must communicate structure/state changes (layout, reorder, open/close, selection), not decorative animation.
 
 ---
 
@@ -589,55 +685,6 @@ TinyTorrent is an **OS-level tool**, not a webpage.
 - Switching Parts updates the global `FocusContext`.
 - The active Part must show a subtle focus border using HeroUI tokens (no custom colors).
 - `Escape` clears selection within the active Part but does **not** change which Part is active.
-
----
-
-### **Zero Friction**
-
-Every interaction must be:
-
-- Physically obvious
-- Reversible
-- Continuous
-- Consistent with a professional workbench tool
-
-Complex widgets must behave like a **workspace**:
-
-- zoomable
-- pannable
-- resizable
-- draggable
-- comparable
-- reorderable
-- state-aware
-- motion-coherent
-
----
-
-### **Interaction Principles**
-
-- Full-window drop zone with animated overlay.
-- Auto-paste for magnet links (detect & parse from clipboard).
-- Context menus everywhere (rows, inspector areas).
-- Keyboard-first for core actions.
-- Continuous feedback — no dead states.
-- Minimal chrome, maximal clarity.
-- No click-hunting — controls appear where they’re needed.
-
----
-
-### **Motion**
-
-Motion clarifies structure; it is not decoration.
-
-- Lists use `framer-motion`'s `layout` prop so rows glide into place when sorted/filtered.
-- Buttons: micro-scale + subtle color shift on hover/press.
-- Icons: task-specific motion (subtle spin for "checking", pulse for "active", etc.).
-- Rows: animate on reorder/selection.
-- Progress bars: smooth transitions, never jumpy.
-- Modals: fade + slide + depth bloom (Layer 2).
-- Overlays: opacity + blur transitions.
-- Workbench zoom/pan: eased, continuous.
 
 ---
 
@@ -653,6 +700,13 @@ Motion clarifies structure; it is not decoration.
 - Optional sparkline SVGs allowed
 - No row flicker on updates
 - Row-level motion for selection, hover, reorder
+
+### **Control & Icon Contracts (Hard)**
+
+- Primary action buttons must use the designated primary control variant.
+- Toolbar commands must be icon-first unless text is required for clarity.
+- Icons must use semantic status colors via theme tokens.
+- Drag-and-drop must provide full-window detection with a standardized overlay surface.
 
 ---
 
@@ -694,49 +748,6 @@ Do not build a "God Component".
   - Confirm Delete (and similar destructive actions)
 
 - **Never** use modals for passive data viewing (details, peers, files). These belong in the **Inspector Pane**.
-
----
-
-### **Buttons**
-
-- Primary = `variant="shadow"` (HeroUI)
-- Secondary = `light` / `ghost`
-- Toolbar commands = icon-only buttons
-- All buttons must animate on hover/press (scale + shadow or background)
-
----
-
-### **Drag & Drop Overlay**
-
-- Full-window detection via `react-dropzone`
-- Glass layer with kinetic fade-in
-- Bold “Drop to Add Torrent” text (localized)
-- Dims background but keeps context visible
-- Cancels instantly on drag-out
-
----
-
-### **Iconography (Lucide)**
-
-- Icons as data:
-
-  - Play/Pause/Stop/Check for state
-  - Arrows for priority/up/down
-  - Filetype icons for files
-
-- Icons must always use semantic colors via HeroUI tokens.
-- Icon sizing is driven by the global UI scale config, not hard-coded pixel sizes.
-
----
-
-### **Workspace Components**
-
-Any component that presents data visually (e.g., peer map, bandwidth graphs) must behave like a **workspace**:
-
-- Smooth zoom (scroll wheel / pinch)
-- Smooth pan (click-drag)
-- Reset view control
-- Motion-driven transforms for transitions
 
 ---
 
@@ -922,6 +933,8 @@ All agents operate as tool-UI engineers: behavior must be deterministic, traceab
 
 # **14. Architectural Principles (Mandatory)**
 
+All ownership and authority rules are governed by §21 Architecture Invariants.
+
 - **HeroUI governs controls (buttons, inputs, menus).**
     The **Workbench Shell** (titlebar, panels, splitters, chrome, glass layers) is 100% custom.
     Tailwind + Motion define all shell surfaces, transitions, and layout behavior.
@@ -940,20 +953,8 @@ All agents operate as tool-UI engineers: behavior must be deterministic, traceab
 - **Typed reality, not guesses.**
     Data structures match real RPC shapes exactly.
 
-- **No magic.**
-    No hidden behaviors, no unexplained values, no silent side effects.
-
-- **Replaceable building blocks.**
-    Every UI piece should be swappable without breaking unrelated parts.
-
 - **Local state first.**
     Global state only when multiple distant parts truly need it.
-
-- **Deterministic behavior.**
-    No randomness, no implicit rules. Everything explicit.
-
-- **Code must age well.**
-    Every change should increase clarity, not decrease it.
 
 - **Don’t reinvent solved problems.**
     Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
@@ -991,6 +992,17 @@ A feature must expose **one primary ViewModel authority**.
 Splitting a ViewModel into multiple wrapper ViewModels is forbidden unless the split removes duplication or creates independently reusable domain boundaries.
 
 This directly prevents the “useXVM / useXSelectionVM / useXInteractionVM / useXStateVM” fragmentation pattern.
+
+### **ViewModel Boundary Rule (Hard)**
+
+A ViewModel is the only layer allowed to:
+
+* translate domain/service outcomes into UI-facing state
+* coordinate multiple services
+* expose UI command surfaces
+* define loading/error/empty presentation states
+
+Views must not aggregate service data directly.
 
 ### Why this matters
 
@@ -1139,10 +1151,6 @@ src/
 
 # **16. Coding Standards**
 
-These guarantee consistency and prevent drift.
-
----
-
 ## **1. File Naming**
 
 **Components → PascalCase (with underscores for siblings)**
@@ -1169,33 +1177,14 @@ These guarantee consistency and prevent drift.
 
 ---
 
-## **3. Component Shape**
+## **3. Service Isolation (Mandatory)**
 
-Order inside a component file:
-
-1. Imports
-2. Zod schemas (if local validation is needed)
-3. Types/Interfaces
-4. Hooks
-5. Implementation
-6. Export
+- UI must never call `fetch` directly.
+- Data flow must remain: UI -> hooks/viewmodels -> services/adapters -> schemas -> network/native boundary.
 
 ---
 
-## **4. Service Isolation**
-
-- UI never calls `fetch` directly.
-- UI → hooks → service adapters → Zod → network.
-
----
-
-## **5. Indentation & Hygiene**
-
-- 4-space indentation.
-- No empty folders.
-- Delete unused files immediately.
-
-## **6. Absolute Import Policy (Mandatory)**
+## **4. Absolute Import Policy (Mandatory)**
 
 All internal imports must use the `@/` alias.
 Relative paths like `../../../../../` are forbidden.
@@ -1230,7 +1219,7 @@ as they are, don't change pattern without permission from the user. ask if you n
 
 
 
-## **7 Incremental Architecture & Naming Improvement Rule (Mandatory)**
+## **5. Incremental Architecture & Naming Improvement Rule (Mandatory)**
 
 This rule enforces **local improvement**, not global refactoring.
 
@@ -1610,6 +1599,17 @@ These indicate authority leakage.
 ### **21.10 Traceability Rule (Hard)**
 
 A refactor is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without encountering redundant wrapper layers.
+
+### **Refactor Simplicity Gate**
+
+A refactor must reduce at least one of the following:
+
+* number of ownership boundaries crossed
+* number of wrapper layers
+* number of contract surfaces
+* duplicated behavioral logic
+
+If none are reduced, the refactor is invalid.
 
 ### **21.11 Indirection Budget Rule (Hard)**
 
