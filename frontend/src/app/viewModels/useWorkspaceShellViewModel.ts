@@ -278,6 +278,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         isBusy: isRecoveryBusy,
         lastOutcome: lastRecoveryOutcome,
         isDetailRecoveryBlocked,
+        queuedCount: recoveryQueuedCount,
+        queuedItems: recoveryQueuedItems,
     } = recoveryState;
 
     const {
@@ -795,6 +797,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         setLocationCapability,
         handleSetLocation,
         handleDownloadMissing,
+        queuedCount: recoveryQueuedCount,
+        queuedItems: recoveryQueuedItems,
     });
 
     const addMagnetModalProps = useAddMagnetModalProps({

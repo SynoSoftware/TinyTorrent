@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     DashboardViewModel,
@@ -50,6 +50,9 @@ import type {
 import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
+
+const RECOVERY_MODAL_POLL_INTERVAL_MS = 2000;
+const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = 250;
 
 export interface DashboardViewModelParams {
     workspaceStyle: WorkspaceStyle;
@@ -569,6 +572,8 @@ export interface RecoveryModalPropsDeps {
         torrent: Torrent,
         options?: { recreateFolder?: boolean }
     ) => Promise<void>;
+    queuedCount: RecoveryControllerResult["state"]["queuedCount"];
+    queuedItems: RecoveryControllerResult["state"]["queuedItems"];
 }
 
 const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
@@ -620,14 +625,18 @@ export function useRecoveryModalViewModel({
     setLocationCapability,
     handleSetLocation,
     handleDownloadMissing,
+    queuedCount,
+    queuedItems,
 }: RecoveryModalPropsDeps): Pick<
     RecoveryModalViewModel,
     keyof RecoveryModalViewModel
 > {
     const autoRetryRef = useRef(false);
+    const [countdownNowMs, setCountdownNowMs] = useState(() => Date.now());
     const torrent = recoverySession?.torrent ?? null;
     const classification = recoverySession?.classification ?? null;
     const outcome = lastOutcome ?? recoverySession?.outcome ?? null;
+    const autoCloseAtMs = recoverySession?.autoCloseAtMs ?? null;
     const busy = Boolean(isBusy);
     const isOpen = Boolean(recoverySession);
     const currentTorrentKey = getRecoveryFingerprint(torrent);
@@ -639,6 +648,21 @@ export function useRecoveryModalViewModel({
     const isPathLoss = classification?.kind === "pathLoss";
     const isVolumeLoss = classification?.kind === "volumeLoss";
     const isAccessDenied = classification?.kind === "accessDenied";
+    const locationEditorVisible = Boolean(
+        locationEditorState?.surface === "recovery-modal" &&
+            locationEditorStateKey &&
+            locationEditorStateKey === currentTorrentKey
+    );
+    const isAutoClosePending = Boolean(
+        autoCloseAtMs &&
+            outcome?.kind === "resolved"
+    );
+    const resolvedCountdownSeconds = isAutoClosePending
+        ? Math.max(
+              1,
+              Math.ceil(((autoCloseAtMs ?? countdownNowMs) - countdownNowMs) / 1000)
+          )
+        : null;
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
 
@@ -648,19 +672,46 @@ export function useRecoveryModalViewModel({
     }, [locationEditor, onClose]);
 
     useEffect(() => {
-        if (!isOpen || !isVolumeLoss || !onAutoRetry || busy) return;
+        if (!isAutoClosePending || !autoCloseAtMs) return;
+        const tick = () => setCountdownNowMs(Date.now());
+        tick();
+        const task = scheduler.scheduleRecurringTask(
+            tick,
+            RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS,
+        );
+        return () => {
+            task.cancel();
+        };
+    }, [isAutoClosePending, autoCloseAtMs]);
+
+    useEffect(() => {
+        if (
+            !isOpen ||
+            !onAutoRetry ||
+            busy ||
+            locationEditorVisible ||
+            isAutoClosePending
+        ) {
+            return;
+        }
         const task = scheduler.scheduleRecurringTask(async () => {
             if (autoRetryRef.current) return;
             autoRetryRef.current = true;
             void onAutoRetry().finally(() => {
                 autoRetryRef.current = false;
             });
-        }, 2000);
+        }, RECOVERY_MODAL_POLL_INTERVAL_MS);
         return () => {
             task.cancel();
             autoRetryRef.current = false;
         };
-    }, [isOpen, isVolumeLoss, onAutoRetry, busy]);
+    }, [
+        busy,
+        isAutoClosePending,
+        isOpen,
+        locationEditorVisible,
+        onAutoRetry,
+    ]);
 
     return useMemo(() => {
         const title = (() => {
@@ -696,11 +747,6 @@ export function useRecoveryModalViewModel({
             ((isVolumeLoss ? classification?.root : classification?.path) ??
                 downloadDir) ||
             t("labels.unknown");
-        const locationEditorVisible = Boolean(
-            locationEditorState?.surface === "recovery-modal" &&
-                locationEditorStateKey &&
-                locationEditorStateKey === currentTorrentKey
-        );
         const locationEditorBusy = locationEditorState?.status !== "idle";
         const locationEditorVerifying = locationEditorState?.status === "verifying";
         const locationEditorStatusMessage = locationEditorVerifying
@@ -708,11 +754,79 @@ export function useRecoveryModalViewModel({
             : isUnknownConfidence
             ? t("recovery.inline_fallback")
             : undefined;
+        const outcomeMessage =
+            isAutoClosePending && resolvedCountdownSeconds
+                ? t("recovery.status.resolved_auto_close", {
+                      seconds: resolvedCountdownSeconds,
+                  })
+                : resolveOutcomeMessage(outcome, t);
+        const resolveKindLabel = (kind: string) => {
+            if (kind === "volumeLoss") return t("recovery.inbox.kind.volume_loss");
+            if (kind === "pathLoss") return t("recovery.inbox.kind.path_loss");
+            if (kind === "accessDenied")
+                return t("recovery.inbox.kind.access_denied");
+            return t("recovery.inbox.kind.data_gap");
+        };
+        const groupedInboxItems = new Map<
+            string,
+            {
+                key: string;
+                kind: string;
+                locationLabel: string;
+                sampleTorrentName: string;
+                count: number;
+            }
+        >();
+        queuedItems.forEach((item) => {
+            const location = item.locationLabel || "";
+            const groupKey = `${item.kind}|${location}`;
+            const existing = groupedInboxItems.get(groupKey);
+            if (existing) {
+                existing.count += 1;
+                return;
+            }
+            groupedInboxItems.set(groupKey, {
+                key: groupKey,
+                kind: item.kind,
+                locationLabel: location,
+                sampleTorrentName: item.torrentName,
+                count: 1,
+            });
+        });
+        const inboxItems = Array.from(groupedInboxItems.values())
+            .slice(0, 3)
+            .map((group) => {
+                const kindLabel = resolveKindLabel(group.kind);
+                const label =
+                    group.count > 1
+                        ? t("recovery.inbox.group_label", {
+                              count: group.count,
+                              kind: kindLabel,
+                          })
+                        : group.sampleTorrentName;
+                const description = group.locationLabel
+                    ? t("recovery.inbox.item_with_location", {
+                          kind: kindLabel,
+                          location: group.locationLabel,
+                      })
+                    : kindLabel;
+                return {
+                    id: group.key,
+                    label,
+                    description,
+                };
+            });
+        const inboxVisible = queuedCount > 0;
+        const cancelLabel = inboxVisible
+            ? t("recovery.inbox.dismiss_all")
+            : t("modals.cancel");
         const buildRecoveryAction = (
             action?: RecoveryRecommendedAction
         ): { label: string; onPress: () => void; isDisabled: boolean } | null => {
             if (!action || !torrent) return null;
-            const base = { isDisabled: busy || locationEditorVisible };
+            const base = {
+                isDisabled: busy || locationEditorVisible || isAutoClosePending,
+            };
             if (action === "downloadMissing") {
                 return {
                     ...base,
@@ -787,28 +901,36 @@ export function useRecoveryModalViewModel({
                 onCancel: locationEditor.cancel,
                 disableCancel: locationEditorBusy,
             },
-            showWaitingForDrive: isVolumeLoss,
-            recoveryOutcomeMessage: resolveOutcomeMessage(outcome, t),
+            showWaitingForDrive: isVolumeLoss && !isAutoClosePending,
+            recoveryOutcomeMessage: outcomeMessage,
+            inbox: {
+                visible: inboxVisible,
+                title: t("recovery.inbox.title", { count: queuedCount }),
+                subtitle: t("recovery.inbox.subtitle"),
+                items: inboxItems,
+                moreCount: Math.max(0, queuedCount - inboxItems.length),
+            },
             showRecreate:
                 isPathLoss &&
                 classification?.confidence === "certain" &&
                 Boolean(onRecreate),
             onRecreate: onRecreate ? () => void onRecreate() : undefined,
             onClose: handleClose,
+            cancelLabel,
             primaryAction,
         };
     }, [
         busy,
         canSetLocation,
         classification,
-        currentTorrentKey,
         downloadDir,
         handleClose,
         handleDownloadMissing,
         handleSetLocation,
+        isAutoClosePending,
         locationEditor,
         locationEditorState,
-        locationEditorStateKey,
+        locationEditorVisible,
         isAccessDenied,
         isOpen,
         isPathLoss,
@@ -817,6 +939,9 @@ export function useRecoveryModalViewModel({
         onAutoRetry,
         onRecreate,
         outcome,
+        queuedCount,
+        queuedItems,
+        resolvedCountdownSeconds,
         t,
         torrent,
     ]);

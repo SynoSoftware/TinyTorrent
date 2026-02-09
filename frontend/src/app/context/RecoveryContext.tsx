@@ -71,6 +71,7 @@ export interface RecoverySessionInfo {
     action: RecoveryGateAction;
     outcome: RecoveryOutcome;
     classification: MissingFilesClassification;
+    autoCloseAtMs?: number;
 }
 
 export interface RecoveryContextValue {

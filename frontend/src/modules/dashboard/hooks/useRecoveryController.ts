@@ -57,12 +57,14 @@ import {
     derivePathReason,
     getRecoveryFingerprint,
 } from "@/app/domain/recoveryUtils";
-
+import {
+    RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
+    RECOVERY_POLL_INTERVAL_MS,
+    RECOVERY_RETRY_COOLDOWN_MS,
+} from "@/config/logic";
 const PROBE_TTL_MS = 5000;
-const PROBE_RUN_INTERVAL_MS = 5000;
 const PICK_PATH_SUCCESS_DELAY_MS = 600;
-const VOLUME_LOSS_AUTO_RECOVERY_INTERVAL_MS = 4000;
-const VOLUME_LOSS_RETRY_COOLDOWN_MS = 15000;
+const ACTIVE_STATE_POLL_INTERVAL_MS = 200;
 const RECOVERY_ACTIONABLE_ERROR_CLASSES = new Set([
     "missingFiles",
     "permissionDenied",
@@ -114,6 +116,13 @@ type RecoveryQueueEntry = {
     resolve: (result: RecoveryGateOutcome) => void;
 };
 
+type RecoveryQueueSummary = {
+    fingerprint: string;
+    torrentName: string;
+    kind: MissingFilesClassification["kind"];
+    locationLabel: string;
+};
+
 interface RecoveryControllerServices {
     client: EngineAdapter;
 }
@@ -145,6 +154,8 @@ interface RecoverySessionState {
     isBusy: boolean;
     lastOutcome: RecoveryOutcome | null;
     isDetailRecoveryBlocked: boolean;
+    queuedCount: number;
+    queuedItems: RecoveryQueueSummary[];
 }
 
 interface RecoveryModalActions {
@@ -234,8 +245,10 @@ export function useRecoveryController({
     const recoveryPromiseRef = useRef<Promise<RecoveryGateOutcome> | null>(
         null,
     );
+    const recoveryAutoCloseCancelRef = useRef<(() => void) | null>(null);
     const recoveryAbortControllerRef = useRef<AbortController | null>(null);
     const pendingRecoveryQueueRef = useRef<Array<RecoveryQueueEntry>>([]);
+    const [queuedItems, setQueuedItems] = useState<RecoveryQueueSummary[]>([]);
     const torrentsRef = useRef(torrents);
     const activeRecoveryEligibleRef = useRef<Set<string>>(new Set());
     const silentVolumeRecoveryInFlightRef = useRef<Set<string>>(new Set());
@@ -246,6 +259,37 @@ export function useRecoveryController({
         surface: SetLocationSurface;
         torrentKey: string;
     } | null>(null);
+
+    const summarizeQueueEntry = useCallback(
+        (entry: RecoveryQueueEntry): RecoveryQueueSummary => {
+            const fallbackPath = resolveTorrentPath(entry.torrent);
+            const locationLabel =
+                (entry.classification.kind === "volumeLoss"
+                    ? entry.classification.root
+                    : entry.classification.path) ??
+                fallbackPath ??
+                "";
+            return {
+                fingerprint: entry.fingerprint,
+                torrentName: entry.torrent.name,
+                kind: entry.classification.kind,
+                locationLabel,
+            };
+        },
+        [],
+    );
+
+    const syncQueuedItems = useCallback(() => {
+        setQueuedItems(
+            pendingRecoveryQueueRef.current.map((entry) =>
+                summarizeQueueEntry(entry),
+            ),
+        );
+    }, [summarizeQueueEntry]);
+
+    useEffect(() => {
+        syncQueuedItems();
+    }, [syncQueuedItems]);
 
     useEffect(() => {
         torrentsRef.current = torrents;
@@ -268,6 +312,17 @@ export function useRecoveryController({
         },
         [],
     );
+
+    const clearRecoveryAutoCloseTimer = useCallback(() => {
+        recoveryAutoCloseCancelRef.current?.();
+        recoveryAutoCloseCancelRef.current = null;
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            clearRecoveryAutoCloseTimer();
+        };
+    }, [clearRecoveryAutoCloseTimer]);
 
     useEffect(() => {
         const presentFingerprints = new Set<string>();
@@ -479,7 +534,7 @@ export function useRecoveryController({
         runProbe();
         const probeTask = scheduler.scheduleRecurringTask(
             runProbe,
-            PROBE_RUN_INTERVAL_MS,
+            RECOVERY_POLL_INTERVAL_MS,
         );
         return () => probeTask.cancel();
     }, [probeMissingFilesIfStale]);
@@ -493,6 +548,7 @@ export function useRecoveryController({
     }, [torrents]);
 
     const startRecoverySession = useCallback((entry: RecoveryQueueEntry) => {
+        clearRecoveryAutoCloseTimer();
         recoveryAbortControllerRef.current?.abort();
         recoveryAbortControllerRef.current = new AbortController();
         setRecoverySession({
@@ -504,14 +560,17 @@ export function useRecoveryController({
         recoveryResolverRef.current = entry.resolve;
         recoveryFingerprintRef.current = entry.fingerprint;
         recoveryPromiseRef.current = entry.promise;
-    }, []);
+    }, [clearRecoveryAutoCloseTimer]);
 
     const processNextRecoveryQueueEntry = useCallback(() => {
-        if (recoverySession) return;
+        // Use resolver ownership (not React state) to avoid stale-closure stalls
+        // when finalize() clears session and immediately advances queue.
+        if (recoveryResolverRef.current) return;
         const next = pendingRecoveryQueueRef.current.shift();
+        syncQueuedItems();
         if (!next) return;
         startRecoverySession(next);
-    }, [recoverySession, startRecoverySession]);
+    }, [startRecoverySession, syncQueuedItems]);
 
     const createRecoveryQueueEntry = useCallback(
         (
@@ -551,9 +610,10 @@ export function useRecoveryController({
                 return duplicate.promise;
             }
             pendingRecoveryQueueRef.current.push(entry);
+            syncQueuedItems();
             return entry.promise;
         },
-        [recoverySession, startRecoverySession],
+        [recoverySession, startRecoverySession, syncQueuedItems],
     );
 
     const requestRecovery: RecoveryGateCallback = useCallback(
@@ -651,6 +711,7 @@ export function useRecoveryController({
 
     const finalizeRecovery = useCallback(
         (result: RecoveryGateOutcome) => {
+            clearRecoveryAutoCloseTimer();
             recoveryAbortControllerRef.current?.abort();
             recoveryAbortControllerRef.current = null;
             const resolver = recoveryResolverRef.current;
@@ -661,14 +722,28 @@ export function useRecoveryController({
             resolver?.(result);
             processNextRecoveryQueueEntry();
         },
-        [processNextRecoveryQueueEntry],
+        [clearRecoveryAutoCloseTimer, processNextRecoveryQueueEntry],
+    );
+
+    const cancelPendingRecoveryQueue = useCallback(
+        (result: RecoveryGateOutcome = { status: "cancelled" }) => {
+            if (pendingRecoveryQueueRef.current.length === 0) return;
+            const queued = pendingRecoveryQueueRef.current;
+            pendingRecoveryQueueRef.current = [];
+            queued.forEach((entry) => {
+                entry.resolve(result);
+            });
+            syncQueuedItems();
+        },
+        [syncQueuedItems],
     );
 
     const handleRecoveryClose = useCallback(() => {
         if (!recoveryResolverRef.current) return;
         recoveryAbortControllerRef.current?.abort();
+        cancelPendingRecoveryQueue({ status: "cancelled" });
         finalizeRecovery({ status: "cancelled" });
-    }, [finalizeRecovery]);
+    }, [cancelPendingRecoveryQueue, finalizeRecovery]);
 
     const refreshAfterRecovery = useCallback(
         async (target: Torrent | TorrentDetail) => {
@@ -692,12 +767,14 @@ export function useRecoveryController({
             options?: RecoverySequenceOptions & {
                 delayAfterSuccessMs?: number;
                 notifyDriveDetected?: boolean;
+                deferFinalizeMs?: number;
             },
         ) => {
             try {
                 const {
                     delayAfterSuccessMs,
                     notifyDriveDetected,
+                    deferFinalizeMs,
                     ...sequenceOptions
                 } = options ?? {};
                 const flowResult = await runMissingFilesFlow(
@@ -731,6 +808,35 @@ export function useRecoveryController({
                     if (delayAfterSuccessMs && delayAfterSuccessMs > 0) {
                         await delay(delayAfterSuccessMs);
                     }
+                    if (
+                        deferFinalizeMs &&
+                        deferFinalizeMs > 0 &&
+                        recoveryResolverRef.current
+                    ) {
+                        clearRecoveryAutoCloseTimer();
+                        const autoCloseAtMs = Date.now() + deferFinalizeMs;
+                        setRecoverySession((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      outcome: {
+                                          kind: "resolved",
+                                          message: "path_ready",
+                                      },
+                                      autoCloseAtMs,
+                                  }
+                                : prev,
+                        );
+                        recoveryAutoCloseCancelRef.current =
+                            scheduler.scheduleTimeout(() => {
+                                recoveryAutoCloseCancelRef.current = null;
+                                finalizeRecovery({
+                                    status: "handled",
+                                    log: flowResult.log,
+                                });
+                            }, deferFinalizeMs);
+                        return true;
+                    }
                     finalizeRecovery({ status: "handled" });
                     return true;
                 }
@@ -742,6 +848,7 @@ export function useRecoveryController({
                                 ? {
                                       ...prev,
                                       outcome,
+                                      autoCloseAtMs: undefined,
                                   }
                                 : prev,
                         );
@@ -761,6 +868,7 @@ export function useRecoveryController({
             refreshAfterRecovery,
             showFeedback,
             t,
+            clearRecoveryAutoCloseTimer,
             finalizeRecovery,
         ],
     );
@@ -795,7 +903,7 @@ export function useRecoveryController({
                 } catch {
                     // best-effort; keep polling
                 }
-                await delay(200);
+                await delay(ACTIVE_STATE_POLL_INTERVAL_MS);
             }
             return false;
         },
@@ -878,13 +986,13 @@ export function useRecoveryController({
                 }
                 silentVolumeRecoveryNextRetryAtRef.current.set(
                     fingerprint,
-                    Date.now() + VOLUME_LOSS_RETRY_COOLDOWN_MS,
+                    Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
                 );
             } catch (err) {
                 console.error("silent volume-loss recovery failed", err);
                 silentVolumeRecoveryNextRetryAtRef.current.set(
                     fingerprint,
-                    Date.now() + VOLUME_LOSS_RETRY_COOLDOWN_MS,
+                    Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
                 );
             } finally {
                 silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
@@ -912,7 +1020,7 @@ export function useRecoveryController({
         runSilentRecoveryPass();
         const task = scheduler.scheduleRecurringTask(
             runSilentRecoveryPass,
-            VOLUME_LOSS_AUTO_RECOVERY_INTERVAL_MS,
+            RECOVERY_POLL_INTERVAL_MS,
         );
         return () => {
             task.cancel();
@@ -1064,7 +1172,10 @@ export function useRecoveryController({
         if (!recoverySession?.torrent) return;
         await withRecoveryBusy(async () => {
             await resolveRecoverySession(recoverySession.torrent, {
-                notifyDriveDetected: true,
+                notifyDriveDetected:
+                    recoverySession.classification.kind === "volumeLoss",
+                deferFinalizeMs:
+                    RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
             });
         });
     }, [recoverySession, resolveRecoverySession, withRecoveryBusy]);
@@ -1599,10 +1710,16 @@ export function useRecoveryController({
             const fingerprint = getRecoveryFingerprint(torrent);
             clearVerifyGuardEntry(fingerprint);
             clearCachedProbe(key);
-            pendingRecoveryQueueRef.current =
-                pendingRecoveryQueueRef.current.filter(
-                    (entry) => entry.fingerprint !== fingerprint,
-                );
+            const remainingQueue: RecoveryQueueEntry[] = [];
+            pendingRecoveryQueueRef.current.forEach((entry) => {
+                if (entry.fingerprint === fingerprint) {
+                    entry.resolve({ status: "cancelled" });
+                    return;
+                }
+                remainingQueue.push(entry);
+            });
+            pendingRecoveryQueueRef.current = remainingQueue;
+            syncQueuedItems();
             if (
                 recoverySession &&
                 getRecoveryFingerprint(recoverySession.torrent) === fingerprint
@@ -1616,6 +1733,7 @@ export function useRecoveryController({
             finalizeRecovery,
             recoverySession,
             pendingDeletionHashesRef,
+            syncQueuedItems,
         ],
     );
 
@@ -1650,10 +1768,6 @@ export function useRecoveryController({
                 return { status: "already_open" };
             }
 
-            if (recoverySession) {
-                return { status: "busy" };
-            }
-
             const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
             const classification = classifyMissingFilesState(
                 envelope,
@@ -1683,7 +1797,6 @@ export function useRecoveryController({
             return { status: "opened" };
         },
         [
-            recoverySession,
             engineCapabilities,
             createRecoveryQueueEntry,
             enqueueRecoveryEntry,
@@ -1696,6 +1809,8 @@ export function useRecoveryController({
             isBusy: isRecoveryBusy,
             lastOutcome: null,
             isDetailRecoveryBlocked,
+            queuedCount: queuedItems.length,
+            queuedItems,
         },
         modal: {
             close: handleRecoveryClose,

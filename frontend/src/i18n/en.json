@@ -1048,6 +1048,20 @@
             "recovery_not_required": "No recovery action is needed for this torrent."
         },
         "choose_another_folder": "Choose another folder",
+        "inbox": {
+            "title": "{{count}} more recovery issues",
+            "subtitle": "Queued issues will be handled one by one after this modal closes.",
+            "dismiss_all": "Dismiss All",
+            "more": "+{{count}} more queued",
+            "group_label": "{{count}} torrents: {{kind}}",
+            "item_with_location": "{{kind}} - {{location}}",
+            "kind": {
+                "data_gap": "Missing data",
+                "path_loss": "Folder missing",
+                "volume_loss": "Drive unavailable",
+                "access_denied": "Permission denied"
+            }
+        },
         "outcome_message": "{{message}}",
         "primary": "Primary",
         "no_recovery_performed": "No recovery performed",
@@ -1070,6 +1084,7 @@
             "drive_disconnected": "Drive disconnected ({{drive}})",
             "access_denied": "Permission denied (Read-only)",
             "waiting_for_drive": "Waiting for drive...",
+            "resolved_auto_close": "Recovery completed. Closing in {{seconds}}s...",
             "preparing": "Preparing download...",
             "retrying": "Retrying...",
             "waiting_status": "Waiting for status...",
