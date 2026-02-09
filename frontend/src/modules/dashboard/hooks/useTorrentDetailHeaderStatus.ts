@@ -12,6 +12,7 @@ import {
     formatRecoveryTooltipFromClassification,
 } from "@/shared/utils/recoveryFormat";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
 interface UseTorrentDetailHeaderStatusParams {
     torrent?: TorrentDetail | null;
@@ -27,8 +28,7 @@ export function useTorrentDetailHeaderStatus({
     torrent,
 }: UseTorrentDetailHeaderStatusParams): TorrentDetailHeaderStatus {
     const { t } = useTranslation();
-    const torrentKey =
-        torrent?.id?.toString() ?? torrent?.hash ?? torrent?.name ?? null;
+    const torrentKey = torrent ? getRecoveryFingerprint(torrent) : null;
     const { getRecoverySessionForKey } = useRecoveryContext();
     const sessionClassification = getRecoverySessionForKey(torrentKey)?.classification ?? null;
     const storedClassification = useMissingFilesClassification(
@@ -82,4 +82,3 @@ export function useTorrentDetailHeaderStatus({
         };
     }, [sessionClassification, storedClassification, t, torrent]);
 }
-

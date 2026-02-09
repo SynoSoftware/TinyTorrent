@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SessionStats, TorrentEntity } from "@/services/rpc/entities";
+import type {
+    SessionStats,
+    TorrentDetailEntity,
+    TorrentEntity,
+} from "@/services/rpc/entities";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
+import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import STATUS from "@/shared/status";
 
 const dummyStats: SessionStats = {
@@ -22,6 +27,25 @@ const waitForSnapshot = async (updates: unknown[], targetLength = 1) => {
             }
         }, 10);
     });
+};
+
+type HeartbeatInternals = {
+    tick: () => Promise<void>;
+    getSpeedHistory: (id: string) => { down: number[]; up: number[] };
+    lastTorrents?: TorrentEntity[];
+};
+
+type HeartbeatClientLike = {
+    getTorrents: ReturnType<typeof vi.fn<() => Promise<TorrentEntity[]>>>;
+    getSessionStats: ReturnType<typeof vi.fn<() => Promise<SessionStats>>>;
+    getTorrentDetails: ReturnType<
+        typeof vi.fn<(id: string) => Promise<TorrentDetailEntity>>
+    >;
+    getRecentlyActive: ReturnType<
+        typeof vi.fn<
+            () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+        >
+    >;
 };
 
 function makeTorrent(overrides: Partial<TorrentEntity> = {}): TorrentEntity {
@@ -76,18 +100,32 @@ describe("Heartbeat telemetry", () => {
             progress: 0.25,
         });
 
-        const client: any = {
-            getTorrents: vi.fn().mockResolvedValue([torrent]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
-            getRecentlyActive: vi.fn().mockResolvedValue({
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([torrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(torrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({
                 torrents: [updatedTorrent],
                 removed: [],
             }),
         };
 
-        const updates: unknown[] = [];
+        const updates: HeartbeatPayload[] = [];
         const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
@@ -95,12 +133,12 @@ describe("Heartbeat telemetry", () => {
         await waitForSnapshot(updates);
 
         expect(updates[0]).toBeDefined();
-        await (hb as any).tick();
+        await hbInternals.tick();
 
         expect(client.getRecentlyActive).toHaveBeenCalled();
-        const last = (hb as any).lastTorrents?.[0];
+        const last = hbInternals.lastTorrents?.[0];
         expect(last?.speed?.down).toBe(512);
-        const history = (hb as any).getSpeedHistory(last!.id);
+        const history = hbInternals.getSpeedHistory(last!.id);
         expect(history.down[history.down.length - 1]).toBe(512);
 
         sub.unsubscribe();
@@ -120,31 +158,45 @@ describe("Heartbeat telemetry", () => {
             speed: { down: 0, up: 0 },
         });
 
-        const client: any = {
-            getTorrents: vi.fn().mockResolvedValue([torrent]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
-            getRecentlyActive: vi.fn().mockResolvedValue({
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([torrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(torrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({
                 torrents: [pausedTorrent],
                 removed: [],
             }),
         };
 
-        const updates: unknown[] = [];
+        const updates: HeartbeatPayload[] = [];
         const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
         });
         await waitForSnapshot(updates);
 
-        await (hb as any).tick();
+        await hbInternals.tick();
 
-        const last = (hb as any).lastTorrents?.[0];
+        const last = hbInternals.lastTorrents?.[0];
         expect(last?.state).toBe(STATUS.torrent.PAUSED);
         expect(last?.speed?.down).toBe(0);
 
-        const history = (hb as any).getSpeedHistory(last!.id);
+        const history = hbInternals.getSpeedHistory(last!.id);
         expect(history.down[history.down.length - 1]).toBe(0);
 
         sub.unsubscribe();
@@ -158,29 +210,42 @@ describe("Heartbeat telemetry", () => {
             state: STATUS.torrent.DOWNLOADING,
             speed: { down: 64, up: 0 },
         });
+        const removedRpcId = torrent.rpcId ?? 99;
 
-        const client: any = {
-            getTorrents: vi.fn().mockResolvedValue([torrent]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([torrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(torrent),
             getRecentlyActive: vi
-                .fn()
-                .mockResolvedValue({ torrents: [], removed: [torrent.rpcId] }),
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({ torrents: [], removed: [removedRpcId] }),
         };
 
-        const updates: unknown[] = [];
+        const updates: HeartbeatPayload[] = [];
         const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
         });
         await waitForSnapshot(updates);
 
-        const before = (hb as any).getSpeedHistory(torrent.id);
+        const before = hbInternals.getSpeedHistory(torrent.id);
         expect(before.down[before.down.length - 1]).toBe(64);
 
-        await (hb as any).tick();
-        const after = (hb as any).getSpeedHistory(torrent.id);
+        await hbInternals.tick();
+        const after = hbInternals.getSpeedHistory(torrent.id);
         expect(after.down.every((value: number) => value === 0)).toBe(true);
 
         sub.unsubscribe();

@@ -3,6 +3,12 @@ import type { ReactNode } from "react";
 import type { SettingsConfig, ConfigKey } from "@/modules/settings/data/config";
 import type { ButtonActionKey } from "@/modules/settings/data/settings-tabs";
 
+export type SettingsFormActionOutcome =
+    | { status: "applied" }
+    | { status: "cancelled"; reason: "dismissed" | "no_change" }
+    | { status: "unsupported"; reason: "capability_unavailable" }
+    | { status: "failed"; reason: "execution_failed" };
+
 export interface SettingsFormStateContextValue {
     config: SettingsConfig;
     updateConfig: <K extends ConfigKey>(
@@ -18,12 +24,16 @@ export interface SettingsFormActionsContextValue {
     capabilities: {
         blocklistSupported: boolean;
     };
+    interfaceTab: {
+        isImmersive: boolean;
+        hasDismissedInsights: boolean;
+        onToggleWorkspaceStyle?: () => void;
+    };
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;
-    onBrowse: (key: ConfigKey) => void;
-    onCopyConfigJson: () => void;
-    onReconnect: () => void;
-    isImmersive?: boolean;
+    onBrowse: (key: ConfigKey) => Promise<SettingsFormActionOutcome>;
+    onCopyConfigJson: () => Promise<SettingsFormActionOutcome>;
+    onReconnect: () => Promise<SettingsFormActionOutcome>;
 }
 
 const SettingsFormStateContext =
@@ -51,6 +61,7 @@ export function SettingsFormProvider({
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSettingsFormState() {
     const context = useContext(SettingsFormStateContext);
     if (!context) {
@@ -61,6 +72,7 @@ export function useSettingsFormState() {
     return context;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSettingsFormActions() {
     const context = useContext(SettingsFormActionsContext);
     if (!context) {

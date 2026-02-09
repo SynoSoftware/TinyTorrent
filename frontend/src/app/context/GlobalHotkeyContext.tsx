@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, type ReactNode } from "react";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 
 export interface GlobalHotkeyContextValue {
@@ -18,18 +19,8 @@ export function GlobalHotkeyProvider({
     value: GlobalHotkeyContextValue;
     children: ReactNode;
 }) {
-    const memoized = useMemo(
-        () => value,
-        [
-            value.detailData,
-            value.handleCloseDetail,
-            value.handleRequestDetails,
-            value.selectedTorrents,
-            value.torrents,
-        ]
-    );
     return (
-        <GlobalHotkeyContext.Provider value={memoized}>
+        <GlobalHotkeyContext.Provider value={value}>
             {children}
         </GlobalHotkeyContext.Provider>
     );

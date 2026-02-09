@@ -2,6 +2,12 @@ import type { TorrentMetadata } from "@/shared/utils/torrent";
 
 export type AddTorrentCommitMode = "start" | "paused" | "top";
 
+export type AddTorrentBrowseOutcome =
+    | { status: "picked"; path: string }
+    | { status: "cancelled" }
+    | { status: "unsupported" }
+    | { status: "failed" };
+
 export type AddTorrentSource =
     | {
           kind: "file";

@@ -3,9 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useSession } from "@/app/context/SessionContext";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
 
-import type { EngineInfo } from "@/services/rpc/entities";
 import { STATUS } from "@/shared/status";
-import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { AmbientHudCard } from "@/app/types/workspace";
 
 interface UseHudCardsParams {

@@ -1,12 +1,22 @@
 import { KEY_SCOPE } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
-import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
+import type {
+    CommandAction,
+    CommandActionOutcome,
+    CommandPaletteContext,
+} from "@/app/components/CommandPalette";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { DetailTab, PeerSortStrategy } from "@/modules/dashboard/types/torrentDetail";
-import { DASHBOARD_FILTERS, type DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
+import type {
+    DetailTab,
+    PeerSortStrategy,
+} from "@/modules/dashboard/types/torrentDetail";
+import {
+    DASHBOARD_FILTERS,
+    type DashboardFilter,
+} from "@/modules/dashboard/types/dashboardFilter";
 import type { TFunction } from "i18next";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import {
@@ -22,8 +32,8 @@ import {
 export interface CommandPaletteDeps {
     t: TFunction;
     focusSearchInput: () => void;
-    openAddTorrentPicker: () => void;
-    openAddMagnet: () => void;
+    openAddTorrentPicker: () => Promise<TorrentCommandOutcome>;
+    openAddMagnet: () => Promise<TorrentCommandOutcome>;
     openSettings: () => void;
     refreshTorrents: () => Promise<void>;
     setFilter: (value: DashboardFilter) => void;
@@ -35,7 +45,7 @@ export interface CommandPaletteDeps {
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleFileSelectionChange: (
         fileIndexes: number[],
-        extend: boolean
+        extend: boolean,
     ) => Promise<void>;
     setInspectorTabCommand: (tab: DetailTab | null) => void;
     peerSortStrategy: PeerSortStrategy;
@@ -48,6 +58,39 @@ interface CommandPaletteBaseGroups {
     search: string;
     context: string;
 }
+
+const COMMAND_PALETTE_OUTCOME_SUCCESS: CommandActionOutcome = {
+    status: "success",
+};
+const COMMAND_PALETTE_OUTCOME_FAILED: CommandActionOutcome = {
+    status: "failed",
+    reason: "execution_failed",
+};
+
+const toCommandPaletteOutcome = (
+    outcome: TorrentCommandOutcome,
+): CommandActionOutcome => {
+    if (outcome.status === "success") {
+        return COMMAND_PALETTE_OUTCOME_SUCCESS;
+    }
+    if (outcome.status === "canceled") {
+        return { status: "canceled", reason: outcome.reason };
+    }
+    if (outcome.status === "unsupported") {
+        return { status: "unsupported", reason: outcome.reason };
+    }
+    if (outcome.reason === "refresh_failed") {
+        return { status: "failed", reason: "refresh_failed" };
+    }
+    return COMMAND_PALETTE_OUTCOME_FAILED;
+};
+
+const completeAction = async (
+    action: () => void | Promise<void>,
+): Promise<CommandActionOutcome> => {
+    await action();
+    return COMMAND_PALETTE_OUTCOME_SUCCESS;
+};
 
 export function buildCommandPaletteActions({
     t,
@@ -67,15 +110,19 @@ export function buildCommandPaletteActions({
     };
 
     const handlers: Record<BasePaletteCommandId, CommandAction["onSelect"]> = {
-        [COMMAND_ID.AddTorrent]: openAddTorrentPicker,
-        [COMMAND_ID.AddMagnet]: openAddMagnet,
-        [COMMAND_ID.OpenSettings]: openSettings,
-        [COMMAND_ID.RefreshTorrents]: refreshTorrents,
-        [COMMAND_ID.FocusSearch]: focusSearchInput,
-        [COMMAND_ID.FilterAll]: () => setFilter(DASHBOARD_FILTERS.ALL),
+        [COMMAND_ID.AddTorrent]: async () =>
+            toCommandPaletteOutcome(await openAddTorrentPicker()),
+        [COMMAND_ID.AddMagnet]: async () =>
+            toCommandPaletteOutcome(await openAddMagnet()),
+        [COMMAND_ID.OpenSettings]: () => completeAction(openSettings),
+        [COMMAND_ID.RefreshTorrents]: () => completeAction(refreshTorrents),
+        [COMMAND_ID.FocusSearch]: () => completeAction(focusSearchInput),
+        [COMMAND_ID.FilterAll]: () =>
+            completeAction(() => setFilter(DASHBOARD_FILTERS.ALL)),
         [COMMAND_ID.FilterDownloading]: () =>
-            setFilter(DASHBOARD_FILTERS.DOWNLOADING),
-        [COMMAND_ID.FilterSeeding]: () => setFilter(DASHBOARD_FILTERS.SEEDING),
+            completeAction(() => setFilter(DASHBOARD_FILTERS.DOWNLOADING)),
+        [COMMAND_ID.FilterSeeding]: () =>
+            completeAction(() => setFilter(DASHBOARD_FILTERS.SEEDING)),
     };
 
     return BASE_PALETTE_COMMANDS.map((entry) => ({
@@ -89,7 +136,7 @@ export function buildCommandPaletteActions({
 
 export function buildContextCommandActions(
     deps: CommandPaletteDeps,
-    activePart: CommandPaletteContext["activePart"]
+    activePart: CommandPaletteContext["activePart"],
 ): CommandAction[] {
     const contextGroup = deps.t("command_palette.group.context");
     const entries: CommandAction[] = [];
@@ -101,34 +148,37 @@ export function buildContextCommandActions(
                 group: contextGroup,
                 title: deps.t("command_palette.actions.pause_selected"),
                 description: deps.t(
-                    "command_palette.actions.pause_selected_description"
+                    "command_palette.actions.pause_selected_description",
                 ),
-                onSelect: async () => {
-                    await deps.handleBulkAction("pause");
-                },
+                onSelect: async () =>
+                    toCommandPaletteOutcome(
+                        await deps.handleBulkAction("pause"),
+                    ),
             },
             {
                 id: COMMAND_ID.ContextResumeSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.resume_selected"),
                 description: deps.t(
-                    "command_palette.actions.resume_selected_description"
+                    "command_palette.actions.resume_selected_description",
                 ),
-                onSelect: async () => {
-                    await deps.handleBulkAction("resume");
-                },
+                onSelect: async () =>
+                    toCommandPaletteOutcome(
+                        await deps.handleBulkAction("resume"),
+                    ),
             },
             {
                 id: COMMAND_ID.ContextRecheckSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.recheck_selected"),
                 description: deps.t(
-                    "command_palette.actions.recheck_selected_description"
+                    "command_palette.actions.recheck_selected_description",
                 ),
-                onSelect: async () => {
-                    await deps.handleBulkAction("recheck");
-                },
-            }
+                onSelect: async () =>
+                    toCommandPaletteOutcome(
+                        await deps.handleBulkAction("recheck"),
+                    ),
+            },
         );
 
         const targetTorrent = deps.selectedTorrents[0];
@@ -138,9 +188,12 @@ export function buildContextCommandActions(
                 group: contextGroup,
                 title: deps.t("command_palette.actions.open_inspector"),
                 description: deps.t(
-                    "command_palette.actions.open_inspector_description"
+                    "command_palette.actions.open_inspector_description",
                 ),
-                onSelect: () => deps.handleRequestDetails(targetTorrent),
+                onSelect: () =>
+                    completeAction(() =>
+                        deps.handleRequestDetails(targetTorrent),
+                    ),
             });
         }
     }
@@ -154,12 +207,16 @@ export function buildContextCommandActions(
                 group: contextGroup,
                 title: deps.t("command_palette.actions.select_all_files"),
                 description: deps.t(
-                    "command_palette.actions.select_all_files_description"
+                    "command_palette.actions.select_all_files_description",
                 ),
-                onSelect: () => {
-                    deps.setInspectorTabCommand("content");
-                    return deps.handleFileSelectionChange(fileIndexes, true);
-                },
+                onSelect: () =>
+                    completeAction(() => {
+                        deps.setInspectorTabCommand("content");
+                        return deps.handleFileSelectionChange(
+                            fileIndexes,
+                            true,
+                        );
+                    }),
             });
         }
 
@@ -174,17 +231,20 @@ export function buildContextCommandActions(
                 title: deps.t(
                     isSpeedSorted
                         ? "command_palette.actions.reset_peer_sort"
-                        : "command_palette.actions.sort_peers_by_speed"
+                        : "command_palette.actions.sort_peers_by_speed",
                 ),
                 description: deps.t(
                     isSpeedSorted
                         ? "command_palette.actions.reset_peer_sort_description"
-                        : "command_palette.actions.sort_peers_by_speed_description"
+                        : "command_palette.actions.sort_peers_by_speed_description",
                 ),
-                onSelect: () => {
-                    deps.setInspectorTabCommand("peers");
-                    deps.setPeerSortStrategy(isSpeedSorted ? "none" : "speed");
-                },
+                onSelect: () =>
+                    completeAction(() => {
+                        deps.setInspectorTabCommand("peers");
+                        deps.setPeerSortStrategy(
+                            isSpeedSorted ? "none" : "speed",
+                        );
+                    }),
             });
         }
     }
@@ -204,7 +264,10 @@ export interface CommandHotkeyBinding {
     options?: CommandHotkeyOptions;
 }
 
-export type CommandHotkeyBindings = Record<HotkeyCommandId, CommandHotkeyBinding>;
+export type CommandHotkeyBindings = Record<
+    HotkeyCommandId,
+    CommandHotkeyBinding
+>;
 
 export interface GlobalHotkeyStateSnapshot {
     torrents: Torrent[];
@@ -219,11 +282,11 @@ export interface GlobalHotkeyController {
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleCloseDetail: () => void;
     handleBulkAction: (
-        action: TorrentTableAction
+        action: TorrentTableAction,
     ) => Promise<TorrentCommandOutcome>;
     handleTorrentAction: (
         action: TorrentTableAction,
-        torrent: Torrent
+        torrent: Torrent,
     ) => Promise<TorrentCommandOutcome>;
 }
 
@@ -235,7 +298,7 @@ export interface CreateGlobalHotkeyBindingsParams {
 }
 
 function getPrimaryTorrentForAction(
-    state: GlobalHotkeyStateSnapshot
+    state: GlobalHotkeyStateSnapshot,
 ): Torrent | undefined {
     const selection = state.selectedTorrents;
     const primaryId = state.activeId;
@@ -269,7 +332,9 @@ export function createGlobalHotkeyBindings({
 
     const showDetailsHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const primaryTorrent = getPrimaryTorrentForAction(controller.getState());
+        const primaryTorrent = getPrimaryTorrentForAction(
+            controller.getState(),
+        );
         if (!primaryTorrent) return;
         void controller.handleRequestDetails(primaryTorrent);
     };
@@ -294,7 +359,9 @@ export function createGlobalHotkeyBindings({
 
     const togglePauseHandler = (event: KeyboardEvent) => {
         event.preventDefault();
-        const primaryTorrent = getPrimaryTorrentForAction(controller.getState());
+        const primaryTorrent = getPrimaryTorrentForAction(
+            controller.getState(),
+        );
         if (!primaryTorrent) return;
         const isActive =
             primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
@@ -373,4 +440,3 @@ export function createGlobalHotkeyBindings({
         },
     };
 }
-

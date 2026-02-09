@@ -16,7 +16,8 @@ describe("formatRecoveryTooltip", () => {
             recoveryState: "missing_files" as RecoveryState,
             recoveryActions: [],
         };
-        const t = ((_: string) => "Missing files") as TFunction;
+        const t = ((key: string) =>
+            key ? "Missing files" : "Missing files") as TFunction;
         const tooltip = formatRecoveryTooltip(envelope, t);
         expect(tooltip).toBe("Missing files");
     });

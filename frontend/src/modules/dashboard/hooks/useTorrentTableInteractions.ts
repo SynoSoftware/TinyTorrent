@@ -1,4 +1,3 @@
-import React from "react";
 import {
     KeyboardSensor,
     MouseSensor,
@@ -17,6 +16,14 @@ type RowVirtualizerLike = {
     scrollToIndex: (index: number) => void;
 };
 
+export type ColumnDragCommitOutcome =
+    | { status: "applied" }
+    | {
+          status: "rejected";
+          reason: "missing_target" | "same_target" | "invalid_index";
+      }
+    | { status: "failed"; reason: "commit_failed" };
+
 type DragHandlers = {
     handleRowDragStart: (event: DragStartEvent) => void;
     handleRowDragEnd: (event: DragEndEvent) => Promise<void>;
@@ -25,10 +32,12 @@ type DragHandlers = {
 
 type TorrentTableInteractionsDeps = DragHandlers & {
     setActiveDragHeaderId: (id: string | null) => void;
-    setColumnOrder: React.Dispatch<React.SetStateAction<string[]>>;
-    arrayMove: (items: string[], oldIndex: number, newIndex: number) => string[];
+    commitColumnDragOrder: (
+        activeColumnId: string,
+        overColumnId: string
+    ) => ColumnDragCommitOutcome;
+    onColumnDragCommit?: (outcome: ColumnDragCommitOutcome) => void;
     table: {
-        setColumnOrder: (updater: React.SetStateAction<string[]>) => void;
         getRowModel: () => { rows: Array<Row<Torrent>> };
     };
     anchorIndex: number | null;
@@ -66,7 +75,11 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
 
     // Wiring: keep this hook as pure orchestration glue. Only pull
     // the small set of values needed for the column-drag handlers.
-    const { setActiveDragHeaderId, setColumnOrder, table } = deps;
+    const {
+        setActiveDragHeaderId,
+        commitColumnDragOrder,
+        onColumnDragCommit,
+    } = deps;
 
     const handleDragStart = (event: DragStartEvent) => {
         setActiveDragHeaderId(event.active.id as string);
@@ -75,20 +88,25 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
     const handleDragEnd = (event: DragEndEvent) => {
         setActiveDragHeaderId(null);
         const { active, over } = event;
-        if (active && over && active.id !== over.id) {
-            setColumnOrder((order) => {
-                const oldIndex = order.indexOf(active.id as string);
-                const newIndex = order.indexOf(over.id as string);
-                if (oldIndex < 0 || newIndex < 0) return order;
-                const move = deps.arrayMove;
-                const next = move(order, oldIndex, newIndex);
-                try {
-                    table.setColumnOrder(next);
-                } catch {
-                }
-                return next;
+        if (!active || !over) {
+            onColumnDragCommit?.({
+                status: "rejected",
+                reason: "missing_target",
             });
+            return;
         }
+        if (active.id === over.id) {
+            onColumnDragCommit?.({
+                status: "rejected",
+                reason: "same_target",
+            });
+            return;
+        }
+        const outcome = commitColumnDragOrder(
+            String(active.id),
+            String(over.id)
+        );
+        onColumnDragCommit?.(outcome);
     };
 
     const handleDragCancel = () => {

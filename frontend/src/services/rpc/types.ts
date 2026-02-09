@@ -1,6 +1,4 @@
-import type { TorrentStatus } from "@/shared/status";
 export type RpcTorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-// `TorrentStatus` is sourced from the canonical STATUS namespace in `@/shared/status`.
 
 export interface TransmissionTorrent {
     id: number;

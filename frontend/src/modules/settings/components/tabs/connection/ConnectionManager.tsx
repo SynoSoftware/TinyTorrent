@@ -56,6 +56,18 @@ export function ConnectionCredentialsCard() {
     const { activeProfile, handleUpdate, isOffline } =
         useConnectionManagerState();
     const { onReconnect } = useSettingsFormActions();
+    const handleReconnect = useCallback(async () => {
+        const outcome = await onReconnect();
+        switch (outcome.status) {
+            case "applied":
+            case "cancelled":
+            case "unsupported":
+            case "failed":
+                return;
+            default:
+                return;
+        }
+    }, [onReconnect]);
     const { rpcStatus, uiCapabilities } = useSession();
     const connectionStatusLabel = useMemo(() => {
         const map: Record<string, string> = {
@@ -200,7 +212,9 @@ export function ConnectionCredentialsCard() {
                         size="md"
                         variant="shadow"
                         color="primary"
-                        onPress={onReconnect}
+                        onPress={() => {
+                            void handleReconnect();
+                        }}
                         type="button"
                         startContent={
                             <RefreshCw

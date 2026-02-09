@@ -11,7 +11,8 @@ async function readFileAsDataUrl(file: File): Promise<string> {
             }
             resolve(result);
         };
-        reader.onerror = () => reject(reader.error ?? new Error("tt_file_read_failed"));
+        reader.onerror = () =>
+            reject(reader.error ?? new Error("tt_file_read_failed"));
         reader.readAsDataURL(file);
     });
 }
@@ -20,8 +21,8 @@ export type TorrentMetainfoResult =
     | { ok: true; metainfoBase64: string }
     | { ok: false; reason: "access_denied" | "read_failed" };
 
-export async function readTorrentFileAsMetainfoBase64(
-    file: File
+export async function parseTorrentFile(
+    file: File,
 ): Promise<TorrentMetainfoResult> {
     try {
         const dataUrl = await readFileAsDataUrl(file);
@@ -37,4 +38,3 @@ export async function readTorrentFileAsMetainfoBase64(
         return { ok: false, reason: "read_failed" };
     }
 }
-

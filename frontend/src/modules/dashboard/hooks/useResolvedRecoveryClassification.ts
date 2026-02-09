@@ -4,9 +4,7 @@ import { useMissingFilesClassification } from "@/services/recovery/missingFilesS
 import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import type { ErrorClass } from "@/services/rpc/entities";
-
-const getTorrentKey = (entry?: { id?: string | number; hash?: string } | null) =>
-    entry?.id?.toString() ?? entry?.hash ?? "";
+import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
 const ACTIONABLE_RECOVERY_ERROR_CLASSES = new Set<ErrorClass>([
     "missingFiles",
@@ -18,11 +16,14 @@ export function useResolvedRecoveryClassification(
     torrent?: {
         id?: string | number;
         hash?: string;
-        errorEnvelope?: { errorClass?: ErrorClass | null } | null;
+        errorEnvelope?: {
+            errorClass?: ErrorClass | null;
+            fingerprint?: string | null;
+        } | null;
     } | null
 ): MissingFilesClassification | null {
     const { getRecoverySessionForKey } = useRecoveryContext();
-    const torrentKey = getTorrentKey(torrent);
+    const torrentKey = torrent ? getRecoveryFingerprint(torrent) : null;
     const sessionClassification =
         getRecoverySessionForKey(torrentKey)?.classification ?? null;
     const storedClassification = useMissingFilesClassification(

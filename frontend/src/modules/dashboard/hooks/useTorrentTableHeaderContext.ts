@@ -80,7 +80,7 @@ export const useTorrentTableHeaderContext = (
     const headerMenuActiveColumn = useMemo(() => {
         if (!params.headerContextMenu?.columnId) return null;
         return table.getColumn(params.headerContextMenu.columnId) ?? null;
-    }, [params.headerContextMenu, table, params.columnVisibility]);
+    }, [params.headerContextMenu, table]);
 
     const handleHeaderMenuAction = useCallback(
         (action: () => void, options: HeaderMenuActionOptions = {}) => {

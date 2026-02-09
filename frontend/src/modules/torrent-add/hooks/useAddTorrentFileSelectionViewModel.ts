@@ -9,11 +9,11 @@ import {
 
 type TorrentPriority = "low" | "normal" | "high";
 
-export interface UseAddTorrentFileSelectionViewModelParams {
+export interface AddTorrentFileSelectionParams {
     files: FileRow[];
 }
 
-export interface UseAddTorrentFileSelectionViewModelResult {
+export interface AddTorrentFileSelectionResult {
     filter: string;
     setFilter: (value: string) => void;
     rowSelection: RowSelectionState;
@@ -27,7 +27,7 @@ export interface UseAddTorrentFileSelectionViewModelResult {
     setRowSelection: (
         next:
             | RowSelectionState
-            | ((prev: RowSelectionState) => RowSelectionState)
+            | ((prev: RowSelectionState) => RowSelectionState),
     ) => void;
     handleRowClick: (index: number, shiftKey: boolean) => void;
     setPriority: (index: number, value: TorrentPriority) => void;
@@ -37,11 +37,13 @@ export interface UseAddTorrentFileSelectionViewModelResult {
 
 export function useAddTorrentFileSelectionViewModel({
     files,
-}: UseAddTorrentFileSelectionViewModelParams): UseAddTorrentFileSelectionViewModelResult {
+}: AddTorrentFileSelectionParams): AddTorrentFileSelectionResult {
     const [filter, setFilterState] = useState("");
-    const [rowSelection, setRowSelectionState] = useState<RowSelectionState>({});
+    const [rowSelection, setRowSelectionState] = useState<RowSelectionState>(
+        {},
+    );
     const [priorities, setPriorities] = useState<Map<number, TorrentPriority>>(
-        new Map()
+        new Map(),
     );
     const [lastClickedFileIndex, setLastClickedFileIndex] = useState<
         number | null
@@ -51,20 +53,23 @@ export function useAddTorrentFileSelectionViewModel({
         setFilterState(value);
     }, []);
 
-    const filteredFiles = useMemo(() => filterFiles(files, filter), [files, filter]);
+    const filteredFiles = useMemo(
+        () => filterFiles(files, filter),
+        [files, filter],
+    );
     const selectedIndexes = useMemo(
         () =>
             new Set(
                 Object.keys(rowSelection)
                     .filter((key) => rowSelection[key])
                     .map((key) => Number(key))
-                    .filter((value) => Number.isFinite(value))
+                    .filter((value) => Number.isFinite(value)),
             ),
-        [rowSelection]
+        [rowSelection],
     );
     const fileSizesByIndex = useMemo(
         () => new Map(files.map((file) => [file.index, file.length] as const)),
-        [files]
+        [files],
     );
     const selectedSize = useMemo(() => {
         if (selectedIndexes.size === 0) return 0;
@@ -78,11 +83,11 @@ export function useAddTorrentFileSelectionViewModel({
     const isSelectionEmpty = selectedIndexes.size === 0;
     const headerScopeFiles = useMemo(
         () => (filter.trim().length > 0 ? filteredFiles : files),
-        [filter, filteredFiles, files]
+        [filter, filteredFiles, files],
     );
     const orderedIndexes = useMemo(
         () => headerScopeFiles.map((file) => file.index),
-        [headerScopeFiles]
+        [headerScopeFiles],
     );
 
     const handleSmartSelect = useCallback(
@@ -90,17 +95,17 @@ export function useAddTorrentFileSelectionViewModel({
             const scopeFiles = filter.trim().length > 0 ? filteredFiles : files;
             const currentSelected = new Set(selectedIndexes);
             const nextSet = applySmartSelectCommand({
-                    command,
-                    scopeFiles,
-                    selected: currentSelected,
-                });
+                command,
+                scopeFiles,
+                selected: currentSelected,
+            });
             const nextSelection: RowSelectionState = {};
             nextSet.forEach((index) => {
                 nextSelection[String(index)] = true;
             });
             setRowSelectionState(nextSelection);
         },
-        [files, filter, filteredFiles, selectedIndexes]
+        [files, filter, filteredFiles, selectedIndexes],
     );
 
     const toggleSelection = useCallback((index: number) => {
@@ -122,13 +127,13 @@ export function useAddTorrentFileSelectionViewModel({
         (
             next:
                 | RowSelectionState
-                | ((prev: RowSelectionState) => RowSelectionState)
+                | ((prev: RowSelectionState) => RowSelectionState),
         ) => {
             setRowSelectionState((prev) =>
-                typeof next === "function" ? next(prev) : next
+                typeof next === "function" ? next(prev) : next,
             );
         },
-        []
+        [],
     );
 
     const handleRowClick = useCallback(
@@ -163,7 +168,7 @@ export function useAddTorrentFileSelectionViewModel({
             });
             setLastClickedFileIndex(index);
         },
-        [orderedIndexes, lastClickedFileIndex, toggleSelection]
+        [orderedIndexes, lastClickedFileIndex, toggleSelection],
     );
 
     const setPriority = useCallback((index: number, value: TorrentPriority) => {

@@ -1,18 +1,29 @@
-export async function tryWriteClipboard(text?: string): Promise<boolean> {
-    if (!text) return false;
+export function isClipboardWriteSupported(): boolean {
+    return (
+        typeof navigator !== "undefined" &&
+        typeof navigator.clipboard?.writeText === "function"
+    );
+}
+
+export type ClipboardWriteOutcome =
+    | { status: "copied" }
+    | { status: "unsupported" }
+    | { status: "empty" }
+    | { status: "failed" };
+
+export async function writeClipboardOutcome(
+    text?: string,
+): Promise<ClipboardWriteOutcome> {
+    if (!text) {
+        return { status: "empty" };
+    }
+    if (!isClipboardWriteSupported()) {
+        return { status: "unsupported" };
+    }
     try {
-        if (typeof navigator === "undefined" || !navigator.clipboard) {
-            return false;
-        }
         await navigator.clipboard.writeText(text);
-        return true;
+        return { status: "copied" };
     } catch {
-        return false;
+        return { status: "failed" };
     }
 }
-
-export async function writeClipboard(text?: string) {
-    await tryWriteClipboard(text);
-}
-
-export default writeClipboard;

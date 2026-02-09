@@ -21,7 +21,7 @@ import type {
 } from "@/modules/dashboard/types/torrentDetail";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { SessionStats } from "@/services/rpc/entities";
-import type { ConnectionStatus } from "@/shared/types/rpc";
+import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { UiMode } from "@/app/utils/uiMode";
 import type {
@@ -34,6 +34,7 @@ import type { RecoveryModalViewModel } from "@/modules/dashboard/components/Torr
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type {
     AddTorrentCommandOutcome,
@@ -46,6 +47,9 @@ import type {
     RecoveryOutcome,
     RecoveryRecommendedAction,
 } from "@/services/recovery/recovery-controller";
+import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
+import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
+import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
 export interface DashboardViewModelParams {
     workspaceStyle: WorkspaceStyle;
@@ -70,12 +74,6 @@ export interface DashboardViewModelParams {
     ) => Promise<void>;
     handleSequentialToggle: (enabled: boolean) => Promise<void>;
     handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
-    handleEnsureValid: (torrentId: string | number) => Promise<void>;
-    handleEnsureDataPresent: (torrentId: string | number) => Promise<void>;
-    handleEnsureAtLocation: (
-        torrentId: string | number,
-        path: string
-    ) => Promise<void>;
     setInspectorTabCommand: (value: DetailTab | null) => void;
     capabilities: CapabilityStore;
 }
@@ -98,9 +96,6 @@ export function useDashboardViewModel(
         handleRequestDetails,
         closeDetail,
         handleFileSelectionChange,
-        handleEnsureValid,
-        handleEnsureDataPresent,
-        handleEnsureAtLocation,
         setInspectorTabCommand,
         capabilities,
     }: DashboardViewModelParams,
@@ -136,9 +131,6 @@ export function useDashboardViewModel(
                     },
                     content: {
                         handleFileSelectionChange,
-                        handleEnsureValid,
-                        handleEnsureDataPresent,
-                        handleEnsureAtLocation,
                     },
                     peers: {
                         peerSortStrategy,
@@ -166,9 +158,6 @@ export function useDashboardViewModel(
             inspectorTabCommand,
             setInspectorTabCommand,
             handleFileSelectionChange,
-            handleEnsureValid,
-            handleEnsureDataPresent,
-            handleEnsureAtLocation,
             peerSortStrategy,
         ]
     );
@@ -181,7 +170,7 @@ export interface StatusBarViewModelDeps {
     transportStatus: StatusBarTransportStatus;
     rpcStatus: ConnectionStatus;
     uiCapabilities: { uiMode: UiMode };
-    reconnect: () => void;
+    reconnect: () => Promise<RpcConnectionOutcome>;
     selectedCount: number;
     activeDownloadCount: number;
     activeDownloadRequiredBytes: number;
@@ -302,8 +291,7 @@ export interface SettingsModalViewModelParams {
         blocklistSupported: boolean;
     };
     handleSave: (config: SettingsConfig) => Promise<void>;
-    // TODO(section 20.2/20.5): replace boolean test-port result with typed outcome variants.
-    handleTestPort: () => Promise<boolean>;
+    handleTestPort: () => Promise<EngineTestPortOutcome>;
     applyUserPreferencesPatch: (patch: Partial<{
         refresh_interval_ms: number;
         request_timeout_ms: number;
@@ -312,7 +300,7 @@ export interface SettingsModalViewModelParams {
     isSettingsOpen: boolean;
     closeSettings: () => void;
     toggleWorkspaceStyle: () => void;
-    reconnect: () => void;
+    reconnect: () => Promise<RpcConnectionOutcome>;
     workspaceStyle: WorkspaceStyle;
     hasDismissedInsights: boolean;
     openSettings: () => void;
@@ -406,8 +394,27 @@ export interface DeletionViewModelDeps {
 export function useDeletionViewModel({
     pendingDelete,
     clearPendingDelete,
-    confirmDelete,
+    confirmDelete: confirmDeleteCommand,
 }: DeletionViewModelDeps) {
+    const confirmDelete = useCallback(
+        async (
+            overrideDeleteData?: boolean,
+        ): Promise<DeleteConfirmationOutcome> => {
+            const outcome = await confirmDeleteCommand(overrideDeleteData);
+            if (outcome.status === "success") {
+                return { status: "success" };
+            }
+            if (outcome.status === "canceled") {
+                return { status: "canceled" };
+            }
+            if (outcome.status === "unsupported") {
+                return { status: "unsupported" };
+            }
+            return { status: "failed" };
+        },
+        [confirmDeleteCommand],
+    );
+
     return useMemo(
         () => ({
             pendingDelete,
@@ -473,22 +480,22 @@ export function useWorkspaceShellModel({
     );
 }
 
-export interface RecoveryInlineEditorControls {
-    state: RecoveryControllerResult["inlineEditor"]["state"];
-    cancel: RecoveryControllerResult["inlineEditor"]["cancel"];
-    release: RecoveryControllerResult["inlineEditor"]["release"];
-    confirm: RecoveryControllerResult["inlineEditor"]["confirm"];
-    change: RecoveryControllerResult["inlineEditor"]["change"];
+export interface SetLocationEditorControls {
+    state: RecoveryControllerResult["locationEditor"]["state"];
+    cancel: RecoveryControllerResult["locationEditor"]["cancel"];
+    release: RecoveryControllerResult["locationEditor"]["release"];
+    confirm: RecoveryControllerResult["locationEditor"]["confirm"];
+    change: RecoveryControllerResult["locationEditor"]["change"];
 }
 
 export interface RecoveryContextSnapshot {
     uiMode: UiMode;
     canOpenFolder: boolean;
-    inlineSetLocationState: RecoveryInlineEditorControls["state"];
-    cancelInlineSetLocation: RecoveryInlineEditorControls["cancel"];
-    releaseInlineSetLocation: RecoveryInlineEditorControls["release"];
-    confirmInlineSetLocation: RecoveryInlineEditorControls["confirm"];
-    handleInlineLocationChange: RecoveryInlineEditorControls["change"];
+    setLocationState: SetLocationEditorControls["state"];
+    cancelSetLocation: SetLocationEditorControls["cancel"];
+    releaseSetLocation: SetLocationEditorControls["release"];
+    confirmSetLocation: SetLocationEditorControls["confirm"];
+    handleLocationChange: SetLocationEditorControls["change"];
     recoverySession: RecoveryControllerResult["state"]["session"];
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
     getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
@@ -497,7 +504,7 @@ export interface RecoveryContextSnapshot {
 export interface RecoveryContextModelParams {
     uiMode: UiMode;
     canOpenFolder: boolean;
-    inlineEditor: RecoveryInlineEditorControls;
+    locationEditor: SetLocationEditorControls;
     recoverySession: RecoveryControllerResult["state"]["session"];
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
     getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
@@ -507,7 +514,7 @@ export function useRecoveryContextModel(
     {
         uiMode,
         canOpenFolder,
-        inlineEditor,
+        locationEditor,
         recoverySession,
         setLocationCapability,
         getRecoverySessionForKey,
@@ -517,11 +524,11 @@ export function useRecoveryContextModel(
         () => ({
             uiMode,
             canOpenFolder,
-            inlineSetLocationState: inlineEditor.state,
-            cancelInlineSetLocation: inlineEditor.cancel,
-            releaseInlineSetLocation: inlineEditor.release,
-            confirmInlineSetLocation: inlineEditor.confirm,
-            handleInlineLocationChange: inlineEditor.change,
+            setLocationState: locationEditor.state,
+            cancelSetLocation: locationEditor.cancel,
+            releaseSetLocation: locationEditor.release,
+            confirmSetLocation: locationEditor.confirm,
+            handleLocationChange: locationEditor.change,
             recoverySession,
             setLocationCapability,
             getRecoverySessionForKey,
@@ -529,11 +536,11 @@ export function useRecoveryContextModel(
         [
             uiMode,
             canOpenFolder,
-            inlineEditor.state,
-            inlineEditor.cancel,
-            inlineEditor.release,
-            inlineEditor.confirm,
-            inlineEditor.change,
+            locationEditor.state,
+            locationEditor.cancel,
+            locationEditor.release,
+            locationEditor.confirm,
+            locationEditor.change,
             recoverySession,
             setLocationCapability,
             getRecoverySessionForKey,
@@ -549,12 +556,15 @@ export interface RecoveryModalPropsDeps {
     onClose: RecoveryControllerResult["modal"]["close"];
     onRecreate: RecoveryControllerResult["modal"]["recreateFolder"];
     onAutoRetry: RecoveryControllerResult["modal"]["autoRetry"];
-    inlineEditor: RecoveryInlineEditorControls;
+    locationEditor: SetLocationEditorControls;
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
     handleSetLocation: (
         torrent: Torrent | TorrentDetail,
-        options?: { mode?: "browse" | "manual"; surface?: "recovery-modal" | "general-tab" | "context-menu" }
-    ) => Promise<void>;
+        options?: {
+            mode?: "browse" | "manual";
+            surface?: "recovery-modal" | "general-tab" | "context-menu";
+        }
+    ) => Promise<SetLocationOutcome>;
     handleDownloadMissing: (
         torrent: Torrent,
         options?: { recreateFolder?: boolean }
@@ -589,10 +599,6 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
         "recovery.message.filesystem_probing_not_supported",
 };
 
-const getTorrentKey = (
-    entry?: { id?: string | number; hash?: string } | null
-) => entry?.id?.toString() ?? entry?.hash ?? "";
-
 const resolveOutcomeMessage = (
     outcome: RecoveryOutcome | null,
     t: (key: string, options?: Record<string, unknown>) => string
@@ -610,7 +616,7 @@ export function useRecoveryModalViewModel({
     onClose,
     onRecreate,
     onAutoRetry,
-    inlineEditor,
+    locationEditor,
     setLocationCapability,
     handleSetLocation,
     handleDownloadMissing,
@@ -624,11 +630,11 @@ export function useRecoveryModalViewModel({
     const outcome = lastOutcome ?? recoverySession?.outcome ?? null;
     const busy = Boolean(isBusy);
     const isOpen = Boolean(recoverySession);
-    const currentTorrentKey = getTorrentKey(torrent);
+    const currentTorrentKey = getRecoveryFingerprint(torrent);
     const downloadDir =
         torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
-    const inlineState = inlineEditor.state;
-    const inlineStateKey = inlineState?.torrentKey ?? "";
+    const locationEditorState = locationEditor.state;
+    const locationEditorStateKey = locationEditorState?.torrentKey ?? "";
     const isUnknownConfidence = classification?.confidence === "unknown";
     const isPathLoss = classification?.kind === "pathLoss";
     const isVolumeLoss = classification?.kind === "volumeLoss";
@@ -637,9 +643,9 @@ export function useRecoveryModalViewModel({
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
 
     const handleClose = useCallback(() => {
-        inlineEditor.release();
+        locationEditor.release();
         onClose();
-    }, [inlineEditor, onClose]);
+    }, [locationEditor, onClose]);
 
     useEffect(() => {
         if (!isOpen || !isVolumeLoss || !onAutoRetry || busy) return;
@@ -690,14 +696,14 @@ export function useRecoveryModalViewModel({
             ((isVolumeLoss ? classification?.root : classification?.path) ??
                 downloadDir) ||
             t("labels.unknown");
-        const inlineVisible = Boolean(
-            inlineState?.surface === "recovery-modal" &&
-                inlineStateKey &&
-                inlineStateKey === currentTorrentKey
+        const locationEditorVisible = Boolean(
+            locationEditorState?.surface === "recovery-modal" &&
+                locationEditorStateKey &&
+                locationEditorStateKey === currentTorrentKey
         );
-        const inlineBusy = inlineState?.status !== "idle";
-        const inlineVerifying = inlineState?.status === "verifying";
-        const inlineStatusMessage = inlineVerifying
+        const locationEditorBusy = locationEditorState?.status !== "idle";
+        const locationEditorVerifying = locationEditorState?.status === "verifying";
+        const locationEditorStatusMessage = locationEditorVerifying
             ? t("recovery.status.applying_location")
             : isUnknownConfidence
             ? t("recovery.inline_fallback")
@@ -706,7 +712,7 @@ export function useRecoveryModalViewModel({
             action?: RecoveryRecommendedAction
         ): { label: string; onPress: () => void; isDisabled: boolean } | null => {
             if (!action || !torrent) return null;
-            const base = { isDisabled: busy || inlineVisible };
+            const base = { isDisabled: busy || locationEditorVisible };
             if (action === "downloadMissing") {
                 return {
                     ...base,
@@ -761,29 +767,32 @@ export function useRecoveryModalViewModel({
                 isDisabled: true,
             };
         return {
-            isOpen: Boolean(classification) && classification?.kind !== "dataGap" && isOpen,
+            isOpen,
             busy,
             title,
             bodyText,
             statusText,
             locationLabel,
-            inlineEditor: {
-                visible: inlineVisible,
-                value: inlineState?.inputPath ?? "",
-                error: inlineState?.error,
+            locationEditor: {
+                visible: locationEditorVisible,
+                value: locationEditorState?.inputPath ?? "",
+                error: locationEditorState?.error,
                 caption: t(getSurfaceCaptionKey("recovery-modal")),
-                statusMessage: inlineStatusMessage,
-                isBusy: inlineBusy,
-                onChange: inlineEditor.change,
+                statusMessage: locationEditorStatusMessage,
+                isBusy: locationEditorBusy,
+                onChange: locationEditor.change,
                 onSubmit: () => {
-                    void inlineEditor.confirm();
+                    void locationEditor.confirm();
                 },
-                onCancel: inlineEditor.cancel,
-                disableCancel: inlineBusy,
+                onCancel: locationEditor.cancel,
+                disableCancel: locationEditorBusy,
             },
             showWaitingForDrive: isVolumeLoss,
             recoveryOutcomeMessage: resolveOutcomeMessage(outcome, t),
-            showRecreate: isPathLoss && Boolean(onRecreate),
+            showRecreate:
+                isPathLoss &&
+                classification?.confidence === "certain" &&
+                Boolean(onRecreate),
             onRecreate: onRecreate ? () => void onRecreate() : undefined,
             onClose: handleClose,
             primaryAction,
@@ -797,9 +806,9 @@ export function useRecoveryModalViewModel({
         handleClose,
         handleDownloadMissing,
         handleSetLocation,
-        inlineEditor,
-        inlineState,
-        inlineStateKey,
+        locationEditor,
+        locationEditorState,
+        locationEditorStateKey,
         isAccessDenied,
         isOpen,
         isPathLoss,
@@ -847,7 +856,6 @@ export interface AddTorrentModalPropsDeps {
     onConfirm: UseAddTorrentControllerResult["handleTorrentWindowConfirm"];
     torrentClient: EngineAdapter;
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
-    browseDirectory?: (currentPath: string) => Promise<string | null>;
 }
 
 export function useAddTorrentModalProps({
@@ -860,7 +868,6 @@ export function useAddTorrentModalProps({
     onConfirm,
     torrentClient,
     checkFreeSpace: checkFreeSpaceOverride,
-    browseDirectory,
 }: AddTorrentModalPropsDeps): AddTorrentModalProps | null {
     const checkFreeSpace = useMemo(
         () =>
@@ -884,7 +891,6 @@ export function useAddTorrentModalProps({
             onCancel,
             onConfirm,
             checkFreeSpace,
-            onBrowseDirectory: browseDirectory,
         };
     }, [
         addSource,
@@ -895,7 +901,7 @@ export function useAddTorrentModalProps({
         onCancel,
         onConfirm,
         checkFreeSpace,
-        browseDirectory,
     ]);
 }
+
 

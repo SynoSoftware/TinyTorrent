@@ -17,9 +17,8 @@ import type { FeedbackTone } from "@/shared/types/feedback";
 import {
     classifyMissingFilesState,
     probeMissingFiles,
-    pollPathAvailability,
     clearVerifyGuardEntry,
-    runMissingFilesRecoverySequence,
+    recoverMissingFiles,
     type MissingFilesClassification,
     type RecoveryOutcome,
     type RecoverySequenceOptions,
@@ -38,11 +37,14 @@ import type {
     RecoveryGateOutcome,
 } from "@/app/types/recoveryGate";
 import type {
-    InlineSetLocationState,
+    LocationEditorState,
+    OpenRecoveryModalOutcome,
     RecoverySessionInfo,
+    SetLocationConfirmOutcome,
     SetLocationCapability,
     SetLocationOptions,
     SetLocationSurface,
+    SetLocationOutcome,
 } from "@/app/context/RecoveryContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
@@ -51,11 +53,16 @@ import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import { shellAgent } from "@/app/agents/shell-agent";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import {
+    derivePathReason,
+    getRecoveryFingerprint,
+} from "@/app/domain/recoveryUtils";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
-const VOLUME_LOSS_CHECK_INTERVAL_MS = 2000;
 const PICK_PATH_SUCCESS_DELAY_MS = 600;
+const VOLUME_LOSS_AUTO_RECOVERY_INTERVAL_MS = 4000;
+const VOLUME_LOSS_RETRY_COOLDOWN_MS = 15000;
 const RECOVERY_ACTIONABLE_ERROR_CLASSES = new Set([
     "missingFiles",
     "permissionDenied",
@@ -66,25 +73,6 @@ const delay = (ms: number) =>
     new Promise<void>((resolve) => {
         scheduler.scheduleTimeout(resolve, ms);
     });
-
-const getRecoveryFingerprint = (torrent: Torrent | TorrentDetail) =>
-    torrent.errorEnvelope?.fingerprint ??
-    torrent.hash ??
-    torrent.id ??
-    "<no-recovery-fingerprint>";
-
-const derivePathReason = (errorClass?: string | null) => {
-    switch (errorClass) {
-        case "permissionDenied":
-            return "unwritable";
-        case "diskFull":
-            return "disk-full";
-        case "missingFiles":
-            return "missing";
-        default:
-            return "missing";
-    }
-};
 
 const isRecoveryActiveState = (state?: string) => {
     if (!state) return false;
@@ -97,9 +85,7 @@ const isRecoveryActiveState = (state?: string) => {
 };
 
 const isActionableRecoveryErrorClass = (errorClass?: string | null) =>
-    Boolean(
-        errorClass && RECOVERY_ACTIONABLE_ERROR_CLASSES.has(errorClass),
-    );
+    Boolean(errorClass && RECOVERY_ACTIONABLE_ERROR_CLASSES.has(errorClass));
 
 const shouldUseRecoveryGateForResume = (torrent: Torrent | TorrentDetail) => {
     if (!isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass)) {
@@ -149,7 +135,9 @@ interface UseRecoveryControllerParams {
     services: RecoveryControllerServices;
     data: RecoveryControllerData;
     refresh: RecoveryControllerRefreshDeps;
-    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
+    dispatch: (
+        intent: TorrentIntentExtended,
+    ) => Promise<TorrentDispatchOutcome>;
 }
 
 interface RecoverySessionState {
@@ -167,11 +155,11 @@ interface RecoveryModalActions {
     pickPath: (path: string) => Promise<void>;
 }
 
-interface InlineEditorControls {
-    state: InlineSetLocationState | null;
+interface LocationEditorControls {
+    state: LocationEditorState | null;
     cancel: () => void;
     release: () => void;
-    confirm: () => Promise<boolean>;
+    confirm: () => Promise<SetLocationConfirmOutcome>;
     change: (value: string) => void;
 }
 
@@ -191,18 +179,21 @@ interface RecoveryActions {
     getRecoverySessionForKey: (
         torrentKey: string | null,
     ) => RecoverySessionInfo | null;
+    openRecoveryModal: (
+        torrent: Torrent | TorrentDetail,
+    ) => OpenRecoveryModalOutcome;
 }
 
 export interface RecoveryControllerResult {
     state: RecoverySessionState;
     modal: RecoveryModalActions;
-    inlineEditor: InlineEditorControls;
+    locationEditor: LocationEditorControls;
     setLocation: {
         capability: SetLocationCapability;
         handler: (
             torrent: Torrent | TorrentDetail,
             options?: SetLocationOptions,
-        ) => Promise<void>;
+        ) => Promise<SetLocationOutcome>;
     };
     actions: RecoveryActions;
 }
@@ -234,6 +225,8 @@ export function useRecoveryController({
 
     const [recoverySession, setRecoverySession] =
         useState<RecoverySessionInfo | null>(null);
+    const busyCountRef = useRef(0);
+    const [isRecoveryBusy, setIsRecoveryBusy] = useState(false);
     const recoveryResolverRef = useRef<
         ((result: RecoveryGateOutcome) => void) | null
     >(null);
@@ -243,9 +236,13 @@ export function useRecoveryController({
     );
     const recoveryAbortControllerRef = useRef<AbortController | null>(null);
     const pendingRecoveryQueueRef = useRef<Array<RecoveryQueueEntry>>([]);
-    const volumeLossPollingRef = useRef(new Set<string>());
     const torrentsRef = useRef(torrents);
-    const inlineOwnerRef = useRef<{
+    const activeRecoveryEligibleRef = useRef<Set<string>>(new Set());
+    const silentVolumeRecoveryInFlightRef = useRef<Set<string>>(new Set());
+    const silentVolumeRecoveryNextRetryAtRef = useRef<Map<string, number>>(
+        new Map(),
+    );
+    const locationEditorOwnerRef = useRef<{
         surface: SetLocationSurface;
         torrentKey: string;
     } | null>(null);
@@ -253,6 +250,72 @@ export function useRecoveryController({
     useEffect(() => {
         torrentsRef.current = torrents;
     }, [torrents]);
+
+    const withRecoveryBusy = useCallback(
+        async <T,>(action: () => Promise<T>) => {
+            busyCountRef.current += 1;
+            if (busyCountRef.current === 1) {
+                setIsRecoveryBusy(true);
+            }
+            try {
+                return await action();
+            } finally {
+                busyCountRef.current = Math.max(0, busyCountRef.current - 1);
+                if (busyCountRef.current === 0) {
+                    setIsRecoveryBusy(false);
+                }
+            }
+        },
+        [],
+    );
+
+    useEffect(() => {
+        const presentFingerprints = new Set<string>();
+
+        torrents.forEach((torrent) => {
+            const fingerprint = getRecoveryFingerprint(torrent);
+            if (!fingerprint) return;
+            presentFingerprints.add(fingerprint);
+            if (isRecoveryActiveState(torrent.state)) {
+                activeRecoveryEligibleRef.current.add(fingerprint);
+                silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
+            } else if (torrent.state === STATUS.torrent.PAUSED) {
+                // User explicitly paused: do not auto-resume on later drive reattach.
+                activeRecoveryEligibleRef.current.delete(fingerprint);
+            }
+        });
+
+        if (detailData) {
+            const detailFingerprint = getRecoveryFingerprint(detailData);
+            if (detailFingerprint) {
+                presentFingerprints.add(detailFingerprint);
+                if (isRecoveryActiveState(detailData.state)) {
+                    activeRecoveryEligibleRef.current.add(detailFingerprint);
+                    silentVolumeRecoveryNextRetryAtRef.current.delete(
+                        detailFingerprint,
+                    );
+                } else if (detailData.state === STATUS.torrent.PAUSED) {
+                    activeRecoveryEligibleRef.current.delete(detailFingerprint);
+                }
+            }
+        }
+
+        activeRecoveryEligibleRef.current.forEach((fingerprint) => {
+            if (!presentFingerprints.has(fingerprint)) {
+                activeRecoveryEligibleRef.current.delete(fingerprint);
+            }
+        });
+        silentVolumeRecoveryNextRetryAtRef.current.forEach((_, fingerprint) => {
+            if (!presentFingerprints.has(fingerprint)) {
+                silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
+            }
+        });
+        silentVolumeRecoveryInFlightRef.current.forEach((fingerprint) => {
+            if (!presentFingerprints.has(fingerprint)) {
+                silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
+            }
+        });
+    }, [detailData, torrents]);
 
     useEffect(() => {
         const activeIds: Array<string | number> = [];
@@ -332,7 +395,28 @@ export function useRecoveryController({
                 if (signal) {
                     sequenceOptions.signal = signal;
                 }
-                return await runMissingFilesRecoverySequence({
+
+                // Local-only: if the torrent path disappeared, try to recreate it silently
+                // so downloads don't "stumble" on transient folder loss.
+                if (
+                    isLocalExecution &&
+                    shellAgent.isAvailable &&
+                    classification.kind === "pathLoss" &&
+                    sequenceOptions.autoCreateMissingFolder
+                ) {
+                    const downloadDir = resolveTorrentPath(torrent);
+                    if (downloadDir) {
+                        try {
+                            await shellAgent.createDirectory(downloadDir);
+                        } catch (err) {
+                            console.warn(
+                                "failed to auto-create missing folder",
+                                err,
+                            );
+                        }
+                    }
+                }
+                return await recoverMissingFiles({
                     client: activeClient,
                     torrent,
                     envelope,
@@ -383,11 +467,10 @@ export function useRecoveryController({
 
     useEffect(() => {
         const runProbe = () => {
-            const errored = torrentsRef.current.filter(
-                (torrent) =>
-                    isActionableRecoveryErrorClass(
-                        torrent.errorEnvelope?.errorClass,
-                    ),
+            const errored = torrentsRef.current.filter((torrent) =>
+                isActionableRecoveryErrorClass(
+                    torrent.errorEnvelope?.errorClass,
+                ),
             );
             errored.forEach((torrent) => {
                 void probeMissingFilesIfStale(torrent);
@@ -476,12 +559,16 @@ export function useRecoveryController({
     const requestRecovery: RecoveryGateCallback = useCallback(
         async ({ torrent, action, options }) => {
             const envelope = torrent.errorEnvelope;
-            if (!envelope) return null;
-            if (action === "setLocation") return null;
+            if (!envelope) {
+                return { status: "not_required", reason: "no_error_envelope" };
+            }
+            if (action === "setLocation") {
+                return { status: "not_required", reason: "set_location" };
+            }
             if (!isActionableRecoveryErrorClass(envelope.errorClass)) {
                 const key = torrent.id ?? torrent.hash;
                 clearClassificationOverrideIfPresent(key);
-                return null;
+                return { status: "not_required", reason: "not_actionable" };
             }
 
             const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
@@ -523,7 +610,12 @@ export function useRecoveryController({
                 };
             }
 
-            if (!blockingOutcome) return null;
+            if (!blockingOutcome) {
+                return {
+                    status: "not_required",
+                    reason: "no_blocking_outcome",
+                };
+            }
             if (action === "recheck") {
                 return {
                     status: "handled",
@@ -533,7 +625,12 @@ export function useRecoveryController({
 
             const fingerprint = getRecoveryFingerprint(torrent);
             if (recoveryFingerprintRef.current === fingerprint) {
-                return recoveryPromiseRef.current ?? null;
+                return (
+                    recoveryPromiseRef.current ?? {
+                        status: "not_required",
+                        reason: "no_blocking_outcome",
+                    }
+                );
             }
             const entry = createRecoveryQueueEntry(
                 torrent,
@@ -683,61 +780,6 @@ export function useRecoveryController({
         });
     }, [torrents]);
 
-    useEffect(() => {
-        if (engineCapabilities.executionModel !== "local") return;
-        const task = scheduler.scheduleRecurringTask(() => {
-            const currentTorrents = torrentsRef.current;
-            if (
-                !client ||
-                !engineCapabilities.canCheckFreeSpace ||
-                !currentTorrents.length
-            ) {
-                return;
-            }
-            currentTorrents.forEach((torrent) => {
-                const id = torrent.id ?? torrent.hash;
-                if (!id) return;
-                if (volumeLossPollingRef.current.has(id)) return;
-                if (
-                    recoverySession &&
-                    getRecoveryFingerprint(recoverySession.torrent) ===
-                        getRecoveryFingerprint(torrent)
-                ) {
-                    return;
-                }
-                const downloadDir =
-                    torrent.savePath ?? torrent.downloadDir ?? torrent.savePath;
-                const classification = classifyMissingFilesState(
-                    torrent.errorEnvelope ?? null,
-                    downloadDir,
-                    {
-                        torrentId: id,
-                        engineCapabilities,
-                    },
-                );
-                if (classification.kind !== "volumeLoss") return;
-                if (!downloadDir) return;
-                volumeLossPollingRef.current.add(id);
-                void pollPathAvailability(client, downloadDir).then((probe) => {
-                    volumeLossPollingRef.current.delete(id);
-                    if (probe.success && torrent.errorEnvelope) {
-                        void resolveRecoverySession(torrent, {
-                            notifyDriveDetected: true,
-                        });
-                    }
-                });
-            });
-        }, VOLUME_LOSS_CHECK_INTERVAL_MS);
-        return () => task.cancel();
-    }, [
-        client,
-        recoverySession,
-        resolveRecoverySession,
-        engineCapabilities,
-        engineCapabilities.executionModel,
-        engineCapabilities.canCheckFreeSpace,
-    ]);
-
     const waitForActiveState = useCallback(
         async (torrentId: string, timeoutMs = 1000) => {
             if (!client || !client.getTorrentDetails) {
@@ -760,6 +802,123 @@ export function useRecoveryController({
         [client],
     );
 
+    const trySilentVolumeLossRecovery = useCallback(
+        async (torrent: Torrent | TorrentDetail) => {
+            if (recoverySession) return;
+            if (
+                torrent.state !== STATUS.torrent.MISSING_FILES &&
+                torrent.state !== STATUS.torrent.ERROR
+            ) {
+                return;
+            }
+            const envelope = torrent.errorEnvelope;
+            if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
+                return;
+            }
+            const fingerprint = getRecoveryFingerprint(torrent);
+            if (!fingerprint) return;
+            if (!activeRecoveryEligibleRef.current.has(fingerprint)) {
+                return;
+            }
+            if (silentVolumeRecoveryInFlightRef.current.has(fingerprint)) {
+                return;
+            }
+            const nextRetryAt =
+                silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ??
+                0;
+            if (Date.now() < nextRetryAt) {
+                return;
+            }
+
+            const classification = classifyMissingFilesState(
+                envelope,
+                torrent.savePath ?? torrent.downloadDir ?? "",
+                {
+                    torrentId: torrent.id ?? torrent.hash,
+                    engineCapabilities,
+                },
+            );
+            const canSilentResolveVolumeLoss =
+                classification.kind === "volumeLoss" &&
+                classification.confidence !== "unknown";
+            const canSilentResolvePathLoss =
+                classification.kind === "pathLoss" &&
+                classification.confidence === "certain" &&
+                shellAgent.isAvailable;
+            if (!canSilentResolveVolumeLoss && !canSilentResolvePathLoss) {
+                return;
+            }
+
+            silentVolumeRecoveryInFlightRef.current.add(fingerprint);
+            try {
+                const flowResult = await runMissingFilesFlow(torrent);
+                if (flowResult?.status === "resolved") {
+                    clearVerifyGuardEntry(fingerprint);
+                    const targetKey = torrent.id ?? torrent.hash ?? "";
+                    if (targetKey) {
+                        clearCachedProbe(targetKey);
+                    }
+                    silentVolumeRecoveryNextRetryAtRef.current.delete(
+                        fingerprint,
+                    );
+                    await refreshAfterRecovery(torrent);
+                    const targetId = torrent.id ?? torrent.hash;
+                    if (targetId && canSilentResolveVolumeLoss) {
+                        const resumed = await waitForActiveState(
+                            String(targetId),
+                        );
+                        if (resumed) {
+                            showFeedback(
+                                t("recovery.toast_drive_detected"),
+                                "info",
+                            );
+                        }
+                    }
+                    return;
+                }
+                silentVolumeRecoveryNextRetryAtRef.current.set(
+                    fingerprint,
+                    Date.now() + VOLUME_LOSS_RETRY_COOLDOWN_MS,
+                );
+            } catch (err) {
+                console.error("silent volume-loss recovery failed", err);
+                silentVolumeRecoveryNextRetryAtRef.current.set(
+                    fingerprint,
+                    Date.now() + VOLUME_LOSS_RETRY_COOLDOWN_MS,
+                );
+            } finally {
+                silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
+            }
+        },
+        [
+            engineCapabilities,
+            recoverySession,
+            refreshAfterRecovery,
+            runMissingFilesFlow,
+            showFeedback,
+            t,
+            waitForActiveState,
+        ],
+    );
+
+    useEffect(() => {
+        const runSilentRecoveryPass = () => {
+            if (recoverySession) return;
+            torrentsRef.current.forEach((torrent) => {
+                void trySilentVolumeLossRecovery(torrent);
+            });
+        };
+
+        runSilentRecoveryPass();
+        const task = scheduler.scheduleRecurringTask(
+            runSilentRecoveryPass,
+            VOLUME_LOSS_AUTO_RECOVERY_INTERVAL_MS,
+        );
+        return () => {
+            task.cancel();
+        };
+    }, [recoverySession, trySilentVolumeLossRecovery]);
+
     const resumeTorrentWithRecovery = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
             const id = torrent.id ?? torrent.hash;
@@ -769,7 +928,7 @@ export function useRecoveryController({
                     torrent,
                     action: "resume",
                 });
-                if (gateResult?.status === "handled") {
+                if (gateResult.status === "handled") {
                     try {
                         await refreshAfterRecovery(torrent);
                     } catch (err) {
@@ -788,25 +947,24 @@ export function useRecoveryController({
                     showFeedback(t(toastKey), tone);
                     return;
                 }
-            if (gateResult?.status === "continue") {
-                const outcome = await dispatch(
-                    TorrentIntents.ensureActive(id),
-                );
-                if (outcome.status !== "applied") return;
+                if (
+                    gateResult.status === "continue" ||
+                    gateResult.status === "not_required"
+                ) {
+                    const outcome = await dispatch(
+                        TorrentIntents.ensureActive(id),
+                    );
+                    if (outcome.status !== "applied") return;
+                    return;
+                }
+                if (gateResult.status === "cancelled") {
+                    return;
+                }
                 return;
             }
-            if (!gateResult) {
-                const outcome = await dispatch(
-                    TorrentIntents.ensureActive(id),
-                );
-                if (outcome.status !== "applied") return;
-                return;
-            }
-            return;
-        }
-        const outcome = await dispatch(TorrentIntents.ensureActive(id));
-        if (outcome.status !== "applied") return;
-    },
+            const outcome = await dispatch(TorrentIntents.ensureActive(id));
+            if (outcome.status !== "applied") return;
+        },
         [
             dispatch,
             requestRecovery,
@@ -834,7 +992,7 @@ export function useRecoveryController({
                     action: "redownload",
                     options,
                 });
-                if (gateResult && gateResult.status !== "continue") {
+                if (gateResult.status !== "continue") {
                     if (gateResult.status === "handled") {
                         clearCachedProbe(target.id ?? target.hash ?? "");
                         await refreshAfterRecovery(target);
@@ -879,7 +1037,10 @@ export function useRecoveryController({
                 console.error("refresh after retry probe failed", err);
             }
 
-            if (gateResult && gateResult.status !== "continue") {
+            if (
+                gateResult.status === "handled" &&
+                Boolean(gateResult.blockingOutcome)
+            ) {
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
             }
         },
@@ -888,60 +1049,76 @@ export function useRecoveryController({
 
     const handleRecoveryRetry = useCallback(async () => {
         if (!recoverySession?.torrent) return;
-        await executeRetryFetch(recoverySession.torrent);
-        handleRecoveryClose();
-    }, [executeRetryFetch, recoverySession, handleRecoveryClose]);
+        await withRecoveryBusy(async () => {
+            await executeRetryFetch(recoverySession.torrent);
+            handleRecoveryClose();
+        });
+    }, [
+        executeRetryFetch,
+        recoverySession,
+        handleRecoveryClose,
+        withRecoveryBusy,
+    ]);
 
     const handleRecoveryAutoRetry = useCallback(async () => {
         if (!recoverySession?.torrent) return;
-        await resolveRecoverySession(recoverySession.torrent, {
-            notifyDriveDetected: true,
+        await withRecoveryBusy(async () => {
+            await resolveRecoverySession(recoverySession.torrent, {
+                notifyDriveDetected: true,
+            });
         });
-    }, [recoverySession, resolveRecoverySession]);
+    }, [recoverySession, resolveRecoverySession, withRecoveryBusy]);
 
     const handleRecoveryRecreateFolder = useCallback(async () => {
         if (!recoverySession?.torrent) return;
-        await resolveRecoverySession(recoverySession.torrent, {
-            recreateFolder: true,
+        await withRecoveryBusy(async () => {
+            await resolveRecoverySession(recoverySession.torrent, {
+                recreateFolder: true,
+            });
         });
-    }, [recoverySession, resolveRecoverySession]);
+    }, [recoverySession, resolveRecoverySession, withRecoveryBusy]);
 
     const recoveryRequestBrowse = useCallback(
         async (currentPath?: string | null) => {
             if (!setLocationCapability.canBrowse) return null;
             try {
-                return (
-                    (await shellAgent.browseDirectory(
-                        currentPath ?? undefined,
-                    )) ?? null
+                const next = await shellAgent.browseDirectory(
+                    currentPath ?? undefined,
                 );
+                if (!next) {
+                    return { status: "cancelled" as const };
+                }
+                return { status: "picked" as const, path: next };
             } catch {
-                return null;
+                return { status: "failed" as const };
             }
         },
-        [setLocationCapability.canBrowse, shellAgent],
+        [setLocationCapability.canBrowse],
     );
 
     const handleRecoveryPickPath = useCallback(
         async (path: string) => {
             if (!recoverySession?.torrent) return;
-            const outcome = await dispatch(
-                TorrentIntents.ensureAtLocation(
-                    recoverySession.torrent.id ?? recoverySession.torrent.hash,
-                    path,
-                ),
-            );
-            if (outcome.status !== "applied") return;
-            const updatedTorrent: Torrent | TorrentDetail = {
-                ...recoverySession.torrent,
-                downloadDir: path,
-                savePath: path,
-            };
-            await resolveRecoverySession(updatedTorrent, {
-                delayAfterSuccessMs: PICK_PATH_SUCCESS_DELAY_MS,
+            await withRecoveryBusy(async () => {
+                const outcome = await dispatch(
+                    TorrentIntents.ensureAtLocation(
+                        recoverySession.torrent.id ??
+                            recoverySession.torrent.hash,
+                        path,
+                    ),
+                );
+                if (outcome.status !== "applied") return;
+                const updatedTorrent: Torrent | TorrentDetail = {
+                    ...recoverySession.torrent,
+                    downloadDir: path,
+                    savePath: path,
+                };
+                await resolveRecoverySession(updatedTorrent, {
+                    delayAfterSuccessMs: PICK_PATH_SUCCESS_DELAY_MS,
+                });
             });
         },
-        [dispatch, recoverySession, resolveRecoverySession],
+        [dispatch, recoverySession, resolveRecoverySession, withRecoveryBusy],
     );
 
     const setLocationAndRecover = useCallback(
@@ -956,7 +1133,7 @@ export function useRecoveryController({
         [resumeTorrentWithRecovery],
     );
 
-    type ManualEditorState = InlineSetLocationState;
+    type ManualEditorState = LocationEditorState;
     type ManualEditorAction =
         | {
               type: "open";
@@ -1028,41 +1205,38 @@ export function useRecoveryController({
         }
     };
 
-    const inlineSetLocationStateRef = useRef<ManualEditorState | null>(null);
-    const inlineDraftsRef = useRef(new Map<string, string>());
-    const inlineIntentCounterRef = useRef(0);
-    const [inlineSetLocationState, dispatchInlineSetLocation] = useReducer(
+    const setLocationEditorStateRef = useRef<ManualEditorState | null>(null);
+    const setLocationDraftsRef = useRef(new Map<string, string>());
+    const setLocationIntentCounterRef = useRef(0);
+    const [setLocationEditorState, dispatchSetLocationEditor] = useReducer(
         manualEditorReducer,
         null,
     );
 
-    const setInlineSetLocationState = useCallback(
-        (value: ManualEditorState | null) => {
-            dispatchInlineSetLocation({
-                type: "set",
-                payload: value,
-            });
-        },
-        [],
-    );
-
-    useEffect(() => {
-        inlineSetLocationStateRef.current = inlineSetLocationState;
-    }, [inlineSetLocationState]);
-
-    const closeManualEditor = useCallback(() => {
-        dispatchInlineSetLocation({ type: "close" });
+    const setEditorState = useCallback((value: ManualEditorState | null) => {
+        dispatchSetLocationEditor({
+            type: "set",
+            payload: value,
+        });
     }, []);
 
-    /* Inline manual editor helpers removed — not referenced elsewhere. */
+    useEffect(() => {
+        setLocationEditorStateRef.current = setLocationEditorState;
+    }, [setLocationEditorState]);
+
+    const closeManualEditor = useCallback(() => {
+        dispatchSetLocationEditor({ type: "close" });
+    }, []);
+
+    /* Location editor helpers removed — not referenced elsewhere. */
 
     useEffect(() => {
         if (
-            !inlineSetLocationState ||
-            inlineSetLocationState.status !== "verifying"
+            !setLocationEditorState ||
+            setLocationEditorState.status !== "verifying"
         )
             return;
-        const torrentKey = inlineSetLocationState.torrentKey;
+        const torrentKey = setLocationEditorState.torrentKey;
         if (!recoverySession) {
             closeManualEditor();
             return;
@@ -1071,12 +1245,12 @@ export function useRecoveryController({
         if (sessionKey !== torrentKey) {
             return;
         }
-    }, [inlineSetLocationState, recoverySession, closeManualEditor]);
+    }, [setLocationEditorState, recoverySession, closeManualEditor]);
 
     const getDraftPathForTorrent = useCallback(
         (key: string | null, fallback: string): string => {
             if (!key) return fallback;
-            return inlineDraftsRef.current.get(key) ?? fallback;
+            return setLocationDraftsRef.current.get(key) ?? fallback;
         },
         [],
     );
@@ -1084,14 +1258,14 @@ export function useRecoveryController({
     const saveDraftForTorrent = useCallback(
         (key: string | null, path: string) => {
             if (!key) return;
-            inlineDraftsRef.current.set(key, path);
+            setLocationDraftsRef.current.set(key, path);
         },
         [],
     );
 
     const clearDraftForTorrent = useCallback((key: string | null) => {
         if (!key) return;
-        inlineDraftsRef.current.delete(key);
+        setLocationDraftsRef.current.delete(key);
     }, []);
 
     const getTorrentByKey = useCallback(
@@ -1120,206 +1294,227 @@ export function useRecoveryController({
             const detailKey = getRecoveryFingerprint(detailData);
             if (detailKey) validKeys.add(detailKey);
         }
-        inlineDraftsRef.current.forEach((_, key) => {
+        setLocationDraftsRef.current.forEach((_, key) => {
             if (!validKeys.has(key)) {
-                inlineDraftsRef.current.delete(key);
+                setLocationDraftsRef.current.delete(key);
             }
         });
     }, [detailData, torrents]);
 
-    const openInlineSetLocationState = useCallback(
-        (state: Omit<InlineSetLocationState, "intentId">) => {
+    const openSetLocationEditor = useCallback(
+        (state: Omit<LocationEditorState, "intentId">) => {
             const torrentKey = state.torrentKey || null;
             const resolvedPath = getDraftPathForTorrent(
                 torrentKey,
                 state.inputPath,
             );
-            inlineIntentCounterRef.current += 1;
-            const next: InlineSetLocationState = {
+            setLocationIntentCounterRef.current += 1;
+            const next: LocationEditorState = {
                 ...state,
                 inputPath: resolvedPath,
                 initialPath: state.initialPath ?? state.inputPath,
-                intentId: inlineIntentCounterRef.current,
+                intentId: setLocationIntentCounterRef.current,
                 awaitingRecoveryFingerprint: null,
             };
             if (torrentKey) {
-                inlineDraftsRef.current.set(torrentKey, resolvedPath);
+                setLocationDraftsRef.current.set(torrentKey, resolvedPath);
             }
-            inlineSetLocationStateRef.current = next;
-            setInlineSetLocationState(next);
+            setLocationEditorStateRef.current = next;
+            setEditorState(next);
             return next;
         },
-        [getDraftPathForTorrent, setInlineSetLocationState],
+        [getDraftPathForTorrent, setEditorState],
     );
 
-    const patchInlineSetLocationState = useCallback(
-        (patch: Partial<Omit<InlineSetLocationState, "intentId">>) => {
-            const current = inlineSetLocationStateRef.current;
+    const patchEditorState = useCallback(
+        (patch: Partial<Omit<LocationEditorState, "intentId">>) => {
+            const current = setLocationEditorStateRef.current;
             if (!current) return;
             const next = { ...current, ...patch };
-            inlineSetLocationStateRef.current = next;
-            setInlineSetLocationState(next);
+            setLocationEditorStateRef.current = next;
+            setEditorState(next);
             return next;
         },
-        [setInlineSetLocationState],
+        [setEditorState],
     );
 
-    const cancelInlineSetLocation = useCallback(() => {
-        inlineSetLocationStateRef.current = null;
-        setInlineSetLocationState(null);
-    }, [setInlineSetLocationState]);
+    const cancelSetLocationEditor = useCallback(() => {
+        locationEditorOwnerRef.current = null;
+        setLocationEditorStateRef.current = null;
+        dispatchSetLocationEditor({ type: "close" });
+    }, []);
 
-    const confirmInlineSetLocation = useCallback(async (): Promise<boolean> => {
-        const current = inlineSetLocationStateRef.current;
-        if (!current) return false;
-        const intentId = current.intentId;
-        const trimmed = current.inputPath.trim();
-        if (!trimmed) {
-            patchInlineSetLocationState({
-                error: t("directory_browser.validation_required"),
-            });
-            return false;
-        }
-        const torrentKey = current.torrentKey || null;
-        const targetTorrent = getTorrentByKey(torrentKey);
-        if (!targetTorrent) {
-            patchInlineSetLocationState({
-                error: t("recovery.errors.missing_client_or_detail"),
-            });
-            return false;
-        }
-        patchInlineSetLocationState({
-            status: "submitting",
-            error: undefined,
-            inputPath: trimmed,
-        });
-        saveDraftForTorrent(torrentKey, trimmed);
-        if (inlineSetLocationStateRef.current?.intentId !== intentId) {
-            return false;
-        }
-        try {
-            await setLocationAndRecover(targetTorrent, trimmed);
-            clearDraftForTorrent(torrentKey);
-            if (inlineSetLocationStateRef.current?.intentId !== intentId) {
-                return true;
-            }
-            const fingerprint = getRecoveryFingerprint(targetTorrent);
-            patchInlineSetLocationState({
-                status: "verifying",
-                awaitingRecoveryFingerprint: fingerprint,
-                error: undefined,
-            });
-            return true;
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Unknown error";
-            if (inlineSetLocationStateRef.current?.intentId === intentId) {
-                patchInlineSetLocationState({
-                    status: "idle",
-                    error: message,
-                    awaitingRecoveryFingerprint: null,
+    const confirmSetLocation =
+        useCallback(async (): Promise<SetLocationConfirmOutcome> => {
+            const current = setLocationEditorStateRef.current;
+            if (!current) return { status: "canceled" };
+            const intentId = current.intentId;
+            const trimmed = current.inputPath.trim();
+            if (!trimmed) {
+                patchEditorState({
+                    error: t("directory_browser.validation_required"),
                 });
+                return { status: "validation_error" };
             }
-            return false;
-        }
-    }, [
-        patchInlineSetLocationState,
-        saveDraftForTorrent,
-        setLocationAndRecover,
-        t,
-        getTorrentByKey,
-        clearDraftForTorrent,
-    ]);
+            const torrentKey = current.torrentKey || null;
+            const targetTorrent = getTorrentByKey(torrentKey);
+            if (!targetTorrent) {
+                patchEditorState({
+                    error: t("recovery.errors.missing_client_or_detail"),
+                });
+                return { status: "missing_target" };
+            }
+            patchEditorState({
+                status: "submitting",
+                error: undefined,
+                inputPath: trimmed,
+            });
+            saveDraftForTorrent(torrentKey, trimmed);
+            if (setLocationEditorStateRef.current?.intentId !== intentId) {
+                return { status: "canceled" };
+            }
+            try {
+                await setLocationAndRecover(targetTorrent, trimmed);
+                clearDraftForTorrent(torrentKey);
+                if (setLocationEditorStateRef.current?.intentId !== intentId) {
+                    return { status: "submitted" };
+                }
+                const fingerprint = getRecoveryFingerprint(targetTorrent);
+                patchEditorState({
+                    status: "verifying",
+                    awaitingRecoveryFingerprint: fingerprint,
+                    error: undefined,
+                });
+                return { status: "verifying" };
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : "Unknown error";
+                if (setLocationEditorStateRef.current?.intentId === intentId) {
+                    patchEditorState({
+                        status: "idle",
+                        error: message,
+                        awaitingRecoveryFingerprint: null,
+                    });
+                }
+                return { status: "failed" };
+            }
+        }, [
+            patchEditorState,
+            saveDraftForTorrent,
+            setLocationAndRecover,
+            t,
+            getTorrentByKey,
+            clearDraftForTorrent,
+        ]);
 
-    const handleInlineLocationChange = useCallback(
+    const handleSetLocationInputChange = useCallback(
         (value: string) => {
-            const currentKey = inlineSetLocationStateRef.current?.torrentKey;
+            const currentKey = setLocationEditorStateRef.current?.torrentKey;
             if (currentKey) {
                 saveDraftForTorrent(currentKey, value);
             }
-            patchInlineSetLocationState({
+            patchEditorState({
                 inputPath: value,
                 error: undefined,
             });
         },
-        [patchInlineSetLocationState, saveDraftForTorrent],
+        [patchEditorState, saveDraftForTorrent],
     );
 
-    const releaseInlineSetLocation = useCallback(() => {
-        inlineOwnerRef.current = null;
-        const current = inlineSetLocationStateRef.current;
-        inlineSetLocationStateRef.current = null;
-        setInlineSetLocationState(null);
+    const releaseSetLocationEditor = useCallback(() => {
+        locationEditorOwnerRef.current = null;
+        const current = setLocationEditorStateRef.current;
+        setLocationEditorStateRef.current = null;
+        setEditorState(null);
         if (current) {
             clearDraftForTorrent(current.torrentKey);
         }
-    }, [clearDraftForTorrent, setInlineSetLocationState]);
+    }, [clearDraftForTorrent, setEditorState]);
 
-    const isInlineOwner = useCallback(
+    type LocationEditorOwnerOutcome =
+        | { status: "acquired" }
+        | { status: "already_owned" }
+        | { status: "conflict" };
+
+    const isLocationEditorOwner = useCallback(
         (surface: SetLocationSurface, torrentKey: string) => {
-            const owner = inlineOwnerRef.current;
+            const owner = locationEditorOwnerRef.current;
             if (!owner) return false;
             return owner.surface === surface && owner.torrentKey === torrentKey;
         },
         [],
     );
 
-    const tryAcquireInlineOwner = useCallback(
-        (surface: SetLocationSurface, torrentKey: string) => {
-            const owner = inlineOwnerRef.current;
+    const tryAcquireLocationEditorOwner = useCallback(
+        (
+            surface: SetLocationSurface,
+            torrentKey: string,
+        ): LocationEditorOwnerOutcome => {
+            const owner = locationEditorOwnerRef.current;
             if (!owner) {
-                inlineOwnerRef.current = { surface, torrentKey };
-                return "acquired" as const;
+                locationEditorOwnerRef.current = { surface, torrentKey };
+                return { status: "acquired" };
             }
-            if (isInlineOwner(surface, torrentKey)) {
-                return "already-owned" as const;
+            if (isLocationEditorOwner(surface, torrentKey)) {
+                return { status: "already_owned" };
             }
-            return "conflict" as const;
+            return { status: "conflict" };
         },
-        [isInlineOwner],
+        [isLocationEditorOwner],
     );
 
     const openManualEditorForTorrent = useCallback(
-        (surface: SetLocationSurface, torrentKey: string, basePath: string) => {
-            if (!torrentKey) return;
-            const acquisition = tryAcquireInlineOwner(surface, torrentKey);
-            if (acquisition === "conflict" || acquisition === "already-owned") {
-                return;
+        (
+            surface: SetLocationSurface,
+            torrentKey: string,
+            basePath: string,
+        ): SetLocationOutcome => {
+            if (!torrentKey) {
+                return { status: "failed", reason: "invalid_target" };
             }
-            releaseInlineSetLocation();
-            openInlineSetLocationState({
+            const acquisition = tryAcquireLocationEditorOwner(
+                surface,
+                torrentKey,
+            );
+            if (acquisition.status === "conflict") {
+                return { status: "conflict", reason: "owned_elsewhere" };
+            }
+            if (acquisition.status === "already_owned") {
+                return { status: "manual_opened" };
+            }
+            openSetLocationEditor({
                 surface,
                 torrentKey,
                 initialPath: basePath,
                 inputPath: basePath,
                 status: "idle",
             });
+            return { status: "manual_opened" };
         },
         [
-            releaseInlineSetLocation,
-            openInlineSetLocationState,
-            tryAcquireInlineOwner,
+            openSetLocationEditor,
+            tryAcquireLocationEditorOwner,
         ],
     );
 
-    /* releaseInlineOwner removed — inline owner released via other helpers */
+    /* releaseLocationEditorOwner removed — owner released via other helpers */
 
     useEffect(() => {
-        const current = inlineSetLocationStateRef.current;
+        const current = setLocationEditorStateRef.current;
         if (!current) return;
         clearDraftForTorrent(current.torrentKey);
-        releaseInlineSetLocation();
+        releaseSetLocationEditor();
     }, [
         setLocationCapability.canBrowse,
         clearDraftForTorrent,
-        releaseInlineSetLocation,
+        releaseSetLocationEditor,
     ]);
 
     const handleSetLocation = useCallback(
         async (
             torrent: Torrent | TorrentDetail,
             options?: SetLocationOptions,
-        ): Promise<void> => {
+        ): Promise<SetLocationOutcome> => {
             const surface = options?.surface ?? "general-tab";
             const basePath = resolveTorrentPath(torrent);
             const torrentKey = getRecoveryFingerprint(torrent);
@@ -1329,17 +1524,36 @@ export function useRecoveryController({
                 setLocationCapability.canBrowse &&
                 recoveryRequestBrowse
             ) {
-                const pickedPath = await recoveryRequestBrowse(
+                const browseOutcome = await recoveryRequestBrowse(
                     basePath || undefined,
                 );
-                if (pickedPath) {
-                    await setLocationAndRecover(torrent, pickedPath);
-                    return;
+                if (browseOutcome?.status === "picked") {
+                    try {
+                        await setLocationAndRecover(torrent, browseOutcome.path);
+                        return { status: "picked" };
+                    } catch {
+                        return {
+                            status: "failed",
+                            reason: "dispatch_failed",
+                        };
+                    }
+                }
+                if (browseOutcome?.status === "failed") {
+                    return { status: "failed", reason: "browse_failed" };
+                }
+                if (!setLocationCapability.supportsManual) {
+                    return { status: "cancelled" };
                 }
             }
-            if (setLocationCapability.supportsManual) {
-                openManualEditorForTorrent(surface, torrentKey, basePath);
+            if (!setLocationCapability.supportsManual) {
+                return {
+                    status: "unsupported",
+                    reason: requestedManual
+                        ? "manual_unavailable"
+                        : "browse_unavailable",
+                };
             }
+            return openManualEditorForTorrent(surface, torrentKey, basePath);
         },
         [
             recoveryRequestBrowse,
@@ -1350,12 +1564,12 @@ export function useRecoveryController({
     );
 
     useEffect(() => {
-        const current = inlineSetLocationState;
+        const current = setLocationEditorState;
         if (!current || current.status !== "verifying") return;
         const torrentKey = current.torrentKey;
         if (!recoverySession) {
             clearDraftForTorrent(torrentKey);
-            cancelInlineSetLocation();
+            cancelSetLocationEditor();
             return;
         }
         const sessionKey = getRecoveryFingerprint(recoverySession.torrent);
@@ -1363,9 +1577,9 @@ export function useRecoveryController({
             return;
         }
     }, [
-        cancelInlineSetLocation,
+        cancelSetLocationEditor,
         clearDraftForTorrent,
-        inlineSetLocationState,
+        setLocationEditorState,
         recoverySession,
     ]);
 
@@ -1385,9 +1599,6 @@ export function useRecoveryController({
             const fingerprint = getRecoveryFingerprint(torrent);
             clearVerifyGuardEntry(fingerprint);
             clearCachedProbe(key);
-            if (targetId) {
-                volumeLossPollingRef.current.delete(targetId);
-            }
             pendingRecoveryQueueRef.current =
                 pendingRecoveryQueueRef.current.filter(
                     (entry) => entry.fingerprint !== fingerprint,
@@ -1426,10 +1637,63 @@ export function useRecoveryController({
         [recoverySession],
     );
 
+    const openRecoveryModal = useCallback(
+        (torrent: Torrent | TorrentDetail): OpenRecoveryModalOutcome => {
+            const envelope = torrent.errorEnvelope;
+            if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
+                return { status: "not_actionable" };
+            }
+
+            const fingerprint = getRecoveryFingerprint(torrent);
+            const activeFingerprint = recoveryFingerprintRef.current;
+            if (activeFingerprint === fingerprint) {
+                return { status: "already_open" };
+            }
+
+            if (recoverySession) {
+                return { status: "busy" };
+            }
+
+            const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
+            const classification = classifyMissingFilesState(
+                envelope,
+                downloadDir,
+                {
+                    torrentId: torrent.id ?? torrent.hash,
+                    engineCapabilities,
+                },
+            );
+            const classificationKey = torrent.id ?? torrent.hash;
+            if (classificationKey) {
+                setClassificationOverride(classificationKey, classification);
+            }
+
+            const entry = createRecoveryQueueEntry(
+                torrent,
+                "resume",
+                {
+                    kind: "path-needed",
+                    reason: derivePathReason(envelope.errorClass),
+                    hintPath: resolveTorrentPath(torrent) || undefined,
+                },
+                classification,
+                fingerprint,
+            );
+            void enqueueRecoveryEntry(entry);
+            return { status: "opened" };
+        },
+        [
+            recoverySession,
+            engineCapabilities,
+            createRecoveryQueueEntry,
+            enqueueRecoveryEntry,
+        ],
+    );
+
     return {
         state: {
             session: recoverySession,
-            isBusy: Boolean(recoverySession),
+            isBusy: isRecoveryBusy,
             lastOutcome: null,
             isDetailRecoveryBlocked,
         },
@@ -1440,12 +1704,12 @@ export function useRecoveryController({
             recreateFolder: handleRecoveryRecreateFolder,
             pickPath: handleRecoveryPickPath,
         },
-        inlineEditor: {
-            state: inlineSetLocationState,
-            cancel: cancelInlineSetLocation,
-            release: releaseInlineSetLocation,
-            confirm: confirmInlineSetLocation,
-            change: handleInlineLocationChange,
+        locationEditor: {
+            state: setLocationEditorState,
+            cancel: cancelSetLocationEditor,
+            release: releaseSetLocationEditor,
+            confirm: confirmSetLocation,
+            change: handleSetLocationInputChange,
         },
         setLocation: {
             capability: setLocationCapability,
@@ -1458,6 +1722,7 @@ export function useRecoveryController({
             probeMissingFilesIfStale,
             handlePrepareDelete,
             getRecoverySessionForKey,
+            openRecoveryModal,
         },
     };
 }

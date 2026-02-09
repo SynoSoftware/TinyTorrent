@@ -22,7 +22,7 @@ interface TorrentTableSpeedColumnCellProps {
     table: Table<Torrent>;
 }
 
-export function TorrentTable_SpeedColumnCell({
+export function TorrentTable_SpeedCell({
     torrent,
     table,
 }: TorrentTableSpeedColumnCellProps) {
@@ -77,7 +77,7 @@ export function TorrentTable_SpeedColumnCell({
               sparklineHistory,
               sparklineWidth,
               sparklineHeight - 1,
-              maxSpeed
+              maxSpeed,
           )
         : "";
 
@@ -96,7 +96,7 @@ export function TorrentTable_SpeedColumnCell({
                     className={cn(
                         "absolute inset-0 w-full h-full overflow-visible",
                         SPEED_COLOR[speedState],
-                        "opacity-50"
+                        "opacity-50",
                     )}
                     viewBox={`0 0 ${sparklineWidth} ${sparklineHeight}`}
                     preserveAspectRatio="none"
@@ -118,7 +118,7 @@ export function TorrentTable_SpeedColumnCell({
                         DENSE_NUMERIC,
                         "font-medium",
                         SPEED_COLOR[speedState],
-                        "drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]"
+                        "drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]",
                     )}
                 >
                     {speedValue !== null ? formatSpeed(speedValue) : "–"}

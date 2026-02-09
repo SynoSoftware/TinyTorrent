@@ -36,7 +36,7 @@ type LayoutMode = "combined" | "split";
 
 type SeriesChartProps = {
     color: string;
-    timed: TimedValue[];
+    timedRef: React.MutableRefObject<TimedValue[]>;
     windowMs: number;
     maxRef: React.MutableRefObject<number>;
     className?: string;
@@ -157,7 +157,7 @@ const createGradient = (
             1,
             `color-mix(in srgb, ${color}, transparent 100%)`
         );
-    } catch (e) {
+    } catch {
         gradient.addColorStop(0, `rgba(127,127,127,${SPEED_CHART_FILL_ALPHA})`);
         gradient.addColorStop(1, "rgba(127,127,127,0)");
     }
@@ -197,9 +197,14 @@ const useObservedSize = () => {
             return;
         }
         const rect = el.getBoundingClientRect();
-        setSize({ width: rect.width || 0, height: rect.height || 0 });
+        const initialMeasureHandle = window.setTimeout(() => {
+            setSize({ width: rect.width || 0, height: rect.height || 0 });
+        }, 0);
 
-        return () => ro.disconnect();
+        return () => {
+            window.clearTimeout(initialMeasureHandle);
+            ro.disconnect();
+        };
     }, []);
 
     return { ref, size };
@@ -207,7 +212,7 @@ const useObservedSize = () => {
 
 const SeriesChart = ({
     color,
-    timed,
+    timedRef,
     windowMs,
     maxRef,
     className,
@@ -216,8 +221,6 @@ const SeriesChart = ({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const { ref: containerRef, size } = useObservedSize();
     const palette = useCanvasPalette();
-    const downMaxRefLocal = useRef(1024);
-    const upMaxRefLocal = useRef(1024);
 
     // We remove useMemo here for values/points because they MUST change on every tick to scroll
     const buckets = useMemo(
@@ -231,7 +234,7 @@ const SeriesChart = ({
             return;
 
         // 1. Calculate values based on CURRENT TIME (tick)
-        const values = resampleTimed(timed, windowMs, buckets);
+        const values = resampleTimed(timedRef.current, windowMs, buckets);
 
         // 2. Update Max Scaling
         const peak = Math.max(...values, SPEED_CANVAS_DENOM_FLOOR);
@@ -325,7 +328,16 @@ const SeriesChart = ({
         } finally {
             ctx.restore();
         }
-    }, [tick, size, color, windowMs, buckets]); // Re-run on tick
+    }, [
+        tick,
+        size,
+        color,
+        windowMs,
+        buckets,
+        maxRef,
+        palette.placeholder,
+        timedRef,
+    ]); // Re-run on tick
 
     return (
         <div
@@ -339,8 +351,8 @@ const SeriesChart = ({
 };
 
 type CombinedChartProps = {
-    downTimed: TimedValue[];
-    upTimed: TimedValue[];
+    downTimedRef: React.MutableRefObject<TimedValue[]>;
+    upTimedRef: React.MutableRefObject<TimedValue[]>;
     downColor: string;
     upColor: string;
     windowMs: number;
@@ -349,8 +361,8 @@ type CombinedChartProps = {
 };
 
 const CombinedChart = ({
-    downTimed,
-    upTimed,
+    downTimedRef,
+    upTimedRef,
     downColor,
     upColor,
     windowMs,
@@ -374,8 +386,12 @@ const CombinedChart = ({
             return;
 
         // 1. Calculate values
-        const downValues = resampleTimed(downTimed, windowMs, buckets);
-        const upValues = resampleTimed(upTimed, windowMs, buckets);
+        const downValues = resampleTimed(
+            downTimedRef.current,
+            windowMs,
+            buckets
+        );
+        const upValues = resampleTimed(upTimedRef.current, windowMs, buckets);
 
         // 2. Scaling
         const downPeak = Math.max(...downValues, 0);
@@ -536,7 +552,18 @@ const CombinedChart = ({
         } finally {
             ctx.restore();
         }
-    }, [tick, size, downColor, upColor, windowMs, buckets]); // Re-run on tick
+    }, [
+        tick,
+        size,
+        downColor,
+        upColor,
+        windowMs,
+        buckets,
+        downTimedRef,
+        upTimedRef,
+        palette.foreground,
+        palette.placeholder,
+    ]); // Re-run on tick
 
     return (
         <div
@@ -755,7 +782,7 @@ export const SpeedChart = ({
                             </span>
                             <SeriesChart
                                 color={downColor}
-                                timed={downTimed.current}
+                                timedRef={downTimed}
                                 windowMs={windowMs}
                                 maxRef={downMaxRef}
                                 className="flex-1"
@@ -775,7 +802,7 @@ export const SpeedChart = ({
                             </span>
                             <SeriesChart
                                 color={upColor}
-                                timed={upTimed.current}
+                                timedRef={upTimed}
                                 windowMs={windowMs}
                                 maxRef={upMaxRef}
                                 className="flex-1"
@@ -787,8 +814,8 @@ export const SpeedChart = ({
                     <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
                         {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
-                            downTimed={downTimed.current}
-                            upTimed={upTimed.current}
+                            downTimedRef={downTimed}
+                            upTimedRef={upTimed}
                             downColor={downColor}
                             upColor={upColor}
                             windowMs={windowMs}

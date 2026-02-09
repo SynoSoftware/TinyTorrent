@@ -80,6 +80,7 @@ export const useTorrentTableVirtualization = (
         clearSelection,
     } = deps;
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => parentRef.current,

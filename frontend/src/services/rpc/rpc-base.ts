@@ -28,15 +28,8 @@ import {
     zRpcSuccess,
     zTransmissionAddTorrentResponse,
     zTransmissionRecentlyActiveResponse,
-    getTorrentList,
-    getSessionStats,
 } from "@/services/rpc/schemas";
-import {
-    CONFIG,
-    FOCUS_RESTORE_DELAY_MS,
-    WS_RECONNECT_INITIAL_DELAY_MS,
-    WS_RECONNECT_MAX_DELAY_MS,
-} from "@/config/logic";
+import { CONFIG } from "@/config/logic";
 import type { EngineAdapter, EngineCapabilities } from "@/services/rpc/engine-adapter";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import type {
@@ -340,11 +333,11 @@ export class TransmissionAdapter implements EngineAdapter {
                         recentWarningTs.set(m, now);
                     }
                 }
-            } catch (e) {
+            } catch {
                 // Ignore diagnostics errors
             }
 
-            const attemptRequest = async (_attempt: number): Promise<T> => {
+            const attemptRequest = async (): Promise<T> => {
                 const headers: Record<string, string> = {
                     "Content-Type": "application/json",
                 };
@@ -407,7 +400,9 @@ export class TransmissionAdapter implements EngineAdapter {
                                 ? hdrs.get("X-Transmission-Session-Id")
                                 : null;
                         if (token) this.acceptSessionId(token);
-                    } catch {}
+                    } catch {
+                        // ignore header read errors
+                    }
                     this.invalidateSession("409-session-conflict");
                     throw new Error("Transmission RPC session conflict");
                 }
@@ -502,10 +497,10 @@ export class TransmissionAdapter implements EngineAdapter {
                                 details: { args },
                             });
                         }
-                    } catch (e) {
+                    } catch {
                         // ignore sessionStorage errors for session-get logging
                     }
-                } catch (e) {
+                } catch {
                     // ignore sessionStorage errors
                 }
                 return schema.parse(args as unknown) as T;
@@ -513,7 +508,7 @@ export class TransmissionAdapter implements EngineAdapter {
 
             const requestPromise = (async () => {
                 try {
-                    return await attemptRequest(0);
+                    return await attemptRequest();
                 } catch (e) {
                     if (!this.isAbortError(e)) {
                         infraLogger.error(
@@ -576,7 +571,9 @@ export class TransmissionAdapter implements EngineAdapter {
                         if (typeof t.setSessionId === "function")
                             t.setSessionId(this.sessionId);
                     }
-                } catch {}
+                } catch {
+                    // ignore transport session seed errors
+                }
                 const rawOutcome = await this.transport.requestWithOutcome(
                     payload.method!,
                     args,
@@ -609,7 +606,9 @@ export class TransmissionAdapter implements EngineAdapter {
                     if (transportToken && transportToken !== this.sessionId) {
                         this.acceptSessionId(transportToken);
                     }
-                } catch {}
+                } catch {
+                    // ignore transport session sync errors
+                }
 
                 return schema.parse(raw as unknown);
             } catch (e: unknown) {
@@ -617,7 +616,9 @@ export class TransmissionAdapter implements EngineAdapter {
                 if (status === 401 || status === 403) {
                     try {
                         this.handleUnauthorizedResponse();
-                    } catch {}
+                    } catch {
+                        // ignore unauthorized handler failures
+                    }
                 }
                 throw e;
             }
@@ -633,10 +634,10 @@ export class TransmissionAdapter implements EngineAdapter {
         // short-lived read-only response cache to avoid serving stale data
         // that contradicts engine truth.
         try {
-            try {
-                this.transport.clearResponseCache();
-            } catch {}
-        } catch {}
+            this.transport.clearResponseCache();
+        } catch {
+            // ignore cache invalidation errors
+        }
         return result;
     }
 
@@ -976,7 +977,7 @@ export class TransmissionAdapter implements EngineAdapter {
             // Call it directly and return the result as a resolved Promise.
             const data = this.heartbeat.getSpeedHistory(id);
             return Promise.resolve(data);
-        } catch (e) {
+        } catch {
             return Promise.resolve({ down: [], up: [] });
         }
     }
@@ -992,12 +993,16 @@ export class TransmissionAdapter implements EngineAdapter {
     public resetConnection(): void {
         try {
             this.transport.resetSession();
-        } catch {}
+        } catch {
+            // ignore transport reset errors
+        }
         try {
             // Ensure adapter-level session state is considered invalid so
             // a subsequent handshake/probe will run.
             this.invalidateSession("reset-connection");
-        } catch {}
+        } catch {
+            // ignore local session invalidation errors
+        }
     }
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
         const normalizedPath = path.trim();
@@ -1227,7 +1232,9 @@ export class TransmissionAdapter implements EngineAdapter {
             if (detail.hashString && typeof detail.id === "number") {
                 try {
                     this.idMap.set(detail.hashString, detail.id);
-                } catch {}
+                } catch {
+                    // ignore id map update errors
+                }
             }
             results.push(normalizeTorrentDetail(detail));
         }
@@ -1620,7 +1627,7 @@ export class TransmissionAdapter implements EngineAdapter {
             this.networkTelemetryCache.ts = Date.now();
             this.networkTelemetryCache.inflight = undefined;
             return result;
-        } catch (err) {
+        } catch {
             // On error, record the failure time so we don't retry on every
             // heartbeat tick; preserve previous cached value but enforce a
             // back-off equal to NETWORK_TELEMETRY_TTL_MS.
@@ -1633,18 +1640,4 @@ export class TransmissionAdapter implements EngineAdapter {
             this._networkTelemetryInflight = undefined;
         }
     }
-}
-
-function mapTransmissionSessionStatsToSessionStats(
-    stats: TransmissionSessionStats,
-): SessionStats {
-    return {
-        downloadSpeed: stats.downloadSpeed,
-        uploadSpeed: stats.uploadSpeed,
-        torrentCount: stats.torrentCount,
-        activeTorrentCount: stats.activeTorrentCount,
-        pausedTorrentCount: stats.pausedTorrentCount,
-        // Preserve undefined when the engine does not provide DHT telemetry.
-        dhtNodes: stats.dhtNodes === undefined ? undefined : stats.dhtNodes,
-    };
 }

@@ -13,7 +13,7 @@ export const normalizeRpcStatus = (s: string): ConnectionStatus => {
         case "error":
             return STATUS.connection.ERROR;
         default:
-            return (STATUS.connection as any).OFFLINE ?? STATUS.connection.IDLE;
+            return STATUS.connection.OFFLINE ?? STATUS.connection.IDLE;
     }
 };
 

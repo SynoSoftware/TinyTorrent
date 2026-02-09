@@ -11,14 +11,16 @@ import type {
     AddTorrentSelection,
     AddTorrentSource,
 } from "@/modules/torrent-add/types";
-import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
+import { parseTorrentFile } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 export interface UseAddTorrentControllerParams {
-    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
+    dispatch: (
+        intent: TorrentIntentExtended,
+    ) => Promise<TorrentDispatchOutcome>;
     settingsConfig: SettingsConfig;
     torrents: Array<Torrent | TorrentDetail>;
     pendingDeletionHashesRef: MutableRefObject<Set<string>>;
@@ -214,9 +216,7 @@ export function useAddTorrentController({
             const startNow = selection.commitMode !== "paused";
 
             if (addSource.kind === "file") {
-                const metainfo = await readTorrentFileAsMetainfoBase64(
-                    addSource.file,
-                );
+                const metainfo = await parseTorrentFile(addSource.file);
                 if (!metainfo.ok) {
                     showFeedback(t("modals.file_tree_error"), "danger");
                     return { status: "failed", reason: "metainfo_read_failed" };

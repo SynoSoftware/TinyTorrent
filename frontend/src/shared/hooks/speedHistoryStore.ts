@@ -25,7 +25,7 @@ const areSnapshotsEqual = (
     next: SpeedHistorySnapshot,
 ) => areArraysEqual(current.down, next.down) && areArraysEqual(current.up, next.up);
 
-class SpeedHistoryStore {
+export class SpeedHistoryStore {
     private readonly client: EngineAdapter;
     private readonly watchCounts = new Map<string, number>();
     private readonly snapshots = new Map<string, SpeedHistorySnapshot>();
@@ -141,12 +141,5 @@ class SpeedHistoryStore {
     }
 }
 
-const storeByClient = new WeakMap<EngineAdapter, SpeedHistoryStore>();
-
-export const getSpeedHistoryStore = (client: EngineAdapter) => {
-    const cached = storeByClient.get(client);
-    if (cached) return cached;
-    const created = new SpeedHistoryStore(client);
-    storeByClient.set(client, created);
-    return created;
-};
+export const createSpeedHistoryStore = (client: EngineAdapter) =>
+    new SpeedHistoryStore(client);

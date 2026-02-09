@@ -43,7 +43,12 @@
             "search": "Search",
             "ungrouped": "Commands"
         },
-        "placeholder": "Type a command or action…"
+        "placeholder": "Type a command or action…",
+        "result": {
+            "failed": "Command failed. Fix the issue and try again.",
+            "no_selection": "Select one or more torrents first.",
+            "unsupported": "This command is not supported here."
+        }
     },
     "directory_browser": {
         "create_error": "Unable to create the specified directory.",
@@ -511,7 +516,9 @@
             "error_test_port": "Port test failed. Check your connection.",
             "error_window_state": "Unable to preserve the window state.",
             "test_port_closed": "Port test: not open.",
+            "test_port_offline": "Port test needs an active connection.",
             "test_port_open": "Port test: open.",
+            "test_port_unsupported": "Port test is not supported by this engine.",
             "footer": {
                 "cancel": "Cancel",
                 "reset": "Reset",
@@ -560,13 +567,18 @@
         "system": {
             "autorun_disabled": "Disabled",
             "autorun_enabled": "Enabled",
+            "autorun_read_failed": "Status read failed",
             "autorun_toggle_failed": "Unable to change startup integration.",
             "autorun_toggle_unsupported": "Startup integration is unavailable in this mode.",
             "autorun_unknown": "Unknown",
             "checkAssociation": "Check Association",
+            "handlers_read_failed": "Status read failed",
             "handlers_not_registered": "Handlers not registered",
             "handlers_registered": "Handlers registered",
+            "handlers_unsupported": "Not supported",
             "handlers_unknown": "Unknown",
+            "integration_read_failed": "Unable to read system integration status. Displayed values may be stale.",
+            "integration_read_unsupported": "System integration status is unavailable in this mode.",
             "instructions": "Use the native installer or OS settings to configure startup and handler integrations.",
             "notice": "System integration (autorun, shortcuts) is handled by the native shell and installer.",
             "power_active": "Active",
@@ -1031,7 +1043,9 @@
             "download_resumed": "Download resumed",
             "all_verified_resuming": "All files verified — resuming download.",
             "retry_failed": "Retry could not reach the location.",
-            "resume_queued": "Resume queued"
+            "resume_queued": "Resume queued",
+            "recovery_busy": "Another recovery is already in progress.",
+            "recovery_not_required": "No recovery action is needed for this torrent."
         },
         "choose_another_folder": "Choose another folder",
         "outcome_message": "{{message}}",

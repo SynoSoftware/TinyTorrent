@@ -153,7 +153,6 @@ export interface TorrentTableRowMenuViewModel {
     handleContextMenuAction: (key?: string) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
-    isClipboardSupported?: boolean;
 }
 
 export interface TorrentTableHeaderMenuViewModel {

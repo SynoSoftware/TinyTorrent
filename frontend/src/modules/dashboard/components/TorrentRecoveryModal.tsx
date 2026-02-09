@@ -11,8 +11,13 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, HardDrive, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
-import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
+import {
+    GLASS_MODAL_SURFACE,
+    MODAL_SURFACE_FOOTER,
+    MODAL_SURFACE_FRAME,
+    MODAL_SURFACE_HEADER,
+} from "@/shared/ui/layout/glass-surface";
+import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
 export interface RecoveryModalViewModel {
     isOpen: boolean;
@@ -21,7 +26,7 @@ export interface RecoveryModalViewModel {
     bodyText: string;
     statusText: string;
     locationLabel: string;
-    inlineEditor: {
+    locationEditor: {
         visible: boolean;
         value: string;
         error?: string;
@@ -45,14 +50,13 @@ export interface RecoveryModalViewModel {
     };
 }
 
-const MODAL_CLASSES =
-    "w-full max-w-modal-compact flex flex-col overflow-hidden";
-
 export interface TorrentRecoveryModalProps {
     viewModel: RecoveryModalViewModel;
 }
 
-export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModalProps) {
+export default function TorrentRecoveryModal({
+    viewModel,
+}: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
 
     return (
@@ -67,13 +71,22 @@ export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModal
             hideCloseButton
             isDismissable={!viewModel.busy}
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    MODAL_SURFACE_FRAME,
+                    "w-full max-w-modal-compact",
+                ),
             }}
         >
             <ModalContent>
                 {() => (
                     <>
-                        <ModalHeader className="flex items-center justify-between gap-tools px-panel py-panel border-b border-divider">
+                        <ModalHeader
+                            className={cn(
+                                MODAL_SURFACE_HEADER,
+                                "flex items-center justify-between gap-tools px-panel py-panel",
+                            )}
+                        >
                             <div className="flex items-center gap-tools">
                                 <div className="surface-layer-1 rounded-full p-tight">
                                     <AlertTriangle className="toolbar-icon-size-md text-warning" />
@@ -111,17 +124,21 @@ export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModal
                                     {viewModel.locationLabel}
                                 </span>
                             </div>
-                            {viewModel.inlineEditor.visible && (
-                                <SetLocationInlineEditor
-                                    value={viewModel.inlineEditor.value}
-                                    error={viewModel.inlineEditor.error}
-                                    isBusy={viewModel.inlineEditor.isBusy}
-                                    caption={viewModel.inlineEditor.caption}
-                                    statusMessage={viewModel.inlineEditor.statusMessage}
-                                    disableCancel={viewModel.inlineEditor.disableCancel}
-                                    onChange={viewModel.inlineEditor.onChange}
-                                    onSubmit={viewModel.inlineEditor.onSubmit}
-                                    onCancel={viewModel.inlineEditor.onCancel}
+                            {viewModel.locationEditor.visible && (
+                                <SetLocationEditor
+                                    value={viewModel.locationEditor.value}
+                                    error={viewModel.locationEditor.error}
+                                    isBusy={viewModel.locationEditor.isBusy}
+                                    caption={viewModel.locationEditor.caption}
+                                    statusMessage={
+                                        viewModel.locationEditor.statusMessage
+                                    }
+                                    disableCancel={
+                                        viewModel.locationEditor.disableCancel
+                                    }
+                                    onChange={viewModel.locationEditor.onChange}
+                                    onSubmit={viewModel.locationEditor.onSubmit}
+                                    onCancel={viewModel.locationEditor.onCancel}
                                 />
                             )}
                             {viewModel.showWaitingForDrive && (
@@ -136,7 +153,12 @@ export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModal
                             )}
                         </ModalBody>
 
-                        <ModalFooter className="flex items-center justify-between gap-tools px-panel py-panel border-t border-divider">
+                        <ModalFooter
+                            className={cn(
+                                MODAL_SURFACE_FOOTER,
+                                "flex items-center justify-between gap-tools px-panel py-panel",
+                            )}
+                        >
                             <div className="flex items-center gap-tools">
                                 {viewModel.showRecreate && (
                                     <Button
@@ -165,7 +187,9 @@ export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModal
                                     color="primary"
                                     size="lg"
                                     onPress={viewModel.primaryAction.onPress}
-                                    isDisabled={viewModel.primaryAction.isDisabled}
+                                    isDisabled={
+                                        viewModel.primaryAction.isDisabled
+                                    }
                                     className="font-bold"
                                 >
                                     {viewModel.primaryAction.label}
@@ -178,3 +202,4 @@ export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModal
         </Modal>
     );
 }
+

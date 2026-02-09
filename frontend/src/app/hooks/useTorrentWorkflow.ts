@@ -17,6 +17,11 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 // removed unused `FeedbackTone` import
 import { useSelection } from "@/app/context/AppShellStateContext";
 
+export type RecheckRefreshOutcome =
+    | "success"
+    | "refresh_failed"
+    | "refresh_skipped";
+
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
     executeTorrentAction: (
@@ -32,7 +37,7 @@ interface UseTorrentWorkflowParams {
         action: TorrentTableAction,
         targets: Torrent[],
     ) => Promise<TorrentCommandOutcome>;
-    onRecheckComplete?: () => Promise<void>;
+    onRecheckComplete?: () => Promise<RecheckRefreshOutcome>;
     onPrepareDelete?: (torrent: Torrent, deleteData: boolean) => void;
     announceAction?: (
         action: FeedbackAction,
@@ -53,14 +58,22 @@ const COMMAND_OUTCOME_QUEUED: TorrentCommandOutcome = {
     status: "success",
     reason: "queued",
 };
+const COMMAND_OUTCOME_REFRESH_SKIPPED: TorrentCommandOutcome = {
+    status: "success",
+    reason: "refresh_skipped",
+};
 const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
     status: "canceled",
     reason: "no_selection",
 };
+const COMMAND_OUTCOME_REFRESH_FAILED: TorrentCommandOutcome = {
+    status: "failed",
+    reason: "refresh_failed",
+};
 
 const isSuccessfulOutcome = (
     outcome: TorrentCommandOutcome,
-): outcome is { status: "success"; reason?: "queued" } =>
+): outcome is { status: "success"; reason?: "queued" | "refresh_skipped" } =>
     outcome.status === "success";
 
 export function useTorrentWorkflow({
@@ -238,6 +251,38 @@ export function useTorrentWorkflow({
         ],
     );
 
+    const resolveRecheckRefreshOutcome = useCallback(
+        async (
+            action: TorrentTableAction,
+            outcome: TorrentCommandOutcome,
+        ): Promise<TorrentCommandOutcome> => {
+            if (action !== "recheck" || !isSuccessfulOutcome(outcome)) {
+                return outcome;
+            }
+
+            if (typeof onRecheckComplete !== "function") {
+                return COMMAND_OUTCOME_REFRESH_SKIPPED;
+            }
+
+            try {
+                const refreshOutcome = await onRecheckComplete();
+                if (refreshOutcome === "success") {
+                    return outcome;
+                }
+                if (refreshOutcome === "refresh_skipped") {
+                    return COMMAND_OUTCOME_REFRESH_SKIPPED;
+                }
+            } catch {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+                return COMMAND_OUTCOME_REFRESH_FAILED;
+            }
+
+            showFeedback(t("toolbar.feedback.failed"), "danger");
+            return COMMAND_OUTCOME_REFRESH_FAILED;
+        },
+        [onRecheckComplete, showFeedback, t],
+    );
+
     const handleTorrentAction = useCallback(
         async (
             action: TorrentTableAction,
@@ -254,29 +299,26 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", 1, actionId);
             }
             const outcome = await runActionsWithOptimism(action, [torrent]);
-
-            if (
-                isSuccessfulOutcome(outcome) &&
-                action === "recheck" &&
-                typeof onRecheckComplete === "function"
-            ) {
-                try {
-                    await onRecheckComplete();
-                } catch {
-                    // swallow
-                }
-            }
+            const settledOutcome = await resolveRecheckRefreshOutcome(
+                action,
+                outcome,
+            );
 
             if (
                 hasFeedback &&
-                isSuccessfulOutcome(outcome) &&
+                isSuccessfulOutcome(settledOutcome) &&
                 action !== "recheck"
             ) {
                 announceAction(actionKey, "done", 1, actionId);
             }
-            return outcome;
+            return settledOutcome;
         },
-        [announceAction, requestDelete, runActionsWithOptimism, onRecheckComplete],
+        [
+            announceAction,
+            requestDelete,
+            resolveRecheckRefreshOutcome,
+            runActionsWithOptimism,
+        ],
     );
 
     const handleBulkAction = useCallback(
@@ -294,33 +336,25 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", targets.length, actionId);
             }
             const outcome = await runActionsWithOptimism(action, targets);
-
-            if (
-                isSuccessfulOutcome(outcome) &&
-                action === "recheck" &&
-                typeof onRecheckComplete === "function"
-            ) {
-                try {
-                    await onRecheckComplete();
-                } catch {
-                    // swallow
-                }
-            }
+            const settledOutcome = await resolveRecheckRefreshOutcome(
+                action,
+                outcome,
+            );
 
             if (
                 hasFeedback &&
-                isSuccessfulOutcome(outcome) &&
+                isSuccessfulOutcome(settledOutcome) &&
                 action !== "recheck"
             ) {
                 announceAction(actionKey, "done", targets.length, actionId);
             }
-            return outcome;
+            return settledOutcome;
         },
         [
             announceAction,
             requestDelete,
+            resolveRecheckRefreshOutcome,
             runActionsWithOptimism,
-            onRecheckComplete,
             selectedTorrents,
         ],
     );

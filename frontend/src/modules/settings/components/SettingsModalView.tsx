@@ -2,12 +2,15 @@ import { Button, Modal, ModalContent, cn } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import {
-    ICON_STROKE_WIDTH,
-    INTERACTION_CONFIG,
-} from "@/config/logic";
+import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
-import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import {
+    GLASS_MODAL_SURFACE,
+    MODAL_SURFACE_FOOTER,
+    MODAL_SURFACE_FRAME,
+    MODAL_SURFACE_HEADER,
+} from "@/shared/ui/layout/glass-surface";
+import { Section } from "@/shared/ui/layout/Section";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
@@ -114,7 +117,12 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
     const { activeTabDefinition, hasUnsavedChanges } = controller.modal;
 
     return (
-        <div className="sticky top-0 z-panel shrink-0 h-modal-header border-b border-content1/10 flex items-center justify-between px-stage bg-content1/30 blur-glass">
+        <div
+            className={cn(
+                MODAL_SURFACE_HEADER,
+                "sticky top-0 z-panel shrink-0 h-modal-header flex items-center justify-between px-stage bg-content1/30 blur-glass",
+            )}
+        >
             <div className="flex items-center gap-tools">
                 <Button
                     isIconOnly
@@ -160,11 +168,13 @@ function SettingsContent({ controller }: SettingsContentProps) {
         settingsLoadError,
         settingsFormState,
         settingsFormActions,
-        interfaceTabState,
     } = controller.modal;
 
     return (
-        <div className="flex-1 min-h-0 overflow-y-auto w-full p-panel sm:p-stage scrollbar-hide">
+        <Section
+            padding="modal"
+            className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+        >
             {tabsFallbackActive && (
                 <div className="rounded-panel border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning mb-panel">
                     {t("settings.modal.error_no_tabs")}
@@ -203,7 +213,9 @@ function SettingsContent({ controller }: SettingsContentProps) {
                         {activeTabDefinition.id === "connection" ? (
                             <SettingsSection
                                 title={t("settings.sections.active_connection")}
-                                description={t("settings.descriptions.connection_profiles")}
+                                description={t(
+                                    "settings.descriptions.connection_profiles",
+                                )}
                             >
                                 <div className="space-y-stage">
                                     <ConnectionCredentialsCard />
@@ -212,22 +224,14 @@ function SettingsContent({ controller }: SettingsContentProps) {
                         ) : activeTabDefinition.id === "system" ? (
                             <SystemTabContent />
                         ) : activeTabDefinition.id === "gui" ? (
-                            <InterfaceTabContent
-                                isImmersive={interfaceTabState.isImmersive}
-                                onToggleWorkspaceStyle={
-                                    interfaceTabState.onToggleWorkspaceStyle
-                                }
-                                hasDismissedInsights={
-                                    interfaceTabState.hasDismissedInsights
-                                }
-                            />
+                            <InterfaceTabContent />
                         ) : (
                             <SettingsFormBuilder tab={activeTabDefinition} />
                         )}
                     </SettingsFormProvider>
                 </motion.div>
             </AnimatePresence>
-        </div>
+        </Section>
     );
 }
 
@@ -237,11 +241,17 @@ interface SettingsFooterProps {
 
 function SettingsFooter({ controller }: SettingsFooterProps) {
     const { t } = useTranslation();
-    const { closeConfirmPending, isSaving, hasUnsavedChanges } = controller.modal;
+    const { closeConfirmPending, isSaving, hasUnsavedChanges } =
+        controller.modal;
 
     if (closeConfirmPending) {
         return (
-            <div className="sticky bottom-0 z-panel shrink-0 border-t border-content1/10 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between">
+            <div
+                className={cn(
+                    MODAL_SURFACE_FOOTER,
+                    "sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between",
+                )}
+            >
                 <div className="w-full flex items-center gap-panel">
                     <div className="flex flex-col min-w-0">
                         <span className="text-scaled font-semibold text-warning">
@@ -274,7 +284,12 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
     }
 
     return (
-        <div className="sticky bottom-0 z-panel shrink-0 border-t border-content1/10 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between">
+        <div
+            className={cn(
+                MODAL_SURFACE_FOOTER,
+                "sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between",
+            )}
+        >
             <Button
                 size="md"
                 variant="shadow"
@@ -336,9 +351,10 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
+                    MODAL_SURFACE_FRAME,
                     uiMode === "Full"
-                        ? "flex flex-row max-h-full max-w-full overflow-hidden"
-                        : "flex flex-row h-settings max-h-settings min-h-settings overflow-hidden",
+                        ? "flex flex-row max-h-full max-w-full"
+                        : "flex flex-row h-settings max-h-settings min-h-settings",
                 ),
                 wrapper: "overflow-hidden",
             }}

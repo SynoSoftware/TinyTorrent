@@ -9,6 +9,8 @@ export interface UiCapabilities {
     canBrowse: boolean;
     canOpenFolder: boolean;
     supportsManual: boolean;
+    destinationPathPolicy: "windows_abs_only" | "any_abs";
+    clipboardWriteSupported: boolean;
 }
 
 function resolveUiMode(
@@ -32,7 +34,8 @@ export function computeUiMode(
 
 export function deriveUiCapabilities(
     host: string,
-    shellAgentAvailable: boolean
+    shellAgentAvailable: boolean,
+    clipboardWriteSupported = false,
 ): UiCapabilities {
     const normalizedHost = normalizeHost(host);
     const loopback = Boolean(normalizedHost) && isLoopbackHost(normalizedHost);
@@ -44,5 +47,8 @@ export function deriveUiCapabilities(
         canBrowse: uiMode === "Full",
         canOpenFolder: uiMode === "Full",
         supportsManual: true,
+        destinationPathPolicy:
+            uiMode === "Full" ? "windows_abs_only" : "any_abs",
+        clipboardWriteSupported,
     };
 }

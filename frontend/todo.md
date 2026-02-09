@@ -170,7 +170,7 @@ Task 73 TODO Migration Register:
 
 ## Section 20/21 + Prop-Drilling Focus (2026-02-07 continuation)
 
-- [ ] 94. section-20.6 - Replace silent first-writer-wins arbitration in inline set-location ownership
+- [x] 94. section-20.6 - Replace silent first-writer-wins arbitration in inline set-location ownership
 Owner:
 `dashboard recovery/set-location`
 Violation:
@@ -181,8 +181,10 @@ Affected files:
 `frontend/src/modules/dashboard/hooks/useRecoveryController.ts`
 `frontend/src/app/context/RecoveryContext.tsx`
 `frontend/src/modules/dashboard/components/TorrentRecoveryModal.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; inline owner arbitration now returns explicit outcomes and exposes conflict reasons (`owned_elsewhere` / `already_owned`) through the set-location command result.
 
-- [ ] 95. section-20.2/20.5 - Make set-location command contract explicit in recovery context
+- [x] 95. section-20.2/20.5 - Make set-location command contract explicit in recovery context
 Owner:
 `dashboard recovery commands`
 Violation:
@@ -193,8 +195,10 @@ Affected files:
 `frontend/src/app/context/RecoveryContext.tsx`
 `frontend/src/modules/dashboard/hooks/useRecoveryController.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; `handleSetLocation` now returns typed outcomes (`picked|manual_opened|cancelled|unsupported|conflict|failed`) and callers consume the explicit contract.
 
-- [_] 96. section-20.2/20.5 - Stop swallowing RPC startup/reconnect failures in connection hook
+- [x] 96. section-20.2/20.5 - Stop swallowing RPC startup/reconnect failures in connection hook
 Owner:
 `session connection lifecycle`
 Violation:
@@ -205,8 +209,10 @@ Affected files:
 `frontend/src/app/hooks/useRpcConnection.ts`
 `frontend/src/app/hooks/useTransmissionSession.ts`
 `frontend/src/app/context/SessionContext.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; connect/reconnect now return typed outcomes and failure states are propagated instead of swallowed. UI actions consume outcomes and show explicit failure feedback.
 
-- [ ] 97. section-21.8/21.9 - Remove command prop threading in detail content tab surface
+- [x] 97. section-21.8/21.9 - Remove command prop threading in detail content tab surface
 Owner:
 `dashboard detail tabs`
 Violation:
@@ -217,8 +223,10 @@ Affected files:
 `frontend/src/modules/dashboard/hooks/useDetailTabs.ts`
 `frontend/src/modules/dashboard/components/TorrentDetails_Content.tsx`
 `frontend/src/app/viewModels/workspaceShellModels.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; content-tab recovery commands are now owned at the `ContentTab` leaf via command/recovery context, and callback threading (`onRecheck`/`onDownloadMissing`/`onOpenFolder`) was removed from tab surfaces and workspace-shell detail view-model wiring.
 
-- [ ] 101. section-20.2/20.5 - Replace nullable recovery gate callback outcomes with explicit result variants
+- [x] 101. section-20.2/20.5 - Replace nullable recovery gate callback outcomes with explicit result variants
 Owner:
 `recovery gate contract`
 Violation:
@@ -228,8 +236,10 @@ Remove nullable contract and define explicit typed outcomes for every gate path 
 Affected files:
 `frontend/src/app/types/recoveryGate.ts`
 `frontend/src/modules/dashboard/hooks/useRecoveryController.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; `RecoveryGateCallback` is non-nullable and now returns explicit `not_required` variants instead of `null`.
 
-- [ ] 104. section-21.8/21.9 - Remove detail-open behavior prop threading through torrent table surfaces
+- [x] 104. section-21.8/21.9 - Remove detail-open behavior prop threading through torrent table surfaces
 Owner:
 `dashboard table/detail integration`
 Violation:
@@ -240,8 +250,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentTable.tsx`
 `frontend/src/modules/dashboard/viewModels/useTorrentTableViewModel.ts`
 `frontend/src/modules/dashboard/components/TorrentTable_Body.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; detail-open actions are now provided through a dedicated dashboard detail-open command context consumed at the row interaction boundary, and `TorrentTable`/table view-model props no longer thread `onRequestDetails` or `onRequestDetailsFullscreen`.
 
-- [ ] 105. section-21.3/21.4 - Declare lifecycle ownership for shared speed-history stores
+- [x] 105. section-21.3/21.4 - Declare lifecycle ownership for shared speed-history stores
 Owner:
 `telemetry/speed-history`
 Violation:
@@ -251,10 +263,15 @@ Move speed-history ownership under one declared lifecycle boundary (session/app 
 Affected files:
 `frontend/src/shared/hooks/useSessionSpeedHistory.ts`
 `frontend/src/shared/hooks/speedHistoryStore.ts`
+`frontend/src/shared/hooks/useSpeedHistoryDomain.ts`
+`frontend/src/shared/hooks/useEngineSpeedHistory.ts`
+`frontend/src/modules/dashboard/hooks/useTorrentSpeedHistory.ts`
 `frontend/src/app/context/SessionContext.tsx`
 `frontend/src/app/providers/engineDomains.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; speed-history stores are now created and owned by `SessionProvider` and reset on client change. Shared hooks consume the provider-owned stores (no module singletons).
 
-- [ ] 106. section-21.8/21.9 - Restore command authority for open-folder behavior and remove prop threading
+- [x] 106. section-21.8/21.9 - Restore command authority for open-folder behavior and remove prop threading
 Owner:
 `dashboard recovery/open-folder commands`
 Violation:
@@ -270,8 +287,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentTable_StatusColumnCell.tsx`
 `frontend/src/modules/dashboard/hooks/useTorrentTableContextActions.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; open-folder authority now flows through `RecoveryContext.handleOpenFolder`, and table/view-model/column/status/context-action/general-tab surfaces consume it directly without `openFolder`/`openTorrentFolder` prop threading.
 
-- [ ] 107. section-20.2/20.5 - Make open-folder workflow outcomes explicit data
+- [x] 107. section-20.2/20.5 - Make open-folder workflow outcomes explicit data
 Owner:
 `open-folder workflow`
 Violation:
@@ -283,8 +302,10 @@ Affected files:
 `frontend/src/modules/dashboard/hooks/useTorrentTableContextActions.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel.ts`
 `frontend/src/modules/dashboard/components/TorrentTable_MissingFilesStatusCell.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; `useOpenTorrentFolder` now returns explicit outcomes (`opened|opened_parent|opened_root|unsupported|missing_path|failed`) via shared contract type, and callers branch on result status instead of assuming success from side effects.
 
-- [ ] 108. section-20.2/20.5 - Complete SettingsForm action contracts with typed async outcomes
+- [x] 108. section-20.2/20.5 - Complete SettingsForm action contracts with typed async outcomes
 Owner:
 `settings form actions`
 Violation:
@@ -295,9 +316,11 @@ Affected files:
 `frontend/src/modules/settings/context/SettingsFormContext.tsx`
 `frontend/src/modules/settings/components/SettingsBlockRenderers.tsx`
 `frontend/src/modules/settings/hooks/useSettingsModalController.ts`
-`frontend/src/modules/settings/components/tabs/connection/ConnectionTabContent.tsx`
+`frontend/src/modules/settings/components/tabs/connection/ConnectionManager.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; settings form actions now return typed async outcomes (`applied|cancelled|unsupported|failed`) and settings renderers/connection controls consume those results explicitly.
 
-- [ ] 109. section-21.8/21.9 - Remove interface-tab behavior prop threading from settings modal composition
+- [x] 109. section-21.8/21.9 - Remove interface-tab behavior prop threading from settings modal composition
 Owner:
 `settings/interface tab`
 Violation:
@@ -311,8 +334,10 @@ Affected files:
 `frontend/src/modules/settings/context/SettingsFormContext.tsx`
 `frontend/src/app/viewModels/useAppViewModel.ts`
 `frontend/src/app/viewModels/workspaceShellModels.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; interface-tab behavior/state is now consumed through a single settings authority surface (`SettingsFormContext.interfaceTab`), and `SettingsModalView` no longer threads `isImmersive` / `onToggleWorkspaceStyle` / `hasDismissedInsights` props into `InterfaceTabContent`.
 
-- [ ] 110. section-20.2 - Expose system-integration read failures as explicit outcomes
+- [x] 110. section-20.2 - Expose system-integration read failures as explicit outcomes
 Owner:
 `settings/system integration`
 Violation:
@@ -323,10 +348,12 @@ Affected files:
 `frontend/src/modules/settings/components/tabs/system/SystemTabContent.tsx`
 `frontend/src/modules/settings/hooks/useAsyncToggle.ts`
 `frontend/src/app/agents/shell-agent.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; system-integration reads now return explicit outcomes (`ok|unsupported|failed`) via `ShellAgent`, and `SystemTabContent` renders unsupported/failed read states explicitly instead of silently relying on stale status values.
 
 ## Additional Findings (2026-02-07, follow-up)
 
-- [ ] 111. section-20.2/20.5/21.9 - Make remove-confirmation workflow outcome-driven and remove shell-level behavior threading
+- [x] 111. section-20.2/20.5/21.9 - Make remove-confirmation workflow outcome-driven and remove shell-level behavior threading
 Owner:
 `workspace shell + delete flow`
 Violation:
@@ -337,8 +364,10 @@ Affected files:
 `frontend/src/modules/torrent-remove/components/RemoveConfirmationModal.tsx`
 `frontend/src/app/components/WorkspaceShell.tsx`
 `frontend/src/app/viewModels/workspaceShellModels.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; delete confirmation now consumes a dedicated delete-command surface via context at the modal leaf, normalizes typed outcomes (`success|canceled|unsupported|failed`), and closes only on explicit close-eligible outcomes.
 
-- [ ] 112. section-20.5 - Make command-palette action contract outcome-aware instead of always-close behavior
+- [x] 112. section-20.5 - Make command-palette action contract outcome-aware instead of always-close behavior
 Owner:
 `command palette`
 Violation:
@@ -349,8 +378,10 @@ Affected files:
 `frontend/src/app/components/CommandPalette.tsx`
 `frontend/src/app/commandRegistry.ts`
 `frontend/src/app/viewModels/useWorkspaceShellViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; command palette actions now return typed outcomes, close only on `success`, and keep the palette open with explicit status messaging for `unsupported`/`failed`/`no_selection`.
 
-- [ ] 113. section-20.2/20.5 - Remove silent column-drag commit swallowing in table interactions
+- [x] 113. section-20.2/20.5 - Remove silent column-drag commit swallowing in table interactions
 Owner:
 `dashboard/table interactions`
 Violation:
@@ -360,8 +391,10 @@ Emit explicit drag-commit outcomes/events (`applied|rejected|failed`) and let ta
 Affected files:
 `frontend/src/modules/dashboard/hooks/useTorrentTableInteractions.ts`
 `frontend/src/modules/dashboard/viewModels/useTorrentTableViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; column-header drag now emits explicit commit outcomes (`applied|rejected|failed`) and table view-model owns commit + failure feedback/reconciliation instead of silent catch-and-ignore behavior.
 
-- [ ] 114. section-20.2/20.5 - Replace BufferedInput boolean/duck-typed commit contract with explicit typed outcomes
+- [x] 114. section-20.2/20.5 - Replace BufferedInput boolean/duck-typed commit contract with explicit typed outcomes
 Owner:
 `settings/input commit flow`
 Violation:
@@ -371,8 +404,10 @@ Define typed commit outcomes (`applied|rejected_validation|canceled|failed|unsup
 Affected files:
 `frontend/src/modules/settings/components/BufferedInput.tsx`
 `frontend/src/modules/settings/components/SettingsBlockRenderers.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; `BufferedInput` commit contract now uses explicit typed outcomes (`applied|rejected_validation|canceled|failed|unsupported`) with no Promise duck-typing/`any`, and settings input commits return typed outcomes explicitly.
 
-- [ ] 115. section-20.2/20.5 - Make inline set-location submit outcomes explicit instead of boolean success inference
+- [x] 115. section-20.2/20.5 - Make inline set-location submit outcomes explicit instead of boolean success inference
 Owner:
 `dashboard recovery inline editor`
 Violation:
@@ -384,8 +419,10 @@ Affected files:
 `frontend/src/modules/dashboard/hooks/useRecoveryController.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel.ts`
 `frontend/src/modules/dashboard/components/TorrentTable_RowMenu.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; inline submit now returns typed outcomes and row-menu close behavior branches on typed result (`submitted|verifying`) instead of boolean inference.
 
-- [ ] 116. section-20.2/20.5 - Stop reporting clipboard context-menu actions as success when copy fails/unsupported
+- [x] 116. section-20.2/20.5 - Stop reporting clipboard context-menu actions as success when copy fails/unsupported
 Owner:
 `dashboard clipboard actions`
 Violation:
@@ -396,8 +433,10 @@ Affected files:
 `frontend/src/shared/utils/clipboard.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentClipboard.ts`
 `frontend/src/modules/dashboard/hooks/useTorrentTableContextActions.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; clipboard writes now return typed outcomes (`copied|unsupported|failed|empty`) and context-menu copy commands map those outcomes to explicit command results instead of always reporting success.
 
-- [ ] 117. section-20.2/20.5 - Replace settings test-port boolean/throw contract with typed outcomes
+- [x] 117. section-20.2/20.5 - Replace settings test-port boolean/throw contract with typed outcomes
 Owner:
 `settings connection diagnostics`
 Violation:
@@ -409,8 +448,10 @@ Affected files:
 `frontend/src/app/hooks/useSettingsFlow.ts`
 `frontend/src/modules/settings/hooks/useSettingsModalController.ts`
 `frontend/src/app/viewModels/workspaceShellModels.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; test-port diagnostics now use typed outcomes (`open|closed|unsupported|offline|failed`) from engine-domain through settings flow and modal feedback handling.
 
-- [ ] 118. section-20.4/21.5 - Remove user-agent heuristic probing from add-destination validation authority
+- [x] 118. section-20.4/21.5 - Remove user-agent heuristic probing from add-destination validation authority
 Owner:
 `torrent-add destination policy`
 Violation:
@@ -421,8 +462,10 @@ Affected files:
 `frontend/src/modules/torrent-add/utils/destination.ts`
 `frontend/src/modules/torrent-add/hooks/useAddTorrentDestinationViewModel.ts`
 `frontend/src/modules/torrent-add/hooks/useAddTorrentModalViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; destination validation now uses an explicit session/runtime capability policy (`uiCapabilities.destinationPathPolicy`) with a pure validator (`isValidDestinationForPolicy`), and browser `navigator.userAgent` heuristics were removed.
 
-- [ ] 119. section-20.2/20.5/21.9 - Replace add-destination browse no-op/void contract and remove browse-command prop threading
+- [x] 119. section-20.2/20.5/21.9 - Replace add-destination browse no-op/void contract and remove browse-command prop threading
 Owner:
 `torrent-add browse command flow`
 Violation:
@@ -435,8 +478,10 @@ Affected files:
 `frontend/src/modules/torrent-add/components/AddTorrentSettingsPanel.tsx`
 `frontend/src/modules/torrent-add/hooks/useAddTorrentModalViewModel.ts`
 `frontend/src/modules/torrent-add/hooks/useAddTorrentDestinationViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; add-destination browse now uses a typed feature-owned command outcome (`picked|cancelled|unsupported|failed`) in the destination ViewModel, and `onBrowseDirectory` behavior prop threading was removed from app/view-model/modal layers.
 
-- [ ] 120. section-20.4/21.2 - Move clipboard capability detection to a single control-plane authority
+- [x] 120. section-20.4/21.2 - Move clipboard capability detection to a single control-plane authority
 Owner:
 `clipboard command surfaces`
 Violation:
@@ -448,8 +493,10 @@ Affected files:
 `frontend/src/shared/utils/clipboard.ts`
 `frontend/src/modules/dashboard/viewModels/useTorrentTableViewModel.ts`
 `frontend/src/modules/dashboard/components/TorrentTable_RowMenu.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; clipboard-write capability is now resolved once in `SessionContext` (`uiCapabilities.clipboardWriteSupported`) and consumed from that control-plane state in UI surfaces, with feature-local `navigator.clipboard` probing removed.
 
-- [ ] 121. section-20.3/20.5 - Replace dual detail-open callback contract with one explicit detail-open intent
+- [x] 121. section-20.3/20.5 - Replace dual detail-open callback contract with one explicit detail-open intent
 Owner:
 `dashboard table/detail interaction`
 Violation:
@@ -460,6 +507,8 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentTable.tsx`
 `frontend/src/modules/dashboard/viewModels/useTorrentTableViewModel.ts`
 `frontend/src/modules/dashboard/components/Dashboard_Layout.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; replaced the dual callback contract with one typed detail-open command (`openDetail(torrent, mode)`), provided by a dedicated detail-open context and consumed at the table row interaction boundary.
 
 - [x] 123. section-20.2/20.5 - Replace exception-based `dispatch(intent): Promise<void>` bus with typed command outcomes
 Owner:
@@ -478,7 +527,7 @@ Affected files:
 Completion:
 Started `[_]` and completed `2026-02-08`; dispatch now returns typed outcomes and callers map outcomes explicitly instead of catching throw-based control flow.
 
-- [ ] 124. section-20.2/20.5 - Surface post-recheck refresh failures as explicit workflow outcomes
+- [x] 124. section-20.2/20.5 - Surface post-recheck refresh failures as explicit workflow outcomes
 Owner:
 `torrent workflow`
 Violation:
@@ -488,8 +537,10 @@ Return explicit post-recheck outcome data (`success|refresh_failed|refresh_skipp
 Affected files:
 `frontend/src/app/hooks/useTorrentWorkflow.ts`
 `frontend/src/app/viewModels/useWorkspaceShellViewModel.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; recheck workflows now return explicit post-refresh outcomes (`success|refresh_skipped|refresh_failed`) and no longer swallow refresh errors.
 
-- [ ] 125. section-2d/Structural Layout Primitives - Normalize modal/dialog surfaces under one modal surface authority
+- [x] 125. section-2d/Structural Layout Primitives - Normalize modal/dialog surfaces under one modal surface authority
 Owner:
 `cross-feature modal shells`
 Violation:
@@ -505,8 +556,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentTable_ColumnSettingsModal.tsx`
 `frontend/src/app/components/CommandPalette.tsx`
 `frontend/src/shared/ui/layout/glass-surface.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; added canonical modal surface tokens (`MODAL_SURFACE_FRAME`, `MODAL_SURFACE_HEADER`, `MODAL_SURFACE_FOOTER`) in `glass-surface.ts` and migrated all listed modal/dialog shells to that contract, removing local modal frame/shadow recipes where redundant.
 
-- [ ] 126. section-2d/Structural Layout Primitives - Normalize floating menu/popover/tooltip shells under one menu surface authority
+- [x] 126. section-2d/Structural Layout Primitives - Normalize floating menu/popover/tooltip shells under one menu surface authority
 Owner:
 `shared controls + dashboard menus`
 Violation:
@@ -519,8 +572,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentTable_HeaderMenu.tsx`
 `frontend/src/shared/ui/layout/GlassPanel.tsx`
 `frontend/src/shared/ui/layout/glass-surface.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; introduced canonical menu surface tokens (`MENU_SURFACE_FRAME`, `MENU_SURFACE_LIST`, `MENU_ITEM_SURFACE`, `MENU_SECTION_HEADING`) and migrated language + dashboard row/header menus to consume them for consistent shell depth, border framing, and item interaction styling.
 
-- [ ] 127. section-3/Structural Layout Primitives - Normalize framed panel/card/table shells to `Surface` ownership
+- [x] 127. section-3/Structural Layout Primitives - Normalize framed panel/card/table shells to `Surface` ownership
 Owner:
 `dashboard + shared workspace surfaces`
 Violation:
@@ -534,8 +589,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/TorrentDetails_Trackers.tsx`
 `frontend/src/shared/ui/workspace/FileExplorerTree.tsx`
 `frontend/src/modules/torrent-add/components/AddTorrentDestinationGatePanel.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; introduced shared panel-frame tokens (`PANEL_SURFACE_FRAME`, `PANEL_SURFACE_INSET_FRAME`) and migrated table/content/peers/trackers/file-explorer/add-destination framed shells to `GlassPanel`-owned surfaces or shared frame tokens.
 
-- [ ] 128. section-3/Structural Layout Primitives - Normalize stage/centering wrappers to `Section` ownership
+- [x] 128. section-3/Structural Layout Primitives - Normalize stage/centering wrappers to `Section` ownership
 Owner:
 `app shell + workspace layouts`
 Violation:
@@ -547,8 +604,10 @@ Affected files:
 `frontend/src/modules/dashboard/components/Dashboard_Layout.tsx`
 `frontend/src/app/components/CommandPalette.tsx`
 `frontend/src/modules/settings/components/SettingsModalView.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; introduced shared `Section` primitive with semantic stage/overlay/modal/shell padding presets and migrated the listed app-shell/workspace/command-palette/settings stage wrappers to `Section` ownership.
 
-- [ ] 129. section-21.10/21.11 - Regression sweep for completed high-risk architecture tasks
+- [x] 129. section-21.10/21.11 - Regression sweep for completed high-risk architecture tasks
 Owner:
 `frontend architecture cleanup`
 Violation:
@@ -562,6 +621,8 @@ Affected files:
 `frontend/src/app/components/GlobalHotkeysHost.tsx`
 `frontend/src/modules/settings/components/SettingsModalView.tsx`
 `frontend/src/modules/torrent-add/components/AddTorrentModal.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; regression sweep removed dead compatibility wrappers (`useActiveFocusPart`, `useLifecycle`) from `AppShellStateContext`, removed pass-through hotkey setter indirection in `GlobalHotkeysHost`, and confirmed remaining command/context surfaces keep typed outcomes and declared owners.
 
 - [x] 130. section-20/21 contract debt - Eliminate remaining section-20/21 TODOs from active code paths
 Owner:
@@ -580,7 +641,7 @@ Affected files:
 Completion:
 Started `[_]` and completed `2026-02-08`; removed section-20/21 TODO markers from listed files.
 
-- [ ] 131. closeout - Final refactor validation and exit checklist
+- [x] 131. closeout - Final refactor validation and exit checklist
 Owner:
 `frontend stabilization`
 Violation:
@@ -593,8 +654,15 @@ Affected files:
 `frontend/src/app/components/WorkspaceShell.tsx`
 `frontend/src/modules/dashboard/components/TorrentTable.tsx`
 `frontend/src/modules/settings/components/SettingsModalView.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; closeout validation run documented with explicit outcomes:
+`PASS` command/control-plane contract checks via restored context/hotkey boundary tests (`AppCommandContext`, `GlobalHotkeysHost`) and typed dispatch/command outcome surfaces.
+`PASS` recovery/settings typed-outcome and authority stability via existing recovery/settings test coverage plus latest lint/build validation on touched orchestration surfaces.
+`PASS` structural and hygiene gate via full `npm run lint` (`0` problems), `npm run build` (successful bundle), and `npm run test:unit` (`18` files / `46` tests passed).
+Residual risk list:
+No new blockers found in this pass; remaining risk is manual UI interaction drift not covered by unit tests (table drag/resize feel and modal visual composition), which should be exercised in an interactive smoke pass when convenient.
 
-- [_] 139. hygiene-regression - Resolve changed-file lint/hygiene breakage introduced by refactor wave
+- [x] 139. hygiene-regression - Resolve changed-file lint/hygiene breakage introduced by refactor wave
 Owner:
 `frontend maintainability`
 Violation:
@@ -606,8 +674,10 @@ Affected files:
 `frontend/src/modules`
 `frontend/src/services`
 `frontend/src/shared`
+Progress:
+Started `[_]` and continued `2026-02-08`; app-shell/context hygiene slice was cleaned (`WorkspaceShell`, `StatusBar`, `AppCommandContext`, `AppShellStateContext`, `GlobalHotkeyContext`, `runtime`, `GlobalHotkeysHost`) and targeted lint for that slice now passes. Additional `src/app` batch fixed context/provider export hygiene, shell-agent dependency warnings, `TorrentClientProvider` lifecycle/ref safety, and small type/unused-symbol issues. `src/app` now lints clean and targeted lint/build/tests pass. Services/rpc hygiene batches cleaned `recoveryAutomation`, `schemas`, `types`, `recovery`, `heartbeat`, and `rpc-base` (dead imports/helpers, empty-catch cleanup, unused symbols, and narrow `any` removals in touched paths), then cleaned follow-up utility/UI hygiene in `shared/utils/fsErrors.ts`, `RemoveConfirmationModal.tsx`, and targeted heartbeat/rpc regression tests (`heartbeat-leftover-resync`, `heartbeat-removed-quiet`, `heartbeat-config`, `heartbeat-dispose`, `heartbeat-drift`, `heartbeat-delta`, `heartbeat-fullsync`, `heartbeat-telemetry`, `rpc-dedup`, `recoveryAutomation`) to remove `any`/empty-catch debt. Recovery module hygiene then cleaned `services/recovery/recovery-controller.ts` (unused vars in catches/destructuring) and fully retyped `services/recovery/__tests__/recovery-controller.test.ts` without `any`. Additional context/react-refresh and unused-symbol cleanup landed in `toolbar-button`, `AddTorrentModalContext`, `DeleteConfirmationContext`, `SettingsFormContext`, `settings-tabs`, and `TorrentDetails_General.tsx`. A follow-up dashboard/settings utility slice cleaned `SettingsBlockRenderers`, `TorrentDetails_Header`, `TorrentDetails_Peers_Map`, `recoveryClassification`, and `missingFiles` (unused symbols plus peer-map hook-rule purity fixes). Final cleanup passes then resolved remaining hook/deps/ref warnings in dashboard/settings/shared surfaces and documented TanStack compiler exceptions at callsites. Full lint now passes clean (`0` problems), and build + unit tests pass; task completed `2026-02-08`.
 
-- [ ] 140. test-regression - Restore boundary tests after context/provider consolidation
+- [x] 140. test-regression - Restore boundary tests after context/provider consolidation
 Owner:
 `app context boundaries`
 Violation:
@@ -619,4 +689,36 @@ Affected files:
 `frontend/src/app/components/GlobalHotkeysHost.tsx`
 `frontend/src/app/context/AppCommandContext.tsx`
 `frontend/src/app/context/AppShellStateContext.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; restored context-boundary coverage with provider-missing invariant tests for `AppCommandContext` and `AppShellStateContext`, verified command surface pass-through contracts (`dispatch` and `commandApi`) under `AppCommandProvider`, and added `GlobalHotkeysHost` wiring coverage that asserts hotkey registry/controller integration and registration fan-out across all hotkey commands. Validation passed via targeted tests plus full `npm run lint`, `npm run build`, and `npm run test:unit`.
+
+- [x] 141. wrapper-cleanup - Remove clipboard pass-through compatibility wrappers
+Owner:
+`shared clipboard contract`
+Violation:
+`frontend/src/shared/utils/clipboard.ts` still exposes compatibility wrappers (`tryWriteClipboard`, `writeClipboard`, default export) that only forward to `writeClipboardOutcome`, adding wrapper indirection without new authority.
+Required refactor:
+Use `writeClipboardOutcome` directly at callsites and remove pass-through exports so clipboard writes have one typed contract surface.
+Affected files:
+`frontend/src/shared/utils/clipboard.ts`
+`frontend/src/modules/settings/hooks/useSettingsModalController.ts`
+Completion:
+Started `[_]` and completed `2026-02-08`; removed `tryWriteClipboard`/`writeClipboard`/default export pass-through wrappers from `clipboard.ts`, migrated settings JSON copy flow to consume `writeClipboardOutcome` directly, and kept action-result mapping explicit (`applied|unsupported|failed`). Validation: `npm run lint`, `npm run build`, `npm run test:unit`.
+
+- [x] 142. wrapper-cleanup - Small-file pass-through audit checkpoint
+Owner:
+`frontend wrapper-cleanup stream`
+Violation:
+Task queue had no remaining unchecked items, but wrapper cleanup requires continued verification that small files are not passive pass-through wrappers.
+Required refactor:
+Audit current small exported files against keep/remove criteria and record whether any bucket `C` pass-through wrappers remain.
+Affected files:
+`frontend/src/modules/dashboard/hooks/useTorrentClipboard.ts`
+`frontend/src/shared/hooks/useSpeedHistoryDomain.ts`
+`frontend/src/services/recovery/recovery-runtime-lifecycle.ts`
+`frontend/src/app/utils/setLocation.ts`
+`frontend/src/shared/ui/layout/GlassPanel.tsx`
+`frontend/src/shared/ui/layout/Section.tsx`
+Completion:
+Started `[_]` and completed `2026-02-08`; audit found no new bucket `C` pass-through wrappers among inspected small files. Remaining small files reviewed in this pass are valid by rule (boundary/authority/typed-contract/cross-feature reuse/lifecycle ownership), so no additional merge/delete was applied in this step.
 

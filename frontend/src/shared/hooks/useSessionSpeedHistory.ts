@@ -1,4 +1,12 @@
-import { useEffect, useState } from "react";
+import {
+    createContext,
+    createElement,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+    type ReactNode,
+} from "react";
 
 import { CONFIG } from "@/config/logic";
 import type { SessionStats } from "@/services/rpc/entities";
@@ -80,19 +88,51 @@ class SessionSpeedHistoryStore {
     }
 }
 
-const sessionSpeedHistoryStore = new SessionSpeedHistoryStore();
+export const createSessionSpeedHistoryStore = () =>
+    new SessionSpeedHistoryStore();
+
+const SessionSpeedHistoryContext =
+    createContext<SessionSpeedHistoryStore | null>(null);
+
+export function SessionSpeedHistoryProvider({
+    store,
+    children,
+}: {
+    store: SessionSpeedHistoryStore;
+    children: ReactNode;
+}) {
+    const value = useMemo(() => store, [store]);
+    return createElement(
+        SessionSpeedHistoryContext.Provider,
+        { value },
+        children,
+    );
+}
+
+const useSessionSpeedHistoryStore = () => {
+    const context = useContext(SessionSpeedHistoryContext);
+    if (!context) {
+        throw new Error(
+            "useSessionSpeedHistoryStore must be used within SessionSpeedHistoryProvider",
+        );
+    }
+    return context;
+};
 
 export const useSessionSpeedHistoryFeed = (sessionStats: SessionStats | null) => {
+    const sessionSpeedHistoryStore = useSessionSpeedHistoryStore();
     useEffect(() => {
         sessionSpeedHistoryStore.setStats(sessionStats);
-    }, [sessionStats]);
+    }, [sessionSpeedHistoryStore, sessionStats]);
 
-    useEffect(() => {
-        return sessionSpeedHistoryStore.attachFeedOwner();
-    }, []);
+    useEffect(
+        () => sessionSpeedHistoryStore.attachFeedOwner(),
+        [sessionSpeedHistoryStore],
+    );
 };
 
 export const useSessionSpeedHistory = () => {
+    const sessionSpeedHistoryStore = useSessionSpeedHistoryStore();
     const [history, setHistory] = useState(() =>
         sessionSpeedHistoryStore.getSnapshot()
     );
@@ -101,7 +141,7 @@ export const useSessionSpeedHistory = () => {
         return sessionSpeedHistoryStore.subscribe(() => {
             setHistory(sessionSpeedHistoryStore.getSnapshot());
         });
-    }, []);
+    }, [sessionSpeedHistoryStore]);
 
     return history;
 };

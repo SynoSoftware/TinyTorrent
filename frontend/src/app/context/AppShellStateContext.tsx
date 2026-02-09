@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
     createContext,
     useCallback,
@@ -110,15 +111,9 @@ export function useAppShellState(): AppShellStateContextValue {
     return context;
 }
 
-export type LifecycleState = AppShellLifecycleState;
-
 export function useFocusState() {
     const { activePart, setActivePart } = useAppShellState();
     return { activePart, setActivePart };
-}
-
-export function useActiveFocusPart() {
-    return useFocusState().activePart;
 }
 
 export function useSelection() {
@@ -135,11 +130,4 @@ export function useSelection() {
 export function useWorkspaceModals() {
     const { isSettingsOpen, openSettings, closeSettings } = useAppShellState();
     return { isSettingsOpen, openSettings, closeSettings };
-}
-
-export function useLifecycle(): LifecycleState {
-    const {
-        lifecycle: { rpcStatus, uiMode },
-    } = useAppShellState();
-    return { rpcStatus, uiMode };
 }

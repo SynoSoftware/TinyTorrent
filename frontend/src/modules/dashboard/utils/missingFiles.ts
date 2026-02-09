@@ -2,8 +2,6 @@ import type { MissingFilesProbeResult } from "@/services/recovery/recovery-contr
 import { formatBytes } from "@/shared/utils/format";
 import type { TFunction } from "i18next";
 
-type ProbeMode = "local" | "remote" | "unknown";
-
 export function formatMissingFileDetails(
     t: TFunction,
     probe?: MissingFilesProbeResult

@@ -121,7 +121,7 @@ export function useTorrentDetail({
                 if (heartbeatTimestamp < detailTimestampRef.current) return;
                 commitDetailState(detail, heartbeatTimestamp);
             },
-            onError: (_event) => {
+            onError: () => {
                 if (!isMountedRef.current) return;
                 reportReadError();
             },

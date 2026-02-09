@@ -221,7 +221,9 @@ export class HeartbeatManager {
                             this.visibilityMultiplier = 1; // visible -> normal
                         }
                         this.rescheduleLoop();
-                    } catch {}
+                    } catch {
+                        // ignore visibility read/scheduling failures
+                    }
                 };
                 // store handler so we can remove it later to avoid leaks
                 this.visibilityHandler = applyVisibility;
@@ -640,7 +642,6 @@ export class HeartbeatManager {
                         const prevTorrents = this.lastTorrents ?? [];
                         const map = new Map<string, TorrentEntity>();
                         for (const t of prevTorrents) map.set(String(t.id), t);
-                        let leftoverResyncTriggered = false;
                         let shouldDiag = false;
                         try {
                             if (
@@ -824,7 +825,6 @@ export class HeartbeatManager {
                                         fetchedSessionStats = stats;
                                         this.cycleCount = 0;
                                         this.lastResyncAt = nowResync;
-                                        leftoverResyncTriggered = true;
                                     } catch (err) {
                                         console.error(
                                             "[tiny-torrent][heartbeat][resync-failed]",
@@ -849,7 +849,7 @@ export class HeartbeatManager {
                                 maybeTelemetry as NetworkTelemetry;
                         }
                         this.cycleCount += 1;
-                    } catch (err) {
+                    } catch {
                         const [all, stats] = await Promise.all([
                             this.client.getTorrents(),
                             this.client.getSessionStats(),
@@ -879,7 +879,7 @@ export class HeartbeatManager {
                             await telemetryClient.fetchNetworkTelemetry();
                         if (nt) fetchedTelemetry = nt;
                     }
-                } catch (err) {
+                } catch {
                     // ignore
                 }
                 const prevTorrents = this.lastTorrents;
@@ -1051,14 +1051,7 @@ export class HeartbeatManager {
         }
 
         try {
-            const clientPause = this.client as HeartbeatClientWithTelemetry & {
-                pause?: (ids: string[]) => Promise<void>;
-            };
-            try {
-                processHeartbeat(torrents, previous ?? undefined);
-            } catch {
-                // ignore
-            }
+            processHeartbeat(torrents, previous ?? undefined);
         } catch {
             // ignore
         }

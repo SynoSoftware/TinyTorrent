@@ -4,8 +4,14 @@ import { ICON_SIZE_CLASSES } from "@/shared/ui/layout/toolbar-button";
 
 export type StatusIconSize = "sm" | "md" | "lg" | "xl";
 
+type IconComponentProps = {
+    className?: string;
+    style?: React.CSSProperties;
+    strokeWidth?: number | string;
+};
+
 export interface StatusIconProps {
-    Icon: React.ComponentType<any>;
+    Icon: React.ComponentType<IconComponentProps>;
     size?: StatusIconSize;
     className?: string;
     style?: React.CSSProperties;

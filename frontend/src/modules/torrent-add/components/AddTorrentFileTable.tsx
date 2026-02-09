@@ -11,7 +11,6 @@ import type {
     LibtorrentPriority,
 } from "@/services/rpc/entities";
 import type {
-    FileRow,
     FilePriority,
 } from "@/modules/torrent-add/services/fileSelection";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";

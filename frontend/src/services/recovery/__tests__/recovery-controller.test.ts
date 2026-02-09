@@ -1,119 +1,41 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
-import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
+import type {
+    ErrorEnvelope,
+    TorrentDetailEntity,
+} from "@/services/rpc/entities";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import {
     classifyMissingFilesState,
     deriveRecommendedActions,
     recordVerifyAttempt,
     resetVerifyGuard,
-    runMissingFilesRecoverySequence,
+    recoverMissingFiles,
     shouldSkipVerify,
 } from "@/services/recovery/recovery-controller";
 
-describe("recovery-controller helpers", () => {
-    beforeEach(() => {
-        resetVerifyGuard();
-    });
-
-    it("classifies permission failures as accessDenied with likely confidence", () => {
-        const envelope = {
-            errorClass: "permissionDenied",
-            errorMessage: "Access is denied by the operating system",
-        } as ErrorEnvelope;
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Downloads",
-            {
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            }
-        );
-        expect(classification.kind).toBe("accessDenied");
-        expect(classification.confidence).toBe("likely");
-        expect(classification.path).toBe("C:\\Downloads");
-    });
-
-    it("classifies missing folder errors as pathLoss", () => {
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file or directory",
-        } as ErrorEnvelope;
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Movies\\Avatar",
-            {
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            }
-        );
-        expect(classification.kind).toBe("pathLoss");
-        expect(classification.confidence).toBe("likely");
-    });
-
-    it("records verify attempts and skips repeat verifies", () => {
-        recordVerifyAttempt("fingerprint-1", 1024);
-        expect(shouldSkipVerify("fingerprint-1", 1024)).toBe(true);
-        expect(shouldSkipVerify("fingerprint-1", 0)).toBe(false);
-    });
-
-    it("returns needsModal when the path is missing", async () => {
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
-        const torrent = {
-            id: "torrent-1",
-            hash: "hash-1",
-            name: "Missing",
-            state: "missing_files",
-            speed: { down: 0, up: 0 },
-            peerSummary: { connected: 0 },
-            totalSize: 0,
-            eta: 0,
-            ratio: 0,
-            uploaded: 0,
-            downloaded: 0,
-            leftUntilDone: 123456,
-            downloadDir: "C:\\Missing",
-            savePath: "C:\\Missing",
-        } as any;
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Missing",
-            {
-                torrentId: "torrent-1",
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            }
-        );
-        const client = {
-            checkFreeSpace: async () => {
-                const err: any = new Error("no such file");
-                err.code = "ENOENT";
-                throw err;
-            },
-        } as Partial<EngineAdapter> as EngineAdapter;
-        const result = await runMissingFilesRecoverySequence({
-            client,
-            torrent,
-            envelope,
-            classification,
-            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-        });
-        expect(result.status).toBe("needsModal");
-        expect(result.blockingOutcome?.kind).toBe("path-needed");
-    });
-
-    const createDeferred = <T>() => {
-        let resolve!: (value: T | PromiseLike<T>) => void;
-        let reject!: (reason?: unknown) => void;
-        const promise = new Promise<T>((res, rej) => {
-            resolve = res;
-            reject = rej;
-        });
-        return { promise, resolve, reject };
+function makeEnvelope(overrides: Partial<ErrorEnvelope> = {}): ErrorEnvelope {
+    return {
+        errorClass: "missingFiles",
+        errorMessage: "No such file",
+        lastErrorAt: null,
+        recoveryState: "blocked",
+        retryCount: null,
+        nextRetryAt: null,
+        recoveryActions: [],
+        automationHint: null,
+        fingerprint: null,
+        primaryAction: null,
+        ...overrides,
     };
+}
 
-    const baseTorrent = {
+function makeTorrent(
+    overrides: Partial<TorrentDetailEntity> = {},
+): TorrentDetailEntity {
+    return {
         id: "torrent-1",
         hash: "hash-1",
         name: "Missing",
@@ -128,34 +50,141 @@ describe("recovery-controller helpers", () => {
         leftUntilDone: 123456,
         downloadDir: "D:\\Drive",
         savePath: "D:\\Drive",
+        added: Date.now(),
+        ...overrides,
     };
+}
+
+function makeFreeSpace(
+    path: string,
+    sizeBytes: number,
+    totalSize: number,
+): TransmissionFreeSpace {
+    return { path, sizeBytes, totalSize };
+}
+
+const createDeferred = <T>() => {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+};
+
+describe("recovery-controller helpers", () => {
+    beforeEach(() => {
+        resetVerifyGuard();
+    });
+
+    it("classifies permission failures as accessDenied with likely confidence", () => {
+        const envelope = makeEnvelope({
+            errorClass: "permissionDenied",
+            errorMessage: "Access is denied by the operating system",
+        });
+        const classification = classifyMissingFilesState(
+            envelope,
+            "C:\\Downloads",
+            {
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            },
+        );
+        expect(classification.kind).toBe("accessDenied");
+        expect(classification.confidence).toBe("likely");
+        expect(classification.path).toBe("C:\\Downloads");
+    });
+
+    it("classifies missing folder errors as pathLoss", () => {
+        const envelope = makeEnvelope({
+            errorClass: "missingFiles",
+            errorMessage: "No such file or directory",
+        });
+        const classification = classifyMissingFilesState(
+            envelope,
+            "C:\\Movies\\Avatar",
+            {
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            },
+        );
+        expect(classification.kind).toBe("pathLoss");
+        expect(classification.confidence).toBe("likely");
+    });
+
+    it("records verify attempts and skips repeat verifies", () => {
+        recordVerifyAttempt("fingerprint-1", 1024);
+        expect(shouldSkipVerify("fingerprint-1", 1024)).toBe(true);
+        expect(shouldSkipVerify("fingerprint-1", 0)).toBe(false);
+    });
+
+    it("returns needsModal when the path is missing", async () => {
+        const envelope = makeEnvelope();
+        const torrent = makeTorrent({
+            id: "torrent-1",
+            hash: "hash-1",
+            downloadDir: "C:\\Missing",
+            savePath: "C:\\Missing",
+        });
+        const classification = classifyMissingFilesState(
+            envelope,
+            "C:\\Missing",
+            {
+                torrentId: "torrent-1",
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            },
+        );
+        const client = {
+            checkFreeSpace: async () => {
+                const err = new Error("no such file") as Error & {
+                    code?: string;
+                };
+                err.code = "ENOENT";
+                throw err;
+            },
+        } as Partial<EngineAdapter>;
+        const result = await recoverMissingFiles({
+            client: client as EngineAdapter,
+            torrent,
+            envelope,
+            classification,
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
+        expect(result.status).toBe("needsModal");
+        expect(result.blockingOutcome?.kind).toBe("path-needed");
+    });
+
+    const baseTorrent = makeTorrent({
+        id: "torrent-1",
+        hash: "hash-1",
+        downloadDir: "D:\\Drive",
+        savePath: "D:\\Drive",
+        leftUntilDone: 123456,
+    });
 
     it("dedupes concurrent recovery calls using the same fingerprint", async () => {
-        const deferred = createDeferred<{
-            totalBytes: number;
-            freeBytes: number;
-        }>();
+        const deferred = createDeferred<TransmissionFreeSpace>();
         let checkCalls = 0;
         const client: Partial<EngineAdapter> = {
             checkFreeSpace: vi.fn(async () => {
                 checkCalls += 1;
                 if (checkCalls === 1) {
-                    return deferred.promise as any;
+                    return deferred.promise;
                 }
-                return { totalBytes: 100, freeBytes: 50 } as any;
+                return makeFreeSpace("D:\\Drive", 50, 100);
             }),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
-            getTorrentDetails: vi.fn(async () => ({
-                state: "downloading",
-                leftUntilDone: 0,
-            })) as any,
+            getTorrentDetails: vi.fn(async () =>
+                makeTorrent({
+                    id: baseTorrent.id,
+                    hash: baseTorrent.hash,
+                    state: "downloading",
+                    leftUntilDone: 0,
+                }),
+            ),
         };
 
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "volumeLoss",
             confidence: "unknown",
@@ -164,40 +193,35 @@ describe("recovery-controller helpers", () => {
             recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
 
-        const run1 = runMissingFilesRecoverySequence({
+        const run1 = recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: baseTorrent as any,
+            torrent: baseTorrent,
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
-        const run2 = runMissingFilesRecoverySequence({
+        const run2 = recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: baseTorrent as any,
+            torrent: baseTorrent,
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
-        // Both calls should resolve to the same result; compare resolved values
-        deferred.resolve({ totalBytes: 100, freeBytes: 50 });
+        deferred.resolve(makeFreeSpace("D:\\Drive", 50, 100));
         const [res1, res2] = await Promise.all([run1, run2]);
         expect(res1).toStrictEqual(res2);
     });
 
     it("retry-only runs availability reprobe without touching verify/resume/location", async () => {
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () => ({
-                totalBytes: 1024,
-                freeBytes: 512,
-            })) as any,
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("D:\\Drive", 512, 1024),
+            ),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
             setTorrentLocation: vi.fn(async () => {}),
         };
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "volumeLoss",
             confidence: "unknown",
@@ -205,9 +229,9 @@ describe("recovery-controller helpers", () => {
             root: "D:",
             recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
-        const result = await runMissingFilesRecoverySequence({
+        const result = await recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: baseTorrent as any,
+            torrent: baseTorrent,
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
@@ -222,19 +246,14 @@ describe("recovery-controller helpers", () => {
     it("forces setTorrentLocation even when the path is unchanged", async () => {
         const setLocation = vi.fn(async () => {});
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () => ({
-                totalBytes: 1024,
-                freeBytes: 512,
-            })) as any,
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("D:\\Drive", 200000, 400000),
+            ),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
             setTorrentLocation: setLocation,
         };
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-            recoveryState: "missing_files" as RecoveryState,
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "pathLoss",
             confidence: "likely",
@@ -242,9 +261,9 @@ describe("recovery-controller helpers", () => {
             root: "D:",
             recommendedActions: deriveRecommendedActions("pathLoss"),
         };
-        await runMissingFilesRecoverySequence({
+        await recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: baseTorrent as any,
+            torrent: baseTorrent,
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
@@ -252,7 +271,7 @@ describe("recovery-controller helpers", () => {
         expect(setLocation).toHaveBeenCalledWith(
             "torrent-1",
             "D:\\Drive\\",
-            false
+            false,
         );
     });
 
@@ -260,10 +279,7 @@ describe("recovery-controller helpers", () => {
         const client: Partial<EngineAdapter> = {
             resume: vi.fn(async () => {}),
         };
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "volumeLoss",
             confidence: "unknown",
@@ -271,16 +287,16 @@ describe("recovery-controller helpers", () => {
             root: "D:",
             recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
-        const result = await runMissingFilesRecoverySequence({
+        const result = await recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: baseTorrent as any,
+            torrent: baseTorrent,
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("needsModal");
         expect(result.blockingOutcome?.message).toBe(
-            "free_space_check_not_supported"
+            "free_space_check_not_supported",
         );
     });
 
@@ -288,39 +304,41 @@ describe("recovery-controller helpers", () => {
         const verify = vi.fn(async () => {});
         const resume = vi.fn(async () => {});
         const setLocation = vi.fn(async () => {});
-        const getTorrentDetails = vi.fn(async () => ({
-            state: "downloading",
-            leftUntilDone: 0,
-        }));
+        const getTorrentDetails = vi.fn(async () =>
+            makeTorrent({
+                id: baseTorrent.id,
+                hash: baseTorrent.hash,
+                state: "downloading",
+                leftUntilDone: 0,
+                downloadDir: "C:\\Missing",
+                savePath: "C:\\Missing",
+            }),
+        );
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () => ({
-                totalBytes: 4096,
-                freeBytes: 2048,
-            })) as any,
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("C:\\Missing", 2048, 4096),
+            ),
             resume,
             verify,
             setTorrentLocation: setLocation,
-            getTorrentDetails: getTorrentDetails as any,
+            getTorrentDetails,
         };
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "pathLoss",
             confidence: "unknown",
             path: "C:\\Missing",
             recommendedActions: deriveRecommendedActions("pathLoss"),
         };
-        const result = await runMissingFilesRecoverySequence({
+        const result = await recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: {
+            torrent: makeTorrent({
                 ...baseTorrent,
                 state: "missing_files",
                 downloadDir: "C:\\Missing",
                 savePath: "C:\\Missing",
                 leftUntilDone: 1000,
-            } as any,
+            }),
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
@@ -334,38 +352,40 @@ describe("recovery-controller helpers", () => {
     it("fast-path returns all_verified_resuming when verify finishes with zero left", async () => {
         const verify = vi.fn(async () => {});
         const resume = vi.fn(async () => {});
-        const getTorrentDetails = vi.fn(async () => ({
-            state: "idle",
-            leftUntilDone: 0,
-        }));
+        const getTorrentDetails = vi.fn(async () =>
+            makeTorrent({
+                id: baseTorrent.id,
+                hash: baseTorrent.hash,
+                state: "paused",
+                leftUntilDone: 0,
+                downloadDir: "C:\\Missing",
+                savePath: "C:\\Missing",
+            }),
+        );
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () => ({
-                totalBytes: 4096,
-                freeBytes: 2048,
-            })) as any,
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("C:\\Missing", 2048, 4096),
+            ),
             resume,
             verify,
-            getTorrentDetails: getTorrentDetails as any,
+            getTorrentDetails,
         };
-        const envelope = {
-            errorClass: "missingFiles",
-            errorMessage: "No such file",
-        } as ErrorEnvelope;
+        const envelope = makeEnvelope();
         const classification: MissingFilesClassification = {
             kind: "pathLoss",
             confidence: "unknown",
             path: "C:\\Missing",
             recommendedActions: deriveRecommendedActions("pathLoss"),
         };
-        const result = await runMissingFilesRecoverySequence({
+        const result = await recoverMissingFiles({
             client: client as EngineAdapter,
-            torrent: {
+            torrent: makeTorrent({
                 ...baseTorrent,
                 state: "missing_files",
                 downloadDir: "C:\\Missing",
                 savePath: "C:\\Missing",
                 leftUntilDone: 1000,
-            } as any,
+            }),
             envelope,
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,

@@ -9,16 +9,17 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
-import type { ConfigKey, SettingsConfig } from "@/modules/settings/data/config";
 import {
     ALT_SPEED_DAY_OPTIONS,
     type InputBlock,
     type SectionBlock,
-    type ButtonActionKey,
 } from "@/modules/settings/data/settings-tabs";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
-import { BufferedInput } from "@/modules/settings/components/BufferedInput";
+import {
+    BufferedInput,
+    type BufferedInputCommitOutcome,
+} from "@/modules/settings/components/BufferedInput";
 import {
     useSettingsFormActions,
     useSettingsFormState,
@@ -92,7 +93,10 @@ export function SwitchRenderer({
 }) {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsFormState();
-    const { capabilities, isImmersive } = useSettingsFormActions();
+    const {
+        capabilities,
+        interfaceTab: { isImmersive },
+    } = useSettingsFormActions();
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const blocklistUnsupported =
@@ -172,31 +176,54 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
     const sideActionDisabled = isDisabled || hideBrowseAction || blocklistUnsupported;
 
-    const handleSideAction = () => {
+    const handleSideAction = async () => {
         if (!sideAction) return;
         if (
             sideAction.type === "browse" &&
             sideAction.targetConfigKey &&
             !sideActionDisabled
         ) {
-            onBrowse(sideAction.targetConfigKey);
+            const outcome = await onBrowse(sideAction.targetConfigKey);
+            switch (outcome.status) {
+                case "applied":
+                case "cancelled":
+                case "unsupported":
+                case "failed":
+                    return;
+                default:
+                    return;
+            }
         } else if (sideAction.type === "button" && sideAction.actionKey) {
             buttonActions[sideAction.actionKey]();
         }
     };
 
-    const handleCommit = (val: string) => {
+    const handleCommit = (val: string): BufferedInputCommitOutcome => {
         if (block.inputType === "number") {
-            if (val === "") return false;
+            if (val === "") {
+                return { status: "rejected_validation" };
+            }
             const num = Number(val);
-            if (Number.isNaN(num)) return false;
+            if (Number.isNaN(num)) {
+                return { status: "rejected_validation" };
+            }
+            const currentValue = Number(displayValue);
+            if (Number.isFinite(currentValue) && num === currentValue) {
+                setFieldDraft(block.stateKey, null);
+                return { status: "canceled" };
+            }
             updateConfig(block.stateKey, num);
             setFieldDraft(block.stateKey, null);
-            return true;
+            return { status: "applied" };
+        }
+
+        if (val === displayValue) {
+            setFieldDraft(block.stateKey, null);
+            return { status: "canceled" };
         }
         updateConfig(block.stateKey, val);
         setFieldDraft(block.stateKey, null);
-        return true;
+        return { status: "applied" };
     };
 
     const inputNode = (
@@ -261,7 +288,9 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                     size="md"
                     variant="shadow"
                     color="primary"
-                    onPress={handleSideAction}
+                    onPress={() => {
+                        void handleSideAction();
+                    }}
                     className="h-button px-stage shrink-0 font-semibold text-scaled tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
                     isDisabled={sideActionDisabled}
                 >
@@ -433,6 +462,18 @@ export function RawConfigRenderer({
     const { t } = useTranslation();
     const { jsonCopyStatus, configJson } = useSettingsFormState();
     const { onCopyConfigJson } = useSettingsFormActions();
+    const handleCopy = async () => {
+        const outcome = await onCopyConfigJson();
+        switch (outcome.status) {
+            case "applied":
+            case "cancelled":
+            case "unsupported":
+            case "failed":
+                return;
+            default:
+                return;
+        }
+    };
 
     return (
         <div className="space-y-tight">
@@ -451,7 +492,9 @@ export function RawConfigRenderer({
                     size="md"
                     variant="shadow"
                     color="primary"
-                    onPress={onCopyConfigJson}
+                    onPress={() => {
+                        void handleCopy();
+                    }}
                 >
                     {jsonCopyStatus === "copied"
                         ? t("settings.buttons.copy_config_copied")

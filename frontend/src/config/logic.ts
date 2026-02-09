@@ -331,10 +331,6 @@ export const SCALE_BASES = {
     ),
 };
 
-const navbarConfig = uiLayout.navbar ?? {};
-const statusbarConfig = uiLayout.statusbar ?? {};
-const dropOverlayConfig = uiLayout.drop_overlay ?? {};
-
 export const UI_BASES = {
     navbar: {
         height: "var(--height-nav)",

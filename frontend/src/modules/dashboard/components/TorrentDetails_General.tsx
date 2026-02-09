@@ -1,32 +1,20 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
 import { Button } from "@heroui/react";
 import {
-    ArrowDownCircle,
-    ArrowUpCircle,
-    Copy,
     Folder,
-    Hash,
     Play,
     Pause,
-    CheckCircle,
-    RefreshCw,
     Trash2,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import React from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { writeClipboard } from "@/shared/utils/clipboard";
-import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
-import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
+import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -35,40 +23,6 @@ interface GeneralTabProps {
     isRecoveryBlocked?: boolean;
 }
 
-interface GeneralInfoCardProps {
-    icon: LucideIcon;
-    label: string;
-    value: ReactNode;
-    helper: string;
-    accent?: string;
-}
-
-const GeneralInfoCard = ({
-    icon: Icon,
-    label,
-    value,
-    helper,
-    accent,
-}: GeneralInfoCardProps) => (
-    <GlassPanel className="p-panel">
-        <div className="flex items-start gap-tools">
-            <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
-                <StatusIcon
-                    Icon={Icon}
-                    size="lg"
-                    className={accent ?? "text-foreground/70"}
-                    strokeWidth={ICON_STROKE_WIDTH}
-                />
-            </div>
-            <div className="flex-1">
-                <div className={TEXT_ROLES.label}>{label}</div>
-                <div className={`${TEXT_ROLES.primary} font-mono`}>{value}</div>
-                <div className={TEXT_ROLES.helper}>{helper}</div>
-            </div>
-        </div>
-    </GlassPanel>
-);
-
 export const GeneralTab = ({
     torrent,
     downloadDir,
@@ -76,9 +30,7 @@ export const GeneralTab = ({
     isRecoveryBlocked,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
-    const handleCopyHash = () => writeClipboard(torrent.hash);
-
-    const peerCount = activePeers;
+    void activePeers;
     const general = useTorrentDetailsGeneralViewModel({
         torrent,
         downloadDir,
@@ -86,46 +38,11 @@ export const GeneralTab = ({
         t,
     });
 
-    const stateKey = typeof torrent.state === "string" ? torrent.state : "unknown";
-    const statusLabelKey = `table.status_${stateKey}`;
-    const statusLabel = t(statusLabelKey, {
-        defaultValue: stateKey.replace(/_/g, " "),
-    });
-
-    const recoveryStateLabel = torrent.errorEnvelope?.errorClass
-        ? t(`recovery.class.${torrent.errorEnvelope.errorClass}`)
-        : statusLabel;
-    const statusIconClass = general.showMissingFilesError
-        ? "text-warning/70"
-        : "text-foreground/60";
-
     const recoveryBlockedMessage = general.recoveryBlockedMessage;
-
-    const getIconForAction = (id: string | null | undefined) => {
-        switch (id) {
-            case "resume":
-                return Play;
-            case "forceRecheck":
-                return CheckCircle;
-            case "setLocation":
-            case "changeLocation":
-                return Folder;
-            case "reDownload":
-                return ArrowDownCircle;
-            case "reannounce":
-                return RefreshCw;
-            case "pause":
-                return Pause;
-            case "remove":
-            case "delete":
-                return Trash2;
-            default:
-                return null;
-        }
-    };
 
     const isActive = general.isActive;
     const mainActionLabel = general.mainActionLabel;
+    const ToggleIcon = isActive ? Pause : Play;
 
     return (
         <div className="space-y-stage">
@@ -159,17 +76,17 @@ export const GeneralTab = ({
                     </div>
                 </div>
             </GlassPanel>
-            {general.showInlineEditor && general.inlineSetLocationState && (
-                <SetLocationInlineEditor
-                    value={general.inlineSetLocationState.inputPath}
-                    error={general.inlineSetLocationState.error}
+            {general.showLocationEditor && general.setLocationEditorState && (
+                <SetLocationEditor
+                    value={general.setLocationEditorState.inputPath}
+                    error={general.setLocationEditorState.error}
                     isBusy={general.generalIsBusy}
                     caption={general.generalCaption}
                     statusMessage={general.generalStatusMessage}
                     disableCancel={general.generalIsVerifying}
-                    onChange={general.onInlineChange}
-                    onSubmit={() => void general.onInlineSubmit()}
-                    onCancel={general.onInlineCancel}
+                    onChange={general.onLocationChange}
+                    onSubmit={() => void general.onLocationSubmit()}
+                    onCancel={general.onLocationCancel}
                 />
             )}
 
@@ -194,29 +111,6 @@ export const GeneralTab = ({
                                 {recoveryBlockedMessage}
                             </div>
                         )}
-                        <div className="flex flex-wrap gap-tight pt-tight">
-                            <Button
-                                variant="shadow"
-                                size="md"
-                                color="primary"
-                                onPress={general.onDownloadMissing}
-                                className="h-auto"
-                            >
-                                {t("recovery.action_download")}
-                            </Button>
-                            <Button
-                                variant="light"
-                                size="md"
-                                color="default"
-                                onPress={general.onOpenFolder}
-                                isDisabled={
-                                    !general.currentPath || !general.canOpenFolder
-                                }
-                                className="h-auto"
-                            >
-                                {t("recovery.action_open_folder")}
-                            </Button>
-                        </div>
                     </div>
                 </GlassPanel>
             )}
@@ -243,25 +137,14 @@ export const GeneralTab = ({
                                         onPress={general.onToggleStartStop}
                                         isDisabled={Boolean(isRecoveryBlocked)}
                                     >
-                                        {(() => {
-                                            const Icon = getIconForAction(
-                                                isActive ? "pause" : "resume"
-                                            );
-                                            return (
-                                                <>
-                                                    {Icon && (
-                                                        <Icon
-                                                            size={16}
-                                                            strokeWidth={
-                                                                ICON_STROKE_WIDTH
-                                                            }
-                                                            className="mr-2"
-                                                        />
-                                                    )}
-                                                    {mainActionLabel}
-                                                </>
-                                            );
-                                        })()}
+                                        <>
+                                            <ToggleIcon
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="mr-2"
+                                            />
+                                            {mainActionLabel}
+                                        </>
                                     </Button>
                                     <Button
                                         size="md"
@@ -322,3 +205,4 @@ export const GeneralTab = ({
 export default GeneralTab;
 
 // Recovery modal: keep at module bottom to avoid cluttering main render logic
+

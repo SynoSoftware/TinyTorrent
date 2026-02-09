@@ -8,20 +8,17 @@ import {
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
 
-interface InterfaceTabContentProps {
-    isImmersive: boolean;
-    onToggleWorkspaceStyle?: () => void;
-    hasDismissedInsights: boolean;
-}
-
-export function InterfaceTabContent({
-    isImmersive,
-    onToggleWorkspaceStyle,
-    hasDismissedInsights,
-}: InterfaceTabContentProps) {
+export function InterfaceTabContent() {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsFormState();
-    const { buttonActions } = useSettingsFormActions();
+    const {
+        buttonActions,
+        interfaceTab: {
+            isImmersive,
+            hasDismissedInsights,
+            onToggleWorkspaceStyle,
+        },
+    } = useSettingsFormActions();
 
     const canToggleShell = typeof onToggleWorkspaceStyle === "function";
 

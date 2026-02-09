@@ -5,13 +5,14 @@ import type { ErrorEnvelope, TorrentEntity } from "@/services/rpc/entities";
 // suppress engine-driven prompts — UI automation is removed per contract.
 // Session-scoped runtime cache.
 // Owner: `resetRecoveryRuntimeSessionState` in `services/recovery/recovery-runtime-lifecycle.ts`.
-let FIRST_SEEN_MS = new Map<string, number>();
+const FIRST_SEEN_MS = new Map<string, number>();
 
 export function resetRecoveryAutomationRuntimeState() {
     FIRST_SEEN_MS.clear();
 }
 
-export function configure(_opts: { coolDownMs?: number } = {}) {
+export function configure(options: { coolDownMs?: number } = {}) {
+    void options;
     // no-op: automation knobs removed to enforce engine-first recovery
 }
 

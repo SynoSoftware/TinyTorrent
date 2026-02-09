@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { shellAgent } from "@/app/agents/shell-agent";
+import type { OpenFolderOutcome } from "@/app/types/openFolder";
 
 function normalizePath(value: string) {
     return value.replace(/[\\/]+$/, "");
@@ -35,14 +36,16 @@ export function useOpenTorrentFolder() {
     const { showFeedback } = useActionFeedback();
     const { t } = useTranslation();
     return useCallback(
-        async (path?: string | null) => {
-            if (!path) return;
+        async (path?: string | null): Promise<OpenFolderOutcome> => {
+            if (!path) {
+                return { status: "missing_path" };
+            }
             if (!shellAgent.isAvailable) {
                 showFeedback(
                     t("recovery.feedback.open_remote_folder"),
                     "warning"
                 );
-                return;
+                return { status: "unsupported" };
             }
             const attempts = [path];
             const parent = getParentPath(path);
@@ -55,13 +58,21 @@ export function useOpenTorrentFolder() {
                 if (!target) continue;
                 try {
                     await shellAgent.openPath(target);
-                    if (target !== path) {
+                    if (target === path) {
+                        return { status: "opened" };
+                    }
+                    if (target === parent) {
                         showFeedback(
                             t("recovery.feedback.folder_parent_opened"),
                             "info"
                         );
+                        return { status: "opened_parent" };
                     }
-                    return;
+                    showFeedback(
+                        t("recovery.feedback.folder_parent_opened"),
+                        "info"
+                    );
+                    return { status: "opened_root" };
                 } catch (err) {
                     lastError = err;
                 }
@@ -70,7 +81,8 @@ export function useOpenTorrentFolder() {
                 console.error("open folder failed", lastError);
             }
             showFeedback(t("recovery.open_path_failed"), "warning");
+            return { status: "failed" };
         },
-        [showFeedback, shellAgent, t]
+        [showFeedback, t]
     );
 }

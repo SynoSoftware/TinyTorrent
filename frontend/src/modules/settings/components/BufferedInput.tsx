@@ -4,10 +4,19 @@ import type { ComponentProps } from "react";
 
 type InputProps = ComponentProps<typeof Input>;
 
+export type BufferedInputCommitOutcome =
+    | { status: "applied" }
+    | { status: "rejected_validation" }
+    | { status: "canceled" }
+    | { status: "failed" }
+    | { status: "unsupported" };
+
 interface BufferedInputProps
     extends Omit<InputProps, "value" | "onChange" | "onBlur" | "onKeyDown"> {
     value: string;
-    onCommit: (next: string) => boolean | void;
+    onCommit: (
+        next: string,
+    ) => BufferedInputCommitOutcome | Promise<BufferedInputCommitOutcome>;
     onDraftChange?: (next: string) => void;
 }
 
@@ -30,20 +39,14 @@ export function BufferedInput({
     const commit = useCallback(async () => {
         setPendingCommit(true);
         try {
-            const result = onCommit(draft);
-            // Support sync or async commit functions. Use duck-typing for Promise.
-            if (result && typeof (result as any).then === "function") {
-                const awaited = await (result as any);
-                if (awaited === false) {
-                    setDraft(value);
-                    onDraftChange?.(value);
-                }
-            } else {
-                if (result === false) {
-                    setDraft(value);
-                    onDraftChange?.(value);
-                }
+            const outcome = await onCommit(draft);
+            if (outcome.status !== "applied") {
+                setDraft(value);
+                onDraftChange?.(value);
             }
+        } catch {
+            setDraft(value);
+            onDraftChange?.(value);
         } finally {
             setPendingCommit(false);
             setIsEditing(false);

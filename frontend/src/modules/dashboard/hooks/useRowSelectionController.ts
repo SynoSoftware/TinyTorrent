@@ -8,7 +8,6 @@ import {
 import type { Row } from "@tanstack/react-table";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { useState } from "react";
 import { useSelection } from "@/app/context/AppShellStateContext";
 
 
@@ -89,15 +88,22 @@ export const useRowSelectionController = (
             setHighlightedRowId(bottomRow?.id ?? null);
             rowVirtualizerRef?.current?.scrollToIndex(bottomIndex);
         }
-    }, [rowVirtualizerRef, table]);
+    }, [
+        rowVirtualizerRef,
+        setAnchorIndex,
+        setFocusIndex,
+        setHighlightedRowId,
+        setRowSelection,
+        table,
+    ]);
 
-    const selectedTorrents = useMemo(() => {
+    const selectedTorrents = (() => {
         if (!table) return [];
         return table
             .getSelectedRowModel()
             .rows.map((row) => row.original)
             .filter((torrent) => !torrent.isGhost);
-    }, [table, rowSelection]);
+    })();
 
     const selectedIds = useMemo(
         () => selectedTorrents.map((torrent) => torrent.id),
@@ -213,7 +219,18 @@ export const useRowSelectionController = (
             setFocusIndex(originalIndex);
             setHighlightedRowId(rowId);
         },
-        [anchorIndex, focusIndex, isMarqueeDraggingRef, marqueeClickBlockRef, rowIds, table]
+        [
+            anchorIndex,
+            focusIndex,
+            isMarqueeDraggingRef,
+            marqueeClickBlockRef,
+            rowIds,
+            setAnchorIndex,
+            setFocusIndex,
+            setHighlightedRowId,
+            setRowSelection,
+            table,
+        ]
     );
 
     const ensureContextSelection = useCallback(
@@ -225,7 +242,7 @@ export const useRowSelectionController = (
             setAnchorIndex(rowIndex);
             setFocusIndex(rowIndex);
         },
-        []
+        [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]
     );
 
     return {

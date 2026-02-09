@@ -1,9 +1,5 @@
-import {
-    createContext,
-    useContext,
-    useMemo,
-    type ReactNode,
-} from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import Runtime from "@/app/runtime";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
@@ -52,14 +48,14 @@ export function ConnectionConfigProvider({
     const {
         preferences: { connectionProfiles, activeConnectionProfileId },
         setConnectionProfiles,
-        setActiveConnectionProfileId,
+        setActiveProfileId: setActiveProfileId,
     } = usePreferences();
 
     const store = useConnectionProfileStore({
         connectionProfiles,
         activeConnectionProfileId,
         setConnectionProfiles,
-        setActiveConnectionProfileId,
+        setActiveProfileId: setActiveProfileId,
     });
     const nativeOverride = useMemo(() => detectNativeEndpointOverride(), []);
 

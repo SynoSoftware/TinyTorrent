@@ -72,7 +72,7 @@ export function useAddModalState({
         };
         const cleanup = shellAgent.onMagnetLink(handleMagnetEvent);
         return cleanup;
-    }, [onOpenAddMagnet, shellAgent]);
+    }, [onOpenAddMagnet]);
 
     return {
         getRootProps,

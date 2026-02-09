@@ -1,11 +1,24 @@
 import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+export interface RecoveryFingerprintSource {
+    id?: string | number | null;
+    hash?: string | null;
+    errorEnvelope?: { fingerprint?: string | null } | null;
+}
 
-export const getRecoveryFingerprint = (torrent: Torrent | TorrentDetail) =>
-    torrent.errorEnvelope?.fingerprint ??
-    torrent.hash ??
-    torrent.id ??
-    "<no-recovery-fingerprint>";
+export const getRecoveryFingerprint = (
+    torrent?: RecoveryFingerprintSource | null,
+): string => {
+    if (torrent?.errorEnvelope?.fingerprint) {
+        return torrent.errorEnvelope.fingerprint;
+    }
+    if (torrent?.hash) {
+        return torrent.hash;
+    }
+    if (torrent?.id !== undefined && torrent.id !== null) {
+        return String(torrent.id);
+    }
+    return "<no-recovery-fingerprint>";
+};
 
 export type PathNeededReason = Extract<
     RecoveryOutcome,

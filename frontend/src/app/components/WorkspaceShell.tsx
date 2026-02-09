@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, cn } from "@heroui/react";
 import { memo } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
+import { DeleteConfirmationProvider } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
 
@@ -11,7 +12,6 @@ import { SettingsModal } from "@/modules/settings/components/SettingsModalView";
 import { Navbar } from "@/app/components/layout/Navbar";
 import { StatusBar } from "@/app/components/layout/StatusBar";
 import {
-    ICON_STROKE_WIDTH,
     IMMERSIVE_CHROME_PADDING,
     IMMERSIVE_CHROME_RADIUS,
     IMMERSIVE_HUD_CARD_RADIUS,
@@ -19,15 +19,14 @@ import {
     IMMERSIVE_MAIN_INNER_RADIUS,
     IMMERSIVE_MAIN_OUTER_RADIUS,
     IMMERSIVE_MAIN_PADDING,
-    INTERACTION_CONFIG,
 } from "@/config/logic";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
+import { Section, type SectionPadding } from "@/shared/ui/layout/Section";
 import type {
     StatusBarViewModel,
     WorkspaceShellViewModel,
 } from "@/app/viewModels/useAppViewModel";
 
-const MODAL_SPRING_TRANSITION = INTERACTION_CONFIG.modalBloom.transition;
 const TOAST_SPRING_TRANSITION: Transition = {
     type: "spring",
     stiffness: 300,
@@ -65,8 +64,8 @@ export function WorkspaceShell({
         isNativeHost,
     } = workspaceViewModel;
     const { getRootProps, getInputProps } = dragAndDrop;
-    const { workspaceStyle, toggleWorkspaceStyle } = workspaceStyleControls;
-    const { visibleHudCards, dismissHudCard, hasDismissedInsights } = hud;
+    const { workspaceStyle } = workspaceStyleControls;
+    const { visibleHudCards, dismissHudCard } = hud;
     const { pendingDelete, clearPendingDelete, confirmDelete } = deletion;
     const { rpcStatus, handleReconnect } = statusBarViewModel;
     const isImmersiveShell = workspaceStyle === "immersive";
@@ -83,19 +82,27 @@ export function WorkspaceShell({
     );
 
     const renderDeleteModal = () => (
-        <RemoveConfirmationModal
-            isOpen={Boolean(pendingDelete)}
-            onClose={() => clearPendingDelete()}
-            onConfirm={(deleteData: boolean) => confirmDelete(deleteData)}
-            torrentIds={pendingDelete?.torrents.map((t) => t.id) ?? []}
-            torrentCount={pendingDelete?.torrents.length ?? 0}
-            defaultDeleteData={Boolean(pendingDelete?.deleteData)}
-        />
+        <DeleteConfirmationProvider value={deleteConfirmationContextValue}>
+            <RemoveConfirmationModal />
+        </DeleteConfirmationProvider>
     );
 
+    const deleteConfirmationContextValue = {
+        pendingDelete,
+        clearPendingDelete,
+        confirmDelete,
+    };
+
     const hudGridClass =
-        HUD_COLUMNS[Math.min(visibleHudCards.length, 3) as keyof typeof HUD_COLUMNS] ??
-        "grid-cols-1";
+        HUD_COLUMNS[
+            Math.min(visibleHudCards.length, 3) as keyof typeof HUD_COLUMNS
+        ] ?? "grid-cols-1";
+    const shellSectionPadding: SectionPadding =
+        isImmersiveShell && !isNativeHost
+            ? "shell"
+            : !isImmersiveShell && !isNativeHost
+              ? "panel"
+              : "none";
 
     return (
         <div
@@ -132,7 +139,9 @@ export function WorkspaceShell({
                             size="md"
                             variant="shadow"
                             color="warning"
-                            onPress={handleReconnect}
+                            onPress={() => {
+                                void handleReconnect();
+                            }}
                         >
                             {t("status_bar.reconnect")}
                         </Button>
@@ -141,17 +150,13 @@ export function WorkspaceShell({
             </AnimatePresence>
 
             <div className="relative z-panel flex w-full flex-1">
-                <div
+                <Section
+                    centered
+                    padding={shellSectionPadding}
                     className={cn(
-                        "tt-shell-body mx-auto flex w-full flex-1 flex-col",
+                        "tt-shell-body flex w-full flex-1 flex-col",
                         isNativeHost && "native-shell-body",
-                        isImmersiveShell
-                            ? isNativeHost
-                                ? "gap-stage"
-                                : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
-                            : isNativeHost
-                            ? "gap-tools"
-                            : "gap-tools px-panel py-panel"
+                        isImmersiveShell ? "gap-stage" : "gap-tools",
                     )}
                     style={
                         isImmersiveShell && !isNativeHost
@@ -178,7 +183,7 @@ export function WorkspaceShell({
                             <div
                                 className={cn(
                                     "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
-                                    isNativeHost && "native-shell-inner"
+                                    isNativeHost && "native-shell-inner",
                                 )}
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
@@ -188,7 +193,7 @@ export function WorkspaceShell({
                                 <main
                                     className={cn(
                                         "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
-                                        isNativeHost && "native-shell-main"
+                                        isNativeHost && "native-shell-main",
                                     )}
                                     style={{
                                         borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
@@ -202,7 +207,7 @@ export function WorkspaceShell({
                                 <section
                                     className={cn(
                                         "tt-shell-no-drag grid gap-panel",
-                                        hudGridClass
+                                        hudGridClass,
                                     )}
                                 >
                                     <AnimatePresence>
@@ -233,7 +238,7 @@ export function WorkspaceShell({
                                                     whileHover={{ y: -4 }}
                                                     className={cn(
                                                         "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-panel shadow-hud",
-                                                        card.surfaceClass
+                                                        card.surfaceClass,
                                                     )}
                                                     style={{
                                                         borderRadius: `${IMMERSIVE_HUD_CARD_RADIUS}px`,
@@ -243,7 +248,7 @@ export function WorkspaceShell({
                                                         type="button"
                                                         onClick={() =>
                                                             dismissHudCard(
-                                                                card.id
+                                                                card.id,
                                                             )
                                                         }
                                                         className="absolute rounded-pill bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
@@ -252,7 +257,7 @@ export function WorkspaceShell({
                                                             top: "var(--spacing-tight)",
                                                         }}
                                                         aria-label={t(
-                                                            "workspace.stage.dismiss_card"
+                                                            "workspace.stage.dismiss_card",
                                                         )}
                                                     >
                                                         <StatusIcon
@@ -266,7 +271,7 @@ export function WorkspaceShell({
                                                         <div
                                                             className={cn(
                                                                 "flex size-icon-btn-lg items-center justify-center rounded-panel",
-                                                                card.iconBgClass
+                                                                card.iconBgClass,
                                                             )}
                                                         >
                                                             <StatusIcon
@@ -319,7 +324,7 @@ export function WorkspaceShell({
                             </div>
                         </div>
                     )}
-                </div>
+                </Section>
             </div>
 
             {renderDeleteModal()}

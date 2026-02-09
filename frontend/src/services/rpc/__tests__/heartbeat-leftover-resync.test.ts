@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
+import type {
+    SessionStats,
+    TorrentDetailEntity,
+    TorrentEntity,
+} from "@/services/rpc/entities";
+import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 
-const dummyStats = {
+const dummyStats: SessionStats = {
     downloadSpeed: 0,
     uploadSpeed: 0,
     torrentCount: 1,
@@ -9,7 +15,7 @@ const dummyStats = {
     pausedTorrentCount: 0,
 };
 
-function makeTorrent(id: string, name?: string) {
+function makeTorrent(id: string, name?: string): TorrentEntity {
     return {
         id,
         hash: `h${id}`,
@@ -23,15 +29,38 @@ function makeTorrent(id: string, name?: string) {
         uploaded: 0,
         downloaded: 0,
         added: Date.now(),
-    } as any;
+    };
 }
+
+type HeartbeatTestClient = {
+    getTorrents: ReturnType<typeof vi.fn<() => Promise<TorrentEntity[]>>>;
+    getSessionStats: ReturnType<typeof vi.fn<() => Promise<SessionStats>>>;
+    getTorrentDetails: ReturnType<
+        typeof vi.fn<(id: string) => Promise<TorrentDetailEntity>>
+    >;
+    getRecentlyActive?: ReturnType<
+        typeof vi.fn<
+            () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+        >
+    >;
+};
+
+type HeartbeatTickProbe = {
+    tick: () => Promise<void>;
+};
 
 describe("HeartbeatManager leftover resync", () => {
     it("performs a rate-limited resync when a removed id reappears in the delta", async () => {
-        const client: any = {
-            getTorrents: vi.fn().mockResolvedValue([makeTorrent("1")]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
+        const client: HeartbeatTestClient = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([makeTorrent("1")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(makeTorrent("1")),
         };
 
         // getRecentlyActive returns a delta that removes id 1 but also returns it in `torrents` (reappear)
@@ -44,10 +73,12 @@ describe("HeartbeatManager leftover resync", () => {
         // enable diagnostics so we can observe resync debug logs
         try {
             sessionStorage.setItem("tt-debug-removed-diagnostics", "1");
-        } catch {}
+        } catch {
+            // ignore session storage in restricted test environments
+        }
 
         const hb = new HeartbeatManager(client);
-        const updates: any[] = [];
+        const updates: HeartbeatPayload[] = [];
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
@@ -73,7 +104,7 @@ describe("HeartbeatManager leftover resync", () => {
             .mockImplementation(() => {});
 
         // Run delta tick which should detect leftover and call getTorrents
-        await (hb as any).tick();
+        await (hb as unknown as HeartbeatTickProbe).tick();
 
         // The leftover resync debug should have been called
         const calledLeftoverResync = debugSpy.mock.calls.some(

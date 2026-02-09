@@ -11,7 +11,7 @@ type UseConnectionProfileStoreParams = {
     connectionProfiles: ConnectionProfile[];
     activeConnectionProfileId: string;
     setConnectionProfiles: (profiles: ConnectionProfile[]) => void;
-    setActiveConnectionProfileId: (id: string) => void;
+    setActiveProfileId: (id: string) => void;
 };
 
 export type ConnectionProfileStore = {
@@ -31,7 +31,7 @@ export function useConnectionProfileStore({
     connectionProfiles,
     activeConnectionProfileId,
     setConnectionProfiles,
-    setActiveConnectionProfileId,
+    setActiveProfileId: setActiveProfileIdState,
 }: UseConnectionProfileStoreParams): ConnectionProfileStore {
     const profiles = useMemo<ConnectionProfile[]>(() => {
         if (connectionProfiles && connectionProfiles.length) {
@@ -58,24 +58,26 @@ export function useConnectionProfileStore({
 
     useEffect(() => {
         if (!activeConnectionProfileId && profiles.length > 0) {
-            setActiveConnectionProfileId(profiles[0].id);
+            setActiveProfileIdState(profiles[0].id);
         }
-    }, [activeConnectionProfileId, profiles, setActiveConnectionProfileId]);
+    }, [activeConnectionProfileId, profiles, setActiveProfileIdState]);
 
     useEffect(() => {
         if (
             activeConnectionProfileId &&
-            !profiles.some((profile) => profile.id === activeConnectionProfileId)
+            !profiles.some(
+                (profile) => profile.id === activeConnectionProfileId,
+            )
         ) {
-            setActiveConnectionProfileId(profiles[0].id);
+            setActiveProfileIdState(profiles[0].id);
         }
-    }, [activeConnectionProfileId, profiles, setActiveConnectionProfileId]);
+    }, [activeConnectionProfileId, profiles, setActiveProfileIdState]);
 
     const setActiveProfileId = useCallback(
         (id: string) => {
-            setActiveConnectionProfileId(id);
+            setActiveProfileIdState(id);
         },
-        [setActiveConnectionProfileId],
+        [setActiveProfileIdState],
     );
 
     const addProfile = useCallback(() => {
@@ -87,25 +89,21 @@ export function useConnectionProfileStore({
             password: "",
         };
         setConnectionProfiles([...profiles, newProfile]);
-        setActiveConnectionProfileId(newProfile.id);
-    }, [profiles, setActiveConnectionProfileId, setConnectionProfiles]);
+        setActiveProfileId(newProfile.id);
+    }, [profiles, setActiveProfileId, setConnectionProfiles]);
 
     const removeProfile = useCallback(
         (id: string) => {
             if (profiles.length === 1) return;
             const next = profiles.filter((profile) => profile.id !== id);
-            const fallback = next.length === 0 ? [createDefaultProfile()] : next;
+            const fallback =
+                next.length === 0 ? [createDefaultProfile()] : next;
             setConnectionProfiles(fallback);
             if (activeProfileId === id) {
-                setActiveConnectionProfileId(fallback[0].id);
+                setActiveProfileId(fallback[0].id);
             }
         },
-        [
-            activeProfileId,
-            profiles,
-            setActiveConnectionProfileId,
-            setConnectionProfiles,
-        ],
+        [activeProfileId, profiles, setActiveProfileId, setConnectionProfiles],
     );
 
     const updateProfile = useCallback(

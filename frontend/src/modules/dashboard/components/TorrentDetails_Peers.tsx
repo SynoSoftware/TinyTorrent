@@ -3,6 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { PANEL_SURFACE_FRAME } from "@/shared/ui/layout/glass-surface";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
@@ -16,7 +17,7 @@ interface PeersTabProps {
     peers: TorrentPeerEntity[];
     onPeerContextAction?: (
         action: PeerContextAction,
-        peer: TorrentPeerEntity
+        peer: TorrentPeerEntity,
     ) => void;
     sortBySpeed?: boolean;
     torrentProgress?: number;
@@ -28,7 +29,6 @@ export const PeersTab = ({
     onPeerContextAction,
     sortBySpeed = false,
     torrentProgress = 0,
-    isStandalone = false,
 }: PeersTabProps) => {
     const listRef = useRef<HTMLDivElement | null>(null);
     const viewModel = useTorrentDetailsPeersViewModel({
@@ -46,15 +46,13 @@ export const PeersTab = ({
             </p>
         );
 
-        return isStandalone ? (
+        const emptyShell = (
             <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
                 {EmptyContent}
             </GlassPanel>
-        ) : (
-            <div className="flex h-full items-center justify-center border-default/10 text-center">
-                {EmptyContent}
-            </div>
         );
+
+        return emptyShell;
     }
 
     return (
@@ -85,7 +83,13 @@ export const PeersTab = ({
                 </PanelResizeHandle>
 
                 <Panel defaultSize={60} minSize={10}>
-                    <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
+                    <GlassPanel
+                        layer={1}
+                        className={cn(
+                            PANEL_SURFACE_FRAME,
+                            "flex-1 min-h-0 relative flex flex-col rounded-2xl border-content1/30 bg-content1/10",
+                        )}
+                    >
                         <div className="flex items-center gap-panel px-panel py-tight text-label uppercase tracking-tight text-foreground/30 border-b border-content1/10">
                             <span className="w-col-id">
                                 {viewModel.labels.flagsHeader}
@@ -122,7 +126,7 @@ export const PeersTab = ({
                                             rowView.isHovered
                                                 ? "bg-primary/10"
                                                 : "hover:bg-content1/5",
-                                            rowView.isHostile && "bg-danger/5"
+                                            rowView.isHostile && "bg-danger/5",
                                         )}
                                         style={{
                                             top: rowView.start,
@@ -130,7 +134,7 @@ export const PeersTab = ({
                                         }}
                                         onMouseEnter={() =>
                                             viewModel.actions.setHoveredPeer(
-                                                rowView.peer.address
+                                                rowView.peer.address,
                                             )
                                         }
                                         onMouseLeave={
@@ -139,7 +143,7 @@ export const PeersTab = ({
                                         onContextMenu={(event) =>
                                             viewModel.actions.openContextMenu(
                                                 event,
-                                                rowView.peer
+                                                rowView.peer,
                                             )
                                         }
                                     >
@@ -150,7 +154,7 @@ export const PeersTab = ({
                                                         <Tooltip
                                                             key={`${flag}-${index}`}
                                                             content={viewModel.actions.getFlagLabel(
-                                                                flag
+                                                                flag,
                                                             )}
                                                             classNames={
                                                                 GLASS_TOOLTIP_CLASSNAMES
@@ -161,7 +165,7 @@ export const PeersTab = ({
                                                                 {flag}
                                                             </span>
                                                         </Tooltip>
-                                                    )
+                                                    ),
                                                 )}
                                             </div>
                                         </div>
@@ -186,7 +190,7 @@ export const PeersTab = ({
                                                     "text-scaled font-mono truncate",
                                                     rowView.isHostile
                                                         ? "text-danger"
-                                                        : "text-foreground/90"
+                                                        : "text-foreground/90",
                                                 )}
                                             >
                                                 {rowView.peer.address}
@@ -236,7 +240,7 @@ export const PeersTab = ({
                                     <button
                                         onClick={() =>
                                             viewModel.actions.runContextAction(
-                                                "copy_ip"
+                                                "copy_ip",
                                             )
                                         }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
@@ -251,7 +255,7 @@ export const PeersTab = ({
                                     <button
                                         onClick={() =>
                                             viewModel.actions.runContextAction(
-                                                "add_peer"
+                                                "add_peer",
                                             )
                                         }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
@@ -266,7 +270,7 @@ export const PeersTab = ({
                                     <button
                                         onClick={() =>
                                             viewModel.actions.runContextAction(
-                                                "ban_ip"
+                                                "ban_ip",
                                             )
                                         }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
@@ -281,7 +285,7 @@ export const PeersTab = ({
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </GlassPanel>
                 </Panel>
             </PanelGroup>
         </div>
