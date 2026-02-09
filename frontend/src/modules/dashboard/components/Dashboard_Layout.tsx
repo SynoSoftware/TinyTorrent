@@ -14,11 +14,16 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { TorrentTable } from "@/modules/dashboard/components/TorrentTable";
 import { TorrentDetails } from "@/modules/dashboard/components/TorrentDetails";
 import {
+    DetailOpenProvider,
+    type DetailOpenMode,
+} from "@/modules/dashboard/context/DetailOpenContext";
+import {
     ICON_STROKE_WIDTH,
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import { Section } from "@/shared/ui/layout/Section";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -35,29 +40,25 @@ interface DashboardLayoutProps {
     viewModel: DashboardViewModel;
 }
 
-export function Dashboard_Layout({
-    viewModel,
-}: DashboardLayoutProps) {
+export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const {
         workspaceStyle,
-        filter,
-        searchQuery,
         table,
         detail,
         detailSplitDirection,
     } = viewModel;
     const {
-        torrents,
-        ghostTorrents,
-        isLoading,
-        optimisticStatuses,
         tableWatermarkEnabled,
         isDropActive = false,
     } = table;
-    const { detailData, handleRequestDetails, closeDetail, isDetailRecoveryBlocked } =
-        detail;
+    const {
+        detailData,
+        handleRequestDetails,
+        closeDetail,
+        isDetailRecoveryBlocked,
+    } = detail;
     const { t } = useTranslation();
-    const { activePart, setActivePart } = useFocusState();
+    const { setActivePart } = useFocusState();
 
     const isImmersiveShell = workspaceStyle === "immersive";
 
@@ -69,37 +70,26 @@ export function Dashboard_Layout({
     const focusReturnRef = useRef<string | null>(null);
     const [isDetailFullscreen, setIsDetailFullscreen] = useState(false);
     const isDetailOpen = Boolean(detailData);
+    const isDetailFullscreenActive = isDetailOpen && isDetailFullscreen;
 
     const focusTable = useCallback(
         () => setActivePart("table"),
-        [setActivePart]
+        [setActivePart],
     );
     const focusInspector = useCallback(
         () => setActivePart("inspector"),
-        [setActivePart]
+        [setActivePart],
     );
 
-    const handleDetailRequest = useCallback(
-        (torrent: Torrent) => {
+    const handleDetailOpen = useCallback(
+        (torrent: Torrent, mode: DetailOpenMode) => {
             focusReturnRef.current = torrent.id;
             setActivePart("inspector");
-            setIsDetailFullscreen(false);
-            handleRequestDetails(torrent);
+            setIsDetailFullscreen(mode === "fullscreen");
+            void handleRequestDetails(torrent);
         },
-        [handleRequestDetails, setActivePart]
+        [handleRequestDetails, setActivePart],
     );
-
-    const handleDetailFullscreenRequest = useCallback(
-        (torrent: Torrent) => {
-            focusReturnRef.current = torrent.id;
-            setActivePart("inspector");
-            setIsDetailFullscreen(true);
-            handleRequestDetails(torrent);
-        },
-        [handleRequestDetails, setActivePart]
-    );
-    // TODO(section 20.3/20.5): table detail-open behavior should be one typed intent
-    // instead of separate docked/fullscreen callbacks threaded to child surfaces.
 
     const handleDetailClose = useCallback(() => {
         setIsDetailFullscreen(false);
@@ -119,28 +109,23 @@ export function Dashboard_Layout({
 
     useEffect(() => {
         if (!detailPanelRef.current) return;
-        if (isDetailOpen && !isDetailFullscreen) {
+        if (isDetailOpen && !isDetailFullscreenActive) {
             detailPanelRef.current.expand();
         } else {
             detailPanelRef.current.collapse();
         }
-    }, [isDetailOpen, isDetailFullscreen]);
+    }, [isDetailFullscreenActive, isDetailOpen]);
 
     useEffect(() => {
         if (isDetailOpen || typeof document === "undefined") return;
         const pendingId = focusReturnRef.current;
         if (!pendingId) return;
         const rowElement = document.querySelector<HTMLElement>(
-            `[data-torrent-row="${pendingId}"]`
+            `[data-torrent-row="${pendingId}"]`,
         );
         rowElement?.focus();
         focusReturnRef.current = null;
     }, [isDetailOpen]);
-
-    useEffect(() => {
-        if (detailData) return;
-        setIsDetailFullscreen(false);
-    }, [detailData]);
 
     useEffect(() => {
         if (!isDetailOpen) return;
@@ -156,8 +141,7 @@ export function Dashboard_Layout({
 
     // --- GEOMETRY HELPERS ---
 
-    const getShellStyles = (partName: "table" | "inspector") => {
-        const isActive = activePart === partName;
+    const getShellStyles = () => {
         return {
             // Always include a subtle top border to prevent jump when focus highlight appears
             className: cn(
@@ -165,7 +149,7 @@ export function Dashboard_Layout({
                 "border-t border-default/10",
                 // remove active top-border color so the main container does not
                 // gain a green focus line; keep a subtle neutral divider instead.
-                "bg-transparent"
+                "bg-transparent",
             ),
             // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
@@ -174,7 +158,7 @@ export function Dashboard_Layout({
     const getContentStyles = () => ({
         className: cn(
             "relative flex-1 min-h-0 w-full h-full overflow-hidden",
-            !isImmersiveShell && "bg-background/40"
+            !isImmersiveShell && "bg-background/40",
         ),
         style: isImmersiveShell
             ? undefined
@@ -227,13 +211,13 @@ export function Dashboard_Layout({
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
             className={cn(
-                "flex-1 min-h-0 h-full w-full relative overflow-hidden  rounded-2xl"
+                "flex-1 min-h-0 h-full w-full relative overflow-hidden  rounded-2xl",
             )}
             style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
             <Panel className="relative flex-1 min-h-0 shadow-medium">
-                <div {...getShellStyles("table")} onPointerDown={focusTable}>
+                <div {...getShellStyles()} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
                             className="relative z-10 h-full min-h-0 overflow-hidden"
@@ -251,16 +235,18 @@ export function Dashboard_Layout({
                                 className="relative z-10 h-full min-h-0"
                                 style={{ borderRadius: "inherit" }}
                             >
-                                <TorrentTable
-                                    embedded={isImmersiveShell}
-                                    viewModel={table}
-                                    onRequestDetails={handleDetailRequest}
-                                    onRequestDetailsFullscreen={
-                                        handleDetailFullscreenRequest
-                                    }
-                                    /* onOpenFolder removed; leaf components use TorrentActionsContext */
-                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                />
+                                <DetailOpenProvider
+                                    value={{
+                                        openDetail: handleDetailOpen,
+                                    }}
+                                >
+                                    <TorrentTable
+                                        embedded={isImmersiveShell}
+                                        viewModel={table}
+                                        /* onOpenFolder removed; leaf components use TorrentActionsContext */
+                                        /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                                    />
+                                </DetailOpenProvider>
                             </div>
                         </div>
                         {dropOverlay}
@@ -274,7 +260,7 @@ export function Dashboard_Layout({
                     "group relative z-10 transition-colors focus:outline-none",
                     isHorizontalSplit
                         ? "cursor-col-resize"
-                        : "cursor-row-resize"
+                        : "cursor-row-resize",
                 )}
                 hitAreaMargins={{
                     coarse: shell.handleHitArea,
@@ -288,7 +274,7 @@ export function Dashboard_Layout({
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div
                         className={cn(
-                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50"
+                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50",
                         )}
                         style={
                             isHorizontalSplit
@@ -315,10 +301,10 @@ export function Dashboard_Layout({
                 onPointerDown={focusInspector}
                 className={cn(
                     "hidden overflow-hidden lg:flex shadow-medium",
-                    isHorizontalSplit ? "h-full" : "w-full"
+                    isHorizontalSplit ? "h-full" : "w-full",
                 )}
             >
-                <div {...getShellStyles("inspector")}>
+                <div {...getShellStyles()}>
                     <div {...getContentStyles()}>
                         <div
                             className="h-full min-h-0 flex-1 "
@@ -353,44 +339,48 @@ export function Dashboard_Layout({
     );
 
     return (
-        <div className="flex-1 min-h-0 h-full">
+        <Section className="flex-1 min-h-0 h-full">
             {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
-                {detailData && isDetailFullscreen && (
+                {detailData && isDetailFullscreenActive && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className="fixed inset-0 z-40 flex items-center justify-center p-stage"
+                        className="fixed inset-0 z-40"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.25 }}
                     >
-                        <div className="absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm" />
-                        <motion.div
-                            className={cn(
-                                "relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-medium"
-                            )}
-                            style={{ borderRadius: `${shell.radius}px` }}
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.96 }}
-                            transition={{ duration: 0.25 }}
+                        <Section
+                            padding="stage"
+                            className="relative h-full flex items-center justify-center"
                         >
-                            <TorrentDetails
-                                viewModel={detail}
-                                isDetailFullscreen={isDetailFullscreen}
-                                isRecoveryBlocked={isDetailRecoveryBlocked}
-                                isStandalone={true}
-                                onDock={handleDetailDock}
-                                onPopout={handleDetailPopout}
-                                onClose={handleDetailClose}
-                            />
-                        </motion.div>
+                            <div className="absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm" />
+                            <motion.div
+                                className={cn(
+                                    "relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-medium",
+                                )}
+                                style={{ borderRadius: `${shell.radius}px` }}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{ duration: 0.25 }}
+                            >
+                                <TorrentDetails
+                                    viewModel={detail}
+                                    isDetailFullscreen={isDetailFullscreenActive}
+                                    isRecoveryBlocked={isDetailRecoveryBlocked}
+                                    isStandalone={true}
+                                    onDock={handleDetailDock}
+                                    onPopout={handleDetailPopout}
+                                    onClose={handleDetailClose}
+                                />
+                            </motion.div>
+                        </Section>
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </Section>
     );
 }
-

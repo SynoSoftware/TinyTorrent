@@ -12,6 +12,7 @@ import {
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
+import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -333,17 +334,22 @@ export function useSettingsFlow({
         ],
     );
 
-    // TODO(section 20.2/20.5): replace boolean/throw contract with typed test-port outcomes.
-    const handleTestPort = useCallback(async (): Promise<boolean> => {
-        try {
-            return await sessionDomain.testPort();
-        } catch (error) {
-            if (isMountedRef.current && !isRpcCommandError(error)) {
-                reportCommandError(error);
+    const handleTestPort = useCallback(
+        async (): Promise<EngineTestPortOutcome> => {
+            if (!sessionDomain.canTestPort) {
+                return { status: "unsupported" };
             }
-            throw error;
-        }
-    }, [isMountedRef, reportCommandError, sessionDomain]);
+            if (rpcStatus !== STATUS.connection.CONNECTED) {
+                return { status: "offline" };
+            }
+            const outcome = await sessionDomain.testPort();
+            if (outcome.status === "failed" && isMountedRef.current) {
+                reportCommandError(new Error("settings.modal.error_test_port"));
+            }
+            return outcome;
+        },
+        [isMountedRef, reportCommandError, rpcStatus, sessionDomain],
+    );
 
     const applyUserPreferencesPatch = useCallback(
         (patch: Partial<PreferencePayload>) => {

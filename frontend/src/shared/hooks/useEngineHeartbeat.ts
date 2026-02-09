@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
     HeartbeatErrorEvent,
     HeartbeatMode,
@@ -17,23 +17,27 @@ export const useEngineHeartbeat = (params?: {
 }) => {
     const heartbeatDomain = useEngineHeartbeatDomain();
     const [tick, setTick] = useState(0);
-    const lastPayload = useRef<HeartbeatPayload | null>(null);
+    const [lastPayload, setLastPayload] =
+        useState<HeartbeatPayload | null>(null);
+    const mode = params?.mode ?? "table";
+    const detailId = params?.detailId ?? null;
+    const pollingIntervalMs = params?.pollingIntervalMs;
+    const onError = params?.onError;
 
     useEffect(() => {
-        const mode = params?.mode ?? "table";
         const handleUpdate = (payload: HeartbeatPayload) => {
-            lastPayload.current = payload;
+            setLastPayload(payload);
             setTick((t) => t + 1);
         };
         const handleError = (event: HeartbeatErrorEvent) => {
             // Intentionally explicit: callers may provide onError if they want to
             // surface heartbeat errors; this hook defaults to a local no-op.
-            params?.onError?.(event);
+            onError?.(event);
         };
 
         if (mode === "table") {
             const subscription = heartbeatDomain.subscribeTable({
-                pollingIntervalMs: params?.pollingIntervalMs,
+                pollingIntervalMs,
                 onUpdate: handleUpdate,
                 onError: handleError,
             });
@@ -42,19 +46,19 @@ export const useEngineHeartbeat = (params?: {
 
         const subscription = heartbeatDomain.subscribeNonTable({
             mode,
-            detailId: params?.detailId,
-            pollingIntervalMs: params?.pollingIntervalMs,
+            detailId,
+            pollingIntervalMs,
             onUpdate: handleUpdate,
             onError: handleError,
         });
         return () => subscription.unsubscribe();
     }, [
         heartbeatDomain,
-        params?.detailId,
-        params?.mode,
-        params?.onError,
-        params?.pollingIntervalMs,
+        detailId,
+        mode,
+        onError,
+        pollingIntervalMs,
     ]);
 
-    return { tick, lastPayload: lastPayload.current } as const;
+    return { tick, lastPayload } as const;
 };

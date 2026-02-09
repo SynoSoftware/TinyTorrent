@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties } from "react";
 
 const clamp = (value: number) => Math.min(Math.max(value, 0), 100);
 
@@ -23,11 +23,6 @@ export function SmoothProgressBar({
     "aria-label": ariaLabel,
 }: SmoothProgressBarProps) {
     const clampedValue = clamp(value);
-    const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
     return (
         <div
             className={cn(
@@ -45,7 +40,7 @@ export function SmoothProgressBar({
             <div
                 className={cn(
                     "absolute inset-y-0 left-0 transform origin-left rounded-full",
-                    isMounted && "transition-all duration-300 ease-out",
+                    "transition-all duration-300 ease-out",
                     indicatorClassName
                 )}
                 style={{

@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 import type { ReactNode } from "react";
 import i18n from "@/i18n";
 import { DEFAULT_SETTINGS_CONFIG } from "@/modules/settings/data/config";
@@ -164,7 +172,7 @@ const persistPreferences = (payload: PreferencesState) => {
     try {
         window.localStorage.setItem(
             PREFERENCES_STORAGE_KEY,
-            JSON.stringify(payload)
+            JSON.stringify(payload),
         );
     } catch {
         /* ignore */
@@ -195,21 +203,19 @@ const isDetailTabValue = (value: unknown): value is DetailTab =>
     value === "trackers";
 
 const isSpeedChartLayoutMode = (
-    value: unknown
-): value is SpeedChartLayoutMode =>
-    value === "combined" || value === "split";
+    value: unknown,
+): value is SpeedChartLayoutMode => value === "combined" || value === "split";
 
-const isValidCommitMode = (
-    value: unknown
-): value is AddTorrentCommitMode =>
+const isValidCommitMode = (value: unknown): value is AddTorrentCommitMode =>
     value === "start" || value === "paused" || value === "top";
 
 const isConnectionProfileValue = (
-    value: unknown
+    value: unknown,
 ): value is ConnectionProfile => {
     if (!value || typeof value !== "object") return false;
     const profile = value as ConnectionProfile;
-    if (typeof profile.id !== "string" || profile.id.trim() === "") return false;
+    if (typeof profile.id !== "string" || profile.id.trim() === "")
+        return false;
     if (typeof profile.label !== "string") return false;
     if (profile.scheme !== "http" && profile.scheme !== "https") return false;
     if (typeof profile.host !== "string") return false;
@@ -220,15 +226,12 @@ const isConnectionProfileValue = (
 };
 
 const isTorrentTableState = (
-    value: unknown
+    value: unknown,
 ): value is TorrentTablePersistenceState => {
     if (!value || typeof value !== "object") return false;
     const record = value as TorrentTablePersistenceState;
     if (!Array.isArray(record.columnOrder)) return false;
-    if (
-        !record.columnVisibility ||
-        typeof record.columnVisibility !== "object"
-    )
+    if (!record.columnVisibility || typeof record.columnVisibility !== "object")
         return false;
     if (
         !record.columnSizing ||
@@ -248,7 +251,7 @@ const readLegacyPreferences = (): PreferencesState => {
 
     try {
         const storedUser = window.localStorage.getItem(
-            LEGACY_USER_PREFERENCES_KEY
+            LEGACY_USER_PREFERENCES_KEY,
         );
         if (storedUser) {
             const parsed = JSON.parse(storedUser) as {
@@ -271,15 +274,13 @@ const readLegacyPreferences = (): PreferencesState => {
     }
 
     const legacyScale = parseNumber(
-        window.localStorage.getItem(LEGACY_WORKBENCH_SCALE_KEY)
+        window.localStorage.getItem(LEGACY_WORKBENCH_SCALE_KEY),
     );
     if (typeof legacyScale === "number") {
         next.workbenchScale = clampScale(legacyScale);
     }
 
-    const legacyStyle = window.localStorage.getItem(
-        LEGACY_WORKSPACE_STYLE_KEY
-    );
+    const legacyStyle = window.localStorage.getItem(LEGACY_WORKSPACE_STYLE_KEY);
     if (legacyStyle === "immersive") {
         next.workspaceStyle = "immersive";
     }
@@ -294,21 +295,21 @@ const readLegacyPreferences = (): PreferencesState => {
     }
 
     const storedPreventSleep = parseJson<boolean>(
-        window.localStorage.getItem(SYSTEM_POWER_KEY)
+        window.localStorage.getItem(SYSTEM_POWER_KEY),
     );
     if (typeof storedPreventSleep === "boolean") {
         next.systemPreferences.preventSleep = storedPreventSleep;
     }
 
     const storedAutoUpdate = parseJson<boolean>(
-        window.localStorage.getItem(SYSTEM_UPDATE_KEY)
+        window.localStorage.getItem(SYSTEM_UPDATE_KEY),
     );
     if (typeof storedAutoUpdate === "boolean") {
         next.systemPreferences.autoUpdate = storedAutoUpdate;
     }
 
     const storedCloseAction = parseJson<CloseAction>(
-        window.localStorage.getItem(SYSTEM_CLOSE_ACTION_KEY)
+        window.localStorage.getItem(SYSTEM_CLOSE_ACTION_KEY),
     );
     if (storedCloseAction === "minimize" || storedCloseAction === "quit") {
         next.systemPreferences.closeAction = storedCloseAction;
@@ -320,7 +321,7 @@ const readLegacyPreferences = (): PreferencesState => {
     }
 
     const storedTableState = parseJson<TorrentTablePersistenceState>(
-        window.localStorage.getItem(TABLE_STATE_KEY)
+        window.localStorage.getItem(TABLE_STATE_KEY),
     );
     if (storedTableState) {
         next.torrentTableState = storedTableState;
@@ -346,33 +347,33 @@ const readLegacyPreferences = (): PreferencesState => {
     }
 
     const legacyAddDir = window.localStorage.getItem(
-        ADD_TORRENT_LEGACY_DOWNLOAD_KEY
+        ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
     );
     if (legacyAddDir && !next.addTorrentDefaults.downloadDir) {
         next.addTorrentDefaults.downloadDir = legacyAddDir;
     }
 
     const storedHistory = parseJson<unknown[]>(
-        window.localStorage.getItem(ADD_TORRENT_HISTORY_KEY)
+        window.localStorage.getItem(ADD_TORRENT_HISTORY_KEY),
     );
     if (Array.isArray(storedHistory)) {
         next.addTorrentHistory = storedHistory.filter(
-            (entry): entry is string => typeof entry === "string"
+            (entry): entry is string => typeof entry === "string",
         );
     }
 
     const storedProfiles = parseJson<unknown[]>(
-        window.localStorage.getItem(CONNECTION_PROFILES_KEY)
+        window.localStorage.getItem(CONNECTION_PROFILES_KEY),
     );
     if (Array.isArray(storedProfiles)) {
         next.connectionProfiles = storedProfiles.filter(
             (entry): entry is ConnectionProfile =>
-                isConnectionProfileValue(entry)
+                isConnectionProfileValue(entry),
         );
     }
 
     const storedActiveProfile = window.localStorage.getItem(
-        CONNECTION_ACTIVE_PROFILE_KEY
+        CONNECTION_ACTIVE_PROFILE_KEY,
     );
     if (storedActiveProfile) {
         next.activeConnectionProfileId = storedActiveProfile;
@@ -382,7 +383,7 @@ const readLegacyPreferences = (): PreferencesState => {
 };
 
 const sanitizePreferences = (
-    value: Partial<PreferencesState> | null
+    value: Partial<PreferencesState> | null,
 ): PreferencesState => {
     if (!value) {
         return DEFAULT_PREFERENCES;
@@ -441,9 +442,7 @@ const sanitizePreferences = (
         torrentTableState: isTorrentTableState(value.torrentTableState)
             ? value.torrentTableState
             : DEFAULT_TORRENT_TABLE_STATE,
-        speedChartLayoutMode: isSpeedChartLayoutMode(
-            value.speedChartLayoutMode
-        )
+        speedChartLayoutMode: isSpeedChartLayoutMode(value.speedChartLayoutMode)
             ? value.speedChartLayoutMode
             : DEFAULT_SPEED_CHART_LAYOUT,
         addTorrentDefaults: {
@@ -451,20 +450,19 @@ const sanitizePreferences = (
                 typeof value.addTorrentDefaults?.downloadDir === "string"
                     ? value.addTorrentDefaults.downloadDir
                     : DEFAULT_ADD_TORRENT_DEFAULTS.downloadDir,
-            commitMode:
-                isValidCommitMode(value.addTorrentDefaults?.commitMode)
-                    ? value.addTorrentDefaults?.commitMode
-                    : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
+            commitMode: isValidCommitMode(value.addTorrentDefaults?.commitMode)
+                ? value.addTorrentDefaults?.commitMode
+                : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
         },
         addTorrentHistory: Array.isArray(value.addTorrentHistory)
             ? value.addTorrentHistory.filter(
-                  (entry): entry is string => typeof entry === "string"
+                  (entry): entry is string => typeof entry === "string",
               )
             : DEFAULT_ADD_TORRENT_HISTORY,
         connectionProfiles: Array.isArray(value.connectionProfiles)
             ? value.connectionProfiles.filter(
                   (entry): entry is ConnectionProfile =>
-                      isConnectionProfileValue(entry)
+                      isConnectionProfileValue(entry),
               )
             : DEFAULT_CONNECTION_PROFILES,
         activeConnectionProfileId:
@@ -514,19 +512,23 @@ export interface PreferencesContextValue {
     setAddTorrentDefaults: (defaults: AddTorrentDefaultsState) => void;
     setAddTorrentHistory: (history: string[]) => void;
     setConnectionProfiles: (profiles: ConnectionProfile[]) => void;
-    setActiveConnectionProfileId: (id: string) => void;
+    setActiveProfileId: (id: string) => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
     const [preferences, setPreferences] = useState<PreferencesState>(
-        readStoredPreferences
+        readStoredPreferences,
     );
 
     const updatePreferences = useCallback((patch: PreferencesPatch) => {
         setPreferences((prev) => {
-            const next = { ...prev, ...patch, version: CURRENT_PREFERENCES_VERSION };
+            const next = {
+                ...prev,
+                ...patch,
+                version: CURRENT_PREFERENCES_VERSION,
+            };
             persistPreferences(next);
             return next;
         });
@@ -545,7 +547,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
                 return next;
             });
         },
-        []
+        [],
     );
 
     const toggleWorkspaceStyle = useCallback(() => {
@@ -559,7 +561,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         (style: WorkspaceStyle) => {
             updatePreferences({ workspaceStyle: style });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const dismissHudCard = useCallback(
@@ -573,7 +575,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
                 };
             });
         },
-        [modifyPreferences]
+        [modifyPreferences],
     );
 
     const restoreHudCards = useCallback(() => {
@@ -584,7 +586,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         (value: number) => {
             updatePreferences({ workbenchScale: clampScale(value) });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const increaseWorkbenchScale = useCallback(() => {
@@ -609,63 +611,63 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
                 systemPreferences: { ...prev.systemPreferences, ...patch },
             }));
         },
-        [modifyPreferences]
+        [modifyPreferences],
     );
 
     const setInspectorTab = useCallback(
         (tab: DetailTab) => {
             updatePreferences({ inspectorTab: tab });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setTorrentTableState = useCallback(
         (state: TorrentTablePersistenceState) => {
             updatePreferences({ torrentTableState: state });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setSpeedChartLayoutMode = useCallback(
         (mode: SpeedChartLayoutMode | null) => {
             updatePreferences({ speedChartLayoutMode: mode });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setAddTorrentDefaults = useCallback(
         (defaults: AddTorrentDefaultsState) => {
             updatePreferences({ addTorrentDefaults: defaults });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setAddTorrentHistory = useCallback(
         (history: string[]) => {
             updatePreferences({ addTorrentHistory: history });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setConnectionProfiles = useCallback(
         (profiles: ConnectionProfile[]) => {
             updatePreferences({ connectionProfiles: profiles });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
-    const setActiveConnectionProfileId = useCallback(
+    const setActiveProfileId = useCallback(
         (id: string) => {
             updatePreferences({ activeConnectionProfileId: id });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const setTheme = useCallback(
         (mode: ThemeMode) => {
             updatePreferences({ theme: mode });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     const toggleTheme = useCallback(() => {
@@ -678,7 +680,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         (code: LanguageCode) => {
             updatePreferences({ language: code });
         },
-        [updatePreferences]
+        [updatePreferences],
     );
 
     useEffect(() => {
@@ -695,13 +697,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         if (typeof document === "undefined") return;
         document.documentElement.style.setProperty(
             "--tt-zoom-level",
-            String(preferences.workbenchScale)
+            String(preferences.workbenchScale),
         );
         if (typeof window !== "undefined") {
             window.dispatchEvent(
                 new CustomEvent(ZOOM_EVENT_NAME, {
                     detail: preferences.workbenchScale,
-                })
+                }),
             );
         }
     }, [preferences.workbenchScale]);
@@ -730,7 +732,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setAddTorrentDefaults,
             setAddTorrentHistory,
             setConnectionProfiles,
-            setActiveConnectionProfileId,
+            setActiveProfileId,
         }),
         [
             preferences,
@@ -753,8 +755,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setAddTorrentDefaults,
             setAddTorrentHistory,
             setConnectionProfiles,
-            setActiveConnectionProfileId,
-        ]
+            setActiveProfileId,
+        ],
     );
 
     return (
@@ -767,7 +769,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 export function usePreferences() {
     const context = useContext(PreferencesContext);
     if (!context) {
-        throw new Error("usePreferences must be used within PreferencesProvider");
+        throw new Error(
+            "usePreferences must be used within PreferencesProvider",
+        );
     }
     return context;
 }

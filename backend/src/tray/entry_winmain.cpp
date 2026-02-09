@@ -1188,6 +1188,45 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
             response_payload = build_path_payload(*selected);
         }
     }
+    else if (name_value == "create-directory")
+    {
+        if (!payload_val || !yyjson_is_obj(payload_val))
+        {
+            error = "native host create-directory request missing payload";
+        }
+        else
+        {
+            yyjson_val *path_val = yyjson_obj_get(payload_val, "path");
+            if (!path_val || !yyjson_is_str(path_val))
+            {
+                error = "native host create-directory request missing path";
+            }
+            else
+            {
+                std::wstring path = widen(yyjson_get_str(path_val));
+                if (path.empty())
+                {
+                    error = "native host create-directory request empty path";
+                }
+                else
+                {
+                    std::error_code ec;
+                    std::filesystem::create_directories(
+                        std::filesystem::path(path), ec);
+                    bool exists = std::filesystem::is_directory(
+                        std::filesystem::path(path), ec);
+                    if (exists)
+                    {
+                        success = true;
+                    }
+                    else
+                    {
+                        error = "native host create-directory failed";
+                    }
+                }
+            }
+        }
+    }
     else if (name_value == "check-free-space")
     {
         if (!payload_val || !yyjson_is_obj(payload_val))

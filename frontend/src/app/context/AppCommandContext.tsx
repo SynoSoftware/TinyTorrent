@@ -1,7 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
     createContext,
     useContext,
-    useMemo,
     type ReactNode,
 } from "react";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
@@ -10,10 +10,10 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 export type TorrentCommandOutcome =
-    | { status: "success"; reason?: "queued" }
+    | { status: "success"; reason?: "queued" | "refresh_skipped" }
     | { status: "canceled"; reason: "no_selection" }
     | { status: "unsupported"; reason: "action_not_supported" }
-    | { status: "failed"; reason: "execution_failed" };
+    | { status: "failed"; reason: "execution_failed" | "refresh_failed" };
 
 export interface TorrentCommandAPI {
     handleTorrentAction: (
@@ -45,9 +45,8 @@ export function AppCommandProvider({
     value: AppCommandContextValue;
     children: ReactNode;
 }) {
-    const memoized = useMemo(() => value, [value.commandApi, value.dispatch]);
     return (
-        <AppCommandContext.Provider value={memoized}>
+        <AppCommandContext.Provider value={value}>
             {children}
         </AppCommandContext.Provider>
     );

@@ -1,14 +1,13 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, type ReactNode, useContext } from "react";
 import type { UiMode } from "@/app/utils/uiMode";
-import type {
-    Torrent,
-    TorrentDetail,
-} from "@/modules/dashboard/types/torrent";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type {
     MissingFilesClassification,
     RecoveryOutcome,
 } from "@/services/recovery/recovery-controller";
 import type { RecoveryGateAction } from "@/app/types/recoveryGate";
+import type { OpenFolderOutcome } from "@/app/types/openFolder";
 
 export type SetLocationSurface =
     | "context-menu"
@@ -25,7 +24,38 @@ export type SetLocationOptions = {
     surface?: SetLocationSurface;
 };
 
-export interface InlineSetLocationState {
+export type SetLocationOutcome =
+    | { status: "picked" }
+    | { status: "manual_opened" }
+    | { status: "cancelled" }
+    | {
+          status: "unsupported";
+          reason: "browse_unavailable" | "manual_unavailable";
+      }
+    | {
+          status: "conflict";
+          reason: "already_owned" | "owned_elsewhere";
+      }
+      | {
+          status: "failed";
+          reason: "dispatch_failed" | "browse_failed" | "invalid_target";
+      };
+
+export type SetLocationConfirmOutcome =
+    | { status: "submitted" }
+    | { status: "verifying" }
+    | { status: "validation_error" }
+    | { status: "missing_target" }
+    | { status: "failed" }
+    | { status: "canceled" };
+
+export type OpenRecoveryModalOutcome =
+    | { status: "opened" }
+    | { status: "already_open" }
+    | { status: "busy" }
+    | { status: "not_actionable" };
+
+export interface LocationEditorState {
     surface: SetLocationSurface;
     torrentKey: string;
     initialPath: string;
@@ -46,24 +76,29 @@ export interface RecoverySessionInfo {
 export interface RecoveryContextValue {
     uiMode: UiMode;
     canOpenFolder: boolean;
+    handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
     handleRetry: () => Promise<void>;
     handleDownloadMissing: (
         torrent: Torrent,
-        options?: { recreateFolder?: boolean }
+        options?: { recreateFolder?: boolean },
     ) => Promise<void>;
     handleSetLocation: (
         torrent: Torrent | TorrentDetail,
-        options?: SetLocationOptions
-    ) => Promise<void>;
+        options?: SetLocationOptions,
+    ) => Promise<SetLocationOutcome>;
     setLocationCapability: SetLocationCapability;
-    inlineSetLocationState: InlineSetLocationState | null;
-    cancelInlineSetLocation: () => void;
-    releaseInlineSetLocation: () => void;
-    // TODO(section 20.2/20.5): replace boolean submit result with typed inline-set-location outcomes.
-    confirmInlineSetLocation: () => Promise<boolean>;
-    handleInlineLocationChange: (value: string) => void;
+    setLocationState: LocationEditorState | null;
+    cancelSetLocation: () => void;
+    releaseSetLocation: () => void;
+    confirmSetLocation: () => Promise<SetLocationConfirmOutcome>;
+    handleLocationChange: (value: string) => void;
+    openRecoveryModal: (
+        torrent: Torrent | TorrentDetail,
+    ) => OpenRecoveryModalOutcome;
     recoverySession: RecoverySessionInfo | null;
-    getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
+    getRecoverySessionForKey: (
+        torrentKey: string | null,
+    ) => RecoverySessionInfo | null;
 }
 // TODO: Clarify RecoveryContext contract: expose only minimal recovery/set-location API, keep internal orchestration (queues, drafts, state machine) hidden behind a view-model/provider; align contract with Recovery UX acceptance specs.
 // TODO: Deprecate `serverClass` + `connectionMode` from this context. Replace with:
@@ -90,7 +125,7 @@ export function useRecoveryContext(): RecoveryContextValue {
     const context = useContext(RecoveryContext);
     if (!context) {
         throw new Error(
-            "useRecoveryContext must be used within RecoveryProvider"
+            "useRecoveryContext must be used within RecoveryProvider",
         );
     }
     return context;

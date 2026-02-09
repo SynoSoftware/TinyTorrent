@@ -295,10 +295,10 @@ function appendTrailingSlashForForce(path: string): string {
     return `${path}\\`;
 }
 
-export async function runMissingFilesRecoverySequence(
+export async function recoverMissingFiles(
     params: RecoverySequenceParams,
 ): Promise<RecoverySequenceResult> {
-    const { client, torrent, envelope, options, engineCapabilities } = params;
+    const { client, torrent, envelope, options } = params;
     let classification = params.classification;
     if (!envelope || !RECOVERY_ERROR_CLASSES.has(envelope.errorClass ?? "")) {
         return { status: "noop", classification };
@@ -785,7 +785,7 @@ async function runMinimalSequence(
                         confidence: "certain",
                     };
                 }
-            } catch (err) {
+            } catch {
                 return {
                     status: "needsModal",
                     classification,
@@ -807,7 +807,7 @@ async function runMinimalSequence(
 
     try {
         await client.resume([torrent.id]);
-    } catch (err) {
+    } catch {
         return {
             status: "needsModal",
             classification,
@@ -1062,7 +1062,7 @@ export async function runPartialFilesRecovery(
     try {
         await client.verify([detail.id]);
         return { kind: "verify-started", message: "verify_started" };
-    } catch (err) {
+    } catch {
         return {
             kind: "error",
             message: "verify_failed",
@@ -1079,7 +1079,7 @@ export async function runReannounce(
     try {
         await client.forceTrackerReannounce(detail.id);
         return { kind: "reannounce-started", message: "reannounce_started" };
-    } catch (err) {
+    } catch {
         return {
             kind: "error",
             message: "reannounce_failed",

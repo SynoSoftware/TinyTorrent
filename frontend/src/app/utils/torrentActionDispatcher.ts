@@ -128,9 +128,7 @@ interface DispatchTorrentSelectionActionParams {
 export async function dispatchTorrentSelectionAction({
     action,
     ids,
-    torrents,
     dispatch,
-    resume,
 }: DispatchTorrentSelectionActionParams): Promise<TorrentCommandOutcome> {
     if (!ids.length) {
         return COMMAND_OUTCOME_NO_SELECTION;
@@ -142,26 +140,6 @@ export async function dispatchTorrentSelectionAction({
                 await dispatch(TorrentIntents.ensureSelectionPaused(ids)),
             );
         case "resume": {
-            if (resume) {
-                const recoveryTargets = torrents.filter(
-                    (torrent) => Boolean(torrent.errorEnvelope),
-                );
-                if (recoveryTargets.length) {
-                    try {
-                        let resumedAny = false;
-                        for (const torrent of recoveryTargets) {
-                            if (!torrent.id) continue;
-                            resumedAny = true;
-                            await resume(torrent);
-                        }
-                        return resumedAny
-                            ? COMMAND_OUTCOME_SUCCESS
-                            : COMMAND_OUTCOME_UNSUPPORTED;
-                    } catch {
-                        return COMMAND_OUTCOME_FAILED;
-                    }
-                }
-            }
             return mapDispatchOutcome(
                 await dispatch(TorrentIntents.ensureSelectionActive(ids)),
             );

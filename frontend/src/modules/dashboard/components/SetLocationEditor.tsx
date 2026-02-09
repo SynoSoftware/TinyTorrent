@@ -2,7 +2,7 @@ import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-interface SetLocationInlineEditorProps {
+interface SetLocationEditorProps {
     value: string;
     error?: string;
     isBusy: boolean;
@@ -14,7 +14,7 @@ interface SetLocationInlineEditorProps {
     statusMessage?: string;
     disableCancel?: boolean;
 }
-export function SetLocationInlineEditor({
+export function SetLocationEditor({
     value,
     error,
     isBusy,
@@ -25,7 +25,7 @@ export function SetLocationInlineEditor({
     caption,
     statusMessage,
     disableCancel,
-}: SetLocationInlineEditorProps) {
+}: SetLocationEditorProps) {
     const { t } = useTranslation();
     const trimmedValue = value.trim();
     return (
@@ -85,3 +85,4 @@ export function SetLocationInlineEditor({
         </div>
     );
 }
+

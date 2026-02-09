@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
+import type {
+    SessionStats,
+    TorrentDetailEntity,
+    TorrentEntity,
+} from "@/services/rpc/entities";
+import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 
-const dummyStats = {
+const dummyStats: SessionStats = {
     downloadSpeed: 0,
     uploadSpeed: 0,
     torrentCount: 1,
@@ -9,7 +15,7 @@ const dummyStats = {
     pausedTorrentCount: 0,
 };
 
-function makeTorrent(id: string, name?: string) {
+function makeTorrent(id: string, name?: string): TorrentEntity {
     return {
         id,
         hash: `h${id}`,
@@ -23,8 +29,25 @@ function makeTorrent(id: string, name?: string) {
         uploaded: 0,
         downloaded: 0,
         added: Date.now(),
-    } as any;
+    };
 }
+
+type HeartbeatTestClient = {
+    getTorrents: ReturnType<typeof vi.fn<() => Promise<TorrentEntity[]>>>;
+    getSessionStats: ReturnType<typeof vi.fn<() => Promise<SessionStats>>>;
+    getTorrentDetails: ReturnType<
+        typeof vi.fn<(id: string) => Promise<TorrentDetailEntity>>
+    >;
+    getRecentlyActive?: ReturnType<
+        typeof vi.fn<
+            () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+        >
+    >;
+};
+
+type HeartbeatTickProbe = {
+    tick: () => Promise<void>;
+};
 
 describe("HeartbeatManager removed quiet logging", () => {
     beforeEach(() => {
@@ -39,14 +62,22 @@ describe("HeartbeatManager removed quiet logging", () => {
     afterEach(() => {
         try {
             sessionStorage.removeItem("tt-debug-removed-diagnostics");
-        } catch {}
+        } catch {
+            // ignore session storage in restricted test environments
+        }
     });
 
     it("logs removed-quiet when all removals are no-ops", async () => {
-        const client: any = {
-            getTorrents: vi.fn().mockResolvedValue([makeTorrent("2")]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
+        const client: HeartbeatTestClient = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([makeTorrent("2")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(makeTorrent("2")),
         };
 
         // getRecentlyActive reports a removal of id "1" which is absent
@@ -60,7 +91,7 @@ describe("HeartbeatManager removed quiet logging", () => {
             .spyOn(console, "debug")
             .mockImplementation(() => {});
 
-        const updates: any[] = [];
+        const updates: HeartbeatPayload[] = [];
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
@@ -82,7 +113,7 @@ describe("HeartbeatManager removed quiet logging", () => {
         });
 
         // Run one tick which should process the delta
-        await (hb as any).tick();
+        await (hb as unknown as HeartbeatTickProbe).tick();
 
         // Ensure removed-quiet debug call occurred
         const calledWithRemovedQuiet = debugSpy.mock.calls.some(

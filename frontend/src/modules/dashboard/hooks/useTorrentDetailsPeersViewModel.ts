@@ -126,6 +126,7 @@ export const useTorrentDetailsPeersViewModel = ({
         );
     }, [safePeers, sortBySpeed]);
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
         count: orderedPeers.length,
         getScrollElement: () => listRef.current,

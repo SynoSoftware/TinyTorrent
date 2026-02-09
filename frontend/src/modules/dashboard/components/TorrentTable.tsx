@@ -1,14 +1,13 @@
 import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import { cn } from "@heroui/react";
-import React, {
-    useMemo,
-} from "react";
+import React, { useMemo } from "react";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { BLOCK_SHADOW } from "@/shared/ui/layout/glass-surface";
 import {
-    ColumnMeasurementLayer,
-} from "@/modules/dashboard/components/TorrentTable_Shared";
+    BLOCK_SHADOW,
+    PANEL_SURFACE_FRAME,
+} from "@/shared/ui/layout/glass-surface";
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { ColumnMeasurementLayer } from "@/modules/dashboard/components/TorrentTable_Shared";
 import {
     ColumnHeaderPreview,
     TorrentTable_Headers,
@@ -22,44 +21,24 @@ import { useTorrentTableViewModel } from "@/modules/dashboard/viewModels/useTorr
 interface TorrentTableProps {
     viewModel: TorrentTableViewModel;
     embedded?: boolean;
-    disableDetailOpen?: boolean;
-    onRequestDetails?: (torrent: Torrent) => void;
-    onRequestDetailsFullscreen?: (torrent: Torrent) => void;
 }
 
 export function TorrentTable({
     viewModel,
     embedded = false,
-    disableDetailOpen = false,
-    onRequestDetails,
-    onRequestDetailsFullscreen,
 }: TorrentTableProps) {
-    // TODO(section 21.8/21.9): detail-open behavior is threaded via props through
-    // table surfaces; prefer consuming a command/context at the leaf interaction boundary.
-    // TODO(section 20.3/20.5): avoid dual detail-open callbacks; use one explicit
-    // command intent that selects docked/fullscreen mode.
     const tableViewModel = useTorrentTableViewModel({
         viewModel,
-        disableDetailOpen,
-        onRequestDetails,
-        onRequestDetailsFullscreen,
     });
 
-    const {
-        refs,
-        state,
-        table,
-        interaction,
-        menus,
-        lifecycle,
-        surfaces,
-    } = tableViewModel;
+    const { refs, state, table, interaction, menus, lifecycle, surfaces } =
+        tableViewModel;
     const { setTableContainerRef, setMeasureLayerRef } = refs;
     const tableShellClass = useMemo(
         () =>
             cn(
-                "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
-                "rounded-panel border border-default/10",
+                "relative flex-1 h-full min-h-0 flex flex-col",
+                PANEL_SURFACE_FRAME,
             ),
         [],
     );
@@ -106,13 +85,13 @@ export function TorrentTable({
                     onDragEnd={interaction.handleDragEnd}
                     onDragCancel={interaction.handleDragCancel}
                 >
-                    <div className={tableShellClass}>
+                    <GlassPanel layer={1} className={tableShellClass}>
                         <TorrentTable_Headers
                             viewModel={surfaces.headersViewModel}
                         />
 
                         <TorrentTable_Body viewModel={surfaces.bodyViewModel} />
-                    </div>
+                    </GlassPanel>
                     {surfaces.renderOverlayPortal(
                         <DragOverlay
                             adjustScale={false}
@@ -134,7 +113,9 @@ export function TorrentTable({
                 </DndContext>
 
                 {surfaces.renderOverlayPortal(
-                    <TorrentTable_RowMenu viewModel={surfaces.rowMenuViewModel} />,
+                    <TorrentTable_RowMenu
+                        viewModel={surfaces.rowMenuViewModel}
+                    />,
                 )}
 
                 {surfaces.headerMenuViewModel.headerMenuTriggerRect &&

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type {
-    RpcTorrentStatus,
     TransmissionFreeSpace,
     TransmissionSessionSettings,
     TransmissionSessionStats,
@@ -14,11 +13,6 @@ const zRpcResponse = z.object({
 });
 
 export const zRpcSuccess = z.object({}).passthrough();
-
-const RPC_TORRENT_STATUS_VALUES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
-
-const isRpcTorrentStatus = (value: number): value is RpcTorrentStatus =>
-    (RPC_TORRENT_STATUS_VALUES as readonly number[]).includes(value);
 
 // Relaxed: allow any integer but fallback to 0 (Paused) on invalid/unexpected values.
 const zRpcTorrentStatus = z.number().int().catch(0);

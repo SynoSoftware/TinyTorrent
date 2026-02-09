@@ -11,6 +11,7 @@ import type {
     FileRow,
     SmartSelectCommand,
 } from "@/modules/torrent-add/services/fileSelection";
+import type { AddTorrentBrowseOutcome } from "@/modules/torrent-add/types";
 
 type ResolvedState = "pending" | "ready" | "error";
 
@@ -28,7 +29,7 @@ interface AddTorrentDestinationGateState {
     isTouchingDirectory: boolean;
     showBrowseAction: boolean;
     onConfirm: () => void;
-    onBrowse: () => Promise<void>;
+    onBrowse: () => Promise<AddTorrentBrowseOutcome>;
 }
 
 interface AddTorrentSettingsState {
@@ -89,6 +90,7 @@ export function AddTorrentModalContextProvider({
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAddTorrentModalContext(): AddTorrentModalContextValue {
     const context = useContext(AddTorrentModalContext);
     if (!context) {

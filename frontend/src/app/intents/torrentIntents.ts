@@ -151,9 +151,7 @@ export type QueueMoveIntent = {
 
 export type TorrentIntentExtended = TorrentIntent | QueueMoveIntent;
 
-export type RecoveryState = null | {
-    /* placeholder */
-};
+export type RecoveryState = null | Record<string, never>;
 
 export const TorrentIntents = {
     ensureActive: (torrentId: string | number): EnsureTorrentActive => ({

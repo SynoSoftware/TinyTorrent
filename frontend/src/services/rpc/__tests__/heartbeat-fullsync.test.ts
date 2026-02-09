@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
+import type {
+    SessionStats,
+    TorrentDetailEntity,
+    TorrentEntity,
+} from "@/services/rpc/entities";
+import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 
-const dummyStats = {
+const dummyStats: SessionStats = {
     downloadSpeed: 0,
     uploadSpeed: 0,
     torrentCount: 2,
@@ -9,7 +15,7 @@ const dummyStats = {
     pausedTorrentCount: 0,
 };
 
-function makeTorrent(id: string) {
+function makeTorrent(id: string): TorrentEntity {
     return {
         id,
         hash: `h${id}`,
@@ -23,28 +29,55 @@ function makeTorrent(id: string) {
         uploaded: 0,
         downloaded: 0,
         added: Date.now(),
-    } as any;
+    };
 }
+
+type HeartbeatClientLike = {
+    getTorrents: ReturnType<typeof vi.fn<() => Promise<TorrentEntity[]>>>;
+    getSessionStats: ReturnType<typeof vi.fn<() => Promise<SessionStats>>>;
+    getTorrentDetails: ReturnType<
+        typeof vi.fn<(id: string) => Promise<TorrentDetailEntity>>
+    >;
+    getRecentlyActive?: ReturnType<
+        typeof vi.fn<
+            () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+        >
+    >;
+};
+
+type HeartbeatInternals = {
+    tick: () => Promise<void>;
+    MAX_DELTA_CYCLES: number;
+};
 
 describe("HeartbeatManager full-sync after N delta cycles", () => {
     it("forces a full fetch after MAX_DELTA_CYCLES is reached", async () => {
-        const client: any = {
+        const client: HeartbeatClientLike = {
             getTorrents: vi
-                .fn()
+                .fn<() => Promise<TorrentEntity[]>>()
                 .mockResolvedValue([makeTorrent("1"), makeTorrent("2")]),
-            getSessionStats: vi.fn().mockResolvedValue(dummyStats),
-            getTorrentDetails: vi.fn(),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(makeTorrent("1")),
         };
 
         // Prepare getRecentlyActive to succeed several times without changes
         const delta = { torrents: [], removed: [] };
-        client.getRecentlyActive = vi.fn().mockResolvedValue(delta);
+        client.getRecentlyActive = vi
+            .fn<
+                () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+            >()
+            .mockResolvedValue(delta);
 
         const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
         // force a small MAX_DELTA_CYCLES for test determinism
-        (hb as any).MAX_DELTA_CYCLES = 2;
+        hbInternals.MAX_DELTA_CYCLES = 2;
 
-        const updates: any[] = [];
+        const updates: HeartbeatPayload[] = [];
         const sub = hb.subscribe({
             mode: "table",
             onUpdate: (p) => updates.push(p),
@@ -70,11 +103,11 @@ describe("HeartbeatManager full-sync after N delta cycles", () => {
         expect(client.getTorrents).toHaveBeenCalledTimes(1);
 
         // Run two delta cycles via tick(); should increment cycleCount
-        await (hb as any).tick();
-        await (hb as any).tick();
+        await hbInternals.tick();
+        await hbInternals.tick();
 
         // At this point cycleCount reached MAX (2). Next tick should force full fetch
-        await (hb as any).tick();
+        await hbInternals.tick();
 
         // getTorrents should have been called again (full fetch after deltas)
         expect(client.getTorrents).toHaveBeenCalledTimes(2);

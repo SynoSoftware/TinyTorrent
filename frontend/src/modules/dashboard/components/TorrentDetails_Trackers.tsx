@@ -2,7 +2,6 @@ import React from "react";
 import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
 import { Button, Textarea, cn } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -35,15 +34,13 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
             </p>
         );
 
-        return isStandalone ? (
+        const emptyShell = (
             <GlassPanel className="flex h-lg items-center justify-center border-default/10 text-center">
                 {emptyContent}
             </GlassPanel>
-        ) : (
-            <div className="flex h-lg items-center justify-center border-default/10 text-center">
-                {emptyContent}
-            </div>
         );
+
+        return emptyShell;
     }
 
     const tableBody = (
@@ -81,7 +78,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                     "size-dot rounded-full shadow-dot",
                                     row.isOnlineIndicator
                                         ? "bg-success shadow-success/50"
-                                        : "bg-warning shadow-warning/50"
+                                        : "bg-warning shadow-warning/50",
                                 )}
                             />
                         </td>
@@ -131,7 +128,11 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
         <div className="flex h-full flex-col gap-panel">
             <div className="sticky top-0 z-sticky flex items-center justify-between px-tight">
                 <div className="flex items-center gap-tools">
-                    <StatusIcon Icon={Activity} size="md" className="text-primary" />
+                    <StatusIcon
+                        Icon={Activity}
+                        size="md"
+                        className="text-primary"
+                    />
                     <span className="text-label uppercase tracking-tight text-foreground/60">
                         {viewModel.labels.title}
                     </span>
@@ -156,10 +157,10 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                 )}
 
                 {viewModel.state.showAdd && (
-                    <div
+                    <GlassPanel
+                        layer={1}
                         className={cn(
-                            GLASS_PANEL_SURFACE,
-                            "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl"
+                            "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
                         )}
                     >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
@@ -200,7 +201,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 {viewModel.labels.addLabel}
                             </Button>
                         </div>
-                    </div>
+                    </GlassPanel>
                 )}
             </div>
         </div>

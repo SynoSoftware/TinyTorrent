@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useFocusState } from "@/app/context/AppShellStateContext";
 import { useSelection } from "@/app/context/AppShellStateContext";
@@ -46,24 +46,17 @@ export function GlobalHotkeysHost() {
         ]
     );
 
-    const setSelectedIdsForHotkeys = useCallback(
-        (ids: readonly string[]) => {
-            setSelectedIds(ids);
-        },
-        [setSelectedIds]
-    );
-
     const hotkeys = useMemo(
         () =>
             createGlobalHotkeyBindings({
                 controller: hotkeyController,
-                setSelectedIds: setSelectedIdsForHotkeys,
+                setSelectedIds,
                 setActiveId,
                 setActivePart,
             }),
         [
             hotkeyController,
-            setSelectedIdsForHotkeys,
+            setSelectedIds,
             setActiveId,
             setActivePart,
         ]

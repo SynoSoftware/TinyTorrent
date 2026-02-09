@@ -57,7 +57,7 @@ export function useSessionStats({
                     setLiveTransportStatus(source);
                 }
             },
-            onError: (_event) => {
+            onError: () => {
                 if (!isMountedRef.current) return;
                 reportReadError();
             },

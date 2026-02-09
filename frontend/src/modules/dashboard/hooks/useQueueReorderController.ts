@@ -7,7 +7,6 @@ import {
 import { useTorrentRowDrag } from "@/modules/dashboard/hooks/useTorrentRowDrag";
 import type { SortingState, Row } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 
 type QueueControllerDeps = {
     sorting: SortingState;
@@ -87,6 +86,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         endAnimationSuppression,
         setActiveRowId,
         setDropTargetRowId,
+        setPendingQueueOrder,
     ]);
 
     useEffect(() => {
@@ -98,7 +98,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             }
         }
         setPendingQueueOrder(null);
-    }, [pendingQueueOrder, rowIds]);
+    }, [pendingQueueOrder, rowIds, setPendingQueueOrder]);
 
     useEffect(() => {
         if (pendingQueueOrder) return;

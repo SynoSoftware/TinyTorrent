@@ -14,6 +14,11 @@ import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import {
+    GLASS_MENU_SURFACE,
+    MENU_ITEM_SURFACE,
+    MENU_SURFACE_FRAME,
+} from "@/shared/ui/layout/glass-surface";
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
 
@@ -110,7 +115,7 @@ export function LanguageMenu() {
         () =>
             languages.find((option) => option.code === language) ??
             languages[0],
-        [language]
+        [language],
     );
 
     const activeLabel = t(activeOption.labelKey);
@@ -134,25 +139,16 @@ export function LanguageMenu() {
 
             <DropdownMenu
                 aria-label={t("language.menu_label")}
-                variant="light"
+                variant="shadow"
                 className={cn(
                     "min-w-dir-picker",
-                    "bg-content1/80 border border-content1/40",
-                    "backdrop-blur-3xl",
-                    "shadow-menu-large",
-                    "rounded-2xl",
-                    "p-tight"
+                    GLASS_MENU_SURFACE,
+                    MENU_SURFACE_FRAME,
                 )}
                 itemClasses={{
                     base: cn(
-                        "px-tight py-tight",
-                        "text-sm font-medium",
+                        MENU_ITEM_SURFACE,
                         "flex items-center justify-between",
-                        "rounded-xl",
-                        "transition-colors",
-                        "hover:bg-content2/70",
-                        "hover:text-foreground",
-                        "active:bg-content2/80"
                     ),
                 }}
             >

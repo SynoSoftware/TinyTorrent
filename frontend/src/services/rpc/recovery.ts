@@ -97,9 +97,7 @@ export const buildErrorEnvelope = (
     // artifact that may require user action (do not attempt blind recovery).
     if (detail && Array.isArray(detail.files) && detail.files.length > 0) {
         const hasPartial = detail.files.some((f) => {
-            if (!f || typeof (f as any).name !== "string") return false;
-            const name: string = (f as any).name;
-            const lower = name.toLowerCase();
+            const lower = f.name.toLowerCase();
             return (
                 lower.endsWith(".part") ||
                 lower.includes(".part.") ||
@@ -107,7 +105,7 @@ export const buildErrorEnvelope = (
             );
         });
         if (hasPartial) {
-            errorClass = "partialFiles" as ErrorClass;
+            errorClass = "partialFiles";
         }
     }
 
@@ -199,7 +197,7 @@ export const buildErrorEnvelope = (
 
     // Stable fingerprint for later persistence: deterministic composition of
     // identity + cause. Use fnv1a for compactness.
-    const id = torrent.hashString ?? String((torrent as any).id ?? "");
+    const id = torrent.hashString ?? String(torrent.id);
     const trackerList = (detail?.trackers ?? [])
         .map((t) => t.announce)
         .join(",");

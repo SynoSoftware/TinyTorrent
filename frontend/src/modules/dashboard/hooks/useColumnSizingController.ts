@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { Column, ColumnSizingInfoState, Table } from "@tanstack/react-table";
 import { useMeasuredColumnWidths } from "@/modules/dashboard/components/TorrentTable_ColumnMeasurement";
 import {

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import STATUS from "@/shared/status";
-import { useEngineSpeedHistoryDomain } from "@/app/providers/engineDomains";
+import { useSpeedHistoryDomain } from "@/shared/hooks/useSpeedHistoryDomain";
 
 type SpeedHistoryMap = Record<string, number[]>;
 
 export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
     const historyRef = useRef<SpeedHistoryMap>({});
     const torrentsRef = useRef<Torrent[]>(torrents);
-    const store = useEngineSpeedHistoryDomain();
+    const store = useSpeedHistoryDomain();
     const unwatchMapRef = useRef<Map<string, () => void>>(new Map());
 
     useEffect(() => {
@@ -55,10 +55,10 @@ export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
     }, [store, updateVisibleHistory]);
 
     useEffect(() => {
+        const unwatchMap = unwatchMapRef.current;
         return () => {
-            const currentMap = unwatchMapRef.current;
-            Array.from(currentMap.values()).forEach((unwatch) => unwatch());
-            currentMap.clear();
+            Array.from(unwatchMap.values()).forEach((unwatch) => unwatch());
+            unwatchMap.clear();
         };
     }, []);
 

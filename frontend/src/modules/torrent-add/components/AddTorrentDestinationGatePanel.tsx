@@ -1,9 +1,4 @@
-import {
-    Button,
-    Input,
-    Tooltip,
-    cn,
-} from "@heroui/react";
+import { Button, Input, Tooltip, cn } from "@heroui/react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,29 +9,34 @@ import {
     Info,
 } from "lucide-react";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { PANEL_SURFACE_FRAME } from "@/shared/ui/layout/glass-surface";
 
 const DESTINATION_INPUT_CLASSNAMES = {
     inputWrapper:
         "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
     content: "",
-    input:
-        "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
+    input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
 };
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
 export function AddTorrentDestinationGatePanel() {
     const { t } = useTranslation();
-    const {
-        destinationInput,
-        destinationGate,
-    } = useAddTorrentModalContext();
+    const { destinationInput, destinationGate } = useAddTorrentModalContext();
 
     return (
-        <div className="surface-layer-1 border border-default/10 rounded-panel p-panel flex flex-col gap-panel">
+        <GlassPanel
+            className={cn(
+                PANEL_SURFACE_FRAME,
+                "p-panel flex flex-col gap-panel",
+            )}
+        >
             <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
                 <div className="flex items-center gap-tools text-label font-mono uppercase tracking-widest text-foreground/40">
                     <HardDrive className="toolbar-icon-size-md text-foreground/50" />
-                    <span>{t("modals.add_torrent.destination_prompt_mode_full")}</span>
+                    <span>
+                        {t("modals.add_torrent.destination_prompt_mode_full")}
+                    </span>
                 </div>
             </Tooltip>
 
@@ -49,11 +49,17 @@ export function AddTorrentDestinationGatePanel() {
                     <Input
                         autoFocus
                         value={destinationInput.value}
-                        onChange={(e) => destinationInput.onChange(e.target.value)}
+                        onChange={(e) =>
+                            destinationInput.onChange(e.target.value)
+                        }
                         onBlur={destinationInput.onBlur}
                         onKeyDown={destinationInput.onKeyDown}
-                        aria-label={t("modals.add_torrent.destination_input_aria")}
-                        placeholder={t("modals.add_torrent.destination_placeholder")}
+                        aria-label={t(
+                            "modals.add_torrent.destination_input_aria",
+                        )}
+                        placeholder={t(
+                            "modals.add_torrent.destination_placeholder",
+                        )}
                         variant="flat"
                         autoComplete="off"
                         classNames={DESTINATION_INPUT_CLASSNAMES}
@@ -65,7 +71,7 @@ export function AddTorrentDestinationGatePanel() {
                 {destinationGate.showBrowseAction && (
                     <Tooltip
                         content={t(
-                            "modals.add_torrent.destination_prompt_browse"
+                            "modals.add_torrent.destination_prompt_browse",
                         )}
                     >
                         <Button
@@ -75,7 +81,7 @@ export function AddTorrentDestinationGatePanel() {
                             variant="flat"
                             isLoading={destinationGate.isTouchingDirectory}
                             aria-label={t(
-                                "modals.add_torrent.destination_prompt_browse"
+                                "modals.add_torrent.destination_prompt_browse",
                             )}
                             className="surface-layer-1 border border-default/10"
                         >
@@ -91,8 +97,8 @@ export function AddTorrentDestinationGatePanel() {
                     destinationGate.statusKind === "danger"
                         ? "text-danger"
                         : destinationGate.statusKind === "warning"
-                            ? "text-warning"
-                            : "text-foreground/60"
+                          ? "text-warning"
+                          : "text-foreground/60",
                 )}
             >
                 {destinationGate.statusKind === "danger" ||
@@ -119,6 +125,6 @@ export function AddTorrentDestinationGatePanel() {
                     {t("modals.add_torrent.destination_gate_continue")}
                 </Button>
             </div>
-        </div>
+        </GlassPanel>
     );
 }

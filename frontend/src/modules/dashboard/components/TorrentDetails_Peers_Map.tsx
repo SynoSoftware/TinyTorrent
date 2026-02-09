@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
-import { DETAILS_PEER_MAP_CONFIG, INTERACTION_CONFIG } from "@/config/logic";
+import { DETAILS_PEER_MAP_CONFIG } from "@/config/logic";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
@@ -52,7 +52,7 @@ export const PeerMap = ({
     const palette = useCanvasPalette();
     const [mode, setMode] = useState<SwarmMode>("impression");
     const [radialAperture, setRadialAperture] = useState(1.0);
-    const lastInteractionRef = useRef<number>(Date.now());
+    const lastInteractionRef = useRef<number>(0);
     const { tick } = useUiClock();
 
     const {
@@ -69,14 +69,17 @@ export const PeerMap = ({
         if (mode !== "instrument") setMode("instrument");
     }, [mode]);
 
-    // UI-clock driven: drop into impression mode once the swarm is idle.
     useEffect(() => {
-        const isIdle =
-            Date.now() - lastInteractionRef.current > SPD_PHYSICS.DECAY_MS;
-        if (isIdle && !hoveredPeerId) {
+        if (mode !== "instrument" || hoveredPeerId) return;
+        const idleForMs = Date.now() - lastInteractionRef.current;
+        if (idleForMs <= SPD_PHYSICS.DECAY_MS) return;
+        const decayTimer = window.setTimeout(() => {
             setMode("impression");
-        }
-    }, [hoveredPeerId, tick]);
+        }, 0);
+        return () => {
+            window.clearTimeout(decayTimer);
+        };
+    }, [mode, hoveredPeerId, tick]);
 
     // 2. Swarm Intelligence Metrics
     const swarmStats = useMemo(() => {

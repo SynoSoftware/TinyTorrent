@@ -12,7 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
     GLASS_MODAL_SURFACE,
-    PANEL_SHADOW,
+    MODAL_SURFACE_FRAME,
 } from "@/shared/ui/layout/glass-surface";
 import {
     TORRENTTABLE_COLUMN_DEFS,
@@ -41,11 +41,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
             backdrop="blur"
             motionProps={INTERACTION_CONFIG.modalBloom}
             classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    "flex flex-col overflow-hidden",
-                    PANEL_SHADOW
-                ),
+                base: cn(GLASS_MODAL_SURFACE, MODAL_SURFACE_FRAME),
             }}
         >
             <ModalContent>
@@ -67,7 +63,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
                                         <span>
                                             {t(
                                                 TORRENTTABLE_COLUMN_DEFS[id]
-                                                    ?.labelKey ?? id
+                                                    ?.labelKey ?? id,
                                             )}
                                         </span>
                                         <Checkbox

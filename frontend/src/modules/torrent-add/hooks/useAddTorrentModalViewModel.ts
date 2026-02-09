@@ -25,12 +25,13 @@ import {
     buildSelectionCommit,
     type SmartSelectCommand,
 } from "@/modules/torrent-add/services/fileSelection";
-import { isValidDestinationForMode } from "@/modules/torrent-add/utils/destination";
+import { isValidDestinationForPolicy } from "@/modules/torrent-add/utils/destination";
 import {
     getAddTorrentDestinationStatus,
     type AddTorrentDestinationStatusKind,
 } from "@/modules/torrent-add/utils/destinationStatus";
 import type {
+    AddTorrentBrowseOutcome,
     AddTorrentCommitMode,
     AddTorrentSelection,
     AddTorrentSource,
@@ -44,11 +45,6 @@ export interface UseAddTorrentModalViewModelParams {
     downloadDir: string;
     isOpen: boolean;
     isSubmitting: boolean;
-    onBrowseDirectory?: (
-        currentPath: string
-    ) => Promise<string | null | undefined>;
-    // TODO(section 21.8/21.9): this behavior callback should come from one command
-    // surface, not be threaded through modal/view-model layers.
     onCancel: () => void;
     onConfirm: (
         selection: AddTorrentSelection
@@ -89,7 +85,7 @@ export interface UseAddTorrentModalViewModelResult {
     };
     destination: {
         destinationDraft: string;
-        handleBrowse: () => Promise<void>;
+        handleBrowse: () => Promise<AddTorrentBrowseOutcome>;
         handleDestinationGateContinue: () => void;
         handleDestinationInputBlur: () => void;
         handleDestinationInputKeyDown: (
@@ -171,7 +167,6 @@ export function useAddTorrentModalViewModel({
     downloadDir,
     isOpen,
     isSubmitting,
-    onBrowseDirectory,
     onCancel,
     onConfirm,
     onDownloadDirChange,
@@ -180,7 +175,7 @@ export function useAddTorrentModalViewModel({
     const { t } = useTranslation();
     const { rowHeight } = useLayoutMetrics();
     const {
-        uiCapabilities: { uiMode, canBrowse },
+        uiCapabilities: { uiMode, canBrowse, destinationPathPolicy },
     } = useSession();
     const { preferences: { addTorrentHistory }, setAddTorrentHistory } = usePreferences();
 
@@ -227,7 +222,6 @@ export function useAddTorrentModalViewModel({
     } = useAddTorrentDestinationViewModel({
         downloadDir,
         onDownloadDirChange,
-        onBrowseDirectory,
         addTorrentHistory,
         setAddTorrentHistory,
     });
@@ -310,7 +304,10 @@ export function useAddTorrentModalViewModel({
     const freeSpaceProbe = useFreeSpaceProbe({
         checkFreeSpace,
         path: destinationDraft,
-        enabled: isValidDestinationForMode(destinationDraft.trim(), uiMode),
+        enabled: isValidDestinationForPolicy(
+            destinationDraft.trim(),
+            destinationPathPolicy,
+        ),
     });
     const freeSpace =
         freeSpaceProbe.status === "ok" ? freeSpaceProbe.value : null;
@@ -327,10 +324,13 @@ export function useAddTorrentModalViewModel({
     }, [files.length, source]);
 
     const activeDestination = destinationDraft.trim();
-    const isDestinationValid = isValidDestinationForMode(activeDestination, uiMode);
-    const isDestinationDraftValid = isValidDestinationForMode(
+    const isDestinationValid = isValidDestinationForPolicy(
+        activeDestination,
+        destinationPathPolicy,
+    );
+    const isDestinationDraftValid = isValidDestinationForPolicy(
         destinationDraft,
-        uiMode
+        destinationPathPolicy
     );
     const showDestinationGate = !destinationGateCompleted;
     const isDestinationGateRequiredError =
@@ -430,15 +430,15 @@ export function useAddTorrentModalViewModel({
             return;
         }
         const committed = destinationDraft.trim();
-        if (isValidDestinationForMode(committed, uiMode)) {
+        if (isValidDestinationForPolicy(committed, destinationPathPolicy)) {
             onDownloadDirChange(committed);
         }
     }, [
+        destinationPathPolicy,
         destinationDraft,
         markGateTried,
         onDownloadDirChange,
         showDestinationGate,
-        uiMode,
     ]);
 
     const handleDestinationInputKeyDown = useCallback(
@@ -622,7 +622,7 @@ export function useAddTorrentModalViewModel({
             isDestinationDraftValid,
             isTouchingDirectory,
             recentPaths: addTorrentHistory,
-            showBrowseAction: Boolean(onBrowseDirectory) && canBrowse,
+            showBrowseAction: canBrowse,
             showDestinationGate,
             step1DestinationMessage: destinationStatus.step1StatusMessage,
             step1StatusKind: destinationStatus.step1StatusKind,

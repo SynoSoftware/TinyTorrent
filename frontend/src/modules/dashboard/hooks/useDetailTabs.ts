@@ -110,12 +110,10 @@ export interface TorrentDetailTabSurfaces {
         isRecoveryBlocked?: boolean;
     } | null;
     content: {
+        torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
         files: NonNullable<DashboardDetailViewModel["detailData"]>["files"];
         emptyMessage: string;
         onFilesToggle: DashboardDetailViewModel["tabs"]["content"]["handleFileSelectionChange"];
-        onRecheck?: () => void;
-        onDownloadMissing?: () => void;
-        onOpenFolder?: () => void;
         isStandalone?: boolean;
     } | null;
     pieces: {
@@ -191,10 +189,6 @@ export const useTorrentDetailTabCoordinator = ({
             };
         }
 
-        const torrentKey = torrent.id ?? torrent.hash;
-        const savePath = torrent.savePath ?? "";
-        const hasSavePath = savePath.trim().length > 0;
-
         return {
             general: {
                 torrent,
@@ -203,31 +197,10 @@ export const useTorrentDetailTabCoordinator = ({
                 isRecoveryBlocked,
             },
             content: {
+                torrent,
                 files: torrent.files ?? [],
                 emptyMessage: t("torrent_modal.files_empty"),
                 onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
-                // TODO(section 21.8/21.9): these command callbacks are wired through tab surfaces;
-                // content tab should consume recovery/torrent command context directly at leaf usage.
-                onRecheck: torrentKey
-                    ? () =>
-                          void viewModel.tabs.content.handleEnsureValid?.(
-                              torrentKey,
-                          )
-                    : undefined,
-                onDownloadMissing: torrentKey
-                    ? () =>
-                          void viewModel.tabs.content.handleEnsureDataPresent?.(
-                              torrentKey,
-                          )
-                    : undefined,
-                onOpenFolder:
-                    torrentKey && hasSavePath
-                        ? () =>
-                              void viewModel.tabs.content.handleEnsureAtLocation?.(
-                                  torrentKey,
-                                  savePath,
-                              )
-                        : undefined,
                 isStandalone,
             },
             pieces: {

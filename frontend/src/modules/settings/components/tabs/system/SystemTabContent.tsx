@@ -11,7 +11,10 @@ import { useTranslation } from "react-i18next";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import { shellAgent } from "@/app/agents/shell-agent";
+import {
+    shellAgent,
+    type SystemIntegrationReadOutcome,
+} from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
@@ -139,6 +142,9 @@ export function SystemTabContent() {
         autorun: false,
         associations: false,
     });
+    const [integrationReadStatus, setIntegrationReadStatus] = useState<
+        "ok" | "unsupported" | "failed"
+    >("ok");
     const [integrationLoading, setIntegrationLoading] = useState(true);
     const [associationPending, setAssociationPending] = useState(false);
     const [autorunErrorMessage, setAutorunErrorMessage] = useState<
@@ -146,27 +152,34 @@ export function SystemTabContent() {
     >(null);
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
-    const refreshIntegration = useCallback(async () => {
+    const refreshIntegration = useCallback(async (): Promise<SystemIntegrationReadOutcome> => {
         if (!canUseShell) {
+            setIntegrationReadStatus("unsupported");
             setIntegrationLoading(false);
-            return;
+            return { status: "unsupported" };
         }
         setIntegrationLoading(true);
         try {
-            const status = await shellAgent.getSystemIntegrationStatus();
-            setIntegrationStatus({
-                autorun: Boolean(status.autorun),
-                associations: Boolean(status.associations),
-            });
+            const outcome = await shellAgent.getSystemIntegrationStatusReadOutcome();
+            setIntegrationReadStatus(outcome.status);
+            if (outcome.status === "ok") {
+                setIntegrationStatus({
+                    autorun: Boolean(outcome.value.autorun),
+                    associations: Boolean(outcome.value.associations),
+                });
+            }
+            return outcome;
         } catch {
-            // Preserve previous values on failure.
+            setIntegrationReadStatus("failed");
+            return { status: "failed" };
         } finally {
             setIntegrationLoading(false);
         }
-    }, [canUseShell, shellAgent]);
+    }, [canUseShell]);
 
     useEffect(() => {
         if (!canUseShell) {
+            setIntegrationReadStatus("unsupported");
             setIntegrationLoading(false);
             return;
         }
@@ -188,7 +201,16 @@ export function SystemTabContent() {
                 } as const;
             }
             await shellAgent.setSystemIntegration({ autorun: next });
-            await refreshIntegration();
+            const refreshOutcome = await refreshIntegration();
+            if (refreshOutcome.status === "unsupported") {
+                return {
+                    status: "unsupported",
+                    reason: "shell_unavailable",
+                } as const;
+            }
+            if (refreshOutcome.status === "failed") {
+                throw new Error("settings.system.integration_read_failed");
+            }
             return { status: "applied" } as const;
         },
     );
@@ -229,7 +251,7 @@ export function SystemTabContent() {
             setAssociationPending(false);
             await refreshIntegration();
         }
-    }, [canUseShell, refreshIntegration, shellAgent]);
+    }, [canUseShell, refreshIntegration]);
 
     const handleAssociationRefresh = useCallback(async () => {
         if (!canUseShell) return;
@@ -237,16 +259,24 @@ export function SystemTabContent() {
     }, [canUseShell, refreshIntegration]);
 
     const associationLabel =
-        canUseShell && !integrationLoading
-            ? integrationStatus.associations
-                ? t("settings.system.handlers_registered")
-                : t("settings.system.handlers_not_registered")
-            : t("settings.system.handlers_unknown");
+        !canUseShell || integrationReadStatus === "unsupported"
+            ? t("settings.system.handlers_unsupported")
+            : integrationLoading
+            ? t("settings.system.handlers_unknown")
+            : integrationReadStatus === "failed"
+            ? t("settings.system.handlers_read_failed")
+            : integrationStatus.associations
+            ? t("settings.system.handlers_registered")
+            : t("settings.system.handlers_not_registered");
 
     const associationChipColor =
-        canUseShell && !integrationLoading && integrationStatus.associations
+        integrationReadStatus === "failed"
+            ? "warning"
+            : integrationReadStatus === "ok" &&
+              !integrationLoading &&
+              integrationStatus.associations
             ? "success"
-            : canUseShell && !integrationLoading
+            : integrationReadStatus === "ok" && !integrationLoading
             ? "danger"
             : "default";
 
@@ -258,14 +288,28 @@ export function SystemTabContent() {
         : handleAssociationRepair;
 
     const autorunLabel =
-        canUseShell && !integrationLoading
-            ? integrationStatus.autorun
-                ? t("settings.system.autorun_enabled")
-                : t("settings.system.autorun_disabled")
-            : t("settings.system.autorun_unknown");
+        !canUseShell || integrationReadStatus === "unsupported"
+            ? t("settings.system.autorun_status_unsupported")
+            : integrationLoading
+            ? t("settings.system.autorun_unknown")
+            : integrationReadStatus === "failed"
+            ? t("settings.system.autorun_read_failed")
+            : integrationStatus.autorun
+            ? t("settings.system.autorun_enabled")
+            : t("settings.system.autorun_disabled");
 
     const autorunDisabled =
-        !canUseShell || integrationLoading || autorunToggle.pending;
+        !canUseShell ||
+        integrationLoading ||
+        autorunToggle.pending ||
+        integrationReadStatus !== "ok";
+
+    const integrationReadHelper =
+        integrationReadStatus === "failed"
+            ? t("settings.system.integration_read_failed")
+            : integrationReadStatus === "unsupported"
+            ? t("settings.system.integration_read_unsupported")
+            : undefined;
 
     if (!canUseShell) {
         return (
@@ -314,6 +358,7 @@ export function SystemTabContent() {
                             color={associationChipColor}
                         />
                     }
+                    helper={integrationReadHelper}
                 />
             </SystemSectionCard>
             <SystemSectionCard
@@ -332,7 +377,7 @@ export function SystemTabContent() {
                         />
                     }
                     status={<StatusChip label={autorunLabel} color="default" />}
-                    helper={autorunErrorMessage ?? undefined}
+                    helper={autorunErrorMessage ?? integrationReadHelper}
                 />
             </SystemSectionCard>
         </div>

@@ -21,7 +21,8 @@ import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAct
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
+import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 
 /**
  * View models describe **what** a view renders and **what** actions it exposes.
@@ -57,14 +58,6 @@ export interface DashboardDetailViewModel {
                 indexes: number[],
                 wanted: boolean
             ) => Promise<void>;
-            handleEnsureValid?: (torrentId: string | number) => Promise<void>;
-            handleEnsureDataPresent?: (
-                torrentId: string | number
-            ) => Promise<void>;
-            handleEnsureAtLocation?: (
-                torrentId: string | number,
-                path: string
-            ) => Promise<void>;
         };
         peers: {
             peerSortStrategy: PeerSortStrategy;
@@ -92,7 +85,7 @@ export interface SettingsModalViewModel {
     isSaving: boolean;
     onSave: (config: SettingsConfig) => Promise<void>;
     settingsLoadError?: boolean;
-    onTestPort?: () => Promise<boolean>;
+    onTestPort?: () => Promise<EngineTestPortOutcome>;
     capabilities: {
         blocklistSupported: boolean;
     };
@@ -134,7 +127,7 @@ export interface WorkspaceDeletionViewModel {
     clearPendingDelete: () => void;
     confirmDelete: (
         overrideDeleteData?: boolean,
-    ) => Promise<TorrentCommandOutcome>;
+    ) => Promise<DeleteConfirmationOutcome>;
 }
 
 export interface WorkspaceCommandPaletteViewModel {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
     createContext,
     useContext,
@@ -25,7 +26,14 @@ import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
-import { useSessionSpeedHistoryFeed } from "@/shared/hooks/useSessionSpeedHistory";
+import {
+    createSessionSpeedHistoryStore,
+    SessionSpeedHistoryProvider,
+    useSessionSpeedHistoryFeed,
+} from "@/shared/hooks/useSessionSpeedHistory";
+import { createSpeedHistoryStore } from "@/shared/hooks/speedHistoryStore";
+import { SpeedHistoryDomainProvider } from "@/shared/hooks/useSpeedHistoryDomain";
+import { isClipboardWriteSupported } from "@/shared/utils/clipboard";
 
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
@@ -78,9 +86,18 @@ export function SessionProvider({ children }: SessionProviderProps) {
         () => normalizeHost(activeProfile.host || ""),
         [activeProfile.host],
     );
+    const clipboardWriteSupported = useMemo(
+        () => isClipboardWriteSupported(),
+        [],
+    );
     const uiCapabilities = useMemo(
-        () => deriveUiCapabilities(normalizedHost, Runtime.isNativeHost),
-        [normalizedHost],
+        () =>
+            deriveUiCapabilities(
+                normalizedHost,
+                Runtime.isNativeHost,
+                clipboardWriteSupported,
+            ),
+        [clipboardWriteSupported, normalizedHost],
     );
     useEffect(() => {
         shellAgent.setUiMode(uiCapabilities.uiMode);
@@ -99,6 +116,20 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
     const engineCapabilities = useMemo(
         () => torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
+        [torrentClient],
+    );
+
+    const sessionSpeedHistoryStore = useMemo(
+        () => {
+            // Recreate session history store when adapter identity changes.
+            void torrentClient;
+            return createSessionSpeedHistoryStore();
+        },
+        [torrentClient],
+    );
+
+    const speedHistoryStore = useMemo(
+        () => createSpeedHistoryStore(torrentClient),
         [torrentClient],
     );
 
@@ -137,7 +168,13 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
     return (
         <SessionContext.Provider value={sessionValue}>
-            <SessionTelemetryProvider>{children}</SessionTelemetryProvider>
+            <SpeedHistoryDomainProvider store={speedHistoryStore}>
+                <SessionSpeedHistoryProvider store={sessionSpeedHistoryStore}>
+                    <SessionTelemetryProvider>
+                        {children}
+                    </SessionTelemetryProvider>
+                </SessionSpeedHistoryProvider>
+            </SpeedHistoryDomainProvider>
         </SessionContext.Provider>
     );
 }

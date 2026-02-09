@@ -30,12 +30,15 @@ import {
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
-import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrentTablePersistence";
 import { useTorrentTableContextActions } from "@/modules/dashboard/hooks/useTorrentTableContextActions";
 import { useTorrentTableHeaderContext } from "@/modules/dashboard/hooks/useTorrentTableHeaderContext";
-import { useTorrentTableInteractions } from "@/modules/dashboard/hooks/useTorrentTableInteractions";
+import {
+    useTorrentTableInteractions,
+    type ColumnDragCommitOutcome,
+} from "@/modules/dashboard/hooks/useTorrentTableInteractions";
+import { useDetailOpenContext } from "@/modules/dashboard/context/DetailOpenContext";
 import useTableAnimationGuard, {
     ANIMATION_SUPPRESSION_KEYS,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
@@ -45,7 +48,6 @@ import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReo
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import {
     TORRENTTABLE_COLUMN_DEFS,
     DEFAULT_COLUMN_ORDER,
@@ -65,6 +67,7 @@ import type {
     TorrentTableSurfaces,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { cn } from "@heroui/react";
 import STATUS from "@/shared/status";
 
@@ -104,14 +107,11 @@ const renderVisibleCells = (row: Row<Torrent>) =>
         );
     });
 
-export interface UseTorrentTableViewModelParams {
+export interface TorrentTableParams {
     viewModel: TorrentTableViewModel;
-    disableDetailOpen?: boolean;
-    onRequestDetails?: (torrent: Torrent) => void;
-    onRequestDetailsFullscreen?: (torrent: Torrent) => void;
 }
 
-export interface UseTorrentTableViewModelResult {
+export interface TorrentTableAPI {
     refs: {
         setTableContainerRef: (node: HTMLDivElement | null) => void;
         setMeasureLayerRef: (node: HTMLDivElement | null) => void;
@@ -149,11 +149,9 @@ export interface UseTorrentTableViewModelResult {
 
 export function useTorrentTableViewModel({
     viewModel,
-    disableDetailOpen = false,
-    onRequestDetails,
-    onRequestDetailsFullscreen,
-}: UseTorrentTableViewModelParams): UseTorrentTableViewModelResult {
+}: TorrentTableParams): TorrentTableAPI {
     const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const overlayPortalHost = useMemo(
         () =>
             typeof document !== "undefined" && document.body
@@ -242,15 +240,13 @@ export function useTorrentTableViewModel({
 
     const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
-    const openTorrentFolder = useOpenTorrentFolder();
-    const { canOpenFolder } = useRecoveryContext();
-    const { isClipboardSupported, copyToClipboard, buildMagnetLink } =
-        useTorrentClipboard();
+    const { copyToClipboard, buildMagnetLink } = useTorrentClipboard();
     const {
         isSuppressed: animationSuppressionActive,
         begin: beginAnimationSuppression,
         end: endAnimationSuppression,
     } = useTableAnimationGuard();
+    const { disableDetailOpen = false, openDetail } = useDetailOpenContext();
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
@@ -306,7 +302,6 @@ export function useTorrentTableViewModel({
         t,
         speedHistoryRef,
         optimisticStatuses,
-        openFolder: canOpenFolder ? openTorrentFolder : undefined,
     });
 
     const serverOrder = useMemo(
@@ -325,6 +320,7 @@ export function useTorrentTableViewModel({
             .filter((torrent): torrent is Torrent => Boolean(torrent));
     }, [data, effectiveOrder]);
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: tableData,
         columns,
@@ -488,7 +484,6 @@ export function useTorrentTableViewModel({
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
-        openTorrentFolder,
         selectedTorrents: selection.selectedTorrents,
     });
 
@@ -513,10 +508,41 @@ export function useTorrentTableViewModel({
         setDropTargetRowId,
     });
 
+    const commitColumnDragOrder = useCallback(
+        (
+            activeColumnId: string,
+            overColumnId: string,
+        ): ColumnDragCommitOutcome => {
+            const oldIndex = columnOrder.indexOf(activeColumnId);
+            const newIndex = columnOrder.indexOf(overColumnId);
+            if (oldIndex < 0 || newIndex < 0) {
+                return { status: "rejected", reason: "invalid_index" };
+            }
+            const nextOrder = arrayMove(columnOrder, oldIndex, newIndex);
+            try {
+                setColumnOrder(nextOrder);
+                return { status: "applied" };
+            } catch {
+                // Reconcile local state on commit failure to avoid table/UI drift.
+                setColumnOrder(columnOrder);
+                return { status: "failed", reason: "commit_failed" };
+            }
+        },
+        [columnOrder, setColumnOrder],
+    );
+
+    const handleColumnDragCommit = useCallback(
+        (outcome: ColumnDragCommitOutcome) => {
+            if (outcome.status !== "failed") return;
+            showFeedback(t("toolbar.feedback.failed"), "danger");
+        },
+        [showFeedback, t],
+    );
+
     const interactions = useTorrentTableInteractions({
         setActiveDragHeaderId,
-        setColumnOrder,
-        arrayMove,
+        commitColumnDragOrder,
+        onColumnDragCommit: handleColumnDragCommit,
         table,
         canReorderQueue,
         beginAnimationSuppression,
@@ -543,12 +569,9 @@ export function useTorrentTableViewModel({
     const handleRowDoubleClick = useCallback(
         (torrent: Torrent) => {
             if (disableDetailOpen) return;
-            // TODO(section 20.3/20.5): replace dual callback invocation with one
-            // typed detail-open intent (docked|fullscreen) owned by a single command surface.
-            onRequestDetails?.(torrent);
-            onRequestDetailsFullscreen?.(torrent);
+            openDetail?.(torrent, "docked");
         },
-        [disableDetailOpen, onRequestDetails, onRequestDetailsFullscreen],
+        [disableDetailOpen, openDetail],
     );
 
     const handleContextMenu = useCallback(
@@ -714,7 +737,7 @@ export function useTorrentTableViewModel({
         [],
     );
     const activeDragRow = useMemo(
-        () => (activeRowId ? rowsById.get(activeRowId) ?? null : null),
+        () => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null),
         [activeRowId, rowsById],
     );
     const headersViewModel = useMemo<TorrentTableHeadersViewModel>(
@@ -845,14 +868,12 @@ export function useTorrentTableViewModel({
             handleContextMenuAction,
             queueMenuActions,
             getContextMenuShortcut,
-            isClipboardSupported,
         }),
         [
             contextMenu,
             closeContextMenu,
             handleContextMenuAction,
             queueMenuActions,
-            isClipboardSupported,
         ],
     );
     const headerMenuViewModel = useMemo<TorrentTableHeaderMenuViewModel>(

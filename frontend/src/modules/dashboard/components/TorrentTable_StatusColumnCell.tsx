@@ -1,10 +1,7 @@
 import { Chip } from "@heroui/react";
 import { type LucideIcon } from "lucide-react";
 import { type TFunction } from "i18next";
-import type {
-    RecoveryState,
-    TorrentStatus,
-} from "@/services/rpc/entities";
+import type { RecoveryState, TorrentStatus } from "@/services/rpc/entities";
 import {
     formatRecoveryStatus,
     formatRecoveryStatusFromClassification,
@@ -13,7 +10,6 @@ import {
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
 import {
@@ -131,16 +127,12 @@ const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
 interface TorrentTableStatusColumnCellProps {
     torrent: Torrent;
     t: TFunction;
-    openFolder?: (path?: string | null) => void;
 }
 
-export function TorrentTable_StatusColumnCell({
+export function TorrentTable_StatusCell({
     torrent,
     t,
-    openFolder,
 }: TorrentTableStatusColumnCellProps) {
-    const { handleRetry, handleDownloadMissing, handleSetLocation } =
-        useRecoveryContext();
     const classification = useResolvedRecoveryClassification(torrent);
 
     const effectiveState =
@@ -164,7 +156,7 @@ export function TorrentTable_StatusColumnCell({
               torrent.errorEnvelope,
               t,
               torrent.state,
-              conf.labelKey
+              conf.labelKey,
           );
 
     const tooltip =
@@ -174,20 +166,11 @@ export function TorrentTable_StatusColumnCell({
                   torrent.errorEnvelope,
                   t,
                   torrent.state,
-                  conf.labelKey
+                  conf.labelKey,
               )) || t(conf.labelKey);
 
     if (isMissingFilesCell) {
-        return (
-            <TorrentTable_MissingFilesStatusCell
-                torrent={torrent}
-                t={t}
-                handleRetry={handleRetry}
-                handleDownloadMissing={handleDownloadMissing}
-                handleSetLocation={handleSetLocation}
-                openFolder={openFolder}
-            />
-        );
+        return <TorrentTable_MissingFilesStatusCell torrent={torrent} t={t} />;
     }
 
     return (

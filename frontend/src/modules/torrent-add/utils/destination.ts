@@ -2,9 +2,11 @@ export function hasControlChars(value: string) {
     return /[\r\n\t]/.test(value);
 }
 
-export function isValidDestinationForMode(
+export type DestinationPathPolicy = "windows_abs_only" | "any_abs";
+
+export function isValidDestinationForPolicy(
     path: string,
-    uiMode: "Full" | "Rpc"
+    policy: DestinationPathPolicy
 ) {
     const trimmed = path.trim();
     if (!trimmed) return false;
@@ -12,11 +14,9 @@ export function isValidDestinationForMode(
 
     const isWindowsAbs = /^[a-zA-Z]:[\\/]/.test(trimmed) || /^\\\\/.test(trimmed);
     const isPosixAbs = trimmed.startsWith("/");
-    // TODO(section 20.4/21.5): remove UA heuristic capability probing and derive
-    // destination policy from a single explicit runtime/session authority.
-    const isProbablyWindows =
-        typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
-    if (uiMode === "Full") return isWindowsAbs || (!isProbablyWindows && isPosixAbs);
+    if (policy === "windows_abs_only") {
+        return isWindowsAbs;
+    }
     return isWindowsAbs || isPosixAbs;
 }
 

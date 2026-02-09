@@ -1,9 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
+    useCallback,
     createContext,
     useContext,
     useEffect,
-    useRef,
-    useState,
+    useMemo,
     type ReactNode,
 } from "react";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
@@ -18,28 +19,34 @@ const destroyClient = (client: EngineAdapter | null) => {
     if (!client) return;
     try {
         client.destroy();
-    } catch {}
+    } catch (error) {
+        console.error("failed to destroy torrent client", error);
+    }
 };
 
 export function ClientProvider({ children }: { children: ReactNode }) {
     const { activeProfile, activeRpcConnection } = useConnectionConfig();
-    const clientRef = useRef<EngineAdapter | null>(null);
-    const lastConfigKeyRef = useRef<string>("");
     const configKey = `${activeRpcConnection.endpoint}::${activeRpcConnection.username}::${activeRpcConnection.password}::${activeProfile.id}`;
 
-    const createClient = () =>
-        new TransmissionAdapter({
-            endpoint: activeRpcConnection.endpoint,
-            username: activeRpcConnection.username,
-            password: activeRpcConnection.password,
-        });
+    const createClient = useCallback(
+        () =>
+            new TransmissionAdapter({
+                endpoint: activeRpcConnection.endpoint,
+                username: activeRpcConnection.username,
+                password: activeRpcConnection.password,
+            }),
+        [
+            activeRpcConnection.endpoint,
+            activeRpcConnection.username,
+            activeRpcConnection.password,
+        ],
+    );
 
-    const [client, setClient] = useState<EngineAdapter>(() => {
-        const next = createClient();
-        clientRef.current = next;
-        lastConfigKeyRef.current = configKey;
-        return next;
-    });
+    const client = useMemo(() => {
+        // Reset adapter identity when profile id changes even if endpoint credentials match.
+        void configKey;
+        return createClient();
+    }, [createClient, configKey]);
 
     // Session-boundary resets and teardown are tied to the concrete adapter
     // instance lifecycle.
@@ -49,26 +56,12 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (clientRef.current && lastConfigKeyRef.current === configKey) {
-            return;
-        }
         resetTransportSessionRuntimeOwner();
         resetRecoveryRuntimeSessionState();
-        const prev = clientRef.current;
-        destroyClient(prev);
-        const next = createClient();
-        clientRef.current = next;
-        lastConfigKeyRef.current = configKey;
-        setClient(next);
-    }, [configKey]);
-
-    useEffect(() => {
         return () => {
-            const cur = clientRef.current;
-            destroyClient(cur);
-            clientRef.current = null;
+            destroyClient(client);
         };
-    }, []);
+    }, [client]);
 
     return (
         <ClientContext.Provider value={client}>

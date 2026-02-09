@@ -1,5 +1,4 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
-import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
 type NativeShellEventPayload =

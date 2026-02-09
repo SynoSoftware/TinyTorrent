@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
@@ -48,4 +48,4 @@ export default defineConfig({
             "src/**/__tests__/**/*.spec.ts",
         ],
     },
-} as any);
+});

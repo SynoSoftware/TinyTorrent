@@ -4,7 +4,6 @@ import {
     ModalBody,
     ModalContent,
     ModalFooter,
-    ModalHeader,
     Textarea,
     cn,
 } from "@heroui/react";
@@ -19,7 +18,12 @@ import { useTranslation } from "react-i18next";
 import { Magnet, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
-import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import {
+    GLASS_MODAL_SURFACE,
+    MODAL_SURFACE_FOOTER,
+    MODAL_SURFACE_FRAME,
+    MODAL_SURFACE_HEADER,
+} from "@/shared/ui/layout/glass-surface";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
@@ -82,7 +86,7 @@ export function AddMagnetModal({
                 void handleConfirm();
             }
         },
-        [handleConfirm]
+        [handleConfirm],
     );
 
     return (
@@ -94,13 +98,18 @@ export function AddMagnetModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE),
+                base: cn(GLASS_MODAL_SURFACE, MODAL_SURFACE_FRAME),
             }}
         >
             <ModalContent>
                 {() => (
                     <>
-                        <div className="sticky top-0 z-10 shrink-0 h-modal-header border-b border-default/20 flex items-center justify-between px-stage py-panel bg-content1/30 backdrop-blur-xl">
+                        <div
+                            className={cn(
+                                MODAL_SURFACE_HEADER,
+                                "sticky top-0 z-10 shrink-0 h-modal-header flex items-center justify-between px-stage py-panel bg-content1/30 backdrop-blur-xl",
+                            )}
+                        >
                             <div className="flex items-center gap-tools">
                                 <StatusIcon
                                     Icon={Magnet}
@@ -138,7 +147,12 @@ export function AddMagnetModal({
                                 {t("modals.add_magnet.hint")}
                             </p>
                         </ModalBody>
-                        <ModalFooter className="border-t border-default/20 px-stage py-panel flex items-center justify-end gap-tools">
+                        <ModalFooter
+                            className={cn(
+                                MODAL_SURFACE_FOOTER,
+                                "px-stage py-panel flex items-center justify-end gap-tools",
+                            )}
+                        >
                             <Button variant="light" onPress={handleClose}>
                                 {t("modals.cancel")}
                             </Button>

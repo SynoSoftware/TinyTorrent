@@ -15,6 +15,11 @@ type SystemIntegrationStatus = {
     associations: boolean;
 };
 
+export type SystemIntegrationReadOutcome =
+    | { status: "ok"; value: SystemIntegrationStatus }
+    | { status: "unsupported" }
+    | { status: "failed" };
+
 type ShellIntegrationFeatures = {
     autorun?: boolean;
     associations?: boolean;
@@ -187,6 +192,33 @@ export class ShellAgent {
         this.unwrapOutcome(await this.openPathWithOutcome(path));
     }
 
+    async createDirectoryWithOutcome(
+        path: string,
+        options?: NativeShellRequestOptions,
+    ): Promise<ShellAgentOutcome<void>> {
+        const trimmed = path.trim();
+        if (!trimmed) {
+            return {
+                kind: "failed",
+                message:
+                    "ShellAgent createDirectory requires a non-empty path",
+            };
+        }
+        const outcome = await this.requestWithOutcome<unknown>(
+            "create-directory",
+            { path: trimmed },
+            options,
+        );
+        if (outcome.kind !== "ok") {
+            return outcome;
+        }
+        return { kind: "ok", value: undefined };
+    }
+
+    async createDirectory(path: string): Promise<void> {
+        this.unwrapOutcome(await this.createDirectoryWithOutcome(path));
+    }
+
     async checkFreeSpaceWithOutcome(
         path: string,
         options?: NativeShellRequestOptions,
@@ -280,6 +312,28 @@ export class ShellAgent {
             return outcome;
         }
         return outcome;
+    }
+
+    async getSystemIntegrationStatusReadOutcome(
+        options?: NativeShellRequestOptions,
+    ): Promise<SystemIntegrationReadOutcome> {
+        const outcome = await this.getSystemIntegrationStatusWithOutcome(
+            options,
+        );
+        if (outcome.kind === "ok") {
+            const { autorun, associations } = outcome.value;
+            if (
+                typeof autorun !== "boolean" ||
+                typeof associations !== "boolean"
+            ) {
+                return { status: "failed" };
+            }
+            return { status: "ok", value: { autorun, associations } };
+        }
+        if (outcome.kind === "unavailable") {
+            return { status: "unsupported" };
+        }
+        return { status: "failed" };
     }
 
     async getSystemIntegrationStatus(): Promise<SystemIntegrationStatus> {

@@ -2,16 +2,13 @@ import { useMemo } from "react";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { EngineInfo, SessionStats } from "@/services/rpc/entities";
+import { isRpcCommandError } from "@/services/rpc/errors";
 import type {
     HeartbeatErrorEvent,
     HeartbeatMode,
     HeartbeatPayload,
 } from "@/services/rpc/heartbeat";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
-import {
-    getSpeedHistoryStore,
-    type SpeedHistorySnapshot,
-} from "@/shared/hooks/speedHistoryStore";
 
 type TableSubscriptionParams = {
     pollingIntervalMs?: number;
@@ -27,6 +24,13 @@ type NonTableSubscriptionParams = {
     onError: (event: HeartbeatErrorEvent) => void;
 };
 
+export type EngineTestPortOutcome =
+    | { status: "open" }
+    | { status: "closed" }
+    | { status: "unsupported" }
+    | { status: "offline" }
+    | { status: "failed" };
+
 export interface EngineSessionDomain {
     canFetchSessionSettings: boolean;
     canUpdateSessionSettings: boolean;
@@ -38,7 +42,7 @@ export interface EngineSessionDomain {
     updateSessionSettings: (
         settings: Partial<TransmissionSessionSettings>,
     ) => Promise<void>;
-    testPort: () => Promise<boolean>;
+    testPort: () => Promise<EngineTestPortOutcome>;
     detectEngine: () => Promise<EngineInfo>;
     resetConnection: () => void;
     updateRequestTimeout: (timeout: number) => void;
@@ -51,12 +55,6 @@ export interface EngineHeartbeatDomain {
     subscribeNonTable: (params: NonTableSubscriptionParams) => {
         unsubscribe: () => void;
     };
-}
-
-export interface EngineSpeedHistoryDomain {
-    watch: (id: string) => () => void;
-    subscribe: (listener: () => void) => () => void;
-    get: (id: string) => SpeedHistorySnapshot;
 }
 
 const getClient = (client?: EngineAdapter) => client;
@@ -110,11 +108,18 @@ export function useEngineSessionDomain(
                 await updateSessionSettings.call(client, settings);
             },
             testPort: async () => {
-                // TODO(section 20.2/20.5): return typed test-port outcomes instead of boolean/throw.
                 if (typeof testPort !== "function") {
-                    throw new Error("settings.modal.error_test_port");
+                    return { status: "unsupported" };
                 }
-                return testPort.call(client);
+                try {
+                    const isOpen = await testPort.call(client);
+                    return { status: isOpen ? "open" : "closed" };
+                } catch (error) {
+                    if (isRpcCommandError(error)) {
+                        return { status: "offline" };
+                    }
+                    return { status: "failed" };
+                }
             },
             detectEngine: async () => {
                 if (typeof detectEngine !== "function") {
@@ -166,22 +171,5 @@ export function useEngineHeartbeatDomain(
                 }),
         }),
         [client],
-    );
-}
-
-export function useEngineSpeedHistoryDomain(
-    clientOverride?: EngineAdapter,
-): EngineSpeedHistoryDomain {
-    const contextClient = useTorrentClient();
-    const client = getClient(clientOverride) ?? contextClient;
-    const store = useMemo(() => getSpeedHistoryStore(client), [client]);
-
-    return useMemo<EngineSpeedHistoryDomain>(
-        () => ({
-            watch: (id) => store.watch(id),
-            subscribe: (listener) => store.subscribe(listener),
-            get: (id) => store.get(id),
-        }),
-        [store],
     );
 }

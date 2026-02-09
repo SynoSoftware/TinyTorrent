@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { PANEL_SURFACE_INSET_FRAME } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
     type FileExplorerContextAction,
@@ -9,36 +9,31 @@ import {
     type FileExplorerToggleCommand,
     type FileExplorerToggleOutcome,
 } from "@/shared/ui/workspace/FileExplorerTree";
+import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
+    torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
     files?: TorrentFileEntity[];
     emptyMessage: string;
     onFilesToggle?: (
         indexes: number[],
-        wanted: boolean
+        wanted: boolean,
     ) => Promise<void> | void;
     onFileContextAction?: (
         action: FileExplorerContextAction,
-        entry: FileExplorerEntry
+        entry: FileExplorerEntry,
     ) => void;
-    onRecheck?: () => void;
-    onDownloadMissing?: () => void;
-    onOpenFolder?: () => void;
     isStandalone?: boolean;
 }
-
 
 export const ContentTab = ({
     files,
     emptyMessage,
     onFilesToggle,
     onFileContextAction,
-    onRecheck,
-    onDownloadMissing,
-    onOpenFolder,
     isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
@@ -52,7 +47,9 @@ export const ContentTab = ({
             }
             try {
                 await onFilesToggle(indexes, wanted);
-                return { status: "success" } satisfies FileExplorerToggleOutcome;
+                return {
+                    status: "success",
+                } satisfies FileExplorerToggleOutcome;
             } catch {
                 return {
                     status: "failed",
@@ -79,7 +76,7 @@ export const ContentTab = ({
             onFilesToggle: explorer.toggle,
             onFileContextAction,
         }),
-        [explorer.files, explorer.toggle, emptyMessage, onFileContextAction]
+        [explorer.files, explorer.toggle, emptyMessage, onFileContextAction],
     );
 
     if (filesCount === 0) {
@@ -91,35 +88,6 @@ export const ContentTab = ({
                     </div>
                     <div className="text-label text-warning/80 mb-tight">
                         {t("torrent_modal.files_recovery_desc")}
-                    </div>
-                    <div className="flex gap-tools mt-tight">
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color="primary"
-                            onPress={onRecheck}
-                            isDisabled={!onRecheck}
-                        >
-                            {t("toolbar.recheck")}
-                        </Button>
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color="danger"
-                            onPress={onDownloadMissing}
-                            isDisabled={!onDownloadMissing}
-                        >
-                            {t("modals.download")}
-                        </Button>
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color="default"
-                            onPress={onOpenFolder}
-                            isDisabled={!onOpenFolder}
-                        >
-                            {t("directory_browser.open")}
-                        </Button>
                     </div>
                 </GlassPanel>
             </div>
@@ -162,7 +130,9 @@ export const ContentTab = ({
                 </div>
             )}
 
-            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15">
+            <GlassPanel
+                className={`flex flex-1 min-h-0 flex-col ${PANEL_SURFACE_INSET_FRAME}`}
+            >
                 <div className="border-b border-default/10 px-panel py-panel text-label font-semibold uppercase tracking-tight text-foreground/50">
                     {t("torrent_modal.tabs.content")}
                 </div>

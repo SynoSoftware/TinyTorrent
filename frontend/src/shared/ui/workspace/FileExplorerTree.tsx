@@ -1,10 +1,4 @@
-import {
-    ArrowDown,
-    ArrowUp,
-    ChevronDown,
-    Filter,
-    Search,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Filter, Search } from "lucide-react";
 import {
     Button,
     ButtonGroup,
@@ -16,16 +10,16 @@ import {
     DropdownTrigger,
     Input,
 } from "@heroui/react";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import type {
     FileExplorerContextAction,
-    FileExplorerEntry,
     FileExplorerFilterMode,
     FileExplorerTreeViewModel,
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { FileExplorerTreeRow } from "@/shared/ui/workspace/FileExplorerTreeRow";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
 
@@ -79,11 +73,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
     }, [fileWantedMap, setSelectedIndexes]);
 
     const handleSetPriority = useCallback(
-        (
-            priority: LibtorrentPriority | "skip",
-            targetIndexes?: number[],
-        ) => {
-            const indexesToUpdate = targetIndexes ?? Array.from(selectedIndexes);
+        (priority: LibtorrentPriority | "skip", targetIndexes?: number[]) => {
+            const indexesToUpdate =
+                targetIndexes ?? Array.from(selectedIndexes);
             if (indexesToUpdate.length === 0) return;
 
             if (priority === "skip") {
@@ -108,6 +100,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
         [files, onFileContextAction, onFilesToggle, selectedIndexes],
     );
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const virtualizer = useVirtualizer({
         count: visibleNodes.length,
         getScrollElement: () => parentRef.current,
@@ -116,7 +109,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
     });
 
     return (
-        <div className="flex flex-col h-full surface-layer-1 rounded-medium border border-default-200/50 overflow-hidden shadow-small">
+        <GlassPanel className="flex flex-col h-full rounded-medium border border-default-200/50 shadow-small">
             <div className="flex flex-wrap items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30">
                 <Input
                     classNames={{
@@ -156,8 +149,12 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         disallowEmptySelection
                     >
                         <DropdownItem key="all">{t("status.all")}</DropdownItem>
-                        <DropdownItem key="video">{t("types.video")}</DropdownItem>
-                        <DropdownItem key="audio">{t("types.audio")}</DropdownItem>
+                        <DropdownItem key="video">
+                            {t("types.video")}
+                        </DropdownItem>
+                        <DropdownItem key="audio">
+                            {t("types.audio")}
+                        </DropdownItem>
                     </DropdownMenu>
                 </Dropdown>
 
@@ -223,7 +220,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             <DropdownItem key="normal">
                                 {t("priority.normal")}
                             </DropdownItem>
-                            <DropdownItem key="low">{t("priority.low")}</DropdownItem>
+                            <DropdownItem key="low">
+                                {t("priority.low")}
+                            </DropdownItem>
                             <DropdownItem key="skip" className="text-danger">
                                 {t("priority.dont_download")}
                             </DropdownItem>
@@ -313,6 +312,6 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                     </div>
                 )}
             </div>
-        </div>
+        </GlassPanel>
     );
 });

@@ -19,7 +19,8 @@ i18n.use(initReactI18next).init({
 });
 
 i18n.on("missingKey", (_lng, _ns, key) => {
-    const proc = (globalThis as any).process;
+    const proc = (globalThis as { process?: { env?: { NODE_ENV?: string } } })
+        .process;
     if (proc && proc.env && proc.env.NODE_ENV === "development") {
         throw new Error(`Missing i18n key: ${key}`);
     }

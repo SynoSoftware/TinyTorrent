@@ -17,7 +17,6 @@ import {
     HEATMAP_SHADOW_BLUR_MAX,
     HEATMAP_HOVER_STROKE_WIDTH,
     HEATMAP_HOVER_STROKE_INSET,
-    HEATMAP_CELL_STROKE_INSET,
     HEATMAP_USE_UI_SAMPLING_SHIM,
 } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -47,7 +46,9 @@ export const AvailabilityHeatmap = ({
 }: AvailabilityHeatmapProps) => {
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
-    const [isZooming, setIsZooming] = useState(false);
+    const [zoomPulseUntilTick, setZoomPulseUntilTick] = useState<number | null>(
+        null
+    );
     // Decoupled: visuals update only when pieceAvailability changes
     const availabilityList = useMemo(
         () => pieceAvailability ?? [],
@@ -56,10 +57,6 @@ export const AvailabilityHeatmap = ({
     // UI clock for redraw cadence (independent of server updates)
     const { tick } = useUiClock();
     const hasAvailability = availabilityList.length > 0;
-
-    const startZoomPulse = useCallback(() => {
-        setIsZooming(true);
-    }, []);
 
     const handleZoom = useCallback(
         (direction: "in" | "out") => {
@@ -71,12 +68,13 @@ export const AvailabilityHeatmap = ({
                 if (next === prev) {
                     return prev;
                 }
-                startZoomPulse();
+                setZoomPulseUntilTick(tick + 1);
                 return next;
             });
         },
-        [startZoomPulse]
+        [tick]
     );
+    const isZooming = zoomPulseUntilTick !== null && tick <= zoomPulseUntilTick;
 
     const zoomLevel = HEATMAP_ZOOM_LEVELS[zoomIndex] ?? 1;
     // Compatibility shim: sampling & decimation are performed client-side
@@ -134,6 +132,18 @@ export const AvailabilityHeatmap = ({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [hoveredCell, setHoveredCell] = useState<HeatmapHover | null>(null);
     const cellPitch = HEATMAP_CANVAS_CELL_SIZE + HEATMAP_CANVAS_CELL_GAP;
+    const stableHoveredCell = useMemo(() => {
+        if (!hoveredCell) return null;
+        const cell = heatCells[hoveredCell.gridIndex];
+        if (!cell) return null;
+        if (
+            cell.pieceIndex !== hoveredCell.pieceIndex ||
+            cell.value !== hoveredCell.peers
+        ) {
+            return null;
+        }
+        return hoveredCell;
+    }, [heatCells, hoveredCell]);
 
     const drawHeatmap = useCallback(() => {
         const canvas = canvasRef.current;
@@ -174,7 +184,7 @@ export const AvailabilityHeatmap = ({
                 HEATMAP_CANVAS_CELL_SIZE,
                 HEATMAP_CANVAS_CELL_SIZE
             );
-            if (hoveredCell?.gridIndex === index) {
+            if (stableHoveredCell?.gridIndex === index) {
                 ctx.strokeStyle = palette.highlight;
                 // Use configured hover stroke width and inset tokens
                 ctx.lineWidth = HEATMAP_HOVER_STROKE_WIDTH;
@@ -189,7 +199,7 @@ export const AvailabilityHeatmap = ({
         canvasWidth,
         cellPitch,
         heatCells,
-        hoveredCell,
+        stableHoveredCell,
         maxPeers,
         palette.highlight,
         palette.placeholder,
@@ -199,17 +209,6 @@ export const AvailabilityHeatmap = ({
     useEffect(() => {
         drawHeatmap();
     }, [drawHeatmap, tick]);
-
-    useEffect(() => {
-        setHoveredCell(null);
-    }, [heatCells]);
-
-    // Clear zoom pulse on the next UI tick to avoid per-component timers.
-    useEffect(() => {
-        if (isZooming) {
-            setIsZooming(false);
-        }
-    }, [tick]);
 
     const handleHeatmapHover = useCallback(
         (event: MouseEvent<HTMLCanvasElement>) => {
@@ -247,8 +246,8 @@ export const AvailabilityHeatmap = ({
         [canvasWidth, canvasHeight, cellPitch, gridRows, heatCells]
     );
 
-    const tooltipContent = hoveredCell
-        ? formatTooltip(hoveredCell.pieceIndex + 1, hoveredCell.peers)
+    const tooltipContent = stableHoveredCell
+        ? formatTooltip(stableHoveredCell.pieceIndex + 1, stableHoveredCell.peers)
         : undefined;
 
     if (!hasAvailability) {
@@ -334,7 +333,7 @@ export const AvailabilityHeatmap = ({
                     delay={0}
                     closeDelay={0}
                     classNames={GLASS_TOOLTIP_CLASSNAMES}
-                    isDisabled={!hoveredCell}
+                    isDisabled={!stableHoveredCell}
                 >
                     <canvas
                         ref={canvasRef}

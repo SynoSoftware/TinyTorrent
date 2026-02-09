@@ -62,6 +62,7 @@ export const useTorrentTablePersistence = (
         isColumnResizing,
         columnVisibility,
         sorting,
+        setTorrentTableState,
     ]);
 
     useEffect(() => {

@@ -21,9 +21,10 @@ import {
     type TabDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import {
-    tryWriteClipboard,
+    writeClipboardOutcome,
 } from "@/shared/utils/clipboard";
 import type {
+    SettingsFormActionOutcome,
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
 } from "@/modules/settings/context/SettingsFormContext";
@@ -43,13 +44,13 @@ type SaveableSettingsConfig = Omit<
 const stripLivePreferences = (
     config: SettingsConfig,
 ): SaveableSettingsConfig => {
-    const {
-        refresh_interval_ms: _refreshIntervalMs,
-        request_timeout_ms: _requestTimeoutMs,
-        table_watermark_enabled: _tableWatermarkEnabled,
-        ...rest
-    } = config;
-    return rest;
+    const rest = {
+        ...config,
+    } as Partial<SettingsConfig>;
+    delete rest.refresh_interval_ms;
+    delete rest.request_timeout_ms;
+    delete rest.table_watermark_enabled;
+    return rest as SaveableSettingsConfig;
 };
 
 const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
@@ -60,12 +61,6 @@ type ModalFeedback = {
     type: "error" | "success";
     text: string;
 };
-
-interface InterfaceTabState {
-    isImmersive: boolean;
-    onToggleWorkspaceStyle?: () => void;
-    hasDismissedInsights: boolean;
-}
 
 export interface SettingsModalController {
     modal: {
@@ -80,7 +75,6 @@ export interface SettingsModalController {
         tabsFallbackActive: boolean;
         safeVisibleTabs: TabDefinition[];
         activeTabDefinition: TabDefinition;
-        interfaceTabState: InterfaceTabState;
         settingsFormState: SettingsFormStateContextValue;
         settingsFormActions: SettingsFormActionsContextValue;
     };
@@ -102,6 +96,22 @@ const isBrowseTargetConfigKey = (
     key: ConfigKey,
 ): key is BrowseTargetConfigKey =>
     key === "download_dir" || key === "incomplete_dir";
+
+const SETTINGS_ACTION_APPLIED: SettingsFormActionOutcome = {
+    status: "applied",
+};
+const SETTINGS_ACTION_CANCELLED: SettingsFormActionOutcome = {
+    status: "cancelled",
+    reason: "dismissed",
+};
+const SETTINGS_ACTION_UNSUPPORTED: SettingsFormActionOutcome = {
+    status: "unsupported",
+    reason: "capability_unavailable",
+};
+const SETTINGS_ACTION_FAILED: SettingsFormActionOutcome = {
+    status: "failed",
+    reason: "execution_failed",
+};
 
 export function useSettingsModalController(
     viewModel: SettingsModalViewModel,
@@ -127,8 +137,9 @@ export function useSettingsModalController(
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
     const [closeConfirmPending, setCloseConfirmPending] = useState(false);
-    const inputDraftsRef = useRef(new Map<ConfigKey, string>());
-    const [draftsVersion, setDraftsVersion] = useState(0);
+    const [inputDrafts, setInputDrafts] = useState<Map<ConfigKey, string>>(
+        () => new Map()
+    );
     const safeInitialConfig = useMemo(
         () => initialConfig ?? DEFAULT_SETTINGS_CONFIG,
         [initialConfig],
@@ -136,7 +147,8 @@ export function useSettingsModalController(
     const [config, setConfig] = useState<SettingsConfig>(() => ({
         ...safeInitialConfig,
     }));
-    const openedConfigRef = useRef<SettingsConfig>({ ...safeInitialConfig });
+    const [openedConfigSnapshot, setOpenedConfigSnapshot] =
+        useState<SettingsConfig>({ ...safeInitialConfig });
     const wasOpenRef = useRef(false);
     const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
         null,
@@ -151,6 +163,7 @@ export function useSettingsModalController(
             uiMode,
             canBrowse,
             shellAgentAvailable,
+            clipboardWriteSupported,
         },
     } = useSession();
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
@@ -186,12 +199,15 @@ export function useSettingsModalController(
 
     const setFieldDraft = useCallback(
         (key: ConfigKey, draft: string | null) => {
-            if (draft === null) {
-                inputDraftsRef.current.delete(key);
-            } else {
-                inputDraftsRef.current.set(key, draft);
-            }
-            setDraftsVersion((version) => version + 1);
+            setInputDrafts((previous) => {
+                const next = new Map(previous);
+                if (draft === null) {
+                    next.delete(key);
+                } else {
+                    next.set(key, draft);
+                }
+                return next;
+            });
             if (closeConfirmPending) {
                 setCloseConfirmPending(false);
             }
@@ -200,11 +216,11 @@ export function useSettingsModalController(
     );
 
     const effectiveConfig = useMemo(() => {
-        if (inputDraftsRef.current.size === 0) return config;
+        if (inputDrafts.size === 0) return config;
         const patched = {
             ...config,
         } as Record<ConfigKey, SettingsConfig[ConfigKey]>;
-        for (const [key, draft] of inputDraftsRef.current.entries()) {
+        for (const [key, draft] of inputDrafts.entries()) {
             const inputType = configKeyInputTypes.get(key);
             if (inputType === "number") {
                 if (draft.trim() === "") continue;
@@ -216,15 +232,22 @@ export function useSettingsModalController(
             patched[key] = draft;
         }
         return patched as SettingsConfig;
-    }, [config, configKeyInputTypes, draftsVersion]);
+    }, [config, configKeyInputTypes, inputDrafts]);
 
     const configJson = useMemo(
         () => JSON.stringify(effectiveConfig, null, 2),
         [effectiveConfig],
     );
 
-    const handleCopyConfigJson = useCallback(async () => {
-        const copied = await tryWriteClipboard(configJson);
+    const handleCopyConfigJson = useCallback(async (): Promise<SettingsFormActionOutcome> => {
+        const canUseClipboard = clipboardWriteSupported;
+        if (!canUseClipboard) {
+            setJsonCopyStatus("failed");
+            return SETTINGS_ACTION_UNSUPPORTED;
+        }
+
+        const outcome = await writeClipboardOutcome(configJson);
+        const copied = outcome.status === "copied";
         setJsonCopyStatus(copied ? "copied" : "failed");
         if (jsonCopyTimerRef.current) {
             clearTimeout(jsonCopyTimerRef.current);
@@ -232,55 +255,80 @@ export function useSettingsModalController(
         jsonCopyTimerRef.current = window.setTimeout(() => {
             setJsonCopyStatus("idle");
         }, CLIPBOARD_BADGE_DURATION_MS);
-    }, [configJson]);
+        switch (outcome.status) {
+            case "copied":
+                return SETTINGS_ACTION_APPLIED;
+            case "unsupported":
+                return SETTINGS_ACTION_UNSUPPORTED;
+            case "empty":
+            case "failed":
+            default:
+                return SETTINGS_ACTION_FAILED;
+        }
+    }, [clipboardWriteSupported, configJson]);
 
     const hasSaveableEdits = useMemo(
-        () => !configsAreEqual(effectiveConfig, openedConfigRef.current),
-        [effectiveConfig],
+        () => !configsAreEqual(effectiveConfig, openedConfigSnapshot),
+        [effectiveConfig, openedConfigSnapshot],
     );
-    const hasPendingDraftEdits = useMemo(
-        () => inputDraftsRef.current.size > 0,
-        [draftsVersion],
-    );
+    const hasPendingDraftEdits = inputDrafts.size > 0;
     const hasUnsavedChanges = hasSaveableEdits || hasPendingDraftEdits;
 
     useEffect(() => {
         if (!isOpen) {
             wasOpenRef.current = false;
-            inputDraftsRef.current.clear();
-            setDraftsVersion((version) => version + 1);
+            const resetHandle = window.setTimeout(() => {
+                setInputDrafts(new Map());
+            }, 0);
+            return () => {
+                window.clearTimeout(resetHandle);
+            };
+        }
+        if (wasOpenRef.current) {
             return;
         }
-        if (wasOpenRef.current) return;
 
         wasOpenRef.current = true;
-        openedConfigRef.current = { ...safeInitialConfig };
-        setConfig({ ...safeInitialConfig });
-        setModalFeedback(null);
-        setJsonCopyStatus("idle");
-        setIsMobileMenuOpen(true);
-        inputDraftsRef.current.clear();
-        setDraftsVersion((version) => version + 1);
-        setCloseConfirmPending(false);
+        const initHandle = window.setTimeout(() => {
+            setOpenedConfigSnapshot({ ...safeInitialConfig });
+            setConfig({ ...safeInitialConfig });
+            setModalFeedback(null);
+            setJsonCopyStatus("idle");
+            setIsMobileMenuOpen(true);
+            setInputDrafts(new Map());
+            setCloseConfirmPending(false);
+        }, 0);
+        return () => {
+            window.clearTimeout(initHandle);
+        };
     }, [isOpen, safeInitialConfig]);
 
     useEffect(() => {
         if (!isOpen || hasSaveableEdits) {
             return;
         }
-        openedConfigRef.current = { ...safeInitialConfig };
-        setConfig({ ...safeInitialConfig });
+        const syncHandle = window.setTimeout(() => {
+            setOpenedConfigSnapshot({ ...safeInitialConfig });
+            setConfig({ ...safeInitialConfig });
+        }, 0);
+        return () => {
+            window.clearTimeout(syncHandle);
+        };
     }, [hasSaveableEdits, isOpen, safeInitialConfig]);
 
     useEffect(() => {
         if (isOpen) {
             return;
         }
-        setModalFeedback(null);
-        setJsonCopyStatus("idle");
-        setCloseConfirmPending(false);
-        inputDraftsRef.current.clear();
-        setDraftsVersion((version) => version + 1);
+        const closeHandle = window.setTimeout(() => {
+            setModalFeedback(null);
+            setJsonCopyStatus("idle");
+            setCloseConfirmPending(false);
+            setInputDrafts(new Map());
+        }, 0);
+        return () => {
+            window.clearTimeout(closeHandle);
+        };
     }, [isOpen]);
 
     const requestClose = useCallback(() => {
@@ -308,12 +356,12 @@ export function useSettingsModalController(
                 text: t("settings.modal.error_window_state"),
             });
         }
-    }, [canUseShell, shellAgent, t]);
+    }, [canUseShell, t]);
 
     const handleSave = useCallback(async () => {
         const needsSave = !configsAreEqual(
             effectiveConfig,
-            openedConfigRef.current,
+            openedConfigSnapshot,
         );
         if (onApplyUserPreferencesPatch) {
             const patch: LiveUserPreferencePatch = {};
@@ -349,8 +397,7 @@ export function useSettingsModalController(
                 await onSave(effectiveConfig);
             }
             setModalFeedback(null);
-            inputDraftsRef.current.clear();
-            setDraftsVersion((version) => version + 1);
+            setInputDrafts(new Map());
             onClose();
         } catch {
             setModalFeedback({
@@ -361,6 +408,7 @@ export function useSettingsModalController(
     }, [
         config,
         effectiveConfig,
+        openedConfigSnapshot,
         onApplyUserPreferencesPatch,
         onClose,
         onSave,
@@ -371,8 +419,7 @@ export function useSettingsModalController(
     const handleReset = useCallback(() => {
         const nextConfig: SettingsConfig = { ...DEFAULT_SETTINGS_CONFIG };
         setConfig(nextConfig);
-        inputDraftsRef.current.clear();
-        setDraftsVersion((version) => version + 1);
+        setInputDrafts(new Map());
         onApplyUserPreferencesPatch?.({
             refresh_interval_ms: nextConfig.refresh_interval_ms,
             request_timeout_ms: nextConfig.request_timeout_ms,
@@ -404,25 +451,53 @@ export function useSettingsModalController(
         [t],
     );
 
-    // TODO(section 20.2/20.5): consume typed test-port outcomes (open/closed/unsupported/failed).
     const handleTestPortAction = useCallback(() => {
-        if (!onTestPort) return;
+        if (!onTestPort) {
+            setModalFeedback({
+                type: "error",
+                text: t("settings.modal.test_port_unsupported"),
+            });
+            return;
+        }
         void (async () => {
-            try {
-                const isOpenPort = await onTestPort();
-                setModalFeedback({
-                    type: "success",
-                    text: t(
-                        isOpenPort
-                            ? "settings.modal.test_port_open"
-                            : "settings.modal.test_port_closed",
-                    ),
-                });
-            } catch {
-                setModalFeedback({
-                    type: "error",
-                    text: t("settings.modal.error_test_port"),
-                });
+            const outcome = await onTestPort();
+            switch (outcome.status) {
+                case "open":
+                    setModalFeedback({
+                        type: "success",
+                        text: t("settings.modal.test_port_open"),
+                    });
+                    return;
+                case "closed":
+                    setModalFeedback({
+                        type: "success",
+                        text: t("settings.modal.test_port_closed"),
+                    });
+                    return;
+                case "unsupported":
+                    setModalFeedback({
+                        type: "error",
+                        text: t("settings.modal.test_port_unsupported"),
+                    });
+                    return;
+                case "offline":
+                    setModalFeedback({
+                        type: "error",
+                        text: t("settings.modal.test_port_offline"),
+                    });
+                    return;
+                case "failed":
+                    setModalFeedback({
+                        type: "error",
+                        text: t("settings.modal.error_test_port"),
+                    });
+                    return;
+                default:
+                    setModalFeedback({
+                        type: "error",
+                        text: t("settings.modal.error_test_port"),
+                    });
+                    return;
             }
         })();
     }, [onTestPort, t]);
@@ -438,9 +513,23 @@ export function useSettingsModalController(
         [handleTestPortAction, onRestoreInsights, runAction],
     );
 
-    const safeReconnect = useMemo(
-        () => runAction(() => onReconnect(), "settings.modal.error_reconnect"),
-        [onReconnect, runAction],
+    const safeReconnect = useCallback(
+        async (): Promise<SettingsFormActionOutcome> => {
+            if (!onReconnect) {
+                return SETTINGS_ACTION_UNSUPPORTED;
+            }
+            const outcome = await onReconnect();
+            if (outcome.status !== "connected") {
+                setModalFeedback({
+                    type: "error",
+                    text: t("settings.modal.error_reconnect"),
+                });
+                return SETTINGS_ACTION_FAILED;
+            }
+            setModalFeedback(null);
+            return SETTINGS_ACTION_APPLIED;
+        },
+        [onReconnect, t],
     );
 
     const sliderConstraints = useMemo<
@@ -464,10 +553,12 @@ export function useSettingsModalController(
             if (closeConfirmPending) {
                 setCloseConfirmPending(false);
             }
-            if (inputDraftsRef.current.has(key)) {
-                inputDraftsRef.current.delete(key);
-                setDraftsVersion((version) => version + 1);
-            }
+            setInputDrafts((previous) => {
+                if (!previous.has(key)) return previous;
+                const next = new Map(previous);
+                next.delete(key);
+                return next;
+            });
             const constraint = sliderConstraints[key];
             let nextValue = value;
             if (
@@ -508,22 +599,35 @@ export function useSettingsModalController(
 
     const handleBrowse = useCallback(
         async (key: ConfigKey) => {
-            if (!canBrowseDirectories || !canUseShell) return;
-            if (!isBrowseTargetConfigKey(key)) return;
+            if (!canBrowseDirectories || !canUseShell) {
+                return SETTINGS_ACTION_UNSUPPORTED;
+            }
+            if (!isBrowseTargetConfigKey(key)) {
+                return SETTINGS_ACTION_UNSUPPORTED;
+            }
             try {
                 const targetPath = config[key];
                 const selected = await shellAgent.browseDirectory(targetPath);
-                if (selected) {
-                    updateConfig(key, selected);
+                if (!selected) {
+                    return SETTINGS_ACTION_CANCELLED;
                 }
+                if (selected === targetPath) {
+                    return {
+                        status: "cancelled",
+                        reason: "no_change",
+                    } as const;
+                }
+                updateConfig(key, selected);
+                return SETTINGS_ACTION_APPLIED;
             } catch {
                 setModalFeedback({
                     type: "error",
                     text: t("settings.modal.error_browse"),
                 });
+                return SETTINGS_ACTION_FAILED;
             }
         },
-        [canBrowseDirectories, canUseShell, config, shellAgent, t, updateConfig],
+        [canBrowseDirectories, canUseShell, config, t, updateConfig],
     );
 
     const hasVisibleBlocks = useCallback(
@@ -567,7 +671,12 @@ export function useSettingsModalController(
         if (safeVisibleTabs.find((tab) => tab.id === activeTab)) {
             return;
         }
-        setActiveTab(safeVisibleTabs[0]?.id ?? "speed");
+        const fallbackHandle = window.setTimeout(() => {
+            setActiveTab(safeVisibleTabs[0]?.id ?? "speed");
+        }, 0);
+        return () => {
+            window.clearTimeout(fallbackHandle);
+        };
     }, [activeTab, safeVisibleTabs]);
 
     const settingsFormState = useMemo<SettingsFormStateContextValue>(
@@ -584,23 +693,27 @@ export function useSettingsModalController(
     const settingsFormActions = useMemo<SettingsFormActionsContextValue>(
         () => ({
             capabilities,
+            interfaceTab: {
+                isImmersive: Boolean(isImmersive),
+                hasDismissedInsights,
+                onToggleWorkspaceStyle,
+            },
             buttonActions,
             canBrowseDirectories,
-            onBrowse: (key) => {
-                void handleBrowse(key);
-            },
+            onBrowse: handleBrowse,
             onCopyConfigJson: handleCopyConfigJson,
             onReconnect: safeReconnect,
-            isImmersive: Boolean(isImmersive),
         }),
         [
             capabilities,
+            hasDismissedInsights,
+            isImmersive,
+            onToggleWorkspaceStyle,
             buttonActions,
             canBrowseDirectories,
             handleBrowse,
             handleCopyConfigJson,
             safeReconnect,
-            isImmersive,
         ],
     );
 
@@ -621,19 +734,9 @@ export function useSettingsModalController(
 
     const onDiscardAndClose = useCallback(() => {
         setCloseConfirmPending(false);
-        inputDraftsRef.current.clear();
-        setDraftsVersion((version) => version + 1);
+        setInputDrafts(new Map());
         onClose();
     }, [onClose]);
-
-    const interfaceTabState = useMemo<InterfaceTabState>(
-        () => ({
-            isImmersive: Boolean(isImmersive),
-            onToggleWorkspaceStyle,
-            hasDismissedInsights,
-        }),
-        [hasDismissedInsights, isImmersive, onToggleWorkspaceStyle],
-    );
 
     return useMemo(
         () => ({
@@ -649,7 +752,6 @@ export function useSettingsModalController(
                 tabsFallbackActive,
                 safeVisibleTabs,
                 activeTabDefinition,
-                interfaceTabState,
                 settingsFormState,
                 settingsFormActions,
             },
@@ -672,7 +774,6 @@ export function useSettingsModalController(
             handleReset,
             handleSave,
             hasUnsavedChanges,
-            interfaceTabState,
             isMobileMenuOpen,
             isOpen,
             isSaving,

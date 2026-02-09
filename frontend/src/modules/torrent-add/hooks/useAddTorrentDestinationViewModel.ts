@@ -1,16 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import type { DragEvent } from "react";
-import { describePathKind, isValidDestinationForMode } from "@/modules/torrent-add/utils/destination";
+import {
+    describePathKind,
+    isValidDestinationForPolicy,
+} from "@/modules/torrent-add/utils/destination";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { shellAgent } from "@/app/agents/shell-agent";
+import type { AddTorrentBrowseOutcome } from "@/modules/torrent-add/types";
 
 export interface UseAddTorrentDestinationViewModelParams {
     downloadDir: string;
     onDownloadDirChange: (value: string) => void;
-    // TODO(section 21.9): avoid threading browse behavior callbacks through modal hooks;
-    // consume a single command surface at the leaf boundary.
-    onBrowseDirectory?: (
-        currentPath: string
-    ) => Promise<string | null | undefined>;
     addTorrentHistory: string[];
     setAddTorrentHistory: (next: string[]) => void;
 }
@@ -28,7 +28,7 @@ export interface UseAddTorrentDestinationViewModelResult {
     handleDrop: (event: DragEvent<HTMLDivElement>) => void;
     handleDragOver: (event: DragEvent) => void;
     handleDragLeave: () => void;
-    handleBrowse: () => Promise<void>;
+    handleBrowse: () => Promise<AddTorrentBrowseOutcome>;
     pushRecentPath: (path: string) => void;
     applyDroppedPath: (path?: string) => void;
 }
@@ -36,11 +36,10 @@ export interface UseAddTorrentDestinationViewModelResult {
 export function useAddTorrentDestinationViewModel({
     downloadDir,
     onDownloadDirChange,
-    onBrowseDirectory,
     addTorrentHistory,
     setAddTorrentHistory,
 }: UseAddTorrentDestinationViewModelParams): UseAddTorrentDestinationViewModelResult {
-    const { uiMode } = useUiModeCapabilities();
+    const { uiMode, canBrowse, destinationPathPolicy } = useUiModeCapabilities();
     const [destinationDraft, setDestinationDraft] = useState("");
     const [destinationGateCompleted, setDestinationGateCompleted] = useState(false);
     const [destinationGateTried, setDestinationGateTried] = useState(false);
@@ -71,13 +70,16 @@ export function useAddTorrentDestinationViewModel({
     }, []);
 
     const resetForOpen = useCallback(() => {
-        const isInitiallyValid = isValidDestinationForMode(downloadDir, uiMode);
+        const isInitiallyValid = isValidDestinationForPolicy(
+            downloadDir,
+            destinationPathPolicy,
+        );
         setDestinationGateCompleted(isInitiallyValid);
         setDestinationGateTried(false);
         setDestinationDraft(isInitiallyValid ? downloadDir : "");
         setDropActive(false);
         dropActiveRef.current = false;
-    }, [downloadDir, uiMode]);
+    }, [destinationPathPolicy, downloadDir]);
 
     const applyDroppedPath = useCallback(
         (path?: string) => {
@@ -91,12 +93,17 @@ export function useAddTorrentDestinationViewModel({
             }
 
             setDestinationDraft(trimmed);
-            if (isValidDestinationForMode(trimmed, uiMode)) {
+            if (isValidDestinationForPolicy(trimmed, destinationPathPolicy)) {
                 onDownloadDirChange(trimmed);
                 pushRecentPath(trimmed);
             }
         },
-        [destinationGateCompleted, onDownloadDirChange, pushRecentPath, uiMode]
+        [
+            destinationGateCompleted,
+            destinationPathPolicy,
+            onDownloadDirChange,
+            pushRecentPath,
+        ]
     );
 
     const handleDrop = useCallback(
@@ -163,23 +170,29 @@ export function useAddTorrentDestinationViewModel({
     }, []);
 
     const handleBrowse = useCallback(async () => {
-        // TODO(section 20.2/20.5): return typed browse outcomes
-        // (picked|cancelled|unsupported|failed) instead of Promise<void> + silent no-op.
-        if (!onBrowseDirectory) return;
+        if (!canBrowse) {
+            return { status: "unsupported" } as const;
+        }
         setIsTouchingDirectory(true);
         try {
             const start = destinationGateCompleted ? downloadDir : destinationDraft;
-            const next = await onBrowseDirectory(start);
-            if (next) applyDroppedPath(next);
+            const next = await shellAgent.browseDirectory(start);
+            if (!next) {
+                return { status: "cancelled" } as const;
+            }
+            applyDroppedPath(next);
+            return { status: "picked", path: next } as const;
+        } catch {
+            return { status: "failed" } as const;
         } finally {
             setIsTouchingDirectory(false);
         }
     }, [
         applyDroppedPath,
+        canBrowse,
         destinationDraft,
         destinationGateCompleted,
         downloadDir,
-        onBrowseDirectory,
     ]);
 
     return {

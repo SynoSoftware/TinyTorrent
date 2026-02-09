@@ -9,7 +9,9 @@ import {
     type TorrentCommandOutcome,
 } from "@/app/context/AppCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import type { ClipboardWriteOutcome } from "@/shared/utils/clipboard";
 
 // Hook: context-menu action handler for the torrent table.
 // Extracted from `TorrentTable.tsx` and accepts a params object to keep
@@ -21,7 +23,7 @@ type UseTorrentTableContextParams = {
     } | null;
     findRowElement: (id: string) => HTMLElement | null;
     openColumnModal: (el: HTMLElement | null) => void;
-    copyToClipboard: (s: string) => Promise<void>;
+    copyToClipboard: (s: string) => Promise<ClipboardWriteOutcome>;
     buildMagnetLink: (t: Torrent) => string;
     setContextMenu: React.Dispatch<
         React.SetStateAction<{
@@ -29,7 +31,6 @@ type UseTorrentTableContextParams = {
             torrent: Torrent;
         } | null>
     >;
-    openTorrentFolder?: (path?: string | null) => void;
     selectedTorrents: Torrent[];
 };
 
@@ -61,7 +62,6 @@ export const useTorrentTableContextActions = (
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
-        openTorrentFolder,
         selectedTorrents = [],
     } = params;
 
@@ -102,7 +102,8 @@ export const useTorrentTableContextActions = (
             selectionTargets,
         ]
     );
-    const { handleSetLocation } = useRecoveryContext();
+    const { handleSetLocation, handleOpenFolder, canOpenFolder } =
+        useRecoveryContext();
     const handleContextMenuAction = useCallback(
         async (key?: string): Promise<TorrentCommandOutcome> => {
             if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
@@ -126,19 +127,41 @@ export const useTorrentTableContextActions = (
                 }
                 if (key === "open-folder") {
                     const path = resolveTorrentPath(torrent);
-                    if (!path || !openTorrentFolder) {
+                    if (!canOpenFolder) {
                         return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                     }
-                    await openTorrentFolder(path);
-                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    const outcome = await handleOpenFolder(path);
+                    if (isOpenFolderSuccess(outcome)) {
+                        return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    }
+                    if (
+                        outcome.status === "unsupported" ||
+                        outcome.status === "missing_path"
+                    ) {
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
+                    }
+                    return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
                 if (key === "set-download-path") {
                     // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
-                    await handleSetLocation(torrent, {
+                    const outcome = await handleSetLocation(torrent, {
                         surface: "context-menu",
                         mode: "manual",
                     });
-                    return COMMAND_OUTCOME_QUEUED;
+                    if (
+                        outcome.status === "manual_opened" ||
+                        outcome.status === "picked" ||
+                        outcome.status === "cancelled"
+                    ) {
+                        return COMMAND_OUTCOME_QUEUED;
+                    }
+                    if (outcome.status === "unsupported") {
+                        return COMMAND_OUTCOME_UNSUPPORTED;
+                    }
+                    if (outcome.status === "conflict") {
+                        return COMMAND_OUTCOME_UNSUPPORTED;
+                    }
+                    return COMMAND_OUTCOME_FAILED;
                 }
                 if (key === "reDownload" || key === "reDownloadHere") {
                     // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
@@ -150,14 +173,26 @@ export const useTorrentTableContextActions = (
                     return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
                 }
                 if (key === "copy-hash") {
-                    // TODO(section 20.2/20.5): map clipboard write result to explicit command outcome.
-                    await copyToClipboard(torrent.hash);
-                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    const outcome = await copyToClipboard(torrent.hash);
+                    if (outcome.status === "copied") {
+                        return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    }
+                    if (outcome.status === "unsupported") {
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
+                    }
+                    return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
                 if (key === "copy-magnet") {
-                    // TODO(section 20.2/20.5): map clipboard write result to explicit command outcome.
-                    await copyToClipboard(buildMagnetLink(torrent));
-                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    const outcome = await copyToClipboard(
+                        buildMagnetLink(torrent),
+                    );
+                    if (outcome.status === "copied") {
+                        return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    }
+                    if (outcome.status === "unsupported") {
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
+                    }
+                    return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
 
                 // Map common table actions to intents when possible
@@ -206,7 +241,8 @@ export const useTorrentTableContextActions = (
             copyToClipboard,
             buildMagnetLink,
             setContextMenu,
-            openTorrentFolder,
+            canOpenFolder,
+            handleOpenFolder,
             dispatch,
             executeTableAction,
             handleSetLocation,

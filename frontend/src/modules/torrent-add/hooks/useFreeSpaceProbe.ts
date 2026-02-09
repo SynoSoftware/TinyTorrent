@@ -46,7 +46,14 @@ export function useFreeSpaceProbe({
     useEffect(() => {
         const trimmed = path.trim();
         if (!checkFreeSpace || !enabled || !trimmed) {
-            setState({ status: "idle" });
+            const idleResetHandle = window.setTimeout(() => {
+                setState({ status: "idle" });
+            }, 0);
+            return () => {
+                window.clearTimeout(idleResetHandle);
+            };
+        }
+        if (typeof window === "undefined") {
             return;
         }
 

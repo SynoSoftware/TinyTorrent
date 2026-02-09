@@ -14,7 +14,15 @@ export type RecoveryGateOutcome =
           log?: string;
           blockingOutcome?: RecoveryOutcome;
       }
-    | { status: "cancelled"; log?: string };
+    | { status: "cancelled"; log?: string }
+    | {
+          status: "not_required";
+          reason:
+              | "no_error_envelope"
+              | "not_actionable"
+              | "no_blocking_outcome"
+              | "set_location";
+      };
 
 export type RecoveryGateOptions = {
     recreateFolder?: boolean;
@@ -26,6 +34,4 @@ export type RecoveryGateCallback = (params: {
     torrent: Torrent | TorrentDetail;
     action: RecoveryGateAction;
     options?: RecoveryGateOptions;
-// TODO(section 20.2/20.5): remove nullable gate outcomes; use explicit variants
-// (no-op/unsupported/not-required/conflict) instead of `null`.
-}) => Promise<RecoveryGateOutcome | null>;
+}) => Promise<RecoveryGateOutcome>;

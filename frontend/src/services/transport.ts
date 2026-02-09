@@ -21,12 +21,6 @@ export type TransportFetchOutcome =
     | { kind: "ok"; response: Response }
     | TransportFailureOutcome;
 
-interface RpcRequest {
-    method: string;
-    arguments?: Record<string, unknown>;
-    tag?: number;
-}
-
 interface RpcResponse<T = unknown> {
     result: string;
     arguments: T;
@@ -117,7 +111,7 @@ export class TransmissionRpcTransport {
                     this.authHeader =
                         "Basic " +
                         btoa(`${credentials.user}:${credentials.pass}`);
-                } catch {}
+                } catch { /* ignore */ }
             }
         }
         infraLogger.debug({
@@ -136,7 +130,7 @@ export class TransmissionRpcTransport {
     public clearResponseCache(): void {
         try {
             this.responseCache.clear();
-        } catch {}
+        } catch { /* ignore */ }
     }
 
     /**
@@ -147,20 +141,20 @@ export class TransmissionRpcTransport {
     public resetSession(): void {
         try {
             this.sessionId = null;
-        } catch {}
+        } catch { /* ignore */ }
         try {
             this.sessionRuntime.sharedSessionId = null;
             this.sessionRuntime.probePromise = null;
             this.sessionRuntime.sessionBarrier = null;
-        } catch {}
+        } catch { /* ignore */ }
         try {
             this.clearResponseCache();
-        } catch {}
+        } catch { /* ignore */ }
         try {
             // Abort any in-flight fetches and clear coalesced inflight promises
             this.abortAll();
             this.inflightRequests.clear();
-        } catch {}
+        } catch { /* ignore */ }
     }
 
     public getSessionId(): string | undefined {
@@ -170,10 +164,10 @@ export class TransmissionRpcTransport {
     public setSessionId(token: string | null | undefined): void {
         try {
             this.sessionId = token ?? null;
-        } catch {}
+        } catch { /* ignore */ }
         try {
             this.sessionRuntime.sharedSessionId = token ?? null;
-        } catch {}
+        } catch { /* ignore */ }
     }
 
     private isAbortError(error: unknown): boolean {
@@ -218,16 +212,16 @@ export class TransmissionRpcTransport {
                 const onAbort = () => {
                     try {
                         internalController.abort();
-                    } catch {}
+                    } catch { /* ignore */ }
                 };
                 if (controller.signal)
                     controller.signal.addEventListener("abort", onAbort);
-            } catch {}
+            } catch { /* ignore */ }
         }
         // Track controller for abortAll support
         try {
             this.inflightControllers.add(internalController);
-        } catch {}
+        } catch { /* ignore */ }
         requestInit.signal = internalController.signal;
         if (keepalive) {
             (requestInit as RequestInit & { keepalive?: boolean }).keepalive =
@@ -308,16 +302,16 @@ export class TransmissionRpcTransport {
                                                 );
                                                 if (m && m[1]) token = m[1];
                                             }
-                                        } catch {}
+                                        } catch { /* ignore */ }
                                     }
-                                } catch {}
+                                } catch { /* ignore */ }
                             }
 
                             if (token) {
                                 this.sessionId = token;
                                 try {
                                     this.sessionRuntime.sharedSessionId = token;
-                                } catch {}
+                                } catch { /* ignore */ }
                             }
 
                             resolveBarrier();
@@ -330,7 +324,7 @@ export class TransmissionRpcTransport {
                                               "Session barrier initialization failed"
                                           )
                                 );
-                            } catch {}
+                            } catch { /* ignore */ }
                         } finally {
                             // clear barrier after resolution so future handshakes
                             // may create a new barrier when needed.
@@ -380,7 +374,7 @@ export class TransmissionRpcTransport {
             } finally {
                 try {
                     this.inflightControllers.delete(internalController);
-                } catch {}
+                } catch { /* ignore */ }
             }
 
             // Some tests/mock environments provide a lightweight object
@@ -405,7 +399,7 @@ export class TransmissionRpcTransport {
                     if (hdrs && typeof hdrs.get === "function") {
                         token = hdrs.get("X-Transmission-Session-Id");
                     }
-                } catch {}
+                } catch { /* ignore */ }
 
                 if (!token) {
                     try {
@@ -413,7 +407,7 @@ export class TransmissionRpcTransport {
                         // share a single probe network request instead of issuing
                         // multiple OPTIONS/HEAD/GET probes.
                         token = await this.probeForSessionId(controller);
-                    } catch {}
+                    } catch { /* ignore */ }
                 }
                 if (!token) {
                     this.sessionId = null;
@@ -426,7 +420,7 @@ export class TransmissionRpcTransport {
                 this.sessionId = token;
                 try {
                     this.sessionRuntime.sharedSessionId = token;
-                } catch {}
+                } catch { /* ignore */ }
                 if (retry) {
                     this.sessionId = null;
                     return {
@@ -463,9 +457,9 @@ export class TransmissionRpcTransport {
                     this.sessionId = currentToken;
                     try {
                         this.sessionRuntime.sharedSessionId = currentToken;
-                    } catch {}
+                    } catch { /* ignore */ }
                 }
-            } catch {}
+            } catch { /* ignore */ }
 
             return { kind: "ok", response };
         };
@@ -505,12 +499,12 @@ export class TransmissionRpcTransport {
             for (const ctrl of Array.from(this.inflightControllers)) {
                 try {
                     ctrl.abort();
-                } catch {}
+                } catch { /* ignore */ }
             }
         } finally {
             try {
                 this.inflightControllers.clear();
-            } catch {}
+            } catch { /* ignore */ }
         }
     }
 
@@ -551,8 +545,8 @@ export class TransmissionRpcTransport {
                                 );
                                 if (m && m[1]) return m[1];
                             }
-                        } catch {}
-                    } catch {}
+                        } catch { /* ignore */ }
+                    } catch { /* ignore */ }
                 }
                 return null;
             } finally {

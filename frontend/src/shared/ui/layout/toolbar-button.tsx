@@ -14,6 +14,7 @@ import { ICON_STROKE_WIDTH } from "@/config/logic";
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ICON_SIZE_CLASSES: Record<ToolbarIconSize, string> = {
     sm: "toolbar-icon-size-sm",
     md: "toolbar-icon-size-md",
@@ -21,6 +22,7 @@ export const ICON_SIZE_CLASSES: Record<ToolbarIconSize, string> = {
     xl: "toolbar-icon-size-xl",
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ICON_SIZE_VARS: Record<ToolbarIconSize, string> = {
     sm: "var(--tt-status-icon-sm)",
     md: "var(--tt-status-icon-md)",

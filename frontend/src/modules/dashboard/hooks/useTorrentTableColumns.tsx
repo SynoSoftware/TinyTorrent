@@ -16,12 +16,10 @@ export function useTorrentTableColumns({
     t,
     speedHistoryRef,
     optimisticStatuses,
-    openFolder,
 }: {
     t: TFunction;
     speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
-    openFolder?: (path?: string | null) => void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
@@ -81,9 +79,8 @@ export function useTorrentTableColumns({
         () => ({
             speedHistoryRef,
             optimisticStatuses,
-            openFolder,
         }),
-        [openFolder, optimisticStatuses, speedHistoryRef]
+        [optimisticStatuses, speedHistoryRef]
     );
 
     return { columns, tableMeta };

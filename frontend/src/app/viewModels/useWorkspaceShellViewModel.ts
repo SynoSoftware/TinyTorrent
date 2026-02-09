@@ -52,7 +52,10 @@ import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
 import { useTorrentOrchestrator } from "@/app/orchestrators/useTorrentOrchestrator";
 import { useSelection } from "@/app/context/AppShellStateContext";
-import { useTorrentWorkflow } from "@/app/hooks/useTorrentWorkflow";
+import {
+    useTorrentWorkflow,
+    type RecheckRefreshOutcome,
+} from "@/app/hooks/useTorrentWorkflow";
 import {
     dispatchTorrentAction,
     dispatchTorrentSelectionAction,
@@ -63,6 +66,7 @@ import {
 } from "@/app/intents/torrentIntents";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { useHudCards } from "@/app/hooks/useHudCards";
+import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import {
@@ -140,20 +144,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         searchInput.select();
     }, []);
     const canUseShell = uiCapabilities.uiMode === "Full";
-    const browseDirectory = useMemo(() => {
-        if (!canUseShell) return undefined;
-        return async (currentPath: string) => {
-            try {
-                return (
-                    (await shellAgent.browseDirectory(
-                        currentPath || undefined,
-                    )) ?? null
-                );
-            } catch {
-                return null;
-            }
-        };
-    }, [canUseShell, shellAgent]);
 
     const addTorrentCheckFreeSpace = useMemo(() => {
         const rpcCheckFreeSpace = torrentClient.checkFreeSpace?.bind(torrentClient);
@@ -168,7 +158,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
                 return rpcCheckFreeSpace(path);
             }
         };
-    }, [canUseShell, torrentClient, shellAgent]);
+    }, [canUseShell, torrentClient]);
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
     const isMountedRef = useRef(false);
@@ -278,7 +268,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const {
         state: recoveryState,
         modal: recoveryModal,
-        inlineEditor,
+        locationEditor,
         setLocation,
         actions: recoveryActions,
     } = recovery;
@@ -297,7 +287,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         recreateFolder: handleRecoveryRecreateFolder,
     } = recoveryModal;
 
-    /* inline editor controls are accessed via `inlineEditor` directly where needed */
+    /* inline editor controls are accessed via `locationEditor` directly where needed */
 
     const { capability: setLocationCapability, handler: handleSetLocation } =
         setLocation;
@@ -308,6 +298,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         probeMissingFilesIfStale,
         handlePrepareDelete,
         getRecoverySessionForKey,
+        openRecoveryModal,
     } = recoveryActions;
 
     useEffect(() => {
@@ -388,33 +379,13 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleCloseDetail();
     }, [detailData, torrents, handleCloseDetail]);
 
-    const handleEnsureValid = useCallback(
-        async (torrentId: string | number) => {
-            await dispatch(TorrentIntents.ensureValid(torrentId));
-        },
-        [dispatch],
-    );
-
-    const handleEnsureDataPresent = useCallback(
-        async (torrentId: string | number) => {
-            await dispatch(TorrentIntents.ensureDataPresent(torrentId));
-        },
-        [dispatch],
-    );
-
-    const handleEnsureAtLocation = useCallback(
-        async (torrentId: string | number, path: string) => {
-            await dispatch(TorrentIntents.ensureAtLocation(torrentId, path));
-        },
-        [dispatch],
-    );
-
     const handleDownloadMissing = useCallback(
         async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
             await executeRedownload(torrent, options);
         },
         [executeRedownload],
     );
+    const handleOpenFolder = useOpenTorrentFolder();
 
     const executeTorrentActionViaDispatch = (
         action: TorrentTableAction,
@@ -445,9 +416,20 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         return { status: "failed", reason: "execution_failed" };
     };
 
-    const refreshAfterRecheck = useCallback(async () => {
-        await refreshTorrents();
-    }, [refreshTorrents]);
+    const refreshAfterRecheck = useCallback(
+        async (): Promise<RecheckRefreshOutcome> => {
+            if (rpcStatus !== STATUS.connection.CONNECTED) {
+                return "refresh_skipped";
+            }
+            try {
+                await refreshTorrents();
+                return "success";
+            } catch {
+                return "refresh_failed";
+            }
+        },
+        [refreshTorrents, rpcStatus],
+    );
 
     const {
         optimisticStatuses,
@@ -521,7 +503,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             }
             void shellAgent.sendWindowCommand(command);
         },
-        [canUseShell, shellAgent],
+        [canUseShell],
     );
 
     const {
@@ -621,9 +603,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleFileSelectionChange,
         handleSequentialToggle,
         handleSuperSeedingToggle,
-        handleEnsureValid,
-        handleEnsureDataPresent,
-        handleEnsureAtLocation,
         setInspectorTabCommand,
         capabilities,
     });
@@ -708,8 +687,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         () => ({
             t,
             focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
+            openAddTorrentPicker: commandApi.openAddTorrentPicker,
+            openAddMagnet: () => commandApi.openAddMagnet(),
             openSettings,
             refreshTorrents,
             setFilter,
@@ -725,8 +704,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [
             t,
             focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
+            commandApi,
             openSettings,
             refreshTorrents,
             setFilter,
@@ -780,7 +758,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const recoveryContextSnapshot = useRecoveryContextModel({
         uiMode: uiCapabilities.uiMode,
         canOpenFolder: uiCapabilities.canOpenFolder,
-        inlineEditor,
+        locationEditor,
         recoverySession,
         setLocationCapability,
         getRecoverySessionForKey,
@@ -789,15 +767,19 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const recoveryContext = useMemo(
         () => ({
             ...recoveryContextSnapshot,
+            handleOpenFolder,
             handleRetry: handleRecoveryRetry,
             handleDownloadMissing,
             handleSetLocation,
+            openRecoveryModal,
         }),
         [
             recoveryContextSnapshot,
+            handleOpenFolder,
             handleRecoveryRetry,
             handleDownloadMissing,
             handleSetLocation,
+            openRecoveryModal,
         ],
     );
 
@@ -809,7 +791,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         onClose: handleRecoveryClose,
         onRecreate: handleRecoveryRecreateFolder,
         onAutoRetry: handleRecoveryAutoRetry,
-        inlineEditor,
+        locationEditor,
         setLocationCapability,
         handleSetLocation,
         handleDownloadMissing,
@@ -832,7 +814,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         onConfirm: handleTorrentWindowConfirm,
         torrentClient,
         checkFreeSpace: addTorrentCheckFreeSpace,
-        browseDirectory,
     });
 
     return {
@@ -865,4 +846,5 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         },
     };
 }
+
 

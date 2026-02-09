@@ -69,35 +69,34 @@ export function useTransmissionSession(
         [sessionDomain]
     );
 
-    useEffect(() => {
-        let active = true;
-        if (!sessionDomain.canDetectEngine || rpcStatus !== STATUS.connection.CONNECTED) {
-            if (active) {
-                setEngineInfo(null);
-                setIsDetectingEngine(false);
-            }
-            return;
-        }
+    const runEngineDetection = useCallback(async () => {
         // TODO: Treat `engineInfo` as debug/diagnostics only. UI mode (TinyTorrent vs Transmission UX) must be derived from `uiMode = "Full" | "Rpc"` (loopback + ShellExtensions availability), not from engine detection.
         setIsDetectingEngine(true);
-        void sessionDomain
-            .detectEngine()
-            .then((info) => {
-                if (!active) return;
+        try {
+            const info = await sessionDomain.detectEngine();
+            if (isMountedRef.current) {
                 setEngineInfo(info);
-            })
-            .catch(() => {
-                if (!active) return;
+            }
+        } catch {
+            if (isMountedRef.current) {
                 setEngineInfo(null);
-            })
-            .finally(() => {
-                if (!active) return;
+            }
+        } finally {
+            if (isMountedRef.current) {
                 setIsDetectingEngine(false);
-            });
-        return () => {
-            active = false;
-        };
-    }, [sessionDomain, rpcStatus]);
+            }
+        }
+    }, [sessionDomain]);
+
+    useEffect(() => {
+        if (
+            !sessionDomain.canDetectEngine ||
+            rpcStatus !== STATUS.connection.CONNECTED
+        ) {
+            return;
+        }
+        void runEngineDetection();
+    }, [rpcStatus, runEngineDetection, sessionDomain.canDetectEngine]);
     // TODO: Pull session detection/rpcStatus/engineInfo into the planned Session provider so AppContent reads from one source of truth instead of hook chaining.
 
     return {
@@ -111,8 +110,10 @@ export function useTransmissionSession(
         reportCommandError,
         reportReadError,
         updateRequestTimeout,
-        engineInfo,
-        isDetectingEngine,
+        engineInfo:
+            rpcStatus === STATUS.connection.CONNECTED ? engineInfo : null,
+        isDetectingEngine:
+            rpcStatus === STATUS.connection.CONNECTED ? isDetectingEngine : false,
         lastConnectionAttempt,
     };
 }

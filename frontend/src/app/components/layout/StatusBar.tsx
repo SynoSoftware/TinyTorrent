@@ -1,9 +1,7 @@
-import React from "react";
 import {
     ArrowDown,
     ArrowUp,
     Network,
-    Zap,
     ArrowUpDown,
     Component,
     Files,
@@ -31,10 +29,8 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
-import type { SessionStats, NetworkTelemetry } from "@/services/rpc/entities";
-import type { HeartbeatSource } from "@/services/rpc/heartbeat";
+import type { NetworkTelemetry } from "@/services/rpc/entities";
 import type { ConnectionStatus } from "@/shared/types/rpc";
-import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { StatusBarViewModel } from "@/app/viewModels/useAppViewModel";
 import type { StatusIconProps } from "@/shared/ui/components/StatusIcon";
@@ -374,7 +370,7 @@ function EngineControlChip({
 }: {
     rpcStatus: ConnectionStatus;
     uiMode: UiMode;
-    onClick?: () => void;
+    onClick?: () => Promise<unknown>;
     tooltip: string;
 }) {
     // Defensive: STATUS_VISUALS may not contain every possible rpcStatus string
@@ -403,7 +399,11 @@ function EngineControlChip({
     return (
         <button
             type="button"
-            onClick={onClick}
+            onClick={() => {
+                if (onClick) {
+                    void onClick();
+                }
+            }}
             className={cn(
                 "relative flex items-center justify-center  rounded-modal border px-panel transition-all",
                 "active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer",
@@ -503,15 +503,6 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     const { down: downloadHistory, up: uploadHistory } =
         useSessionSpeedHistory();
-
-    // Separate tooltips: telemetry (passive) vs control (action)
-    const engineTelemetryTooltip = t("status_bar.engine_telemetry_tooltip", {
-        transport: t(
-            TRANSPORT_LABELS[transportStatus] ??
-                `status_bar.transport_${transportStatus}`
-        ),
-        status: t(RPC_STATUS_LABEL[rpcStatus] ?? `status_bar.rpc_${rpcStatus}`),
-    });
 
     // Determine a localized server type label for the control tooltip.
     const modeLabel =

@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import {
+    useRecoveryContext,
+    type SetLocationConfirmOutcome,
+} from "@/app/context/RecoveryContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { formatMissingFileDetails } from "@/modules/dashboard/utils/missingFiles";
 import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
-import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
+import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
@@ -20,12 +24,14 @@ type UseTorrentDetailsGeneralViewModelParams = {
 };
 
 export type UseTorrentDetailsGeneralViewModelResult = {
-    showInlineEditor: boolean;
+    showLocationEditor: boolean;
     generalIsBusy: boolean;
     generalIsVerifying: boolean;
     generalCaption: string;
     generalStatusMessage?: string;
-    inlineSetLocationState: ReturnType<typeof useRecoveryContext>["inlineSetLocationState"];
+    setLocationEditorState: ReturnType<
+        typeof useRecoveryContext
+    >["setLocationState"];
     showMissingFilesError: boolean;
     probeLines: string[];
     classificationLabel: string | null;
@@ -43,15 +49,10 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     onSetLocation: () => void;
     onDownloadMissing: () => void;
     onOpenFolder: () => void;
-    onInlineChange: (value: string) => void;
-    // TODO(section 20.2/20.5): replace boolean submit result with typed inline outcome variants.
-    onInlineSubmit: () => Promise<boolean>;
-    onInlineCancel: () => void;
+    onLocationChange: (value: string) => void;
+    onLocationSubmit: () => Promise<SetLocationConfirmOutcome>;
+    onLocationCancel: () => void;
 };
-
-const getTorrentKey = (
-    entry?: { id?: string | number; hash?: string } | null
-) => entry?.id?.toString() ?? entry?.hash ?? "";
 
 export function useTorrentDetailsGeneralViewModel({
     torrent,
@@ -62,22 +63,25 @@ export function useTorrentDetailsGeneralViewModel({
     const {
         handleSetLocation,
         handleDownloadMissing,
-        inlineSetLocationState,
-        cancelInlineSetLocation,
-        releaseInlineSetLocation,
-        confirmInlineSetLocation,
-        handleInlineLocationChange,
+        setLocationState: setLocationEditorState,
+        cancelSetLocation: cancelSetLocationEditor,
+        releaseSetLocation: releaseSetLocationEditor,
+        confirmSetLocation,
+        handleLocationChange: handleSetLocationInputChange,
         setLocationCapability,
         canOpenFolder,
+        handleOpenFolder,
     } = useRecoveryContext();
     const { handleTorrentAction } = useTorrentCommands();
-    const openFolder = useOpenTorrentFolder();
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
 
-    const currentTorrentKey = getTorrentKey(torrent);
+    const currentTorrentKey = getRecoveryFingerprint(torrent);
     const probe = useMissingFilesProbe(torrent.id);
-    const probeLines = useMemo(() => formatMissingFileDetails(t, probe), [probe, t]);
+    const probeLines = useMemo(
+        () => formatMissingFileDetails(t, probe),
+        [probe, t],
+    );
 
     const classification = useResolvedRecoveryClassification(torrent);
     const classificationLabel = useMemo(() => {
@@ -88,7 +92,10 @@ export function useTorrentDetailsGeneralViewModel({
         switch (classification.kind) {
             case "pathLoss":
                 return t("recovery.status.folder_not_found", {
-                    path: classification.path ?? downloadDir ?? t("labels.unknown"),
+                    path:
+                        classification.path ??
+                        downloadDir ??
+                        t("labels.unknown"),
                 });
             case "volumeLoss":
                 return t("recovery.status.drive_disconnected", {
@@ -109,19 +116,22 @@ export function useTorrentDetailsGeneralViewModel({
         torrent.errorEnvelope.recoveryState !== "ok"
             ? torrent.errorEnvelope.recoveryState
             : torrent.state;
-    const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
+    const showMissingFilesError =
+        effectiveState === STATUS.torrent.MISSING_FILES;
 
-    const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
+    const currentPath =
+        downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
 
-    const inlineEditorKey = inlineSetLocationState?.torrentKey ?? "";
-    const showInlineEditor =
-        inlineSetLocationState?.surface === "general-tab" &&
-        inlineEditorKey.length > 0 &&
-        inlineEditorKey === currentTorrentKey;
-    const generalIsVerifying = inlineSetLocationState?.status === "verifying";
-    const generalIsBusy = inlineSetLocationState?.status !== "idle";
+    const setLocationEditorTorrentKey =
+        setLocationEditorState?.torrentKey ?? "";
+    const showLocationEditor =
+        setLocationEditorState?.surface === "general-tab" &&
+        setLocationEditorTorrentKey.length > 0 &&
+        setLocationEditorTorrentKey === currentTorrentKey;
+    const generalIsVerifying = setLocationEditorState?.status === "verifying";
+    const generalIsBusy = setLocationEditorState?.status !== "idle";
     const generalCaption = t(getSurfaceCaptionKey("general-tab"));
     const generalStatusMessage = generalIsVerifying
         ? t("recovery.status.applying_location")
@@ -135,9 +145,9 @@ export function useTorrentDetailsGeneralViewModel({
 
     useEffect(
         () => () => {
-            releaseInlineSetLocation();
+            releaseSetLocationEditor();
         },
-        [releaseInlineSetLocation]
+        [releaseSetLocationEditor],
     );
 
     const isActive =
@@ -163,8 +173,19 @@ export function useTorrentDetailsGeneralViewModel({
 
     const onOpenFolder = useCallback(() => {
         if (!currentPath) return;
-        void openFolder(currentPath);
-    }, [currentPath, openFolder]);
+        void handleOpenFolder(currentPath).then((outcome) => {
+            if (isOpenFolderSuccess(outcome)) {
+                return;
+            }
+            if (
+                outcome.status === "unsupported" ||
+                outcome.status === "missing_path" ||
+                outcome.status === "failed"
+            ) {
+                return;
+            }
+        });
+    }, [currentPath, handleOpenFolder]);
 
     const onConfirmRemove = useCallback(
         async (deleteData: boolean): Promise<TorrentCommandOutcome> => {
@@ -175,7 +196,7 @@ export function useTorrentDetailsGeneralViewModel({
             }
             return outcome;
         },
-        [handleTorrentAction, torrent]
+        [handleTorrentAction, torrent],
     );
 
     const openRemoveModal = useCallback(() => {
@@ -187,12 +208,12 @@ export function useTorrentDetailsGeneralViewModel({
     }, []);
 
     return {
-        showInlineEditor,
+        showLocationEditor,
         generalIsBusy,
         generalIsVerifying,
         generalCaption,
         generalStatusMessage,
-        inlineSetLocationState,
+        setLocationEditorState,
         showMissingFilesError,
         probeLines,
         classificationLabel,
@@ -210,9 +231,9 @@ export function useTorrentDetailsGeneralViewModel({
         onSetLocation,
         onDownloadMissing,
         onOpenFolder,
-        onInlineChange: handleInlineLocationChange,
-        onInlineSubmit: confirmInlineSetLocation,
-        onInlineCancel: cancelInlineSetLocation,
+        onLocationChange: handleSetLocationInputChange,
+        onLocationSubmit: confirmSetLocation,
+        onLocationCancel: cancelSetLocationEditor,
     };
 }
 

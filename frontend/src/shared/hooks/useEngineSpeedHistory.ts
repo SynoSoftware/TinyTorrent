@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
-import { useEngineSpeedHistoryDomain } from "@/app/providers/engineDomains";
+import { useSpeedHistoryDomain } from "@/shared/hooks/useSpeedHistoryDomain";
 
 export const useEngineSpeedHistory = (torrentId: string | null | undefined) => {
-    const speedHistoryDomain = useEngineSpeedHistoryDomain();
+    const speedHistoryDomain = useSpeedHistoryDomain();
     const empty = useMemo<SpeedHistorySnapshot>(() => ({ down: [], up: [] }), []);
     const [history, setHistory] = useState<SpeedHistorySnapshot>(empty);
 
     useEffect(() => {
         if (!torrentId) {
-            setHistory(empty);
             return;
         }
         const id = String(torrentId);
@@ -25,5 +24,5 @@ export const useEngineSpeedHistory = (torrentId: string | null | undefined) => {
         };
     }, [empty, speedHistoryDomain, torrentId]);
 
-    return history;
+    return torrentId ? history : empty;
 };

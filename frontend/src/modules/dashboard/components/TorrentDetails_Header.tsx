@@ -3,10 +3,6 @@ import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { ICON_STROKE_WIDTH, HEADER_BASE } from "@/config/logic";
-import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
-} from "@/shared/ui/layout/glass-surface";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
