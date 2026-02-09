@@ -304,6 +304,11 @@
             "max_delay_ms": 10000
         },
         "ghost_timeout_ms": 30000,
-        "table_persist_debounce_ms": 250
+        "table_persist_debounce_ms": 250,
+        "recovery": {
+            "poll_interval_ms": 4000,
+            "retry_cooldown_ms": 15000,
+            "modal_resolved_auto_close_delay_ms": 3000
+        }
     }
 }

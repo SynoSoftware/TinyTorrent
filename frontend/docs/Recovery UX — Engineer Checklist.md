@@ -26,6 +26,11 @@
   * “Retry” that does nothing visibly is a failure.
   * “Handled” without feedback is invalid.
 
+* [ ] **Background auto-heal is preferred**
+
+  * Transient disruptions are reprobed automatically first.
+  * User interruption only when required decision remains.
+
 ---
 
 ## 3. Truthfulness & Confidence
@@ -91,11 +96,25 @@
 
 * [ ] Modal never appears automatically.
 
+  * Not from startup.
+  * Not from passive background polling.
+
+* [ ] Modal self-resolve behavior is correct
+
+  * Background reprobe runs while modal is open.
+  * If resolved, show countdown and auto-close.
+  * No modal cascade.
+
 * [ ] Modal **never** offers:
 
   * “Verify”
   * Free-text path input
   * Generic error messaging
+
+* [ ] Set-location fallback is complete
+
+  * Browse when available.
+  * Manual entry fallback when browse unavailable/user-selected.
 
 ---
 
@@ -145,6 +164,19 @@ After any successful recovery (`handled`):
 * [ ] Any verify loop without anti-loop guard
 * [ ] Any UI sequencing engine calls
 * [ ] Any claim of cause without confidence ≠ `unknown`
+* [ ] Any action-cell expansion used as recovery error UI
+
+---
+
+## 11. Config Surface Discipline
+
+* [ ] Recovery timing config exposes only high-value knobs:
+
+  * `poll_interval_ms`
+  * `retry_cooldown_ms`
+  * `modal_resolved_auto_close_delay_ms`
+
+* [ ] Micro-timers remain internal constants (no config bloat)
 
 ---
 
@@ -153,4 +185,3 @@ After any successful recovery (`handled`):
 If **any** checkbox above is false:
 
 > **The recovery UX is incorrect. Do not ship.**
-

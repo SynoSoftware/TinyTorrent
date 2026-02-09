@@ -22,6 +22,11 @@ If any item below is false, the implementation is wrong.
   * UI never re-derives recovery state.
   * UI only reacts to gate outcomes.
 
+* **User interruption is minimal**
+  * Automatic safe recovery runs in background first.
+  * Modal is shown only when user decision is genuinely required.
+  * No modal cascade.
+
 ---
 
 ## 2. Recovery Gate Contract
@@ -51,6 +56,12 @@ All of the following **must** call the same gate:
 * If free-space probing is unavailable (network/RPC down):
   * Gate returns **blocking outcome** (e.g. `needsModal` or error toast).
   * Silent continuation is forbidden.
+
+### Ask User Boundary (Hard)
+
+* Ask user only for unresolved path/permission decisions.
+* Do not ask user for transient disruptions that self-heal during reprobe.
+* User-triggered actions (`Resume`, `Set location`, `Download missing`) may open modal only if auto-recovery still cannot proceed.
 
 ---
 
@@ -122,8 +133,16 @@ Gate outcomes map **once**, centrally:
 * Modal appears **only** when:
   * User action requires a decision.
   * Gate returns `needsModal`.
-* Modal never appears automatically.
+* Modal never appears automatically from background polling/startup.
 * Modal never offers “Verify”.
+
+### Modal Background Recovery Contract
+
+* While modal is open, recovery reprobe continues in background.
+* If issue self-resolves while modal is open:
+  * show resolved status with countdown
+  * auto-close modal after countdown delay
+* Default auto-close delay is configuration-driven.
 
 ---
 
@@ -144,6 +163,7 @@ Unit tests **exist and pass** for:
 * Any UI sequencing engine actions.
 * Any verify loop without anti-loop guard.
 * **Silent Failure:** A user action resulting in no visible change.
+* **Visual Noise Regression:** Expanding action cells for rare recovery failures.
 
 ---
 
@@ -186,5 +206,9 @@ This system is **correct** iff:
 * [ ] **Anti-Loop:** A torrent with corrupt data does not verify -> start -> verify -> start forever.
 * [ ] **Reconciliation:** Changing location via "Locate" immediately updates the Details panel path.
 * [ ] **Safety:** If recovery logic removes a torrent (rare edge case), the app does not crash or show a ghost row.
+* [ ] **No Modal Spam:** multiple failing torrents do not cause cascading modal popups.
+* [ ] **Self-Resolve Close:** if modal issue resolves in background, modal shows countdown and closes automatically.
+* [ ] **UI Stability:** recovery UI does not expand table action cell layout.
 
 **Anything less is incomplete.**
+

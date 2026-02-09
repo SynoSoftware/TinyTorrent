@@ -40,9 +40,21 @@ export interface RecoveryModalViewModel {
     };
     showWaitingForDrive: boolean;
     recoveryOutcomeMessage: string | null;
+    inbox: {
+        visible: boolean;
+        title: string;
+        subtitle: string;
+        items: Array<{
+            id: string;
+            label: string;
+            description: string;
+        }>;
+        moreCount: number;
+    };
     showRecreate: boolean;
     onRecreate?: () => void;
     onClose: () => void;
+    cancelLabel: string;
     primaryAction: {
         label: string;
         onPress: () => void;
@@ -151,6 +163,40 @@ export default function TorrentRecoveryModal({
                                     {viewModel.recoveryOutcomeMessage}
                                 </div>
                             )}
+                            {viewModel.inbox.visible && (
+                                <div className="surface-layer-1 rounded-panel p-tight">
+                                    <div className="flex flex-col gap-tight">
+                                        <p className="text-label font-semibold text-foreground">
+                                            {viewModel.inbox.title}
+                                        </p>
+                                        <p className="text-label text-foreground/70">
+                                            {viewModel.inbox.subtitle}
+                                        </p>
+                                        <div className="flex flex-col gap-tight">
+                                            {viewModel.inbox.items.map((item) => (
+                                                <div
+                                                    key={item.id}
+                                                    className="rounded-panel border border-default/20 p-tight"
+                                                >
+                                                    <p className="text-label font-medium text-foreground truncate">
+                                                        {item.label}
+                                                    </p>
+                                                    <p className="text-label text-foreground/70 truncate">
+                                                        {item.description}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {viewModel.inbox.moreCount > 0 && (
+                                            <p className="text-label text-foreground/60">
+                                                {t("recovery.inbox.more", {
+                                                    count: viewModel.inbox.moreCount,
+                                                })}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </ModalBody>
 
                         <ModalFooter
@@ -180,7 +226,7 @@ export default function TorrentRecoveryModal({
                                     isDisabled={viewModel.busy}
                                     className="font-medium text-foreground"
                                 >
-                                    {t("modals.cancel")}
+                                    {viewModel.cancelLabel}
                                 </Button>
                                 <Button
                                     variant="shadow"

@@ -73,6 +73,7 @@ const DEFAULT_TABLE_LAYOUT = {
 const layoutConfig = constants.layout ?? {};
 const timerConfig = asRecord(constants.timers);
 const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
+const recoveryTimerConfig = asRecord(timerConfig.recovery);
 
 const DEFAULT_TIMERS = {
     clipboard_badge_duration_ms: 1500,
@@ -83,6 +84,11 @@ const DEFAULT_TIMERS = {
     },
     ghost_timeout_ms: 30000,
     table_persist_debounce_ms: 250,
+    recovery: {
+        poll_interval_ms: 4000,
+        retry_cooldown_ms: 15000,
+        modal_resolved_auto_close_delay_ms: 3000,
+    },
 } as const;
 
 // --- SHELL (Classic / Immersive) ---
@@ -531,6 +537,25 @@ export const GHOST_TIMEOUT_MS = readNumber(
 export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
     timerConfig.table_persist_debounce_ms,
     DEFAULT_TIMERS.table_persist_debounce_ms
+);
+
+const configuredRecoveryPollInterval =
+    readOptionalNumber(recoveryTimerConfig.poll_interval_ms) ??
+    readOptionalNumber(recoveryTimerConfig.auto_recovery_interval_ms) ??
+    readOptionalNumber(recoveryTimerConfig.probe_interval_ms);
+
+export const RECOVERY_POLL_INTERVAL_MS =
+    configuredRecoveryPollInterval ??
+    DEFAULT_TIMERS.recovery.poll_interval_ms;
+
+export const RECOVERY_RETRY_COOLDOWN_MS = readNumber(
+    recoveryTimerConfig.retry_cooldown_ms,
+    DEFAULT_TIMERS.recovery.retry_cooldown_ms
+);
+
+export const RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS = readNumber(
+    recoveryTimerConfig.modal_resolved_auto_close_delay_ms,
+    DEFAULT_TIMERS.recovery.modal_resolved_auto_close_delay_ms
 );
 
 export interface DragOverlayRootConfig {

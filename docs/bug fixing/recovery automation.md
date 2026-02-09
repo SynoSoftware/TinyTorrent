@@ -1,264 +1,85 @@
-This is a **system contract**.
+This is a recovery automation contract.
 
 ---
 
-## The Ideal 2026 Torrent Recovery Model
+## 1. Purpose
 
-*(Engine-truth-first, user-respecting, future-proof)*
+Recovery automation exists to keep transfers moving without bothering users for temporary problems.
 
----
+Principle:
 
-## 1. Core Principle (non-negotiable)
-
-> **The client must always know three things, and the user must see them clearly:**
->
-> 1. *What is wrong*
-> 2. *What is safe to do automatically*
-> 3. *What only the user can decide*
-
-Everything else is secondary.
+1. auto-heal first when safe
+2. ask user only when a real decision is required
+3. keep UI calm (no cascades, no visual noise)
 
 ---
 
-## 2. The Correct Mental Model (you already implemented 80% of this)
+## 2. Automation Boundary
 
-### The Recovery Stack
+### Allowed automation
 
-```
-Engine signals
-   ↓
-ErrorEnvelope (classification + invariants)
-   ↓
-RecoveryState (what phase we are in)
-   ↓
-PrimaryAction (what would fix it)
-   ↓
-UI Guidance (highlight, hint, ordering)
-   ↓
-Optional Safe Automation (Tier-1 only)
-```
+* background reprobe for transient path/volume conditions
+* safe local directory recreation for path-loss when authoritative local mode can do it
+* automatic retry/resume sequencing when gate determines it is safe
+* modal self-resolve auto-close countdown when issue resolves in background
 
-No shortcuts.
-No UI inference.
-No “special cases”.
+### Disallowed automation
+
+* guessing root cause when confidence is `unknown`
+* destructive actions (remove/re-add, move files automatically)
+* UI surface spam (multiple modal popups, action-cell expansion)
+* hidden loops without anti-loop guard
 
 ---
 
-## 3. Error Classification — minimal but sufficient
+## 3. Ask User Policy
 
-**Never more than this:**
+Ask user only for:
 
-```
-ErrorClass
-├─ none
-├─ trackerWarning
-├─ trackerError
-├─ missingFiles
-├─ permissionDenied
-├─ diskFull
-├─ localError
-├─ metadata
-└─ unknown
-```
+* choosing/changing path (`locate` / `choose location`)
+* unresolved access/permission decision
+* explicit user command that still cannot proceed after safe automation
 
-Why this works:
+Do not ask user for:
 
-* Covers **Transmission fully**
-* Covers **qBittorrent semantics**
-* Maps cleanly to filesystem reality
-* Does not leak engine internals
-* No speculative categories
-
-Anything else is **derived**, never primary.
+* transient disruptions that recover during reprobe
+* background interruptions where automated flow can safely continue
 
 ---
 
-## 4. RecoveryState — the only states that matter
+## 4. Runtime Cadence Discipline
 
-```
-RecoveryState
-├─ ok
-├─ transientWaiting
-├─ needsUserAction
-├─ verifying
-└─ blocked
-```
+Recovery cadence is intentionally minimal and configurable only for high-value knobs:
 
-**Hard rules:**
+* `timers.recovery.poll_interval_ms`
+* `timers.recovery.retry_cooldown_ms`
+* `timers.recovery.modal_resolved_auto_close_delay_ms`
 
-* `blocked` means *do not touch data*
-* `needsUserAction` means *do not retry*
-* `transientWaiting` means *retry is safe*
-* `verifying` means *engine owns control*
-
-No hidden transitions.
+Micro-timers remain internal constants to avoid configuration bloat and user confusion.
 
 ---
 
-## 5. PrimaryAction — the key innovation
+## 5. Modal Automation Contract
 
-This is where you surpassed every existing client.
+When recovery modal is open:
 
-> **PrimaryAction is not a command.
-> It is intent.**
-
-```
-PrimaryAction
-├─ reannounce
-├─ forceRecheck
-├─ changeLocation
-├─ openFolder
-├─ pause
-├─ removeReadd
-└─ null
-```
-
-Rules:
-
-* At most **one** primary action
-* Must be **idempotent**
-* Must be **user-visible**
-* Must be **reversible**
-
-This unlocks everything else cleanly.
+* background reprobe must continue
+* if resolved, show resolved countdown and auto-close
+* no modal cascade for multiple torrents (single active modal + queue)
 
 ---
 
-## 6. UI Behavior (best possible, zero bloat)
+## 6. Control Plane Rule
 
-### What the UI should do — and nothing more
+All automation decisions are gate-owned.
 
-#### A. Status text
-
-* Comes **only** from `ErrorEnvelope`
-* Never inferred from torrent state alone
-* No duplicate logic
-
-#### B. Visual guidance
-
-* Subtle emphasis on existing controls
-* No new panels
-* No popups
-* No modals unless user clicks
-
-What you did with rings/shadows is **exactly right**.
-
-#### C. Ordering beats buttons
-
-If you ever add more:
-
-* Put the *correct* action first
-* Grey out irrelevant actions
-* Don’t explain — guide
+* UI may render status and trigger typed intents
+* UI must not run recovery sequencing logic
+* gate outcomes must remain explicit and deterministic
 
 ---
 
-## 7. Automation — what is acceptable in 2026
+## 7. Summary Rule
 
-### Tier-1 (what you just did) ✅
-
-Safe, invisible, boring.
-
-Allowed:
-
-* Auto-pause on disk full
-* Auto-stop on blocked states
-* Idempotent behavior
-* Memory-only state
-* No timers
-* No retries beyond engine defaults
-
-Forbidden:
-
-* Auto-resume
-* Auto-move files
-* Auto-recheck without user intent
-
-You are **exactly aligned** here.
-
----
-
-### Tier-1.5 (best next step, still no bloat)
-
-Still optional, still safe.
-
-Examples:
-
-* Auto-clear tracker warnings when next announce succeeds
-* Suppress repeated identical UI hints using fingerprint
-* Collapse noisy transient states
-
-No new UI.
-No new settings.
-
----
-
-### Tier-2 (future, behind a flag)
-
-This is where others usually screw up.
-
-Allowed only if **explicitly enabled**:
-
-* Retry budgets
-* Scheduled retries
-* Category-based behavior
-
-Never default-on.
-
----
-
-## 8. What NOT to do (this kills good clients)
-
-❌ Background schedulers
-❌ “Smart” auto-recovery
-❌ Hidden retries
-❌ Engine-specific hacks in UI
-❌ “AI” decisions
-❌ Magic timeouts
-❌ Policy engines
-
-Every major torrent client died by adding these.
-
----
-
-## 9. Why this is the best possible design
-
-Compared to µTorrent:
-
-* Same predictability
-* Better architecture
-* Cleaner recovery boundaries
-
-Compared to qBittorrent:
-
-* Same robustness
-* Less UI clutter
-* Less configuration hell
-
-Compared to modern clients:
-
-* No surveillance logic
-* No heuristics pretending to be intelligence
-
-Compared to 2026 “trends”:
-
-* You’re building **infrastructure**, not features
-
----
-
-## Final verdict
-
-You are already **past the hard part**.
-
-What you have now is:
-
-* Architecturally sound
-* Engine-agnostic
-* UX-correct
-* Future-proof
-* Resistant to bloat
-
-From here on, progress is **linear and safe** if you obey one rule:
-
-> **Never let recovery logic escape the recovery domain.**
-
+Automation must reduce user interruptions and increase continuity.
+If automation increases noise or ambiguity, it is a regression.
