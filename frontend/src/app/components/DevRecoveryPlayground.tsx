@@ -1,409 +1,353 @@
 import { Button, Switch } from "@heroui/react";
-import { useTranslation } from "react-i18next";
+import { Copy } from "lucide-react";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
+import { DEV_RECOVERY_PLAYGROUND_PATH } from "@/app/dev/recovery/scenarios";
+import { useDevRecoveryPlaygroundViewModel } from "@/app/viewModels/useDevRecoveryPlaygroundViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Section } from "@/shared/ui/layout/Section";
-import {
-    devFaultModeLabelKey,
-    DEV_RECOVERY_PLAYGROUND_PATH,
-    DEV_RECOVERY_SCENARIOS,
-} from "@/app/dev/recovery/scenarios";
-import { useDevRecoveryPlaygroundController } from "@/app/dev/recovery/useDevRecoveryPlaygroundController";
-import {
-    RECOVERY_SMOKE_CASES,
-    useDevRecoverySmokeRunner,
-} from "@/app/dev/recovery/useDevRecoverySmokeRunner";
 
 export { DEV_RECOVERY_PLAYGROUND_PATH };
 
 export default function DevTest() {
-    const { t } = useTranslation();
-    const controller = useDevRecoveryPlaygroundController({ t });
-    const smoke = useDevRecoverySmokeRunner({ t, controller });
-    const resolveCompletionLabel = (
-        status: "applied" | "cancelled" | "failed" | "pending",
-    ) => t(`dev.recovery_playground.assertion.completion.${status}`);
+    const viewModel = useDevRecoveryPlaygroundViewModel();
 
     return (
         <Section
             padding="stage"
-            className="min-h-screen surface-layer-0 text-foreground"
+            className="min-h-screen surface-layer-0 text-foreground pb-stage"
         >
             <div className="flex flex-col gap-stage">
-                <GlassPanel layer={1} className="p-panel">
-                    <div className="flex flex-col gap-stage">
-                        <div className="flex flex-wrap items-center justify-between gap-tools">
-                            <div className="flex flex-col gap-tight">
-                                <h1 className="text-scaled font-bold text-foreground">
-                                    {t("dev.recovery_playground.title")}
-                                </h1>
-                                <p className="text-label text-foreground/70">
-                                    {t("dev.recovery_playground.subtitle")}
-                                </p>
-                            </div>
-                            <Button as="a" href="/" variant="light" size="md">
-                                {t("dev.recovery_playground.back_to_app")}
-                            </Button>
-                        </div>
-
-                        <div className="flex flex-col gap-tight">
-                            <p className="text-label font-semibold text-foreground">
-                                {t("dev.recovery_playground.section.scenario")}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-tools">
-                                {DEV_RECOVERY_SCENARIOS.map((scenario) => (
-                                    <Button
-                                        key={scenario.id}
-                                        variant={
-                                            controller.selectedScenarioId ===
-                                            scenario.id
-                                                ? "shadow"
-                                                : "light"
-                                        }
-                                        color={
-                                            controller.selectedScenarioId ===
-                                            scenario.id
-                                                ? "primary"
-                                                : "default"
-                                        }
-                                        size="md"
-                                        onPress={() => {
-                                            controller.setSelectedScenarioId(
-                                                scenario.id,
-                                            );
-                                            controller.setFaultMode(
-                                                scenario.faultMode,
-                                            );
-                                            controller.setVerifyFails(
-                                                Boolean(
-                                                    scenario.verifyFailsByDefault,
-                                                ),
-                                            );
-                                        }}
-                                    >
-                                        {t(scenario.labelKey)}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-tight">
-                            <p className="text-label font-semibold text-foreground">
-                                {t(
-                                    "dev.recovery_playground.section.confidence",
-                                )}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-tools">
-                                {(
-                                    ["certain", "likely", "unknown"] as const
-                                ).map((confidence) => (
-                                    <Button
-                                        key={confidence}
-                                        variant={
-                                            controller.selectedConfidence ===
-                                            confidence
-                                                ? "shadow"
-                                                : "light"
-                                        }
-                                        color={
-                                            controller.selectedConfidence ===
-                                            confidence
-                                                ? "primary"
-                                                : "default"
-                                        }
-                                        size="md"
-                                        onPress={() =>
-                                            controller.setSelectedConfidence(
-                                                confidence,
-                                            )
-                                        }
-                                    >
-                                        {t(
-                                            `dev.recovery_playground.confidence.${confidence}`,
-                                        )}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </GlassPanel>
-
-                <GlassPanel layer={1} className="p-panel">
-                    <div className="flex flex-col gap-stage">
-                        <p className="text-label font-semibold text-foreground">
-                            {t("dev.recovery_playground.section.controls")}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-stage">
-                            <Switch
-                                isSelected={controller.verifyFails}
-                                onValueChange={controller.setVerifyFails}
-                                size="sm"
-                            >
-                                {t(
-                                    "dev.recovery_playground.toggle.verify_fails",
-                                )}
-                            </Switch>
-                            <div className="flex items-center gap-tools">
-                                <span className="text-label text-foreground/70">
-                                    {t(
-                                        "dev.recovery_playground.label.fault_mode",
-                                    )}
-                                </span>
-                                {(
-                                    [
-                                        "ok",
-                                        "missing",
-                                        "access_denied",
-                                        "disk_full",
-                                    ] as const
-                                ).map((mode) => (
-                                    <Button
-                                        key={mode}
-                                        size="md"
-                                        variant={
-                                            controller.faultMode === mode
-                                                ? "shadow"
-                                                : "light"
-                                        }
-                                        color={
-                                            controller.faultMode === mode
-                                                ? "primary"
-                                                : "default"
-                                        }
-                                        onPress={() =>
-                                            controller.setFaultMode(mode)
-                                        }
-                                    >
-                                        {t(devFaultModeLabelKey[mode])}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-tools">
-                            <Button
-                                variant="shadow"
-                                color="primary"
-                                size="lg"
-                                onPress={() => {
-                                    void controller.applySelectedScenario();
-                                }}
-                            >
-                                {t(
-                                    "dev.recovery_playground.action.apply_scenario",
-                                )}
-                            </Button>
-                            <Button
-                                variant="light"
-                                size="md"
-                                onPress={
-                                    controller.openRecoveryForCurrentDetail
-                                }
-                                isDisabled={!controller.detailData}
-                            >
-                                {t(
-                                    "dev.recovery_playground.action.open_recovery",
-                                )}
-                            </Button>
-                            <Button
-                                variant="light"
-                                size="md"
-                                onPress={() => {
-                                    void controller.setFaultModeLive("ok");
-                                }}
-                                isDisabled={controller.faultMode === "ok"}
-                            >
-                                {t(
-                                    "dev.recovery_playground.action.mark_path_available",
-                                )}
-                            </Button>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
-                            <span>
-                                {t("dev.recovery_playground.state.current")}{" "}
-                                <span className="font-semibold text-foreground">
-                                    {controller.currentStateLabel}
-                                </span>
-                            </span>
-                            <span>
-                                {t("dev.recovery_playground.state.modal_open")}{" "}
-                                <span className="font-semibold text-foreground">
-                                    {controller.isModalOpen
-                                        ? t("labels.on")
-                                        : t("labels.off")}
-                                </span>
-                            </span>
-                            {controller.lastOpenOutcome && (
-                                <span>
-                                    {t(
-                                        "dev.recovery_playground.state.last_outcome",
-                                    )}{" "}
-                                    <span className="font-semibold text-foreground">
-                                        {controller.lastOpenOutcome}
-                                    </span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </GlassPanel>
-
-                <GlassPanel layer={1} className="p-panel">
-                    <div className="flex flex-col gap-stage">
-                        <div className="flex flex-wrap items-center justify-between gap-tools">
-                            <p className="text-label font-semibold text-foreground">
-                                {t("dev.recovery_playground.section.smoke")}
-                            </p>
-                            <Button
-                                variant="shadow"
-                                color="primary"
-                                size="md"
-                                isDisabled={smoke.status === "running"}
-                                onPress={() => {
-                                    void smoke.runSmoke();
-                                }}
-                            >
-                                {smoke.status === "running"
-                                    ? t(
-                                          "dev.recovery_playground.action.run_smoke_running",
-                                      )
-                                    : t(
-                                          "dev.recovery_playground.action.run_smoke",
-                                      )}
-                            </Button>
-                        </div>
-
+                <div className="flex flex-wrap items-center justify-between gap-tools">
+                    <div className="flex flex-col gap-tight">
+                        <h1 className="text-scaled font-bold text-foreground">
+                            {viewModel.header.title}
+                        </h1>
                         <p className="text-label text-foreground/70">
-                            {smoke.summaryText}
+                            {viewModel.header.subtitle}
                         </p>
+                    </div>
+                    <Button as="a" href="/" variant="light" size="md">
+                        {viewModel.header.backLabel}
+                    </Button>
+                </div>
 
-                        <div className="flex flex-col gap-tight">
-                            <p className="text-label font-semibold text-foreground">
-                                {t("dev.recovery_playground.assertion.title")}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-stage">
+                    <GlassPanel layer={1} className="p-panel">
+                        <div className="flex flex-col gap-stage">
+                            <div className="flex flex-col gap-tight">
+                                <p className="text-label font-semibold text-foreground">
+                                    {viewModel.scenario.title}
+                                </p>
+                                <div className="grid grid-cols-2 gap-tools">
+                                    {viewModel.scenario.options.map((option) => (
+                                        <Button
+                                            key={option.id}
+                                            variant={
+                                                option.isSelected ? "shadow" : "light"
+                                            }
+                                            color={
+                                                option.isSelected ? "primary" : "default"
+                                            }
+                                            size="md"
+                                            className="h-auto w-full justify-start whitespace-normal text-left"
+                                            onPress={option.onSelect}
+                                        >
+                                            <div className="flex flex-col items-start gap-tight">
+                                                <span className="font-semibold">
+                                                    {option.label}
+                                                </span>
+                                                <span className="text-label text-foreground/70">
+                                                    {option.kindLabel}
+                                                </span>
+                                            </div>
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-tight">
+                                <p className="text-label font-semibold text-foreground">
+                                    {viewModel.confidence.title}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-tools">
+                                    {viewModel.confidence.options.map((option) => (
+                                        <Button
+                                            key={option.id}
+                                            variant={
+                                                option.isSelected ? "shadow" : "light"
+                                            }
+                                            color={
+                                                option.isSelected ? "primary" : "default"
+                                            }
+                                            size="md"
+                                            onPress={option.onSelect}
+                                        >
+                                            {option.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-tight">
+                                <p className="text-label font-semibold text-foreground">
+                                    {viewModel.controls.title}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-stage">
+                                    <Switch
+                                        isSelected={
+                                            viewModel.controls.verifyFailsSelected
+                                        }
+                                        onValueChange={
+                                            viewModel.controls.setVerifyFails
+                                        }
+                                        size="sm"
+                                    >
+                                        {viewModel.controls.verifyFailsLabel}
+                                    </Switch>
+                                    <div className="flex items-center gap-tools">
+                                        <span className="text-label text-foreground/70">
+                                            {viewModel.controls.faultModeLabel}
+                                        </span>
+                                        {viewModel.controls.faultModes.map(
+                                            (option) => (
+                                                <Button
+                                                    key={option.id}
+                                                    size="md"
+                                                    variant={
+                                                        option.isSelected
+                                                            ? "shadow"
+                                                            : "light"
+                                                    }
+                                                    color={
+                                                        option.isSelected
+                                                            ? "primary"
+                                                            : "default"
+                                                    }
+                                                    onPress={option.onSelect}
+                                                >
+                                                    {option.label}
+                                                </Button>
+                                            ),
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-tools">
+                                <Button
+                                    variant="shadow"
+                                    color="primary"
+                                    size="lg"
+                                    onPress={viewModel.actions.applyScenario}
+                                >
+                                    {viewModel.actions.applyScenarioLabel}
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="md"
+                                    onPress={viewModel.actions.openRecovery}
+                                    isDisabled={
+                                        viewModel.actions.openRecoveryDisabled
+                                    }
+                                >
+                                    {viewModel.actions.openRecoveryLabel}
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="md"
+                                    onPress={viewModel.actions.markPathAvailable}
+                                    isDisabled={
+                                        viewModel.actions
+                                            .markPathAvailableDisabled
+                                    }
+                                >
+                                    {viewModel.actions.markPathAvailableLabel}
+                                </Button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
+                                {viewModel.state.rows.map((row) => (
+                                    <span key={row.id}>
+                                        {row.label} {" "}
+                                        <span className="font-semibold text-foreground">
+                                            {row.value}
+                                        </span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </GlassPanel>
+
+                    <GlassPanel layer={1} className="p-panel">
+                        <div className="flex flex-col gap-stage">
+                            <div className="flex flex-wrap items-center justify-between gap-tools">
+                                <p className="text-label font-semibold text-foreground">
+                                    {viewModel.smoke.title}
+                                </p>
+                                <Button
+                                    variant="shadow"
+                                    color="primary"
+                                    size="md"
+                                    isDisabled={viewModel.smoke.runDisabled}
+                                    onPress={viewModel.smoke.run}
+                                >
+                                    {viewModel.smoke.runLabel}
+                                </Button>
+                            </div>
+
+                            <p className="text-label text-foreground/70">
+                                {viewModel.smoke.summaryText}
                             </p>
-                            {RECOVERY_SMOKE_CASES.map((smokeCase) => {
-                                const result = smoke.resultByScenarioId.get(
-                                    smokeCase.scenarioId,
-                                );
-                                const completion = result?.completion;
-                                const expectedStatus =
-                                    completion?.expected ?? "applied";
-                                const actualStatus =
-                                    completion?.actual ?? "pending";
-                                const isMatch =
-                                    completion?.actual === completion?.expected;
-                                const assertionLabel = completion
-                                    ? isMatch
-                                        ? t(
-                                              "dev.recovery_playground.assertion.match",
-                                          )
-                                        : t(
-                                              "dev.recovery_playground.assertion.mismatch",
-                                          )
-                                    : t(
-                                          "dev.recovery_playground.assertion.pending",
-                                      );
-                                return (
+
+                            <div className="flex flex-col gap-tight">
+                                <p className="text-label font-semibold text-foreground">
+                                    {viewModel.smoke.assertionTitle}
+                                </p>
+                                {viewModel.smoke.assertions.map((assertion) => (
                                     <div
-                                        key={`assertion-${smokeCase.scenarioId}`}
+                                        key={assertion.id}
                                         className="surface-layer-1 rounded-panel p-tight flex flex-wrap items-center justify-between gap-tools"
                                     >
                                         <span className="text-label font-medium text-foreground">
-                                            {t(
-                                                `dev.recovery_playground.scenario.${smokeCase.scenarioId}`,
-                                            )}
+                                            {assertion.label}
                                         </span>
                                         <div className="flex flex-wrap items-center gap-tools text-label">
                                             <span className="text-foreground/70">
-                                                {t(
-                                                    "dev.recovery_playground.assertion.expected",
-                                                )}{" "}
-                                                <span className="font-semibold text-foreground">
-                                                    {resolveCompletionLabel(
-                                                        expectedStatus,
-                                                    )}
-                                                </span>
+                                                {assertion.expectedLabel}
                                             </span>
                                             <span className="text-foreground/70">
-                                                {t(
-                                                    "dev.recovery_playground.assertion.actual",
-                                                )}{" "}
-                                                <span className="font-semibold text-foreground">
-                                                    {resolveCompletionLabel(
-                                                        actualStatus,
-                                                    )}
-                                                </span>
+                                                {assertion.actualLabel}
                                             </span>
                                             <span className="font-semibold text-foreground">
-                                                {assertionLabel}
+                                                {assertion.assertionLabel}
                                             </span>
-                                            {completion?.reason && (
+                                            {assertion.reasonLabel && (
                                                 <span className="text-foreground/60">
-                                                    {t(
-                                                        "dev.recovery_playground.assertion.reason",
-                                                        {
-                                                            reason: completion.reason,
-                                                        },
-                                                    )}
+                                                    {assertion.reasonLabel}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                ))}
+                            </div>
 
-                        <div className="flex flex-col gap-tight">
-                            {RECOVERY_SMOKE_CASES.map((smokeCase) => {
-                                const result = smoke.resultByScenarioId.get(
-                                    smokeCase.scenarioId,
-                                );
-                                const statusLabel = result
-                                    ? result.status === "passed"
-                                        ? t(
-                                              "dev.recovery_playground.smoke.status.passed",
-                                          )
-                                        : t(
-                                              "dev.recovery_playground.smoke.status.failed",
-                                          )
-                                    : smoke.status === "running"
-                                      ? t(
-                                            "dev.recovery_playground.smoke.status.running",
-                                        )
-                                      : t(
-                                            "dev.recovery_playground.smoke.status.pending",
-                                        );
-                                return (
+                            <div className="flex flex-col gap-tight">
+                                {viewModel.smoke.rows.map((row) => (
                                     <div
-                                        key={smokeCase.scenarioId}
+                                        key={row.id}
                                         className="surface-layer-1 rounded-panel p-tight flex flex-wrap items-center justify-between gap-tools"
                                     >
                                         <span className="text-label font-medium text-foreground">
-                                            {t(
-                                                `dev.recovery_playground.scenario.${smokeCase.scenarioId}`,
-                                            )}
+                                            {row.label}
                                         </span>
                                         <div className="flex items-center gap-tools">
-                                            {result?.details && (
+                                            {row.details && (
                                                 <span className="text-label text-foreground/60">
-                                                    {result.details}
+                                                    {row.details}
                                                 </span>
                                             )}
                                             <span className="text-label font-semibold text-foreground">
-                                                {statusLabel}
+                                                {row.statusLabel}
                                             </span>
                                         </div>
                                     </div>
-                                );
-                            })}
+                                ))}
+                            </div>
+
+                            <div className="flex flex-col gap-tight">
+                                <div className="flex flex-wrap items-center justify-between gap-tools">
+                                    <p className="text-label font-semibold text-foreground">
+                                        {viewModel.system.title}
+                                    </p>
+                                    <Button
+                                        variant="shadow"
+                                        color="primary"
+                                        size="md"
+                                        isDisabled={viewModel.system.runDisabled}
+                                        onPress={viewModel.system.run}
+                                    >
+                                        {viewModel.system.runLabel}
+                                    </Button>
+                                </div>
+                                <p className="text-label text-foreground/70">
+                                    {viewModel.system.summaryText}
+                                </p>
+                                <div className="flex flex-col gap-tight">
+                                    {viewModel.system.rows.map((row) => (
+                                        <div
+                                            key={row.id}
+                                            className="surface-layer-1 rounded-panel p-tight flex flex-col gap-tight"
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-tools">
+                                                <span className="text-label font-medium text-foreground">
+                                                    {row.label}
+                                                </span>
+                                                <span className="text-label text-foreground/70">
+                                                    {viewModel.system.columns.event} {row.eventLabel}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
+                                                <span>
+                                                    {viewModel.system.columns.completion} {row.completionLabel}
+                                                </span>
+                                                <span>
+                                                    {viewModel.system.columns.resumed} {row.resumedLabel}
+                                                </span>
+                                                <span>
+                                                    {viewModel.system.columns.before} {row.beforeState}
+                                                </span>
+                                                <span>
+                                                    {viewModel.system.columns.after} {row.afterState}
+                                                </span>
+                                            </div>
+                                            {row.details && (
+                                                <span className="text-label text-foreground/60">
+                                                    {row.details}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </GlassPanel>
+                    </GlassPanel>
+                </div>
             </div>
 
-            <TorrentRecoveryModal
-                viewModel={controller.recoveryModalViewModel}
-            />
+            <TorrentRecoveryModal viewModel={viewModel.recoveryModalViewModel} />
+
+            {viewModel.footer && (
+                <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-default/20 surface-layer-2 p-panel">
+                    <div className="flex flex-wrap items-start justify-between gap-tools">
+                        <div className="flex min-w-0 flex-col gap-tight">
+                            <div className="flex flex-wrap items-center gap-tools">
+                                <span className="text-label font-semibold text-foreground">
+                                    {viewModel.footer.scenarioLabel}
+                                </span>
+                                <span className="surface-layer-1 rounded-panel px-tight py-tight text-label text-foreground/70">
+                                    {viewModel.footer.scenarioKindLabel}
+                                </span>
+                            </div>
+                            <pre className="whitespace-pre-wrap font-mono text-label leading-normal text-foreground/80">
+                                {viewModel.footer.expectedBehavior}
+                            </pre>
+                            {viewModel.footer.copyStatusLabel && (
+                                <span className="text-label text-foreground/60">
+                                    {viewModel.footer.copyStatusLabel}
+                                </span>
+                            )}
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="flat"
+                            onPress={viewModel.footer.copy}
+                            startContent={<Copy size={16} />}
+                        >
+                            {viewModel.footer.copyLabel}
+                        </Button>
+                    </div>
+                </div>
+            )}
         </Section>
     );
 }

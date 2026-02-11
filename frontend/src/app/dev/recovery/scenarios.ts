@@ -14,7 +14,8 @@ export type DevRecoveryScenarioId =
     | "data_gap"
     | "path_loss"
     | "volume_loss"
-    | "access_denied";
+    | "access_denied"
+    | "disk_full";
 
 export type DevRecoveryFaultMode =
     | "ok"
@@ -32,6 +33,7 @@ export type DevRecoveryScenarioDefinition = {
     errorClass: "missingFiles" | "permissionDenied";
     errorMessage: string;
     verifyFailsByDefault?: boolean;
+    expectedBehaviorKey: string;
 };
 
 export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
@@ -44,6 +46,8 @@ export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
         errorClass: "missingFiles",
         errorMessage: "hash-check failed; pieces missing",
         verifyFailsByDefault: true,
+        expectedBehaviorKey:
+            "dev.recovery_playground.expected_behavior.data_gap",
     },
     {
         id: "path_loss",
@@ -53,6 +57,8 @@ export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
         faultMode: "missing",
         errorClass: "missingFiles",
         errorMessage: "No such file or directory",
+        expectedBehaviorKey:
+            "dev.recovery_playground.expected_behavior.path_loss",
     },
     {
         id: "volume_loss",
@@ -63,6 +69,8 @@ export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
         faultMode: "missing",
         errorClass: "missingFiles",
         errorMessage: "Drive not ready: volume disconnected",
+        expectedBehaviorKey:
+            "dev.recovery_playground.expected_behavior.volume_loss",
     },
     {
         id: "access_denied",
@@ -72,6 +80,19 @@ export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
         faultMode: "access_denied",
         errorClass: "permissionDenied",
         errorMessage: "Access is denied",
+        expectedBehaviorKey:
+            "dev.recovery_playground.expected_behavior.access_denied",
+    },
+    {
+        id: "disk_full",
+        labelKey: "dev.recovery_playground.scenario.disk_full",
+        kind: "pathLoss",
+        path: "D:\\RecoveryLab\\DiskFull",
+        faultMode: "disk_full",
+        errorClass: "missingFiles",
+        errorMessage: "No space left on device",
+        expectedBehaviorKey:
+            "dev.recovery_playground.expected_behavior.disk_full",
     },
 ];
 
@@ -80,7 +101,9 @@ export const devRecoveryScenarioById = new Map<
     DevRecoveryScenarioDefinition
 >(DEV_RECOVERY_SCENARIOS.map((scenario) => [scenario.id, scenario]));
 
-export const cloneDevErrorEnvelope = (source: TorrentEntity["errorEnvelope"]) =>
+export const cloneDevErrorEnvelope = (
+    source: TorrentEntity["errorEnvelope"],
+) =>
     source
         ? {
               ...source,
@@ -91,7 +114,9 @@ export const cloneDevErrorEnvelope = (source: TorrentEntity["errorEnvelope"]) =>
           }
         : undefined;
 
-export const cloneDevTorrentDetail = (source: TorrentDetailEntity): TorrentDetail => ({
+export const cloneDevTorrentDetail = (
+    source: TorrentDetailEntity,
+): TorrentDetail => ({
     ...source,
     speed: { ...source.speed },
     peerSummary: { ...source.peerSummary },
@@ -140,4 +165,3 @@ export const devFaultModeLabelKey: Record<DevRecoveryFaultMode, string> = {
     access_denied: "dev.recovery_playground.fault.access_denied",
     disk_full: "dev.recovery_playground.fault.disk_full",
 };
-

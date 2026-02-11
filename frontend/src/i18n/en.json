@@ -1191,13 +1191,21 @@
                 "scenario": "Scenario",
                 "confidence": "Confidence",
                 "controls": "Controller-backed controls",
-                "smoke": "Recovery smoke run"
+                "smoke": "Recovery smoke run",
+                "system_events": "System event recovery run"
             },
             "scenario": {
                 "data_gap": "Data gap",
                 "path_loss": "Path loss",
                 "volume_loss": "Volume loss",
-                "access_denied": "Access denied"
+                "access_denied": "Access denied",
+                "disk_full": "Disk full"
+            },
+            "kind": {
+                "dataGap": "Data gap",
+                "pathLoss": "Path loss",
+                "volumeLoss": "Volume loss",
+                "accessDenied": "Access denied"
             },
             "confidence": {
                 "certain": "Certain",
@@ -1221,7 +1229,10 @@
                 "open_recovery": "Open Recovery",
                 "mark_path_available": "Mark Path Available",
                 "run_smoke": "Run Recovery Smoke",
-                "run_smoke_running": "Running Smoke..."
+                "run_smoke_running": "Running Smoke...",
+                "run_system": "Run System Events",
+                "run_system_running": "Running System Events...",
+                "copy_context": "Copy Context"
             },
             "state": {
                 "current": "Torrent state:",
@@ -1253,6 +1264,51 @@
                     "running": "running",
                     "passed": "passed",
                     "failed": "failed"
+                }
+            },
+            "copy": {
+                "scenario": "Scenario",
+                "error_class": "Error class",
+                "expected_behavior": "Expected behavior"
+            },
+            "clipboard": {
+                "copied": "Context copied",
+                "unsupported": "Clipboard not supported",
+                "empty": "Nothing to copy",
+                "failed": "Failed to copy context"
+            },
+            "expected_behavior": {
+                "data_gap": "- Gate: needsModal\n- User action: Download Missing triggers Verify -> Resume\n- Anti-loop: Verify runs once per session unless successful\n- Intent: Verify integrity and re-download missing pieces",
+                "path_loss": "- Gate: needsModal\n- Self-healing: If folder is created externally, state clears automatically\n- User action: Locate updates path and re-probes\n- Optimization: Skip verify when target folder is authoritative and empty",
+                "volume_loss": "- Gate: needsModal\n- Self-healing: If volume remounts, state clears automatically\n- Visual: Distinct Drive Missing warning\n- Retry: Probe volume presence",
+                "access_denied": "- Gate: needsModal\n- Self-healing: If permissions are fixed, state clears automatically\n- User action: Retry probes again, Locate moves to accessible folder\n- Error: Distinct permission error messaging",
+                "disk_full": "- Gate: needsModal\n- Blocker: Disk full is detected through free-space checks\n- System event: Freeing space externally should allow automatic resume\n- Result: Recovery gate resolves and torrent returns to active state"
+            },
+            "system": {
+                "idle": "Run system event tests to validate automatic recovery after external state changes.",
+                "summary": "{{passed}}/{{total}} system-event scenarios passed",
+                "resumed_yes": "resumed",
+                "resumed_no": "not resumed",
+                "resumed_pending": "pending",
+                "case_passed": "resolved; active state {{state}}",
+                "column": {
+                    "event": "Event:",
+                    "completion": "Completion:",
+                    "resumed": "Resume:",
+                    "before": "Before:",
+                    "after": "After:"
+                },
+                "case": {
+                    "disk_space_restored": "Disk full -> free space restored",
+                    "volume_replugged": "USB/volume unplugged -> replugged",
+                    "path_restored": "Path missing -> folder restored",
+                    "permissions_restored": "Access denied -> permissions fixed"
+                },
+                "event": {
+                    "space_freed": "Space freed by system",
+                    "drive_replugged": "Drive replugged by system",
+                    "path_created": "Folder restored by system",
+                    "permissions_fixed": "Permissions fixed by system"
                 }
             }
         }
