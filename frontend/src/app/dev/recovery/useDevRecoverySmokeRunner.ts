@@ -61,6 +61,12 @@ const RECOVERY_SMOKE_CASES: RecoverySmokeCase[] = [
         verifyFails: false,
     },
     {
+        scenarioId: "disk_full",
+        expectedKind: "pathLoss",
+        expectation: "modal_recovery",
+        verifyFails: false,
+    },
+    {
         scenarioId: "data_gap",
         expectedKind: "dataGap",
         expectation: "auto_recovery",
