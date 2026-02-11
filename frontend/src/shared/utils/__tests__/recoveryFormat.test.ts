@@ -4,7 +4,7 @@ import {
     formatPrimaryActionHintFromClassification,
     formatRecoveryTooltip,
 } from "@/shared/utils/recoveryFormat";
-import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
+import type { ErrorEnvelope } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 
 describe("formatRecoveryTooltip", () => {
@@ -13,7 +13,7 @@ describe("formatRecoveryTooltip", () => {
             errorClass: "missingFiles",
             errorMessage: null,
             lastErrorAt: null,
-            recoveryState: "missing_files" as RecoveryState,
+            recoveryState: "needsUserAction",
             recoveryActions: [],
         };
         const t = ((key: string) =>

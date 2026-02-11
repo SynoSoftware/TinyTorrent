@@ -1,7 +1,12 @@
 import { cn } from "@heroui/react";
 import type { Table } from "@tanstack/react-table";
 import { useMemo, type RefObject } from "react";
-import { TABLE_LAYOUT } from "@/config/logic";
+import {
+    ICON_STROKE_WIDTH_DENSE,
+    STATUS_VISUAL_KEYS,
+    STATUS_VISUALS,
+    TABLE_LAYOUT,
+} from "@/config/logic";
 import STATUS from "@/shared/status";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -83,11 +88,15 @@ export function TorrentTable_SpeedCell({
 
     const speedState = isDownloading ? "down" : isSeeding ? "seed" : "idle";
 
-    const SPEED_COLOR: Record<typeof speedState, string> = {
-        down: "text-success",
-        seed: "text-primary",
-        idle: "text-foreground/60",
+    const SPEED_COLOR_KEY: Record<typeof speedState, string> = {
+        down: STATUS_VISUAL_KEYS.speed.DOWN,
+        seed: STATUS_VISUAL_KEYS.speed.SEED,
+        idle: STATUS_VISUAL_KEYS.speed.IDLE,
     };
+    const speedColorClass =
+        STATUS_VISUALS[SPEED_COLOR_KEY[speedState]]?.text ??
+        STATUS_VISUALS[STATUS_VISUAL_KEYS.speed.IDLE]?.text ??
+        "text-foreground/60";
 
     return (
         <div className="relative w-full h-full min-w-0 min-h-0">
@@ -95,7 +104,7 @@ export function TorrentTable_SpeedCell({
                 <svg
                     className={cn(
                         "absolute inset-0 w-full h-full overflow-visible",
-                        SPEED_COLOR[speedState],
+                        speedColorClass,
                         "opacity-50",
                     )}
                     viewBox={`0 0 ${sparklineWidth} ${sparklineHeight}`}
@@ -106,7 +115,7 @@ export function TorrentTable_SpeedCell({
                         d={path}
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="1.4"
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         strokeLinecap="round"
                     />
                 </svg>
@@ -117,7 +126,7 @@ export function TorrentTable_SpeedCell({
                     className={cn(
                         DENSE_NUMERIC,
                         "font-medium",
-                        SPEED_COLOR[speedState],
+                        speedColorClass,
                         "drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]",
                     )}
                 >

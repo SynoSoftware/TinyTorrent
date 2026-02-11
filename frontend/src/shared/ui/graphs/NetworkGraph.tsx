@@ -8,7 +8,7 @@ import {
     buildSplinePathFromPoints,
     createSplinePoints,
 } from "@/shared/utils/spline";
-import { INTERACTION_CONFIG } from "@/config/logic";
+import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 
 const { networkGraph } = INTERACTION_CONFIG;
@@ -176,7 +176,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 d={safeLinePath}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.5"
+                strokeWidth={ICON_STROKE_WIDTH}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className={cn(colorClass)}

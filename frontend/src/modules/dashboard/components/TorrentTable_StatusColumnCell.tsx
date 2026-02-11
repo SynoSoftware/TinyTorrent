@@ -8,6 +8,7 @@ import {
     formatRecoveryTooltip,
 } from "@/shared/utils/recoveryFormat";
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
+import { STATUS } from "@/shared/status";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
@@ -52,42 +53,42 @@ const STATUS_CHIP_STYLE = {
 
 // Allow both canonical TorrentStatus keys and RecoveryState keys.
 const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
-    downloading: {
+    [STATUS.torrent.DOWNLOADING]: {
         color: "success",
         icon: ArrowDown,
         labelKey: "table.status_dl",
     },
-    seeding: {
+    [STATUS.torrent.SEEDING]: {
         color: "primary",
         icon: ArrowUp,
         labelKey: "table.status_seed",
     },
-    paused: {
+    [STATUS.torrent.PAUSED]: {
         color: "warning",
         icon: Pause,
         labelKey: "table.status_pause",
     },
-    checking: {
+    [STATUS.torrent.CHECKING]: {
         color: "warning",
         icon: RefreshCw,
         labelKey: "table.status_checking",
     },
-    queued: {
+    [STATUS.torrent.QUEUED]: {
         color: "secondary",
         icon: ListStart,
         labelKey: "table.status_queued",
     },
-    stalled: {
+    [STATUS.torrent.STALLED]: {
         color: "secondary",
         icon: WifiOff,
         labelKey: "table.status_stalled",
     },
-    error: {
+    [STATUS.torrent.ERROR]: {
         color: "danger",
         icon: Bug,
         labelKey: "table.status_error",
     },
-    missing_files: {
+    [STATUS.torrent.MISSING_FILES]: {
         color: "warning",
         icon: FileWarning,
         labelKey: "table.status_missing_files",
@@ -143,11 +144,11 @@ export function TorrentTable_StatusCell({
             : torrent.state;
 
     const isMissingFilesCell =
-        effectiveState === "missing_files" ||
+        effectiveState === STATUS.torrent.MISSING_FILES ||
         classification?.kind === "pathLoss" ||
         classification?.kind === "volumeLoss" ||
         classification?.kind === "accessDenied";
-    const conf = statusMap[effectiveState] ?? statusMap.paused;
+    const conf = statusMap[effectiveState] ?? statusMap[STATUS.torrent.PAUSED];
     const Icon = conf.icon;
 
     const statusLabel = classification

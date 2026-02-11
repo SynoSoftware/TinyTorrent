@@ -11,7 +11,10 @@ import {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
+import {
+    DETAILS_TAB_CONTENT_MAX_HEIGHT,
+    HEADER_BASE,
+} from "@/config/logic";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
@@ -83,7 +86,7 @@ export const ContentTab = ({
         return (
             <div className="flex h-full min-h-0 flex-col gap-panel">
                 <GlassPanel className="p-panel space-y-3 border border-warning/30 bg-warning/10">
-                    <div className="text-scaled font-semibold uppercase tracking-tight text-warning">
+                    <div className={`${HEADER_BASE} text-scaled font-semibold text-warning`}>
                         {t("torrent_modal.files_empty")}
                     </div>
                     <div className="text-label text-warning/80 mb-tight">
@@ -100,14 +103,14 @@ export const ContentTab = ({
                 <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-panel">
                         <div className="flex flex-col gap-tight">
-                            <span className="text-scaled font-semibold uppercase tracking-tight text-foreground/60">
+                            <span className={`${HEADER_BASE} text-scaled font-semibold text-foreground/60`}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className="text-label text-foreground/60">
                                 {t("torrent_modal.files_description")}
                             </p>
                         </div>
-                        <span className="text-label font-semibold uppercase tracking-tight text-foreground/50">
+                        <span className={`${HEADER_BASE} text-label font-semibold`}>
                             {fileCountLabel}
                         </span>
                     </div>
@@ -116,14 +119,14 @@ export const ContentTab = ({
                 <div className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-panel">
                         <div className="flex flex-col gap-tight">
-                            <span className="text-scaled font-semibold uppercase tracking-tight text-foreground/60">
+                            <span className={`${HEADER_BASE} text-scaled font-semibold text-foreground/60`}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className="text-label text-foreground/60">
                                 {t("torrent_modal.files_description")}
                             </p>
                         </div>
-                        <span className="text-label font-semibold uppercase tracking-tight text-foreground/50">
+                        <span className={`${HEADER_BASE} text-label font-semibold`}>
                             {fileCountLabel}
                         </span>
                     </div>
@@ -133,7 +136,9 @@ export const ContentTab = ({
             <GlassPanel
                 className={`flex flex-1 min-h-0 flex-col ${PANEL_SURFACE_INSET_FRAME}`}
             >
-                <div className="border-b border-default/10 px-panel py-panel text-label font-semibold uppercase tracking-tight text-foreground/50">
+                <div
+                    className={`border-b border-default/10 px-panel py-panel ${HEADER_BASE} text-label font-semibold`}
+                >
                     {t("torrent_modal.tabs.content")}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden">

@@ -117,7 +117,12 @@ export function useFocusState() {
 }
 
 export function useSelection() {
-    const { selectedIds, setSelectedIds, activeId, setActiveId } =
+    const {
+        selectedIds,
+        setSelectedIds,
+        activeId,
+        setActiveId,
+    } =
         useAppShellState();
     return {
         selectedIds,

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { SURFACE_BORDER } from "@/config/logic";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
@@ -30,7 +31,9 @@ export const SpeedTab = ({
                 </div>
             )}
             {isHistoryEmpty && (
-                <div className="mb-tight shrink-0 rounded-2xl border border-content1/20 bg-background/20 p-panel text-scaled text-foreground/50">
+                <div
+                    className={`mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel text-scaled text-foreground/50`}
+                >
                     {t("torrent_modal.speed.collecting_samples")}
                 </div>
             )}

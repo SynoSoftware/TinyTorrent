@@ -1,5 +1,6 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
+import { SURFACE_BORDER } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 
@@ -55,7 +56,7 @@ export function DiskSpaceGauge({
         "space-y-tight rounded-xl border bg-content1/15 p-panel",
         {
             "border-danger/40 bg-danger/5": isInsufficient,
-            "border-content1/20": !isInsufficient,
+            [SURFACE_BORDER]: !isInsufficient,
         }
     );
 

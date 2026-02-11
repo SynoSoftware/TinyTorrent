@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { UiMode } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
 import { shellAgent } from "@/app/agents/shell-agent";
+import { STATUS } from "@/shared/status";
 import {
     CLIPBOARD_BADGE_DURATION_MS,
 } from "@/config/logic";
@@ -480,7 +481,7 @@ export function useSettingsModalController(
                         text: t("settings.modal.test_port_unsupported"),
                     });
                     return;
-                case "offline":
+                case STATUS.connection.OFFLINE:
                     setModalFeedback({
                         type: "error",
                         text: t("settings.modal.test_port_offline"),
@@ -519,7 +520,7 @@ export function useSettingsModalController(
                 return SETTINGS_ACTION_UNSUPPORTED;
             }
             const outcome = await onReconnect();
-            if (outcome.status !== "connected") {
+            if (outcome.status !== STATUS.connection.CONNECTED) {
                 setModalFeedback({
                     type: "error",
                     text: t("settings.modal.error_reconnect"),

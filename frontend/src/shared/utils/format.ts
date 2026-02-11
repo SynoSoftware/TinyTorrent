@@ -15,6 +15,15 @@ export const formatTime = (seconds: number) => {
     return h > 0 ? `${h}h ${m}m` : `${m}m ${seconds % 60}s`;
 };
 
+export const formatDurationMs = (ms: number) => {
+    if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+    const mins = Math.floor(ms / 60_000);
+    const secs = Math.round((ms % 60_000) / 1000);
+    return secs === 0
+        ? `${mins}m`
+        : `${mins}:${String(secs).padStart(2, "0")}m`;
+};
+
 export const formatEtaAbsolute = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return "-";
     const date = new Date(Date.now() + seconds * 1000);

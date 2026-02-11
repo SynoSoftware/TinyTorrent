@@ -31,7 +31,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import { getShellTokens } from "@/config/logic";
+import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
@@ -65,6 +65,23 @@ export function Navbar({ viewModel }: NavbarProps) {
     } = usePreferences();
     const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
+    const toneButtonClass = {
+        primary:
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.button ??
+            "text-primary hover:text-primary-600 hover:bg-primary/10",
+        success:
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]?.button ??
+            "text-success hover:text-success-600 hover:bg-success/10",
+        warning:
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.button ??
+            "text-warning hover:text-warning-600 hover:bg-warning/10",
+        danger:
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]?.button ??
+            "text-danger hover:text-danger-600 hover:bg-danger/10",
+        neutral:
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.NEUTRAL]?.button ??
+            "text-default-500 hover:text-foreground hover:bg-default-200",
+    };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
         if (!isDashboardFilter(key)) return;
@@ -235,7 +252,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t("toolbar.add_torrent")}
                                 title={t("toolbar.add_torrent")}
                                 onPress={onAddTorrent}
-                                className="text-primary hover:text-primary-600 hover:bg-primary/10 ring-1 ring-primary/20"
+                                className={cn(
+                                    toneButtonClass.primary,
+                                    "ring-1 ring-primary/20",
+                                )}
                                 iconSize="lg"
                             />
 
@@ -244,7 +264,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t("toolbar.add_magnet")}
                                 title={t("toolbar.add_magnet")}
                                 onPress={onAddMagnet}
-                                className="text-primary hover:text-primary-600 hover:bg-primary/10"
+                                className={toneButtonClass.primary}
                                 iconSize="lg"
                             />
                         </div>
@@ -267,7 +287,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 title={t("toolbar.resume")}
                                 onPress={selectionActions.ensureActive}
                                 disabled={!hasSelection}
-                                className="text-success hover:text-success-600 hover:bg-success/10"
+                                className={toneButtonClass.success}
                                 iconSize="lg"
                             />
                             <ToolbarIconButton
@@ -277,7 +297,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 onPress={selectionActions.ensurePaused}
                                 disabled={!hasSelection}
                                 className={cn(
-                                    "text-warning hover:text-warning-600 hover:bg-warning/10",
+                                    toneButtonClass.warning,
                                     emphasizeActions?.pause
                                         ? "ring-1 ring-warning/30 shadow-sm"
                                         : "",
@@ -292,7 +312,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     onPress={selectionActions.ensureValid}
                                     disabled={!hasSelection}
                                     className={cn(
-                                        "text-default-500 hover:text-foreground hover:bg-default-200",
+                                        toneButtonClass.neutral,
                                         emphasizeActions?.forceRecheck
                                             ? "ring-1 ring-default/20 shadow-sm"
                                             : "",
@@ -305,7 +325,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     title={t("toolbar.remove")}
                                     onPress={selectionActions.ensureRemoved}
                                     disabled={!hasSelection}
-                                    className="text-danger hover:text-danger-600 hover:bg-danger/10"
+                                    className={toneButtonClass.danger}
                                     iconSize="lg"
                                 />
                             </div>

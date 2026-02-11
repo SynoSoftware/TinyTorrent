@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import Runtime from "@/app/runtime";
-import { usePreferences } from "@/app/context/PreferencesContext";
+import { usePreferencesConnectionConfig } from "@/app/context/PreferencesContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import {
     DEFAULT_PROFILE_ID,
@@ -49,7 +49,7 @@ export function ConnectionConfigProvider({
         preferences: { connectionProfiles, activeConnectionProfileId },
         setConnectionProfiles,
         setActiveProfileId: setActiveProfileId,
-    } = usePreferences();
+    } = usePreferencesConnectionConfig();
 
     const store = useConnectionProfileStore({
         connectionProfiles,

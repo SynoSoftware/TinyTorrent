@@ -3,7 +3,8 @@ import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
+import { TEXT_ROLES } from "@/config/logic";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
 import {
     getAvailabilityColor,
     useCanvasPalette,
@@ -18,9 +19,9 @@ import {
     HEATMAP_HOVER_STROKE_WIDTH,
     HEATMAP_HOVER_STROKE_INSET,
     HEATMAP_USE_UI_SAMPLING_SHIM,
+    SURFACE_BORDER,
 } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 // Scheduling: the shared scheduler now drives `useUiClock()` so redraw cadence is centralized and documented.
@@ -252,7 +253,9 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-panel text-scaled text-foreground/50 text-center">
+            <div
+                className={`rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel text-scaled text-foreground/50 text-center`}
+            >
                 {emptyLabel}
             </div>
         );
@@ -321,7 +324,7 @@ export const AvailabilityHeatmap = ({
             </div>
             <div
                 className={cn(
-                    "rounded-2xl border border-content1/20 bg-content1/10 p-tight transition-all duration-200",
+                    `rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-tight transition-all duration-200`,
                     {
                         "opacity-70 shadow-availability ring-1 ring-primary/40":
                             isZooming,

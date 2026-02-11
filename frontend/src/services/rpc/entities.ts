@@ -205,7 +205,7 @@ export interface SessionStats {
 
 export type EngineType = "transmission" | "libtorrent" | "unknown";
 
-export interface EngineCapabilities {
+export interface EngineFeatureFlags {
     sequentialDownload: boolean;
     superSeeding: boolean;
     trackerReannounce: boolean;
@@ -215,7 +215,7 @@ export interface EngineInfo {
     type: EngineType;
     name?: string;
     version?: string;
-    capabilities: EngineCapabilities;
+    capabilities: EngineFeatureFlags;
 }
 
 export type ServerClass = "tinytorrent" | "transmission" | "unknown";

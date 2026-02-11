@@ -9,7 +9,7 @@ import {
 } from "react";
 import type {
     EngineAdapter,
-    EngineCapabilities,
+    EngineRuntimeCapabilities,
 } from "@/services/rpc/engine-adapter";
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
@@ -48,7 +48,7 @@ export interface SessionContextValue {
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
     uiCapabilities: UiCapabilities;
-    engineCapabilities: EngineCapabilities;
+    engineCapabilities: EngineRuntimeCapabilities;
 }
 
 export interface SessionTelemetryContextValue {

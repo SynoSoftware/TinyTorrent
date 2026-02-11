@@ -1,4 +1,6 @@
 import { infraLogger } from "@/shared/utils/infraLogger";
+import { isAbortError } from "@/shared/utils/errors";
+import { TRANSPORT_CACHE_TTL_MS } from "@/config/logic";
 
 export type TransportOutcomeKind =
     | "ok"
@@ -66,7 +68,7 @@ export class TransmissionRpcTransport {
 
     // 2. Short-lived Cache (TTL)
     private responseCache = new Map<string, { val: unknown; ts: number }>();
-    private readonly CACHE_TTL_MS = 500;
+    private readonly CACHE_TTL_MS = TRANSPORT_CACHE_TTL_MS;
 
     // Helper: stable deterministic stringify for request argument hashing
     private stableStringify(value: unknown): string {
@@ -170,21 +172,11 @@ export class TransmissionRpcTransport {
         } catch { /* ignore */ }
     }
 
-    private isAbortError(error: unknown): boolean {
-        if (!error || typeof error !== "object") return false;
-        const candidate = error as { name?: unknown; message?: unknown };
-        if (candidate.name === "AbortError") return true;
-        return (
-            typeof candidate.message === "string" &&
-            /abort(ed)?/i.test(candidate.message)
-        );
-    }
-
     private mapFetchErrorToOutcome(
         error: unknown,
         fallbackMessage: string,
     ): TransportFailureOutcome {
-        if (this.isAbortError(error)) {
+        if (isAbortError(error)) {
             return { kind: "aborted", message: "Transmission RPC request aborted" };
         }
         return {

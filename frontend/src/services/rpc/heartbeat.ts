@@ -1,11 +1,18 @@
-import { HEARTBEAT_INTERVALS } from "@/config/logic";
-import { CONFIG } from "@/config/logic";
+import {
+    GHOST_TIMEOUT_MS,
+    HEARTBEAT_INTERVALS,
+    HEARTBEAT_MAX_DELTA_CYCLES,
+    HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS,
+    HISTORY_DATA_POINTS,
+    WS_RECONNECT_MAX_DELAY_MS,
+} from "@/config/logic";
 import type {
     SessionStats,
     TorrentDetailEntity,
     TorrentEntity,
     NetworkTelemetry,
 } from "@/services/rpc/entities";
+import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerprint";
 import { processHeartbeat } from "@/services/rpc/recoveryAutomation";
 import { enforceStateTransition } from "@/services/rpc/normalizers";
 import STATUS from "@/shared/status";
@@ -67,7 +74,7 @@ type HeartbeatClientWithTelemetry = HeartbeatClient & {
 type HeartbeatSubscriber = {
     id: symbol;
     params: HeartbeatSubscriberParams;
-    lastSeenHash?: string;
+    lastSeenHash?: number;
 };
 
 const MODE_INTERVALS: Record<HeartbeatMode, number> = {
@@ -84,8 +91,7 @@ type DetailFetchResult = {
     error?: unknown;
 };
 
-const RECENT_REMOVED_TTL_MS = 30_000; // ms
-const RESYNC_MIN_INTERVAL_MS = 10_000; // avoid repeated resyncs
+const RECENT_REMOVED_TTL_MS = GHOST_TIMEOUT_MS;
 
 export class HeartbeatManager {
     // Timer ownership boundary:
@@ -96,7 +102,7 @@ export class HeartbeatManager {
     private timerId?: number;
     private isRunning = false;
     private pollingEnabled = true;
-    private lastTorrentHash: string = "";
+    private lastTorrentHash = 0;
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
     private lastPayloadTimestampMs?: number;
@@ -131,16 +137,9 @@ export class HeartbeatManager {
     >();
     private client: HeartbeatClientWithTelemetry;
 
-    private readonly historySize: number =
-        (
-            CONFIG as unknown as {
-                performance?: { history_data_points?: number };
-            }
-        )?.performance?.history_data_points ?? 60;
+    private readonly historySize: number = HISTORY_DATA_POINTS;
     private computeHash(torrents: TorrentEntity[]) {
-        // Stringify is the absolute authority on data changes.
-        // This removes the "Cleverness Trap" of manual property picking.
-        return JSON.stringify(torrents);
+        return computeTorrentListFingerprint(torrents);
     }
     private computeChangedIds(
         current: TorrentEntity[],
@@ -181,27 +180,18 @@ export class HeartbeatManager {
 
     constructor(client: HeartbeatClient) {
         this.client = client as HeartbeatClientWithTelemetry;
-        // Read MAX_DELTA_CYCLES from CONFIG if present, fall back to 30.
+        // Read cadence controls from logic.ts authority.
         try {
-            const cfg = (
-                CONFIG as unknown as {
-                    performance?: {
-                        max_delta_cycles?: number;
-                        min_immediate_tick_ms?: number;
-                    };
-                }
-            )?.performance;
-            const v =
-                typeof cfg?.max_delta_cycles === "number"
-                    ? cfg.max_delta_cycles
-                    : undefined;
-            this.MAX_DELTA_CYCLES = Number.isFinite(v) && v! > 0 ? v! : 30;
-            const mi =
-                typeof cfg?.min_immediate_tick_ms === "number"
-                    ? cfg.min_immediate_tick_ms
-                    : undefined;
+            this.MAX_DELTA_CYCLES =
+                Number.isFinite(HEARTBEAT_MAX_DELTA_CYCLES) &&
+                HEARTBEAT_MAX_DELTA_CYCLES > 0
+                    ? HEARTBEAT_MAX_DELTA_CYCLES
+                    : 30;
             this.MIN_IMMEDIATE_TRIGGER_MS =
-                Number.isFinite(mi) && mi! >= 0 ? mi! : 1000;
+                Number.isFinite(HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS) &&
+                HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS >= 0
+                    ? HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS
+                    : 1000;
         } catch {
             this.MAX_DELTA_CYCLES = 30;
             this.MIN_IMMEDIATE_TRIGGER_MS = 1000;
@@ -808,7 +798,7 @@ export class HeartbeatManager {
                                 const nowResync = Date.now();
                                 if (
                                     nowResync - this.lastResyncAt >
-                                    RESYNC_MIN_INTERVAL_MS
+                                    WS_RECONNECT_MAX_DELAY_MS
                                 ) {
                                     try {
                                         if (shouldDiag) {

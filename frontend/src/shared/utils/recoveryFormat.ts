@@ -1,4 +1,11 @@
-import type { ErrorEnvelope, RecoveryAction } from "@/services/rpc/entities";
+import type {
+    ErrorClass,
+    ErrorEnvelope,
+    MissingFilesClassificationKind,
+    RecoveryAction,
+    RecoveryState,
+    TorrentStatus,
+} from "@/services/rpc/entities";
 import type {
     MissingFilesClassification,
     RecoveryRecommendedAction,
@@ -28,8 +35,13 @@ const RECOVERY_HINT_KEY: Record<RecoveryHintAction, string> = {
     unknown: "recovery.hint.unknown",
 };
 
+const isRecoveryHintAction = (value: string): value is RecoveryHintAction =>
+    Object.prototype.hasOwnProperty.call(RECOVERY_HINT_KEY, value);
+
 const resolveRecoveryHintKey = (action: string) =>
-    RECOVERY_HINT_KEY[action as RecoveryHintAction] ?? `recovery.hint.${action}`;
+    isRecoveryHintAction(action)
+        ? RECOVERY_HINT_KEY[action]
+        : `recovery.hint.${action}`;
 
 const translateRecoveryHint = (action: string, t: TFunction) => {
     const key = resolveRecoveryHintKey(action);
@@ -37,13 +49,16 @@ const translateRecoveryHint = (action: string, t: TFunction) => {
     return value === key ? t("recovery.hint.unknown") : value;
 };
 
-const RECOVERY_STATE_LABEL_KEY: Record<string, string> = {
+const RECOVERY_STATE_LABEL_KEY = {
     ok: "labels.status.torrent.ok",
     verifying: "labels.status.torrent.verifying",
     transientWaiting: "labels.status.torrent.transientWaiting",
     needsUserConfirmation: "labels.status.torrent.needsUserConfirmation",
     needsUserAction: "labels.status.torrent.needsUserAction",
     blocked: "labels.status.torrent.blocked",
+} satisfies Record<RecoveryState, string>;
+
+const TORRENT_STATE_LABEL_KEY = {
     checking: "labels.status.torrent.checking",
     downloading: "labels.status.torrent.downloading",
     error: "labels.status.torrent.error",
@@ -52,9 +67,24 @@ const RECOVERY_STATE_LABEL_KEY: Record<string, string> = {
     queued: "labels.status.torrent.queued",
     seeding: "labels.status.torrent.seeding",
     stalled: "labels.status.torrent.stalled",
-};
+} satisfies Record<TorrentStatus, string>;
 
-const RECOVERY_CLASS_LABEL_KEY: Record<string, string> = {
+const resolveRecoveryState = (
+    envelope: ErrorEnvelope,
+    torrentState?: TorrentStatus
+) =>
+    envelope.recoveryState !== "ok"
+        ? envelope.recoveryState
+        : torrentState ?? "unknown";
+
+const getRecoveryStateLabelKey = (state: string) =>
+    Object.prototype.hasOwnProperty.call(TORRENT_STATE_LABEL_KEY, state)
+        ? TORRENT_STATE_LABEL_KEY[state as TorrentStatus]
+        : Object.prototype.hasOwnProperty.call(RECOVERY_STATE_LABEL_KEY, state)
+          ? RECOVERY_STATE_LABEL_KEY[state as RecoveryState]
+          : `labels.status.torrent.${state}`;
+
+const RECOVERY_CLASS_LABEL_KEY: Record<ErrorClass, string> = {
     none: "recovery.class.none",
     trackerWarning: "recovery.class.trackerWarning",
     trackerError: "recovery.class.trackerError",
@@ -67,22 +97,32 @@ const RECOVERY_CLASS_LABEL_KEY: Record<string, string> = {
     unknown: "recovery.class.unknown",
 };
 
+const uniqueJoin = (parts: string[]) =>
+    parts.filter((value, index, source) => source.indexOf(value) === index).join(" - ");
+
+const RECOVERY_EMPHASIS_CLASS_BY_ACTION: Partial<
+    Record<RecoveryAction, string>
+> = {
+    changeLocation: "ring-1 ring-primary/30 shadow-sm",
+    openFolder: "ring-1 ring-primary/30 shadow-sm",
+    reannounce: "ring-1 ring-primary/30 shadow-sm",
+    pause: "ring-1 ring-warning/30 shadow-sm",
+    forceRecheck: "ring-1 ring-default/20 shadow-sm",
+    removeReadd: "ring-1 ring-default/20 shadow-sm",
+    reDownload: "ring-1 ring-primary/30 shadow-sm",
+    setLocation: "ring-1 ring-primary/30 shadow-sm",
+};
+
 export const formatRecoveryStatus = (
     envelope: ErrorEnvelope | undefined | null,
     t: TFunction,
-    torrentState?: string,
+    torrentState?: TorrentStatus,
     fallbackKey = "table.status_dl"
 ) => {
     if (!envelope) return t(fallbackKey);
 
-    const effectiveState =
-        envelope.recoveryState && envelope.recoveryState !== "ok"
-            ? envelope.recoveryState
-            : torrentState || "unknown";
-
-    const stateLabelKey =
-        RECOVERY_STATE_LABEL_KEY[String(effectiveState)] ??
-        `labels.status.torrent.${effectiveState}`;
+    const effectiveState = resolveRecoveryState(envelope, torrentState);
+    const stateLabelKey = getRecoveryStateLabelKey(effectiveState);
     const stateLabel = t(stateLabelKey);
     return stateLabel;
 };
@@ -90,26 +130,14 @@ export const formatRecoveryStatus = (
 export const formatRecoveryTooltip = (
     envelope: ErrorEnvelope | undefined | null,
     t: TFunction,
-    torrentState?: string,
+    torrentState?: TorrentStatus,
     fallbackKey = "table.status_dl"
 ) => {
     if (!envelope) return t(fallbackKey);
 
-    let effectiveState =
-        envelope.recoveryState && envelope.recoveryState !== "ok"
-            ? envelope.recoveryState
-            : torrentState || "unknown";
-
-    if (envelope.errorClass === "missingFiles") {
-        effectiveState = "missing_files";
-    }
-
-    const stateLabelKey =
-        RECOVERY_STATE_LABEL_KEY[String(effectiveState)] ??
-        `labels.status.torrent.${effectiveState}`;
-    const classLabelKey =
-        RECOVERY_CLASS_LABEL_KEY[String(envelope.errorClass)] ??
-        `recovery.class.${envelope.errorClass}`;
+    const effectiveState = resolveRecoveryState(envelope, torrentState);
+    const stateLabelKey = getRecoveryStateLabelKey(effectiveState);
+    const classLabelKey = RECOVERY_CLASS_LABEL_KEY[envelope.errorClass];
 
     const stateLabel = t(stateLabelKey);
     const classLabel = t(classLabelKey);
@@ -133,7 +161,7 @@ export const formatRecoveryTooltip = (
         }
     }
 
-    return parts.filter((value, index, self) => self.indexOf(value) === index).join(" - ");
+    return uniqueJoin(parts);
 };
 
 export const formatPrimaryActionHint = (
@@ -145,30 +173,9 @@ export const formatPrimaryActionHint = (
     return translateRecoveryHint(action, t);
 };
 
-export default formatRecoveryStatus;
-
 export const getEmphasisClassForAction = (
-    primaryAction: string | null | undefined
-) => {
-    if (!primaryAction) return "";
-    switch (primaryAction) {
-        case "changeLocation":
-        case "openFolder":
-            return "ring-1 ring-primary/30 shadow-sm";
-        case "reannounce":
-            return "ring-1 ring-primary/30 shadow-sm";
-        case "pause":
-            return "ring-1 ring-warning/30 shadow-sm";
-        case "forceRecheck":
-        case "removeReadd":
-            return "ring-1 ring-default/20 shadow-sm";
-        case "reDownloadHere":
-        case "reDownload":
-            return "ring-1 ring-primary/30 shadow-sm";
-        default:
-            return "";
-    }
-};
+    primaryAction: RecoveryAction | null | undefined
+) => (primaryAction ? RECOVERY_EMPHASIS_CLASS_BY_ACTION[primaryAction] ?? "" : "");
 
 export const extractDriveLabel = (value?: string | null) => {
     if (!value) return null;
@@ -179,16 +186,10 @@ export const extractDriveLabel = (value?: string | null) => {
     return null;
 };
 
-export type MissingFilesStateKind =
-    | "dataGap"
-    | "pathLoss"
-    | "volumeLoss"
-    | "accessDenied";
-
 export const deriveMissingFilesStateKind = (
     envelope: ErrorEnvelope | undefined | null,
     path?: string
-): MissingFilesStateKind => {
+): MissingFilesClassificationKind => {
     const errorClass = envelope?.errorClass;
     if (errorClass === "permissionDenied") {
         return "accessDenied";
@@ -213,7 +214,7 @@ export const deriveMissingFilesStateKind = (
 };
 
 const CLASSIFICATION_STATUS_KEY: Record<
-    MissingFilesStateKind,
+    MissingFilesClassificationKind,
     string
 > = {
     dataGap: "recovery.generic_header",
@@ -230,7 +231,7 @@ export const formatRecoveryStatusFromClassification = (
     if (classification.confidence === "unknown") {
         return t("recovery.inline_fallback");
     }
-    const key = CLASSIFICATION_STATUS_KEY[classification.kind] ?? "recovery.generic_header";
+    const key = CLASSIFICATION_STATUS_KEY[classification.kind];
     switch (classification.kind) {
         case "pathLoss":
             return t(key, {

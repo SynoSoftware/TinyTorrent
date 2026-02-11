@@ -10,14 +10,10 @@ import {
 } from "lucide-react";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { PANEL_SURFACE_FRAME } from "@/shared/ui/layout/glass-surface";
-
-const DESTINATION_INPUT_CLASSNAMES = {
-    inputWrapper:
-        "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
-    content: "",
-    input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
-};
+import {
+    INPUT_CLASSNAMES_MONO_SURFACE_EMPHASIZED,
+    PANEL_SURFACE_FRAME,
+} from "@/shared/ui/layout/glass-surface";
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
 export function AddTorrentDestinationGatePanel() {
@@ -62,7 +58,7 @@ export function AddTorrentDestinationGatePanel() {
                         )}
                         variant="flat"
                         autoComplete="off"
-                        classNames={DESTINATION_INPUT_CLASSNAMES}
+                        classNames={INPUT_CLASSNAMES_MONO_SURFACE_EMPHASIZED}
                         startContent={
                             <FolderOpen className="toolbar-icon-size-md text-primary" />
                         }

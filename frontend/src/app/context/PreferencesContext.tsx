@@ -27,7 +27,8 @@ import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import type { VisibilityState, SortingState } from "@tanstack/react-table";
 import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
-import type { SpeedChartLayoutMode } from "@/app/types/dashboard/speedChart";
+
+type SpeedChartLayoutMode = "combined" | "split";
 
 export type WorkspaceStyle = "classic" | "immersive";
 
@@ -511,11 +512,16 @@ export interface PreferencesContextValue {
     setSpeedChartLayoutMode: (mode: SpeedChartLayoutMode | null) => void;
     setAddTorrentDefaults: (defaults: AddTorrentDefaultsState) => void;
     setAddTorrentHistory: (history: string[]) => void;
+}
+
+interface PreferencesContextInternalValue extends PreferencesContextValue {
     setConnectionProfiles: (profiles: ConnectionProfile[]) => void;
     setActiveProfileId: (id: string) => void;
 }
 
-const PreferencesContext = createContext<PreferencesContextValue | null>(null);
+const PreferencesContext = createContext<PreferencesContextInternalValue | null>(
+    null,
+);
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
     const [preferences, setPreferences] = useState<PreferencesState>(
@@ -708,7 +714,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         }
     }, [preferences.workbenchScale]);
 
-    const value = useMemo(
+    const value = useMemo<PreferencesContextInternalValue>(
         () => ({
             preferences,
             supportedLanguages: SUPPORTED_LANGUAGE_CODES,
@@ -766,7 +772,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     );
 }
 
-export function usePreferences() {
+export function usePreferences(): PreferencesContextValue {
     const context = useContext(PreferencesContext);
     if (!context) {
         throw new Error(
@@ -774,4 +780,18 @@ export function usePreferences() {
         );
     }
     return context;
+}
+
+export function usePreferencesConnectionConfig() {
+    const context = useContext(PreferencesContext);
+    if (!context) {
+        throw new Error(
+            "usePreferencesConnectionConfig must be used within PreferencesProvider",
+        );
+    }
+    return {
+        preferences: context.preferences,
+        setConnectionProfiles: context.setConnectionProfiles,
+        setActiveProfileId: context.setActiveProfileId,
+    };
 }

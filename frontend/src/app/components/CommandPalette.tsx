@@ -8,6 +8,11 @@ import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
 import {
+    DETAILS_TOOLTIP_OPACITY_ANIMATION,
+    STATUS_VISUAL_KEYS,
+    STATUS_VISUALS,
+} from "@/config/logic";
+import {
     GLASS_MODAL_SURFACE,
     MODAL_SURFACE_FRAME,
 } from "@/shared/ui/layout/glass-surface";
@@ -46,11 +51,36 @@ interface CommandPaletteProps {
     getContextActions?: (context: CommandPaletteContext) => CommandAction[];
 }
 
+const OVERLAY_FADE_ANIMATION = {
+    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity },
+    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity },
+    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity },
+    transition: { duration: 0.2 },
+} as const;
+
+const BACKDROP_FADE_ANIMATION = {
+    ...OVERLAY_FADE_ANIMATION,
+    animate: { opacity: 0.7 },
+} as const;
+
 const PANEL_ANIMATION = {
-    initial: { opacity: 0, y: -6, scale: 0.98 },
-    animate: { opacity: 1, y: 0, scale: 1 },
-    exit: { opacity: 0, y: -6, scale: 0.98 },
-};
+    initial: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        y: -6,
+        scale: 0.98,
+    },
+    animate: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        y: 0,
+        scale: 1,
+    },
+    exit: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity,
+        y: -6,
+        scale: 0.98,
+    },
+    transition: { duration: 0.2 },
+} as const;
 
 interface CommandPaletteOverlayProps {
     groupedActions: Array<{ group: string; entries: CommandAction[] }>;
@@ -99,24 +129,24 @@ function CommandPaletteOverlay({
 
     const outcomeToneClass = useMemo(() => {
         if (!lastOutcome) return "";
-        if (lastOutcome.status === "failed") {
-            return "text-danger";
-        }
-        return "text-warning";
+        const toneKey =
+            lastOutcome.status === "failed"
+                ? STATUS_VISUAL_KEYS.tone.DANGER
+                : STATUS_VISUAL_KEYS.tone.WARNING;
+        return (
+            STATUS_VISUALS[toneKey]?.text ??
+            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.text ??
+            "text-warning"
+        );
     }, [lastOutcome]);
 
     return (
         <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            {...OVERLAY_FADE_ANIMATION}
             className="fixed inset-0 z-50"
         >
             <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.7 }}
-                exit={{ opacity: 0 }}
+                {...BACKDROP_FADE_ANIMATION}
                 className="absolute inset-0 bg-background/90 backdrop-blur-xl"
                 onPointerDown={onClose}
             />
@@ -126,7 +156,6 @@ function CommandPaletteOverlay({
             >
                 <motion.div
                     {...PANEL_ANIMATION}
-                    transition={{ duration: 0.2 }}
                     className={cn(
                         GLASS_MODAL_SURFACE,
                         MODAL_SURFACE_FRAME,

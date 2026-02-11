@@ -18,15 +18,12 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { INTERACTION_CONFIG, CONFIG } from "@/config/logic";
+import { INTERACTION_CONFIG } from "@/config/logic";
 
-// Use design config where possible. Fall back to explicit values when token missing (FLAGs added where appropriate).
-const SETTINGS_PANEL_DEFAULT =
-    CONFIG.layout?.modals?.add_settings_default_size ?? 40; // FLAG: consider moving to token
-const SETTINGS_PANEL_MIN = CONFIG.layout?.modals?.add_settings_min_size ?? 25; // FLAG
-const FILE_PANEL_DEFAULT =
-    CONFIG.layout?.modals?.add_filepanel_default_size ?? 60; // FLAG
-const FILE_PANEL_MIN = CONFIG.layout?.modals?.add_filepanel_min_size ?? 30; // FLAG
+const SETTINGS_PANEL_DEFAULT = 40;
+const SETTINGS_PANEL_MIN = 25;
+const FILE_PANEL_DEFAULT = 60;
+const FILE_PANEL_MIN = 30;
 
 import {
     ArrowDown,
@@ -52,6 +49,7 @@ import {
     MODAL_SURFACE_FRAME,
     MODAL_SURFACE_HEADER,
     GLASS_PANEL_SURFACE,
+    PANE_SURFACE_FRAME,
 } from "@/shared/ui/layout/glass-surface";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -99,8 +97,6 @@ const FULL_CONTENT_ANIMATION = {
     },
 };
 
-const PANE_SURFACE =
-    "flex flex-col min-h-0 overflow-hidden rounded-panel border border-default/20 shadow-small";
 // --- COMPONENT ---
 
 export function AddTorrentModal({
@@ -566,7 +562,7 @@ export function AddTorrentModal({
                                                 }
                                                 className={cn(
                                                     GLASS_PANEL_SURFACE,
-                                                    PANE_SURFACE,
+                                                    PANE_SURFACE_FRAME,
                                                     "bg-background/65",
                                                     isSettingsCollapsed &&
                                                         "min-w-0 w-0 border-none",
@@ -609,7 +605,7 @@ export function AddTorrentModal({
                                                 minSize={FILE_PANEL_MIN}
                                                 className={cn(
                                                     GLASS_PANEL_SURFACE,
-                                                    PANE_SURFACE,
+                                                    PANE_SURFACE_FRAME,
                                                     "bg-content1/55",
                                                 )}
                                             >

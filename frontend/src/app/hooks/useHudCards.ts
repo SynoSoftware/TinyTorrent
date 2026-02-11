@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/app/context/SessionContext";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
+import { STATUS_VISUALS } from "@/config/logic";
 
 import { STATUS } from "@/shared/status";
 import type { AmbientHudCard } from "@/app/types/workspace";
@@ -33,6 +34,8 @@ export function useHudCards({
         let connectionDescription = "";
         let connectionSurface = "";
         let connectionIconBg = "";
+        const connectionVisual =
+            STATUS_VISUALS[rpcStatus] ?? STATUS_VISUALS[STATUS.connection.CONNECTED];
         const connectionIcon =
             rpcStatus === STATUS.connection.ERROR ? AlertTriangle : PlugZap;
 
@@ -46,8 +49,10 @@ export function useHudCards({
                 },
             );
             connectionSurface =
+                connectionVisual?.hudSurface ??
                 "bg-gradient-to-br from-success/15 via-background/30 to-background/10";
-            connectionIconBg = "bg-success/15 text-success";
+            connectionIconBg =
+                connectionVisual?.hudIconBg ?? "bg-success/15 text-success";
         } else if (rpcStatus === STATUS.connection.IDLE) {
             connectionTitle = isDetectingEngine
                 ? t("workspace.stage.connection_detecting_title")
@@ -56,16 +61,20 @@ export function useHudCards({
                 ? t("workspace.stage.connection_detecting_description")
                 : t("workspace.stage.connection_idle_description");
             connectionSurface =
+                connectionVisual?.hudSurface ??
                 "bg-gradient-to-br from-warning/15 via-background/30 to-background/5";
-            connectionIconBg = "bg-warning/15 text-warning";
+            connectionIconBg =
+                connectionVisual?.hudIconBg ?? "bg-warning/15 text-warning";
         } else {
             connectionTitle = t("workspace.stage.connection_error_title");
             connectionDescription = t(
                 "workspace.stage.connection_error_description",
             );
             connectionSurface =
+                connectionVisual?.hudSurface ??
                 "bg-gradient-to-br from-danger/20 via-background/25 to-background/5";
-            connectionIconBg = "bg-danger/15 text-danger";
+            connectionIconBg =
+                connectionVisual?.hudIconBg ?? "bg-danger/15 text-danger";
         }
 
         const dragTitle = isDragActive

@@ -4,6 +4,7 @@ import type {
     VisibilityState,
 } from "@tanstack/react-table";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import { TABLE_PERSIST_DEBOUNCE_MS } from "@/config/logic";
 
 // Persist table layout state via the Preferences provider.
 // Extracted from `TorrentTable.tsx` to keep persistence concerns isolated.
@@ -55,7 +56,7 @@ export const useTorrentTablePersistence = (
         saveTimeoutRef.current = window.setTimeout(() => {
             setTorrentTableState(latestStateRef.current);
             saveTimeoutRef.current = null;
-        }, 250);
+        }, TABLE_PERSIST_DEBOUNCE_MS);
     }, [
         columnOrder,
         columnSizing,

@@ -14,7 +14,7 @@ import {
     type InputBlock,
     type SectionBlock,
 } from "@/modules/settings/data/settings-tabs";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ICON_STROKE_WIDTH, SURFACE_BORDER } from "@/config/logic";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import {
     BufferedInput,
@@ -515,7 +515,7 @@ export function RawConfigRenderer({
                     </p>
                 )}
             </div>
-            <div className="rounded-2xl border border-content1/20 bg-content1/30">
+            <div className={`rounded-2xl border ${SURFACE_BORDER} bg-content1/30`}>
                 <textarea
                     className="w-full resize-none border-none bg-transparent px-panel py-panel text-scaled font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
                     rows={10}

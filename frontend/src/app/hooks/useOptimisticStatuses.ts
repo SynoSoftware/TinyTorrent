@@ -5,6 +5,7 @@ import type {
     OptimisticStatusEntry,
     OptimisticStatusMap,
 } from "@/modules/dashboard/types/optimistic";
+import { OPTIMISTIC_CHECKING_GRACE_MS } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
@@ -13,7 +14,6 @@ type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
 };
 
 type InternalOptimisticStatusMap = Record<string, InternalOptimisticStatusEntry>;
-const CHECKING_OPTIMISTIC_GRACE_MS = 5000;
 
 const reconcileOptimisticStatuses = (
     storedStatuses: InternalOptimisticStatusMap,
@@ -106,7 +106,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                             state,
                             sawCheckingState: !isCheckingState,
                             pendingCheckingUntilMs: isCheckingState
-                                ? Date.now() + CHECKING_OPTIMISTIC_GRACE_MS
+                                ? Date.now() + OPTIMISTIC_CHECKING_GRACE_MS
                                 : undefined,
                         };
                     } else {

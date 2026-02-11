@@ -3,7 +3,7 @@ import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { Columns, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { formatSpeed } from "@/shared/utils/format";
+import { formatDurationMs, formatSpeed } from "@/shared/utils/format";
 import { SPEED_WINDOW_OPTIONS } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import {
@@ -24,6 +24,7 @@ import {
     SPEED_BUCKET_WIDTH_MED,
     SPEED_BUCKET_COUNT_SMALL,
     SPEED_BUCKET_COUNT_MED,
+    SURFACE_BORDER,
 } from "@/config/logic";
 import { cn } from "@heroui/react";
 
@@ -527,16 +528,8 @@ const CombinedChart = ({
             ctx.fillText(upMaxLabel, size.width - 6, yUpMax);
 
             // Time scale labels: left = full window, middle = halfway point
-            const formatDuration = (ms: number) => {
-                if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
-                const mins = Math.floor(ms / 60_000);
-                const secs = Math.round((ms % 60_000) / 1000);
-                return secs === 0
-                    ? `${mins}m`
-                    : `${mins}:${String(secs).padStart(2, "0")}m`;
-            };
-            const leftLabel = formatDuration(windowMs);
-            const midLabel = formatDuration(Math.floor(windowMs / 2));
+            const leftLabel = formatDurationMs(windowMs);
+            const midLabel = formatDurationMs(Math.floor(windowMs / 2));
             ctx.textBaseline = "bottom";
             ctx.globalAlpha = 0.6;
             ctx.fillStyle = palette.foreground || "rgba(255,255,255,0.6)";
@@ -769,7 +762,9 @@ export const SpeedChart = ({
             <div className="flex-1 min-h-0 flex flex-col gap-panel">
                 {layout === "split" ? (
                     <>
-                        <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                        <div
+                            className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
+                        >
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
@@ -789,7 +784,9 @@ export const SpeedChart = ({
                                 tick={tick} // Passed tick
                             />
                         </div>
-                        <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                        <div
+                            className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
+                        >
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
@@ -811,7 +808,9 @@ export const SpeedChart = ({
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 min-h-0 flex flex-col rounded-panel border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
+                    <div
+                        className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
+                    >
                         {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
                             downTimedRef={downTimed}

@@ -544,7 +544,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const transportStatus: StatusBarTransportStatus =
         rpcStatus === STATUS.connection.CONNECTED
             ? liveTransportStatus
-            : "offline";
+            : STATUS.connection.OFFLINE;
 
     const emphasizeActions = useMemo(() => {
         const matches = (action: string) =>

@@ -1,6 +1,6 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
+import { SURFACE_BORDER, TEXT_ROLES } from "@/config/logic";
 import {
     usePiecesMapViewModel,
     type PiecesMapProps,
@@ -89,7 +89,7 @@ const PiecesMapView = ({
 
             <div
                 ref={rootRef}
-                className="relative z-10 flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden"
+                className={`relative z-10 flex-1 min-h-0 rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden`}
             >
                 <div className="relative w-full h-full">
                     <canvas

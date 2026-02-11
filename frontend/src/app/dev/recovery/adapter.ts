@@ -13,7 +13,7 @@ import type {
 } from "@/services/rpc/heartbeat";
 import type {
     EngineAdapter,
-    EngineCapabilities,
+    EngineRuntimeCapabilities,
 } from "@/services/rpc/engine-adapter";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import {
@@ -89,7 +89,7 @@ export class DevRecoveryAdapter implements EngineAdapter {
         };
     }
 
-    getCapabilities(): EngineCapabilities {
+    getCapabilities(): EngineRuntimeCapabilities {
         return {
             executionModel: "remote",
             hasHostFileSystemAccess: false,

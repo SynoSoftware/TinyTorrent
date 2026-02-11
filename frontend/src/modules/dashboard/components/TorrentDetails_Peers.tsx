@@ -3,11 +3,12 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { PANEL_SURFACE_FRAME } from "@/shared/ui/layout/glass-surface";
+import {
+    GLASS_TOOLTIP_CLASSNAMES,
+    PANEL_SURFACE_FRAME,
+} from "@/shared/ui/layout/glass-surface";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
-import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
+import { HEADER_BASE, ICON_STROKE_WIDTH, TEXT_ROLES } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
@@ -90,7 +91,13 @@ export const PeersTab = ({
                             "flex-1 min-h-0 relative flex flex-col rounded-2xl border-content1/30 bg-content1/10",
                         )}
                     >
-                        <div className="flex items-center gap-panel px-panel py-tight text-label uppercase tracking-tight text-foreground/30 border-b border-content1/10">
+                        <div
+                            className={cn(
+                                "flex items-center gap-panel px-panel py-tight border-b border-content1/10",
+                                HEADER_BASE,
+                                "text-label text-foreground/30"
+                            )}
+                        >
                             <span className="w-col-id">
                                 {viewModel.labels.flagsHeader}
                             </span>
