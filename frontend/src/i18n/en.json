@@ -45,6 +45,7 @@
         },
         "placeholder": "Type a command or action…",
         "result": {
+            "canceled": "Command canceled.",
             "failed": "Command failed. Fix the issue and try again.",
             "no_selection": "Select one or more torrents first.",
             "unsupported": "This command is not supported here."
@@ -1179,6 +1180,81 @@
             "context_menu": "Set download path (context menu)",
             "general_tab": "Set download path (details panel)",
             "recovery_modal": "Choose download path (recovery)"
+        }
+    },
+    "dev": {
+        "recovery_playground": {
+            "title": "Recovery Playground",
+            "subtitle": "Dev-only panel to preview recovery modal scenarios and action routing.",
+            "back_to_app": "Back to app",
+            "section": {
+                "scenario": "Scenario",
+                "confidence": "Confidence",
+                "controls": "Controller-backed controls",
+                "smoke": "Recovery smoke run"
+            },
+            "scenario": {
+                "data_gap": "Data gap",
+                "path_loss": "Path loss",
+                "volume_loss": "Volume loss",
+                "access_denied": "Access denied"
+            },
+            "confidence": {
+                "certain": "Certain",
+                "likely": "Likely",
+                "unknown": "Unknown"
+            },
+            "toggle": {
+                "verify_fails": "Force verify failure"
+            },
+            "label": {
+                "fault_mode": "Filesystem fault"
+            },
+            "fault": {
+                "ok": "Path OK",
+                "missing": "Path missing",
+                "access_denied": "Access denied",
+                "disk_full": "Disk full"
+            },
+            "action": {
+                "apply_scenario": "Apply Scenario",
+                "open_recovery": "Open Recovery",
+                "mark_path_available": "Mark Path Available",
+                "run_smoke": "Run Recovery Smoke",
+                "run_smoke_running": "Running Smoke..."
+            },
+            "state": {
+                "current": "Torrent state:",
+                "modal_open": "Modal open:",
+                "last_outcome": "Last open outcome:"
+            },
+            "assertion": {
+                "title": "Completion assertions",
+                "expected": "Expected:",
+                "actual": "Actual:",
+                "match": "match",
+                "mismatch": "mismatch",
+                "pending": "pending",
+                "reason": "Reason: {{reason}}",
+                "completion": {
+                    "applied": "applied",
+                    "cancelled": "cancelled",
+                    "failed": "failed",
+                    "pending": "pending"
+                }
+            },
+            "smoke": {
+                "idle": "Run smoke to validate end-to-end recovery controller behavior.",
+                "summary": "{{passed}}/{{total}} scenarios passed",
+                "case_passed": "resolved",
+                "error_unknown": "unknown_error",
+                "status": {
+                    "pending": "pending",
+                    "running": "running",
+                    "passed": "passed",
+                    "failed": "failed"
+                }
+            }
         }
     }
 }

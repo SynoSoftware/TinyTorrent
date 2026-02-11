@@ -276,7 +276,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const {
         session: recoverySession,
         isBusy: isRecoveryBusy,
-        lastOutcome: lastRecoveryOutcome,
         isDetailRecoveryBlocked,
         queuedCount: recoveryQueuedCount,
         queuedItems: recoveryQueuedItems,
@@ -297,23 +296,10 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const {
         executeRedownload,
         resumeTorrentWithRecovery: resumeTorrent,
-        probeMissingFilesIfStale,
         handlePrepareDelete,
         getRecoverySessionForKey,
         openRecoveryModal,
     } = recoveryActions;
-
-    useEffect(() => {
-        if (!probeMissingFilesIfStale) return;
-        const errored = torrents.filter(
-            (torrent) =>
-                torrent.errorEnvelope !== undefined &&
-                torrent.errorEnvelope !== null,
-        );
-        errored.forEach((torrent) => {
-            void probeMissingFilesIfStale(torrent);
-        });
-    }, [probeMissingFilesIfStale, torrents]);
 
     const { getRootProps, getInputProps, isDragActive } = addModalState;
     const { selectedIds, activeId, setActiveId } = useSelection();
@@ -399,7 +385,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             torrent,
             options,
             dispatch,
-            resume: resumeTorrent,
+            resume: async (target) => resumeTorrent(target),
         });
 
     const executeBulkRemoveViaDispatch = async (
@@ -454,9 +440,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             return dispatchTorrentSelectionAction({
                 action,
                 ids,
-                torrents: targets,
                 dispatch,
-                resume: resumeTorrent,
             });
         },
     });
@@ -788,7 +772,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const recoveryModalViewModel = useRecoveryModalViewModel({
         t,
         recoverySession,
-        lastOutcome: lastRecoveryOutcome,
         isBusy: isRecoveryBusy,
         onClose: handleRecoveryClose,
         onRecreate: handleRecoveryRecreateFolder,

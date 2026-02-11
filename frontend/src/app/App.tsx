@@ -31,34 +31,32 @@ function AppContent() {
 
     return (
         <AppCommandProvider value={appCommandValue}>
-                <GlobalHotkeyProvider value={controller.commands.globalHotkeys}>
-                    <GlobalHotkeysHost />
-                </GlobalHotkeyProvider>
-                <RecoveryProvider value={controller.recovery.recoveryContext}>
-                    <WorkspaceShell
-                        workspaceViewModel={viewModel.workspace}
-                        statusBarViewModel={viewModel.statusBar}
-                    />
-                    <TorrentRecoveryModal
-                        {...controller.recovery.recoveryModalProps}
-                    />
-                </RecoveryProvider>
-                <CommandPalette
-                    isOpen={controller.commands.commandPaletteState.isOpen}
-                    onOpenChange={
-                        controller.commands.commandPaletteState.setIsOpen
-                    }
-                    actions={viewModel.workspace.commandPalette.actions}
-                    getContextActions={
-                        viewModel.workspace.commandPalette.getContextActions
-                    }
+            <GlobalHotkeyProvider value={controller.commands.globalHotkeys}>
+                <GlobalHotkeysHost />
+            </GlobalHotkeyProvider>
+            <RecoveryProvider value={controller.recovery.recoveryContext}>
+                <WorkspaceShell
+                    workspaceViewModel={viewModel.workspace}
+                    statusBarViewModel={viewModel.statusBar}
                 />
-                <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
-                {controller.addTorrent.addTorrentModalProps && (
-                    <AddTorrentModal
-                        {...controller.addTorrent.addTorrentModalProps}
-                    />
-                )}
+                <TorrentRecoveryModal
+                    {...controller.recovery.recoveryModalProps}
+                />
+            </RecoveryProvider>
+            <CommandPalette
+                isOpen={controller.commands.commandPaletteState.isOpen}
+                onOpenChange={controller.commands.commandPaletteState.setIsOpen}
+                actions={viewModel.workspace.commandPalette.actions}
+                getContextActions={
+                    viewModel.workspace.commandPalette.getContextActions
+                }
+            />
+            <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
+            {controller.addTorrent.addTorrentModalProps && (
+                <AddTorrentModal
+                    {...controller.addTorrent.addTorrentModalProps}
+                />
+            )}
         </AppCommandProvider>
     );
 }

@@ -42,6 +42,7 @@ import type {
 } from "@/app/orchestrators/useAddTorrentController";
 import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import { scheduler } from "@/app/services/scheduler";
+import { RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 import type {
     RecoveryOutcome,
@@ -51,7 +52,6 @@ import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
-const RECOVERY_MODAL_POLL_INTERVAL_MS = 2000;
 const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = 250;
 
 export interface DashboardViewModelParams {
@@ -554,7 +554,6 @@ export function useRecoveryContextModel(
 export interface RecoveryModalPropsDeps {
     t: (key: string, options?: Record<string, unknown>) => string;
     recoverySession: RecoveryControllerResult["state"]["session"];
-    lastOutcome: RecoveryControllerResult["state"]["lastOutcome"];
     isBusy: boolean;
     onClose: RecoveryControllerResult["modal"]["close"];
     onRecreate: RecoveryControllerResult["modal"]["recreateFolder"];
@@ -616,7 +615,6 @@ const resolveOutcomeMessage = (
 export function useRecoveryModalViewModel({
     t,
     recoverySession,
-    lastOutcome,
     isBusy,
     onClose,
     onRecreate,
@@ -635,7 +633,7 @@ export function useRecoveryModalViewModel({
     const [countdownNowMs, setCountdownNowMs] = useState(() => Date.now());
     const torrent = recoverySession?.torrent ?? null;
     const classification = recoverySession?.classification ?? null;
-    const outcome = lastOutcome ?? recoverySession?.outcome ?? null;
+    const outcome = recoverySession?.outcome ?? null;
     const autoCloseAtMs = recoverySession?.autoCloseAtMs ?? null;
     const busy = Boolean(isBusy);
     const isOpen = Boolean(recoverySession);
@@ -700,7 +698,7 @@ export function useRecoveryModalViewModel({
             void onAutoRetry().finally(() => {
                 autoRetryRef.current = false;
             });
-        }, RECOVERY_MODAL_POLL_INTERVAL_MS);
+        }, RECOVERY_POLL_INTERVAL_MS);
         return () => {
             task.cancel();
             autoRetryRef.current = false;
@@ -874,12 +872,21 @@ export function useRecoveryModalViewModel({
             }
             return null;
         };
-        const primaryAction =
-            buildRecoveryAction(classification?.recommendedActions?.[0]) ?? {
-                label: t("recovery.action_locate"),
-                onPress: () => {},
-                isDisabled: true,
-            };
+        const recommendedActions = classification?.recommendedActions ?? [];
+        const resolvedPrimaryAction = (() => {
+            for (const action of recommendedActions) {
+                const candidate = buildRecoveryAction(action);
+                if (candidate) {
+                    return candidate;
+                }
+            }
+            return null;
+        })();
+        const primaryAction = resolvedPrimaryAction ?? {
+            label: t("recovery.action_locate"),
+            onPress: () => {},
+            isDisabled: true,
+        };
         return {
             isOpen,
             busy,

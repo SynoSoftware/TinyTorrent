@@ -14,7 +14,7 @@ import {
 
 export type CommandActionOutcome =
     | { status: "success" }
-    | { status: "canceled"; reason: "no_selection" }
+    | { status: "canceled"; reason: "no_selection" | "operation_cancelled" }
     | { status: "unsupported"; reason: "action_not_supported" }
     | {
           status: "failed";
@@ -86,7 +86,10 @@ function CommandPaletteOverlay({
     const outcomeMessage = useMemo(() => {
         if (!lastOutcome) return null;
         if (lastOutcome.status === "canceled") {
-            return t("command_palette.result.no_selection");
+            if (lastOutcome.reason === "no_selection") {
+                return t("command_palette.result.no_selection");
+            }
+            return t("command_palette.result.canceled");
         }
         if (lastOutcome.status === "unsupported") {
             return t("command_palette.result.unsupported");

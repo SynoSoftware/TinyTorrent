@@ -34,7 +34,7 @@ export type SetLocationOutcome =
       }
     | {
           status: "conflict";
-          reason: "already_owned" | "owned_elsewhere";
+          reason: "owned_elsewhere";
       }
       | {
           status: "failed";
@@ -49,10 +49,23 @@ export type SetLocationConfirmOutcome =
     | { status: "failed" }
     | { status: "canceled" };
 
+export type RecoveryRequestCompletionOutcome =
+    | { status: "applied" }
+    | { status: "cancelled" }
+    | {
+          status: "failed";
+          reason:
+              | "invalid_target"
+              | "dispatch_not_applied"
+              | "execution_failed";
+      };
+
 export type OpenRecoveryModalOutcome =
-    | { status: "opened" }
+    | {
+          status: "requested";
+          completion: Promise<RecoveryRequestCompletionOutcome>;
+      }
     | { status: "already_open" }
-    | { status: "busy" }
     | { status: "not_actionable" };
 
 export interface LocationEditorState {

@@ -3,6 +3,7 @@ import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import type { RecoveryRequestCompletionOutcome } from "@/app/context/RecoveryContext";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 type DispatchFn = (
@@ -13,7 +14,9 @@ interface DispatchTorrentActionParams {
     action: TorrentTableAction;
     torrent: Torrent;
     dispatch: DispatchFn;
-    resume?: (torrent: Torrent) => Promise<void>;
+    resume?: (
+        torrent: Torrent,
+    ) => Promise<RecoveryRequestCompletionOutcome | void>;
     options?: { deleteData?: boolean };
 }
 
@@ -29,6 +32,25 @@ const COMMAND_OUTCOME_UNSUPPORTED: TorrentCommandOutcome = {
 const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
     status: "canceled",
     reason: "no_selection",
+};
+const COMMAND_OUTCOME_OPERATION_CANCELLED: TorrentCommandOutcome = {
+    status: "canceled",
+    reason: "operation_cancelled",
+};
+
+const mapResumeOutcome = (
+    outcome: RecoveryRequestCompletionOutcome | void,
+): TorrentCommandOutcome => {
+    if (!outcome) {
+        return COMMAND_OUTCOME_SUCCESS;
+    }
+    if (outcome.status === "applied") {
+        return COMMAND_OUTCOME_SUCCESS;
+    }
+    if (outcome.status === "cancelled") {
+        return COMMAND_OUTCOME_OPERATION_CANCELLED;
+    }
+    return COMMAND_OUTCOME_FAILED;
 };
 
 const mapDispatchOutcome = (
@@ -68,8 +90,8 @@ export async function dispatchTorrentAction({
         case "resume":
             if (resume) {
                 try {
-                    await resume(torrent);
-                    return COMMAND_OUTCOME_SUCCESS;
+                    const outcome = await resume(torrent);
+                    return mapResumeOutcome(outcome);
                 } catch {
                     return COMMAND_OUTCOME_FAILED;
                 }
@@ -120,9 +142,7 @@ export async function dispatchTorrentAction({
 interface DispatchTorrentSelectionActionParams {
     action: TorrentTableAction;
     ids: string[];
-    torrents: Torrent[];
     dispatch: DispatchFn;
-    resume?: (torrent: Torrent) => Promise<void>;
 }
 
 export async function dispatchTorrentSelectionAction({
