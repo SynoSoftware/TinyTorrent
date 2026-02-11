@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import {
     formatPrimaryActionHint,
     formatPrimaryActionHintFromClassification,
@@ -36,10 +35,7 @@ export function useTorrentDetailHeaderStatus({
     );
 
     return useMemo(() => {
-        const classification = resolveRecoveryClassification({
-            sessionClassification,
-            storedClassification,
-        });
+        const classification = sessionClassification ?? storedClassification ?? null;
         if (classification) {
             return {
                 statusLabel: formatRecoveryStatusFromClassification(

@@ -11,7 +11,7 @@ import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 export type TorrentCommandOutcome =
     | { status: "success"; reason?: "queued" | "refresh_skipped" }
-    | { status: "canceled"; reason: "no_selection" }
+    | { status: "canceled"; reason: "no_selection" | "operation_cancelled" }
     | { status: "unsupported"; reason: "action_not_supported" }
     | { status: "failed"; reason: "execution_failed" | "refresh_failed" };
 

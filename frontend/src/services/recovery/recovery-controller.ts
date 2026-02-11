@@ -713,6 +713,8 @@ async function runMinimalSequence(
     const shouldVerify = determineShouldVerify(torrent) && !skipVerifyForEmpty;
     const skipVerify = shouldVerify && shouldSkipVerify(fingerprint, left);
     const signal = options?.signal;
+    let didRunVerify = false;
+    let verifyExitState: string | undefined;
 
     if (shouldVerify) {
         if (skipVerify) {
@@ -743,6 +745,7 @@ async function runMinimalSequence(
             }
             try {
                 await client.verify([torrent.id]);
+                didRunVerify = true;
                 const watchResult = await watchVerifyCompletion(
                     client,
                     torrent.id,
@@ -777,6 +780,7 @@ async function runMinimalSequence(
                 if (watchResult.leftUntilDone !== null) {
                     leftAfterVerify = watchResult.leftUntilDone;
                 }
+                verifyExitState = watchResult.state;
                 recordVerifyAttempt(fingerprint, leftAfterVerify);
                 if (leftAfterVerify === left) {
                     classification = {
@@ -803,6 +807,18 @@ async function runMinimalSequence(
 
     if (signal?.aborted) {
         return { status: "noop", classification };
+    }
+
+    // Respect explicit user pause while verify is in-flight.
+    if (didRunVerify && verifyExitState === STATUS.torrent.PAUSED) {
+        if (torrent.id) {
+            setClassificationOverride(torrent.id, classification);
+        }
+        return {
+            status: "resolved",
+            classification,
+            log: "verify_completed_paused",
+        };
     }
 
     try {

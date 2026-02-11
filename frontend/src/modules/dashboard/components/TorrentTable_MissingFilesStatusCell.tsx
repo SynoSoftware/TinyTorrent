@@ -79,16 +79,8 @@ export function TorrentTable_MissingFilesStatusCell({
         .join("\n");
 
     const handleOpenRecovery = () => {
-        if (isBusyWithOtherTorrent) {
-            showFeedback(t("recovery.feedback.recovery_busy"), "warning");
-            return;
-        }
         const outcome = openRecoveryModal(torrent);
-        if (outcome.status === "opened" || outcome.status === "already_open") {
-            return;
-        }
-        if (outcome.status === "busy") {
-            showFeedback(t("recovery.feedback.recovery_busy"), "warning");
+        if (outcome.status === "requested" || outcome.status === "already_open") {
             return;
         }
         showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
@@ -103,7 +95,7 @@ export function TorrentTable_MissingFilesStatusCell({
                 className={cn(
                     "min-w-0 outline-none rounded-panel transition-opacity",
                     isBusyWithOtherTorrent
-                        ? "cursor-pointer opacity-70 hover:opacity-80"
+                        ? "cursor-pointer opacity-90 hover:opacity-90"
                         : "cursor-pointer hover:opacity-90",
                 )}
             >

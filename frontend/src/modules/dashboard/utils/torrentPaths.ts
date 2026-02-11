@@ -4,10 +4,5 @@ export function resolveTorrentPath(
     torrent: Torrent | TorrentDetail | null | undefined
 ): string {
     if (!torrent) return "";
-    return (
-        torrent.savePath ??
-        torrent.downloadDir ??
-        torrent.savePath ??
-        ""
-    );
+    return torrent.savePath ?? torrent.downloadDir ?? "";
 }

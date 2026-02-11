@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import type { ErrorClass } from "@/services/rpc/entities";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
@@ -39,10 +38,7 @@ export function useResolvedRecoveryClassification(
             if (!isActionable && !sessionClassification) {
                 return null;
             }
-            return resolveRecoveryClassification({
-                sessionClassification,
-                storedClassification,
-            });
+            return sessionClassification ?? storedClassification ?? null;
         },
         [sessionClassification, storedClassification, torrent?.errorEnvelope?.errorClass]
     );

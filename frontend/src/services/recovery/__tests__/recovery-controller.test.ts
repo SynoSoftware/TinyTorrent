@@ -356,7 +356,7 @@ describe("recovery-controller helpers", () => {
             makeTorrent({
                 id: baseTorrent.id,
                 hash: baseTorrent.hash,
-                state: "paused",
+                state: "downloading",
                 leftUntilDone: 0,
                 downloadDir: "C:\\Missing",
                 savePath: "C:\\Missing",
@@ -394,5 +394,52 @@ describe("recovery-controller helpers", () => {
         expect(result.log).toBe("all_verified_resuming");
         expect(verify).toHaveBeenCalled();
         expect(resume).toHaveBeenCalled();
+    });
+
+    it("does not auto-resume when verify exits into paused state", async () => {
+        const verify = vi.fn(async () => {});
+        const resume = vi.fn(async () => {});
+        const getTorrentDetails = vi.fn(async () =>
+            makeTorrent({
+                id: baseTorrent.id,
+                hash: baseTorrent.hash,
+                state: "paused",
+                leftUntilDone: 640,
+                downloadDir: "C:\\Missing",
+                savePath: "C:\\Missing",
+            }),
+        );
+        const client: Partial<EngineAdapter> = {
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("C:\\Missing", 2048, 4096),
+            ),
+            resume,
+            verify,
+            getTorrentDetails,
+        };
+        const envelope = makeEnvelope();
+        const classification: MissingFilesClassification = {
+            kind: "pathLoss",
+            confidence: "unknown",
+            path: "C:\\Missing",
+            recommendedActions: deriveRecommendedActions("pathLoss"),
+        };
+        const result = await recoverMissingFiles({
+            client: client as EngineAdapter,
+            torrent: makeTorrent({
+                ...baseTorrent,
+                state: "missing_files",
+                downloadDir: "C:\\Missing",
+                savePath: "C:\\Missing",
+                leftUntilDone: 1000,
+            }),
+            envelope,
+            classification,
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
+        expect(result.status).toBe("resolved");
+        expect(result.log).toBe("verify_completed_paused");
+        expect(verify).toHaveBeenCalled();
+        expect(resume).not.toHaveBeenCalled();
     });
 });
