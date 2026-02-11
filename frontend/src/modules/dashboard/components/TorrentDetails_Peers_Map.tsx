@@ -3,9 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
-import { DETAILS_PEER_MAP_CONFIG } from "@/config/logic";
+import {
+    DETAILS_PEER_MAP_CONFIG,
+    ICON_STROKE_WIDTH,
+    SURFACE_BORDER,
+} from "@/config/logic";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
@@ -214,7 +218,7 @@ export const PeerMap = ({
 
     return (
         <div
-            className="flex flex-col flex-1 rounded-2xl border border-content1/20 bg-content1/5 p-panel space-y-3 overflow-hidden relative"
+            className={`flex flex-col flex-1 rounded-2xl border ${SURFACE_BORDER} bg-content1/5 p-panel space-y-3 overflow-hidden relative`}
             onPointerDown={registerActivity}
             onMouseMove={registerActivity}
         >
@@ -340,7 +344,7 @@ export const PeerMap = ({
                                 : 1;
                             const initialSw = node.isInstrument
                                 ? node.isUTP
-                                    ? 1.5
+                                    ? ICON_STROKE_WIDTH
                                     : 0.5
                                 : 0;
 
@@ -378,7 +382,7 @@ export const PeerMap = ({
                                                         SPD_PHYSICS.VECTOR_SCALAR
                                                 }
                                                 stroke={node.color}
-                                                strokeWidth={1.5}
+                                                strokeWidth={ICON_STROKE_WIDTH}
                                             />
                                         )}
 
@@ -399,7 +403,7 @@ export const PeerMap = ({
                                                 fill: node.color,
                                                 strokeWidth: node.isInstrument
                                                     ? node.isUTP
-                                                        ? 1.5
+                                                        ? ICON_STROKE_WIDTH
                                                         : 0.5
                                                     : 0,
                                             }}

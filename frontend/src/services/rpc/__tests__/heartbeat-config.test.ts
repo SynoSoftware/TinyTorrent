@@ -42,7 +42,7 @@ const fakeClient: HeartbeatClientLike = {
     }),
 };
 
-it("reads max_delta_cycles from CONFIG (via constructor)", () => {
+it("reads max_delta_cycles from config authority (via constructor)", () => {
     const hb = new HeartbeatManager(fakeClient);
     const v = (hb as unknown as HeartbeatInternals).MAX_DELTA_CYCLES;
     expect(typeof v).toBe("number");

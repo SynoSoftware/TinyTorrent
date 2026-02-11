@@ -16,6 +16,7 @@ import {
     type SystemIntegrationReadOutcome,
 } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { HEADER_BASE, SURFACE_BORDER } from "@/config/logic";
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
@@ -41,11 +42,14 @@ function SystemSectionCard({
     return (
         <Card
             shadow="sm"
-            className="bg-content1/50 border border-content1/20 rounded-2xl p-panel"
+            className={`bg-content1/50 border ${SURFACE_BORDER} rounded-2xl p-panel`}
         >
             {title && (
                 <h3
-                    className="text-scaled font-bold uppercase text-foreground/40 mb-panel leading-tight"
+                    className={cn(
+                        HEADER_BASE,
+                        "text-scaled font-bold text-foreground/40 mb-panel leading-tight",
+                    )}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -53,7 +57,7 @@ function SystemSectionCard({
             )}
             {description && (
                 <p
-                    className="text-scaled uppercase text-foreground/50 mb-panel"
+                    className={cn(HEADER_BASE, "text-scaled mb-panel")}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}

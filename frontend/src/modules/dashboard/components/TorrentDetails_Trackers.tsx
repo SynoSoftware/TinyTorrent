@@ -3,7 +3,7 @@ import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
 import { Button, Textarea, cn } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
-import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
+import { HEADER_BASE, TEXT_ROLES } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
@@ -46,7 +46,9 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     const tableBody = (
         <table className="w-full border-separate border-spacing-0 text-left">
             <thead className="sticky top-0 z-sticky bg-background/80 backdrop-blur-md">
-                <tr className="text-label font-bold uppercase tracking-tight text-foreground/40">
+                <tr
+                    className={`${HEADER_BASE} text-label font-bold text-foreground/40`}
+                >
                     <th className="border-b border-default/10 py-panel pl-panel pr-tight">
                         <StatusIcon
                             Icon={Activity}
@@ -133,7 +135,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                         size="md"
                         className="text-primary"
                     />
-                    <span className="text-label uppercase tracking-tight text-foreground/60">
+                    <span className={`${HEADER_BASE} text-label text-foreground/60`}>
                         {viewModel.labels.title}
                     </span>
                 </div>

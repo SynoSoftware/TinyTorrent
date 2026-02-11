@@ -4,7 +4,7 @@ import type {
     RecoveryState,
     RecoveryAction,
     ErrorEnvelope,
-    EngineCapabilities,
+    EngineFeatureFlags,
 } from "@/services/rpc/entities";
 import { infraLogger } from "@/shared/utils/infraLogger";
 // TODO: Keep this module Transmission-only and deterministic.
@@ -32,7 +32,7 @@ const reportedInvariantViolations = new Set<string>();
 export const buildErrorEnvelope = (
     torrent: TransmissionTorrent,
     detail?: TransmissionTorrentDetail,
-    capabilities?: EngineCapabilities
+    capabilities?: EngineFeatureFlags
 ): ErrorEnvelope => {
     // TODO: Ensure this function stays pure: given the same inputs, emit the same envelope (no Date.now(), no random, no hidden module state).
     // TODO: If we need “time-based grace” (e.g., post-verify stall grace), it must be derived from Transmission fields (activityDate/addedDate) or owned by a higher-level view-model store.

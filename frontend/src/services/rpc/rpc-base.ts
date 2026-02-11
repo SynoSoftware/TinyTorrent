@@ -29,8 +29,11 @@ import {
     zTransmissionAddTorrentResponse,
     zTransmissionRecentlyActiveResponse,
 } from "@/services/rpc/schemas";
-import { CONFIG } from "@/config/logic";
-import type { EngineAdapter, EngineCapabilities } from "@/services/rpc/engine-adapter";
+import { READ_RPC_CACHE_TTL_MS } from "@/config/logic";
+import type {
+    EngineAdapter,
+    EngineRuntimeCapabilities,
+} from "@/services/rpc/engine-adapter";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import type {
     HeartbeatSubscriberParams,
@@ -50,6 +53,7 @@ import { RpcCommandError } from "@/services/rpc/errors";
 import { TransmissionRpcTransport } from "@/services/transport";
 import type { NetworkTelemetry } from "@/services/rpc/entities";
 import { infraLogger } from "@/shared/utils/infraLogger";
+import { isAbortError } from "@/shared/utils/errors";
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -71,13 +75,7 @@ const READ_ONLY_RPC_METHODS = new Set([
     "tt-get-capabilities",
     "free-space",
 ]);
-const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
-    (CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
-        ?.performance?.read_rpc_cache_ms as number,
-)
-    ? ((CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
-          .performance!.read_rpc_cache_ms as number)
-    : 0;
+const READ_ONLY_RPC_RESPONSE_TTL_MS = READ_RPC_CACHE_TTL_MS;
 
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
@@ -242,23 +240,6 @@ export class TransmissionAdapter implements EngineAdapter {
         );
     }
 
-    private isAbortError(err: unknown): boolean {
-        if (!err) return false;
-        try {
-            const e = err as unknown;
-            if (typeof e === "object" && e !== null) {
-                const name = (e as { name?: unknown }).name;
-                if (name === "AbortError") return true;
-                const message = (e as { message?: unknown }).message;
-                if (typeof message === "string" && /abort(ed)?/i.test(message))
-                    return true;
-            }
-            return false;
-        } catch {
-            return false;
-        }
-    }
-
     public updateRequestTimeout(timeout: number) {
         this.requestTimeout = timeout;
     }
@@ -342,10 +323,6 @@ export class TransmissionAdapter implements EngineAdapter {
                     "Content-Type": "application/json",
                 };
 
-                const transportSessionId = this.transport.getSessionId();
-                if (transportSessionId) {
-                    headers["X-Transmission-Session-Id"] = transportSessionId;
-                }
                 const authHeader = this.getAuthorizationHeader();
                 if (authHeader) {
                     headers.Authorization = authHeader;
@@ -388,21 +365,8 @@ export class TransmissionAdapter implements EngineAdapter {
                 const response = transportOutcome.response;
 
                 if (response.status === 409) {
-                    // Defensive: Transport should already handle 409/session-id
-                    // negotiation. If we still observe a 409, attempt to accept
-                    // any token present on the response, then fail fast so the
-                    // caller can decide how to proceed.
-                    try {
-                        const hdrs = (response as Response | undefined)
-                            ?.headers;
-                        const token =
-                            hdrs && typeof hdrs.get === "function"
-                                ? hdrs.get("X-Transmission-Session-Id")
-                                : null;
-                        if (token) this.acceptSessionId(token);
-                    } catch {
-                        // ignore header read errors
-                    }
+                    // Transport owns session-id negotiation/retry. If a 409 still
+                    // bubbles up here, fail fast and invalidate local handshake.
                     this.invalidateSession("409-session-conflict");
                     throw new Error("Transmission RPC session conflict");
                 }
@@ -421,17 +385,15 @@ export class TransmissionAdapter implements EngineAdapter {
                         `Transmission RPC responded with ${response.status}`,
                     );
                 }
-                // Accept session ID from any response that provides it. Per
-                // Transmission semantics the `X-Transmission-Session-Id` header
-                // can be present on 200 OK responses; treat it as authoritative
-                // and install it so subsequent requests carry the correct
-                // session context. This prevents handshake churn when servers
-                // don't issue 409 for every new session token.
-                const currentToken = response.headers.get(
-                    "X-Transmission-Session-Id",
-                );
-                if (currentToken && currentToken !== this.sessionId) {
-                    this.acceptSessionId(currentToken);
+                // Sync transport-owned session token into adapter state so
+                // handshake gating remains coherent for mutating RPC flows.
+                try {
+                    const transportToken = this.transport.getSessionId();
+                    if (transportToken && transportToken !== this.sessionId) {
+                        this.acceptSessionId(transportToken);
+                    }
+                } catch {
+                    // ignore transport session sync errors
                 }
 
                 const json = await response.json();
@@ -510,7 +472,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 try {
                     return await attemptRequest();
                 } catch (e) {
-                    if (!this.isAbortError(e)) {
+                    if (!isAbortError(e)) {
                         infraLogger.error(
                             {
                                 scope: "rpc",
@@ -535,7 +497,7 @@ export class TransmissionAdapter implements EngineAdapter {
 
             return requestPromise;
         } catch (e) {
-            if (!this.isAbortError(e)) {
+            if (!isAbortError(e)) {
                 infraLogger.error(
                     {
                         scope: "rpc",
@@ -660,7 +622,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 try {
                     ctrl.abort();
                 } catch (err) {
-                    if (!this.isAbortError(err)) {
+                    if (!isAbortError(err)) {
                         infraLogger.warn(
                             {
                                 scope: "rpc",
@@ -878,7 +840,7 @@ export class TransmissionAdapter implements EngineAdapter {
         return this.serverClass;
     }
 
-    public getCapabilities(): EngineCapabilities {
+    public getCapabilities(): EngineRuntimeCapabilities {
         return {
             executionModel: "remote",
             hasHostFileSystemAccess: false,

@@ -2,7 +2,14 @@ import { Button, Modal, ModalContent, cn } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    INTERACTION_CONFIG,
+    DETAILS_TOOLTIP_OPACITY_ANIMATION,
+    SURFACE_BORDER,
+    STATUS_VISUAL_KEYS,
+    STATUS_VISUALS,
+} from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import {
     GLASS_MODAL_SURFACE,
@@ -42,7 +49,8 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
     return (
         <div
             className={cn(
-                "flex flex-col border-r border-content1/20 bg-content1/50 blur-glass transition-transform duration-300 absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0",
+                "flex flex-col border-r bg-content1/50 blur-glass transition-transform duration-300 absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0",
+                SURFACE_BORDER,
                 !isMobileMenuOpen ? "-translate-x-full" : "translate-x-0",
             )}
         >
@@ -159,6 +167,13 @@ interface SettingsContentProps {
     controller: SettingsModalController;
 }
 
+const SETTINGS_TAB_CONTENT_ANIMATION = {
+    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity, y: 10 },
+    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity, y: 0 },
+    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity, y: -10 },
+    transition: { duration: 0.2 },
+} as const;
+
 function SettingsContent({ controller }: SettingsContentProps) {
     const { t } = useTranslation();
     const {
@@ -169,6 +184,9 @@ function SettingsContent({ controller }: SettingsContentProps) {
         settingsFormState,
         settingsFormActions,
     } = controller.modal;
+    const warningPanelClass =
+        STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.panel ??
+        "border-warning/30 bg-warning/10 text-warning";
 
     return (
         <Section
@@ -176,7 +194,12 @@ function SettingsContent({ controller }: SettingsContentProps) {
             className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
         >
             {tabsFallbackActive && (
-                <div className="rounded-panel border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning mb-panel">
+                <div
+                    className={cn(
+                        "rounded-panel border px-panel py-tight text-label mb-panel",
+                        warningPanelClass,
+                    )}
+                >
                     {t("settings.modal.error_no_tabs")}
                 </div>
             )}
@@ -185,8 +208,10 @@ function SettingsContent({ controller }: SettingsContentProps) {
                     className={cn(
                         "rounded-panel border px-panel py-tight text-label mb-panel",
                         modalFeedback.type === "error"
-                            ? "border-danger/40 bg-danger/5 text-danger"
-                            : "border-success/40 bg-success/10 text-success",
+                            ? (STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]
+                                  ?.panel ?? "border-danger/40 bg-danger/5 text-danger")
+                            : (STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]
+                                  ?.panel ?? "border-success/40 bg-success/10 text-success"),
                     )}
                 >
                     {modalFeedback.text}
@@ -195,14 +220,16 @@ function SettingsContent({ controller }: SettingsContentProps) {
             <AnimatePresence mode="wait">
                 <motion.div
                     key={activeTabDefinition.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
+                    {...SETTINGS_TAB_CONTENT_ANIMATION}
                     className="flex flex-col space-y-stage sm:space-y-stage pb-stage"
                 >
                     {settingsLoadError && (
-                        <div className="rounded-panel border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning">
+                        <div
+                            className={cn(
+                                "rounded-panel border px-panel py-tight text-label",
+                                warningPanelClass,
+                            )}
+                        >
                             {t("settings.load_error")}
                         </div>
                     )}

@@ -1,5 +1,6 @@
 import { Card, cn } from "@heroui/react";
 import type { ReactNode } from "react";
+import { HEADER_BASE, SURFACE_BORDER } from "@/config/logic";
 
 interface SettingsSectionProps {
     title?: string;
@@ -17,13 +18,16 @@ export function SettingsSection({
     return (
         <Card
             className={cn(
-                "p-panel rounded-2xl border border-content1/20 bg-content1/10",
+                `p-panel rounded-2xl border ${SURFACE_BORDER} bg-content1/10`,
                 className
             )}
         >
             {title && (
                 <h3
-                    className="text-scaled font-bold uppercase text-foreground/40 mb-panel  leading-tight"
+                    className={cn(
+                        HEADER_BASE,
+                        "text-scaled font-bold text-foreground/40 mb-panel leading-tight"
+                    )}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -31,7 +35,7 @@ export function SettingsSection({
             )}
             {description && (
                 <p
-                    className="mb-panel text-scaled uppercase text-foreground/50"
+                    className={cn(HEADER_BASE, "mb-panel text-scaled")}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}

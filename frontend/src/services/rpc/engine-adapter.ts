@@ -18,13 +18,13 @@ import type {
 
 export type EngineExecutionModel = "local" | "remote";
 
-export interface EngineCapabilities {
+export interface EngineRuntimeCapabilities {
     executionModel: EngineExecutionModel;
     hasHostFileSystemAccess: boolean;
     canCheckFreeSpace: boolean;
 }
 
-export const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = {
+export const DEFAULT_ENGINE_CAPABILITIES: EngineRuntimeCapabilities = {
     executionModel: "remote",
     hasHostFileSystemAccess: false,
     canCheckFreeSpace: false,
@@ -32,7 +32,7 @@ export const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = {
 
 export interface EngineAdapter {
     getServerClass?(): ServerClass;
-    getCapabilities?(): EngineCapabilities;
+    getCapabilities?(): EngineRuntimeCapabilities;
     handshake?(): Promise<unknown>;
     notifyUiReady?(): Promise<void>;
     notifyUiDetached?(): Promise<void>;

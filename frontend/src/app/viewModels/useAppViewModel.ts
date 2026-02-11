@@ -23,6 +23,7 @@ import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc"
 import type { UiMode } from "@/app/utils/uiMode";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
+import { STATUS } from "@/shared/status";
 
 /**
  * View models describe **what** a view renders and **what** actions it exposes.
@@ -178,7 +179,9 @@ export interface NavbarViewModel {
     onWindowCommand: (command: "minimize" | "maximize" | "close") => void;
 }
 
-export type StatusBarTransportStatus = "polling" | "offline";
+export type StatusBarTransportStatus =
+    | typeof STATUS.connection.POLLING
+    | typeof STATUS.connection.OFFLINE;
 
 export interface StatusBarViewModel {
     workspaceStyle: WorkspaceStyle;

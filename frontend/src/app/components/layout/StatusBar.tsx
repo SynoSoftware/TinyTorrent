@@ -21,7 +21,13 @@ import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
-import { getShellTokens, UI_BASES, STATUS_VISUALS } from "@/config/logic";
+import {
+    getShellTokens,
+    SURFACE_BORDER,
+    UI_BASES,
+    STATUS_VISUAL_KEYS,
+    STATUS_VISUALS,
+} from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import {
     BLOCK_SHADOW,
@@ -43,8 +49,8 @@ const DISK_LABELS: Record<string, string> = {
 };
 
 const TRANSPORT_LABELS: Record<TransportStatus, string> = {
-    polling: "status_bar.transport_polling",
-    offline: "status_bar.transport_offline",
+    [STATUS.connection.POLLING]: "status_bar.transport_polling",
+    [STATUS.connection.OFFLINE]: "status_bar.transport_offline",
 };
 
 const RPC_STATUS_LABEL: Record<string, string> = {
@@ -57,7 +63,9 @@ const RPC_STATUS_LABEL: Record<string, string> = {
 /* TYPES */
 /* ------------------------------------------------------------------ */
 
-type TransportStatus = "polling" | "offline";
+type TransportStatus =
+    | typeof STATUS.connection.POLLING
+    | typeof STATUS.connection.OFFLINE;
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
 interface StatusBarProps {
@@ -126,14 +134,18 @@ function TelemetryIcon({
     tone: "ok" | "warn" | "bad" | "muted";
     title: string;
 }) {
-    const toneClass =
+    const toneKey =
         tone === "ok"
-            ? "text-success"
+            ? STATUS.connection.CONNECTED
             : tone === "warn"
-            ? "text-warning"
-            : tone === "bad"
-            ? "text-danger"
-            : "text-foreground/30";
+              ? STATUS_VISUAL_KEYS.tone.WARNING
+              : tone === "bad"
+                ? STATUS.connection.ERROR
+                : STATUS_VISUAL_KEYS.tone.MUTED;
+    const toneClass =
+        STATUS_VISUALS[toneKey]?.text ??
+        STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.MUTED]?.text ??
+        "text-foreground/30";
 
     return (
         <span
@@ -165,7 +177,14 @@ function SpeedModule({
     separator?: boolean;
 }) {
     const { t } = useTranslation();
-    const iconToneClass = tone === "success" ? "text-success" : "text-primary";
+    const iconToneKey =
+        tone === "success"
+            ? STATUS_VISUAL_KEYS.tone.SUCCESS
+            : STATUS_VISUAL_KEYS.tone.PRIMARY;
+    const iconToneClass =
+        STATUS_VISUALS[iconToneKey]?.text ??
+        STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.text ??
+        "text-primary";
 
     return (
         <>
@@ -173,7 +192,8 @@ function SpeedModule({
                 className={cn(
                     "flex flex-1 items-center h-full min-w-0 gap-tools group",
                     "rounded-modal",
-                    "border border-content1/20",
+                    "border",
+                    SURFACE_BORDER,
                     "bg-content1/5 backdrop-blur-sm",
                     "transition-all duration-300",
                     "group-hover:border-content1/40",
@@ -250,7 +270,7 @@ function StatusTelemetryGrid({
     const engineIcon =
         rpcStatus === STATUS.connection.ERROR
             ? AlertCircle
-            : transportStatus === "polling"
+            : transportStatus === STATUS.connection.POLLING
             ? ArrowUpDown
             : Activity;
 
@@ -259,7 +279,7 @@ function StatusTelemetryGrid({
             ? "bad"
             : rpcStatus === STATUS.connection.IDLE
             ? "warn"
-            : transportStatus === "polling"
+            : transportStatus === STATUS.connection.POLLING
             ? "warn"
             : rpcStatus === STATUS.connection.CONNECTED
             ? "ok"

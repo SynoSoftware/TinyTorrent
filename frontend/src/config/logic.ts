@@ -2,9 +2,6 @@ import type { MotionProps, Transition } from "framer-motion";
 import constants from "@/config/constants.json";
 import { STATUS } from "@/shared/status";
 
-// Single-owner export for all config consumers
-export const CONFIG = constants;
-
 // TODO: Keep `config/logic.ts` as a central “knob registry” and shared constants authority:
 // TODO: - UI/UX timing constants (polling cadence, animation delays, debounce windows) should be sourced from here (or from `constants.json`) and not hardcoded in leaf components.
 // TODO: - Do not encode protocol/engine concepts here. Transmission RPC is the daemon contract; `uiMode = "Full" | "Rpc"` is a UI/runtime capability derived elsewhere.
@@ -71,13 +68,43 @@ const DEFAULT_TABLE_LAYOUT = {
 } as const;
 
 const layoutConfig = constants.layout ?? {};
+const performanceConfig = asRecord(constants.performance);
+const defaultsConfig = asRecord(constants.defaults);
+const uiConfig = asRecord(constants.ui);
+const heartbeatConfig = asRecord(constants.heartbeats);
 const timerConfig = asRecord(constants.timers);
 const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
 const recoveryTimerConfig = asRecord(timerConfig.recovery);
 
+const DEFAULT_DEFAULTS = {
+    rpc_endpoint: "/transmission/rpc",
+    magnet_protocol_prefix: "magnet:?",
+} as const;
+
+const DEFAULT_PERFORMANCE = {
+    history_data_points: 60,
+    max_delta_cycles: 30,
+    min_immediate_tick_ms: 1000,
+    read_rpc_cache_ms: 0,
+    transport_cache_ttl_ms: 500,
+} as const;
+
+const DEFAULT_UI = {
+    toast_display_duration_ms: 3000,
+} as const;
+
+const DEFAULT_HEARTBEATS = {
+    table_refresh_interval_ms: 1500,
+    detail_refresh_interval_ms: 500,
+    background_refresh_interval_ms: 5000,
+} as const;
+
 const DEFAULT_TIMERS = {
     clipboard_badge_duration_ms: 1500,
     focus_restore_delay_ms: 500,
+    magnet_event_dedup_window_ms: 1000,
+    action_feedback_start_toast_duration_ms: 900,
+    optimistic_checking_grace_ms: 5000,
     ws_reconnect: {
         initial_delay_ms: 1000,
         max_delay_ms: 10000,
@@ -88,8 +115,56 @@ const DEFAULT_TIMERS = {
         poll_interval_ms: 4000,
         retry_cooldown_ms: 15000,
         modal_resolved_auto_close_delay_ms: 3000,
+        modal_resolved_countdown_tick_ms: 250,
+        pick_path_success_delay_ms: 600,
+        active_state_poll_interval_ms: 200,
+        probe_poll_interval_ms: 500,
+        probe_timeout_ms: 2000,
+        verify_watch_interval_ms: 500,
     },
 } as const;
+
+export const TOAST_DISPLAY_DURATION_MS = readNumber(
+    uiConfig.toast_display_duration_ms,
+    DEFAULT_UI.toast_display_duration_ms
+);
+
+export const DEFAULT_RPC_ENDPOINT =
+    typeof defaultsConfig.rpc_endpoint === "string" &&
+    defaultsConfig.rpc_endpoint.trim().length > 0
+        ? defaultsConfig.rpc_endpoint
+        : DEFAULT_DEFAULTS.rpc_endpoint;
+
+export const MAGNET_PROTOCOL_PREFIX =
+    typeof defaultsConfig.magnet_protocol_prefix === "string" &&
+    defaultsConfig.magnet_protocol_prefix.trim().length > 0
+        ? defaultsConfig.magnet_protocol_prefix
+        : DEFAULT_DEFAULTS.magnet_protocol_prefix;
+
+export const HISTORY_DATA_POINTS = readNumber(
+    performanceConfig.history_data_points,
+    DEFAULT_PERFORMANCE.history_data_points
+);
+
+export const HEARTBEAT_MAX_DELTA_CYCLES = readNumber(
+    performanceConfig.max_delta_cycles,
+    DEFAULT_PERFORMANCE.max_delta_cycles
+);
+
+export const HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS = readNumber(
+    performanceConfig.min_immediate_tick_ms,
+    DEFAULT_PERFORMANCE.min_immediate_tick_ms
+);
+
+export const READ_RPC_CACHE_TTL_MS = readNumber(
+    performanceConfig.read_rpc_cache_ms,
+    DEFAULT_PERFORMANCE.read_rpc_cache_ms
+);
+
+export const TRANSPORT_CACHE_TTL_MS = readNumber(
+    performanceConfig.transport_cache_ttl_ms,
+    DEFAULT_PERFORMANCE.transport_cache_ttl_ms
+);
 
 // --- SHELL (Classic / Immersive) ---
 const DEFAULT_SHELL_CLASSIC = {
@@ -439,7 +514,6 @@ export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth
 export const ICON_STROKE_WIDTH_DENSE = `var(--tt-icon-stroke-dense, ${iconographyStrokeWidthDense})`;
 
 export const HANDLE_HITAREA_CLASS = "w-handle";
-export const HANDLE_PADDING_CLASS = "pr-handle";
 
 // Cells should not include extra layout padding for the handle — the handle
 // hit-area is provided by an absolutely-positioned element so it won't
@@ -456,14 +530,41 @@ export const CELL_BASE_CLASS =
 // It must NOT include background, padding, grid, border, or rounding.
 export const HEADER_BASE =
     "text-scaled uppercase tracking-tight text-foreground/50";
+export const SURFACE_BORDER = "border-content1/20";
+export const TEXT_ROLES = {
+    primary: "text-scaled font-semibold text-foreground",
+    secondary: "text-scaled text-foreground/70",
+    label: `${HEADER_BASE} text-label`,
+    helper: "text-label text-foreground/60",
+} as const;
+export const STATUS_CHIP_STYLE = {
+    width: "var(--tt-status-chip-w)",
+    minWidth: "var(--tt-status-chip-w)",
+    maxWidth: "var(--tt-status-chip-w)",
+    height: "var(--tt-status-chip-h)",
+    boxSizing: "border-box",
+} as const;
 
 // `TABLE_HEADER_CLASS` composes `HEADER_BASE` with table-specific surface, padding and grid.
-export const TABLE_HEADER_CLASS = `${HEADER_BASE} py-panel ${CELL_PADDING_CLASS} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border border-content1/20`;
+export const TABLE_HEADER_CLASS = `${HEADER_BASE} py-panel ${CELL_PADDING_CLASS} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border ${SURFACE_BORDER}`;
+
+export const STATUS_VISUAL_KEYS = {
+    tone: {
+        PRIMARY: "tone_primary",
+        SUCCESS: "tone_success",
+        WARNING: "tone_warning",
+        DANGER: "tone_danger",
+        MUTED: "tone_muted",
+        NEUTRAL: "tone_neutral",
+    },
+    speed: {
+        DOWN: "speed_down",
+        SEED: "speed_seed",
+        IDLE: "speed_idle",
+    },
+} as const;
 
 // Semantic status visuals used across the app (moved out of components)
-export type ConnectionStatus =
-    (typeof STATUS.connection)[keyof typeof STATUS.connection];
-
 export const STATUS_VISUALS: Record<
     string,
     {
@@ -472,6 +573,10 @@ export const STATUS_VISUALS: Record<
         text: string;
         shadow: string;
         glow: string;
+        panel?: string;
+        button?: string;
+        hudSurface?: string;
+        hudIconBg?: string;
     }
 > = {
     [STATUS.connection.IDLE]: {
@@ -480,6 +585,9 @@ export const STATUS_VISUALS: Record<
         text: "text-foreground/40",
         shadow: "shadow-none",
         glow: "bg-content1",
+        hudSurface:
+            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
+        hudIconBg: "bg-warning/15 text-warning",
     },
     [STATUS.connection.CONNECTED]: {
         bg: "bg-success/5 hover:bg-success/10",
@@ -487,6 +595,9 @@ export const STATUS_VISUALS: Record<
         text: "text-success",
         shadow: "shadow-success-glow",
         glow: "bg-success",
+        hudSurface:
+            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
+        hudIconBg: "bg-success/15 text-success",
     },
     [STATUS.connection.ERROR]: {
         bg: "bg-danger/5 hover:bg-danger/10",
@@ -494,15 +605,96 @@ export const STATUS_VISUALS: Record<
         text: "text-danger",
         shadow: "shadow-danger-glow",
         glow: "bg-danger",
+        hudSurface:
+            "bg-gradient-to-br from-danger/20 via-background/25 to-background/5",
+        hudIconBg: "bg-danger/15 text-danger",
+    },
+    [STATUS_VISUAL_KEYS.tone.PRIMARY]: {
+        bg: "bg-primary/10",
+        border: "border-primary/30",
+        text: "text-primary",
+        shadow: "shadow-none",
+        glow: "bg-primary",
+        panel: "border-primary/40 bg-primary/10 text-primary",
+        button: "text-primary hover:text-primary-600 hover:bg-primary/10",
+    },
+    [STATUS_VISUAL_KEYS.tone.SUCCESS]: {
+        bg: "bg-success/10",
+        border: "border-success/30",
+        text: "text-success",
+        shadow: "shadow-none",
+        glow: "bg-success",
+        panel: "border-success/40 bg-success/10 text-success",
+        button: "text-success hover:text-success-600 hover:bg-success/10",
+    },
+    [STATUS_VISUAL_KEYS.tone.WARNING]: {
+        bg: "bg-warning/10",
+        border: "border-warning/30",
+        text: "text-warning",
+        shadow: "shadow-none",
+        glow: "bg-warning",
+        panel: "border-warning/30 bg-warning/10 text-warning",
+        button: "text-warning hover:text-warning-600 hover:bg-warning/10",
+    },
+    [STATUS_VISUAL_KEYS.tone.DANGER]: {
+        bg: "bg-danger/10",
+        border: "border-danger/30",
+        text: "text-danger",
+        shadow: "shadow-none",
+        glow: "bg-danger",
+        panel: "border-danger/40 bg-danger/5 text-danger",
+        button: "text-danger hover:text-danger-600 hover:bg-danger/10",
+    },
+    [STATUS_VISUAL_KEYS.tone.MUTED]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-foreground/30",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+    },
+    [STATUS_VISUAL_KEYS.tone.NEUTRAL]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-default-500",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+        button: "text-default-500 hover:text-foreground hover:bg-default-200",
+    },
+    [STATUS_VISUAL_KEYS.speed.DOWN]: {
+        bg: "bg-success/10",
+        border: "border-success/30",
+        text: "text-success",
+        shadow: "shadow-none",
+        glow: "bg-success",
+    },
+    [STATUS_VISUAL_KEYS.speed.SEED]: {
+        bg: "bg-primary/10",
+        border: "border-primary/30",
+        text: "text-primary",
+        shadow: "shadow-none",
+        glow: "bg-primary",
+    },
+    [STATUS_VISUAL_KEYS.speed.IDLE]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-foreground/60",
+        shadow: "shadow-none",
+        glow: "bg-content1",
     },
 };
 
-export const TABLE_REFRESH_INTERVAL_MS =
-    constants.heartbeats.table_refresh_interval_ms;
-export const DETAIL_REFRESH_INTERVAL_MS =
-    constants.heartbeats.detail_refresh_interval_ms;
-export const BACKGROUND_REFRESH_INTERVAL_MS =
-    constants.heartbeats.background_refresh_interval_ms;
+export const TABLE_REFRESH_INTERVAL_MS = readNumber(
+    heartbeatConfig.table_refresh_interval_ms,
+    DEFAULT_HEARTBEATS.table_refresh_interval_ms
+);
+export const DETAIL_REFRESH_INTERVAL_MS = readNumber(
+    heartbeatConfig.detail_refresh_interval_ms,
+    DEFAULT_HEARTBEATS.detail_refresh_interval_ms
+);
+export const BACKGROUND_REFRESH_INTERVAL_MS = readNumber(
+    heartbeatConfig.background_refresh_interval_ms,
+    DEFAULT_HEARTBEATS.background_refresh_interval_ms
+);
 export const HEARTBEAT_INTERVALS = {
     detail: DETAIL_REFRESH_INTERVAL_MS,
     table: TABLE_REFRESH_INTERVAL_MS,
@@ -517,6 +709,21 @@ export const CLIPBOARD_BADGE_DURATION_MS = readNumber(
 export const FOCUS_RESTORE_DELAY_MS = readNumber(
     timerConfig.focus_restore_delay_ms,
     DEFAULT_TIMERS.focus_restore_delay_ms
+);
+
+export const MAGNET_EVENT_DEDUP_WINDOW_MS = readNumber(
+    timerConfig.magnet_event_dedup_window_ms,
+    DEFAULT_TIMERS.magnet_event_dedup_window_ms
+);
+
+export const ACTION_FEEDBACK_START_TOAST_DURATION_MS = readNumber(
+    timerConfig.action_feedback_start_toast_duration_ms,
+    DEFAULT_TIMERS.action_feedback_start_toast_duration_ms
+);
+
+export const OPTIMISTIC_CHECKING_GRACE_MS = readNumber(
+    timerConfig.optimistic_checking_grace_ms,
+    DEFAULT_TIMERS.optimistic_checking_grace_ms
 );
 
 export const WS_RECONNECT_INITIAL_DELAY_MS = readNumber(
@@ -556,6 +763,36 @@ export const RECOVERY_RETRY_COOLDOWN_MS = readNumber(
 export const RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS = readNumber(
     recoveryTimerConfig.modal_resolved_auto_close_delay_ms,
     DEFAULT_TIMERS.recovery.modal_resolved_auto_close_delay_ms
+);
+
+export const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = readNumber(
+    recoveryTimerConfig.modal_resolved_countdown_tick_ms,
+    DEFAULT_TIMERS.recovery.modal_resolved_countdown_tick_ms
+);
+
+export const RECOVERY_PICK_PATH_SUCCESS_DELAY_MS = readNumber(
+    recoveryTimerConfig.pick_path_success_delay_ms,
+    DEFAULT_TIMERS.recovery.pick_path_success_delay_ms
+);
+
+export const RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS = readNumber(
+    recoveryTimerConfig.active_state_poll_interval_ms,
+    DEFAULT_TIMERS.recovery.active_state_poll_interval_ms
+);
+
+export const RECOVERY_PROBE_POLL_INTERVAL_MS = readNumber(
+    recoveryTimerConfig.probe_poll_interval_ms,
+    DEFAULT_TIMERS.recovery.probe_poll_interval_ms
+);
+
+export const RECOVERY_PROBE_TIMEOUT_MS = readNumber(
+    recoveryTimerConfig.probe_timeout_ms,
+    DEFAULT_TIMERS.recovery.probe_timeout_ms
+);
+
+export const RECOVERY_VERIFY_WATCH_INTERVAL_MS = readNumber(
+    recoveryTimerConfig.verify_watch_interval_ms,
+    DEFAULT_TIMERS.recovery.verify_watch_interval_ms
 );
 
 export interface DragOverlayRootConfig {
@@ -771,6 +1008,31 @@ export const DETAILS_PEER_MAP_CONFIG = DETAILS_VISUALIZATIONS.peer_map;
 export const DETAILS_SCATTER_CONFIG = DETAILS_VISUALIZATIONS.scatter;
 export const DETAILS_TOOLTIP_ANIMATION =
     DETAILS_VISUALIZATIONS.tooltip_animation;
+const readOpacity = (value: unknown, fallback: number) => {
+    if (
+        value &&
+        typeof value === "object" &&
+        "opacity" in (value as Record<string, unknown>)
+    ) {
+        const candidate = (value as { opacity?: unknown }).opacity;
+        if (typeof candidate === "number") return candidate;
+    }
+    return fallback;
+};
+export type TooltipOpacityAnimation = {
+    initial: { opacity: number };
+    animate: { opacity: number };
+    exit: { opacity: number };
+};
+export const DETAILS_TOOLTIP_OPACITY_ANIMATION: TooltipOpacityAnimation = {
+    initial: {
+        opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.initial, 0),
+    },
+    animate: {
+        opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.animate, 1),
+    },
+    exit: { opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.exit, 0) },
+};
 
 // Availability heatmap visual tokens (moved from hard-coded literals)
 export const DETAILS_AVAILABILITY_HEATMAP =

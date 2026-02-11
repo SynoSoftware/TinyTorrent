@@ -59,13 +59,14 @@ import {
     getRecoveryFingerprint,
 } from "@/app/domain/recoveryUtils";
 import {
+    BACKGROUND_REFRESH_INTERVAL_MS,
+    RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS,
     RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
+    RECOVERY_PICK_PATH_SUCCESS_DELAY_MS,
     RECOVERY_POLL_INTERVAL_MS,
     RECOVERY_RETRY_COOLDOWN_MS,
 } from "@/config/logic";
-const PROBE_TTL_MS = 5000;
-const PICK_PATH_SUCCESS_DELAY_MS = 600;
-const ACTIVE_STATE_POLL_INTERVAL_MS = 200;
+const PROBE_TTL_MS = BACKGROUND_REFRESH_INTERVAL_MS;
 const RECOVERY_ACTIONABLE_ERROR_CLASSES = new Set([
     "missingFiles",
     "permissionDenied",
@@ -921,7 +922,7 @@ export function useRecoveryController({
                 } catch {
                     // best-effort; keep polling
                 }
-                await delay(ACTIVE_STATE_POLL_INTERVAL_MS);
+                await delay(RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS);
             }
             return false;
         },
@@ -1320,7 +1321,7 @@ export function useRecoveryController({
                     savePath: path,
                 };
                 await resolveRecoverySession(updatedTorrent, {
-                    delayAfterSuccessMs: PICK_PATH_SUCCESS_DELAY_MS,
+                    delayAfterSuccessMs: RECOVERY_PICK_PATH_SUCCESS_DELAY_MS,
                 });
             });
         },

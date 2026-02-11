@@ -8,11 +8,11 @@ import {
     type ReactNode,
 } from "react";
 
-import { CONFIG } from "@/config/logic";
+import { HISTORY_DATA_POINTS } from "@/config/logic";
 import type { SessionStats } from "@/services/rpc/entities";
 import { subscribeUiClock } from "@/shared/hooks/useUiClock";
 
-const HISTORY_POINTS = CONFIG.performance.history_data_points;
+const HISTORY_POINTS = HISTORY_DATA_POINTS;
 
 const createHistoryBuffer = () =>
     new Array(HISTORY_POINTS).fill(0);

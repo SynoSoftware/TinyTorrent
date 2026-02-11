@@ -1,4 +1,4 @@
-import { CONFIG } from "@/config/logic";
+import { DEFAULT_RPC_ENDPOINT } from "@/config/logic";
 import type {
     ConnectionProfile,
     ConnectionScheme,
@@ -9,7 +9,7 @@ export const DEFAULT_PROFILE_LABEL = "";
 export const DEFAULT_RPC_HOST = "localhost";
 export const DEFAULT_RPC_PORT = "9091";
 export const DEFAULT_RPC_SCHEME: ConnectionScheme = "http";
-export const DEFAULT_RPC_PATH = CONFIG.defaults.rpc_endpoint;
+export const DEFAULT_RPC_PATH = DEFAULT_RPC_ENDPOINT;
 export const NORMALIZED_RPC_PATH = DEFAULT_RPC_PATH.startsWith("/")
     ? DEFAULT_RPC_PATH
     : `/${DEFAULT_RPC_PATH}`;

@@ -9,7 +9,11 @@ import DevTest from "@/app/components/DevRecoveryPlayground";
 import { DEV_RECOVERY_PLAYGROUND_PATH } from "@/app/dev/recovery/scenarios";
 import { ClientProvider } from "@/app/providers/TorrentClientProvider";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
-import { KEY_SCOPE, CONFIG, applyCssTokenBases } from "@/config/logic";
+import {
+    KEY_SCOPE,
+    TOAST_DISPLAY_DURATION_MS,
+    applyCssTokenBases,
+} from "@/config/logic";
 import { ConnectionConfigProvider } from "@/app/context/ConnectionConfigContext";
 import { SessionProvider } from "@/app/context/SessionContext";
 import { PreferencesProvider } from "@/app/context/PreferencesContext";
@@ -20,7 +24,7 @@ applyCssTokenBases();
 
 const APP_INITIAL_HOTKEY_SCOPES = [DEFAULT_KEYBOARD_SCOPE, KEY_SCOPE.App];
 const APP_TOAST_PROPS = {
-    timeout: CONFIG.ui.toast_display_duration_ms,
+    timeout: TOAST_DISPLAY_DURATION_MS,
     hideCloseButton: true,
     variant: "flat",
     radius: "lg",

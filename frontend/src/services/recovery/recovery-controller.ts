@@ -1,23 +1,30 @@
 import type {
     EngineAdapter,
-    EngineCapabilities,
+    EngineRuntimeCapabilities,
     EngineExecutionModel,
 } from "@/services/rpc/engine-adapter";
 import type {
     TorrentDetailEntity,
     TorrentEntity,
     ErrorEnvelope,
+    MissingFilesClassificationKind,
+    RecoveryConfidence,
 } from "@/services/rpc/entities";
 import { STATUS } from "@/shared/status";
 import {
     deriveMissingFilesStateKind,
-    type MissingFilesStateKind,
 } from "@/shared/utils/recoveryFormat";
 import { interpretFsError, type FsErrorKind } from "@/shared/utils/fsErrors";
 import {
     getClassificationOverride,
     setClassificationOverride,
 } from "@/services/recovery/missingFilesStore";
+import {
+    GHOST_TIMEOUT_MS,
+    RECOVERY_PROBE_POLL_INTERVAL_MS,
+    RECOVERY_PROBE_TIMEOUT_MS,
+    RECOVERY_VERIFY_WATCH_INTERVAL_MS,
+} from "@/config/logic";
 
 export type RecoveryOutcome =
     | { kind: "resolved"; message?: string }
@@ -38,8 +45,6 @@ export interface RecoveryControllerDeps {
     envelope?: ErrorEnvelope | null | undefined;
 }
 
-export type ConfidenceLevel = "certain" | "likely" | "unknown";
-
 export type RecoveryRecommendedAction =
     | "downloadMissing"
     | "locate"
@@ -48,8 +53,8 @@ export type RecoveryRecommendedAction =
     | "chooseLocation";
 
 export interface MissingFilesClassification {
-    kind: MissingFilesStateKind;
-    confidence: ConfidenceLevel;
+    kind: MissingFilesClassificationKind;
+    confidence: RecoveryConfidence;
     path?: string;
     root?: string;
     recommendedActions: readonly RecoveryRecommendedAction[];
@@ -58,7 +63,7 @@ export interface MissingFilesClassification {
 export type MissingFilesProbeResult =
     | {
           kind: "path_missing";
-          confidence: ConfidenceLevel;
+          confidence: RecoveryConfidence;
           path: string;
           expectedBytes: number;
           onDiskBytes: number | null;
@@ -68,7 +73,7 @@ export type MissingFilesProbeResult =
       }
     | {
           kind: "data_missing";
-          confidence: ConfidenceLevel;
+          confidence: RecoveryConfidence;
           expectedBytes: number;
           onDiskBytes: number | null;
           missingBytes: number | null;
@@ -77,7 +82,7 @@ export type MissingFilesProbeResult =
       }
     | {
           kind: "data_partial";
-          confidence: ConfidenceLevel;
+          confidence: RecoveryConfidence;
           expectedBytes: number;
           onDiskBytes: number;
           missingBytes: number;
@@ -86,13 +91,13 @@ export type MissingFilesProbeResult =
       }
     | {
           kind: "unknown";
-          confidence: ConfidenceLevel;
+          confidence: RecoveryConfidence;
           expectedBytes: number;
           ts: number;
       }
     | {
           kind: "ok";
-          confidence: ConfidenceLevel;
+          confidence: RecoveryConfidence;
           expectedBytes: number;
           onDiskBytes: number;
           missingBytes: number;
@@ -114,7 +119,7 @@ export interface RecoverySequenceParams {
     torrent: TorrentEntity | TorrentDetailEntity;
     envelope: ErrorEnvelope;
     classification: MissingFilesClassification;
-    engineCapabilities: EngineCapabilities;
+    engineCapabilities: EngineRuntimeCapabilities;
     options?: RecoverySequenceOptions;
 }
 
@@ -169,10 +174,7 @@ function deriveFingerprint(
     );
 }
 
-const POLL_INTERVAL_MS = 500;
-const POLL_TIMEOUT_MS = 2000;
-const VERIFY_WATCH_INTERVAL_MS = 500;
-const VERIFY_WATCH_TIMEOUT_MS = 30000;
+const VERIFY_WATCH_TIMEOUT_MS = GHOST_TIMEOUT_MS;
 const FREE_SPACE_UNSUPPORTED_MESSAGE = "free_space_check_not_supported";
 const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
 
@@ -195,7 +197,7 @@ function getExpectedBytes(
 
 interface ClassificationOptions {
     torrentId?: string | number;
-    engineCapabilities: EngineCapabilities;
+    engineCapabilities: EngineRuntimeCapabilities;
 }
 
 export function classifyMissingFilesState(
@@ -229,10 +231,10 @@ export function classifyMissingFilesState(
 }
 
 function determineConfidence(
-    kind: MissingFilesStateKind,
+    kind: MissingFilesClassificationKind,
     envelope: ErrorEnvelope | null | undefined,
     executionModel: EngineExecutionModel,
-): ConfidenceLevel {
+): RecoveryConfidence {
     if (executionModel === "local") {
         return "certain";
     }
@@ -269,7 +271,7 @@ const RECOVERY_ERROR_CLASSES: ReadonlySet<string> = new Set([
 ]);
 
 const RECOVERY_RECOMMENDED_ACTIONS: Record<
-    MissingFilesStateKind,
+    MissingFilesClassificationKind,
     readonly RecoveryRecommendedAction[]
 > = {
     dataGap: ["downloadMissing", "openFolder"],
@@ -279,7 +281,7 @@ const RECOVERY_RECOMMENDED_ACTIONS: Record<
 };
 
 export function deriveRecommendedActions(
-    kind: MissingFilesStateKind,
+    kind: MissingFilesClassificationKind,
 ): readonly RecoveryRecommendedAction[] {
     return RECOVERY_RECOMMENDED_ACTIONS[kind] ?? ["locate"];
 }
@@ -602,7 +604,7 @@ export async function pollPathAvailability(
     if (!client.checkFreeSpace) {
         return { success: false, errorKind: "other" as FsErrorKind };
     }
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    const deadline = Date.now() + RECOVERY_PROBE_TIMEOUT_MS;
     let lastKind: FsErrorKind | null = null;
     while (Date.now() < deadline) {
         if (signal?.aborted) {
@@ -614,7 +616,7 @@ export async function pollPathAvailability(
         } catch (err) {
             lastKind = interpretFsError(err);
         }
-        await delay(POLL_INTERVAL_MS);
+        await delay(RECOVERY_PROBE_POLL_INTERVAL_MS);
     }
     return { success: false, errorKind: lastKind ?? "other" };
 }
@@ -623,7 +625,7 @@ function isCheckingState(state?: string) {
     if (!state) return false;
     const normalized = state.toLowerCase();
     return (
-        normalized === "checking" ||
+        normalized === STATUS.torrent.CHECKING ||
         normalized === "check_wait" ||
         normalized === "check_waiting"
     );
@@ -682,7 +684,7 @@ async function watchVerifyCompletion(
         } catch {
             // best-effort; continue polling
         }
-        await delay(VERIFY_WATCH_INTERVAL_MS);
+        await delay(RECOVERY_VERIFY_WATCH_INTERVAL_MS);
     }
     return {
         success: false,
@@ -904,7 +906,7 @@ function delay(ms: number) {
 export async function probeMissingFiles(
     torrent: TorrentEntity | TorrentDetailEntity,
     client: EngineAdapter,
-    engineCapabilities: EngineCapabilities,
+    engineCapabilities: EngineRuntimeCapabilities,
 ): Promise<MissingFilesProbeResult> {
     const ts = Date.now();
     const expectedBytes = getExpectedBytes(torrent);
@@ -1026,7 +1028,7 @@ export async function probeMissingFiles(
         },
     );
     const kindMap: Record<
-        MissingFilesStateKind,
+        MissingFilesClassificationKind,
         MissingFilesProbeResult["kind"]
     > = {
         dataGap: "unknown",

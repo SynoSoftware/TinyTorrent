@@ -1,11 +1,12 @@
 {
     "performance": {
         "history_data_points": 60,
-        "max_concurrent_requests": 5,
-        "max_delta_cycles": 30
+        "max_delta_cycles": 30,
+        "min_immediate_tick_ms": 1000,
+        "read_rpc_cache_ms": 0,
+        "transport_cache_ttl_ms": 500
     },
     "ui": {
-        "animation_duration_ms": 200,
         "toast_display_duration_ms": 3000
     },
     "defaults": {
@@ -34,28 +35,10 @@
             }
         },
         "table": {
-            "density": "normal",
             "font_mono": "font-mono",
-            "overscan": 20,
-            "legacyAutoFitPaddingPx": 48,
-            "fallbackPixelTolerancePx": 2
-        },
-        "menu": {
-            "min_width": 220
+            "overscan": 20
         },
         "ui": {
-            "navbar": {
-                "density": "normal"
-            },
-            "statusbar": {
-                "density": "normal"
-            },
-            "drop_overlay": {
-                "density": "normal"
-            },
-            "file_explorer": {
-                "density": "normal"
-            },
             "scale": {
                 "unit": 4,
                 "font_base": 13,
@@ -63,18 +46,8 @@
             }
         },
         "shell": {
-            "classic": { "density": "normal" },
-            "immersive": { "density": "relaxed" }
-        },
-        "modals": {
-            "add_width": 180,
-            "body_max_height": 70,
-            "settings_height": 200,
-            "settings_min_height": 125,
-            "add_settings_default_size": 40,
-            "add_settings_min_size": 25,
-            "add_filepanel_default_size": 60,
-            "add_filepanel_min_size": 30
+            "classic": {},
+            "immersive": {}
         },
         "details": {
             "tab_content_max_height": 360
@@ -299,6 +272,9 @@
     "timers": {
         "clipboard_badge_duration_ms": 1500,
         "focus_restore_delay_ms": 500,
+        "magnet_event_dedup_window_ms": 1000,
+        "action_feedback_start_toast_duration_ms": 900,
+        "optimistic_checking_grace_ms": 5000,
         "ws_reconnect": {
             "initial_delay_ms": 1000,
             "max_delay_ms": 10000
@@ -308,7 +284,13 @@
         "recovery": {
             "poll_interval_ms": 4000,
             "retry_cooldown_ms": 15000,
-            "modal_resolved_auto_close_delay_ms": 3000
+            "modal_resolved_auto_close_delay_ms": 3000,
+            "modal_resolved_countdown_tick_ms": 250,
+            "pick_path_success_delay_ms": 600,
+            "active_state_poll_interval_ms": 200,
+            "probe_poll_interval_ms": 500,
+            "probe_timeout_ms": 2000,
+            "verify_watch_interval_ms": 500
         }
     }
 }

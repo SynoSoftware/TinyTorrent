@@ -13,7 +13,7 @@ import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ICON_STROKE_WIDTH, SURFACE_BORDER } from "@/config/logic";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
 interface GeneralTabProps {
@@ -46,7 +46,9 @@ export const GeneralTab = ({
 
     return (
         <div className="space-y-stage">
-            <GlassPanel className="p-panel space-y-3 bg-content1/30 border border-content1/20">
+            <GlassPanel
+                className={`p-panel space-y-3 bg-content1/30 border ${SURFACE_BORDER}`}
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex-1">
                         <div className="text-label text-foreground/60">
@@ -117,7 +119,9 @@ export const GeneralTab = ({
 
             <div className="grid gap-tools sm:grid-cols-2">
                 <div className="col-span-2">
-                    <GlassPanel className="p-panel space-y-4 bg-content1/30 border border-content1/20">
+                    <GlassPanel
+                        className={`p-panel space-y-4 bg-content1/30 border ${SURFACE_BORDER}`}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <div className="text-label text-foreground/60">

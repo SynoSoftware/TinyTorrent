@@ -42,7 +42,10 @@ import type {
 } from "@/app/orchestrators/useAddTorrentController";
 import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import { scheduler } from "@/app/services/scheduler";
-import { RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
+import {
+    RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS,
+    RECOVERY_POLL_INTERVAL_MS,
+} from "@/config/logic";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 import type {
     RecoveryOutcome,
@@ -51,8 +54,6 @@ import type {
 import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
-
-const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = 250;
 
 export interface DashboardViewModelParams {
     workspaceStyle: WorkspaceStyle;

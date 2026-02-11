@@ -18,9 +18,13 @@ import {
     type DetailOpenMode,
 } from "@/modules/dashboard/context/DetailOpenContext";
 import {
+    DETAILS_TOOLTIP_OPACITY_ANIMATION,
+    DROP_OVERLAY_ROLE,
+    DROP_OVERLAY_TITLE_ROLE,
     ICON_STROKE_WIDTH,
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
+    SURFACE_BORDER,
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { Section } from "@/shared/ui/layout/Section";
@@ -34,6 +38,40 @@ const ANIMATION = {
         damping: 26,
     } as Transition,
     entry: { duration: 0.2 },
+} as const;
+
+const OVERLAY_FADE_ANIMATION = {
+    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity },
+    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity },
+    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity },
+    transition: ANIMATION.entry,
+} as const;
+
+const DROP_OVERLAY_ACCENT_ANIMATION = {
+    initial: { scale: 0.96, opacity: 0.4 },
+    animate: { scale: 1, opacity: 0.8 },
+    exit: { opacity: 0 },
+    transition: {
+        ...ANIMATION.spring,
+        repeat: Infinity,
+        repeatType: "reverse" as const,
+    },
+} as const;
+
+const FULLSCREEN_PANEL_ANIMATION = {
+    initial: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        scale: 0.96,
+    },
+    animate: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        scale: 1,
+    },
+    exit: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity,
+        scale: 0.96,
+    },
+    transition: { duration: 0.25 },
 } as const;
 
 interface DashboardLayoutProps {
@@ -173,31 +211,21 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             {isDropActive && (
                 <motion.div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={ANIMATION.entry}
+                    {...OVERLAY_FADE_ANIMATION}
                 >
                     <motion.div
                         className="absolute inset-2 border border-primary/60"
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
-                        initial={{ scale: 0.96, opacity: 0.4 }}
-                        animate={{ scale: 1, opacity: 0.8 }}
-                        exit={{ opacity: 0 }}
-                        transition={{
-                            ...ANIMATION.spring,
-                            repeat: Infinity,
-                            repeatType: "reverse",
-                        }}
+                        {...DROP_OVERLAY_ACCENT_ANIMATION}
                     />
-                    <div className="relative z-10 tt-drop-overlay">
+                    <div className={cn("relative z-10", DROP_OVERLAY_ROLE)}>
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-primary"
                         />
-                        <span className="tt-drop-overlay__title">
+                        <span className={DROP_OVERLAY_TITLE_ROLE}>
                             {t("drop_overlay.title")}
                         </span>
                     </div>
@@ -347,9 +375,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
                         className="fixed inset-0 z-40"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        {...OVERLAY_FADE_ANIMATION}
                         transition={{ duration: 0.25 }}
                     >
                         <Section
@@ -359,13 +385,10 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             <div className="absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm" />
                             <motion.div
                                 className={cn(
-                                    "relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-medium",
+                                    `relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${SURFACE_BORDER} shadow-medium`,
                                 )}
                                 style={{ borderRadius: `${shell.radius}px` }}
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{ duration: 0.25 }}
+                                {...FULLSCREEN_PANEL_ANIMATION}
                             >
                                 <TorrentDetails
                                     viewModel={detail}

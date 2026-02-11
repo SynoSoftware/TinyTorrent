@@ -31,6 +31,9 @@ import { useTranslation } from "react-i18next";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
+import { SURFACE_BORDER } from "@/config/logic";
+import type { RecoveryAction } from "@/services/rpc/entities";
+import type { RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
 
 type RowMenuAction = {
     key: string;
@@ -39,30 +42,18 @@ type RowMenuAction = {
     disabled?: boolean;
 };
 
+const RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION = {
+    locate: "setLocation",
+    chooseLocation: "setLocation",
+    openFolder: "openFolder",
+    downloadMissing: "reDownload",
+    retry: "forceRecheck",
+} satisfies Record<RecoveryRecommendedAction, RecoveryAction>;
+
 const mapRecommendedActionToEmphasis = (
-    action?: string,
-):
-    | "setLocation"
-    | "openFolder"
-    | "reDownload"
-    | "pause"
-    | "reannounce"
-    | "forceRecheck"
-    | undefined => {
-    switch (action) {
-        case "locate":
-        case "chooseLocation":
-            return "setLocation";
-        case "openFolder":
-            return "openFolder";
-        case "downloadMissing":
-            return "reDownload";
-        case "retry":
-            return "forceRecheck";
-        default:
-            return undefined;
-    }
-};
+    action?: RecoveryRecommendedAction,
+): RecoveryAction | undefined =>
+    action ? RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION[action] : undefined;
 
 interface RowMenuViewModel {
     actions: RowMenuAction[];
@@ -274,7 +265,7 @@ function TorrentTable_RowMenuInner({
                 key="queue-heading"
                 isDisabled
                 className={cn(
-                    "border-t border-content1/20 pt-panel",
+                    `border-t ${SURFACE_BORDER} pt-panel`,
                     MENU_SECTION_HEADING,
                 )}
             >
@@ -300,7 +291,7 @@ function TorrentTable_RowMenuInner({
                 key="data-title"
                 isDisabled
                 className={cn(
-                    "border-t border-content1/20 mt-tight pt-tight font-bold",
+                    `border-t ${SURFACE_BORDER} mt-tight pt-tight font-bold`,
                     MENU_SECTION_HEADING,
                 )}
                 style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
@@ -390,7 +381,7 @@ function TorrentTable_RowMenuInner({
             items.push(
                 <DropdownItem
                     key="set-location-editor"
-                    className="border-t border-content1/20 p-0"
+                    className={`border-t ${SURFACE_BORDER} p-0`}
                     role="presentation"
                     textValue={t("table.actions.set_download_path")}
                 >

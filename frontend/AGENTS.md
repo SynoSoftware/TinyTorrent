@@ -258,6 +258,13 @@ Ad-hoc container styling that duplicates spacing, surface framing, or grouping b
 This rule exists to ensure deterministic layout rhythm, eliminate class drift, and guarantee visual consistency across panels, modals, inspectors, and feature surfaces.
 Structural primitives are the only allowed layout ownership layer; feature components must not introduce alternative layout abstractions.
 
+**Layout Authority Rule (Hard)**
+
+Layout spacing, grouping, and alignment must be owned by structural primitives or semantic layout roles.
+Feature components must not construct layout containers using Tailwind spacing, gap, padding, or flex recipes except for trivial single-element wrappers.
+
+Repeated layout class strings or layout values appearing in feature components are architectural violations and must be centralized.
+
 ---
 
 ## **1. Approved Structural Primitives**
@@ -1623,3 +1630,26 @@ UI-facing command surfaces MUST return typed outcomes (per §20.5).
 Exceptions may exist only internally and must be converted once at the boundary owner (ViewModel / orchestrator / service).
 
 Providing parallel “throw” and “outcome” variants for the same operations is forbidden.
+
+
+## **21.13 Integration-First & Ownership Gate (Hard)**
+
+Before creating any new file, module, hook, service, model, constant set, or configuration surface, the implementer must first identify the canonical owner of the responsibility and extend that owner whenever the responsibility belongs to its lifecycle and authority.
+
+A new file or module may be introduced only when:
+
+- no valid ownership surface exists, **or**
+- the responsibility is lifecycle-independent (pure domain logic, reusable primitive, or cross-feature algorithm), **or**
+- extending the existing owner would create multi-responsibility ownership or materially increase authority-surface complexity.
+
+Every newly introduced module must:
+
+- declare explicit ownership and lifecycle consistent with §21 rules,
+- have at least one immediate consumer at the time of introduction,
+- demonstrably reduce duplication, responsibility overload, or execution-path complexity,
+- and document the integration attempt explaining why the existing owner could not be extended without violating ownership or lifecycle boundaries.
+
+Creation of parallel abstractions representing the same responsibility remains an architectural defect, and PRs introducing new surfaces without satisfying these conditions must be rejected.
+
+**Enforcement Clause:**
+Claims such as “cleaner,” “more modular,” or “better separation” are insufficient justification unless accompanied by explicit, verifiable evidence of duplication removal, ownership clarification, responsibility-surface reduction, or execution-path simplification.

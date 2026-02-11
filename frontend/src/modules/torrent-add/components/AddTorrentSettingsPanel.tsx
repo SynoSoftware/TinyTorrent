@@ -25,12 +25,7 @@ import {
 import { describePathKind } from "@/modules/torrent-add/utils/destination";
 import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-
-const DESTINATION_INPUT_CLASSNAMES = {
-    input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
-    inputWrapper:
-        "surface-layer-1 transition-colors shadow-none group-hover:border-default/10",
-};
+import { INPUT_CLASSNAMES_MONO_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
@@ -78,7 +73,7 @@ export function AddTorrentSettingsPanel() {
                             )}
                             variant="flat"
                             autoComplete="off"
-                            classNames={DESTINATION_INPUT_CLASSNAMES}
+                            classNames={INPUT_CLASSNAMES_MONO_SURFACE}
                             startContent={
                                 <FolderOpen className="toolbar-icon-size-md text-primary mb-tight" />
                             }

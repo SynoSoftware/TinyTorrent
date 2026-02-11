@@ -25,6 +25,7 @@ import {
     KEY_SCOPE,
     KEYMAP,
     ShortcutIntent,
+    SURFACE_BORDER,
     TABLE_LAYOUT,
 } from "@/config/logic";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
@@ -732,7 +733,7 @@ export function useTorrentTableViewModel({
     const headerContainerClass = useMemo(
         () =>
             (cn(
-                "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm",
+                `flex w-full sticky top-0 z-20 border-b ${SURFACE_BORDER} bg-content1/10 backdrop-blur-sm`,
             ) ?? "") as string,
         [],
     );

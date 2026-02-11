@@ -14,6 +14,7 @@ import { cn, Skeleton } from "@heroui/react";
 import TorrentTable_Row from "@/modules/dashboard/components/TorrentTable_Row";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
+import { SURFACE_BORDER } from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
@@ -192,7 +193,8 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         height: rowHeight,
                                     }}
                                     className={cn(
-                                        "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl px-panel box-border",
+                                        "pointer-events-none border bg-background/90 backdrop-blur-3xl px-panel box-border",
+                                        SURFACE_BORDER,
                                         PANEL_SHADOW
                                     )}
                                 >
