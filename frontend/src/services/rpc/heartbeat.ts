@@ -16,6 +16,7 @@ import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerpr
 import { processHeartbeat } from "@/services/rpc/recoveryAutomation";
 import { enforceStateTransition } from "@/services/rpc/normalizers";
 import STATUS from "@/shared/status";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
@@ -675,12 +676,15 @@ export class HeartbeatManager {
                                 }
                             );
                             if (shouldDiag) {
-                                console.debug(
-                                    removedWillBeNoop
-                                        ? "[tiny-torrent][heartbeat][removed-quiet]"
-                                        : "[tiny-torrent][heartbeat][removed]",
-                                    { removed: delta.removed }
-                                );
+                                infraLogger.debug({
+                                    scope: "heartbeat",
+                                    event: removedWillBeNoop
+                                        ? "removed_quiet"
+                                        : "removed",
+                                    message:
+                                        "Received removed torrent ids from recently-active delta",
+                                    details: { removed: delta.removed },
+                                });
                             }
                             for (const id of delta.removed) {
                                 const key = String(id);
@@ -690,10 +694,13 @@ export class HeartbeatManager {
                                     now - lastSeen < RECENT_REMOVED_TTL_MS
                                 ) {
                                     if (shouldDiag) {
-                                        console.debug(
-                                            "[tiny-torrent][heartbeat][removed-skipped]",
-                                            { id, key, lastSeen }
-                                        );
+                                        infraLogger.debug({
+                                            scope: "heartbeat",
+                                            event: "removed_skipped",
+                                            message:
+                                                "Skipped removed id already processed recently",
+                                            details: { id, key, lastSeen },
+                                        });
                                     }
                                     continue;
                                 }
@@ -739,18 +746,24 @@ export class HeartbeatManager {
                                     if (!wasPresentInPrev) {
                                         this.recentRemoved.set(key, now);
                                         if (shouldDiag) {
-                                            console.debug(
-                                                "[tiny-torrent][heartbeat][removed-absent]",
-                                                { id, key }
-                                            );
+                                            infraLogger.debug({
+                                                scope: "heartbeat",
+                                                event: "removed_absent",
+                                                message:
+                                                    "Removed id was absent from previous snapshot",
+                                                details: { id, key },
+                                            });
                                         }
                                     }
                                 }
                                 if (shouldDiag) {
-                                    console.debug(
-                                        "[tiny-torrent][heartbeat][removed-deleted]",
-                                        { id, key, deleted }
-                                    );
+                                    infraLogger.debug({
+                                        scope: "heartbeat",
+                                        event: "removed_deleted",
+                                        message:
+                                            "Applied removal candidate to heartbeat map",
+                                        details: { id, key, deleted },
+                                    });
                                 }
                             }
                             for (const [
@@ -790,10 +803,13 @@ export class HeartbeatManager {
                             });
                             if (leftover.length > 0) {
                                 if (shouldDiag) {
-                                    console.debug(
-                                        "[tiny-torrent][heartbeat][removed-leftover]",
-                                        { leftover }
-                                    );
+                                    infraLogger.debug({
+                                        scope: "heartbeat",
+                                        event: "removed_leftover",
+                                        message:
+                                            "Found leftover removed ids after delta merge",
+                                        details: { leftover },
+                                    });
                                 }
                                 const nowResync = Date.now();
                                 if (
@@ -802,10 +818,13 @@ export class HeartbeatManager {
                                 ) {
                                     try {
                                         if (shouldDiag) {
-                                            console.debug(
-                                                "[tiny-torrent][heartbeat][leftover-resync]",
-                                                { leftover }
-                                            );
+                                            infraLogger.debug({
+                                                scope: "heartbeat",
+                                                event: "leftover_resync",
+                                                message:
+                                                    "Triggering full resync due to leftover removed ids",
+                                                details: { leftover },
+                                            });
                                         }
                                         const [all, stats] = await Promise.all([
                                             this.client.getTorrents(),
@@ -816,19 +835,28 @@ export class HeartbeatManager {
                                         this.cycleCount = 0;
                                         this.lastResyncAt = nowResync;
                                     } catch (err) {
-                                        console.error(
-                                            "[tiny-torrent][heartbeat][resync-failed]",
-                                            err
+                                        infraLogger.error(
+                                            {
+                                                scope: "heartbeat",
+                                                event: "leftover_resync_failed",
+                                                message:
+                                                    "Full resync failed after leftover removed ids were detected",
+                                                details: { leftover },
+                                            },
+                                            err,
                                         );
                                     }
                                 } else if (shouldDiag) {
-                                    console.debug(
-                                        "[tiny-torrent][heartbeat][leftover-resync-skipped]",
-                                        {
+                                    infraLogger.debug({
+                                        scope: "heartbeat",
+                                        event: "leftover_resync_skipped",
+                                        message:
+                                            "Skipped leftover-triggered resync due to cooldown",
+                                        details: {
                                             leftover,
                                             lastResyncAt: this.lastResyncAt,
-                                        }
-                                    );
+                                        },
+                                    });
                                 }
                             }
                         }

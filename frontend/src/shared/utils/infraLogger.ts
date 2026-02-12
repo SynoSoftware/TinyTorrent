@@ -15,18 +15,18 @@ const LOG_PREFIX = "[tiny-torrent]";
 
 const getConsoleMethod = (
     level: InfraLogLevel,
-): ((...args: InfraLogValue[]) => void) | null => {
+): ((...args: unknown[]) => void) | null => {
     if (typeof console === "undefined") {
         return null;
     }
     if (level === "debug" && typeof console.debug === "function") {
-        return console.debug.bind(console) as (...args: InfraLogValue[]) => void;
+        return console.debug.bind(console) as (...args: unknown[]) => void;
     }
     if (level === "warn" && typeof console.warn === "function") {
-        return console.warn.bind(console) as (...args: InfraLogValue[]) => void;
+        return console.warn.bind(console) as (...args: unknown[]) => void;
     }
     if (level === "error" && typeof console.error === "function") {
-        return console.error.bind(console) as (...args: InfraLogValue[]) => void;
+        return console.error.bind(console) as (...args: unknown[]) => void;
     }
     return null;
 };
@@ -34,7 +34,7 @@ const getConsoleMethod = (
 const writeLog = (
     level: InfraLogLevel,
     event: InfraLogEvent,
-    errorDetail?: InfraLogValue,
+    errorDetail?: unknown,
 ) => {
     const writer = getConsoleMethod(level);
     if (!writer) {
@@ -59,13 +59,13 @@ const writeLog = (
 };
 
 export const infraLogger = {
-    debug(event: InfraLogEvent, errorDetail?: InfraLogValue) {
+    debug(event: InfraLogEvent, errorDetail?: unknown) {
         writeLog("debug", event, errorDetail);
     },
-    warn(event: InfraLogEvent, errorDetail?: InfraLogValue) {
+    warn(event: InfraLogEvent, errorDetail?: unknown) {
         writeLog("warn", event, errorDetail);
     },
-    error(event: InfraLogEvent, errorDetail?: InfraLogValue) {
+    error(event: InfraLogEvent, errorDetail?: unknown) {
         writeLog("error", event, errorDetail);
     },
 } as const;

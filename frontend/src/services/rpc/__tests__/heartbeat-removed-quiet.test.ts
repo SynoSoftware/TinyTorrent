@@ -117,7 +117,16 @@ describe("HeartbeatManager removed quiet logging", () => {
 
         // Ensure removed-quiet debug call occurred
         const calledWithRemovedQuiet = debugSpy.mock.calls.some(
-            (c) => c[0] === "[tiny-torrent][heartbeat][removed-quiet]"
+            (c) =>
+                c[0] === "[tiny-torrent]" &&
+                typeof c[1] === "object" &&
+                c[1] !== null &&
+                "scope" in c[1] &&
+                "event" in c[1] &&
+                (c[1] as { scope?: string; event?: string }).scope ===
+                    "heartbeat" &&
+                (c[1] as { scope?: string; event?: string }).event ===
+                    "removed_quiet"
         );
         expect(calledWithRemovedQuiet).toBe(true);
 

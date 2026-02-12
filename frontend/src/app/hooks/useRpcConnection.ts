@@ -9,6 +9,7 @@ import type {
 } from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
@@ -40,7 +41,14 @@ export function useRpcConnection(
     const reportTransportError = useCallback(
         (error?: unknown) => {
             // TODO: Standardize log prefixes to “Transmission RPC” (not “tiny-torrent”) once legacy RPC-extended paths are removed.
-            console.error("[tiny-torrent][rpc] transport error", error);
+            infraLogger.error(
+                {
+                    scope: "rpc_connection",
+                    event: "transport_error",
+                    message: "RPC transport error reported",
+                },
+                error,
+            );
             updateStatus(STATUS.connection.ERROR);
         },
         [updateStatus]
@@ -52,14 +60,26 @@ export function useRpcConnection(
 
     const reportCommandError = useCallback((error?: unknown) => {
         // TODO: Unify error reporting through a single logger/telemetry boundary (Session provider), so leaf hooks don’t each invent their own logging semantics.
-        console.warn("[tiny-torrent][rpc] command error", error);
+        infraLogger.warn(
+            {
+                scope: "rpc_connection",
+                event: "command_error",
+                message: "RPC command error reported",
+            },
+            error,
+        );
     }, []);
 
     const reportReadError = useCallback((error?: unknown) => {
         // TODO: Clarify terminology: this is not a “read error” vs “transport status” distinction users care about. Replace with a single app-level status model (connected/offline/degraded) owned by the Session provider.
-        console.warn(
-            "[tiny-torrent][rpc] read RPC error - transport status remains connected",
-            error
+        infraLogger.warn(
+            {
+                scope: "rpc_connection",
+                event: "read_error",
+                message:
+                    "RPC read operation failed while transport remains connected",
+            },
+            error,
         );
     }, []);
 
@@ -89,7 +109,15 @@ export function useRpcConnection(
                 action,
             });
         } catch (err) {
-            console.error("[tiny-torrent][rpc] connection failed", err);
+            infraLogger.error(
+                {
+                    scope: "rpc_connection",
+                    event: "connect_failed",
+                    message: "RPC connection probe failed",
+                    details: { action },
+                },
+                err,
+            );
             updateStatus(STATUS.connection.ERROR);
             if (isMountedRef.current) setIsReady(false);
             return recordAttempt({
@@ -127,7 +155,14 @@ export function useRpcConnection(
 
             return await connect("reconnect");
         } catch (err) {
-            console.warn("[tiny-torrent][rpc] reconnect failed", err);
+            infraLogger.warn(
+                {
+                    scope: "rpc_connection",
+                    event: "reconnect_failed",
+                    message: "RPC reconnect request failed",
+                },
+                err,
+            );
             reportTransportError(err);
             if (isMountedRef.current) setIsReady(false);
             return recordAttempt({

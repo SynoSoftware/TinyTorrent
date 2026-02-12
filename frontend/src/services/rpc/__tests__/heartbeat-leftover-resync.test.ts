@@ -108,7 +108,16 @@ describe("HeartbeatManager leftover resync", () => {
 
         // The leftover resync debug should have been called
         const calledLeftoverResync = debugSpy.mock.calls.some(
-            (c) => c[0] === "[tiny-torrent][heartbeat][leftover-resync]"
+            (c) =>
+                c[0] === "[tiny-torrent]" &&
+                typeof c[1] === "object" &&
+                c[1] !== null &&
+                "scope" in c[1] &&
+                "event" in c[1] &&
+                (c[1] as { scope?: string; event?: string }).scope ===
+                    "heartbeat" &&
+                (c[1] as { scope?: string; event?: string }).event ===
+                    "leftover_resync"
         );
         expect(calledLeftoverResync).toBe(true);
 

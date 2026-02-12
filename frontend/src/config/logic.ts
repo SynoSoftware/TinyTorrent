@@ -528,15 +528,22 @@ export const CELL_BASE_CLASS =
 // base so color, padding and typography remain consistent.
 // `HEADER_BASE` is typography-only: casing, scale, tracking and subdued text color.
 // It must NOT include background, padding, grid, border, or rounding.
+// 
+// DEPRECATED: Use TEXT_ROLE.label from @/config/textRoles instead
 export const HEADER_BASE =
-    "text-scaled uppercase tracking-tight text-foreground/50";
+    "text-label font-bold uppercase tracking-label text-foreground/60";
 export const SURFACE_BORDER = "border-content1/20";
+
+// DEPRECATED: Use TEXT_ROLE from @/config/textRoles instead
 export const TEXT_ROLES = {
     primary: "text-scaled font-semibold text-foreground",
     secondary: "text-scaled text-foreground/70",
     label: `${HEADER_BASE} text-label`,
     helper: "text-label text-foreground/60",
 } as const;
+
+// Re-export centralized text role system for convenience
+export { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 export const STATUS_CHIP_STYLE = {
     width: "var(--tt-status-chip-w)",
     minWidth: "var(--tt-status-chip-w)",

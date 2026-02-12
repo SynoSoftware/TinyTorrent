@@ -13,6 +13,7 @@ import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -306,10 +307,20 @@ export function useSettingsFlow({
                     }
                 }
             } catch (error) {
-                console.error("Failed to save settings", {
-                    error,
-                    payload: sessionPayload,
-                });
+                infraLogger.error(
+                    {
+                        scope: "settings",
+                        event: "save_failed",
+                        message: "Failed to persist session settings",
+                        details: {
+                            hasPayload: Boolean(sessionPayload),
+                        },
+                    },
+                    {
+                        error,
+                        payload: sessionPayload,
+                    },
+                );
                 if (isMountedRef.current) {
                     if (!isRpcCommandError(error)) {
                         reportCommandError(error);

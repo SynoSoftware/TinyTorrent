@@ -16,6 +16,7 @@ import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 export interface UseAddTorrentControllerParams {
     dispatch: (
@@ -174,7 +175,14 @@ export function useAddTorrentController({
                 showFeedback(t("toolbar.feedback.added"), "success");
                 return { status: "added" };
             } catch (err) {
-                console.error("Failed to add magnet", err);
+                infraLogger.error(
+                    {
+                        scope: "add_torrent",
+                        event: "add_magnet_failed",
+                        message: "Failed to add torrent from magnet link",
+                    },
+                    err,
+                );
                 showFeedback(t("modals.add_torrent.magnet_error"), "danger");
                 return { status: "failed", reason: "magnet_add_failed" };
             }
@@ -244,7 +252,14 @@ export function useAddTorrentController({
                     closeAddTorrentWindow();
                     return { status: "added" };
                 } catch (err) {
-                    console.error("Failed to add torrent from file", err);
+                    infraLogger.error(
+                        {
+                            scope: "add_torrent",
+                            event: "add_file_failed",
+                            message: "Failed to add torrent from selected file",
+                        },
+                        err,
+                    );
                     showFeedback(t("modals.add_error_default"), "danger");
                     return { status: "failed", reason: "add_file_failed" };
                 } finally {
@@ -276,7 +291,14 @@ export function useAddTorrentController({
                 closeAddTorrentWindow();
                 return { status: "finalized" };
             } catch (err) {
-                console.error("Failed to finalize existing torrent", err);
+                infraLogger.error(
+                    {
+                        scope: "add_torrent",
+                        event: "finalize_existing_failed",
+                        message: "Failed to finalize existing torrent selection",
+                    },
+                    err,
+                );
                 showFeedback(t("modals.add_error_default"), "danger");
                 return { status: "failed", reason: "finalize_failed" };
             } finally {
