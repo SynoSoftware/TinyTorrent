@@ -3,8 +3,7 @@ import { TorrentDetailHeader } from "@/modules/dashboard/components/TorrentDetai
 import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
 import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
 import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
+    SURFACE_ATOM_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -57,7 +56,7 @@ export function TorrentDetails({
         <div
             className={cn(
                 className,
-                cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW),
+                cn(SURFACE_ATOM_CLASS.glassBlock, SURFACE_ATOM_CLASS.shadowBlock),
                 isStandalone ? "overflow-y-auto" : null,
                 "h-full min-h-0 flex flex-col outline-none rounded-2xl"
             )}

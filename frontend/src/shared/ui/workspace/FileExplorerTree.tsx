@@ -21,31 +21,10 @@ import type {
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
-    buildFileTreeSelectionActionsClass,
-    CHECKBOX_PRIMARY_CLASSNAMES,
-    FILE_TREE_CONTAINER_CLASS,
-    FILE_TREE_EMPTY_ICON_CLASS,
-    FILE_TREE_EMPTY_OVERLAY_CLASS,
-    FILE_TREE_EMPTY_TEXT_CLASS,
-    FILE_TREE_EXPAND_BUTTON_CLASS,
-    FILE_TREE_FILTER_BUTTON_CLASS,
-    FILE_TREE_FILTER_ICON_CLASS,
-    FILE_TREE_HEADER_CHECKBOX_WRAP_CLASS,
-    FILE_TREE_HEADER_PRIORITY_CLASS,
-    FILE_TREE_HEADER_PROGRESS_CLASS,
-    FILE_TREE_HEADER_ROW_CLASS,
-    FILE_TREE_HEADER_SIZE_CLASS,
-    FILE_TREE_PRIORITY_BUTTON_CLASS,
-    FILE_TREE_SEARCH_INPUT_CLASSNAMES,
-    FILE_TREE_SCROLL_CLASS,
-    FILE_TREE_SELECTION_ACTIONS_LABEL_CLASS,
-    FILE_TREE_TOOLBAR_CLASS,
-    FILE_TREE_TOOLS_DIVIDER_CLASS,
-    FILE_TREE_VIRTUAL_CANVAS_CLASS,
-    FILE_TREE_VIRTUAL_ROW_CLASS,
-    MENU_ITEM_CLASSNAMES,
-    MENU_LIST_CLASSNAMES,
-    MENU_SURFACE_CLASS,
+    buildFileBrowserSelectionActionsClass,
+    FILE_BROWSER_CLASS,
+    FORM_CONTROL_CLASS,
+    MENU_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { FileExplorerTreeRow } from "@/shared/ui/workspace/FileExplorerTreeRow";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
@@ -137,13 +116,13 @@ export const FileExplorerTree = memo(function FileExplorerTree({
     });
 
     return (
-        <GlassPanel className={FILE_TREE_CONTAINER_CLASS}>
-            <div className={FILE_TREE_TOOLBAR_CLASS}>
+        <GlassPanel className={FILE_BROWSER_CLASS.container}>
+            <div className={FILE_BROWSER_CLASS.toolbar}>
                 <Input
-                    classNames={FILE_TREE_SEARCH_INPUT_CLASSNAMES}
+                    classNames={FILE_BROWSER_CLASS.searchInputClassNames}
                     placeholder={t("actions.search")}
                     startContent={
-                        <Search className="toolbar-icon-size-sm text-default-400" />
+                        <Search className={FILE_BROWSER_CLASS.iconDefault} />
                     }
                     value={searchQuery}
                     onValueChange={setSearchQuery}
@@ -158,9 +137,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             size="md"
                             variant="shadow"
                             isIconOnly
-                            className={FILE_TREE_FILTER_BUTTON_CLASS}
+                            className={FILE_BROWSER_CLASS.filterButton}
                         >
-                            <Filter className={FILE_TREE_FILTER_ICON_CLASS} />
+                            <Filter className={FILE_BROWSER_CLASS.filterIcon} />
                         </Button>
                     </DropdownTrigger>
                     <DropdownMenu
@@ -173,9 +152,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         }
                         disallowEmptySelection
                         variant="shadow"
-                        className={MENU_SURFACE_CLASS}
-                        classNames={MENU_LIST_CLASSNAMES}
-                        itemClasses={MENU_ITEM_CLASSNAMES}
+                        className={MENU_CLASS.surface}
+                        classNames={MENU_CLASS.listClassNames}
+                        itemClasses={MENU_CLASS.itemClassNames}
                     >
                         <DropdownItem key="all">{t("status.all")}</DropdownItem>
                         <DropdownItem key="video">
@@ -187,36 +166,36 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                     </DropdownMenu>
                 </Dropdown>
 
-                <div className={FILE_TREE_TOOLS_DIVIDER_CLASS} />
+                <div className={FILE_BROWSER_CLASS.toolsDivider} />
 
                 <ButtonGroup size="md" variant="shadow">
                     <Button
                         onPress={expandAll}
                         isIconOnly
                         aria-label={t("actions.expand_all")}
-                        className={FILE_TREE_EXPAND_BUTTON_CLASS}
+                        className={FILE_BROWSER_CLASS.expandButton}
                     >
-                        <ArrowDown className="toolbar-icon-size-sm" />
+                        <ArrowDown className={FILE_BROWSER_CLASS.iconSmall} />
                     </Button>
                     <Button
                         onPress={collapseAll}
                         isIconOnly
                         aria-label={t("actions.collapse_all")}
-                        className={FILE_TREE_EXPAND_BUTTON_CLASS}
+                        className={FILE_BROWSER_CLASS.expandButton}
                     >
-                        <ArrowUp className="toolbar-icon-size-sm" />
+                        <ArrowUp className={FILE_BROWSER_CLASS.iconSmall} />
                     </Button>
                 </ButtonGroup>
 
-                <div className="flex-1" />
+                <div className={FILE_BROWSER_CLASS.toolbarSpacer} />
 
                 <div
-                    className={buildFileTreeSelectionActionsClass(
+                    className={buildFileBrowserSelectionActionsClass(
                         selectedIndexes.size > 0,
                     )}
                 >
                     <span
-                        className={FILE_TREE_SELECTION_ACTIONS_LABEL_CLASS}
+                        className={FILE_BROWSER_CLASS.selectionActionsLabel}
                     >
                         {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
                     </span>
@@ -227,9 +206,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                                 color="primary"
                                 variant="shadow"
                                 endContent={
-                                    <ChevronDown className="toolbar-icon-size-sm" />
+                                    <ChevronDown className={FILE_BROWSER_CLASS.iconSmall} />
                                 }
-                                className={FILE_TREE_PRIORITY_BUTTON_CLASS}
+                                className={FILE_BROWSER_CLASS.priorityButton}
                             >
                                 {t("fields.priority")}
                             </Button>
@@ -242,9 +221,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                                 if (key === "skip") handleSetPriority("skip");
                             }}
                             variant="shadow"
-                            className={MENU_SURFACE_CLASS}
-                            classNames={MENU_LIST_CLASSNAMES}
-                            itemClasses={MENU_ITEM_CLASSNAMES}
+                            className={MENU_CLASS.surface}
+                            classNames={MENU_CLASS.listClassNames}
+                            itemClasses={MENU_CLASS.itemClassNames}
                         >
                             <DropdownItem key="high">
                                 {t("priority.high")}
@@ -255,7 +234,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             <DropdownItem key="low">
                                 {t("priority.low")}
                             </DropdownItem>
-                            <DropdownItem key="skip" className="text-danger">
+                            <DropdownItem
+                                key="skip"
+                                className={FILE_BROWSER_CLASS.priorityMenuDangerItem}
+                            >
                                 {t("priority.dont_download")}
                             </DropdownItem>
                         </DropdownMenu>
@@ -265,31 +247,31 @@ export const FileExplorerTree = memo(function FileExplorerTree({
 
             <div
                 className={cn(
-                    FILE_TREE_HEADER_ROW_CLASS,
+                    FILE_BROWSER_CLASS.headerRow,
                     TEXT_ROLE_EXTENDED.fileTreeHeader,
                 )}
             >
-                <div className={FILE_TREE_HEADER_CHECKBOX_WRAP_CLASS}>
+                <div className={FILE_BROWSER_CLASS.headerCheckboxWrap}>
                     <Checkbox
                         size="sm"
                         isSelected={isAllSelected}
                         isIndeterminate={isIndeterminate}
                         onValueChange={handleSelectAll}
-                        classNames={CHECKBOX_PRIMARY_CLASSNAMES}
+                        classNames={FORM_CONTROL_CLASS.checkboxPrimaryClassNames}
                     />
                 </div>
                 <div>{t("fields.name")}</div>
-                <div className={FILE_TREE_HEADER_PRIORITY_CLASS}>{t("fields.priority")}</div>
-                <div className={FILE_TREE_HEADER_PROGRESS_CLASS}>{t("fields.progress")}</div>
-                <div className={FILE_TREE_HEADER_SIZE_CLASS}>{t("fields.size")}</div>
+                <div className={FILE_BROWSER_CLASS.headerPriority}>{t("fields.priority")}</div>
+                <div className={FILE_BROWSER_CLASS.headerProgress}>{t("fields.progress")}</div>
+                <div className={FILE_BROWSER_CLASS.headerSize}>{t("fields.size")}</div>
             </div>
 
             <div
                 ref={parentRef}
-                className={FILE_TREE_SCROLL_CLASS}
+                className={FILE_BROWSER_CLASS.scroll}
             >
                 <div
-                    className={FILE_TREE_VIRTUAL_CANVAS_CLASS}
+                    className={FILE_BROWSER_CLASS.virtualCanvas}
                     style={{ height: `${virtualizer.getTotalSize()}px` }}
                 >
                     {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -317,7 +299,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         return (
                             <div
                                 key={virtualRow.key}
-                                className={FILE_TREE_VIRTUAL_ROW_CLASS}
+                                className={FILE_BROWSER_CLASS.virtualRow}
                                 style={{
                                     height: `${virtualRow.size}px`,
                                     transform: `translateY(${virtualRow.start}px)`,
@@ -341,9 +323,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 </div>
 
                 {visibleNodes.length === 0 && (
-                    <div className={FILE_TREE_EMPTY_OVERLAY_CLASS}>
-                        <Search className={FILE_TREE_EMPTY_ICON_CLASS} />
-                        <p className={FILE_TREE_EMPTY_TEXT_CLASS}>
+                    <div className={FILE_BROWSER_CLASS.emptyOverlay}>
+                        <Search className={FILE_BROWSER_CLASS.emptyIcon} />
+                        <p className={FILE_BROWSER_CLASS.emptyText}>
                             {viewModel.emptyMessage ?? t("errors.no_results")}
                         </p>
                     </div>

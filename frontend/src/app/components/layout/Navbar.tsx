@@ -28,8 +28,7 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
+    SURFACE_ATOM_CLASS,
     buildAppNavSelectionActionsClass,
     APP_NAV_CLASS,
 } from "@/shared/ui/layout/glass-surface";
@@ -106,8 +105,8 @@ export function Navbar({ viewModel }: NavbarProps) {
             >
                 <div
                     className={cn(
-                        GLASS_BLOCK_SURFACE,
-                        BLOCK_SHADOW,
+                        SURFACE_ATOM_CLASS.glassBlock,
+                        SURFACE_ATOM_CLASS.shadowBlock,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
                         APP_NAV_CLASS.main,
@@ -355,8 +354,8 @@ export function Navbar({ viewModel }: NavbarProps) {
 
                 <div
                     className={cn(
-                        GLASS_BLOCK_SURFACE,
-                        BLOCK_SHADOW,
+                        SURFACE_ATOM_CLASS.glassBlock,
+                        SURFACE_ATOM_CLASS.shadowBlock,
                         APP_NAV_CLASS.windowControls,
                     )}
                     style={{

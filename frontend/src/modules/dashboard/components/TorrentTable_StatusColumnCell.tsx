@@ -13,7 +13,7 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
-import { STATUS_CHIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
+import { FORM_CONTROL_CLASS } from "@/shared/ui/layout/glass-surface";
 import {
     ArrowDown,
     ArrowUp,
@@ -176,22 +176,22 @@ export function TorrentTable_StatusCell({
     }
 
     return (
-        <div className="min-w-0 w-full flex items-center justify-center h-full">
+        <div className={FORM_CONTROL_CLASS.statusChipContainer}>
             <Chip
                 size="md"
                 variant="flat"
                 color={conf.color}
                 style={STATUS_CHIP_STYLE}
-                classNames={STATUS_CHIP_CLASSNAMES}
+                classNames={FORM_CONTROL_CLASS.statusChipClassNames}
             >
-                <div className="flex items-center justify-center gap-tools">
+                <div className={FORM_CONTROL_CLASS.statusChipContent}>
                     <StatusIcon
                         Icon={Icon}
                         size="md"
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="text-current"
                     />
-                    <span className="truncate" title={tooltip}>
+                    <span className={FORM_CONTROL_CLASS.statusChipLabel} title={tooltip}>
                         {statusLabel}
                     </span>
                 </div>

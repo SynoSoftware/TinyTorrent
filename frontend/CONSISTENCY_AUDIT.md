@@ -421,6 +421,27 @@ These can be batched with the existing plan phases:
   - [x] Replace feature-prefixed modal/context style APIs with shared semantic names (`SETTINGS_MODAL_*` -> `APP_MODAL_*`, `PEERS_CONTEXT_MENU_*` -> `CONTEXT_MENU_*`, `PEERS_*` -> `SPLIT_VIEW_*`).
   - [x] Merge repeated modal/split/context token groups into shared semantic objects (`APP_MODAL_CLASS`, `SPLIT_VIEW_CLASS`, `CONTEXT_MENU_CLASS`).
   - [x] Merge remaining status/speed/settings token clusters into shared semantic objects (`APP_STATUS_CLASS`, `METRIC_CHART_CLASS`, `FORM_UI_CLASS`, `TORRENT_ADD_FORM_CLASS`) and migrate consumers.
+  - [x] Migrate stale consumers from removed flat constants to grouped shared authorities (`COMMAND_PALETTE_CLASS`, `DASHBOARD_LAYOUT_CLASS`, `FILE_BROWSER_CLASS`, `FORM_CONTROL_CLASS`, `SURFACE_ATOM_CLASS`, `INPUT_SURFACE_CLASS`, `METRIC_CHART_CLASS`, `HEATMAP_VIEW_CLASS`).
+  - [x] Collapse low-level `glass-surface.ts` exports by internalizing menu/modal helper atoms and grouping torrent-header styling as `TORRENT_HEADER_CLASS`.
+  - [x] Remove tracker-specific table styling namespace by migrating `TRACKER_TABLE_CLASS` to shared `DETAIL_TABLE_CLASS` and `buildAvailabilityDotClass`.
+  - [x] Collapse standalone modal/menu/frame exports into grouped shared authorities (`MODAL_SURFACE_CLASS`, `SURFACE_CHROME_CLASS`, `MENU_CLASS`, `SURFACE_FRAME_CLASS`) and migrate all consumers.
+  - [x] Remove remaining import/magnet-prefixed style authorities by migrating to shared workflow/textarea names (`WORKFLOW_MODAL_CLASS`, `WORKFLOW_FORM_CLASS`, `TEXTAREA_CLASS`, `buildWorkflow*` helpers).
+  - [x] Collapse standalone chip/textarea/progress-capacity exports into existing shared authorities (`FORM_CONTROL_CLASS`, `INPUT_SURFACE_CLASS`, `METRIC_CHART_CLASS`) and migrate all consumers.
+  - [x] Move status-chip wrapper/content classes and AddMagnet modal header actions to shared token ownership (`FORM_CONTROL_CLASS`, `APP_MODAL_CLASS`).
+  - [x] Normalize `FileExplorerTreeRow.tsx` by moving remaining inline row/icon/label recipes to shared `FILE_BROWSER_CLASS` tokens.
+  - [x] Normalize `RemoveConfirmationModal.tsx` by moving remaining inline body/footer and checkbox styles to shared modal/form tokens.
+  - [x] Normalize `FileExplorerTree.tsx` by moving remaining inline wrappers/empty-state and drag/drop styles to shared `FILE_BROWSER_CLASS` tokens.
+  - [x] Normalize `TorrentDetails_Peers_Map.tsx` by moving remaining inline map legend/hud/resize classes to shared `SPLIT_VIEW_CLASS` tokens.
+  - [x] Normalize `AddTorrentDestinationGatePanel.tsx` by moving remaining inline gate/status/action classes to shared workflow tokens.
+  - [x] Normalize `AddTorrentSettingsPanel.tsx` by moving remaining inline icon/wrapper/danger-item classes to shared workflow tokens.
+  - [x] Normalize `AddMagnetModal.tsx` by moving remaining inline header/body/footer/icon classes to shared modal tokens.
+  - [x] Normalize `AddTorrentModal.tsx` by moving remaining inline icon/alert text classes to shared workflow tokens.
+  - [x] Migrate `AddTorrentModal.tsx` inline icon and footer-alert class recipes to `APP_MODAL_CLASS.workflow` shared keys.
+  - [x] Refactor `glass-surface.ts` into one canonical standard-surface authority and add missing semantic surface primitives.
+  - [x] Normalize `TorrentRecoveryModal.tsx` by moving remaining inline layout/icon classes to shared modal/surface tokens.
+  - [x] Normalize `LanguageMenu.tsx` by moving inline menu item/surface selection classes into shared `MENU_CLASS` tokens.
+  - [x] Normalize `AddTorrentFileTable.tsx` by moving inline file-table shell classes into shared workflow/list tokens.
+  - [x] Normalize `DiskSpaceGauge.tsx` by moving inline separator/text-size style recipes into shared metric tokens.
   - [_] Continue reducing ad-hoc feature-level class recipes in remaining high-drift files.
 
 ---

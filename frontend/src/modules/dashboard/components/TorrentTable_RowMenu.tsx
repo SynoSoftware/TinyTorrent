@@ -9,10 +9,7 @@ import {
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
 import {
-    MENU_ITEM_CLASSNAMES,
-    MENU_LIST_CLASSNAMES,
-    MENU_SECTION_HEADING,
-    MENU_SURFACE_CLASS,
+    MENU_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
@@ -265,7 +262,7 @@ function TorrentTable_RowMenuInner({
                 isDisabled
                 className={cn(
                     `border-t ${SURFACE_BORDER} pt-panel`,
-                    MENU_SECTION_HEADING,
+                    MENU_CLASS.sectionHeading,
                 )}
             >
                 {rowMenuViewModel.dataTitle}
@@ -291,7 +288,7 @@ function TorrentTable_RowMenuInner({
                 isDisabled
                 className={cn(
                     `border-t ${SURFACE_BORDER} mt-tight pt-tight font-bold`,
-                    MENU_SECTION_HEADING,
+                    MENU_CLASS.sectionHeading,
                 )}
                 style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
             >
@@ -443,9 +440,9 @@ function TorrentTable_RowMenuInner({
             </DropdownTrigger>
             <DropdownMenu
                 variant="shadow"
-                className={MENU_SURFACE_CLASS}
-                classNames={MENU_LIST_CLASSNAMES}
-                itemClasses={MENU_ITEM_CLASSNAMES}
+                className={MENU_CLASS.surface}
+                classNames={MENU_CLASS.listClassNames}
+                itemClasses={MENU_CLASS.itemClassNames}
             >
                 {menuItems}
             </DropdownMenu>

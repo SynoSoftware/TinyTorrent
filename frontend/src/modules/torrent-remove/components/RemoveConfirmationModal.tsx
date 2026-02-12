@@ -8,15 +8,15 @@ import {
     ModalFooter,
     Button,
     Checkbox,
-    cn,
 } from "@heroui/react";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import {
-    MODAL_COMPACT_CLASSNAMES,
-    MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_HEADER,
+    MODAL_SURFACE_CLASS,
+    FORM_CONTROL_CLASS,
+    FORM_UI_CLASS,
+    SURFACE_CHROME_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 interface RemoveConfirmationModalProps {
@@ -135,38 +135,34 @@ export function RemoveConfirmationModal({
                 }
             }}
             backdrop="blur"
-            classNames={MODAL_COMPACT_CLASSNAMES}
+            classNames={MODAL_SURFACE_CLASS.compactClassNames}
         >
             <ModalContent>
-                <ModalHeader
-                    className={cn(MODAL_SURFACE_HEADER, "select-none")}
-                >
+                <ModalHeader className={SURFACE_CHROME_CLASS.headerPassive}>
                     {t("remove_modal.title")}
                 </ModalHeader>
 
-                <ModalBody className="flex flex-col gap-tools">
-                    <p>
-                        {resolvedTorrentCount === 1
-                            ? t("remove_modal.single_torrent_message")
-                            : t("remove_modal.multiple_torrents_message", {
-                                  count: resolvedTorrentCount,
-                              })}
-                    </p>
+                <ModalBody>
+                    <div className={FORM_UI_CLASS.stackTools}>
+                        <p>
+                            {resolvedTorrentCount === 1
+                                ? t("remove_modal.single_torrent_message")
+                                : t("remove_modal.multiple_torrents_message", {
+                                      count: resolvedTorrentCount,
+                                  })}
+                        </p>
 
-                    <Checkbox
-                        isSelected={deleteData}
-                        onValueChange={setDeleteData}
-                    >
-                        {t("remove_modal.delete_files_option")}
-                    </Checkbox>
+                        <Checkbox
+                            isSelected={deleteData}
+                            onValueChange={setDeleteData}
+                            classNames={FORM_CONTROL_CLASS.checkboxLabelBodySmallClassNames}
+                        >
+                            {t("remove_modal.delete_files_option")}
+                        </Checkbox>
+                    </div>
                 </ModalBody>
 
-                <ModalFooter
-                    className={cn(
-                        MODAL_SURFACE_FOOTER,
-                        "flex justify-end gap-tools",
-                    )}
-                >
+                <ModalFooter className={SURFACE_CHROME_CLASS.footerEnd}>
                     <Button
                         variant="light"
                         onPress={resolvedOnClose}
