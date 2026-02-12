@@ -19,7 +19,7 @@ import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import {
     cloneDevErrorEnvelope,
     cloneDevTorrentDetail,
-    type DevRecoveryFaultMode,
+    type DevTestFaultMode,
 } from "@/app/dev/recovery/scenarios";
 
 const createFsError = (code: string, message: string) => {
@@ -28,15 +28,15 @@ const createFsError = (code: string, message: string) => {
     return err;
 };
 
-export class DevRecoveryAdapter implements EngineAdapter {
+export class DevTestAdapter implements EngineAdapter {
     private detail: TorrentDetailEntity;
-    private faultMode: DevRecoveryFaultMode;
+    private faultMode: DevTestFaultMode;
     private verifyFails: boolean;
     private readonly verifyDelayMs = 450;
 
     constructor(
         initialDetail: TorrentDetailEntity,
-        initialFaultMode: DevRecoveryFaultMode,
+        initialFaultMode: DevTestFaultMode,
     ) {
         this.detail = cloneDevTorrentDetail(initialDetail);
         this.faultMode = initialFaultMode;
@@ -45,7 +45,7 @@ export class DevRecoveryAdapter implements EngineAdapter {
 
     configure(params: {
         detail: TorrentDetailEntity;
-        faultMode: DevRecoveryFaultMode;
+        faultMode: DevTestFaultMode;
         verifyFails: boolean;
     }) {
         this.detail = cloneDevTorrentDetail(params.detail);
@@ -53,7 +53,7 @@ export class DevRecoveryAdapter implements EngineAdapter {
         this.verifyFails = params.verifyFails;
     }
 
-    setFaultMode(mode: DevRecoveryFaultMode) {
+    setFaultMode(mode: DevTestFaultMode) {
         this.faultMode = mode;
     }
 
@@ -141,7 +141,9 @@ export class DevRecoveryAdapter implements EngineAdapter {
     async resume(ids: string[]): Promise<void> {
         void ids;
         if (this.faultMode !== "ok") {
-            this.throwFault(this.detail.downloadDir ?? this.detail.savePath ?? "");
+            this.throwFault(
+                this.detail.downloadDir ?? this.detail.savePath ?? "",
+            );
         }
         this.updateDetail({
             state: STATUS.torrent.DOWNLOADING,

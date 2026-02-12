@@ -5,8 +5,8 @@ import { HotkeysProvider } from "react-hotkeys-hook";
 import "@/index.css";
 import "@/i18n/index";
 import App from "@/app/App";
-import DevTest from "@/app/components/DevRecoveryPlayground";
-import { DEV_RECOVERY_PLAYGROUND_PATH } from "@/app/dev/recovery/scenarios";
+import DevTest from "@/app/components/DevTest";
+import { DEV_TEST_PATH } from "@/app/dev/recovery/scenarios";
 import { ClientProvider } from "@/app/providers/TorrentClientProvider";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import {
@@ -41,10 +41,7 @@ const APP_TOAST_REGION_PROPS = {
 const rootPathname =
     typeof window === "undefined" ? "" : window.location.pathname;
 const AppEntry =
-    import.meta.env.DEV &&
-    rootPathname === DEV_RECOVERY_PLAYGROUND_PATH
-    ? DevTest
-    : App;
+    import.meta.env.DEV && rootPathname === DEV_TEST_PATH ? DevTest : App;
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

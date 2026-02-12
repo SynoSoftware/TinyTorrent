@@ -6,100 +6,91 @@ import type {
 } from "@/services/rpc/entities";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 
-export const DEV_RECOVERY_PLAYGROUND_PATH = "/__dev/recovery";
+export const DEV_TEST_PATH = "/__dev/recovery";
 export const DEV_RECOVERY_TORRENT_ID = "dev-recovery-torrent";
 export const DEV_RECOVERY_TORRENT_HASH = "dev-recovery-hash";
 
-export type DevRecoveryScenarioId =
+export type DevTestScenarioId =
     | "data_gap"
     | "path_loss"
     | "volume_loss"
     | "access_denied"
     | "disk_full";
 
-export type DevRecoveryFaultMode =
-    | "ok"
-    | "missing"
-    | "access_denied"
-    | "disk_full";
+export type DevTestFaultMode = "ok" | "missing" | "access_denied" | "disk_full";
 
-export type DevRecoveryScenarioDefinition = {
-    id: DevRecoveryScenarioId;
+export type DevTestScenarioDefinition = {
+    id: DevTestScenarioId;
     labelKey: string;
     kind: "dataGap" | "pathLoss" | "volumeLoss" | "accessDenied";
     path: string;
     root?: string;
-    faultMode: DevRecoveryFaultMode;
+    faultMode: DevTestFaultMode;
     errorClass: "missingFiles" | "permissionDenied";
     errorMessage: string;
     verifyFailsByDefault?: boolean;
     expectedBehaviorKey: string;
 };
 
-export const DEV_RECOVERY_SCENARIOS: DevRecoveryScenarioDefinition[] = [
+export const DEV_TEST_SCENARIOS: DevTestScenarioDefinition[] = [
     {
         id: "data_gap",
-        labelKey: "dev.recovery_playground.scenario.data_gap",
+        labelKey: "dev.test.scenario.data_gap",
         kind: "dataGap",
         path: "D:\\RecoveryLab\\DataGap",
         faultMode: "ok",
         errorClass: "missingFiles",
         errorMessage: "hash-check failed; pieces missing",
         verifyFailsByDefault: true,
-        expectedBehaviorKey:
-            "dev.recovery_playground.expected_behavior.data_gap",
+        expectedBehaviorKey: "dev.test.expected_behavior.data_gap",
     },
     {
         id: "path_loss",
-        labelKey: "dev.recovery_playground.scenario.path_loss",
+        labelKey: "dev.test.scenario.path_loss",
         kind: "pathLoss",
         path: "D:\\RecoveryLab\\MissingFolder",
         faultMode: "missing",
         errorClass: "missingFiles",
         errorMessage: "No such file or directory",
-        expectedBehaviorKey:
-            "dev.recovery_playground.expected_behavior.path_loss",
+        expectedBehaviorKey: "dev.test.expected_behavior.path_loss",
     },
     {
         id: "volume_loss",
-        labelKey: "dev.recovery_playground.scenario.volume_loss",
+        labelKey: "dev.test.scenario.volume_loss",
         kind: "volumeLoss",
         path: "E:\\DetachedVolume\\Media",
         root: "E:",
         faultMode: "missing",
         errorClass: "missingFiles",
         errorMessage: "Drive not ready: volume disconnected",
-        expectedBehaviorKey:
-            "dev.recovery_playground.expected_behavior.volume_loss",
+        expectedBehaviorKey: "dev.test.expected_behavior.volume_loss",
     },
     {
         id: "access_denied",
-        labelKey: "dev.recovery_playground.scenario.access_denied",
+        labelKey: "dev.test.scenario.access_denied",
         kind: "accessDenied",
         path: "D:\\RecoveryLab\\ReadOnly",
         faultMode: "access_denied",
         errorClass: "permissionDenied",
         errorMessage: "Access is denied",
-        expectedBehaviorKey:
-            "dev.recovery_playground.expected_behavior.access_denied",
+        expectedBehaviorKey: "dev.test.expected_behavior.access_denied",
     },
     {
         id: "disk_full",
-        labelKey: "dev.recovery_playground.scenario.disk_full",
+        labelKey: "dev.test.scenario.disk_full",
         kind: "pathLoss",
         path: "D:\\RecoveryLab\\DiskFull",
         faultMode: "disk_full",
         errorClass: "missingFiles",
         errorMessage: "No space left on device",
-        expectedBehaviorKey:
-            "dev.recovery_playground.expected_behavior.disk_full",
+        expectedBehaviorKey: "dev.test.expected_behavior.disk_full",
     },
 ];
 
 export const devRecoveryScenarioById = new Map<
-    DevRecoveryScenarioId,
-    DevRecoveryScenarioDefinition
->(DEV_RECOVERY_SCENARIOS.map((scenario) => [scenario.id, scenario]));
+    DevTestScenarioId,
+    DevTestScenarioDefinition
+>(DEV_TEST_SCENARIOS.map((scenario) => [scenario.id, scenario]));
 
 export const cloneDevErrorEnvelope = (
     source: TorrentEntity["errorEnvelope"],
@@ -124,12 +115,12 @@ export const cloneDevTorrentDetail = (
 });
 
 export const createDevScenarioTorrent = (
-    scenario: DevRecoveryScenarioDefinition,
+    scenario: DevTestScenarioDefinition,
     confidence: RecoveryConfidence,
 ): TorrentDetailEntity => ({
     id: DEV_RECOVERY_TORRENT_ID,
     hash: DEV_RECOVERY_TORRENT_HASH,
-    name: "Recovery Playground Sample",
+    name: "Recovery Sample",
     state: STATUS.torrent.MISSING_FILES,
     speed: { down: 0, up: 0 },
     peerSummary: { connected: 0, total: 0 },
@@ -159,9 +150,9 @@ export const createDevScenarioTorrent = (
     },
 });
 
-export const devFaultModeLabelKey: Record<DevRecoveryFaultMode, string> = {
-    ok: "dev.recovery_playground.fault.ok",
-    missing: "dev.recovery_playground.fault.missing",
-    access_denied: "dev.recovery_playground.fault.access_denied",
-    disk_full: "dev.recovery_playground.fault.disk_full",
+export const devFaultModeLabelKey: Record<DevTestFaultMode, string> = {
+    ok: "dev.test.fault.ok",
+    missing: "dev.test.fault.missing",
+    access_denied: "dev.test.fault.access_denied",
+    disk_full: "dev.test.fault.disk_full",
 };

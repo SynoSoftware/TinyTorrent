@@ -1,15 +1,15 @@
 import { Button, Switch } from "@heroui/react";
-import { Copy } from "lucide-react";
+import { Copy, ChevronUp, ChevronDown } from "lucide-react";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
-import { DEV_RECOVERY_PLAYGROUND_PATH } from "@/app/dev/recovery/scenarios";
-import { useDevRecoveryPlaygroundViewModel } from "@/app/viewModels/useDevRecoveryPlaygroundViewModel";
+import { DEV_TEST_PATH } from "@/app/dev/recovery/scenarios";
+import { useDevTestViewModel as useDevTestViewModel } from "@/app/viewModels/useDevTestViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Section } from "@/shared/ui/layout/Section";
 
-export { DEV_RECOVERY_PLAYGROUND_PATH };
+export { DEV_TEST_PATH };
 
 export default function DevTest() {
-    const viewModel = useDevRecoveryPlaygroundViewModel();
+    const viewModel = useDevTestViewModel();
 
     return (
         <Section
@@ -39,29 +39,35 @@ export default function DevTest() {
                                     {viewModel.scenario.title}
                                 </p>
                                 <div className="grid grid-cols-2 gap-tools">
-                                    {viewModel.scenario.options.map((option) => (
-                                        <Button
-                                            key={option.id}
-                                            variant={
-                                                option.isSelected ? "shadow" : "light"
-                                            }
-                                            color={
-                                                option.isSelected ? "primary" : "default"
-                                            }
-                                            size="md"
-                                            className="h-auto w-full justify-start whitespace-normal text-left"
-                                            onPress={option.onSelect}
-                                        >
-                                            <div className="flex flex-col items-start gap-tight">
-                                                <span className="font-semibold">
-                                                    {option.label}
-                                                </span>
-                                                <span className="text-label text-foreground/70">
-                                                    {option.kindLabel}
-                                                </span>
-                                            </div>
-                                        </Button>
-                                    ))}
+                                    {viewModel.scenario.options.map(
+                                        (option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={
+                                                    option.isSelected
+                                                        ? "shadow"
+                                                        : "light"
+                                                }
+                                                color={
+                                                    option.isSelected
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                size="md"
+                                                className="h-auto w-full justify-start whitespace-normal text-left"
+                                                onPress={option.onSelect}
+                                            >
+                                                <div className="flex flex-col items-start gap-tight">
+                                                    <span className="font-semibold">
+                                                        {option.label}
+                                                    </span>
+                                                    <span className="text-label text-foreground/70">
+                                                        {option.kindLabel}
+                                                    </span>
+                                                </div>
+                                            </Button>
+                                        ),
+                                    )}
                                 </div>
                             </div>
 
@@ -70,21 +76,27 @@ export default function DevTest() {
                                     {viewModel.confidence.title}
                                 </p>
                                 <div className="flex flex-wrap items-center gap-tools">
-                                    {viewModel.confidence.options.map((option) => (
-                                        <Button
-                                            key={option.id}
-                                            variant={
-                                                option.isSelected ? "shadow" : "light"
-                                            }
-                                            color={
-                                                option.isSelected ? "primary" : "default"
-                                            }
-                                            size="md"
-                                            onPress={option.onSelect}
-                                        >
-                                            {option.label}
-                                        </Button>
-                                    ))}
+                                    {viewModel.confidence.options.map(
+                                        (option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={
+                                                    option.isSelected
+                                                        ? "shadow"
+                                                        : "light"
+                                                }
+                                                color={
+                                                    option.isSelected
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                size="md"
+                                                onPress={option.onSelect}
+                                            >
+                                                {option.label}
+                                            </Button>
+                                        ),
+                                    )}
                                 </div>
                             </div>
 
@@ -95,7 +107,8 @@ export default function DevTest() {
                                 <div className="flex flex-wrap items-center gap-stage">
                                     <Switch
                                         isSelected={
-                                            viewModel.controls.verifyFailsSelected
+                                            viewModel.controls
+                                                .verifyFailsSelected
                                         }
                                         onValueChange={
                                             viewModel.controls.setVerifyFails
@@ -155,7 +168,9 @@ export default function DevTest() {
                                 <Button
                                     variant="light"
                                     size="md"
-                                    onPress={viewModel.actions.markPathAvailable}
+                                    onPress={
+                                        viewModel.actions.markPathAvailable
+                                    }
                                     isDisabled={
                                         viewModel.actions
                                             .markPathAvailableDisabled
@@ -168,7 +183,7 @@ export default function DevTest() {
                             <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
                                 {viewModel.state.rows.map((row) => (
                                     <span key={row.id}>
-                                        {row.label} {" "}
+                                        {row.label}{" "}
                                         <span className="font-semibold text-foreground">
                                             {row.value}
                                         </span>
@@ -263,7 +278,9 @@ export default function DevTest() {
                                         variant="shadow"
                                         color="primary"
                                         size="md"
-                                        isDisabled={viewModel.system.runDisabled}
+                                        isDisabled={
+                                            viewModel.system.runDisabled
+                                        }
                                         onPress={viewModel.system.run}
                                     >
                                         {viewModel.system.runLabel}
@@ -283,21 +300,41 @@ export default function DevTest() {
                                                     {row.label}
                                                 </span>
                                                 <span className="text-label text-foreground/70">
-                                                    {viewModel.system.columns.event} {row.eventLabel}
+                                                    {
+                                                        viewModel.system.columns
+                                                            .event
+                                                    }{" "}
+                                                    {row.eventLabel}
                                                 </span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
                                                 <span>
-                                                    {viewModel.system.columns.completion} {row.completionLabel}
+                                                    {
+                                                        viewModel.system.columns
+                                                            .completion
+                                                    }{" "}
+                                                    {row.completionLabel}
                                                 </span>
                                                 <span>
-                                                    {viewModel.system.columns.resumed} {row.resumedLabel}
+                                                    {
+                                                        viewModel.system.columns
+                                                            .resumed
+                                                    }{" "}
+                                                    {row.resumedLabel}
                                                 </span>
                                                 <span>
-                                                    {viewModel.system.columns.before} {row.beforeState}
+                                                    {
+                                                        viewModel.system.columns
+                                                            .before
+                                                    }{" "}
+                                                    {row.beforeState}
                                                 </span>
                                                 <span>
-                                                    {viewModel.system.columns.after} {row.afterState}
+                                                    {
+                                                        viewModel.system.columns
+                                                            .after
+                                                    }{" "}
+                                                    {row.afterState}
                                                 </span>
                                             </div>
                                             {row.details && (
@@ -314,12 +351,14 @@ export default function DevTest() {
                 </div>
             </div>
 
-            <TorrentRecoveryModal viewModel={viewModel.recoveryModalViewModel} />
+            <TorrentRecoveryModal
+                viewModel={viewModel.recoveryModalViewModel}
+            />
 
             {viewModel.footer && (
-                <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-default/20 surface-layer-2 p-panel">
-                    <div className="flex flex-wrap items-start justify-between gap-tools">
-                        <div className="flex min-w-0 flex-col gap-tight">
+                <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-white/10 bg-neutral-900/95 p-4 backdrop-blur-md">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-tools">
                             <div className="flex flex-wrap items-center gap-tools">
                                 <span className="text-label font-semibold text-foreground">
                                     {viewModel.footer.scenarioLabel}
@@ -327,24 +366,44 @@ export default function DevTest() {
                                 <span className="surface-layer-1 rounded-panel px-tight py-tight text-label text-foreground/70">
                                     {viewModel.footer.scenarioKindLabel}
                                 </span>
+                                {!viewModel.footer.isExpanded && (
+                                    <span className="text-label text-foreground/50 truncate flex-1 min-w-0">
+                                        {viewModel.footer.summary}
+                                    </span>
+                                )}
                             </div>
-                            <pre className="whitespace-pre-wrap font-mono text-label leading-normal text-foreground/80">
-                                {viewModel.footer.expectedBehavior}
-                            </pre>
-                            {viewModel.footer.copyStatusLabel && (
+                            <div className="flex items-center gap-tools">
                                 <span className="text-label text-foreground/60">
                                     {viewModel.footer.copyStatusLabel}
                                 </span>
-                            )}
+                                <Button
+                                    size="sm"
+                                    variant="flat"
+                                    onPress={viewModel.footer.copy}
+                                    startContent={<Copy size={16} />}
+                                >
+                                    {viewModel.footer.copyLabel}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="light"
+                                    isIconOnly
+                                    onPress={viewModel.footer.toggleExpanded}
+                                >
+                                    {viewModel.footer.isExpanded ? (
+                                        <ChevronDown size={16} />
+                                    ) : (
+                                        <ChevronUp size={16} />
+                                    )}
+                                </Button>
+                            </div>
                         </div>
-                        <Button
-                            size="sm"
-                            variant="flat"
-                            onPress={viewModel.footer.copy}
-                            startContent={<Copy size={16} />}
-                        >
-                            {viewModel.footer.copyLabel}
-                        </Button>
+
+                        {viewModel.footer.isExpanded && (
+                            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-white/80 border-t border-white/5 pt-2 mt-1">
+                                {viewModel.footer.expectedBehavior}
+                            </pre>
+                        )}
                     </div>
                 </div>
             )}

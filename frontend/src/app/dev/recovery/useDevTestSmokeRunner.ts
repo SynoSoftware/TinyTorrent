@@ -5,26 +5,23 @@ import { RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import {
     cloneDevTorrentDetail,
-    DEV_RECOVERY_SCENARIOS,
+    DEV_TEST_SCENARIOS,
     DEV_RECOVERY_TORRENT_ID,
     devRecoveryScenarioById,
-    type DevRecoveryScenarioDefinition,
-    type DevRecoveryScenarioId,
+    type DevTestScenarioDefinition,
+    type DevTestScenarioId,
 } from "@/app/dev/recovery/scenarios";
 import type {
     ApplyRecoveryScenarioParams,
-    DevRecoveryPlaygroundController,
-} from "@/app/dev/recovery/useDevRecoveryPlaygroundController";
+    DevTestController,
+} from "@/app/dev/recovery/useDevTestController";
 
-type TranslateFn = (
-    key: string,
-    options?: Record<string, unknown>,
-) => string;
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 export type RecoverySmokeRunStatus = "idle" | "running" | "passed" | "failed";
 
 export type RecoverySmokeCaseResult = {
-    scenarioId: DevRecoveryScenarioId;
+    scenarioId: DevTestScenarioId;
     status: "passed" | "failed";
     details: string;
     completion: {
@@ -35,8 +32,8 @@ export type RecoverySmokeCaseResult = {
 };
 
 type RecoverySmokeCase = {
-    scenarioId: DevRecoveryScenarioId;
-    expectedKind: DevRecoveryScenarioDefinition["kind"];
+    scenarioId: DevTestScenarioId;
+    expectedKind: DevTestScenarioDefinition["kind"];
     expectation: "modal_recovery" | "auto_recovery";
     verifyFails: boolean;
 };
@@ -74,7 +71,10 @@ const RECOVERY_SMOKE_CASES: RecoverySmokeCase[] = [
     },
 ];
 
-const SMOKE_WAIT_POLL_MS = Math.max(40, Math.floor(RECOVERY_POLL_INTERVAL_MS / 5));
+const SMOKE_WAIT_POLL_MS = Math.max(
+    40,
+    Math.floor(RECOVERY_POLL_INTERVAL_MS / 5),
+);
 const SMOKE_TIMEOUTS = {
     sessionOpenMs: RECOVERY_POLL_INTERVAL_MS * 3,
     completionMs: RECOVERY_POLL_INTERVAL_MS * 4,
@@ -100,7 +100,7 @@ const waitForCondition = async (
     return false;
 };
 
-const waitForCompletionWithTimeout = async <T,>(
+const waitForCompletionWithTimeout = async <T>(
     completion: Promise<T>,
     timeoutMs: number,
     timeoutError: string,
@@ -125,8 +125,7 @@ const toSmokeScenarioPreset = (
     confidence: RecoveryConfidence,
 ): ApplyRecoveryScenarioParams => {
     const scenario =
-        devRecoveryScenarioById.get(params.scenarioId) ??
-        DEV_RECOVERY_SCENARIOS[0];
+        devRecoveryScenarioById.get(params.scenarioId) ?? DEV_TEST_SCENARIOS[0];
     return {
         scenarioId: params.scenarioId,
         confidence,
@@ -138,17 +137,17 @@ const toSmokeScenarioPreset = (
 export interface RecoverySmokeRunner {
     status: RecoverySmokeRunStatus;
     results: RecoverySmokeCaseResult[];
-    resultByScenarioId: Map<DevRecoveryScenarioId, RecoverySmokeCaseResult>;
+    resultByScenarioId: Map<DevTestScenarioId, RecoverySmokeCaseResult>;
     summaryText: string;
     runSmoke: () => Promise<void>;
 }
 
-export function useDevRecoverySmokeRunner({
+export function useDevTestSmokeRunner({
     t,
     controller,
 }: {
     t: TranslateFn;
-    controller: DevRecoveryPlaygroundController;
+    controller: DevTestController;
 }): RecoverySmokeRunner {
     const [status, setStatus] = useState<RecoverySmokeRunStatus>("idle");
     const [results, setResults] = useState<RecoverySmokeCaseResult[]>([]);
@@ -192,7 +191,9 @@ export function useDevRecoverySmokeRunner({
                     if (!session) {
                         throw new Error("missing_session");
                     }
-                    if (session.classification.kind !== smokeCase.expectedKind) {
+                    if (
+                        session.classification.kind !== smokeCase.expectedKind
+                    ) {
                         throw new Error(
                             `unexpected_kind:${session.classification.kind}`,
                         );
@@ -246,7 +247,7 @@ export function useDevRecoverySmokeRunner({
                 nextResults.push({
                     scenarioId: smokeCase.scenarioId,
                     status: "passed",
-                    details: t("dev.recovery_playground.smoke.case_passed"),
+                    details: t("dev.test.smoke.case_passed"),
                     completion: {
                         expected: EXPECTED_COMPLETION_STATUS,
                         actual: completionActual,
@@ -263,7 +264,7 @@ export function useDevRecoverySmokeRunner({
                     details:
                         error instanceof Error
                             ? error.message
-                            : t("dev.recovery_playground.smoke.error_unknown"),
+                            : t("dev.test.smoke.error_unknown"),
                     completion: {
                         expected: EXPECTED_COMPLETION_STATUS,
                         actual: completionActual,
@@ -302,8 +303,8 @@ export function useDevRecoverySmokeRunner({
     ).length;
     const summaryText =
         status === "idle"
-            ? t("dev.recovery_playground.smoke.idle")
-            : t("dev.recovery_playground.smoke.summary", {
+            ? t("dev.test.smoke.idle")
+            : t("dev.test.smoke.summary", {
                   passed: passedCount,
                   total: RECOVERY_SMOKE_CASES.length,
               });
