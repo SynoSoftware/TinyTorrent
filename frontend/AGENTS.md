@@ -105,150 +105,63 @@ Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typog
 
 ---
 
-# **3. Design System Authority & Token Pipeline**
+# **3. Design System Contract (Principles)**
 
-This section enforces the zero-literal mandate: no sizing/colors skip the token pipeline.
+This file is a **contract**, not a style guide. It defines *principles* that keep the UI consistent and prevent drift **without** requiring mass className churn.
 
-## **A. The Knob Registry (Authoritative, Single Source of Truth)**
+## **3.1 Root Knobs Are the Only Global Dials**
 
-Theme and density configuration knobs are the single source of truth for visual and layout decisions.
-Any visual or layout change must consume an existing knob or introduce one through the token pipeline.
-Component-local visual tuning is forbidden.
+The UI must remain stable under the three global scale knobs:
 
-**The only acceptable global knobs are:**
+- `--u` (layout rhythm unit)
+- `--z` (layout scale multiplier)
+- `--fz` (readability / typography scale)
 
-- **Unit:** `--u` (layout rhythm unit)
-- **Zoom:** `--z` (layout scale multiplier)
-- **Font scale:** `--fz` (readability scale)
-- **Radius set:** a single semantic radius family (no competing radius systems)
-- **Blur set:** Layer 1 + Layer 2 blur tokens only
-- **Elevation set:** Layer 1 + Layer 2 shadow tokens only
-- **Core structural sizes:** `h-nav`, `h-status`, `h-row` (and other structural sizes only if already part of the shell contract)
-- **Core spacing roles:** `p-panel`, `p-tight`, `gap-stage`, `gap-tools`
+Principles:
 
-Note: `--tt-font-base` is a theme token (length anchor), not a knob; it exists only to let `--fz` scale typography.
+- Prefer using existing knobs/tokens over introducing new global knobs.
+- If a new knob is truly required, it must be introduced intentionally through the design token pipeline (not ad-hoc in components).
 
-If a change requires another knob, do not implement it in component code — flag it and route it through the token pipeline.
+## **3.2 Use the Token Pipeline for Design Decisions**
 
-## **B. The 4-Layer Token Pipeline**
+Feature components should not “decide” new numbers, opacities, radii, shadows, or blur values.
 
-No dimension or color may skip a layer.
+Practical rule: when the decision is *design* (not pure layout composition), it must flow through the existing layers:
 
-1. **Intent (`constants.json`):** Defines logical units (e.g., `"padding_panel": 6`).
-2. **Arithmetic (`index.css` @theme):** Performs scaling using ONLY root knobs:
-   - Geometry: `calc(var(--u) * [units] * var(--z))`
-   - Typography: `calc(var(--tt-font-base) * var(--fz) * [units])`
+1. **Intent** in `config/constants.json` (meaning, not CSS)
+2. **Arithmetic** in `index.css` (`@theme`, derived from the root knobs)
+3. **Role** in `config/logic.ts` (semantic exports / class utilities)
+4. **Usage** in `.tsx` (compose the semantic utilities)
 
-3. **Role (`logic.ts`):** Exports semantic strings (e.g., `export const PADDING_PANEL = "p-panel"`).
-4. **Application (`.tsx`):** Uses the semantic class. **Literal numbers are forbidden here.**
+This keeps changes small, reviewable, and prevents “className changes for everything”.
 
-## **C. The "Banned" vs. "Required" List**
+## **3.3 Standard Elements Over Inline Recipes**
 
-| Category | **BANNED (Drift)** | **REQUIRED (Desired State)** |
-| :--- | :--- | :--- |
-| **Sizing** | `size="sm"`, `size="xs"` | `size="md"` (Default), `size="lg"` |
-| **Spacing** | `p-1...16`, `gap-1...16` | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
-| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar` |
-| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme` |
-| **Safety** | `z.any()` in RPC | `zRpcMutationResponse` or specific schemas |
-| **Buttons** | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action) |
+Prefer **standard elements** (shared primitives, semantic components, and tokenized utilities) over duplicating long Tailwind strings.
 
-## **D. DRY Classname Rule (Stop Repeating Glass Recipes)**
+Principle: *make the standard element once, then keep feature code boring.*
 
-Repeating long Tailwind strings is a bug. Any visual recipe used in more than one place must be centralized.
+Centralize only when it clearly pays off (shared pattern or repeated recipe). Avoid creating abstractions for one-offs.
 
-**Must be centralized if repeated or longer than a short layout skeleton:**
+## **3.4 Minimize Classname Churn (No Style Sweeps)**
 
-- Glass surfaces (Layer 1, Layer 2)
-- Panel frames (border + blur + background)
-- Focus ring / focus border treatment
-- Table row base/hover/selected recipes
-- Toolbar button clusters
-- Badge/chip recipes
+Do not change classNames “for consistency” unless at least one is true:
 
-**Rule:**
+- You are fixing a functional/UX bug in that area, or
+- You are adopting an existing standard element in the code you touched, or
+- You are creating the missing standard element (token/component) that will reduce future churn.
 
-- If a class string is repeated twice (or is a long “recipe”), it must become a shared constant/token exported from a single place (config logic or shared UI primitive).
-- Components must assemble UI from semantic pieces: `cn(GLASS_PANEL, P_PANEL, FOCUS_RING, className)` not bespoke class soup.
+Avoid repo-wide stylistic migrations unless explicitly requested.
 
-## **E. Forensic Mapping Rules**
+## **3.5 Plans Are Working Documents (Not a New Law)**
 
-When modifying layout, every spacing decision must map to one logical role:
+These documents describe the intended direction for reducing drift, but they are allowed to evolve as implementation proves what works:
 
-- Panel Padding (`p-panel`)
-- Tight Padding (`p-tight`)
-- Stage Gap (`gap-stage`)
-- Tool Gap (`gap-tools`)
-- Structural sizes: `h-nav`, `h-status`, `h-row`
+- `SURFACE_CLEANUP_PLAN.md`
+- `TEXT_ROLE_MIGRATION.md`
+- `CONSISTENCY_AUDIT.md`
 
-## **F. The Scale Test (Pre-Commit Requirement)**
-
-Before submitting any UI code, the agent must perform a "Mental Scale Test":
- *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
-
-- If **Yes**: Proceed.
-- If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
-
-Additionally:
-
-- Increasing `--fz` must improve readability without breaking layout.
-- Increasing `--z` must expand layout without making text unreadable.
-- If both are required to fix an issue, the design is wrong and must be flagged.
-
-## **G. Single Place of Control**
-
-If a component requires a specific width (e.g., the Directory Picker), do not calculate it in the TSX.
-
-1. Add the unit to `constants.json`.
-2. Map it to a token in `index.css` (e.g., `--tt-dir-picker-w`).
-3. Use the token in the component (`w-dir-picker`).
-
-## **H. Allowed Tailwind Whitelist (Components)**
-
-Tailwind is allowed only for non-token structural composition:
-
-**Allowed:**
-
-- `flex`, `grid`, `items-*`, `justify-*`, `grow`, `shrink`, `min-h-0`, `min-w-0`
-- `relative`, `absolute`, `sticky`, `inset-0` (no numeric geometry)
-- `overflow-hidden`, `overflow-auto`, `truncate`, `whitespace-*`
-- `select-none`, `select-text`
-- `pointer-events-*`, `cursor-*`
-- Responsive variants (`sm:`, `md:` etc.) only when they reference semantic utilities (not numeric ones)
-
-**Not allowed in components (must be semantic tokens instead):**
-
-- spacing, sizing, radius, shadows, blur, typography sizes, arbitrary bracket expressions, or any numeric geometry.
-
-## **I. Missing Token Protocol (Mandatory)**
-
-When a needed semantic token does not exist, the agent must:
-
-1. Not implement the tweak using literals in the component.
-2. Add a **FLAG** comment describing the missing semantic role.
-3. Propose the token addition strictly through the pipeline:
-   - `constants.json` intent
-   - `index.css` @theme arithmetic
-   - `logic.ts` role export
-   - component usage
-
-No workaround is acceptable.
-
-## **J. Z-Index Authority**
-
-`z-index` literals are forbidden. Use semantic z-tokens only:
-
-- `--z-floor` (0)
-- `--z-panel` (10)
-- `--z-sticky` (20)
-- `--z-overlay` (30)
-- `--z-modal` (40)
-- `--z-toast` (50)
-- `--z-cursor` (999)
-
-These must be defined in `constants.json`.
-
----
+When working *in those areas*, align with them. If they conflict with existing code or reality, prefer the smallest safe change and flag what needs to be amended in the plan.
 
 # **Structural Layout Primitives (Authoritative)**
 
@@ -490,8 +403,16 @@ Before claiming UI work is done, verify:
 - DRY: no repeated “glass recipe” strings; shared recipes are centralized.
 - Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
 - Typography scaling and layout scaling were not conflated.
+- **Typography authority (§3K.1):** no inline font-size + weight + tracking + color combinations; all use `TEXT_ROLE.*`.
+- **Interactive-state authority (§3K.2):** no ad-hoc hover/focus/active recipes; all use `INTERACTIVE_RECIPE.*`.
+- **Visual-state authority (§3K.3):** disabled = `VISUAL_STATE.disabled`; no mixed `opacity-40`/`opacity-50`.
+- **Alert surfaces (§3K.4):** no inline `border-warning/30 bg-warning/10`; all use `<AlertPanel>`.
+- **Transition authority (§3K.5):** no ad-hoc `transition-* duration-*`; all use `TRANSITION.*`.
+- **Sticky headers (§3K.6):** no ad-hoc `sticky top-0 z-* bg-* backdrop-blur-*`; all use `STICKY_HEADER`.
+- **Z-index authority (§3J):** no raw `z-10`…`z-50`; all use `z-panel`…`z-popover`.
+- **Scrollbar strategy:** scrollable containers use `scrollbar-hide` (hidden) or `overlay-scrollbar` (visible on hover). No other scrollbar class.
 
-Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
+Any PR containing forbidden numeric Tailwind/bracket classes or bypassed named authorities is invalid and must be rewritten.
 
 ## **C. Agent Output Requirement**
 
