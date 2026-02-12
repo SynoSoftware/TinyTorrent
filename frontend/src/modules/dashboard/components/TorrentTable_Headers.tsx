@@ -8,7 +8,9 @@ import {
     TableHeaderContent,
     getColumnWidthCss,
 } from "@/modules/dashboard/components/TorrentTable_Shared";
-import { SURFACE_ATOM_CLASS } from "@/shared/ui/layout/glass-surface";
+import {
+    STANDARD_SURFACE_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
 import { TRANSITION } from "@/config/logic";
@@ -31,7 +33,7 @@ export const ColumnHeaderPreview = ({
         <div
             className={cn(
                 `relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) ${TRANSITION.medium}`,
-                SURFACE_ATOM_CLASS.shadowPanel,
+                STANDARD_SURFACE_CLASS.atom.shadowPanel,
             )}
             style={{
                 width: getColumnWidthCss(column.id, column.getSize()),

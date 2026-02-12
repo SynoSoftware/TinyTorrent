@@ -1,11 +1,14 @@
-import { cn, Tooltip } from "@heroui/react";
+import { Tooltip } from "@heroui/react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
+    buildContextMenuPanelStyle,
     CONTEXT_MENU_CLASS,
-    GLASS_TOOLTIP_CLASSNAMES,
+    buildSplitViewVirtualCanvasStyle,
+    buildSplitViewVirtualRowStyle,
+    STANDARD_SURFACE_CLASS,
     SPLIT_VIEW_CLASS,
     buildSplitViewAddressClass,
     buildSplitViewRowClass,
@@ -114,10 +117,9 @@ export const PeersTab = ({
                             className={SPLIT_VIEW_CLASS.listScroll}
                         >
                             <div
-                                style={{
-                                    height: `${viewModel.metrics.totalSize}px`,
-                                    position: "relative",
-                                }}
+                                style={buildSplitViewVirtualCanvasStyle(
+                                    viewModel.metrics.totalSize,
+                                )}
                             >
                                 {viewModel.data.rowViewModels.map((rowView) => (
                                     <div
@@ -126,10 +128,10 @@ export const PeersTab = ({
                                             hovered: rowView.isHovered,
                                             hostile: rowView.isHostile,
                                         })}
-                                        style={{
+                                        style={buildSplitViewVirtualRowStyle({
                                             top: rowView.start,
                                             height: rowView.size,
-                                        }}
+                                        })}
                                         onMouseEnter={() =>
                                             viewModel.actions.setHoveredPeer(
                                                 rowView.peer.address,
@@ -155,7 +157,7 @@ export const PeersTab = ({
                                                                 flag,
                                                             )}
                                                             classNames={
-                                                                GLASS_TOOLTIP_CLASSNAMES
+                                                                STANDARD_SURFACE_CLASS.tooltip
                                                             }
                                                             delay={500}
                                                         >
@@ -208,11 +210,10 @@ export const PeersTab = ({
                             {viewModel.state.peerContextMenu && (
                                 <div
                                     className={CONTEXT_MENU_CLASS.panel}
-                                    style={{
-                                        top: viewModel.state.peerContextMenu.y,
-                                        left: viewModel.state.peerContextMenu.x,
-                                        ...CONTEXT_MENU_CLASS.panelStyle,
-                                    }}
+                                    style={buildContextMenuPanelStyle({
+                                        x: viewModel.state.peerContextMenu.x,
+                                        y: viewModel.state.peerContextMenu.y,
+                                    })}
                                     onPointerDown={(event) =>
                                         event.stopPropagation()
                                     }
@@ -284,7 +285,6 @@ export const PeersTab = ({
         </div>
     );
 };
-
 
 
 

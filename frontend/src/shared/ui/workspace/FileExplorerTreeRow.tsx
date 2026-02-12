@@ -16,7 +16,7 @@ import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTre
 import {
     FILE_BROWSER_CLASS,
     FORM_CONTROL_CLASS,
-    MENU_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 interface FileExplorerTreeRowProps {
@@ -158,9 +158,9 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             if (key === "skip") onSetPriority("skip", indexes);
                         }}
                         variant="shadow"
-                        className={MENU_CLASS.surface}
-                        classNames={MENU_CLASS.listClassNames}
-                        itemClasses={MENU_CLASS.itemClassNames}
+                        className={STANDARD_SURFACE_CLASS.menu.surface}
+                        classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
+                        itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
                     >
                         <DropdownItem
                             key="high"

@@ -21,8 +21,7 @@ import {
     APP_MODAL_CLASS,
     FORM_UI_CLASS,
     INPUT_SURFACE_CLASS,
-    MODAL_SURFACE_CLASS,
-    SURFACE_CHROME_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -98,7 +97,7 @@ export function AddMagnetModal({
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
-            classNames={MODAL_SURFACE_CLASS.baseClassNames}
+            classNames={STANDARD_SURFACE_CLASS.modal.baseClassNames}
         >
             <ModalContent>
                 {() => (
@@ -142,7 +141,7 @@ export function AddMagnetModal({
                             </p>
                         </ModalBody>
                         <ModalFooter
-                            className={SURFACE_CHROME_CLASS.footerActionsPadded}
+                            className={STANDARD_SURFACE_CLASS.chrome.footerActionsPadded}
                         >
                             <Button variant="light" onPress={handleClose}>
                                 {t("modals.cancel")}

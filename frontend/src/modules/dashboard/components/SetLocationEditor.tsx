@@ -2,6 +2,7 @@ import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
+import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
 
 interface SetLocationEditorProps {
     value: string;
@@ -30,17 +31,17 @@ export function SetLocationEditor({
     const { t } = useTranslation();
     const trimmedValue = value.trim();
     return (
-        <div className="surface-layer-1 rounded-panel border border-divider p-panel space-y-stage">
+        <div className={FORM_UI_CLASS.locationEditorRoot}>
             {caption && (
                 <div className={withOpacity(TEXT_ROLE.headingSection, 70)}>
                     {caption}
                 </div>
             )}
-            <div className="flex items-stretch gap-tools">
-                <div className="surface-layer-1 rounded-full p-tight">
-                    <HardDrive className="toolbar-icon-size-md text-foreground" />
+            <div className={FORM_UI_CLASS.locationEditorRow}>
+                <div className={FORM_UI_CLASS.locationEditorIconWrap}>
+                    <HardDrive className={FORM_UI_CLASS.locationEditorIcon} />
                 </div>
-                <div className="flex-1 space-y-tight">
+                <div className={FORM_UI_CLASS.locationEditorField}>
                     <label className={TEXT_ROLE.caption}>
                         {t("directory_browser.path_label")}
                     </label>
@@ -60,7 +61,7 @@ export function SetLocationEditor({
                     {statusMessage}
                 </div>
             )}
-            <div className="flex flex-wrap items-center gap-tools">
+            <div className={FORM_UI_CLASS.locationEditorActions}>
                 <Button
                     variant="shadow"
                     size="md"

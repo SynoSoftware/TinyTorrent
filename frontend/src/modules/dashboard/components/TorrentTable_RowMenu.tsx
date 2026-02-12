@@ -9,7 +9,9 @@ import {
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
 import {
-    MENU_CLASS,
+    STANDARD_SURFACE_CLASS,
+    CONTEXT_MENU_CLASS,
+    buildContextMenuAnchorStyle,
 } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
@@ -27,7 +29,6 @@ import { useTranslation } from "react-i18next";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
-import { SURFACE_BORDER } from "@/config/logic";
 import type { RecoveryAction } from "@/services/rpc/entities";
 import type { RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
 
@@ -257,14 +258,14 @@ function TorrentTable_RowMenuInner({
         );
 
         items.push(
-            <DropdownItem
-                key="queue-heading"
-                isDisabled
-                className={cn(
-                    `border-t ${SURFACE_BORDER} pt-panel`,
-                    MENU_CLASS.sectionHeading,
-                )}
-            >
+                <DropdownItem
+                    key="queue-heading"
+                    isDisabled
+                    className={cn(
+                        CONTEXT_MENU_CLASS.sectionHeading,
+                        STANDARD_SURFACE_CLASS.menu.sectionHeading,
+                    )}
+                >
                 {rowMenuViewModel.dataTitle}
             </DropdownItem>,
         );
@@ -273,7 +274,7 @@ function TorrentTable_RowMenuInner({
             ...rowMenuViewModel.queueActions.map((action) => (
                 <DropdownItem
                     key={action.key}
-                    className="pl-stage"
+                    className={CONTEXT_MENU_CLASS.sectionNestedItem}
                     shortcut={getContextMenuShortcut(action.key)}
                     onPress={() => void handleMenuActionPress(action.key)}
                 >
@@ -283,17 +284,17 @@ function TorrentTable_RowMenuInner({
         );
 
         items.push(
-            <DropdownItem
-                key="data-title"
-                isDisabled
-                className={cn(
-                    `border-t ${SURFACE_BORDER} mt-tight pt-tight font-bold`,
-                    MENU_CLASS.sectionHeading,
-                )}
-                style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
-            >
-                {t("table.data.title")}
-            </DropdownItem>,
+                <DropdownItem
+                    key="data-title"
+                    isDisabled
+                    className={cn(
+                        CONTEXT_MENU_CLASS.sectionHeadingStrong,
+                        STANDARD_SURFACE_CLASS.menu.sectionHeading,
+                    )}
+                    style={CONTEXT_MENU_CLASS.sectionHeadingTrackingStyle}
+                >
+                    {t("table.data.title")}
+                </DropdownItem>,
         );
 
         if (rowMenuViewModel.showOpenFolder) {
@@ -377,11 +378,11 @@ function TorrentTable_RowMenuInner({
             items.push(
                 <DropdownItem
                     key="set-location-editor"
-                    className={`border-t ${SURFACE_BORDER} p-0`}
+                    className={CONTEXT_MENU_CLASS.editorItem}
                     role="presentation"
                     textValue={t("table.actions.set_download_path")}
                 >
-                    <div className="px-panel pt-panel">
+                    <div className={CONTEXT_MENU_CLASS.editorWrap}>
                         <SetLocationEditor
                             value={setLocationEditorState.inputPath}
                             error={setLocationEditorState.error}
@@ -429,24 +430,20 @@ function TorrentTable_RowMenuInner({
         >
             <DropdownTrigger>
                 <div
-                    style={{
-                        position: "fixed",
+                    style={buildContextMenuAnchorStyle({
                         top: rect.top,
                         left: rect.left,
-                        width: 0,
-                        height: 0,
-                    }}
+                    })}
                 />
             </DropdownTrigger>
             <DropdownMenu
                 variant="shadow"
-                className={MENU_CLASS.surface}
-                classNames={MENU_CLASS.listClassNames}
-                itemClasses={MENU_CLASS.itemClassNames}
+                className={STANDARD_SURFACE_CLASS.menu.surface}
+                classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
+                itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
             >
                 {menuItems}
             </DropdownMenu>
         </Dropdown>
     );
 }
-

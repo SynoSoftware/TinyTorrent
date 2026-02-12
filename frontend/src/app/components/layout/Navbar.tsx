@@ -28,8 +28,11 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
-    SURFACE_ATOM_CLASS,
+    STANDARD_SURFACE_CLASS,
+    buildAppNavMainStyle,
     buildAppNavSelectionActionsClass,
+    buildAppNavTitlebarStyle,
+    buildAppNavWindowControlsStyle,
     APP_NAV_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
@@ -93,38 +96,23 @@ export function Navbar({ viewModel }: NavbarProps) {
         <header className={APP_NAV_CLASS.root}>
             <div
                 className={APP_NAV_CLASS.titlebar}
-                style={{
-                    ...shell.surfaceStyle,
-                    height: "var(--tt-navbar-h)",
-                    // Use the semantic panel spacing as the flex gap between
-                    // the main navbar blocks (left content and right controls).
-                    // This avoids per-component margins and follows the token
-                    // pipeline (no magic numbers).
-                    gap: "var(--spacing-panel)",
-                }}
+                style={buildAppNavTitlebarStyle(shell.surfaceStyle)}
             >
                 <div
                     className={cn(
-                        SURFACE_ATOM_CLASS.glassBlock,
-                        SURFACE_ATOM_CLASS.shadowBlock,
+                        STANDARD_SURFACE_CLASS.atom.glassBlock,
+                        STANDARD_SURFACE_CLASS.atom.shadowBlock,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
                         APP_NAV_CLASS.main,
                     )}
-                    style={{
-                        ...shell.outerStyle,
-                        // rely on shell.frameStyle + parent gap for spacing;
-                        // keeping per-component margin was causing drift.
-                    }}
+                    style={buildAppNavMainStyle(shell.outerStyle)}
                 >
                     <div className={APP_NAV_CLASS.left}>
                         <div className={APP_NAV_CLASS.brandGroup}>
                             <div
                                 className={APP_NAV_CLASS.brandIconWrap}
-                                style={{
-                                    width: "var(--tt-brand-icon-size)",
-                                    height: "var(--tt-brand-icon-size)",
-                                }}
+                                style={APP_NAV_CLASS.brandIconStyle}
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
@@ -311,8 +299,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                             ariaLabel={t("toolbar.settings")}
                             title={t("toolbar.settings")}
                             onPress={onSettings}
-                            className={APP_NAV_CLASS.ghostAction}
-                            style={{ overflow: "visible" }}
+                            className={cn(
+                                APP_NAV_CLASS.ghostAction,
+                                APP_NAV_CLASS.ghostActionOverflow,
+                            )}
                             iconSize="lg"
                         />
                         <div className={APP_NAV_CLASS.themeMobileWrap}>
@@ -325,8 +315,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 })}
                                 title={t("theme.toggle")}
                                 onPress={toggleTheme}
-                                className={APP_NAV_CLASS.ghostAction}
-                                style={{ overflow: "visible" }}
+                                className={cn(
+                                    APP_NAV_CLASS.ghostAction,
+                                    APP_NAV_CLASS.ghostActionOverflow,
+                                )}
                                 iconSize="lg"
                             />
                         </div>
@@ -354,14 +346,11 @@ export function Navbar({ viewModel }: NavbarProps) {
 
                 <div
                     className={cn(
-                        SURFACE_ATOM_CLASS.glassBlock,
-                        SURFACE_ATOM_CLASS.shadowBlock,
+                        STANDARD_SURFACE_CLASS.atom.glassBlock,
+                        STANDARD_SURFACE_CLASS.atom.shadowBlock,
                         APP_NAV_CLASS.windowControls,
                     )}
-                    style={{
-                        ...shell.outerStyle,
-                        ...APP_NAV_CLASS.windowControlsStyle,
-                    }}
+                    style={buildAppNavWindowControlsStyle(shell.outerStyle)}
                 >
                     <WindowControlButton
                         Icon={Icon}
@@ -398,5 +387,4 @@ export function Navbar({ viewModel }: NavbarProps) {
         </header>
     );
 }
-
 

@@ -3,9 +3,10 @@ import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import {
-    GLASS_TOOLTIP_CLASSNAMES,
+    buildHeatmapCanvasFrameClass,
+    STANDARD_SURFACE_CLASS,
     HEATMAP_VIEW_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import {
@@ -255,7 +256,7 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div className={cn(HEATMAP_VIEW_CLASS.empty, withOpacity(TEXT_ROLE.body, 50))}>
+            <div className={cn(HEATMAP_VIEW_CLASS.empty, HEATMAP_VIEW_CLASS.emptyMuted)}>
                 {emptyLabel}
             </div>
         );
@@ -267,18 +268,22 @@ export const AvailabilityHeatmap = ({
                 <span className={TEXT_ROLE.label} style={HEATMAP_VIEW_CLASS.labelTrackingStyle}>
                     {label}
                 </span>
-                <div className={cn(HEATMAP_VIEW_CLASS.legend, withOpacity(TEXT_ROLE.body, 50))}>
+                <div className={cn(HEATMAP_VIEW_CLASS.legend, HEATMAP_VIEW_CLASS.legendMuted)}>
                     <span className={HEATMAP_VIEW_CLASS.legendItem}>
                         <span
-                            className={HEATMAP_VIEW_CLASS.legendDot}
-                            style={{ backgroundColor: "var(--heroui-danger)" }}
+                            className={cn(
+                                HEATMAP_VIEW_CLASS.legendDot,
+                                HEATMAP_VIEW_CLASS.legendDotRare,
+                            )}
                         />
                         {legendRare}
                     </span>
                     <span className={HEATMAP_VIEW_CLASS.legendItem}>
                         <span
-                            className={HEATMAP_VIEW_CLASS.legendDot}
-                            style={{ backgroundColor: "var(--heroui-primary)" }}
+                            className={cn(
+                                HEATMAP_VIEW_CLASS.legendDot,
+                                HEATMAP_VIEW_CLASS.legendDotCommon,
+                            )}
                         />
                         {legendCommon}
                     </span>
@@ -298,7 +303,7 @@ export const AvailabilityHeatmap = ({
                             className={HEATMAP_VIEW_CLASS.zoomIcon}
                         />
                     </Button>
-                    <span className={withOpacity(TEXT_ROLE.code, 60)}>
+                    <span className={HEATMAP_VIEW_CLASS.zoomValue}>
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button
@@ -320,18 +325,13 @@ export const AvailabilityHeatmap = ({
                 </div>
             </div>
             <div
-                className={cn(
-                    HEATMAP_VIEW_CLASS.canvasFrame,
-                    {
-                        [HEATMAP_VIEW_CLASS.canvasPulse]: isZooming,
-                    }
-                )}
+                className={buildHeatmapCanvasFrameClass(isZooming)}
             >
                 <Tooltip
                     content={tooltipContent}
                     delay={0}
                     closeDelay={0}
-                    classNames={GLASS_TOOLTIP_CLASSNAMES}
+                    classNames={STANDARD_SURFACE_CLASS.tooltip}
                     isDisabled={!stableHoveredCell}
                 >
                     <canvas

@@ -15,7 +15,7 @@ import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
-    MENU_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
@@ -138,8 +138,8 @@ export function LanguageMenu() {
             <DropdownMenu
                 aria-label={t("language.menu_label")}
                 variant="shadow"
-                className={MENU_CLASS.dirPickerSurface}
-                itemClasses={MENU_CLASS.itemSplitClassNames}
+                className={STANDARD_SURFACE_CLASS.menu.dirPickerSurface}
+                itemClasses={STANDARD_SURFACE_CLASS.menu.itemSplitClassNames}
             >
                 {languages.map((option) => {
                     const isActive = language === option.code;
@@ -151,11 +151,11 @@ export function LanguageMenu() {
                             isSelected={isActive}
                             className={
                                 isActive
-                                    ? MENU_CLASS.itemSelectedPrimary
+                                    ? STANDARD_SURFACE_CLASS.menu.itemSelectedPrimary
                                     : undefined
                             }
                             startContent={
-                                <span className={MENU_CLASS.flagInlineWrap}>
+                                <span className={STANDARD_SURFACE_CLASS.menu.flagInlineWrap}>
                                     {option.flagIcon}
                                 </span>
                             }
@@ -164,7 +164,7 @@ export function LanguageMenu() {
                                     <Check
                                         size={22}
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className={MENU_CLASS.checkIconPrimary}
+                                        className={STANDARD_SURFACE_CLASS.menu.checkIconPrimary}
                                     />
                                 ) : null
                             }

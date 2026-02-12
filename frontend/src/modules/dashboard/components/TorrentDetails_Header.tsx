@@ -1,12 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info } from "lucide-react";
-import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { ICON_STROKE_WIDTH, HEADER_BASE, INTERACTIVE_RECIPE, TRANSITION } from "@/config/logic";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
+import {
+    buildDetailViewHeaderClass,
+    buildDetailViewHeaderTabButtonClass,
+    DETAIL_VIEW_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 const DETAIL_TAB_LABELS: Record<string, string> = {
     general: "inspector.tab.general",
@@ -67,28 +71,20 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
 
     return (
         <div
-            className={cn(
-                "flex items-center h-row",
-                HEADER_BASE,
-
-                // Header band (content-level)
-                !isStandalone && "bg-content1/80 border-b border-default/10"
-            )}
-            style={{
-                letterSpacing: "var(--tt-tracking-wide)",
-            }}
+            className={buildDetailViewHeaderClass(isStandalone)}
+            style={DETAIL_VIEW_CLASS.headerTrackingStyle}
         >
             {/* LEFT */}
-            <div className="flex  items-center w-full gap-tight px-tight">
+            <div className={DETAIL_VIEW_CLASS.headerLeft}>
                 <Info
                     strokeWidth={ICON_STROKE_WIDTH}
-                    className="text-foreground/50 shrink-0 toolbar-icon-size-md"
+                    className={DETAIL_VIEW_CLASS.headerInfoIcon}
                 />
-                <span className="truncate min-w-0 text-foreground font-semibold">
+                <span className={DETAIL_VIEW_CLASS.headerTitle}>
                     {renderedName}
                     {hasStatus ? (
                         <span
-                            className={`${TEXT_ROLE.caption} block`}
+                            className={DETAIL_VIEW_CLASS.headerStatus}
                             title={statusTooltip ?? undefined}
                         >
                             {statusLabel}
@@ -103,19 +99,16 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             </div>
 
             {/* CENTER */}
-            <div className="flex  items-center w-full gap-panel">
-                <div className="flex items-center gap-tight">
+            <div className={DETAIL_VIEW_CLASS.headerCenter}>
+                <div className={DETAIL_VIEW_CLASS.headerTabs}>
                     {DETAIL_TABS.map((tab) => (
                         <button
                             key={tab}
                             type="button"
                             aria-pressed={activeTab === tab}
                             onClick={() => onTabChange(tab)}
-                            className={cn(
-                                `py-tight rounded-full border ${TEXT_ROLE.buttonText} font-bold ${TRANSITION.fast} px-panel`,
-                                activeTab === tab
-                                    ? "text-foreground"
-                                    : `text-foreground/60 ${INTERACTIVE_RECIPE.navItem}`
+                            className={buildDetailViewHeaderTabButtonClass(
+                                activeTab === tab,
                             )}
                         >
                             {t(
@@ -127,7 +120,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             </div>
 
             {/* RIGHT */}
-            <div className="flex items-center gap-tight min-w-max px-tight">
+            <div className={DETAIL_VIEW_CLASS.headerRight}>
                 {!isDetailFullscreen && onPopout && (
                     <ToolbarIconButton
                         Icon={PinOff}

@@ -443,5 +443,19 @@ These can be batched with the existing plan phases:
   - [x] Normalize `AddTorrentFileTable.tsx` by moving inline file-table shell classes into shared workflow/list tokens.
   - [x] Normalize `DiskSpaceGauge.tsx` by moving inline separator/text-size style recipes into shared metric tokens.
   - [_] Continue reducing ad-hoc feature-level class recipes in remaining high-drift files.
+  - [x] Normalize `TorrentDetails_Peers.tsx` by moving remaining inline style objects (virtual canvas/rows/context-menu placement) to shared split-view/context token builders.
+  - [x] Normalize `TorrentTable_RowMenu.tsx` by moving remaining inline menu section/editor/anchor class+style recipes to shared context-menu token builders.
+  - [x] Normalize `TorrentTable_HeaderMenu.tsx` and `TorrentTable_ColumnSettingsModal.tsx` by moving remaining inline menu/item/row recipes to shared menu/table tokens.
+  - [x] Normalize `TorrentTable.tsx` by moving remaining inline container/shell class recipes and static style object to shared table tokens.
+  - [x] Normalize `Navbar.tsx` by moving remaining inline style objects to shared nav token builders.
+  - [x] Normalize `TorrentDetails_Content.tsx` by moving remaining inline container/header class recipes to shared content/surface tokens.
+  - [x] Normalize `TorrentDetails_Trackers.tsx` by moving remaining inline icon tone classes to shared detail-table tokens.
+  - [x] Normalize `TorrentDetails.tsx` by moving remaining inline root/body class recipes to shared detail-view tokens.
+  - [x] Normalize `TorrentDetails_General.tsx` by moving remaining inline layout/panel/icon class recipes to shared detail-view tokens.
+  - [x] Normalize `TorrentDetails_Pieces.tsx`, `TorrentDetails_Pieces_Map.tsx`, and `TorrentDetails_Pieces_Heatmap.tsx` by moving remaining inline class/style recipes to shared split/detail token builders.
+  - [x] Normalize `TorrentDetails_Speed.tsx` by moving remaining inline surface/layout class recipes to shared detail-view tokens.
+  - [x] Normalize `SetLocationEditor.tsx` by moving remaining inline surface/layout/icon recipes to shared form/modal tokens.
+  - [x] Normalize `TorrentDetails_Header.tsx` by moving remaining inline layout/tab/header recipes to shared detail-view token builders.
+  - [x] Normalize `useTorrentTableColumns.tsx` by moving remaining inline header label/icon class+style recipes to shared table-view tokens.
 
 ---

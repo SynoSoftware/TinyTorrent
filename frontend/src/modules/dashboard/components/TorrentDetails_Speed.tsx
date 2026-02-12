@@ -1,11 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { SURFACE_BORDER } from "@/config/logic";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import STATUS from "@/shared/status";
-import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
+import { DETAIL_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
 
 interface SpeedTabProps {
     torrentId: string | number;
@@ -30,20 +29,18 @@ export const SpeedTab = ({
             {isChecking && (
                 <AlertPanel
                     severity="warning"
-                    className={`mb-tight shrink-0 ${withColor(TEXT_ROLE.body, "warning")}`}
+                    className={DETAIL_VIEW_CLASS.speedCheckingAlert}
                 >
                     {t("labels.status.torrent.checking")}
                 </AlertPanel>
             )}
             {isHistoryEmpty && (
-                <div
-                    className={`mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`}
-                >
+                <div className={DETAIL_VIEW_CLASS.speedCollectingPanel}>
                     {t("torrent_modal.speed.collecting_samples")}
                 </div>
             )}
 
-            <div className="flex-1 min-h-0">
+            <div className={DETAIL_VIEW_CLASS.speedChartHost}>
                 <SpeedChart
                     downHistory={downHistory}
                     upHistory={upHistory}
@@ -54,13 +51,13 @@ export const SpeedTab = ({
     );
 
     return (
-        <div className="h-full flex flex-col">
+        <div className={DETAIL_VIEW_CLASS.speedRoot}>
             {isStandalone ? (
-                <GlassPanel className="flex-1 p-stage flex flex-col min-h-0">
+                <GlassPanel className={DETAIL_VIEW_CLASS.speedStandaloneSurface}>
                     {Content}
                 </GlassPanel>
             ) : (
-                <div className="flex-1 p-stage flex flex-col min-h-0 h-full">
+                <div className={DETAIL_VIEW_CLASS.speedEmbeddedSurface}>
                     {Content}
                 </div>
             )}
