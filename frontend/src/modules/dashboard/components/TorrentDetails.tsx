@@ -3,7 +3,7 @@ import { TorrentDetailHeader } from "@/modules/dashboard/components/TorrentDetai
 import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
 import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
 import {
-    SURFACE_ATOM_CLASS,
+    DETAIL_VIEW_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -56,9 +56,8 @@ export function TorrentDetails({
         <div
             className={cn(
                 className,
-                cn(SURFACE_ATOM_CLASS.glassBlock, SURFACE_ATOM_CLASS.shadowBlock),
-                isStandalone ? "overflow-y-auto" : null,
-                "h-full min-h-0 flex flex-col outline-none rounded-2xl"
+                DETAIL_VIEW_CLASS.root,
+                isStandalone ? DETAIL_VIEW_CLASS.rootStandalone : null,
             )}
             tabIndex={0}
             onKeyDown={handleKeyDown}
@@ -78,7 +77,7 @@ export function TorrentDetails({
                 primaryHint={primaryHint}
             />
 
-            <div className="flex-1 min-h-0 bg-transparent py-tight ">
+            <div className={DETAIL_VIEW_CLASS.body}>
                 {activeSurface}
             </div>
         </div>

@@ -30,8 +30,7 @@ import {
     buildFormStatusToneClass,
     FORM_CONTROL_CLASS,
     INPUT_SURFACE_CLASS,
-    MENU_CLASS,
-    SURFACE_ATOM_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 export function AddTorrentSettingsPanel() {
@@ -105,7 +104,7 @@ export function AddTorrentSettingsPanel() {
                                 aria-label={t(
                                     "modals.add_torrent.destination_prompt_browse"
                                 )}
-                                className={SURFACE_ATOM_CLASS.iconButton}
+                                className={STANDARD_SURFACE_CLASS.atom.iconButton}
                             >
                                 <FolderOpen className={FORM_UI_CLASS.workflow.actionIcon} />
                             </Button>
@@ -119,7 +118,7 @@ export function AddTorrentSettingsPanel() {
                                 variant="flat"
                                 aria-label={t("modals.add_torrent.history")}
                                 title={t("modals.add_torrent.history")}
-                                className={SURFACE_ATOM_CLASS.iconButton}
+                                className={STANDARD_SURFACE_CLASS.atom.iconButton}
                             >
                                 <ChevronDown className={FORM_UI_CLASS.workflow.actionIcon} />
                             </Button>
@@ -127,9 +126,9 @@ export function AddTorrentSettingsPanel() {
                         <DropdownMenu
                             aria-label={t("modals.add_torrent.history")}
                             variant="shadow"
-                            className={MENU_CLASS.surface}
-                            classNames={MENU_CLASS.listClassNames}
-                            itemClasses={MENU_CLASS.itemClassNames}
+                            className={STANDARD_SURFACE_CLASS.menu.surface}
+                            classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
+                            itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
                         >
                             {settings.recentPaths.length > 0 ? (
                                 settings.recentPaths.map((path) => (

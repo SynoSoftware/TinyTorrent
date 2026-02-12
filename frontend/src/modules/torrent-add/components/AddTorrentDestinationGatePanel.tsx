@@ -14,7 +14,7 @@ import {
     FORM_UI_CLASS,
     buildFormStatusToneClass,
     INPUT_SURFACE_CLASS,
-    SURFACE_ATOM_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
@@ -80,7 +80,7 @@ export function AddTorrentDestinationGatePanel() {
                             aria-label={t(
                                 "modals.add_torrent.destination_prompt_browse",
                             )}
-                            className={SURFACE_ATOM_CLASS.iconButton}
+                            className={STANDARD_SURFACE_CLASS.atom.iconButton}
                         >
                             <FolderOpen className={FORM_UI_CLASS.workflow.actionIcon} />
                         </Button>

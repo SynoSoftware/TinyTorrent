@@ -13,8 +13,7 @@ import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import {
     APP_MODAL_CLASS,
-    MODAL_SURFACE_CLASS,
-    SURFACE_ATOM_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
@@ -81,7 +80,7 @@ export default function TorrentRecoveryModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!viewModel.busy}
-            classNames={MODAL_SURFACE_CLASS.compactClassNames}
+            classNames={STANDARD_SURFACE_CLASS.modal.compactClassNames}
         >
             <ModalContent>
                 {() => (
@@ -156,7 +155,7 @@ export default function TorrentRecoveryModal({
                                 </div>
                             )}
                             {viewModel.inbox.visible && (
-                                <div className={SURFACE_ATOM_CLASS.insetRounded}>
+                                <div className={STANDARD_SURFACE_CLASS.atom.insetRounded}>
                                     <div className={APP_MODAL_CLASS.dialogInsetStack}>
                                         <p className={APP_MODAL_CLASS.dialogInsetTitle}>
                                             {viewModel.inbox.title}
@@ -168,7 +167,7 @@ export default function TorrentRecoveryModal({
                                             {viewModel.inbox.items.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={SURFACE_ATOM_CLASS.insetBorderedItem}
+                                                    className={STANDARD_SURFACE_CLASS.atom.insetBorderedItem}
                                                 >
                                                     <p className={APP_MODAL_CLASS.dialogInsetLabel}>
                                                         {item.label}

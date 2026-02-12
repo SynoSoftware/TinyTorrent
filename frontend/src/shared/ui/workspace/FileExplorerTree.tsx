@@ -24,7 +24,7 @@ import {
     buildFileBrowserSelectionActionsClass,
     FILE_BROWSER_CLASS,
     FORM_CONTROL_CLASS,
-    MENU_CLASS,
+    STANDARD_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { FileExplorerTreeRow } from "@/shared/ui/workspace/FileExplorerTreeRow";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
@@ -152,9 +152,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         }
                         disallowEmptySelection
                         variant="shadow"
-                        className={MENU_CLASS.surface}
-                        classNames={MENU_CLASS.listClassNames}
-                        itemClasses={MENU_CLASS.itemClassNames}
+                        className={STANDARD_SURFACE_CLASS.menu.surface}
+                        classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
+                        itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
                     >
                         <DropdownItem key="all">{t("status.all")}</DropdownItem>
                         <DropdownItem key="video">
@@ -221,9 +221,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                                 if (key === "skip") handleSetPriority("skip");
                             }}
                             variant="shadow"
-                            className={MENU_CLASS.surface}
-                            classNames={MENU_CLASS.listClassNames}
-                            itemClasses={MENU_CLASS.itemClassNames}
+                            className={STANDARD_SURFACE_CLASS.menu.surface}
+                            classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
+                            itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
                         >
                             <DropdownItem key="high">
                                 {t("priority.high")}

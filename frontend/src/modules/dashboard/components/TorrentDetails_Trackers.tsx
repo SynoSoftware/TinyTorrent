@@ -6,7 +6,7 @@ import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
     DETAIL_TABLE_CLASS,
-    SURFACE_CHROME_CLASS,
+    STANDARD_SURFACE_CLASS,
     buildAvailabilityDotClass,
 } from "@/shared/ui/layout/glass-surface";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -50,13 +50,13 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
 
     const tableBody = (
         <table className={DETAIL_TABLE_CLASS.table}>
-            <thead className={SURFACE_CHROME_CLASS.stickyHeader}>
+            <thead className={STANDARD_SURFACE_CLASS.chrome.stickyHeader}>
                 <tr className={DETAIL_TABLE_CLASS.tableHeadRow}>
                     <th className={DETAIL_TABLE_CLASS.tableHeadCellIcon}>
                         <StatusIcon
                             Icon={Activity}
                             size="sm"
-                            className="text-foreground/50"
+                            className={DETAIL_TABLE_CLASS.tableHeadIconMuted}
                         />
                     </th>
                     <th className={DETAIL_TABLE_CLASS.tableHeadCell}>
@@ -133,7 +133,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     <StatusIcon
                         Icon={Activity}
                         size="md"
-                        className="text-primary"
+                        className={DETAIL_TABLE_CLASS.toolbarIconPrimary}
                     />
                     <span className={TEXT_ROLE.label}>
                         {viewModel.labels.title}

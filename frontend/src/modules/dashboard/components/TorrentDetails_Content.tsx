@@ -2,7 +2,11 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
-import { SURFACE_FRAME_CLASS } from "@/shared/ui/layout/glass-surface";
+import {
+    buildTableDetailsContentScrollStyle,
+    STANDARD_SURFACE_CLASS,
+    TABLE_VIEW_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
     type FileExplorerContextAction,
@@ -85,8 +89,8 @@ export const ContentTab = ({
 
     if (filesCount === 0) {
         return (
-            <div className="flex h-full min-h-0 flex-col gap-panel">
-                <AlertPanel severity="warning" className="space-y-3">
+            <div className={TABLE_VIEW_CLASS.detailsContentRoot}>
+                <AlertPanel severity="warning" className={TABLE_VIEW_CLASS.detailsContentWarning}>
                     <div className={TEXT_ROLE.statusWarning}>
                         {t("torrent_modal.files_empty")}
                     </div>
@@ -99,11 +103,11 @@ export const ContentTab = ({
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-panel">
+        <div className={TABLE_VIEW_CLASS.detailsContentRoot}>
             {isStandalone ? (
-                <GlassPanel className="p-panel space-y-3">
-                    <div className="flex items-center justify-between gap-panel">
-                        <div className="flex flex-col gap-tight">
+                <GlassPanel className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
+                    <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
+                        <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
                             <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
                                 {t("torrent_modal.files_title")}
                             </span>
@@ -117,9 +121,9 @@ export const ContentTab = ({
                     </div>
                 </GlassPanel>
             ) : (
-                <div className="p-panel space-y-3">
-                    <div className="flex items-center justify-between gap-panel">
-                        <div className="flex flex-col gap-tight">
+                <div className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
+                    <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
+                        <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
                             <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
                                 {t("torrent_modal.files_title")}
                             </span>
@@ -135,17 +139,17 @@ export const ContentTab = ({
             )}
 
             <GlassPanel
-                className={`flex flex-1 min-h-0 flex-col ${SURFACE_FRAME_CLASS.panelInset}`}
+                className={`flex flex-1 min-h-0 flex-col ${STANDARD_SURFACE_CLASS.frame.panelInset}`}
             >
-                <div
-                    className={`border-b border-default/10 px-panel py-panel ${TEXT_ROLE.labelPrimary}`}
-                >
+                <div className={TABLE_VIEW_CLASS.detailsContentSectionHeader}>
                     {t("torrent_modal.tabs.content")}
                 </div>
-                <div className="flex-1 min-h-0 overflow-hidden">
+                <div className={TABLE_VIEW_CLASS.detailsContentListHost}>
                     <div
-                        className="h-full min-h-0 overflow-y-auto px-panel py-panel"
-                        style={{ maxHeight: DETAILS_TAB_CONTENT_MAX_HEIGHT }}
+                        className={TABLE_VIEW_CLASS.detailsContentListScroll}
+                        style={buildTableDetailsContentScrollStyle(
+                            DETAILS_TAB_CONTENT_MAX_HEIGHT,
+                        )}
                     >
                         <FileExplorerTree viewModel={fileExplorerViewModel} />
                     </div>

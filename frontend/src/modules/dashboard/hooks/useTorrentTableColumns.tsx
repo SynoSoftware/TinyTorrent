@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { cn } from "@heroui/react";
 import type { TFunction } from "i18next";
 import {
     DEFAULT_COLUMN_ORDER,
@@ -8,11 +7,11 @@ import {
     type ColumnId,
 } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
-import { TEXT_ROLE } from "@/config/textRoles";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { RefObject } from "react";
+import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
 
 export function useTorrentTableColumns({
     t,
@@ -43,17 +42,12 @@ export function useTorrentTableColumns({
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
                         <div
-                            className={cn(
-                                "flex items-center gap-tight",
-                                TEXT_ROLE.labelDense,
-                            )}
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
+                            className={TABLE_VIEW_CLASS.columnHeaderLabel}
+                            style={TABLE_VIEW_CLASS.columnHeaderLabelTrackingStyle}
                         >
                             <HeaderIcon
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-foreground/50 animate-pulse toolbar-icon-size-md"
+                                className={TABLE_VIEW_CLASS.columnHeaderPulseIcon}
                             />
                             <span>{label}</span>
                         </div>

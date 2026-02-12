@@ -3,8 +3,8 @@ import { cn } from "@heroui/react";
 import React, { useMemo } from "react";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import {
-    SURFACE_FRAME_CLASS,
-    SURFACE_ATOM_CLASS,
+    STANDARD_SURFACE_CLASS,
+    TABLE_VIEW_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ColumnMeasurementLayer } from "@/modules/dashboard/components/TorrentTable_Shared";
@@ -38,8 +38,8 @@ export function TorrentTable({
     const tableShellClass = useMemo(
         () =>
             cn(
-                "relative flex-1 h-full min-h-0 flex flex-col",
-                SURFACE_FRAME_CLASS.panel,
+                TABLE_VIEW_CLASS.shellPanelBase,
+                STANDARD_SURFACE_CLASS.frame.panel,
             ),
         [],
     );
@@ -62,11 +62,11 @@ export function TorrentTable({
                 data-tt-layout-suppressed={
                     state.isAnimationSuppressed ? "true" : undefined
                 }
-                style={{ borderRadius: "inherit" }}
+                style={TABLE_VIEW_CLASS.hostBorderRadiusStyle}
                 className={cn(
-                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
-                    !embedded && "acrylic",
-                    !embedded && SURFACE_ATOM_CLASS.shadowBlock,
+                    TABLE_VIEW_CLASS.hostRoot,
+                    !embedded && TABLE_VIEW_CLASS.hostAcrylic,
+                    !embedded && STANDARD_SURFACE_CLASS.atom.shadowBlock,
                 )}
                 onClick={menus.closeContextMenu}
             >

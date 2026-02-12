@@ -7,7 +7,7 @@ import { scheduler } from "@/app/services/scheduler";
 import {
     buildSplitViewPeerActivityClass,
     buildSplitViewPeerNodeClass,
-    GLASS_TOOLTIP_CLASSNAMES,
+    STANDARD_SURFACE_CLASS,
     SPLIT_VIEW_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
@@ -360,7 +360,7 @@ export const PeerMap = ({
                                         node.peer.rateToClient
                                     )} DL`}
                                     isDisabled={mode === "impression"}
-                                    classNames={GLASS_TOOLTIP_CLASSNAMES}
+                                    classNames={STANDARD_SURFACE_CLASS.tooltip}
                                 >
                                     <g
                                         onMouseEnter={() => onHover?.(node.id)}

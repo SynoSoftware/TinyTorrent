@@ -1,7 +1,10 @@
-import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { SURFACE_BORDER } from "@/config/logic";
-import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE, withColor } from "@/config/textRoles";
+import {
+    SPLIT_VIEW_CLASS,
+    buildSplitViewCanvasInteractionStyle,
+    buildSplitViewLegendSwatchStyle,
+} from "@/shared/ui/layout/glass-surface";
 import {
     usePiecesMapViewModel,
     type PiecesMapProps,
@@ -31,12 +34,12 @@ const PiecesMapView = ({
     const cursor = isDragging ? "grabbing" : "grab";
 
     return (
-        <div className="flex flex-col flex-1 min-h-0 gap-panel">
+        <div className={SPLIT_VIEW_CLASS.contentStack}>
             <div
-                className="flex flex-wrap justify-between gap-panel text-foreground/50"
-                style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                className={SPLIT_VIEW_CLASS.mapStatsRow}
+                style={SPLIT_VIEW_CLASS.mapStatsTrackingStyle}
             >
-                <div className="flex flex-col gap-tight">
+                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.pieces")}
                     </span>
@@ -45,7 +48,7 @@ const PiecesMapView = ({
                     </span>
                 </div>
 
-                <div className="flex flex-col gap-tight">
+                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.piece_size")}
                     </span>
@@ -54,7 +57,7 @@ const PiecesMapView = ({
                     </span>
                 </div>
 
-                <div className="flex flex-col gap-tight">
+                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.verified")}
                     </span>
@@ -63,7 +66,7 @@ const PiecesMapView = ({
                     </span>
                 </div>
 
-                <div className="flex flex-col gap-tight">
+                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
@@ -72,7 +75,7 @@ const PiecesMapView = ({
                     </span>
                 </div>
 
-                <div className="flex flex-col gap-tight">
+                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.missing")}
                     </span>
@@ -83,52 +86,42 @@ const PiecesMapView = ({
             </div>
 
             {hasBinaryPieceStates && (
-                <div className={withOpacity(TEXT_ROLE.body, 60)}>
+                <div className={SPLIT_VIEW_CLASS.mapNote}>
                     {t("torrent_modal.piece_map.binary_states_note")}
                 </div>
             )}
 
             <div
                 ref={rootRef}
-                className={`relative z-panel flex-1 min-h-0 rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden`}
+                className={SPLIT_VIEW_CLASS.mapFrame}
             >
-                <div className="relative w-full h-full">
+                <div className={SPLIT_VIEW_CLASS.mapFrameInner}>
                     <canvas
                         ref={canvasRef}
-                        className="absolute inset-0 w-full h-full block rounded-2xl"
+                        className={SPLIT_VIEW_CLASS.mapCanvasLayer}
                         onMouseMove={handlers.onMouseMove}
                         onMouseLeave={handlers.onMouseLeave}
                         onMouseDown={handlers.onMouseDown}
-                        style={{
-                            cursor,
-                            touchAction: "none",
-                            pointerEvents: "auto",
-                        }}
+                        style={buildSplitViewCanvasInteractionStyle(cursor)}
                     />
                     <canvas
                         ref={overlayRef}
-                        className="absolute inset-0 w-full h-full block rounded-2xl pointer-events-none"
+                        className={SPLIT_VIEW_CLASS.mapCanvasOverlayLayer}
                     />
 
                     {tooltipLines.length > 0 && tooltipStyle && (
                         <div
-                            className={cn(
-                                "pointer-events-none absolute z-panel max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight shadow-large backdrop-blur-xl",
-                                TEXT_ROLE.body,
-                                "text-foreground/90",
-                            )}
+                            className={SPLIT_VIEW_CLASS.mapTooltip}
                             style={tooltipStyle}
                         >
                             {tooltipLines.map((line, index) => (
                                 <span
                                     key={`piece-tooltip-${index}`}
-                                    className={cn(
-                                        "block whitespace-normal",
-                                        TEXT_ROLE.body,
+                                    className={
                                         index === 0
-                                            ? "font-semibold"
-                                            : "text-foreground/70"
-                                    )}
+                                            ? SPLIT_VIEW_CLASS.mapTooltipPrimaryLine
+                                            : SPLIT_VIEW_CLASS.mapTooltipSecondaryLine
+                                    }
                                 >
                                     {line}
                                 </span>
@@ -136,57 +129,48 @@ const PiecesMapView = ({
                         </div>
                     )}
 
-                    <div className="absolute right-2 bottom-2 flex gap-2">
-                        <div className="text-[11px] text-foreground/60 bg-content1/40 backdrop-blur-xl border border-content1/25 rounded-full px-3 py-1">
+                    <div className={SPLIT_VIEW_CLASS.mapHintWrap}>
+                        <div className={SPLIT_VIEW_CLASS.mapHintChip}>
                             {t("torrent_modal.piece_map.hint_interact")}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="flex gap-panel mt-tight items-center">
-                <span className="flex items-center gap-tight">
+            <div className={SPLIT_VIEW_CLASS.mapLegendRow}>
+                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
                     <span
-                        style={{
-                            width: 14,
-                            height: 14,
+                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        style={buildSplitViewLegendSwatchStyle({
                             background: palette.success,
-                            display: "inline-block",
-                            borderRadius: 4,
-                        }}
+                        })}
                     />
                     <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.verified")}
                     </span>
                 </span>
 
-                <span className="flex items-center gap-tight">
+                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
                     <span
-                        style={{
-                            width: 14,
-                            height: 14,
+                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        style={buildSplitViewLegendSwatchStyle({
                             background: palette.warning,
-                            display: "inline-block",
-                            borderRadius: 4,
                             border: `1px solid ${palette.primary}`,
-                        }}
+                        })}
                     />
                     <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
                 </span>
 
-                <span className="flex items-center gap-tight">
+                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
                     <span
-                        style={{
-                            width: 14,
-                            height: 14,
+                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        style={buildSplitViewLegendSwatchStyle({
                             background: palette.foreground,
-                            display: "inline-block",
-                            borderRadius: 4,
                             border: `1px solid ${palette.danger}`,
                             opacity: 0.2,
-                        }}
+                        })}
                     />
                     <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.missing")}
