@@ -15,9 +15,7 @@ import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
-    GLASS_MENU_SURFACE,
-    MENU_ITEM_SURFACE,
-    MENU_SURFACE_FRAME,
+    MENU_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
@@ -140,17 +138,8 @@ export function LanguageMenu() {
             <DropdownMenu
                 aria-label={t("language.menu_label")}
                 variant="shadow"
-                className={cn(
-                    "min-w-dir-picker",
-                    GLASS_MENU_SURFACE,
-                    MENU_SURFACE_FRAME,
-                )}
-                itemClasses={{
-                    base: cn(
-                        MENU_ITEM_SURFACE,
-                        "flex items-center justify-between",
-                    ),
-                }}
+                className={MENU_CLASS.dirPickerSurface}
+                itemClasses={MENU_CLASS.itemSplitClassNames}
             >
                 {languages.map((option) => {
                     const isActive = language === option.code;
@@ -162,11 +151,11 @@ export function LanguageMenu() {
                             isSelected={isActive}
                             className={
                                 isActive
-                                    ? "bg-primary/15 text-primary"
+                                    ? MENU_CLASS.itemSelectedPrimary
                                     : undefined
                             }
                             startContent={
-                                <span className="text-lg leading-none">
+                                <span className={MENU_CLASS.flagInlineWrap}>
                                     {option.flagIcon}
                                 </span>
                             }
@@ -175,7 +164,7 @@ export function LanguageMenu() {
                                     <Check
                                         size={22}
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-primary"
+                                        className={MENU_CLASS.checkIconPrimary}
                                     />
                                 ) : null
                             }

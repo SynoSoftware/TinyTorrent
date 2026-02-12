@@ -30,25 +30,7 @@ import { Section } from "@/shared/ui/layout/Section";
 import {
     buildDashboardInspectorPanelClass,
     buildDashboardResizeHandleClass,
-    DASHBOARD_DROP_OVERLAY_ACCENT_CLASS,
-    DASHBOARD_DROP_OVERLAY_CLASS,
-    DASHBOARD_DROP_OVERLAY_ICON_WRAP_CLASS,
-    DASHBOARD_FULLSCREEN_BACKDROP_CLASS,
-    DASHBOARD_FULLSCREEN_OVERLAY_CLASS,
-    DASHBOARD_FULLSCREEN_PANEL_CLASS,
-    DASHBOARD_FULLSCREEN_SECTION_CLASS,
-    DASHBOARD_INSPECTOR_CONTENT_CLASS,
-    DASHBOARD_LAYOUT_CONTENT_CLASS,
-    DASHBOARD_LAYOUT_CONTENT_CLASSIC_SURFACE_CLASS,
-    DASHBOARD_LAYOUT_SHELL_CLASS,
-    DASHBOARD_MAIN_PANEL_CLASS,
-    DASHBOARD_PANELGROUP_CLASS,
-    DASHBOARD_RESIZE_HANDLE_BAR_CLASS,
-    DASHBOARD_RESIZE_HANDLE_INNER_CLASS,
-    DASHBOARD_SECTION_CLASS,
-    DASHBOARD_TABLE_CONTENT_CLASS,
-    DASHBOARD_TABLE_HOST_CLASS,
-    DASHBOARD_TABLE_WATERMARK_CLASS,
+    DASHBOARD_LAYOUT_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
@@ -205,7 +187,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         return {
             // Always include a subtle top border to prevent jump when focus highlight appears
             className: cn(
-                DASHBOARD_LAYOUT_SHELL_CLASS,
+                DASHBOARD_LAYOUT_CLASS.root,
             ),
             // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
@@ -213,8 +195,8 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
     const getContentStyles = () => ({
         className: cn(
-            DASHBOARD_LAYOUT_CONTENT_CLASS,
-            !isImmersiveShell && DASHBOARD_LAYOUT_CONTENT_CLASSIC_SURFACE_CLASS,
+            DASHBOARD_LAYOUT_CLASS.content,
+            !isImmersiveShell && DASHBOARD_LAYOUT_CLASS.contentClassicSurface,
         ),
         style: isImmersiveShell
             ? undefined
@@ -228,15 +210,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <AnimatePresence>
             {isDropActive && (
                 <motion.div
-                    className={DASHBOARD_DROP_OVERLAY_CLASS}
+                    className={DASHBOARD_LAYOUT_CLASS.dropOverlay}
                     {...OVERLAY_FADE_ANIMATION}
                 >
                     <motion.div
-                        className={DASHBOARD_DROP_OVERLAY_ACCENT_CLASS}
+                        className={DASHBOARD_LAYOUT_CLASS.dropOverlayAccent}
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
                         {...DROP_OVERLAY_ACCENT_ANIMATION}
                     />
-                    <div className={cn(DASHBOARD_DROP_OVERLAY_ICON_WRAP_CLASS, DROP_OVERLAY_ROLE)}>
+                    <div className={cn(DASHBOARD_LAYOUT_CLASS.dropOverlayIconWrap, DROP_OVERLAY_ROLE)}>
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
@@ -256,15 +238,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className={DASHBOARD_PANELGROUP_CLASS}
+            className={DASHBOARD_LAYOUT_CLASS.panelGroup}
             style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
-            <Panel className={DASHBOARD_MAIN_PANEL_CLASS}>
+            <Panel className={DASHBOARD_LAYOUT_CLASS.mainPanel}>
                 <div {...getShellStyles()} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
-                            className={DASHBOARD_TABLE_HOST_CLASS}
+                            className={DASHBOARD_LAYOUT_CLASS.tableHost}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
@@ -272,11 +254,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             {tableWatermarkEnabled && (
                                 <div
                                     aria-hidden="true"
-                                    className={DASHBOARD_TABLE_WATERMARK_CLASS}
+                                    className={DASHBOARD_LAYOUT_CLASS.tableWatermark}
                                 />
                             )}
                             <div
-                                className={DASHBOARD_TABLE_CONTENT_CLASS}
+                                className={DASHBOARD_LAYOUT_CLASS.tableContent}
                                 style={{ borderRadius: "inherit" }}
                             >
                                 <DetailOpenProvider
@@ -310,9 +292,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     flexBasis: "var(--tt-gap)",
                 }}
             >
-                <div className={DASHBOARD_RESIZE_HANDLE_INNER_CLASS}>
+                <div className={DASHBOARD_LAYOUT_CLASS.resizeHandleInner}>
                     <div
-                        className={DASHBOARD_RESIZE_HANDLE_BAR_CLASS}
+                        className={DASHBOARD_LAYOUT_CLASS.resizeHandleBar}
                         style={
                             isHorizontalSplit
                                 ? {
@@ -341,13 +323,13 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                 <div {...getShellStyles()}>
                     <div {...getContentStyles()}>
                         <div
-                            className={DASHBOARD_INSPECTOR_CONTENT_CLASS}
+                            className={DASHBOARD_LAYOUT_CLASS.inspectorContent}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
                         >
                             <motion.div
-                                className={DASHBOARD_INSPECTOR_CONTENT_CLASS}
+                                className={DASHBOARD_LAYOUT_CLASS.inspectorContent}
                                 initial={false}
                                 animate={
                                     isDetailOpen
@@ -373,24 +355,24 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     );
 
     return (
-        <Section className={DASHBOARD_SECTION_CLASS}>
+        <Section className={DASHBOARD_LAYOUT_CLASS.section}>
             {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
                 {detailData && isDetailFullscreenActive && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className={DASHBOARD_FULLSCREEN_OVERLAY_CLASS}
+                        className={DASHBOARD_LAYOUT_CLASS.fullscreenOverlay}
                         {...OVERLAY_FADE_ANIMATION}
                         transition={{ duration: 0.25 }}
                     >
                         <Section
                             padding="stage"
-                            className={DASHBOARD_FULLSCREEN_SECTION_CLASS}
+                            className={DASHBOARD_LAYOUT_CLASS.fullscreenSection}
                         >
-                            <div className={DASHBOARD_FULLSCREEN_BACKDROP_CLASS} />
+                            <div className={DASHBOARD_LAYOUT_CLASS.fullscreenBackdrop} />
                             <motion.div
-                                className={DASHBOARD_FULLSCREEN_PANEL_CLASS}
+                                className={DASHBOARD_LAYOUT_CLASS.fullscreenPanel}
                                 style={{ borderRadius: `${shell.radius}px` }}
                                 {...FULLSCREEN_PANEL_ANIMATION}
                             >

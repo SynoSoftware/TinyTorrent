@@ -1,18 +1,21 @@
-import { Tooltip, cn } from "@heroui/react";
+import { Tooltip } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
 import { scheduler } from "@/app/services/scheduler";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
+import {
+    buildSplitViewPeerActivityClass,
+    buildSplitViewPeerNodeClass,
+    GLASS_TOOLTIP_CLASSNAMES,
+    SPLIT_VIEW_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import {
     DETAILS_PEER_MAP_CONFIG,
     ICON_STROKE_WIDTH,
-    SURFACE_BORDER,
-    TRANSITION,
 } from "@/config/logic";
-import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
+import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
@@ -221,29 +224,26 @@ export const PeerMap = ({
 
     return (
         <div
-            className={`flex flex-col flex-1 rounded-2xl border ${SURFACE_BORDER} bg-content1/5 p-panel space-y-3 overflow-hidden relative`}
+            className={SPLIT_VIEW_CLASS.peerMapRoot}
             onPointerDown={registerActivity}
             onMouseMove={registerActivity}
         >
-            <div className="flex items-center justify-between z-sticky pointer-events-none">
-                <div className="flex flex-col">
+            <div className={SPLIT_VIEW_CLASS.peerMapHud}>
+                <div className={SPLIT_VIEW_CLASS.peerMapHudMeta}>
                     <span className={TEXT_ROLE_EXTENDED.chartLabelMuted}>
                         {mode === "instrument"
                             ? t("peers.diagnostic_radar")
                             : t("peers.swarm_pulse")}
                     </span>
-                    <div className="flex items-center gap-tools">
+                    <div className={SPLIT_VIEW_CLASS.peerMapHudStats}>
                         <StatusIcon
                             Icon={Activity}
                             size="sm"
-                            className={cn(
-                                TRANSITION.reveal,
+                            className={buildSplitViewPeerActivityClass(
                                 mode === "instrument"
-                                    ? "opacity-100 text-primary"
-                                    : "opacity-0"
                             )}
                         />
-                        <span className={cn(TEXT_ROLE.codeMuted, "text-foreground/40")}>
+                        <span className={SPLIT_VIEW_CLASS.peerMapNodeCount}>
                             {peers.length} NODES
                         </span>
                     </div>
@@ -253,26 +253,26 @@ export const PeerMap = ({
                         <motion.div
                             initial={{ opacity: 0, x: 5 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="flex gap-tools items-center"
+                            className={SPLIT_VIEW_CLASS.peerMapInstrumentInfo}
                         >
-                            <span className={cn(TEXT_ROLE.codeCaption, "text-foreground/40")}>
+                            <span className={SPLIT_VIEW_CLASS.peerMapAperture}>
                                 Aperture:{" "}
                                 {formatSpeed(swarmStats.max * radialAperture)}
                             </span>
                             <StatusIcon
                                 Icon={Compass}
                                 size="sm"
-                                className="text-primary/50"
+                                className={SPLIT_VIEW_CLASS.peerMapCompassIcon}
                             />
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
 
-            <div className="flex-1 min-h-0 relative">
+            <div className={SPLIT_VIEW_CLASS.peerMapCanvasWrap}>
                 <svg
                     viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
-                    className="w-full h-full cursor-crosshair overflow-visible"
+                    className={SPLIT_VIEW_CLASS.peerMapSvg}
                     onWheel={handleWheel}
                 >
                     <circle
@@ -286,7 +286,7 @@ export const PeerMap = ({
                                 : palette.warning
                         }
                         strokeWidth={2}
-                        className={`${TRANSITION.fast} opacity-03`}
+                        className={SPLIT_VIEW_CLASS.peerMapRing}
                     />
 
                     <AnimatePresence>
@@ -295,7 +295,7 @@ export const PeerMap = ({
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="pointer-events-none"
+                                className={SPLIT_VIEW_CLASS.peerMapGuides}
                             >
                                 {[0.2, 0.4, 0.6, 0.8, 1.0].map((lvl) => (
                                     <circle
@@ -306,7 +306,7 @@ export const PeerMap = ({
                                         fill="none"
                                         stroke="currentColor"
                                         strokeWidth={0.2}
-                                        className="text-foreground/5"
+                                        className={SPLIT_VIEW_CLASS.peerMapGuideCircle}
                                         strokeDasharray="1 4"
                                     />
                                 ))}
@@ -321,7 +321,7 @@ export const PeerMap = ({
                                             y2={C + Math.sin(ang) * R_MAX}
                                             stroke="currentColor"
                                             strokeWidth={0.2}
-                                            className="text-foreground/10"
+                                            className={SPLIT_VIEW_CLASS.peerMapGuideAxis}
                                         />
                                     );
                                 })}
@@ -416,10 +416,8 @@ export const PeerMap = ({
                                                 damping: 24,
                                             }}
                                             stroke={palette.foreground}
-                                            className={cn(
-                                                TRANSITION.medium,
-                                                node.isUTP &&
-                                                    "drop-shadow-primary-small"
+                                            className={buildSplitViewPeerNodeClass(
+                                                node.isUTP,
                                             )}
                                         />
 

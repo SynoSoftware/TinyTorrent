@@ -14,7 +14,7 @@ import {
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import {
     buildMissingFilesStatusTriggerClass,
-    STATUS_CHIP_CLASSNAMES,
+    FORM_CONTROL_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 type MissingFilesStatusCellProps = {
@@ -49,16 +49,16 @@ export function TorrentTable_MissingFilesStatusCell({
 
     if (!classification) {
         return (
-            <div className="min-w-0 w-full flex items-center justify-center h-full">
+            <div className={FORM_CONTROL_CLASS.statusChipContainer}>
                 <Chip
                     size="md"
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={STATUS_CHIP_CLASSNAMES}
+                    classNames={FORM_CONTROL_CLASS.statusChipClassNames}
                 >
-                    <div className="flex items-center justify-center gap-tools">
-                        <AlertTriangle className="toolbar-icon-size-md text-warning" />
+                    <div className={FORM_CONTROL_CLASS.statusChipContent}>
+                        <AlertTriangle className={FORM_CONTROL_CLASS.statusChipWarningIcon} />
                         <span>{t("recovery.generic_header")}</span>
                     </div>
                 </Chip>
@@ -87,7 +87,7 @@ export function TorrentTable_MissingFilesStatusCell({
     };
 
     return (
-        <div className="min-w-0 w-full flex items-center justify-center h-full">
+        <div className={FORM_CONTROL_CLASS.statusChipContainer}>
             <button
                 type="button"
                 onClick={handleOpenRecovery}
@@ -101,11 +101,11 @@ export function TorrentTable_MissingFilesStatusCell({
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={STATUS_CHIP_CLASSNAMES}
+                    classNames={FORM_CONTROL_CLASS.statusChipClassNames}
                 >
-                    <div className="flex items-center justify-center gap-tools">
-                        <AlertTriangle className="toolbar-icon-size-md text-warning" />
-                        <span className="truncate max-w-full">{statusText}</span>
+                    <div className={FORM_CONTROL_CLASS.statusChipContent}>
+                        <AlertTriangle className={FORM_CONTROL_CLASS.statusChipWarningIcon} />
+                        <span className={FORM_CONTROL_CLASS.statusChipLabel}>{statusText}</span>
                     </div>
                 </Chip>
             </button>

@@ -10,7 +10,7 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    MODAL_BASE_CLASSNAMES,
+    MODAL_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import {
     TORRENTTABLE_COLUMN_DEFS,
@@ -38,7 +38,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
             size="lg"
             backdrop="blur"
             motionProps={INTERACTION_CONFIG.modalBloom}
-            classNames={MODAL_BASE_CLASSNAMES}
+            classNames={MODAL_SURFACE_CLASS.baseClassNames}
         >
             <ModalContent>
                 {() => (

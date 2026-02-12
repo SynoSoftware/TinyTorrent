@@ -14,6 +14,7 @@ import type {
     FilePriority,
 } from "@/modules/torrent-add/services/fileSelection";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
+import { APP_MODAL_CLASS } from "@/shared/ui/layout/glass-surface";
 
 const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
     low: 1,
@@ -107,7 +108,7 @@ export const AddTorrentFileTable = () => {
 
     // 5. Render
     return (
-        <div className="h-full w-full min-h-0  rounded-xl overflow-hidden shadow-inner">
+        <div className={APP_MODAL_CLASS.workflow.fileTableShell}>
             <FileExplorerTree viewModel={viewModel} />
         </div>
     );

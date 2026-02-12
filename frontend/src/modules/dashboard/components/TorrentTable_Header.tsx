@@ -17,9 +17,7 @@ import {
     buildTorrentHeaderCellClass,
     buildTorrentHeaderResizeBarClass,
     buildTorrentHeaderSortIconClass,
-    TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
-    TORRENT_HEADER_RESIZE_BAR_STYLE,
-    TORRENT_HEADER_RESIZE_HANDLE_CLASS,
+    TORRENT_HEADER_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
@@ -163,7 +161,7 @@ const TorrentTable_Header = memo(
                         align,
                         isSelection,
                     })}
-                    style={TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE}
+                    style={TORRENT_HEADER_CLASS.activatorTrackingStyle}
                     onClick={
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
@@ -184,13 +182,13 @@ const TorrentTable_Header = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className={TORRENT_HEADER_RESIZE_HANDLE_CLASS}
+                        className={TORRENT_HEADER_CLASS.resizeHandle}
                     >
                         <div
                             className={buildTorrentHeaderResizeBarClass(
                                 isColumnResizing,
                             )}
-                            style={TORRENT_HEADER_RESIZE_BAR_STYLE}
+                            style={TORRENT_HEADER_CLASS.resizeBarStyle}
                         />
                     </div>
                 )}

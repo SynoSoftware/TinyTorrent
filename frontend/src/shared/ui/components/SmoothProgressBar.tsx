@@ -1,8 +1,7 @@
 import { cn } from "@heroui/react";
 import { type CSSProperties } from "react";
 import {
-    SMOOTH_PROGRESS_INDICATOR_CLASS,
-    SMOOTH_PROGRESS_TRACK_CLASS,
+    METRIC_CHART_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 const clamp = (value: number) => Math.min(Math.max(value, 0), 100);
@@ -30,7 +29,7 @@ export function SmoothProgressBar({
     return (
         <div
             className={cn(
-                SMOOTH_PROGRESS_TRACK_CLASS,
+                METRIC_CHART_CLASS.progressBar.track,
                 trackClassName,
                 className
             )}
@@ -43,7 +42,7 @@ export function SmoothProgressBar({
         >
             <div
                 className={cn(
-                    SMOOTH_PROGRESS_INDICATOR_CLASS,
+                    METRIC_CHART_CLASS.progressBar.indicator,
                     indicatorClassName
                 )}
                 style={{

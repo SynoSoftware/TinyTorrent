@@ -14,20 +14,7 @@ import {
     STATUS_VISUALS,
 } from "@/config/logic";
 import {
-    COMMAND_PALETTE_BACKDROP_CLASS,
-    COMMAND_PALETTE_DESC_CLASS,
-    COMMAND_PALETTE_EMPTY_CLASS,
-    COMMAND_PALETTE_GROUP_WRAP_CLASS,
-    COMMAND_PALETTE_INPUT_CLASS,
-    COMMAND_PALETTE_ITEM_CLASS,
-    COMMAND_PALETTE_ITEM_ROW_CLASS,
-    COMMAND_PALETTE_LIST_CLASS,
-    COMMAND_PALETTE_OUTCOME_CLASS,
-    COMMAND_PALETTE_OVERLAY_CLASS,
-    COMMAND_PALETTE_PANEL_CLASS,
-    COMMAND_PALETTE_SECTION_CLASS,
-    COMMAND_PALETTE_SHORTCUT_KEY_CLASS,
-    COMMAND_PALETTE_SHORTCUT_WRAP_CLASS,
+    COMMAND_PALETTE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 export type CommandActionOutcome =
@@ -156,20 +143,20 @@ function CommandPaletteOverlay({
     return (
         <motion.div
             {...OVERLAY_FADE_ANIMATION}
-            className={COMMAND_PALETTE_OVERLAY_CLASS}
+            className={COMMAND_PALETTE_CLASS.overlay}
         >
             <motion.div
                 {...BACKDROP_FADE_ANIMATION}
-                className={COMMAND_PALETTE_BACKDROP_CLASS}
+                className={COMMAND_PALETTE_CLASS.backdrop}
                 onPointerDown={onClose}
             />
             <Section
                 padding="overlay"
-                className={COMMAND_PALETTE_SECTION_CLASS}
+                className={COMMAND_PALETTE_CLASS.section}
             >
                 <motion.div
                     {...PANEL_ANIMATION}
-                    className={COMMAND_PALETTE_PANEL_CLASS}
+                    className={COMMAND_PALETTE_CLASS.panel}
                 >
                     <Command
                         value={query}
@@ -183,11 +170,11 @@ function CommandPaletteOverlay({
                     >
                         <Command.Input
                             placeholder={t("command_palette.placeholder")}
-                            className={COMMAND_PALETTE_INPUT_CLASS}
+                            className={COMMAND_PALETTE_CLASS.input}
                         />
-                        <Command.List className={COMMAND_PALETTE_LIST_CLASS}>
+                        <Command.List className={COMMAND_PALETTE_CLASS.list}>
                             {groupedActions.map(({ group, entries }) => (
-                                <div key={group} className={COMMAND_PALETTE_GROUP_WRAP_CLASS}>
+                                <div key={group} className={COMMAND_PALETTE_CLASS.groupWrap}>
                                     <div className={TEXT_ROLE_EXTENDED.commandSection}>
                                         {group}
                                     </div>
@@ -199,19 +186,19 @@ function CommandPaletteOverlay({
                                                 onSelect={() =>
                                                     void handleSelect(action)
                                                 }
-                                                className={COMMAND_PALETTE_ITEM_CLASS}
+                                                className={COMMAND_PALETTE_CLASS.item}
                                             >
-                                                <div className={COMMAND_PALETTE_ITEM_ROW_CLASS}>
+                                                <div className={COMMAND_PALETTE_CLASS.itemRow}>
                                                     <span>{action.title}</span>
                                                     {action.shortcut && (
-                                                        <div className={COMMAND_PALETTE_SHORTCUT_WRAP_CLASS}>
+                                                        <div className={COMMAND_PALETTE_CLASS.shortcutWrap}>
                                                             {action.shortcut.map(
                                                                 (key) => (
                                                                     <span
                                                                         key={
-                                                                            key
+                                                                        key
                                                                         }
-                                                                        className={COMMAND_PALETTE_SHORTCUT_KEY_CLASS}
+                                                                        className={COMMAND_PALETTE_CLASS.shortcutKey}
                                                                     >
                                                                         {key}
                                                                     </span>
@@ -221,7 +208,7 @@ function CommandPaletteOverlay({
                                                     )}
                                                 </div>
                                                 {action.description && (
-                                                    <p className={COMMAND_PALETTE_DESC_CLASS}>
+                                                    <p className={COMMAND_PALETTE_CLASS.description}>
                                                         {action.description}
                                                     </p>
                                                 )}
@@ -231,7 +218,7 @@ function CommandPaletteOverlay({
                                 </div>
                             ))}
                             <Command.Empty
-                                className={COMMAND_PALETTE_EMPTY_CLASS}
+                                className={COMMAND_PALETTE_CLASS.empty}
                             >
                                 {t("command_palette.empty")}
                             </Command.Empty>
@@ -239,7 +226,7 @@ function CommandPaletteOverlay({
                         {outcomeMessage ? (
                             <div
                                 className={cn(
-                                    COMMAND_PALETTE_OUTCOME_CLASS,
+                                    COMMAND_PALETTE_CLASS.outcome,
                                     outcomeToneClass,
                                 )}
                             >

@@ -14,18 +14,10 @@ import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import {
-    CHECKBOX_PRIMARY_CLASSNAMES,
-    FILE_TREE_CHEVRON_BUTTON_CLASS,
-    FILE_TREE_PRIORITY_CHIP_CLASS,
-    FILE_TREE_PROGRESS_CLASSNAMES,
-    FILE_TREE_ROW_CLASS,
-    FILE_TREE_ROW_DIMMED_CLASS,
-    MENU_ITEM_CLASSNAMES,
-    MENU_LIST_CLASSNAMES,
-    MENU_SURFACE_CLASS,
-    PRIORITY_CHIP_CLASSNAMES,
+    FILE_BROWSER_CLASS,
+    FORM_CONTROL_CLASS,
+    MENU_CLASS,
 } from "@/shared/ui/layout/glass-surface";
-import { TEXT_ROLE } from "@/config/textRoles";
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
@@ -38,18 +30,18 @@ interface FileExplorerTreeRowProps {
 const getFileIcon = (filename: string) => {
     const extension = filename.split(".").pop()?.toLowerCase();
     if (["mp4", "mkv", "avi", "mov", "webm"].includes(extension || "")) {
-        return <FileVideo className="toolbar-icon-size-sm text-primary" />;
+        return <FileVideo className={FILE_BROWSER_CLASS.iconVideo} />;
     }
     if (["mp3", "wav", "flac", "aac"].includes(extension || "")) {
-        return <FileAudio className="toolbar-icon-size-sm text-warning" />;
+        return <FileAudio className={FILE_BROWSER_CLASS.iconAudio} />;
     }
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension || "")) {
-        return <FileImage className="toolbar-icon-size-sm text-success" />;
+        return <FileImage className={FILE_BROWSER_CLASS.iconImage} />;
     }
     if (["txt", "md", "pdf", "doc", "docx"].includes(extension || "")) {
-        return <FileText className="toolbar-icon-size-sm text-default-500" />;
+        return <FileText className={FILE_BROWSER_CLASS.iconText} />;
     }
-    return <FileIcon className="toolbar-icon-size-sm text-default-400" />;
+    return <FileIcon className={FILE_BROWSER_CLASS.iconDefault} />;
 };
 
 const getPriorityColor = (priority: LibtorrentPriority, isWanted: boolean) => {
@@ -83,8 +75,8 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     return (
         <div
             className={cn(
-                FILE_TREE_ROW_CLASS,
-                !row.isWanted && FILE_TREE_ROW_DIMMED_CLASS,
+                FILE_BROWSER_CLASS.row,
+                !row.isWanted && FILE_BROWSER_CLASS.rowDimmed,
             )}
             style={
                 {
@@ -92,39 +84,39 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 } as CSSProperties
             }
         >
-            <div className="flex items-center justify-center">
+            <div className={FILE_BROWSER_CLASS.rowCheckboxWrap}>
                 <Checkbox
                     size="sm"
                     radius="sm"
                     isSelected={row.isSelected}
                     isIndeterminate={row.isIndeterminate}
                     onValueChange={onSelectionChange}
-                    classNames={CHECKBOX_PRIMARY_CLASSNAMES}
+                    classNames={FORM_CONTROL_CLASS.checkboxPrimaryClassNames}
                 />
             </div>
 
-            <div className="flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent">
+            <div className={FILE_BROWSER_CLASS.rowNameCell}>
                 {row.node.isFolder ? (
                     <button
                         onClick={(event) => {
                             event.stopPropagation();
                             onToggleExpand();
                         }}
-                        className={FILE_TREE_CHEVRON_BUTTON_CLASS}
+                        className={FILE_BROWSER_CLASS.chevronButton}
                     >
                         {row.isExpanded ? (
-                            <ChevronDown className="toolbar-icon-size-sm" />
+                            <ChevronDown className={FILE_BROWSER_CLASS.iconSmall} />
                         ) : (
-                            <ChevronRight className="toolbar-icon-size-sm" />
+                            <ChevronRight className={FILE_BROWSER_CLASS.iconSmall} />
                         )}
                     </button>
                 ) : (
-                    <div className="w-file-tree-indent-spacer" />
+                    <div className={FILE_BROWSER_CLASS.rowIndentSpacer} />
                 )}
 
-                <div className="mr-tight text-default-500 shrink-0">
+                <div className={FILE_BROWSER_CLASS.rowIconWrap}>
                     {row.node.isFolder ? (
-                        <Folder className="toolbar-icon-size-sm fill-default-400/20" />
+                        <Folder className={FILE_BROWSER_CLASS.rowFolderIcon} />
                     ) : (
                         getFileIcon(row.node.name)
                     )}
@@ -132,10 +124,10 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 
                 <span
                     className={cn(
-                        "text-scaled truncate cursor-default",
+                        FILE_BROWSER_CLASS.rowNameBase,
                         row.node.isFolder
-                            ? "font-medium text-foreground"
-                            : "text-foreground/80",
+                            ? FILE_BROWSER_CLASS.rowNameFolder
+                            : FILE_BROWSER_CLASS.rowNameFile,
                     )}
                     title={row.node.name}
                     onClick={row.node.isFolder ? onToggleExpand : undefined}
@@ -144,15 +136,15 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </span>
             </div>
 
-            <div className="flex justify-center">
+            <div className={FILE_BROWSER_CLASS.rowPriorityWrap}>
                 <Dropdown>
                     <DropdownTrigger>
                         <Chip
                             size="sm"
                             variant="flat"
                             color={getPriorityColor(row.priority, row.isWanted)}
-                            className={FILE_TREE_PRIORITY_CHIP_CLASS}
-                            classNames={PRIORITY_CHIP_CLASSNAMES}
+                            className={FILE_BROWSER_CLASS.priorityChip}
+                            classNames={FORM_CONTROL_CLASS.priorityChipClassNames}
                         >
                             {getPriorityLabel(row.priority, row.isWanted, t)}
                         </Chip>
@@ -166,14 +158,14 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             if (key === "skip") onSetPriority("skip", indexes);
                         }}
                         variant="shadow"
-                        className={MENU_SURFACE_CLASS}
-                        classNames={MENU_LIST_CLASSNAMES}
-                        itemClasses={MENU_ITEM_CLASSNAMES}
+                        className={MENU_CLASS.surface}
+                        classNames={MENU_CLASS.listClassNames}
+                        itemClasses={MENU_CLASS.itemClassNames}
                     >
                         <DropdownItem
                             key="high"
                             startContent={
-                                <ArrowUp className="toolbar-icon-size-sm text-success" />
+                                <ArrowUp className={FILE_BROWSER_CLASS.priorityMenuHighIcon} />
                             }
                         >
                             {t("priority.high")}
@@ -181,7 +173,9 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                         <DropdownItem
                             key="normal"
                             startContent={
-                                <Minus className="toolbar-icon-size-sm text-primary" />
+                                <Minus
+                                    className={FILE_BROWSER_CLASS.priorityMenuNormalIcon}
+                                />
                             }
                         >
                             {t("priority.normal")}
@@ -189,15 +183,17 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                         <DropdownItem
                             key="low"
                             startContent={
-                                <ArrowDown className="toolbar-icon-size-sm text-warning" />
+                                <ArrowDown className={FILE_BROWSER_CLASS.priorityMenuLowIcon} />
                             }
                         >
                             {t("priority.low")}
                         </DropdownItem>
                         <DropdownItem
                             key="skip"
-                            className="text-danger"
-                            startContent={<X className="toolbar-icon-size-sm" />}
+                            className={FILE_BROWSER_CLASS.priorityMenuDangerItem}
+                            startContent={
+                                <X className={FILE_BROWSER_CLASS.priorityMenuSkipIcon} />
+                            }
                         >
                             {t("priority.dont_download")}
                         </DropdownItem>
@@ -205,17 +201,17 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </Dropdown>
             </div>
 
-            <div className="flex flex-col justify-center px-tight">
+            <div className={FILE_BROWSER_CLASS.rowProgressWrap}>
                 <Progress
                     size="sm"
                     value={progress}
                     color={progress === 100 ? "success" : "primary"}
-                    classNames={FILE_TREE_PROGRESS_CLASSNAMES}
+                    classNames={FILE_BROWSER_CLASS.progressClassNames}
                     aria-label="Download progress"
                 />
             </div>
 
-            <div className={`${TEXT_ROLE.codeMuted} text-right text-default-400`}>
+            <div className={FILE_BROWSER_CLASS.rowSizeText}>
                 {formatBytes(row.node.totalSize)}
             </div>
         </div>

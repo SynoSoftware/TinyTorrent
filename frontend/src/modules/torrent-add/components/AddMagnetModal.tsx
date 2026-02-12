@@ -5,7 +5,6 @@ import {
     ModalContent,
     ModalFooter,
     Textarea,
-    cn,
 } from "@heroui/react";
 import {
     useCallback,
@@ -17,13 +16,13 @@ import {
 import { useTranslation } from "react-i18next";
 import { Magnet, X } from "lucide-react";
 
-import { INTERACTION_CONFIG, INTERACTIVE_RECIPE } from "@/config/logic";
+import { INTERACTION_CONFIG } from "@/config/logic";
 import {
-    ADD_MAGNET_TEXTAREA_CLASSNAMES,
-    MODAL_BASE_CLASSNAMES,
-    MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_HEADER,
-    STICKY_HEADER,
+    APP_MODAL_CLASS,
+    FORM_UI_CLASS,
+    INPUT_SURFACE_CLASS,
+    MODAL_SURFACE_CLASS,
+    SURFACE_CHROME_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -99,23 +98,19 @@ export function AddMagnetModal({
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
-            classNames={MODAL_BASE_CLASSNAMES}
+            classNames={MODAL_SURFACE_CLASS.baseClassNames}
         >
             <ModalContent>
                 {() => (
                     <>
                         <div
-                            className={cn(
-                                MODAL_SURFACE_HEADER,
-                                STICKY_HEADER,
-                                "shrink-0 h-modal-header flex items-center justify-between px-stage py-panel",
-                            )}
+                            className={APP_MODAL_CLASS.header}
                         >
-                            <div className="flex items-center gap-tools">
+                            <div className={APP_MODAL_CLASS.headerLead}>
                                 <StatusIcon
                                     Icon={Magnet}
                                     size="md"
-                                    className="text-primary"
+                                    className={APP_MODAL_CLASS.headerLeadPrimaryIcon}
                                 />
                                 <span className={TEXT_ROLE.labelPrimary}>
                                     {t("modals.add_magnet.title")}
@@ -127,11 +122,11 @@ export function AddMagnetModal({
                                 ariaLabel={t("torrent_modal.actions.close")}
                                 onPress={handleClose}
                                 iconSize="lg"
-                                className={`text-foreground/40 hidden sm:flex ${INTERACTIVE_RECIPE.dismiss}`}
+                                className={APP_MODAL_CLASS.desktopClose}
                             />
                         </div>
 
-                        <ModalBody className="space-y-panel py-panel">
+                        <ModalBody className={FORM_UI_CLASS.bodyStackPanel}>
                             <Textarea
                                 ref={textareaRef}
                                 autoFocus
@@ -139,7 +134,7 @@ export function AddMagnetModal({
                                 onValueChange={setValue}
                                 placeholder={t("modals.add_magnet.placeholder")}
                                 variant="bordered"
-                                classNames={ADD_MAGNET_TEXTAREA_CLASSNAMES}
+                                classNames={INPUT_SURFACE_CLASS.codeTextareaClassNames}
                                 onKeyDown={handleKeyDown}
                             />
                             <p className={`${TEXT_ROLE.bodyMuted} leading-relaxed`}>
@@ -147,10 +142,7 @@ export function AddMagnetModal({
                             </p>
                         </ModalBody>
                         <ModalFooter
-                            className={cn(
-                                MODAL_SURFACE_FOOTER,
-                                "px-stage py-panel flex items-center justify-end gap-tools",
-                            )}
+                            className={SURFACE_CHROME_CLASS.footerActionsPadded}
                         >
                             <Button variant="light" onPress={handleClose}>
                                 {t("modals.cancel")}

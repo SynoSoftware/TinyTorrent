@@ -11,10 +11,8 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    CHECKBOX_MARGIN_RIGHT_CLASSNAMES,
-    MENU_ITEM_CLASSNAMES,
-    MENU_LIST_CLASSNAMES,
-    MENU_SURFACE_CLASS,
+    FORM_CONTROL_CLASS,
+    MENU_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 
@@ -59,9 +57,9 @@ export default function TorrentTable_HeaderMenu({
                 </DropdownTrigger>
                 <DropdownMenu
                     variant="shadow"
-                    classNames={MENU_LIST_CLASSNAMES}
-                    itemClasses={MENU_ITEM_CLASSNAMES}
-                    className={cn(MENU_SURFACE_CLASS, "min-w-(--tt-menu-min-width)")}
+                    classNames={MENU_CLASS.listClassNames}
+                    itemClasses={MENU_CLASS.itemClassNames}
+                    className={cn(MENU_CLASS.surface, "min-w-(--tt-menu-min-width)")}
                 >
                     <DropdownItem
                         key="hide-column"
@@ -115,7 +113,7 @@ export default function TorrentTable_HeaderMenu({
                                             isSelected={isVisible}
                                             size="md"
                                             disableAnimation
-                                            classNames={CHECKBOX_MARGIN_RIGHT_CLASSNAMES}
+                                            classNames={FORM_CONTROL_CLASS.checkboxMarginRightClassNames}
                                         />
                                     }
                                 >

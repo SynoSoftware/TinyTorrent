@@ -3,7 +3,7 @@ import { TEXT_ROLE } from "@/config/textRoles";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
-    CAPACITY_GAUGE_CLASS,
+    METRIC_CHART_CLASS,
     buildCapacityGaugeContainerClass,
     buildCapacityGaugeIndicatorClass,
 } from "@/shared/ui/layout/glass-surface";
@@ -56,30 +56,27 @@ export function DiskSpaceGauge({
     return (
         <div className={containerClasses}>
             <div
-                className={CAPACITY_GAUGE_CLASS.header}
-                style={{
-                    fontSize: "var(--tt-font-size-base)",
-                    letterSpacing: "var(--tt-tracking-ultra)",
-                }}
+                className={METRIC_CHART_CLASS.capacityGauge.header}
+                style={METRIC_CHART_CLASS.capacityGauge.headerStyle}
             >
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span
-                    style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className={CAPACITY_GAUGE_CLASS.path}
+                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART_CLASS.capacityGauge.path}
                 >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
-            <div className="h-sep">
+            <div className={METRIC_CHART_CLASS.capacityGauge.progressWrap}>
                 <SmoothProgressBar
                     value={Math.min(usedPercent + torrentPercent, 100)}
-                    trackClassName={CAPACITY_GAUGE_CLASS.progressTrack}
+                    trackClassName={METRIC_CHART_CLASS.capacityGauge.progressTrack}
                     indicatorClassName={indicatorClasses}
                 />
             </div>
             <div
-                className={CAPACITY_GAUGE_CLASS.stats}
-                style={{ fontSize: "var(--tt-font-size-base)" }}
+                className={METRIC_CHART_CLASS.capacityGauge.stats}
+                style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
             >
                 <span>
                     {t("modals.disk_gauge.used")}{" "}
@@ -96,24 +93,24 @@ export function DiskSpaceGauge({
             </div>
             {isLoading && (
                 <p
-                    style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className={CAPACITY_GAUGE_CLASS.hint}
+                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART_CLASS.capacityGauge.hint}
                 >
                     {t("modals.disk_gauge.updating")}
                 </p>
             )}
             {hint && !error && (
                 <p
-                    style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className={CAPACITY_GAUGE_CLASS.hint}
+                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART_CLASS.capacityGauge.hint}
                 >
                     {hint}
                 </p>
             )}
             {error && (
-                <div className={CAPACITY_GAUGE_CLASS.errorRow}>
+                <div className={METRIC_CHART_CLASS.capacityGauge.errorRow}>
                     <p
-                        style={{ fontSize: "var(--tt-font-size-base)" }}
+                        style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
                         className={TEXT_ROLE.statusError}
                     >
                         {error}

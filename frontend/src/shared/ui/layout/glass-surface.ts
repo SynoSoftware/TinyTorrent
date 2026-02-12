@@ -7,54 +7,123 @@ import {
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
 
 // Reusable glass surface styling for popups and dropdowns.
-export const GLASS_MODAL_SURFACE =
+const GLASS_MODAL_SURFACE =
     "glass-panel surface-layer-2 text-foreground shadow-visual-large rounded-modal";
-export const MODAL_SURFACE_FRAME =
+const MODAL_SURFACE_FRAME =
     "flex flex-col overflow-hidden border border-default/20";
-export const MODAL_SURFACE_HEADER = "border-b border-default/20";
-export const MODAL_SURFACE_FOOTER = "border-t border-default/20";
-export const STICKY_HEADER =
+const MODAL_SURFACE_HEADER = "border-b border-default/20";
+const MODAL_SURFACE_FOOTER = "border-t border-default/20";
+const STICKY_HEADER =
     "sticky top-0 z-sticky bg-background/80 backdrop-blur-md";
-export const GLASS_MENU_SURFACE =
+const GLASS_MENU_SURFACE =
     "glass-panel surface-layer-2 text-foreground shadow-menu-large rounded-modal";
-export const MENU_SURFACE_FRAME =
+const MENU_SURFACE_FRAME =
     "overflow-hidden border border-default/20 p-tight";
-export const MENU_SURFACE_LIST = "overflow-hidden";
-export const MENU_ITEM_SURFACE =
+const MENU_SURFACE_LIST = "overflow-hidden";
+const MENU_ITEM_SURFACE =
     `rounded-panel px-panel py-tight text-scaled font-medium ${INTERACTIVE_RECIPE.menuItem} hover:text-foreground active:bg-content2/80`;
-export const MENU_SURFACE_CLASS = `${GLASS_MENU_SURFACE} ${MENU_SURFACE_FRAME}`;
-export const MENU_LIST_CLASSNAMES = { list: MENU_SURFACE_LIST } as const;
-export const MENU_ITEM_CLASSNAMES = { base: MENU_ITEM_SURFACE } as const;
-export const MENU_SECTION_HEADING = TEXT_ROLE.label;
-export const PANEL_SURFACE_FRAME =
+const MENU_SURFACE_CLASS = `${GLASS_MENU_SURFACE} ${MENU_SURFACE_FRAME}`;
+const MENU_LIST_CLASSNAMES = { list: MENU_SURFACE_LIST } as const;
+const MENU_ITEM_CLASSNAMES = { base: MENU_ITEM_SURFACE } as const;
+const MENU_SECTION_HEADING = TEXT_ROLE.label;
+const PANEL_SURFACE_FRAME =
     "rounded-panel border border-default/10 overflow-hidden";
-export const PANEL_SURFACE_INSET_FRAME =
+const PANEL_SURFACE_INSET_FRAME =
     "rounded-panel border border-default/15 overflow-hidden";
-export const PANE_SURFACE_FRAME =
+const PANE_SURFACE_FRAME =
     "flex flex-col min-h-0 overflow-hidden rounded-panel border border-default/20 shadow-small";
-export const GLASS_TOOLTIP_CLASSNAMES = {
-    content: `bg-content1/80 border ${SURFACE_BORDER} backdrop-blur-3xl shadow-visual-large rounded-2xl px-panel py-tight text-scaled leading-tight text-foreground/90`,
-    arrow: "bg-content1/80",
-} as const;
-export const MODAL_SURFACE_BASE_CLASS = `${GLASS_MODAL_SURFACE} ${MODAL_SURFACE_FRAME}`;
-export const MODAL_BASE_CLASSNAMES = {
+const MODAL_SURFACE_BASE_CLASS = `${GLASS_MODAL_SURFACE} ${MODAL_SURFACE_FRAME}`;
+const MODAL_BASE_CLASSNAMES = {
     base: MODAL_SURFACE_BASE_CLASS,
 } as const;
-export const MODAL_COMPACT_CLASSNAMES = {
+const MODAL_COMPACT_CLASSNAMES = {
     base: `${MODAL_SURFACE_BASE_CLASS} w-full max-w-modal-compact`,
 } as const;
-export const MODAL_BASE_WRAPPER_HIDDEN_CLASSNAMES = {
+const MODAL_BASE_WRAPPER_HIDDEN_CLASSNAMES = {
     base: MODAL_SURFACE_BASE_CLASS,
     wrapper: "overflow-hidden",
 } as const;
-export const MODAL_CHROME_CLASSNAMES = {
+const MODAL_CHROME_CLASSNAMES = {
     body: "p-tight",
     header: "p-none select-none blur-glass",
     footer: "p-none select-none",
 } as const;
+const STANDARD_SURFACE_TOOLTIP = {
+    content: `bg-content1/80 border ${SURFACE_BORDER} backdrop-blur-3xl shadow-visual-large rounded-2xl px-panel py-tight text-scaled leading-tight text-foreground/90`,
+    arrow: "bg-content1/80",
+} as const;
+const STANDARD_SURFACE_CHROME = {
+    headerBorder: MODAL_SURFACE_HEADER,
+    footerBorder: MODAL_SURFACE_FOOTER,
+    stickyHeader: STICKY_HEADER,
+    headerPassive: `${MODAL_SURFACE_HEADER} select-none`,
+    footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
+    footerActionsPadded:
+        `${MODAL_SURFACE_FOOTER} px-stage py-panel flex items-center justify-end gap-tools`,
+} as const;
+const STANDARD_SURFACE_MODAL = {
+    baseClassNames: MODAL_BASE_CLASSNAMES,
+    compactClassNames: MODAL_COMPACT_CLASSNAMES,
+    baseWrapperHiddenClassNames: MODAL_BASE_WRAPPER_HIDDEN_CLASSNAMES,
+    chromeClassNames: MODAL_CHROME_CLASSNAMES,
+    baseClass: MODAL_SURFACE_BASE_CLASS,
+} as const;
+const STANDARD_SURFACE_MENU = {
+    surface: MENU_SURFACE_CLASS,
+    dirPickerSurface: `min-w-dir-picker ${MENU_SURFACE_CLASS}`,
+    listClassNames: MENU_LIST_CLASSNAMES,
+    itemClassNames: MENU_ITEM_CLASSNAMES,
+    itemSplitClassNames: {
+        base: `${MENU_ITEM_SURFACE} flex items-center justify-between`,
+    } as const,
+    itemSelectedPrimary: "bg-primary/15 text-primary",
+    flagInlineWrap: "text-lg leading-none",
+    checkIconPrimary: "text-primary",
+    sectionHeading: MENU_SECTION_HEADING,
+} as const;
+const STANDARD_SURFACE_FRAME = {
+    panel: PANEL_SURFACE_FRAME,
+    panelInset: PANEL_SURFACE_INSET_FRAME,
+    pane: PANE_SURFACE_FRAME,
+} as const;
+const STANDARD_SURFACE_ATOM = {
+    iconButton: "surface-layer-1 border border-default/10",
+    insetRounded: "surface-layer-1 rounded-panel p-tight",
+    insetRoundedFull: "surface-layer-1 rounded-full p-tight",
+    insetBorderedItem: "rounded-panel border border-default/20 p-tight",
+    glassPanel: "glass-panel surface-layer-1 text-foreground",
+    shadowBlock: "shadow-small",
+    shadowPanel: "shadow-medium",
+    glassBlock: "acrylic  shadow-inner",
+} as const;
+const STANDARD_SURFACE_SEMANTIC = {
+    actionCard: `p-panel rounded-2xl border ${SURFACE_BORDER} bg-content1/10`,
+    settingsPanel: `p-panel rounded-2xl border ${SURFACE_BORDER} bg-content1/10`,
+    listContainer: `${PANEL_SURFACE_FRAME} bg-content1/10`,
+    infoPanel: `rounded-2xl border ${SURFACE_BORDER} bg-content1/30`,
+    workflowStep: `rounded-2xl border ${SURFACE_BORDER} bg-content1/50 p-panel`,
+    sidebarPanel: `flex flex-col border-r ${SURFACE_BORDER} bg-content1/50 blur-glass`,
+    modalBody: "p-tight",
+    menuPanel: MENU_SURFACE_CLASS,
+} as const;
+export const STANDARD_SURFACE_CLASS = {
+    tooltip: STANDARD_SURFACE_TOOLTIP,
+    chrome: STANDARD_SURFACE_CHROME,
+    modal: STANDARD_SURFACE_MODAL,
+    menu: STANDARD_SURFACE_MENU,
+    frame: STANDARD_SURFACE_FRAME,
+    atom: STANDARD_SURFACE_ATOM,
+    semantic: STANDARD_SURFACE_SEMANTIC,
+} as const;
+export const GLASS_TOOLTIP_CLASSNAMES = STANDARD_SURFACE_CLASS.tooltip;
+export const SURFACE_CHROME_CLASS = STANDARD_SURFACE_CLASS.chrome;
+export const MODAL_SURFACE_CLASS = STANDARD_SURFACE_CLASS.modal;
+export const MENU_CLASS = STANDARD_SURFACE_CLASS.menu;
+export const SURFACE_FRAME_CLASS = STANDARD_SURFACE_CLASS.frame;
+export const SURFACE_ATOM_CLASS = STANDARD_SURFACE_CLASS.atom;
 export const APP_MODAL_CLASS = {
     sidebar:
-        `flex flex-col border-r ${SURFACE_BORDER} bg-content1/50 blur-glass ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
+        `${STANDARD_SURFACE_CLASS.semantic.sidebarPanel} ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
     sidebarHeader:
@@ -72,8 +141,9 @@ export const APP_MODAL_CLASS = {
     versionWrapper: "p-panel border-t border-content1/10 shrink-0",
     versionText: `${TEXT_ROLE.codeCaption} text-foreground/30`,
     header:
-        `${MODAL_SURFACE_HEADER} ${STICKY_HEADER} shrink-0 h-modal-header flex items-center justify-between px-stage`,
+        `${SURFACE_CHROME_CLASS.headerBorder} ${SURFACE_CHROME_CLASS.stickyHeader} shrink-0 h-modal-header flex items-center justify-between px-stage`,
     headerLead: "flex items-center gap-tools",
+    headerLeadPrimaryIcon: "text-primary",
     headerTitleWrap: "flex flex-col",
     headerMobileBack: "sm:hidden -ml-tight text-foreground/50",
     headerUnsaved: `${TEXT_ROLE.statusWarning} animate-pulse tracking-0-2`,
@@ -84,7 +154,7 @@ export const APP_MODAL_CLASS = {
     inlineAlert: "px-panel py-tight",
     connectionStack: "space-y-stage",
     footer:
-        `${MODAL_SURFACE_FOOTER} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
+        `${SURFACE_CHROME_CLASS.footerBorder} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
     footerConfirmContent: "w-full flex items-center gap-panel",
     footerTextWrap: "flex flex-col min-w-0",
     footerWarningTitle: `${TEXT_ROLE.bodyStrong} text-warning`,
@@ -92,16 +162,99 @@ export const APP_MODAL_CLASS = {
     footerButtonRow: "flex gap-tools ml-auto",
     footerResetButton: `opacity-70 ${INTERACTIVE_RECIPE.buttonDefault}`,
     footerSaveButton: "font-semibold shadow-small shadow-primary/20",
+    dialogHeader: `${SURFACE_CHROME_CLASS.headerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
+    dialogHeaderLead: "flex items-center gap-tools",
+    dialogHeaderIconWrap: SURFACE_ATOM_CLASS.insetRoundedFull,
+    dialogHeaderWarningIcon: "toolbar-icon-size-md text-warning",
+    dialogBody: "flex flex-col gap-stage p-panel",
+    dialogSectionStack: "flex flex-col gap-tight",
+    dialogInsetStack: "flex flex-col gap-tight",
+    dialogLocationRow: `flex items-center gap-tools ${SURFACE_ATOM_CLASS.insetRounded}`,
+    dialogLocationIcon: "toolbar-icon-size-md text-foreground",
+    dialogLocationLabel: `${TEXT_ROLE.code} truncate`,
+    dialogInsetTitle: `${TEXT_ROLE.bodySmall} font-semibold text-foreground`,
+    dialogInsetLabel: `${TEXT_ROLE.bodySmall} font-medium text-foreground truncate`,
+    dialogInsetDescription: `${TEXT_ROLE.bodySmall} truncate`,
+    dialogOutcomePanel: `${SURFACE_ATOM_CLASS.insetRounded} ${TEXT_ROLE.bodySmall}`,
+    dialogFooter: `${SURFACE_CHROME_CLASS.footerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
+    dialogFooterGroup: "flex items-center gap-tools",
+    dialogSecondaryAction: "font-medium text-foreground",
+    dialogPrimaryAction: "font-bold",
     contentWrapper: "h-full flex flex-col",
     layout: "flex flex-row flex-1 min-h-0 overflow-hidden relative",
     mainPane: "flex-1 min-h-0 flex flex-col bg-content1/10 blur-glass relative w-full",
+    workflow: {
+        gateRoot: "flex flex-col h-full",
+        headerLayout: "flex justify-between items-center gap-panel px-stage py-panel",
+        header: `${SURFACE_CHROME_CLASS.headerBorder} flex justify-between items-center gap-panel px-stage py-panel`,
+        titleStack: "flex flex-col overflow-hidden gap-tight",
+        sourceLabel: "truncate font-mono leading-tight",
+        sourceLabelCaption: `${TEXT_ROLE.caption} truncate font-mono leading-tight`,
+        sourceMuted: "text-foreground/50 truncate leading-tight",
+        sourceMutedLabel: `${TEXT_ROLE.codeMuted} text-foreground/50 truncate leading-tight`,
+        iconMd: "toolbar-icon-size-md",
+        iconMdPrimary: "toolbar-icon-size-md text-primary",
+        iconLgPrimary: "toolbar-icon-size-lg text-primary",
+        iconMdSuccess: "toolbar-icon-size-md text-success",
+        iconMdWarning: "toolbar-icon-size-md text-warning",
+        iconAlert: "toolbar-icon-size-md shrink-0",
+        iconAlertMuted: "toolbar-icon-size-md shrink-0 text-foreground/50",
+        warningTone: "text-warning",
+        footerAlertText: `${TEXT_ROLE.bodyStrong} truncate`,
+        headerIconButton: `text-foreground/60 ${INTERACTIVE_RECIPE.textReveal}`,
+        gateBody: "flex-1 min-h-0 flex items-center justify-center",
+        gateContent: "w-full max-w-modal",
+        formRoot: "flex flex-col min-h-0 flex-1 relative",
+        submitOverlay:
+            "absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal bg-background/40 blur-glass",
+        submitHint: "text-foreground/40 text-center max-w-modal",
+        submitHintMuted: `${TEXT_ROLE.codeMuted} text-foreground/40 text-center max-w-modal`,
+        submitWarningTitle: "text-foreground/70",
+        submitWarningTitleCaption: `${TEXT_ROLE.codeCaption} text-foreground/70`,
+        submitActions: "flex gap-tools",
+        headerActions: "flex items-center gap-tools",
+        headerDivider: "h-status-chip w-px bg-content1/10 mx-tight",
+        body: "flex-1 min-h-0 relative p-add-modal-pane-gap",
+        dropOverlay:
+            "absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
+        dropOverlayChip:
+            "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
+        panelGroup: "flex-1 min-h-0",
+        paneHandle:
+            `w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel ${TRANSITION.fast} group focus:outline-none relative`,
+        paneHandleEnabled: "cursor-col-resize",
+        paneHandleDisabled: "cursor-default pointer-events-none",
+        resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
+        filePanel: `${SURFACE_ATOM_CLASS.glassPanel} ${SURFACE_FRAME_CLASS.pane} bg-content1/55`,
+        filePanelContent: "flex flex-col flex-1 min-h-0 outline-none border-default",
+        filePanelToolbar: "p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass",
+        fileTableShell: "h-full w-full min-h-0 rounded-xl overflow-hidden shadow-inner",
+        filesTitle: `${TEXT_ROLE.labelDense} flex-1 pl-tight select-none text-foreground/40`,
+        smartSelectButton: `${SURFACE_ATOM_CLASS.iconButton} min-w-badge px-tight`,
+        dropdownDangerItem: "text-danger",
+        footerLayout: "flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between",
+        footerAlerts: "flex flex-col gap-tools",
+        footerAlert: "flex items-center gap-tools max-w-modal-compact p-tight",
+        footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
+        footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
+        footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
+        footer: `${SURFACE_CHROME_CLASS.footerBorder} flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between`,
+        inlineBlock: "inline-block",
+        cancelButton: "font-medium",
+        primaryButton: "font-bold px-stage min-w-button",
+        fileCountChipClassNames: {
+            content: `${TEXT_ROLE.code} font-bold`,
+        } as const,
+    } as const,
 } as const;
 export const FORM_UI_CLASS = {
-    sectionCard: `p-panel rounded-2xl border ${SURFACE_BORDER} bg-content1/10`,
-    sectionCardEmphasized: `bg-content1/50 border ${SURFACE_BORDER} rounded-2xl p-panel`,
+    sectionCard: STANDARD_SURFACE_CLASS.semantic.settingsPanel,
+    sectionCardEmphasized: STANDARD_SURFACE_CLASS.semantic.workflowStep,
     sectionTitle: `${TEXT_ROLE.heading} text-foreground/40 mb-panel leading-tight`,
     sectionDescription: `${TEXT_ROLE.body} mb-panel`,
     sectionContentStack: "space-y-stage",
+    bodyStackPanel: "space-y-panel py-panel",
+    stackTools: "flex flex-col gap-tools",
     systemRow: "flex flex-col gap-tight",
     systemRowHeader: "flex items-center justify-between h-row px-panel",
     systemRowLabel: `${withOpacity(TEXT_ROLE.body, 80)} font-medium`,
@@ -132,7 +285,7 @@ export const FORM_UI_CLASS = {
     buttonRow: "flex",
     languageRow: "flex items-center justify-between gap-panel",
     rawConfigHeader: "flex items-center justify-between gap-panel",
-    rawConfigPanel: `rounded-2xl border ${SURFACE_BORDER} bg-content1/30`,
+    rawConfigPanel: STANDARD_SURFACE_CLASS.semantic.infoPanel,
     divider: "my-panel opacity-50",
     selectClassNames: {
         trigger: "h-button",
@@ -141,6 +294,33 @@ export const FORM_UI_CLASS = {
     sliderClassNames: { thumb: "shadow-small" } as const,
     rawConfigTextarea:
         "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-primary/40 focus:outline-none",
+    workflow: {
+        settingsToggleButton: `mr-tight text-foreground/35 ${INTERACTIVE_RECIPE.textMutedReveal}`,
+        root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
+        group: "flex flex-col gap-panel mb-panel",
+        label: `${TEXT_ROLE_EXTENDED.settingsLabel} mb-panel flex items-center gap-tools`,
+        labelIcon: "toolbar-icon-size-md",
+        gatePanel: `p-panel flex flex-col gap-panel ${SURFACE_FRAME_CLASS.panel}`,
+        gatePromptRow: `flex items-center gap-tools ${withOpacity(TEXT_ROLE.codeCaption, 40)}`,
+        gatePromptIcon: "toolbar-icon-size-md text-foreground/50",
+        destinationRow: "flex gap-tools group items-center",
+        destinationInputWrap: "w-full flex-1",
+        destinationInputIcon: "toolbar-icon-size-md text-primary",
+        actionIcon: "toolbar-icon-size-md text-foreground/50",
+        status: `h-status-chip flex items-center gap-tools min-w-0 ${TEXT_ROLE.codeMuted}`,
+        statusIcon: "toolbar-icon-size-md shrink-0",
+        statusSuccessIcon: "toolbar-icon-size-md shrink-0 text-success",
+        statusInfoIcon: "toolbar-icon-size-md shrink-0 text-foreground/40",
+        statusMessage: "font-bold truncate",
+        gateActionsRow: "flex justify-end",
+        gateConfirmButton: "font-bold",
+        flagsDivider: "my-panel bg-foreground/25",
+        flagsGroup: "flex flex-col gap-tools",
+        flagsCheckboxes: "flex flex-col gap-tools",
+        flagsItemLabel: "flex items-center",
+        flagsItemDivider: "bg-content1/5",
+        flagsIcon: "toolbar-icon-size-md mr-2 text-foreground/50",
+    } as const,
 } as const;
 export const TABLE_VIEW_CLASS = {
     header: `flex w-full border-b ${SURFACE_BORDER} ${STICKY_HEADER}`,
@@ -278,7 +458,7 @@ export const SPLIT_VIEW_CLASS = {
     resizeHandle: "h-sep cursor-row-resize flex items-center justify-center",
     resizeBar: `w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 ${TRANSITION.fast}`,
     listSurface:
-        `${PANEL_SURFACE_FRAME} flex-1 min-h-0 relative flex flex-col rounded-2xl border-content1/30 bg-content1/10`,
+        `${SURFACE_FRAME_CLASS.panel} flex-1 min-h-0 relative flex flex-col rounded-2xl border-content1/30 bg-content1/10`,
     header:
         `flex items-center gap-panel px-panel py-tight border-b border-content1/10 ${withOpacity(TEXT_ROLE.label, 30)}`,
     headerFlagCol: "w-col-id",
@@ -295,11 +475,39 @@ export const SPLIT_VIEW_CLASS = {
     clientCol: `w-col-client truncate ${withOpacity(TEXT_ROLE.caption, 40)}`,
     downRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "success")}`,
     upRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "primary")}`,
+    peerMapRoot:
+        `flex flex-col flex-1 rounded-2xl border ${SURFACE_BORDER} bg-content1/5 p-panel gap-tools overflow-hidden relative`,
+    peerMapHud: "flex items-center justify-between z-sticky pointer-events-none",
+    peerMapHudMeta: "flex flex-col",
+    peerMapHudStats: "flex items-center gap-tools",
+    peerMapNodeCount: `${TEXT_ROLE.codeMuted} text-foreground/40`,
+    peerMapInstrumentInfo: "flex items-center gap-tools",
+    peerMapAperture: `${TEXT_ROLE.codeCaption} text-foreground/40`,
+    peerMapCompassIcon: "text-primary/50",
+    peerMapCanvasWrap: "flex-1 min-h-0 relative",
+    peerMapSvg: "w-full h-full cursor-crosshair overflow-visible",
+    peerMapRing: `${TRANSITION.fast} opacity-03`,
+    peerMapGuides: "pointer-events-none",
+    peerMapGuideCircle: "text-foreground/5",
+    peerMapGuideAxis: "text-foreground/10",
+    peerMapActivityIcon: TRANSITION.reveal,
+    peerMapActivityIconActive: "opacity-100 text-primary",
+    peerMapActivityIconInactive: "opacity-0",
+    peerMapNodeMotion: TRANSITION.medium,
+    peerMapNodeGlow: "drop-shadow-primary-small",
 } as const;
 export const buildSplitViewAddressClass = (isHostile: boolean) =>
     isHostile
         ? `${TEXT_ROLE.code} truncate text-danger`
         : `${TEXT_ROLE.code} truncate text-foreground/90`;
+export const buildSplitViewPeerActivityClass = (isInstrument: boolean) =>
+    isInstrument
+        ? `${SPLIT_VIEW_CLASS.peerMapActivityIcon} ${SPLIT_VIEW_CLASS.peerMapActivityIconActive}`
+        : `${SPLIT_VIEW_CLASS.peerMapActivityIcon} ${SPLIT_VIEW_CLASS.peerMapActivityIconInactive}`;
+export const buildSplitViewPeerNodeClass = (isUTP: boolean) =>
+    isUTP
+        ? `${SPLIT_VIEW_CLASS.peerMapNodeMotion} ${SPLIT_VIEW_CLASS.peerMapNodeGlow}`
+        : SPLIT_VIEW_CLASS.peerMapNodeMotion;
 export const buildSplitViewRowClass = (params: {
     hovered: boolean;
     hostile: boolean;
@@ -383,6 +591,28 @@ export const METRIC_CHART_CLASS = {
         `flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`,
     panelLabelWrap: "absolute z-panel pointer-events-none",
     panelSeries: "flex-1",
+    progressBar: {
+        track: "relative h-full overflow-hidden rounded-full bg-content1/20",
+        indicator:
+            `absolute inset-y-0 left-0 transform origin-left rounded-full ${TRANSITION.slow} ease-out`,
+    } as const,
+    capacityGauge: {
+        container: "space-y-tight rounded-xl border bg-content1/15 p-panel",
+        header: `flex items-center justify-between ${TEXT_ROLE.labelDense} text-foreground/60`,
+        headerStyle: {
+            fontSize: "var(--tt-font-size-base)",
+            letterSpacing: "var(--tt-tracking-ultra)",
+        } as const,
+        baseTextStyle: {
+            fontSize: "var(--tt-font-size-base)",
+        } as const,
+        path: `${TEXT_ROLE.codeMuted} text-foreground/40`,
+        progressWrap: "h-sep",
+        stats: `flex justify-between ${TEXT_ROLE.codeMuted}`,
+        hint: `${TEXT_ROLE.caption} text-foreground/50`,
+        errorRow: "flex items-center justify-between gap-tools",
+        progressTrack: "h-full bg-content1/20",
+    } as const,
 } as const;
 export const buildMetricChartLayoutButtonClass = (active: boolean) =>
     active
@@ -514,7 +744,7 @@ export const COMMAND_PALETTE_CLASS = {
     empty: `py-panel text-center ${TEXT_ROLE.caption}`,
     outcome: "border-t border-default/20 px-panel py-tight text-xs font-medium",
 } as const;
-export const TORRENT_HEADER_CELL_BASE_CLASS =
+const TORRENT_HEADER_CELL_BASE_CLASS =
     `relative flex items-center h-row border-r border-content1/10 ${TRANSITION.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
 export const buildTorrentHeaderCellClass = (params: {
     canSort: boolean;
@@ -530,9 +760,9 @@ export const buildTorrentHeaderCellClass = (params: {
     ]
         .filter(Boolean)
         .join(" ");
-export const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
+const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
     "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none flex-1 gap-tools text-scaled font-bold uppercase text-foreground/60 pl-tight pr-tight";
-export const TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE = {
+const TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE = {
     letterSpacing: "var(--tt-tracking-tight)",
 } as const;
 export const buildTorrentHeaderActivatorClass = (params: {
@@ -551,7 +781,7 @@ export const buildTorrentHeaderActivatorClass = (params: {
         .join(" ");
 export const buildTorrentHeaderSortIconClass = (visible: boolean) =>
     `text-primary shrink-0 toolbar-icon-size-sm ${visible ? "opacity-100" : "opacity-0"}`;
-export const TORRENT_HEADER_RESIZE_HANDLE_CLASS =
+const TORRENT_HEADER_RESIZE_HANDLE_CLASS =
     "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-overlay w-handle";
 export const buildTorrentHeaderResizeBarClass = (isResizing: boolean) =>
     [
@@ -561,8 +791,13 @@ export const buildTorrentHeaderResizeBarClass = (isResizing: boolean) =>
     ]
         .filter(Boolean)
         .join(" ");
-export const TORRENT_HEADER_RESIZE_BAR_STYLE = {
+const TORRENT_HEADER_RESIZE_BAR_STYLE = {
     width: "var(--tt-divider-width)",
+} as const;
+export const TORRENT_HEADER_CLASS = {
+    activatorTrackingStyle: TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
+    resizeHandle: TORRENT_HEADER_RESIZE_HANDLE_CLASS,
+    resizeBarStyle: TORRENT_HEADER_RESIZE_BAR_STYLE,
 } as const;
 // Justification: runtime mode (Full vs Rpc) changes modal geometry;
 // this remains a token builder to avoid mode branches in feature files.
@@ -593,16 +828,17 @@ export const FORM_CONTROL_CLASS = {
     checkboxLabelBodySmallClassNames: {
         label: TEXT_ROLE.bodySmall,
     } as const,
-} as const;
-export const SURFACE_ATOM_CLASS = {
-    iconButton: "surface-layer-1 border border-default/10",
-    insetRounded: "surface-layer-1 rounded-panel p-tight",
-    insetRoundedFull: "surface-layer-1 rounded-full p-tight",
-    insetBorderedItem: "rounded-panel border border-default/20 p-tight",
-    glassPanel: "glass-panel surface-layer-1 text-foreground",
-    shadowBlock: "shadow-small",
-    shadowPanel: "shadow-medium",
-    glassBlock: "acrylic  shadow-inner",
+    priorityChipClassNames: {
+        content: "text-label font-semibold uppercase px-0",
+    } as const,
+    statusChipClassNames: {
+        base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
+        content: "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
+    } as const,
+    statusChipContainer: "min-w-0 w-full flex items-center justify-center h-full",
+    statusChipContent: "flex items-center justify-center gap-tools",
+    statusChipWarningIcon: "toolbar-icon-size-md text-warning",
+    statusChipLabel: "truncate max-w-full",
 } as const;
 export const INPUT_SURFACE_CLASS = {
     mono: {
@@ -616,6 +852,9 @@ export const INPUT_SURFACE_CLASS = {
         content: "",
         input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
     } as const,
+    codeTextareaClassNames: {
+        input: TEXT_ROLE.code,
+    } as const,
 } as const;
 export const FILE_BROWSER_CLASS = {
     container: "flex flex-col h-full rounded-medium border border-default-200/50 shadow-small",
@@ -627,6 +866,7 @@ export const FILE_BROWSER_CLASS = {
     } as const,
     filterButton: "h-button toolbar-icon-hit",
     filterIcon: "toolbar-icon-size-sm text-default-600",
+    toolbarSpacer: "flex-1",
     toolsDivider: "h-sep w-divider bg-default-300 mx-tight",
     expandButton: "h-button toolbar-icon-hit",
     selectionActionsLabel: `${TEXT_ROLE.bodySmall} text-default-500 font-medium hidden sm:inline-block`,
@@ -651,32 +891,46 @@ export const FILE_BROWSER_CLASS = {
     row:
         `grid grid-cols-file-tree items-center h-row px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 ${TRANSITION.fast}`,
     rowDimmed: "opacity-60 grayscale-[0.5]",
+    rowCheckboxWrap: "flex items-center justify-center",
+    rowNameCell: "flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent",
+    rowIndentSpacer: "w-file-tree-indent-spacer",
+    rowIconWrap: "mr-tight text-default-500 shrink-0",
+    rowFolderIcon: "toolbar-icon-size-sm fill-default-400/20",
+    rowNameBase: "text-scaled truncate cursor-default",
+    rowNameFolder: "font-medium text-foreground",
+    rowNameFile: "text-foreground/80",
+    rowPriorityWrap: "flex justify-center",
+    rowProgressWrap: "flex flex-col justify-center px-tight",
+    rowSizeText: `${TEXT_ROLE.codeMuted} text-right text-default-400`,
+    iconVideo: "toolbar-icon-size-sm text-primary",
+    iconAudio: "toolbar-icon-size-sm text-warning",
+    iconImage: "toolbar-icon-size-sm text-success",
+    iconText: "toolbar-icon-size-sm text-default-500",
+    iconDefault: "toolbar-icon-size-sm text-default-400",
+    iconSmall: "toolbar-icon-size-sm",
     chevronButton:
         `file-tree-chevron-hit text-default-400 rounded-full hover:text-foreground hover:bg-default-200/50 ${TRANSITION.fast}`,
     priorityChip:
         `h-status-chip gap-tight px-tight min-w-status-chip cursor-pointer hover:opacity-80 ${TRANSITION.reveal}`,
+    priorityMenuDangerItem: "text-danger",
+    priorityMenuHighIcon: "toolbar-icon-size-sm text-success",
+    priorityMenuNormalIcon: "toolbar-icon-size-sm text-primary",
+    priorityMenuLowIcon: "toolbar-icon-size-sm text-warning",
+    priorityMenuSkipIcon: "toolbar-icon-size-sm",
 } as const;
 export const buildFileBrowserSelectionActionsClass = (hasSelection: boolean) =>
     hasSelection
         ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
         : `flex items-center gap-tools ${TRANSITION.medium} opacity-0 pointer-events-none`;
-export const PRIORITY_CHIP_CLASSNAMES = {
-    content: "text-label font-semibold uppercase px-0",
-} as const;
-export const STATUS_CHIP_CLASSNAMES = {
-    base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-    content: "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
-} as const;
-export const ADD_MAGNET_TEXTAREA_CLASSNAMES = { input: TEXT_ROLE.code } as const;
-export const TRACKER_TABLE_CLASS = {
+export const DETAIL_TABLE_CLASS = {
     root: "flex h-full flex-col gap-panel",
     toolbar: "sticky top-0 z-sticky flex items-center justify-between px-tight",
     toolbarGroup: "flex items-center gap-tools",
     body: "relative min-h-0 flex-1",
     panel: "min-h-0 flex-1 overflow-hidden",
     scroll: "h-full overflow-auto",
-    emptyPanel: "flex h-lg items-center justify-center border-default/10 text-center",
-    emptyText: `${TEXT_ROLE.bodyStrong} text-foreground/30`,
+    emptyPanel: SPLIT_VIEW_CLASS.emptyPanel,
+    emptyText: SPLIT_VIEW_CLASS.emptyText,
     table: "w-full border-separate border-spacing-0 text-left",
     tableHeadRow: `${TEXT_ROLE.label} text-foreground/40`,
     tableHeadCellIcon: "border-b border-default/10 py-panel pl-panel pr-tight",
@@ -708,28 +962,14 @@ export const TRACKER_TABLE_CLASS = {
         inputWrapper: "bg-background/40",
     } as const,
 } as const;
-export const buildTrackerAvailabilityDotClass = (isOnline: boolean) =>
+export const buildAvailabilityDotClass = (isOnline: boolean) =>
     isOnline
         ? "size-dot rounded-full shadow-dot bg-success shadow-success/50"
         : "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
-export const PROGRESS_BAR_CLASS = {
-    track: "relative h-full overflow-hidden rounded-full bg-content1/20",
-    indicator:
-        `absolute inset-y-0 left-0 transform origin-left rounded-full ${TRANSITION.slow} ease-out`,
-} as const;
-export const CAPACITY_GAUGE_CLASS = {
-    container: "space-y-tight rounded-xl border bg-content1/15 p-panel",
-    header: `flex items-center justify-between ${TEXT_ROLE.labelDense} text-foreground/60`,
-    path: `${TEXT_ROLE.codeMuted} text-foreground/40`,
-    stats: `flex justify-between ${TEXT_ROLE.codeMuted}`,
-    hint: `${TEXT_ROLE.caption} text-foreground/50`,
-    errorRow: "flex items-center justify-between gap-tools",
-    progressTrack: "h-full bg-content1/20",
-} as const;
 export const buildCapacityGaugeContainerClass = (isInsufficient: boolean) =>
     isInsufficient
-        ? `${CAPACITY_GAUGE_CLASS.container} border-danger/40 bg-danger/5`
-        : `${CAPACITY_GAUGE_CLASS.container} ${SURFACE_BORDER}`;
+        ? `${METRIC_CHART_CLASS.capacityGauge.container} border-danger/40 bg-danger/5`
+        : `${METRIC_CHART_CLASS.capacityGauge.container} ${SURFACE_BORDER}`;
 export const buildCapacityGaugeIndicatorClass = (isInsufficient: boolean) =>
     isInsufficient
         ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
@@ -738,96 +978,39 @@ export const buildMissingFilesStatusTriggerClass = (isBusyWithOtherTorrent: bool
     isBusyWithOtherTorrent
         ? `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer opacity-90 hover:opacity-90`
         : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
-export const buildImportPaneHandleBarClass = (isActive: boolean) =>
+export const buildModalPaneHandleBarClass = (isActive: boolean) =>
     isActive
         ? "bg-primary/55"
         : "bg-default/30 group-hover:bg-primary/45";
-export const IMPORT_MODAL_CLASS = {
-    gateRoot: "flex flex-col h-full",
-    headerLayout: "flex justify-between items-center gap-panel px-stage py-panel",
-    titleStack: "flex flex-col overflow-hidden gap-tight",
-    sourceLabel: "truncate font-mono leading-tight",
-    sourceMuted: "text-foreground/50 truncate leading-tight",
-    headerIconButton: `text-foreground/60 ${INTERACTIVE_RECIPE.textReveal}`,
-    gateBody: "flex-1 min-h-0 flex items-center justify-center",
-    gateContent: "w-full max-w-modal",
-    formRoot: "flex flex-col min-h-0 flex-1 relative",
-    submitOverlay:
-        "absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal bg-background/40 blur-glass",
-    submitHint: "text-foreground/40 text-center max-w-modal",
-    submitWarningTitle: "text-foreground/70",
-    submitActions: "flex gap-tools",
-    headerActions: "flex items-center gap-tools",
-    headerDivider: "h-status-chip w-px bg-content1/10 mx-tight",
-    body: "flex-1 min-h-0 relative p-add-modal-pane-gap",
-    dropOverlay:
-        "absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
-    dropOverlayChip:
-        "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
-    panelGroup: "flex-1 min-h-0",
-    paneHandle:
-        `w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel ${TRANSITION.fast} group focus:outline-none relative`,
-    resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
-    filePanel: `glass-panel surface-layer-1 text-foreground ${PANE_SURFACE_FRAME} bg-content1/55`,
-    filePanelContent: "flex flex-col flex-1 min-h-0 outline-none border-default",
-    filePanelToolbar: "p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass",
-    filesTitle: `${TEXT_ROLE.labelDense} flex-1 pl-tight select-none text-foreground/40`,
-    smartSelectButton: `${SURFACE_ATOM_CLASS.iconButton} min-w-badge px-tight`,
-    dropdownDangerItem: "text-danger",
-    footerLayout: "flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between",
-    footerAlerts: "flex flex-col gap-tools",
-    footerAlert: "flex items-center gap-tools max-w-modal-compact p-tight",
-    footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
-    footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
-    footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
-    inlineBlock: "inline-block",
-    cancelButton: "font-medium",
-    primaryButton: "font-bold px-stage min-w-button",
-    fileCountChipClassNames: {
-        content: `${TEXT_ROLE.code} font-bold`,
-    } as const,
-} as const;
-export const buildImportModalBodyPanelsClass = (isFullscreen: boolean) =>
+export const buildModalPaneHandleClass = (isSettingsCollapsed: boolean) =>
+    `${APP_MODAL_CLASS.workflow.paneHandle} ${
+        isSettingsCollapsed
+            ? APP_MODAL_CLASS.workflow.paneHandleDisabled
+            : APP_MODAL_CLASS.workflow.paneHandleEnabled
+    }`;
+export const buildModalBodyPanelsClass = (isFullscreen: boolean) =>
     isFullscreen
         ? "flex flex-col flex-1 min-h-settings h-full min-h-0"
         : "flex flex-col flex-1 min-h-settings";
-export const buildImportSettingsPanelClass = (isSettingsCollapsed: boolean) =>
+export const buildModalSettingsPanelClass = (isSettingsCollapsed: boolean) =>
     [
-        "glass-panel surface-layer-1 text-foreground",
-        PANE_SURFACE_FRAME,
+        SURFACE_ATOM_CLASS.glassPanel,
+        SURFACE_FRAME_CLASS.pane,
         "bg-background/65",
         isSettingsCollapsed ? "min-w-0 w-0 border-none" : "",
     ]
         .filter(Boolean)
         .join(" ");
-export const buildImportResizeHandleBarClass = (params: {
+export const buildModalResizeHandleBarClass = (params: {
     isSettingsCollapsed: boolean;
     isPanelResizeActive: boolean;
 }) =>
     params.isSettingsCollapsed
         ? `h-full w-divider ${TRANSITION.fast} bg-transparent`
-        : `h-full w-divider ${TRANSITION.fast} ${buildImportPaneHandleBarClass(
+        : `h-full w-divider ${TRANSITION.fast} ${buildModalPaneHandleBarClass(
               params.isPanelResizeActive,
           )}`;
-export const IMPORT_FORM_CLASS = {
-    settingsToggleButton: `mr-tight text-foreground/35 ${INTERACTIVE_RECIPE.textMutedReveal}`,
-    root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
-    group: "flex flex-col gap-panel mb-panel",
-    label: `${TEXT_ROLE_EXTENDED.settingsLabel} mb-panel flex items-center gap-tools`,
-    destinationRow: "flex gap-tools group items-center",
-    destinationInputWrap: "w-full flex-1",
-    actionIcon: "toolbar-icon-size-md text-foreground/50",
-    status: `h-status-chip flex items-center gap-tools min-w-0 ${TEXT_ROLE.codeMuted}`,
-    statusIcon: "toolbar-icon-size-md shrink-0",
-    statusInfoIcon: "toolbar-icon-size-md shrink-0 text-foreground/40",
-    statusMessage: "truncate",
-    flagsDivider: "my-panel bg-foreground/25",
-    flagsGroup: "flex flex-col gap-tools",
-    flagsCheckboxes: "flex flex-col gap-tools",
-    flagsItemDivider: "bg-content1/5",
-    flagsIcon: "toolbar-icon-size-md mr-2 text-foreground/50",
-} as const;
-export const buildImportFormStatusToneClass = (statusKind: string) =>
+export const buildFormStatusToneClass = (statusKind: string) =>
     statusKind === "danger"
         ? "text-danger"
         : statusKind === "warning"

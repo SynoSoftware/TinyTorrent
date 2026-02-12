@@ -5,7 +5,6 @@ import {
     ModalContent,
     ModalFooter,
     ModalHeader,
-    cn,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, HardDrive, X } from "lucide-react";
@@ -13,12 +12,9 @@ import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import {
-    INSET_BORDERED_ITEM_SURFACE,
-    INSET_ROUNDED_FULL_SURFACE,
-    INSET_ROUNDED_SURFACE,
-    MODAL_COMPACT_CLASSNAMES,
-    MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_HEADER,
+    APP_MODAL_CLASS,
+    MODAL_SURFACE_CLASS,
+    SURFACE_ATOM_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
@@ -85,20 +81,17 @@ export default function TorrentRecoveryModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!viewModel.busy}
-            classNames={MODAL_COMPACT_CLASSNAMES}
+            classNames={MODAL_SURFACE_CLASS.compactClassNames}
         >
             <ModalContent>
                 {() => (
                     <>
                         <ModalHeader
-                            className={cn(
-                                MODAL_SURFACE_HEADER,
-                                "flex items-center justify-between gap-tools px-panel py-panel",
-                            )}
+                            className={APP_MODAL_CLASS.dialogHeader}
                         >
-                            <div className="flex items-center gap-tools">
-                                <div className={INSET_ROUNDED_FULL_SURFACE}>
-                                    <AlertTriangle className="toolbar-icon-size-md text-warning" />
+                            <div className={APP_MODAL_CLASS.dialogHeaderLead}>
+                                <div className={APP_MODAL_CLASS.dialogHeaderIconWrap}>
+                                    <AlertTriangle className={APP_MODAL_CLASS.dialogHeaderWarningIcon} />
                                 </div>
                                 <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
                                     {viewModel.title}
@@ -115,8 +108,8 @@ export default function TorrentRecoveryModal({
                             </Button>
                         </ModalHeader>
 
-                        <ModalBody className="flex flex-col gap-stage p-panel">
-                            <div className="flex flex-col gap-tight">
+                        <ModalBody className={APP_MODAL_CLASS.dialogBody}>
+                            <div className={APP_MODAL_CLASS.dialogSectionStack}>
                                 <p className={TEXT_ROLE.bodyStrong}>
                                     {viewModel.statusText}
                                 </p>
@@ -124,10 +117,10 @@ export default function TorrentRecoveryModal({
                                     {viewModel.bodyText}
                                 </p>
                             </div>
-                            <div className={cn("flex items-center gap-tools", INSET_ROUNDED_SURFACE)}>
-                                <HardDrive className="toolbar-icon-size-md text-foreground" />
+                            <div className={APP_MODAL_CLASS.dialogLocationRow}>
+                                <HardDrive className={APP_MODAL_CLASS.dialogLocationIcon} />
                                 <span
-                                    className={cn(TEXT_ROLE.code, "truncate")}
+                                    className={APP_MODAL_CLASS.dialogLocationLabel}
                                     title={viewModel.locationLabel}
                                 >
                                     {viewModel.locationLabel}
@@ -157,33 +150,30 @@ export default function TorrentRecoveryModal({
                             )}
                             {viewModel.recoveryOutcomeMessage && (
                                 <div
-                                    className={cn(
-                                        INSET_ROUNDED_SURFACE,
-                                        TEXT_ROLE.bodySmall,
-                                    )}
+                                    className={APP_MODAL_CLASS.dialogOutcomePanel}
                                 >
                                     {viewModel.recoveryOutcomeMessage}
                                 </div>
                             )}
                             {viewModel.inbox.visible && (
-                                <div className={INSET_ROUNDED_SURFACE}>
-                                    <div className="flex flex-col gap-tight">
-                                        <p className={cn(TEXT_ROLE.bodySmall, "font-semibold text-foreground")}>
+                                <div className={SURFACE_ATOM_CLASS.insetRounded}>
+                                    <div className={APP_MODAL_CLASS.dialogInsetStack}>
+                                        <p className={APP_MODAL_CLASS.dialogInsetTitle}>
                                             {viewModel.inbox.title}
                                         </p>
                                         <p className={TEXT_ROLE.bodySmall}>
                                             {viewModel.inbox.subtitle}
                                         </p>
-                                        <div className="flex flex-col gap-tight">
+                                        <div className={APP_MODAL_CLASS.dialogInsetStack}>
                                             {viewModel.inbox.items.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={INSET_BORDERED_ITEM_SURFACE}
+                                                    className={SURFACE_ATOM_CLASS.insetBorderedItem}
                                                 >
-                                                    <p className={cn(TEXT_ROLE.bodySmall, "font-medium text-foreground truncate")}>
+                                                    <p className={APP_MODAL_CLASS.dialogInsetLabel}>
                                                         {item.label}
                                                     </p>
-                                                    <p className={cn(TEXT_ROLE.bodySmall, "truncate")}>
+                                                    <p className={APP_MODAL_CLASS.dialogInsetDescription}>
                                                         {item.description}
                                                     </p>
                                                 </div>
@@ -202,31 +192,28 @@ export default function TorrentRecoveryModal({
                         </ModalBody>
 
                         <ModalFooter
-                            className={cn(
-                                MODAL_SURFACE_FOOTER,
-                                "flex items-center justify-between gap-tools px-panel py-panel",
-                            )}
+                            className={APP_MODAL_CLASS.dialogFooter}
                         >
-                            <div className="flex items-center gap-tools">
+                            <div className={APP_MODAL_CLASS.dialogFooterGroup}>
                                 {viewModel.showRecreate && (
                                     <Button
                                         variant="light"
                                         size="md"
                                         onPress={viewModel.onRecreate}
                                         isDisabled={viewModel.busy}
-                                        className="font-medium text-foreground"
+                                        className={APP_MODAL_CLASS.dialogSecondaryAction}
                                     >
                                         {t("recovery.action_recreate")}
                                     </Button>
                                 )}
                             </div>
-                            <div className="flex items-center gap-tools">
+                            <div className={APP_MODAL_CLASS.dialogFooterGroup}>
                                 <Button
                                     variant="light"
                                     size="md"
                                     onPress={viewModel.onClose}
                                     isDisabled={viewModel.busy}
-                                    className="font-medium text-foreground"
+                                    className={APP_MODAL_CLASS.dialogSecondaryAction}
                                 >
                                     {viewModel.cancelLabel}
                                 </Button>
@@ -238,7 +225,7 @@ export default function TorrentRecoveryModal({
                                     isDisabled={
                                         viewModel.primaryAction.isDisabled
                                     }
-                                    className="font-bold"
+                                    className={APP_MODAL_CLASS.dialogPrimaryAction}
                                 >
                                     {viewModel.primaryAction.label}
                                 </Button>

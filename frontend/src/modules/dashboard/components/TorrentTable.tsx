@@ -3,8 +3,8 @@ import { cn } from "@heroui/react";
 import React, { useMemo } from "react";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import {
-    BLOCK_SHADOW,
-    PANEL_SURFACE_FRAME,
+    SURFACE_FRAME_CLASS,
+    SURFACE_ATOM_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ColumnMeasurementLayer } from "@/modules/dashboard/components/TorrentTable_Shared";
@@ -39,7 +39,7 @@ export function TorrentTable({
         () =>
             cn(
                 "relative flex-1 h-full min-h-0 flex flex-col",
-                PANEL_SURFACE_FRAME,
+                SURFACE_FRAME_CLASS.panel,
             ),
         [],
     );
@@ -66,7 +66,7 @@ export function TorrentTable({
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
                     !embedded && "acrylic",
-                    !embedded && BLOCK_SHADOW,
+                    !embedded && SURFACE_ATOM_CLASS.shadowBlock,
                 )}
                 onClick={menus.closeContextMenu}
             >

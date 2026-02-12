@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
-import { PANEL_SURFACE_INSET_FRAME } from "@/shared/ui/layout/glass-surface";
+import { SURFACE_FRAME_CLASS } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
     type FileExplorerContextAction,
@@ -135,7 +135,7 @@ export const ContentTab = ({
             )}
 
             <GlassPanel
-                className={`flex flex-1 min-h-0 flex-col ${PANEL_SURFACE_INSET_FRAME}`}
+                className={`flex flex-1 min-h-0 flex-col ${SURFACE_FRAME_CLASS.panelInset}`}
             >
                 <div
                     className={`border-b border-default/10 px-panel py-panel ${TEXT_ROLE.labelPrimary}`}
