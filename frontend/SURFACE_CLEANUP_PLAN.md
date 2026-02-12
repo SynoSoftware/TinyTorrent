@@ -320,6 +320,10 @@ type SurfaceLayer = 0 | 1 | 2; // Existing surface depth system
 
 ### 1.5.1 Framing Components
 
+> **See also**: `CONSISTENCY_AUDIT.md` for additional gaps (interactive-state
+> recipes, alert panels, sticky headers, z-index tokens, transition tokens,
+> disabled-state tokens, scrollbar strategy).
+
 **File**: `frontend/src/shared/ui/layout/ActionCard.tsx`
 
 ```tsx
@@ -475,6 +479,49 @@ export function SidebarPanel({ children, className }: SidebarPanelProps) {
 ```
 
 **Used for**: Settings modal sidebar, AddTorrent settings sidebar
+
+---
+
+**File**: `frontend/src/shared/ui/layout/AlertPanel.tsx`
+
+```tsx
+import { cn } from "@heroui/react";
+import type { ReactNode } from "react";
+
+type AlertSeverity = "warning" | "danger" | "info";
+
+const severityMap: Record<AlertSeverity, string> = {
+  warning: "border-warning/30 bg-warning/10 text-warning",
+  danger:  "border-danger/40 bg-danger/5 text-danger",
+  info:    "border-primary/30 bg-primary/5 text-primary",
+};
+
+interface AlertPanelProps {
+  severity: AlertSeverity;
+  children: ReactNode;
+  className?: string;
+}
+
+export function AlertPanel({ severity, children, className }: AlertPanelProps) {
+  return (
+    <div className={cn(
+      "rounded-panel border p-panel text-scaled",
+      severityMap[severity],
+      className,
+    )}>
+      {children}
+    </div>
+  );
+}
+```
+
+**Used for**: Warning/danger banners in AddTorrentModal, TorrentDetails_Content,
+TorrentDetails_Speed, TorrentDetails_General, SettingsModalView, DiskSpaceGauge.
+Replaces 7+ hand-written `border-warning/30 bg-warning/10 text-warning` strings
+that currently have slight drift in border opacity (`/20` vs `/30` vs `/40`).
+
+**Note**: `STATUS_PALETTE.*.panel` in `logic.ts` must also converge on the same
+opacities defined here.
 
 ---
 
@@ -642,6 +689,7 @@ export { ListContainer } from "./ListContainer";
 export { InfoPanel } from "./InfoPanel";
 export { WorkflowStep } from "./WorkflowStep";
 export { SidebarPanel } from "./SidebarPanel";
+export { AlertPanel } from "./AlertPanel";
 
 // Semantic containers (high-level, most common)
 export { Stack } from "./Stack";
@@ -1037,6 +1085,58 @@ export { Toolbar } from "./Toolbar";
 
 ## Implementation Order
 
+### Week 0 (Pre-work): Token Expansion & Strategy Decisions
+
+> See `CONSISTENCY_AUDIT.md` for full details on each item.
+
+**Day 1: Z-index token expansion**
+- Expand CSS tokens to cover ALL z-levels currently used in the codebase:
+  - `z-panel: 10` (existing)
+  - `z-sticky: 20` (existing)
+  - `z-overlay: 30` (existing)
+  - `z-dnd: 40` (**new** — DND overlays, detail backdrops)
+  - `z-popover: 50` (**new** — context menus, command palette, drag ghosts)
+- Replace all raw `z-10`/`z-20`/`z-30`/`z-40`/`z-50` with tokens (15+ locations)
+
+**Day 1: Sticky header token**
+- Define `STICKY_HEADER` token in `glass-surface.ts`:
+  ```ts
+  export const STICKY_HEADER = "sticky top-0 z-sticky bg-background/80 backdrop-blur-md";
+  ```
+- Replace 4 divergent sticky-header recipes across:
+  - `AddMagnetModal.tsx`, `useTorrentTableViewModel.ts`, `TorrentDetails_Trackers.tsx`,
+    `SettingsModalView.tsx`
+
+**Day 2: Transition tokens**
+- Define in new `frontend/src/config/transitions.ts`:
+  ```ts
+  export const TRANSITION = {
+    fast:   "transition-colors duration-150",
+    medium: "transition-all duration-200",
+    slow:   "transition-all duration-300",
+    reveal: "transition-opacity duration-500",
+  } as const;
+  ```
+- Migrate ~60 transition-class usages (can be done file-by-file later)
+
+**Day 2: Disabled-state tokens**
+- Define in `frontend/src/config/visualState.ts`:
+  ```ts
+  export const VISUAL_STATE = {
+    disabled: "opacity-50 pointer-events-none",
+    muted:    "opacity-40",
+    ghost:    "opacity-20",
+  } as const;
+  ```
+- Fix mixed `opacity-40` / `opacity-50` for disabled intent (~16 locations)
+
+**Day 2: Scrollbar strategy**
+- Verify `custom-scrollbar` has CSS definition (likely dead class — remove if no-op)
+- Document: `scrollbar-hide` = truly hidden; `overlay-scrollbar` = visible on hover
+- Standardize `AddTorrentSettingsPanel.tsx` to use `scrollbar-hide` or `overlay-scrollbar`
+
+---
+
 ### Week 1: Foundation Layer (Primitives + Semantics)
 
 **Day 1-2: Low-level primitives**
@@ -1052,13 +1152,14 @@ export { Toolbar } from "./Toolbar";
 8. Create `<InfoPanel>` (wraps Surface)
 9. Create `<WorkflowStep>` (wraps Surface)
 10. Create `<SidebarPanel>` (wraps Surface)
+11. Create `<AlertPanel>` (warning/danger/info banners — see CONSISTENCY_AUDIT.md §2)
 
 **Day 5: Semantic container components**
-11. Create `<Stack>` (replaces flex-col)
-12. Create `<Inline>` (replaces flex + gap)
-13. Create `<FormSection>` (standardized form groups)
-14. Create `<Toolbar>` (standardized tool groups)
-15. Create barrel export in `shared/ui/layout/index.ts`
+12. Create `<Stack>` (replaces flex-col)
+13. Create `<Inline>` (replaces flex + gap)
+14. Create `<FormSection>` (standardized form groups)
+15. Create `<Toolbar>` (standardized tool groups)
+16. Create barrel export in `shared/ui/layout/index.ts`
 
 **Validation**: All components compile, export correctly, types are strict
 
@@ -1117,7 +1218,11 @@ After cleanup, verify:
 - [ ] All settings panels use `<SettingsPanel>` (not `<Surface>` directly)
 - [ ] All list containers use `<ListContainer>` (not `<Surface>` directly)
 - [ ] All workflow steps use `<WorkflowStep>` (not `<Surface>` directly)
+- [ ] All warning/danger/info banners use `<AlertPanel>` (not inline `border-warning/30 bg-warning/10`)
 - [ ] All page wrappers use `<Section>` with proper padding variant
+- [ ] All sticky headers use `STICKY_HEADER` token (not ad-hoc blur recipes)
+- [ ] All z-index values use tokens (`z-panel`…`z-popover`), zero raw `z-10`…`z-50`
+- [ ] All disabled states use `VISUAL_STATE.disabled` (no mixed `opacity-40`/`opacity-50`)
 
 **Layout-level validation**:
 - [ ] All `flex flex-col` patterns replaced with `<Stack>`
@@ -1152,6 +1257,21 @@ rg "className=.*flex flex-col" frontend/src --type tsx | grep -v "shared/ui/layo
 
 # Find direct flex gap items-center usage (should be <Inline>)
 rg "className=.*flex.*gap-.*items-center" frontend/src --type tsx | grep -v "shared/ui/layout"
+
+# Find hand-written alert panels (should be <AlertPanel>)
+rg "border-warning/|border-danger/" frontend/src --type tsx | grep -v "shared/ui/layout" | grep -v "config/logic"
+
+# Find raw z-index values (should use z-panel/z-sticky/z-overlay/z-dnd/z-popover)
+rg "\bz-(10|20|30|40|50)\b" frontend/src --type tsx
+
+# Find ad-hoc sticky headers (should use STICKY_HEADER token)
+rg "sticky top-0" frontend/src --type tsx | grep -v "shared/ui/layout"
+
+# Find mixed disabled-state opacity (should all be VISUAL_STATE.disabled)
+rg "opacity-(40|50).*pointer-events-none|pointer-events-none.*opacity-(40|50)" frontend/src --type tsx
+
+# Find deprecated TEXT_ROLES usage (should be TEXT_ROLE)
+rg "TEXT_ROLES\." frontend/src --type tsx
 ```
 
 ---
@@ -1212,10 +1332,14 @@ Does the UI pattern have a semantic name?
 - 0 direct surface-layer instances (all via semantic components)
 - 1 modal surface recipe (`<ModalSurface>`)
 - 1 menu surface recipe (`<MenuSurface>`)
+- 1 alert panel recipe (`<AlertPanel>`) — replaces 7+ hand-written variants
+- 1 sticky header recipe (`STICKY_HEADER`) — replaces 4 divergent recipes
 - 0 inline border/shadow definitions (all via `<Surface>` primitive)
 - 0 raw `flex flex-col` patterns (all use `<Stack>`)
 - 0 raw `flex gap-*` patterns (all use `<Inline>`)
-- 10 semantic components enforcing logical consistency
+- 0 raw z-index values (all via tokens: `z-panel`…`z-popover`)
+- 0 mixed disabled-state opacities (all via `VISUAL_STATE`)
+- 11 semantic components enforcing logical consistency
 - Average surface code: 15 chars per usage (`<ActionCard>`)
 
 **Code reduction**: 
@@ -1254,6 +1378,7 @@ Does the UI pattern have a semantic name?
 | Settings/config panel (titled panel with description) | `<SettingsPanel>` | All settings tabs, config sections |
 | List/table container (data display frame) | `<ListContainer>` | File trees, peer lists, torrent tables |
 | Info display (read-only stats, no border) | `<InfoPanel>` | Torrent stats, peer stats, status displays |
+| Warning/danger/info banner | `<AlertPanel severity="warning\|danger\|info">` | Disk space warnings, error banners, validation messages |
 | Wizard/workflow step (elevated multi-step UI card) | `<WorkflowStep>` | DevTest wizard, recovery wizard, multi-step forms |
 | Sidebar container (modal/app sidebar with tight padding) | `<SidebarPanel>` | Settings sidebar, AddTorrent sidebar |
 
@@ -1296,6 +1421,12 @@ Does the UI pattern have a semantic name?
 
 ❌ Custom modal backdrop with `backdrop-blur-xl bg-content1/50`  
 ✅ `<ModalSurface>` (standardized backdrop)
+
+❌ `<div className="border-warning/30 bg-warning/10 text-warning ...">`  
+✅ `<AlertPanel severity="warning">` (standardized alert)
+
+❌ `sticky top-0 z-10 bg-content1/30 backdrop-blur-xl` (ad-hoc sticky header)  
+✅ `className={STICKY_HEADER}` (standardized token)
 
 ---
 

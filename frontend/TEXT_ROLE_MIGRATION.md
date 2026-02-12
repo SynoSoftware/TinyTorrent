@@ -262,6 +262,43 @@ A: Use `withOpacity()` or `withColor()` helpers, or compose: `cn(TEXT_ROLE.label
 
 ---
 
+## Deprecated TEXT_ROLES → TEXT_ROLE Mapping
+
+The legacy `TEXT_ROLES` object in `logic.ts` is still referenced in **16 places**
+across 5 files.  These must be migrated using the following map:
+
+| Legacy Key | Legacy Definition | New Equivalent |
+|------------|-------------------|----------------|
+| `TEXT_ROLES.primary` | `text-scaled font-semibold text-foreground` | `TEXT_ROLE.bodyStrong` |
+| `TEXT_ROLES.secondary` | `text-scaled text-foreground/70` | `TEXT_ROLE.bodyMuted` |
+| `TEXT_ROLES.label` | `HEADER_BASE text-label` (double `text-label`) | `TEXT_ROLE.label` |
+| `TEXT_ROLES.helper` | `text-label text-foreground/60` | `TEXT_ROLE.caption` |
+
+### Files still using deprecated TEXT_ROLES
+
+| File | Refs | Keys Used |
+|------|------|-----------|
+| `TorrentDetails_Peers.tsx` | 2 | `.primary`, `.label` |
+| `TorrentDetails_Pieces_Map.tsx` | 8 | `.label` (×5), `.secondary` (×3) |
+| `TorrentDetails_Pieces_Heatmap.tsx` | 1 | `.label` |
+| `TorrentDetails_Pieces.tsx` | 4 | `.label` (×2), `.secondary`, `.helper` |
+| `TorrentDetails_Trackers.tsx` | 1 | `.primary` |
+
+> **Migrate all 16 references before deleting `TEXT_ROLES` from `logic.ts`.**
+
+---
+
+## Boundary: What TEXT_ROLE Does NOT Cover
+
+Interactive state styling (`hover:`, `focus:`, `active:`, `group-hover:`) is
+**not** part of TEXT_ROLE.  These belong in a separate `INTERACTIVE_RECIPE`
+system (see `CONSISTENCY_AUDIT.md` §1).
+
+If you're tempted to add `hover:text-foreground` to a TEXT_ROLE — stop.
+That's an interactive recipe, not a text role.
+
+---
+
 ## Priority Files to Migrate (High ROI)
 
 These files have the most scattered text className strings:
@@ -269,7 +306,7 @@ These files have the most scattered text className strings:
 1. **StatusBar.tsx** (9 inline patterns)
 2. **CommandPalette.tsx** (4 patterns)
 3. **AddTorrentModal.tsx** (8+ patterns)
-4. **TorrentDetails_*.tsx** files (multiple per file)
+4. **TorrentDetails_*.tsx** files (multiple per file + 16 deprecated `TEXT_ROLES` refs)
 5. **SettingsModalView.tsx** (6 patterns)
 6. **DevTest.tsx** (20+ patterns)
 

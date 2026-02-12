@@ -1,0 +1,407 @@
+# Consistency Audit — Gaps Not Covered by Existing Plans
+
+**Scope**: This document identifies className inconsistencies the existing plans
+(`TEXT_ROLE_MIGRATION.md` and `SURFACE_CLEANUP_PLAN.md`) do **not** address.
+Each section proposes a concrete normalization strategy that can be scheduled
+alongside or after the surface/text-role migrations.
+
+---
+
+## 1. Interactive State Recipes  (Priority: HIGH)
+
+### Problem
+
+~131 instances of `hover:`, `focus:`, `active:`, `group-hover:` spread across
+~20 files.  Same logical intent → different hover opacity, color, and scale
+values.
+
+| Intent | File A | File B | Discrepancy |
+|--------|--------|--------|-------------|
+| Context-menu item hover | `TorrentDetails_Peers.tsx` → `hover:bg-content1/10` | `glass-surface.ts` → `hover:bg-content2/70` | Different base color + opacity |
+| Close/dismiss button hover | `SettingsModalView.tsx` → `hover:text-foreground` | `AddTorrentModal.tsx` → `hover:text-foreground` (duplicated independently) | Same string, no shared token |
+| Action button press | `SettingsBlockRenderers.tsx` → `bg-primary/10 hover:bg-primary/20 active:scale-95` | `window-control-button.tsx` → `hover:bg-primary/10` (different base) | Different opacity levels |
+| Nav button hover | `Navbar.tsx` → inline palette duplicate | `logic.ts` → `STATUS_PALETTE.*.button` | Navbar re-implements what palette already defines |
+
+### Proposed Fix
+
+Create an `INTERACTIVE_RECIPE` token map in `frontend/src/config/interactiveRecipes.ts`:
+
+```ts
+export const INTERACTIVE_RECIPE = {
+  // --- Buttons ---
+  buttonDefault: "transition-colors hover:bg-content2/50 active:scale-[0.97]",
+  buttonPrimary: "transition-colors hover:bg-primary/20 active:scale-[0.97]",
+  buttonDanger:  "transition-colors hover:bg-danger/10 text-danger hover:text-danger-600",
+  buttonGhost:   "transition-colors hover:text-foreground hover:bg-content2/30",
+
+  // --- Menu Items ---
+  menuItem:      "transition-colors hover:bg-content2/50 cursor-pointer",
+  menuItemDanger:"transition-colors hover:bg-danger/10 text-danger cursor-pointer",
+
+  // --- Dismiss/Close ---
+  dismiss:       "transition-colors hover:text-foreground hover:bg-content2/30 rounded-full",
+
+  // --- Nav / Tab ---
+  navItem:       "transition-colors hover:text-foreground hover:bg-foreground/5",
+
+  // --- Group-hover (parent triggers child change) ---
+  groupReveal:   "group-hover:opacity-100 opacity-0 transition-opacity",
+} as const;
+```
+
+**Migration path**: Same staged approach as TEXT_ROLE — high-frequency files
+first (Navbar, StatusBar, SettingsBlockRenderers, context menus).
+
+---
+
+## 2. Alert / Status Panel Surfaces  (Priority: HIGH)
+
+### Problem
+
+The identical warning/danger panel pattern is hand-written in **7+ locations**
+with slight border-opacity drift:
+
+| File | Pattern |
+|------|---------|
+| `logic.ts` (STATUS_PALETTE.warning.panel) | `border-warning/30 bg-warning/10 text-warning` |
+| `logic.ts` (STATUS_PALETTE.danger.panel) | `border-danger/40 bg-danger/5 text-danger` |
+| `SettingsModalView.tsx:189` | `border-warning/30 bg-warning/10 text-warning` ← matches |
+| `SettingsModalView.tsx:212` | `border-danger/40 bg-danger/5 text-danger` ← matches |
+| `AddTorrentModal.tsx:753` | `text-danger text-label bg-danger/10 p-tight rounded-panel border border-danger/20` ← **differs** (`/20` border, not `/40`) |
+| `AddTorrentModal.tsx:761` | `text-warning text-label bg-warning/10 p-tight rounded-panel border border-warning/20` ← **differs** |
+| `TorrentDetails_Content.tsx:88` | `p-panel space-y-3 border border-warning/30 bg-warning/10` ← matches but layout tangled in |
+| `TorrentDetails_Speed.tsx:29` | `border-warning/30 bg-warning/10 p-panel text-scaled text-warning` ← matches |
+| `TorrentDetails_General.tsx:96` | `p-panel border border-warning/30 bg-warning/10` ← matches |
+| `DiskSpaceGauge.tsx:58` | `border-danger/40 bg-danger/5` ← uses danger panel, matches |
+| `settings-tabs.ts:192` | `border-warning/30 bg-warning/5` ← **differs** (`/5` not `/10`) |
+
+### Proposed Fix
+
+This is a **semantic component** gap in SURFACE_CLEANUP_PLAN.  Add an
+`<AlertPanel>` component:
+
+```tsx
+// frontend/src/shared/ui/layout/AlertPanel.tsx
+type AlertSeverity = "warning" | "danger" | "info";
+
+const severityMap = {
+  warning: "border-warning/30 bg-warning/10 text-warning",
+  danger:  "border-danger/40 bg-danger/5 text-danger",
+  info:    "border-primary/30 bg-primary/5 text-primary",
+};
+
+export function AlertPanel({ severity, children, className }: {
+  severity: AlertSeverity;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn(
+      "rounded-panel border p-panel text-scaled",
+      severityMap[severity],
+      className,
+    )}>
+      {children}
+    </div>
+  );
+}
+```
+
+Then fix the `STATUS_PALETTE` in `logic.ts` to be authoritative (all border
+opacities resolve to the **same** value for each severity), and consume
+`AlertPanel` everywhere instead of inline strings.
+
+**Add to SURFACE_CLEANUP_PLAN Phase 1.5 and Quick Reference table.**
+
+---
+
+## 3. Deprecated TEXT_ROLES → TEXT_ROLE Migration Map  (Priority: HIGH)
+
+### Problem
+
+16 references to deprecated `TEXT_ROLES` from `logic.ts` remain. The
+`TEXT_ROLE_MIGRATION.md` plan and `MIGRATION_MAP` in `textRoles.ts` **do not
+document** how the deprecated keys map to the new system:
+
+| Deprecated Key | Current Definition | Closest TEXT_ROLE Equivalent | Notes |
+|----------------|--------------------|------------------------------|-------|
+| `TEXT_ROLES.primary` | `text-scaled font-semibold text-foreground` | `TEXT_ROLE.bodyStrong` | Exact match |
+| `TEXT_ROLES.secondary` | `text-scaled text-foreground/70` | `TEXT_ROLE.bodyMuted` | Exact match |
+| `TEXT_ROLES.label` | `HEADER_BASE + text-label` (redundant double `text-label`) | `TEXT_ROLE.label` | Remove double `text-label` |
+| `TEXT_ROLES.helper` | `text-label text-foreground/60` | `TEXT_ROLE.caption` | Closest intent match |
+
+### Proposed Fix
+
+Add these to the `MIGRATION_MAP` in `textRoles.ts`:
+
+```ts
+// Deprecated TEXT_ROLES mappings
+"text-scaled font-semibold text-foreground": "TEXT_ROLE.bodyStrong",
+"text-scaled text-foreground/70": "TEXT_ROLE.bodyMuted",
+"text-label text-foreground/60": "TEXT_ROLE.caption",
+```
+
+**Affected files** (all in `modules/dashboard/components/`):
+- `TorrentDetails_Peers.tsx` (2 refs)
+- `TorrentDetails_Pieces_Map.tsx` (8 refs)
+- `TorrentDetails_Pieces_Heatmap.tsx` (1 ref)
+- `TorrentDetails_Pieces.tsx` (4 refs)
+- `TorrentDetails_Trackers.tsx` (1 ref)
+
+---
+
+## 4. Sticky Header Glass Recipe  (Priority: MEDIUM)
+
+### Problem
+
+4 sticky headers use 4 different frosted-glass recipes for the **same pattern**
+(sticky header pinned to scroll container):
+
+| File | Recipe |
+|------|--------|
+| `AddMagnetModal.tsx:110` | `sticky top-0 z-10 … bg-content1/30 backdrop-blur-xl` |
+| `useTorrentTableViewModel.ts:739` | `sticky top-0 z-20 … bg-content1/10 backdrop-blur-sm` |
+| `TorrentDetails_Trackers.tsx:48` | `sticky top-0 z-sticky bg-background/80 backdrop-blur-md` |
+| `SettingsModalView.tsx:131` | `sticky top-0 z-panel … bg-content1/30 blur-glass` |
+
+**All four differ** in z-index, background color, background opacity, and blur
+strength.
+
+### Proposed Fix
+
+Define a `STICKY_HEADER` token in `glass-surface.ts` (or a new
+`stickyHeader.ts`):
+
+```ts
+export const STICKY_HEADER =
+  "sticky top-0 z-sticky bg-background/80 backdrop-blur-md";
+```
+
+One recipe, all four locations consume it.  The SURFACE_CLEANUP_PLAN should add
+this to Phase 1 as a companion to `ModalSurface` / `MenuSurface` — a
+**StickyHeader** surface primitive or at minimum a token string.
+
+---
+
+## 5. Z-Index Token Drift  (Priority: MEDIUM)
+
+### Problem
+
+CSS tokens exist (`z-panel: 10`, `z-sticky: 20`, `z-overlay: 30`) but 15+
+locations use raw Tailwind values that bypass them:
+
+| Token Equivalent | Raw Value Used In |
+|-----------------|-------------------|
+| `z-panel` (10) | `TorrentDetails_Pieces_Map.tsx`, `TorrentTable_SpeedColumnCell.tsx`, `Dashboard_Layout.tsx` (×3), `AddMagnetModal.tsx` |
+| `z-sticky` (20) | `useTorrentTableViewModel.ts`, `TorrentDetails_Peers_Map.tsx` |
+| `z-overlay` (30) | `TorrentTable_Header.tsx`, `StatusBar.tsx` (×2), `Navbar.tsx` |
+| _(no token)_ (40) | `useTorrentTableViewModel.ts` (DND overlay), `Dashboard_Layout.tsx` (detail backdrop) |
+| _(no token)_ (50) | `CommandPalette.tsx`, `TorrentDetails_Peers.tsx` (context menu), `Dashboard_Layout.tsx` (drag ghost), `TorrentTable_Row.tsx` |
+
+### Proposed Fix
+
+Expand the z-index token set in `index.css` or Tailwind config:
+
+```css
+--z-panel: 10;
+--z-sticky: 20;
+--z-overlay: 30;
+--z-dnd: 40;       /* new: DND overlays & detail backdrops */
+--z-popover: 50;   /* new: context menus, command palette, drag ghosts */
+```
+
+Then replace all raw values:
+- `z-10` → `z-panel`
+- `z-20` → `z-sticky`
+- `z-30` → `z-overlay`
+- `z-40` → `z-dnd`
+- `z-50` → `z-popover`
+
+---
+
+## 6. Disabled-State Opacity  (Priority: MEDIUM)
+
+### Problem
+
+"Disabled" intent uses two different opacity values interchangeably:
+
+| Value | Files |
+|-------|-------|
+| `opacity-40` | `window-control-button.tsx`, `SystemTabContent.tsx` (×2), `SettingsBlockRenderers.tsx` |
+| `opacity-50` | `FileExplorerTree.tsx`, `SystemTabContent.tsx`, `SettingsBlockRenderers.tsx`, `TorrentTable_Row.tsx`, `TorrentTable_SpeedColumnCell.tsx`, `TorrentTable_ColumnDefs.tsx` (×2), `StatusBar.tsx` |
+
+`SystemTabContent.tsx` and `SettingsBlockRenderers.tsx` even use **both values
+in the same file** for the same logical state.
+
+### Proposed Fix
+
+Define tokens:
+
+```ts
+export const VISUAL_STATE = {
+  disabled: "opacity-50 pointer-events-none",
+  muted:    "opacity-40",     // decorative de-emphasis (not interactive block)
+  ghost:    "opacity-20",     // decorative backdrop elements
+} as const;
+```
+
+Pick **one** value for disabled (recommend `opacity-50` — the more common one)
+and migrate all disabled-intent usages.
+
+---
+
+## 7. Transition / Duration Tokens  (Priority: MEDIUM)
+
+### Problem
+
+~60 transition-related classes with inconsistent durations:
+
+| Duration | Intent | Files |
+|----------|--------|-------|
+| `duration-200` | "fast" interactions | Sidebar, panels |
+| `duration-300` | "medium" interactions | Sidebars, modals |
+| `duration-500` | "slow" reveals | Decorative |
+| `duration-1000`| "ultra-slow" | Accent glow |
+| _(none)_ | Tailwind default (150ms) | Most `transition-colors` |
+
+Same intent (sidebar slide) uses `duration-200` in one file and `duration-300`
+in another.
+
+### Proposed Fix
+
+Define transition tokens:
+
+```ts
+export const TRANSITION = {
+  fast:   "transition-colors duration-150",
+  medium: "transition-all duration-200",
+  slow:   "transition-all duration-300",
+  reveal: "transition-opacity duration-500",
+} as const;
+```
+
+These compose naturally: `cn(TRANSITION.fast, "hover:bg-content2/50")`.
+
+---
+
+## 8. Scrollbar Strategy Fragmentation  (Priority: MEDIUM)
+
+### Problem
+
+Three different scrollbar CSS strategies for the same intent (scrollable
+container with hidden or subtle scrollbar):
+
+| Class | CSS Definition | Used In |
+|-------|---------------|---------|
+| `scrollbar-hide` | WebKit pseudo-element override (transparent, thin) | `FileExplorerTree.tsx`, `SettingsModalView.tsx` (×2) |
+| `overlay-scrollbar` | Overlay-style scrollbar, fades out when idle | `TorrentTable_Body.tsx` |
+| `custom-scrollbar` | _(not defined in index.css — dead class?)_ | `AddTorrentSettingsPanel.tsx` |
+
+### Proposed Fix
+
+1. Verify `custom-scrollbar` has actual CSS. If not, it's a no-op — remove it.
+2. Decide on **two** scrollbar modes: `scrollbar-hide` (truly hidden) and
+   `overlay-scrollbar` (visible on hover).
+3. Document when to use each in SURFACE_CLEANUP_PLAN's Quick Reference.
+
+---
+
+## 9. Responsive Breakpoint Strategy  (Priority: LOW)
+
+### Problem
+
+~35 responsive breakpoint usages with no documented strategy. One non-standard
+breakpoint exists:
+
+- `Navbar.tsx` uses `min-[800px]:flex` — an arbitrary breakpoint unlike all
+  other components that use `sm:`, `md:`, `lg:`, `xl:`.
+
+### Proposed Fix
+
+Document the breakpoint semantics in ARCHITECTURE.md or a dedicated section:
+
+| Breakpoint | Tailwind | Meaning |
+|------------|----------|---------|
+| Mobile | `< sm` (640px) | Single column, hidden sidebar |
+| Compact | `sm` (640px) | Sidebar visible, dual columns |
+| Normal | `md` (768px) | Full layout |
+| Wide | `lg` (1024px) | Detail panel appears, 3-column |
+| Extra-wide | `xl` (1280px) | Extended dashboard grid |
+
+Replace `min-[800px]` with the closest standard breakpoint (`md`).
+
+---
+
+## 10. Grid Layout — No Semantic Layer  (Priority: LOW)
+
+### Problem
+
+SURFACE_CLEANUP_PLAN proposes `<Stack>` (flex-col) and `<Inline>` (flex-row)
+but **grid** layout has no semantic equivalent.  ~41 grid usages exist.
+
+Tokenized grid templates (`grid-cols-torrent`, `grid-cols-file-tree`) are fine.
+But ad-hoc `grid grid-cols-1 sm:grid-cols-2` (DevTest, ConnectionManager) and
+`grid gap-tools` have no semantic wrapper.
+
+### Proposed Fix
+
+Consider a `<Grid>` component only if grid usage grows.  For now, document the
+rule: **tokenized grid templates are OK as raw className; ad-hoc `grid-cols-N`
+should use the responsive-token system when added.**
+
+Low priority — the two tokenized templates cover most grid usage.
+
+---
+
+## 11. `bg-content1` Opacity Jungle  (Priority: LOW — covered by Surface plan at component level)
+
+### Problem
+
+`bg-content1` is used with **10 different opacity levels**:
+`/5`, `/10`, `/15`, `/20`, `/30`, `/35`, `/50`, `/55`, `/80`, `/85`, `/90`.
+
+Most of these will be absorbed by the semantic `<Surface>` / `<ModalSurface>` /
+`<MenuSurface>` components in SURFACE_CLEANUP_PLAN.  This section exists as a
+tracking note — no additional action needed beyond executing the surface plan.
+
+---
+
+## Integration Points with Existing Plans
+
+### TEXT_ROLE_MIGRATION.md — Additions Needed
+
+1. **Add deprecated TEXT_ROLES mapping** (Section 3 above) to the Migration
+   Strategy, including the 16 affected references and their exact replacements.
+2. **Add INTERACTIVE_RECIPE** cross-reference: note that interactive states
+   (hover text color changes) should NOT be folded into TEXT_ROLE — they belong
+   in INTERACTIVE_RECIPE (Section 1 above).
+3. **Priority Files list**: Add the 5 `TorrentDetails_*.tsx` files that still
+   use deprecated `TEXT_ROLES`.
+
+### SURFACE_CLEANUP_PLAN.md — Additions Needed
+
+1. **Add `<AlertPanel>`** to Phase 1.5 semantic components (Section 2 above).
+2. **Add STICKY_HEADER token** to Phase 1 primitives (Section 4 above).
+3. **Add z-index token expansion** to Phase 5 or a new Phase 0.5 pre-work
+   (Section 5 above).
+4. **Add scrollbar strategy** to Quick Reference (Section 8 above).
+5. **Add disabled-state token** to validation checklist (Section 6 above).
+6. **Add `<Toolbar>` note**: the existing `<Toolbar>` proposal also needs
+   transition tokens — currently toolbar buttons each define their own
+   `transition-colors duration-*`.
+
+---
+
+## Execution Order Recommendation
+
+These can be batched with the existing plan phases:
+
+| Week | Existing Plan Phase | Add From This Audit |
+|------|--------------------|--------------------|
+| 0 (pre-work) | — | Z-index token expansion, transition tokens, disabled-state tokens, `STICKY_HEADER` token |
+| 1 | Foundation Layer (Surface primitives + semantics) | `<AlertPanel>` component, scrollbar strategy decision |
+| 2 | Modal Normalization | Sticky header migration (4 files), deprecated TEXT_ROLES migration (5 files) |
+| 3 | Menus & Panels | INTERACTIVE_RECIPE for context menus, nav items |
+| 4 | Details & Cleanup | INTERACTIVE_RECIPE for buttons/settings, visual-state tokens everywhere |
+
+---
