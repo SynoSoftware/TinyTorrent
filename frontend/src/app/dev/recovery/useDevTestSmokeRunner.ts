@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { RecoveryRequestCompletionOutcome } from "@/app/context/RecoveryContext";
 import type { RecoveryConfidence } from "@/services/rpc/entities";
+import { scheduler } from "@/app/services/scheduler";
 import { RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import {
@@ -84,7 +85,7 @@ const EXPECTED_COMPLETION_STATUS = "applied" as const;
 
 const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
-        window.setTimeout(resolve, ms);
+        scheduler.scheduleTimeout(resolve, ms);
     });
 
 const waitForCondition = async (
@@ -105,18 +106,16 @@ const waitForCompletionWithTimeout = async <T>(
     timeoutMs: number,
     timeoutError: string,
 ): Promise<T> => {
-    let timeoutHandle: number | null = null;
+    let cancelTimeout: () => void = () => {};
     const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutHandle = window.setTimeout(() => {
+        cancelTimeout = scheduler.scheduleTimeout(() => {
             reject(new Error(timeoutError));
         }, timeoutMs);
     });
     try {
         return await Promise.race([completion, timeoutPromise]);
     } finally {
-        if (timeoutHandle !== null) {
-            window.clearTimeout(timeoutHandle);
-        }
+        cancelTimeout();
     }
 };
 

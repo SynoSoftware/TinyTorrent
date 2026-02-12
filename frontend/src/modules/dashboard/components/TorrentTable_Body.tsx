@@ -1,11 +1,7 @@
 import React from "react";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import type { TorrentTableBodyViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
-import {
-    DndContext,
-    DragOverlay,
-    closestCenter,
-} from "@dnd-kit/core";
+import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import {
     SortableContext,
     verticalListSortingStrategy,
@@ -16,7 +12,10 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
 import { SURFACE_BORDER } from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
-import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import {
+    getTableTotalWidthCss,
+    TableCellContent,
+} from "@/modules/dashboard/components/TorrentTable_Shared";
 
 export interface TorrentTableBodyProps {
     viewModel: TorrentTableBodyViewModel;
@@ -43,23 +42,14 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         renderOverlayPortal,
         overlayClassName,
     } = viewModel.dnd;
-    const {
-        rowIds,
-        rowVirtualizer,
-        rows,
-        tableApi,
-        renderVisibleCells,
-        activeDragRow,
-    } = viewModel.table;
-    const {
-        contextMenuTorrentId,
-    } = viewModel.rowInteraction;
-    const {
-        highlightedRowId,
-    } = viewModel.state;
+    const { rowIds, rowVirtualizer, rows, tableApi, activeDragRow } =
+        viewModel.table;
+    const { contextMenuTorrentId } = viewModel.rowInteraction;
+    const { highlightedRowId } = viewModel.state;
     const showSkeleton = isLoading && !hasSourceTorrents;
     const showEmptyState = !isLoading && !hasSourceTorrents;
-    const showNoResultsState = !isLoading && hasSourceTorrents && visibleRowCount === 0;
+    const showNoResultsState =
+        !isLoading && hasSourceTorrents && visibleRowCount === 0;
 
     return (
         <div
@@ -148,7 +138,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                             style={{
                                 height: rowVirtualizer.getTotalSize(),
                                 width: getTableTotalWidthCss(
-                                    tableApi.getTotalSize()
+                                    tableApi.getTotalSize(),
                                 ),
                             }}
                         >
@@ -171,7 +161,9 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                 highlightedRowId === row.id &&
                                                 !row.getIsSelected()
                                             }
-                                            interaction={viewModel.rowInteraction}
+                                            interaction={
+                                                viewModel.rowInteraction
+                                            }
                                             state={viewModel.state}
                                         />
                                     );
@@ -188,22 +180,29 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                 <div
                                     style={{
                                         width: getTableTotalWidthCss(
-                                            tableApi.getTotalSize()
+                                            tableApi.getTotalSize(),
                                         ),
                                         height: rowHeight,
                                     }}
                                     className={cn(
                                         "pointer-events-none border bg-background/90 backdrop-blur-3xl px-panel box-border",
                                         SURFACE_BORDER,
-                                        PANEL_SHADOW
+                                        PANEL_SHADOW,
                                     )}
                                 >
                                     <div className="flex h-full w-full items-center">
-                                        {renderVisibleCells(activeDragRow)}
+                                        {activeDragRow
+                                            .getVisibleCells()
+                                            .map((cell) => (
+                                                <TableCellContent
+                                                    key={cell.id}
+                                                    cell={cell}
+                                                />
+                                            ))}
                                     </div>
                                 </div>
                             ) : null}
-                        </DragOverlay>
+                        </DragOverlay>,
                     )}
                 </DndContext>
             )}

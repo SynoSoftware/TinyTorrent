@@ -1,4 +1,5 @@
 import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
+import { resolveRecoveryFingerprint } from "@/services/recovery/recoveryFingerprint";
 export interface RecoveryFingerprintSource {
     id?: string | number | null;
     hash?: string | null;
@@ -8,16 +9,11 @@ export interface RecoveryFingerprintSource {
 export const getRecoveryFingerprint = (
     torrent?: RecoveryFingerprintSource | null,
 ): string => {
-    if (torrent?.errorEnvelope?.fingerprint) {
-        return torrent.errorEnvelope.fingerprint;
-    }
-    if (torrent?.hash) {
-        return torrent.hash;
-    }
-    if (torrent?.id !== undefined && torrent.id !== null) {
-        return String(torrent.id);
-    }
-    return "<no-recovery-fingerprint>";
+    return resolveRecoveryFingerprint({
+        fingerprint: torrent?.errorEnvelope?.fingerprint ?? null,
+        hash: torrent?.hash ?? null,
+        id: torrent?.id ?? null,
+    });
 };
 
 export type PathNeededReason = Extract<

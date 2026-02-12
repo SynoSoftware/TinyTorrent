@@ -1,6 +1,7 @@
 import type { MouseEvent as ReactMouseEvent, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { scheduler } from "@/app/services/scheduler";
 import { formatBytes } from "@/shared/utils/format";
 import {
     cancelScheduledFrame,
@@ -134,7 +135,7 @@ export function usePiecesMapViewModel({
     const frameRef = useRef<FrameHandle | null>(null);
     const overlayFrameRef = useRef<FrameHandle | null>(null);
     const retryRef = useRef(0);
-    const retryTimeoutRef = useRef<number | null>(null);
+    const retryTimeoutRef = useRef<(() => void) | null>(null);
 
     const [hovered, setHovered] = useState<HoverInfo | null>(null);
     const [hoverPos, setHoverPos] = useState<HoverPosition | null>(null);
@@ -334,19 +335,20 @@ export function usePiecesMapViewModel({
                 canvas.height = expectedH;
                 scheduleDraw();
                 if (retryRef.current < 4) {
-                    retryTimeoutRef.current = window.setTimeout(attempt, 180);
+                    retryTimeoutRef.current = scheduler.scheduleTimeout(
+                        attempt,
+                        180,
+                    );
                 }
             } else {
                 retryRef.current = 0;
             }
         };
 
-        retryTimeoutRef.current = window.setTimeout(attempt, 120);
+        retryTimeoutRef.current = scheduler.scheduleTimeout(attempt, 120);
         return () => {
-            if (retryTimeoutRef.current !== null) {
-                window.clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-            }
+            retryTimeoutRef.current?.();
+            retryTimeoutRef.current = null;
         };
     }, [scheduleDraw]);
 

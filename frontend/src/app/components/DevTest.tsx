@@ -9,12 +9,12 @@ import {
 } from "@/app/viewModels/useDevTestViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Section } from "@/shared/ui/layout/Section";
-import { HEADER_BASE } from "@/config/logic";
+import { TEXT_ROLE } from "@/config/textRoles";
 
 export { DEV_TEST_PATH };
 
-const DEV_STEP_LABEL_CLASS = `${HEADER_BASE} text-label`;
-const DEV_GROUP_TITLE_CLASS = "text-scaled font-semibold text-foreground";
+const DEV_STEP_LABEL_CLASS = TEXT_ROLE.label;
+const DEV_GROUP_TITLE_CLASS = TEXT_ROLE.headingSection;
 const DEV_STATUS_CHIP_COLOR: Record<DevTestStatusTone, ChipProps["color"]> = {
     default: "default",
     primary: "primary",
@@ -80,10 +80,10 @@ export default function DevTest() {
             <div className="flex flex-col gap-stage">
                 <div className="flex flex-wrap items-center justify-between gap-tools">
                     <div className="flex flex-col gap-tight">
-                        <h1 className="text-scaled font-bold text-foreground">
+                        <h1 className={TEXT_ROLE.heading}>
                             {viewModel.header.title}
                         </h1>
-                        <p className="text-label text-foreground/70">
+                        <p className={TEXT_ROLE.bodySmall}>
                             {viewModel.header.subtitle}
                         </p>
                     </div>
@@ -109,28 +109,30 @@ export default function DevTest() {
                                 title={viewModel.scenario.title}
                             >
                                 <div className="flex flex-col gap-tools">
-                                    {viewModel.scenario.options.map((option) => (
-                                        <Button
-                                            key={option.id}
-                                            variant={
-                                                option.isSelected
-                                                    ? "flat"
-                                                    : "light"
-                                            }
-                                            color={
-                                                option.isSelected
-                                                    ? "primary"
-                                                    : "default"
-                                            }
-                                            size="md"
-                                            className="h-auto w-full justify-start whitespace-normal text-left"
-                                            onPress={option.onSelect}
-                                        >
-                                            <span className="text-scaled font-medium">
-                                                {option.label}
-                                            </span>
-                                        </Button>
-                                    ))}
+                                    {viewModel.scenario.options.map(
+                                        (option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={
+                                                    option.isSelected
+                                                        ? "flat"
+                                                        : "light"
+                                                }
+                                                color={
+                                                    option.isSelected
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                size="md"
+                                                className="h-auto w-full justify-start whitespace-normal text-left"
+                                                onPress={option.onSelect}
+                                            >
+                                                <span className="text-scaled font-medium">
+                                                    {option.label}
+                                                </span>
+                                            </Button>
+                                        ),
+                                    )}
                                 </div>
                             </DevWorkflowStep>
 
@@ -139,25 +141,27 @@ export default function DevTest() {
                                 title={viewModel.confidence.title}
                             >
                                 <div className="flex flex-wrap items-center gap-tools">
-                                    {viewModel.confidence.options.map((option) => (
-                                        <Button
-                                            key={option.id}
-                                            variant={
-                                                option.isSelected
-                                                    ? "flat"
-                                                    : "light"
-                                            }
-                                            color={
-                                                option.isSelected
-                                                    ? "primary"
-                                                    : "default"
-                                            }
-                                            size="md"
-                                            onPress={option.onSelect}
-                                        >
-                                            {option.label}
-                                        </Button>
-                                    ))}
+                                    {viewModel.confidence.options.map(
+                                        (option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={
+                                                    option.isSelected
+                                                        ? "flat"
+                                                        : "light"
+                                                }
+                                                color={
+                                                    option.isSelected
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                size="md"
+                                                onPress={option.onSelect}
+                                            >
+                                                {option.label}
+                                            </Button>
+                                        ),
+                                    )}
                                 </div>
                             </DevWorkflowStep>
 
@@ -223,7 +227,9 @@ export default function DevTest() {
                                         variant="shadow"
                                         color="primary"
                                         size="lg"
-                                        onPress={viewModel.actions.applyScenario}
+                                        onPress={
+                                            viewModel.actions.applyScenario
+                                        }
                                     >
                                         {viewModel.actions.applyScenarioLabel}
                                     </Button>
@@ -231,13 +237,18 @@ export default function DevTest() {
                                         <Button
                                             variant="light"
                                             size="md"
-                                            onPress={viewModel.actions.openRecovery}
+                                            onPress={
+                                                viewModel.actions.openRecovery
+                                            }
                                             isDisabled={
                                                 viewModel.actions
                                                     .openRecoveryDisabled
                                             }
                                         >
-                                            {viewModel.actions.openRecoveryLabel}
+                                            {
+                                                viewModel.actions
+                                                    .openRecoveryLabel
+                                            }
                                         </Button>
                                         <Button
                                             variant="light"
@@ -276,7 +287,10 @@ export default function DevTest() {
                     </GlassPanel>
 
                     <div className="lg:border-l lg:border-default/20 lg:pl-panel">
-                        <GlassPanel layer={1} className="p-panel bg-content1/35">
+                        <GlassPanel
+                            layer={1}
+                            className="p-panel bg-content1/35"
+                        >
                             <div className="flex flex-col gap-stage">
                                 <div className="flex flex-col gap-tight">
                                     <p className={DEV_STEP_LABEL_CLASS}>
@@ -296,7 +310,9 @@ export default function DevTest() {
                                             variant="shadow"
                                             color="primary"
                                             size="md"
-                                            isDisabled={viewModel.smoke.runDisabled}
+                                            isDisabled={
+                                                viewModel.smoke.runDisabled
+                                            }
                                             onPress={viewModel.smoke.run}
                                         >
                                             {viewModel.smoke.runLabel}
@@ -325,7 +341,10 @@ export default function DevTest() {
 
                                 <div className="surface-layer-2 rounded-panel p-panel flex flex-col gap-stage">
                                     <p className={DEV_GROUP_TITLE_CLASS}>
-                                        {viewModel.workflow.results.verification}
+                                        {
+                                            viewModel.workflow.results
+                                                .verification
+                                        }
                                     </p>
                                     <p className="text-label text-foreground/70">
                                         {viewModel.smoke.assertionTitle}
@@ -392,7 +411,9 @@ export default function DevTest() {
                                                             <td className="px-panel py-tight">
                                                                 <div className="flex flex-col gap-tight">
                                                                     <span className="text-scaled text-foreground">
-                                                                        {assertion.label}
+                                                                        {
+                                                                            assertion.label
+                                                                        }
                                                                     </span>
                                                                     {assertion.reasonLabel && (
                                                                         <span className="text-label text-foreground/60">
@@ -470,7 +491,11 @@ export default function DevTest() {
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-stage">
                                                     <div className="flex items-center gap-tight">
-                                                        <span className={DEV_STEP_LABEL_CLASS}>
+                                                        <span
+                                                            className={
+                                                                DEV_STEP_LABEL_CLASS
+                                                            }
+                                                        >
                                                             {
                                                                 viewModel.system
                                                                     .columns
@@ -487,7 +512,11 @@ export default function DevTest() {
                                                         />
                                                     </div>
                                                     <div className="flex items-center gap-tight">
-                                                        <span className={DEV_STEP_LABEL_CLASS}>
+                                                        <span
+                                                            className={
+                                                                DEV_STEP_LABEL_CLASS
+                                                            }
+                                                        >
                                                             {
                                                                 viewModel.system
                                                                     .columns

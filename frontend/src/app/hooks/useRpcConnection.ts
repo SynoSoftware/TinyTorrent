@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { scheduler } from "@/app/services/scheduler";
 import type {
     ReportCommandErrorFn,
     ReportReadErrorFn,
@@ -137,11 +138,11 @@ export function useRpcConnection(
         isMountedRef.current = true;
         // `connect` already updates status state on failure. Swallow here to
         // avoid unhandled promise rejections during initial mount probing.
-        const mountProbeTimer = window.setTimeout(() => {
+        const cancelMountProbeTimer = scheduler.scheduleTimeout(() => {
             void connect("probe");
         }, 0);
         return () => {
-            window.clearTimeout(mountProbeTimer);
+            cancelMountProbeTimer();
             isMountedRef.current = false;
         };
     }, [connect]);

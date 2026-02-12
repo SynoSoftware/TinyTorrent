@@ -4,6 +4,7 @@ import { Columns, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { formatDurationMs, formatSpeed } from "@/shared/utils/format";
+import { scheduler } from "@/app/services/scheduler";
 import { SPEED_WINDOW_OPTIONS } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import {
@@ -198,12 +199,12 @@ const useObservedSize = () => {
             return;
         }
         const rect = el.getBoundingClientRect();
-        const initialMeasureHandle = window.setTimeout(() => {
+        const cancelInitialMeasure = scheduler.scheduleTimeout(() => {
             setSize({ width: rect.width || 0, height: rect.height || 0 });
         }, 0);
 
         return () => {
-            window.clearTimeout(initialMeasureHandle);
+            cancelInitialMeasure();
             ro.disconnect();
         };
     }, []);

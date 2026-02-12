@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Row } from "@tanstack/react-table";
+import { scheduler } from "@/app/services/scheduler";
 
 type MarqueeRect = { left: number; top: number; width: number; height: number };
 
@@ -37,9 +38,7 @@ export function useMarqueeSelection<TRow>({
     } | null>(null);
     const marqueeClickBlockRef = useRef(false);
     const isMarqueeDraggingRef = useRef(false);
-    const marqueeBlockResetRef = useRef<ReturnType<
-        typeof window.setTimeout
-    > | null>(null);
+    const marqueeBlockResetRef = useRef<(() => void) | null>(null);
 
     const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
 
@@ -158,7 +157,7 @@ export function useMarqueeSelection<TRow>({
             const container = parentRef.current;
             if (!state || !container) {
                 setMarqueeRect(null);
-                setTimeout(() => {
+                scheduler.scheduleTimeout(() => {
                     isMarqueeDraggingRef.current = false;
                 }, 0);
                 return;
@@ -190,7 +189,7 @@ export function useMarqueeSelection<TRow>({
                 if (!state.isAdditive) {
                     clearSelection();
                 }
-                setTimeout(() => {
+                scheduler.scheduleTimeout(() => {
                     isMarqueeDraggingRef.current = false;
                 }, 0);
                 return;
@@ -200,7 +199,7 @@ export function useMarqueeSelection<TRow>({
             const lastIndex = Math.floor((bottomContent - 1) / rowHeight);
 
             if (firstIndex > lastIndex) {
-                setTimeout(() => {
+                scheduler.scheduleTimeout(() => {
                     isMarqueeDraggingRef.current = false;
                 }, 0);
                 return;
@@ -224,14 +223,14 @@ export function useMarqueeSelection<TRow>({
             commitSelection(nextSelection, focusIndexValue, focusRowId);
             marqueeClickBlockRef.current = true;
             if (marqueeBlockResetRef.current) {
-                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current();
                 marqueeBlockResetRef.current = null;
             }
-            marqueeBlockResetRef.current = window.setTimeout(() => {
+            marqueeBlockResetRef.current = scheduler.scheduleTimeout(() => {
                 marqueeClickBlockRef.current = false;
                 marqueeBlockResetRef.current = null;
             }, 0);
-            setTimeout(() => {
+            scheduler.scheduleTimeout(() => {
                 isMarqueeDraggingRef.current = false;
             }, 0);
         };
@@ -242,7 +241,7 @@ export function useMarqueeSelection<TRow>({
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
             if (marqueeBlockResetRef.current) {
-                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current();
                 marqueeBlockResetRef.current = null;
             }
             if (rafHandleRef.current !== null) {
