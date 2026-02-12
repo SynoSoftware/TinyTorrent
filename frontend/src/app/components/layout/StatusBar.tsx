@@ -15,6 +15,7 @@ import {
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
@@ -23,15 +24,13 @@ import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import {
     getShellTokens,
-    SURFACE_BORDER,
     UI_BASES,
     STATUS_VISUAL_KEYS,
     STATUS_VISUALS,
 } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
+    APP_STATUS_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
@@ -98,17 +97,21 @@ function StatGroup({
     return (
         <div
             className={cn(
-                "flex flex-col gap-tight whitespace-nowrap",
-                align === "end" ? "items-end" : "items-start",
+                APP_STATUS_CLASS.statGroup,
+                align === "end"
+                    ? APP_STATUS_CLASS.statGroupEnd
+                    : APP_STATUS_CLASS.statGroupStart,
                 className
             )}
         >
-            <span className="font-bold uppercase tracking-0-2 text-foreground/30">
+            <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>
                 {label}
             </span>
-            <div className="flex items-center gap-tools">
+            <div className={APP_STATUS_CLASS.statValueRow}>
                 <span
-                    className="text-foreground truncate text-right font-semibold"
+                    className={cn(
+                        APP_STATUS_CLASS.statValueText,
+                    )}
                     title={value}
                 >
                     {value}
@@ -117,7 +120,7 @@ function StatGroup({
                     <StatusIcon
                         Icon={Icon}
                         size="md"
-                        className="text-foreground/30"
+                        className={APP_STATUS_CLASS.statIcon}
                     />
                 )}
             </div>
@@ -149,7 +152,7 @@ function TelemetryIcon({
 
     return (
         <span
-            className={cn("inline-flex items-center", toneClass)}
+            className={cn(APP_STATUS_CLASS.telemetryIconWrap, toneClass)}
             title={title}
         >
             <StatusIcon Icon={Icon} size="md" className="text-current" />
@@ -189,32 +192,23 @@ function SpeedModule({
     return (
         <>
             <div
-                className={cn(
-                    "flex flex-1 items-center h-full min-w-0 gap-tools group",
-                    "rounded-modal",
-                    "border",
-                    SURFACE_BORDER,
-                    "bg-content1/5 backdrop-blur-sm",
-                    "transition-all duration-300",
-                    "group-hover:border-content1/40",
-                    "group-hover:bg-content1/10"
-                )}
+                className={APP_STATUS_CLASS.speedModule}
             >
-                <div className="relative flex flex-1 h-full min-w-0 gap-tools">
+                <div className={APP_STATUS_CLASS.speedModuleGraphWrap}>
                     <div
-                        className="relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                        className={APP_STATUS_CLASS.speedModuleGraph}
                         style={{ minWidth: UI_BASES.statusbar.min100 }}
                     >
                         <NetworkGraph
                             data={history}
                             color={tone}
-                            className="absolute inset-0 h-full w-full"
+                            className={APP_STATUS_CLASS.speedModuleGraphCanvas}
                         />
-                        <div className="absolute inset-0 flex items-center justify-start px-panel pointer-events-none">
-                            <div className="flex items-center gap-tools text-foreground">
+                        <div className={APP_STATUS_CLASS.speedModuleOverlay}>
+                            <div className={APP_STATUS_CLASS.speedModuleOverlayRow}>
                                 <div
                                     className={cn(
-                                        "flex items-center justify-center rounded-modal  transition-colors toolbar-icon-size-xl",
+                                        APP_STATUS_CLASS.speedModuleIconWrap,
                                         iconToneClass
                                     )}
                                 >
@@ -224,11 +218,13 @@ function SpeedModule({
                                         className="text-current"
                                     />
                                 </div>
-                                <div className="flex flex-col gap-tight text-left">
-                                    <span className="font-bold uppercase tracking-0-2 text-foreground/40">
+                                <div className={APP_STATUS_CLASS.speedModuleTextWrap}>
+                                    <span
+                                        className={APP_STATUS_CLASS.speedModuleLabel}
+                                    >
                                         {t(labelKey)}
                                     </span>
-                                    <span className="font-bold tracking-tight leading-none text-foreground">
+                                    <span className={APP_STATUS_CLASS.speedModuleValue}>
                                         {formatSpeed(value)}
                                     </span>
                                 </div>
@@ -239,7 +235,7 @@ function SpeedModule({
             </div>
             {separator && (
                 <div
-                    className="w-px bg-content1/10"
+                    className={APP_STATUS_CLASS.speedSeparator}
                     style={{ height: "var(--tt-sep-h)" }}
                 />
             )}
@@ -425,8 +421,7 @@ function EngineControlChip({
                 }
             }}
             className={cn(
-                "relative flex items-center justify-center  rounded-modal border px-panel transition-all",
-                "active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer",
+                APP_STATUS_CLASS.engineButton,
                 statusVisual.bg,
                 statusVisual.border,
                 statusVisual.text,
@@ -441,10 +436,10 @@ function EngineControlChip({
             {renderEngineLogo()}
 
             {rpcStatus === STATUS.connection.CONNECTED && (
-                <span className="absolute inset-0 flex items-start justify-end p-tight">
+                <span className={APP_STATUS_CLASS.engineConnectedWrap}>
                     <motion.span
                         className={cn(
-                            "absolute inline-flex rounded-full",
+                            APP_STATUS_CLASS.engineConnectedPulse,
                             statusVisual.glow
                         )}
                         style={{
@@ -461,7 +456,7 @@ function EngineControlChip({
                         }}
                     />
                     <span
-                        className="relative inline-flex rounded-full bg-current"
+                        className={APP_STATUS_CLASS.engineConnectedDot}
                         style={{
                             width: "var(--tt-dot-size)",
                             height: "var(--tt-dot-size)",
@@ -547,17 +542,13 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     return (
         <footer
-            className={cn(
-                "w-full shrink-0 select-none relative z-30 overflow-visible",
-                GLASS_BLOCK_SURFACE,
-                BLOCK_SHADOW
-            )}
+            className={APP_STATUS_CLASS.footer}
             style={{
                 ...shell.outerStyle,
             }}
         >
             <div
-                className="flex items-center justify-between gap-stage"
+                className={APP_STATUS_CLASS.main}
                 style={{
                     ...shell.surfaceStyle,
                     height: "var(--tt-statusbar-h)",
@@ -572,7 +563,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                 />
 
                 {/* LEFT: SPEEDS - full (shown at sm+) */}
-                <div className="hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0">
+                <div className={APP_STATUS_CLASS.speedFull}>
                     <SpeedModule
                         labelKey="status_bar.down"
                         value={downSpeed}
@@ -591,49 +582,49 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                 </div>
 
                 {/* LEFT: SPEEDS - compact (xs) */}
-                <div className="flex sm:hidden flex-1 items-center h-full py-tight min-w-0">
-                    <div className="relative flex-1 h-full min-h-0">
-                        <div className="absolute inset-0">
-                            <div className="absolute inset-0">
+                <div className={APP_STATUS_CLASS.speedCompact}>
+                    <div className={APP_STATUS_CLASS.speedCompactGraphWrap}>
+                        <div className={APP_STATUS_CLASS.speedCompactLayer}>
+                            <div className={APP_STATUS_CLASS.speedCompactLayer}>
                                 <NetworkGraph
                                     data={downloadHistory}
                                     color="success"
                                     className="h-full w-full "
                                 />
                             </div>
-                            <div className="absolute inset-0 z-10">
+                            <div className={APP_STATUS_CLASS.speedCompactUpLayer}>
                                 <NetworkGraph
                                     data={uploadHistory}
                                     color="primary"
-                                    className="h-full w-full opacity-60 mix-blend-screen"
+                                    className={APP_STATUS_CLASS.speedCompactUpGraph}
                                 />
                             </div>
                         </div>
 
-                        <div className="relative z-30 flex items-center justify-center h-full pointer-events-none">
-                            <div className="flex items-center gap-tight text-center">
-                                <div className="flex flex-col items-center">
+                        <div className={APP_STATUS_CLASS.speedCompactOverlay}>
+                            <div className={APP_STATUS_CLASS.speedCompactOverlayRow}>
+                                <div className={APP_STATUS_CLASS.speedCompactColumn}>
                                     <ArrowDown
-                                        className="toolbar-icon-size-md text-success"
+                                        className={APP_STATUS_CLASS.speedCompactDownIcon}
                                         aria-hidden="true"
                                     />
                                     <span className="sr-only">
                                         {t("status_bar.down")}
                                     </span>
-                                    <span className="font-bold tracking-tight leading-none text-foreground">
+                                    <span className={APP_STATUS_CLASS.speedCompactValue}>
                                         {formatSpeed(downSpeed)}
                                     </span>
                                 </div>
-                                <div className="w-px h-nav bg-content1/10 mx-tight" />
-                                <div className="flex flex-col items-center">
+                                <div className={APP_STATUS_CLASS.speedCompactDivider} />
+                                <div className={APP_STATUS_CLASS.speedCompactColumn}>
                                     <ArrowUp
-                                        className="toolbar-icon-size-md text-primary"
+                                        className={APP_STATUS_CLASS.speedCompactUpIcon}
                                         aria-hidden="true"
                                     />
                                     <span className="sr-only">
                                         {t("status_bar.up")}
                                     </span>
-                                    <span className="font-bold tracking-tight leading-none text-foreground">
+                                    <span className={APP_STATUS_CLASS.speedCompactValue}>
                                         {formatSpeed(upSpeed)}
                                     </span>
                                 </div>
@@ -644,7 +635,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
                 {/* RIGHT: HUD */}
                 <div
-                    className="flex shrink-0 items-center border-l border-content1/10 gap-stage"
+                    className={APP_STATUS_CLASS.right}
                     style={{
                         height: "var(--tt-statusbar-h)",
                     }}
@@ -668,3 +659,4 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         </footer>
     );
 }
+

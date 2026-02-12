@@ -2,6 +2,12 @@
 
 **Goal**: Eliminate all ad-hoc surface styling and enforce semantic component usage for consistent, maintainable UI patterns.
 
+## Directive (Authoritative)
+
+Goal: Feature code must not own styling. All visual recipes must come from shared semantic tokens/primitives; if a shared token is missing, stop and ask before adding any feature-specific token.
+
+Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* / SETTINGS_*).
+
 **Success Criteria**:
 - Every framed container uses **semantic component** (ActionCard, SettingsPanel, ListContainer, etc.)
 - Every layout pattern uses **semantic container** (Stack, Inline, FormSection, Toolbar)
@@ -1090,25 +1096,27 @@ export { Toolbar } from "./Toolbar";
 > See `CONSISTENCY_AUDIT.md` for full details on each item.
 
 **Day 1: Z-index token expansion**
-- Expand CSS tokens to cover ALL z-levels currently used in the codebase:
-  - `z-panel: 10` (existing)
-  - `z-sticky: 20` (existing)
-  - `z-overlay: 30` (existing)
-  - `z-dnd: 40` (**new** — DND overlays, detail backdrops)
-  - `z-popover: 50` (**new** — context menus, command palette, drag ghosts)
-- Replace all raw `z-10`/`z-20`/`z-30`/`z-40`/`z-50` with tokens (15+ locations)
+- [x] Expand CSS tokens to cover ALL z-levels currently used in the codebase:
+  - [x] `z-panel: 10` (existing)
+  - [x] `z-sticky: 20` (existing)
+  - [x] `z-overlay: 30` (existing)
+  - [x] `z-dnd: 40` (**new** — DND overlays, detail backdrops)
+  - [x] `z-popover: 50` (**new** — context menus, command palette, drag ghosts)
+- [x] Replace all raw `z-10`/`z-20`/`z-30`/`z-40`/`z-50` with tokens (15+ locations)
 
 **Day 1: Sticky header token**
-- Define `STICKY_HEADER` token in `glass-surface.ts`:
+- [x] Define `STICKY_HEADER` token in `glass-surface.ts`:
   ```ts
   export const STICKY_HEADER = "sticky top-0 z-sticky bg-background/80 backdrop-blur-md";
   ```
-- Replace 4 divergent sticky-header recipes across:
-  - `AddMagnetModal.tsx`, `useTorrentTableViewModel.ts`, `TorrentDetails_Trackers.tsx`,
-    `SettingsModalView.tsx`
+- [x] Replace 4 divergent sticky-header recipes across:
+  - [x] `AddMagnetModal.tsx`
+  - [x] `useTorrentTableViewModel.ts`
+  - [x] `TorrentDetails_Trackers.tsx`
+  - [x] `SettingsModalView.tsx`
 
 **Day 2: Transition tokens**
-- Define in new `frontend/src/config/transitions.ts`:
+- [x] Define in `frontend/src/config/logic.ts`:
   ```ts
   export const TRANSITION = {
     fast:   "transition-colors duration-150",
@@ -1117,10 +1125,10 @@ export { Toolbar } from "./Toolbar";
     reveal: "transition-opacity duration-500",
   } as const;
   ```
-- Migrate ~60 transition-class usages (can be done file-by-file later)
+- [x] Migrate ~60 transition-class usages (can be done file-by-file later)
 
 **Day 2: Disabled-state tokens**
-- Define in `frontend/src/config/visualState.ts`:
+- [x] Define in `frontend/src/config/logic.ts`:
   ```ts
   export const VISUAL_STATE = {
     disabled: "opacity-50 pointer-events-none",
@@ -1128,74 +1136,74 @@ export { Toolbar } from "./Toolbar";
     ghost:    "opacity-20",
   } as const;
   ```
-- Fix mixed `opacity-40` / `opacity-50` for disabled intent (~16 locations)
+- [x] Fix mixed `opacity-40` / `opacity-50` for disabled intent (~16 locations)
 
 **Day 2: Scrollbar strategy**
-- Verify `custom-scrollbar` has CSS definition (likely dead class — remove if no-op)
-- Document: `scrollbar-hide` = truly hidden; `overlay-scrollbar` = visible on hover
-- Standardize `AddTorrentSettingsPanel.tsx` to use `scrollbar-hide` or `overlay-scrollbar`
+- [x] Verify `custom-scrollbar` has CSS definition (likely dead class — remove if no-op)
+- [x] Document: `scrollbar-hide` = truly hidden; `overlay-scrollbar` = visible on hover
+- [x] Standardize `AddTorrentSettingsPanel.tsx` to use `scrollbar-hide` or `overlay-scrollbar`
 
 ---
 
 ### Week 1: Foundation Layer (Primitives + Semantics)
 
 **Day 1-2: Low-level primitives**
-1. Create `<Surface>` component (primitive)
-2. Create `<ModalSurface>` component (primitive)
-3. Create `<MenuSurface>` component (primitive)
-4. Enhance `<Section>` component (primitive)
+- [ ] Create `<Surface>` component (primitive)
+- [ ] Create `<ModalSurface>` component (primitive)
+- [ ] Create `<MenuSurface>` component (primitive)
+- [ ] Enhance `<Section>` component (primitive)
 
 **Day 3-4: Semantic framing components**
-5. Create `<ActionCard>` (wraps Surface)
-6. Create `<SettingsPanel>` (wraps Surface)
-7. Create `<ListContainer>` (wraps Surface)
-8. Create `<InfoPanel>` (wraps Surface)
-9. Create `<WorkflowStep>` (wraps Surface)
-10. Create `<SidebarPanel>` (wraps Surface)
-11. Create `<AlertPanel>` (warning/danger/info banners — see CONSISTENCY_AUDIT.md §2)
+- [ ] Create `<ActionCard>` (wraps Surface)
+- [ ] Create `<SettingsPanel>` (wraps Surface)
+- [ ] Create `<ListContainer>` (wraps Surface)
+- [ ] Create `<InfoPanel>` (wraps Surface)
+- [ ] Create `<WorkflowStep>` (wraps Surface)
+- [ ] Create `<SidebarPanel>` (wraps Surface)
+- [x] Create `<AlertPanel>` (warning/danger/info banners — see CONSISTENCY_AUDIT.md §2)
 
 **Day 5: Semantic container components**
-12. Create `<Stack>` (replaces flex-col)
-13. Create `<Inline>` (replaces flex + gap)
-14. Create `<FormSection>` (standardized form groups)
-15. Create `<Toolbar>` (standardized tool groups)
-16. Create barrel export in `shared/ui/layout/index.ts`
+- [ ] Create `<Stack>` (replaces flex-col)
+- [ ] Create `<Inline>` (replaces flex + gap)
+- [ ] Create `<FormSection>` (standardized form groups)
+- [ ] Create `<Toolbar>` (standardized tool groups)
+- [ ] Create barrel export in `shared/ui/layout/index.ts`
 
 **Validation**: All components compile, export correctly, types are strict
 
 ---
 
 ### Week 2: Modal Normalization (Semantic Migration)
-1. SettingsModalView.tsx → `<ModalSurface>` + `<SidebarPanel>` + `<Stack>`
-2. AddTorrentModal.tsx → `<ModalSurface>` + `<ListContainer>` + `<SidebarPanel>`
-3. TorrentRecoveryModal.tsx → `<ModalSurface>` + `<ActionCard>` + `<InfoPanel>` + `<Stack>`
-4. RemoveConfirmationModal.tsx → `<ModalSurface>` + `<Stack>`
-5. AddMagnetModal.tsx → `<ModalSurface>` + `<Stack>`
-6. CommandPalette.tsx → `<ModalSurface>` + `<WorkflowStep>`
+- [ ] SettingsModalView.tsx → `<ModalSurface>` + `<SidebarPanel>` + `<Stack>`
+- [ ] AddTorrentModal.tsx → `<ModalSurface>` + `<ListContainer>` + `<SidebarPanel>`
+- [ ] TorrentRecoveryModal.tsx → `<ModalSurface>` + `<ActionCard>` + `<InfoPanel>` + `<Stack>`
+- [ ] RemoveConfirmationModal.tsx → `<ModalSurface>` + `<Stack>`
+- [ ] AddMagnetModal.tsx → `<ModalSurface>` + `<Stack>`
+- [ ] CommandPalette.tsx → `<ModalSurface>` + `<WorkflowStep>`
 
 **Validation**: No custom blur/backdrop usage, all modals use semantic components
 
 ---
 
 ### Week 3: Menus & Panels (Semantic Migration)
-1. LanguageMenu → `<MenuSurface>`
-2. Peer/File context menus → `<MenuSurface>`
-3. Tooltip cards → `<MenuSurface>` or standardized tooltip
-4. TorrentTable shell → `<ListContainer>`
-5. FileExplorerTree container → `<ListContainer>`
-6. Settings sections → `<SettingsPanel>` (replace SettingsSection.tsx)
+- [ ] LanguageMenu → `<MenuSurface>`
+- [ ] Peer/File context menus → `<MenuSurface>`
+- [ ] Tooltip cards → `<MenuSurface>` or standardized tooltip
+- [ ] TorrentTable shell → `<ListContainer>`
+- [ ] FileExplorerTree container → `<ListContainer>`
+- [ ] Settings sections → `<SettingsPanel>` (replace SettingsSection.tsx)
 
 **Validation**: No custom menu/panel styling, all lists use `<ListContainer>`, all settings use `<SettingsPanel>`
 
 ---
 
 ### Week 4: Details & Cleanup (Complete Semantic Migration)
-1. Detail tab surfaces → `<InfoPanel>` / `<ListContainer>` + `<Stack>`
-2. Chart cards → `<ActionCard>` / `<InfoPanel>`
-3. Destination/settings panels → `<ActionCard>` + `<Stack>`
-4. Stage wrappers → `<Section>` with proper padding variants
-5. DevTest.tsx → `<WorkflowStep>` + `<Stack>` + `<Inline>` (largest cleanup: 10+ instances)
-6. Final audit with validation checklist
+- [ ] Detail tab surfaces → `<InfoPanel>` / `<ListContainer>` + `<Stack>`
+- [ ] Chart cards → `<ActionCard>` / `<InfoPanel>`
+- [ ] Destination/settings panels → `<ActionCard>` + `<Stack>`
+- [ ] Stage wrappers → `<Section>` with proper padding variants
+- [ ] DevTest.tsx → `<WorkflowStep>` + `<Stack>` + `<Inline>` (largest cleanup: 10+ instances)
+- [ ] Final audit with validation checklist
 
 **Validation**: Complete grep audit shows zero violations
 
@@ -1221,8 +1229,8 @@ After cleanup, verify:
 - [ ] All warning/danger/info banners use `<AlertPanel>` (not inline `border-warning/30 bg-warning/10`)
 - [ ] All page wrappers use `<Section>` with proper padding variant
 - [ ] All sticky headers use `STICKY_HEADER` token (not ad-hoc blur recipes)
-- [ ] All z-index values use tokens (`z-panel`…`z-popover`), zero raw `z-10`…`z-50`
-- [ ] All disabled states use `VISUAL_STATE.disabled` (no mixed `opacity-40`/`opacity-50`)
+- [x] All z-index values use tokens (`z-panel`…`z-popover`), zero raw `z-10`…`z-50`
+- [x] All disabled states use `VISUAL_STATE.disabled` (no mixed `opacity-40`/`opacity-50`)
 
 **Layout-level validation**:
 - [ ] All `flex flex-col` patterns replaced with `<Stack>`
@@ -1231,7 +1239,7 @@ After cleanup, verify:
 - [ ] All toolbars use `<Toolbar>`
 
 **Build validation**:
-- [ ] `npm run build` passes with zero type errors
+- [x] `npm run build` passes with zero type errors
 - [ ] Visual regression tests pass (compare screenshots before/after)
 - [ ] No ESLint warnings about unused layout classes
 
@@ -1281,16 +1289,16 @@ rg "TEXT_ROLES\." frontend/src --type tsx
 **Approach**: File-by-file, semantic-first replacement
 
 **For each file**:
-1. Identify all surface-related styling and layout patterns
-2. Replace with appropriate **semantic component** (preferred):
+- [ ] Identify all surface-related styling and layout patterns
+- [ ] Replace with appropriate **semantic component** (preferred):
    - `<ActionCard>`, `<SettingsPanel>`, `<ListContainer>`, `<InfoPanel>`, `<WorkflowStep>`, `<SidebarPanel>`
    - `<Stack>`, `<Inline>`, `<FormSection>`, `<Toolbar>`
-3. Only use primitives (`<Surface>`, `<ModalSurface>`, `<MenuSurface>`) when no semantic component fits
-4. Replace ALL `flex flex-col gap-*` with `<Stack spacing="...">`
-5. Replace ALL `flex gap-* items-center` with `<Inline spacing="...">`
-6. Remove all ad-hoc blur/border/shadow/radius classes
-7. Test visually
-8. Commit with message: `refactor(surfaces): normalize [ComponentName] to use semantic components`
+- [ ] Only use primitives (`<Surface>`, `<ModalSurface>`, `<MenuSurface>`) when no semantic component fits
+- [ ] Replace ALL `flex flex-col gap-*` with `<Stack spacing="...">`
+- [ ] Replace ALL `flex gap-* items-center` with `<Inline spacing="...">`
+- [ ] Remove all ad-hoc blur/border/shadow/radius classes
+- [ ] Test visually
+- [ ] Commit with message: `refactor(surfaces): normalize [ComponentName] to use semantic components`
 
 **Decision tree**:
 ```
@@ -1390,6 +1398,15 @@ Does the UI pattern have a semantic name?
 | Arrange items horizontally with gap | `<Inline spacing="tight\|tools\|panel">` | Toolbars, button groups, header elements |
 | Group form fields with optional title | `<FormSection title="...">` | Settings forms, input groups |
 | Horizontal toolbar with standard spacing | `<Toolbar>` | Action bars, control strips |
+
+### "I need a scrollbar..."
+
+| Scroll Intent | Class | Rule |
+|---------------|-------|------|
+| Fully hidden scrollbar | `scrollbar-hide` | Use when the UI should stay visually clean and scrolling remains obvious from context. |
+| Subtle overlay scrollbar | `overlay-scrollbar` | Use for dense data panes where discoverability matters; thumb appears on hover/focus. |
+
+**Never use** `custom-scrollbar` (removed/no-op). Pick one of the two strategies above.
 
 ### "I need to create a modal/menu..."
 

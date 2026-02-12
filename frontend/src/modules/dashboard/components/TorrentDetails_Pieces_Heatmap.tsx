@@ -3,8 +3,23 @@ import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { TEXT_ROLES } from "@/config/logic";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
+import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
+import {
+    GLASS_TOOLTIP_CLASSNAMES,
+    HEATMAP_CANVAS_CLASS,
+    HEATMAP_CANVAS_FRAME_CLASS,
+    HEATMAP_CANVAS_PULSE_CLASS,
+    HEATMAP_CONTROLS_CLASS,
+    HEATMAP_EMPTY_CLASS,
+    HEATMAP_HEADER_CLASS,
+    HEATMAP_LABEL_TRACKING_STYLE,
+    HEATMAP_LEGEND_CLASS,
+    HEATMAP_LEGEND_DOT_CLASS,
+    HEATMAP_LEGEND_ITEM_CLASS,
+    HEATMAP_ROOT_CLASS,
+    HEATMAP_ZOOM_BUTTON_CLASS,
+    HEATMAP_ZOOM_ICON_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import {
     getAvailabilityColor,
     useCanvasPalette,
@@ -19,7 +34,6 @@ import {
     HEATMAP_HOVER_STROKE_WIDTH,
     HEATMAP_HOVER_STROKE_INSET,
     HEATMAP_USE_UI_SAMPLING_SHIM,
-    SURFACE_BORDER,
 } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -253,62 +267,57 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div
-                className={`rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel text-scaled text-foreground/50 text-center`}
-            >
+            <div className={cn(HEATMAP_EMPTY_CLASS, withOpacity(TEXT_ROLE.body, 50))}>
                 {emptyLabel}
             </div>
         );
     }
 
     return (
-        <motion.div layout className="flex flex-col gap-tools">
-            <div className="flex items-center justify-between">
-                <span
-                    className={TEXT_ROLES.label}
-                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
-                >
+        <motion.div layout className={HEATMAP_ROOT_CLASS}>
+            <div className={HEATMAP_HEADER_CLASS}>
+                <span className={TEXT_ROLE.label} style={HEATMAP_LABEL_TRACKING_STYLE}>
                     {label}
                 </span>
-                <div className="flex items-center gap-tools text-scaled text-foreground/50">
-                    <span className="flex items-center gap-tight">
+                <div className={cn(HEATMAP_LEGEND_CLASS, withOpacity(TEXT_ROLE.body, 50))}>
+                    <span className={HEATMAP_LEGEND_ITEM_CLASS}>
                         <span
-                            className="size-dot rounded-full"
+                            className={HEATMAP_LEGEND_DOT_CLASS}
                             style={{ backgroundColor: "var(--heroui-danger)" }}
                         />
                         {legendRare}
                     </span>
-                    <span className="flex items-center gap-tight">
+                    <span className={HEATMAP_LEGEND_ITEM_CLASS}>
                         <span
-                            className="size-dot rounded-full"
+                            className={HEATMAP_LEGEND_DOT_CLASS}
                             style={{ backgroundColor: "var(--heroui-primary)" }}
                         />
                         {legendCommon}
                     </span>
                 </div>
-                <div className="flex items-center gap-tight">
+                <div className={HEATMAP_CONTROLS_CLASS}>
                     <Button
                         size="md"
                         variant="shadow"
                         color="default"
-                        className="size-icon-btn rounded-full"
+                        className={HEATMAP_ZOOM_BUTTON_CLASS}
                         onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
                     >
                         <StatusIcon
                             Icon={ZoomOut}
                             size="sm"
-                            className="text-current"
+                            className={HEATMAP_ZOOM_ICON_CLASS}
                         />
                     </Button>
-                    <span className="text-scaled font-mono text-foreground/60">
+                    <span className={withOpacity(TEXT_ROLE.code, 60)}>
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button
                         size="md"
                         variant="shadow"
                         color="default"
-                        className="size-icon-btn rounded-full"
+                        className={HEATMAP_ZOOM_BUTTON_CLASS}
                         onPress={() => handleZoom("in")}
                         isDisabled={
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
@@ -317,17 +326,16 @@ export const AvailabilityHeatmap = ({
                         <StatusIcon
                             Icon={ZoomIn}
                             size="sm"
-                            className="text-current"
+                            className={HEATMAP_ZOOM_ICON_CLASS}
                         />
                     </Button>
                 </div>
             </div>
             <div
                 className={cn(
-                    `rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-tight transition-all duration-200`,
+                    HEATMAP_CANVAS_FRAME_CLASS,
                     {
-                        "opacity-70 shadow-availability ring-1 ring-primary/40":
-                            isZooming,
+                        [HEATMAP_CANVAS_PULSE_CLASS]: isZooming,
                     }
                 )}
             >
@@ -342,7 +350,7 @@ export const AvailabilityHeatmap = ({
                         ref={canvasRef}
                         width={canvasWidth}
                         height={canvasHeight}
-                        className="w-full h-auto block rounded-2xl cursor-crosshair"
+                        className={HEATMAP_CANVAS_CLASS}
                         onMouseMove={handleHeatmapHover}
                         onMouseLeave={() => setHoveredCell(null)}
                     />

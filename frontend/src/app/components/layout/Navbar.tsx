@@ -30,6 +30,8 @@ import { usePreferences } from "@/app/context/PreferencesContext";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
+    buildAppNavSelectionActionsClass,
+    APP_NAV_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
@@ -68,19 +70,19 @@ export function Navbar({ viewModel }: NavbarProps) {
     const toneButtonClass = {
         primary:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.button ??
-            "text-primary hover:text-primary-600 hover:bg-primary/10",
+            APP_NAV_CLASS.toneButtonFallback.primary,
         success:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]?.button ??
-            "text-success hover:text-success-600 hover:bg-success/10",
+            APP_NAV_CLASS.toneButtonFallback.success,
         warning:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.button ??
-            "text-warning hover:text-warning-600 hover:bg-warning/10",
+            APP_NAV_CLASS.toneButtonFallback.warning,
         danger:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]?.button ??
-            "text-danger hover:text-danger-600 hover:bg-danger/10",
+            APP_NAV_CLASS.toneButtonFallback.danger,
         neutral:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.NEUTRAL]?.button ??
-            "text-default-500 hover:text-foreground hover:bg-default-200",
+            APP_NAV_CLASS.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -89,13 +91,9 @@ export function Navbar({ viewModel }: NavbarProps) {
     };
 
     return (
-        <header
-            className={cn(
-                "sticky top-0 z-30 w-full shrink-0 select-none overflow-visible",
-            )}
-        >
+        <header className={APP_NAV_CLASS.root}>
             <div
-                className="app-titlebar flex w-full items-stretch"
+                className={APP_NAV_CLASS.titlebar}
                 style={{
                     ...shell.surfaceStyle,
                     height: "var(--tt-navbar-h)",
@@ -112,7 +110,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         BLOCK_SHADOW,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
-                        "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative",
+                        APP_NAV_CLASS.main,
                     )}
                     style={{
                         ...shell.outerStyle,
@@ -120,10 +118,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                         // keeping per-component margin was causing drift.
                     }}
                 >
-                    <div className="flex items-center gap-tools min-w-0">
-                        <div className="flex items-center gap-tools pr-tight">
+                    <div className={APP_NAV_CLASS.left}>
+                        <div className={APP_NAV_CLASS.brandGroup}>
                             <div
-                                className="flex items-center justify-center"
+                                className={APP_NAV_CLASS.brandIconWrap}
                                 style={{
                                     width: "var(--tt-brand-icon-size)",
                                     height: "var(--tt-brand-icon-size)",
@@ -131,11 +129,11 @@ export function Navbar({ viewModel }: NavbarProps) {
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className="hidden xl:flex flex-col justify-center ml-tight">
-                                <span className="font-bold tracking-tight text-foreground text-base leading-none  text-navbar">
+                            <div className={APP_NAV_CLASS.brandTextWrap}>
+                                <span className={APP_NAV_CLASS.brandName}>
                                     {t("brand.name")}
                                 </span>
-                                <span className="text-default-400 font-mono text-xs font-medium leading-none mt-0.5">
+                                <span className={APP_NAV_CLASS.brandVersion}>
                                     {t("brand.version", {
                                         version: APP_VERSION,
                                     })}
@@ -143,9 +141,9 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </div>
                         </div>
 
-                        <div className="hidden min-[600px]:flex h-sep w-px bg-default-200/50 mx-tight" />
+                        <div className={APP_NAV_CLASS.primarySeparator} />
 
-                        <div className="hidden min-[1200px]:flex text-navbar min-w-0">
+                        <div className={APP_NAV_CLASS.tabsWrap}>
                             <Tabs
                                 aria-label={t("nav.filter_aria")}
                                 variant="light"
@@ -153,24 +151,18 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 radius="full"
                                 selectedKey={filter}
                                 onSelectionChange={handleFilterSelectionChange}
-                                classNames={{
-                                    base: "",
-                                    tabList:
-                                        "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
-                                    cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full",
-                                    tab: "px-panel font-semibold text-default-500 transition-colors text-navbar",
-                                }}
+                                classNames={APP_NAV_CLASS.filterTabsClassNames}
                             >
                                 <Tab
                                     key="all"
                                     title={
-                                        <div className="flex items-center gap-tight">
+                                        <div className={APP_NAV_CLASS.tabTitle}>
                                             <StatusIcon
                                                 Icon={ListChecks}
                                                 size="lg"
-                                                className="text-default-400"
+                                                className={APP_NAV_CLASS.tabIcon}
                                             />
-                                            <span className="hidden min-[1600px]:inline">
+                                            <span className={APP_NAV_CLASS.tabLabel}>
                                                 {t("nav.filter_all")}
                                             </span>
                                         </div>
@@ -179,13 +171,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="downloading"
                                     title={
-                                        <div className="flex items-center gap-tight">
+                                        <div className={APP_NAV_CLASS.tabTitle}>
                                             <StatusIcon
                                                 Icon={DownloadCloud}
                                                 size="lg"
-                                                className="text-default-400"
+                                                className={APP_NAV_CLASS.tabIcon}
                                             />
-                                            <span className="hidden min-[1600px]:inline">
+                                            <span className={APP_NAV_CLASS.tabLabel}>
                                                 {t("nav.filter_downloading")}
                                             </span>
                                         </div>
@@ -194,13 +186,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="seeding"
                                     title={
-                                        <div className="flex items-center gap-tight">
+                                        <div className={APP_NAV_CLASS.tabTitle}>
                                             <StatusIcon
                                                 Icon={UploadCloud}
                                                 size="lg"
-                                                className="text-default-400"
+                                                className={APP_NAV_CLASS.tabIcon}
                                             />
-                                            <span className="hidden min-[1600px]:inline">
+                                            <span className={APP_NAV_CLASS.tabLabel}>
                                                 {t("nav.filter_seeding")}
                                             </span>
                                         </div>
@@ -209,19 +201,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </Tabs>
                         </div>
 
-                        <div className="hidden min-[1400px]:flex">
+                        <div className={APP_NAV_CLASS.searchWrap}>
                             <Input
-                                classNames={{
-                                    base: "transition-all",
-                                    mainWrapper: "h-navbar-pill",
-                                    input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
-                                    inputWrapper:
-                                        "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
-                                }}
-                                style={{
-                                    width: "var(--tt-search-width)",
-                                    fontSize: "var(--tt-fz-navbar)",
-                                }}
+                                classNames={APP_NAV_CLASS.searchInputClassNames}
+                                style={APP_NAV_CLASS.searchStyle}
                                 placeholder={t("nav.search_placeholder")}
                                 size="md"
                                 value={searchQuery}
@@ -234,19 +217,14 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     <StatusIcon
                                         Icon={Search}
                                         size="lg"
-                                        className="text-default-400"
+                                        className={APP_NAV_CLASS.searchIcon}
                                     />
                                 }
                             />
                         </div>
                     </div>
-                    <div
-                        className={cn(
-                            "flex items-center gap-tools transition-opacity duration-200 shrink-0",
-                            "opacity-100",
-                        )}
-                    >
-                        <div className="flex items-center gap-tools min-w-0">
+                    <div className={APP_NAV_CLASS.actions}>
+                        <div className={APP_NAV_CLASS.primaryActions}>
                             <ToolbarIconButton
                                 Icon={FileUp}
                                 ariaLabel={t("toolbar.add_torrent")}
@@ -254,7 +232,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 onPress={onAddTorrent}
                                 className={cn(
                                     toneButtonClass.primary,
-                                    "ring-1 ring-primary/20",
+                                    APP_NAV_CLASS.primaryActionEmphasis,
                                 )}
                                 iconSize="lg"
                             />
@@ -269,18 +247,11 @@ export function Navbar({ viewModel }: NavbarProps) {
                             />
                         </div>
                         <div
-                            className="hidden sm:flex w-px bg-default-200/50 mx-tight"
-                            style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
+                            className={APP_NAV_CLASS.selectionSeparator}
+                            style={APP_NAV_CLASS.selectionSeparatorStyle}
                         />
 
-                        <div
-                            className={cn(
-                                "flex items-center gap-tools transition-opacity duration-200",
-                                !hasSelection
-                                    ? "opacity-30 pointer-events-none grayscale"
-                                    : "opacity-100",
-                            )}
-                        >
+                        <div className={buildAppNavSelectionActionsClass(hasSelection)}>
                             <ToolbarIconButton
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}
@@ -299,12 +270,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 className={cn(
                                     toneButtonClass.warning,
                                     emphasizeActions?.pause
-                                        ? "ring-1 ring-warning/30 shadow-sm"
+                                        ? APP_NAV_CLASS.selectionPauseEmphasis
                                         : "",
                                 )}
                                 iconSize="lg"
                             />
-                            <div className=" hidden min-[600px]:flex  gap-tools ">
+                            <div className={APP_NAV_CLASS.selectionExtraActions}>
                                 <ToolbarIconButton
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
@@ -314,7 +285,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     className={cn(
                                         toneButtonClass.neutral,
                                         emphasizeActions?.forceRecheck
-                                            ? "ring-1 ring-default/20 shadow-sm"
+                                            ? APP_NAV_CLASS.selectionRecheckEmphasis
                                             : "",
                                     )}
                                     iconSize="lg"
@@ -332,8 +303,8 @@ export function Navbar({ viewModel }: NavbarProps) {
                         </div>
 
                         <div
-                            className="hidden sm:flex w-px bg-default-200/50 mx-tight"
-                            style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
+                            className={APP_NAV_CLASS.selectionSeparator}
+                            style={APP_NAV_CLASS.selectionSeparatorStyle}
                         />
 
                         <ToolbarIconButton
@@ -341,14 +312,11 @@ export function Navbar({ viewModel }: NavbarProps) {
                             ariaLabel={t("toolbar.settings")}
                             title={t("toolbar.settings")}
                             onPress={onSettings}
-                            className="text-default-400 hover:text-foreground"
+                            className={APP_NAV_CLASS.ghostAction}
                             style={{ overflow: "visible" }}
                             iconSize="lg"
                         />
-                        <div
-                            className="flex max-[799px]:flex min-[800px]:hidden
-"
-                        >
+                        <div className={APP_NAV_CLASS.themeMobileWrap}>
                             <ToolbarIconButton
                                 Icon={Icon}
                                 ariaLabel={t("theme.toggle_label", {
@@ -358,7 +326,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 })}
                                 title={t("theme.toggle")}
                                 onPress={toggleTheme}
-                                className="text-default-400 hover:text-foreground"
+                                className={APP_NAV_CLASS.ghostAction}
                                 style={{ overflow: "visible" }}
                                 iconSize="lg"
                             />
@@ -366,17 +334,17 @@ export function Navbar({ viewModel }: NavbarProps) {
                     </div>
 
                     {rehashStatus?.active && (
-                        <div className="absolute inset-x-6 bottom-0 translate-y-1/2">
-                            <div className="relative group cursor-help">
+                        <div className={APP_NAV_CLASS.rehashWrap}>
+                            <div className={APP_NAV_CLASS.rehashTooltipWrap}>
                                 <SmoothProgressBar
                                     value={Math.min(
                                         Math.max(rehashStatus.value, 0),
                                         100,
                                     )}
-                                    trackClassName="h-track bg-transparent"
-                                    indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-nav"
+                                    trackClassName={APP_NAV_CLASS.rehashTrack}
+                                    indicatorClassName={APP_NAV_CLASS.rehashIndicator}
                                 />
-                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-scaled px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none">
+                                <div className={APP_NAV_CLASS.rehashTooltip}>
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>
@@ -389,12 +357,11 @@ export function Navbar({ viewModel }: NavbarProps) {
                     className={cn(
                         GLASS_BLOCK_SURFACE,
                         BLOCK_SHADOW,
-                        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
+                        APP_NAV_CLASS.windowControls,
                     )}
                     style={{
                         ...shell.outerStyle,
-                        paddingLeft: 0,
-                        paddingRight: 0,
+                        ...APP_NAV_CLASS.windowControlsStyle,
                     }}
                 >
                     <WindowControlButton
@@ -432,4 +399,5 @@ export function Navbar({ viewModel }: NavbarProps) {
         </header>
     );
 }
+
 

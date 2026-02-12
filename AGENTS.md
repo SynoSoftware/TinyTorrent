@@ -52,6 +52,7 @@
 3. **One Responsibility** — keep the tray, backend, and browser UI strictly distinct.
 4. **Exact Typing** — avoid `any`; prefer strict schema alignment and explicit contracts.
 5. **No Entropy** — no duplicate configurations, no drifting tooling, no convenience shortcuts.
+6. **Frontend Styling Authority** — feature code must not own styling; use shared semantic tokens/primitives only (see `frontend/AGENTS.md`).
 
 ---
 

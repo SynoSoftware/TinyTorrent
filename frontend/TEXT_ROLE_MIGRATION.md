@@ -1,5 +1,11 @@
 # Text Role System Migration Guide
 
+## Directive (Authoritative)
+
+Goal: Feature code must not own styling. All visual recipes must come from shared semantic tokens/primitives; if a shared token is missing, stop and ask before adding any feature-specific token.
+
+Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* / SETTINGS_*).
+
 ## Quick Start
 
 ### Before (scattered className strings):
@@ -48,6 +54,8 @@ import { TEXT_ROLE } from "@/config/textRoles";
 
 ### Phase 1: High-frequency patterns (quick wins)
 
+- [x] Migrate common inline typography patterns to `TEXT_ROLE` (`label`, `heading`, `codeCaption`, `bodyMuted`)
+
 Search for these common patterns and replace:
 
 ```bash
@@ -69,6 +77,8 @@ Replace: className={TEXT_ROLE.bodyMuted}
 ```
 
 ### Phase 2: Component-specific patterns
+
+- [x] Migrate component-specific text patterns to `TEXT_ROLE_EXTENDED`
 
 **StatusBar.tsx:**
 ```tsx
@@ -107,6 +117,8 @@ import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 ```
 
 ### Phase 3: Dynamic variants (use helpers)
+
+- [x] Use `withOpacity()` / `withColor()` only where semantic roles need explicit variants
 
 When you need opacity/color variants:
 
@@ -223,9 +235,9 @@ import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 ## Testing Your Migration
 
-1. **Build should pass**: `npm run build`
-2. **Visual regression**: Compare screenshots before/after
-3. **Search for patterns**: Ensure no orphaned long strings remain
+- [x] **Build should pass**: `npm run build`
+- [ ] **Visual regression**: Compare screenshots before/after
+- [x] **Search for patterns**: Ensure no orphaned long strings remain
    ```bash
    # Find remaining long className strings (likely unmigrated)
    rg 'className="[^"]{60,}"' frontend/src
@@ -286,6 +298,12 @@ across 5 files.  These must be migrated using the following map:
 
 > **Migrate all 16 references before deleting `TEXT_ROLES` from `logic.ts`.**
 
+- [x] `TorrentDetails_Peers.tsx`
+- [x] `TorrentDetails_Pieces_Map.tsx`
+- [x] `TorrentDetails_Pieces_Heatmap.tsx`
+- [x] `TorrentDetails_Pieces.tsx`
+- [x] `TorrentDetails_Trackers.tsx`
+
 ---
 
 ## Boundary: What TEXT_ROLE Does NOT Cover
@@ -303,12 +321,12 @@ That's an interactive recipe, not a text role.
 
 These files have the most scattered text className strings:
 
-1. **StatusBar.tsx** (9 inline patterns)
-2. **CommandPalette.tsx** (4 patterns)
-3. **AddTorrentModal.tsx** (8+ patterns)
-4. **TorrentDetails_*.tsx** files (multiple per file + 16 deprecated `TEXT_ROLES` refs)
-5. **SettingsModalView.tsx** (6 patterns)
-6. **DevTest.tsx** (20+ patterns)
+- [x] **StatusBar.tsx** (9 inline patterns)
+- [x] **CommandPalette.tsx** (4 patterns)
+- [x] **AddTorrentModal.tsx** (8+ patterns)
+- [x] **TorrentDetails_*.tsx** files (multiple per file + 16 deprecated `TEXT_ROLES` refs)
+- [x] **SettingsModalView.tsx** (6 patterns)
+- [x] **DevTest.tsx** (20+ patterns)
 
 **Estimated effort**: ~2-4 hours total for top 6 files  
 **Estimated gain**: 50+ fewer scattered strings, cleaner git diffs, easier theming

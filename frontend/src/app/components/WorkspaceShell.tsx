@@ -22,10 +22,14 @@ import {
 } from "@/config/logic";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { Section, type SectionPadding } from "@/shared/ui/layout/Section";
+import {
+    WORKBENCH_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import type {
     StatusBarViewModel,
     WorkspaceShellViewModel,
 } from "@/app/viewModels/useAppViewModel";
+import { TEXT_ROLE } from "@/config/textRoles";
 
 const TOAST_SPRING_TRANSITION: Transition = {
     type: "spring",
@@ -107,18 +111,18 @@ export function WorkspaceShell({
     return (
         <div
             {...getRootProps()}
-            className="tt-app-shell relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20"
+            className={WORKBENCH_CLASS.root}
         >
             <input {...getInputProps()} />
 
             {isImmersiveShell && !isNativeHost && (
-                <div className="pointer-events-none absolute inset-0 z-floor">
-                    <div className="absolute inset-0 bg-background/95" />
-                    <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
-                    <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
-                    <div className="absolute inset-0 bg-noise opacity-20" />
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40" />
-                    <div className="absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35" />
+                <div className={WORKBENCH_CLASS.immersiveBackgroundRoot}>
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundBase} />
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundPrimaryBlend} />
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundSecondaryBlend} />
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundNoise} />
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundAccentBottom} />
+                    <div className={WORKBENCH_CLASS.immersiveBackgroundAccentTop} />
                 </div>
             )}
 
@@ -129,7 +133,7 @@ export function WorkspaceShell({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
                         transition={TOAST_SPRING_TRANSITION}
-                        className="fixed z-toast"
+                        className={WORKBENCH_CLASS.reconnectToast}
                         style={{
                             bottom: "var(--spacing-panel)",
                             right: "var(--spacing-panel)",
@@ -149,14 +153,16 @@ export function WorkspaceShell({
                 )}
             </AnimatePresence>
 
-            <div className="relative z-panel flex w-full flex-1">
+            <div className={WORKBENCH_CLASS.content}>
                 <Section
                     centered
                     padding={shellSectionPadding}
                     className={cn(
-                        "tt-shell-body flex w-full flex-1 flex-col",
+                        WORKBENCH_CLASS.section,
                         isNativeHost && "native-shell-body",
-                        isImmersiveShell ? "gap-stage" : "gap-tools",
+                        isImmersiveShell
+                            ? WORKBENCH_CLASS.sectionGapImmersive
+                            : WORKBENCH_CLASS.sectionGapClassic,
                     )}
                     style={
                         isImmersiveShell && !isNativeHost
@@ -166,7 +172,7 @@ export function WorkspaceShell({
                 >
                     {isImmersiveShell ? (
                         <div
-                            className="acrylic border shadow-hud"
+                            className={WORKBENCH_CLASS.immersiveNavbarWrap}
                             style={{
                                 borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                 padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -180,11 +186,11 @@ export function WorkspaceShell({
 
                     {isImmersiveShell ? (
                         <>
-                            <div
-                                className={cn(
-                                    "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
-                                    isNativeHost && "native-shell-inner",
-                                )}
+                                <div
+                                    className={cn(
+                                        WORKBENCH_CLASS.immersiveMainWrap,
+                                        isNativeHost && "native-shell-inner",
+                                    )}
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
                                     padding: `${IMMERSIVE_MAIN_PADDING}px`,
@@ -192,7 +198,7 @@ export function WorkspaceShell({
                             >
                                 <main
                                     className={cn(
-                                        "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
+                                        WORKBENCH_CLASS.immersiveMain,
                                         isNativeHost && "native-shell-main",
                                     )}
                                     style={{
@@ -206,7 +212,7 @@ export function WorkspaceShell({
                             {visibleHudCards.length > 0 ? (
                                 <section
                                     className={cn(
-                                        "tt-shell-no-drag grid gap-panel",
+                                        WORKBENCH_CLASS.immersiveHudSection,
                                         hudGridClass,
                                     )}
                                 >
@@ -237,7 +243,7 @@ export function WorkspaceShell({
                                                     }}
                                                     whileHover={{ y: -4 }}
                                                     className={cn(
-                                                        "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-panel shadow-hud",
+                                                        WORKBENCH_CLASS.immersiveHudCard,
                                                         card.surfaceClass,
                                                     )}
                                                     style={{
@@ -251,7 +257,7 @@ export function WorkspaceShell({
                                                                 card.id,
                                                             )
                                                         }
-                                                        className="absolute rounded-pill bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
+                                                        className={WORKBENCH_CLASS.immersiveHudDismissButton}
                                                         style={{
                                                             right: "var(--spacing-tight)",
                                                             top: "var(--spacing-tight)",
@@ -267,10 +273,10 @@ export function WorkspaceShell({
                                                         />
                                                     </button>
 
-                                                    <div className="flex items-start gap-workbench">
+                                                    <div className={WORKBENCH_CLASS.immersiveHudCardContent}>
                                                         <div
                                                             className={cn(
-                                                                "flex size-icon-btn-lg items-center justify-center rounded-panel",
+                                                                WORKBENCH_CLASS.immersiveHudIconWrap,
                                                                 card.iconBgClass,
                                                             )}
                                                         >
@@ -281,14 +287,14 @@ export function WorkspaceShell({
                                                             />
                                                         </div>
 
-                                                        <div className="flex-1">
-                                                            <p className="text-label text-foreground/60">
+                                                        <div className={WORKBENCH_CLASS.immersiveHudTextWrap}>
+                                                            <p className={TEXT_ROLE.caption}>
                                                                 {card.title}
                                                             </p>
-                                                            <p className="mt-tight text-scaled font-semibold text-foreground">
+                                                            <p className={`mt-tight ${TEXT_ROLE.bodyStrong}`}>
                                                                 {card.label}
                                                             </p>
-                                                            <p className="mt-panel text-label text-foreground/60">
+                                                            <p className={`mt-panel ${TEXT_ROLE.caption}`}>
                                                                 {
                                                                     card.description
                                                                 }
@@ -305,7 +311,7 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                                className="tt-shell-no-drag glass-panel border border-content1/10 bg-background/75 shadow-hud blur-glass"
+                                className={WORKBENCH_CLASS.immersiveStatusWrap}
                                 style={{
                                     borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                     padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -315,11 +321,11 @@ export function WorkspaceShell({
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 min-h-0 h-full flex flex-col gap-tools">
-                            <div className="tt-shell-no-drag flex-1 min-h-0 h-full">
+                        <div className={WORKBENCH_CLASS.classicStack}>
+                            <div className={WORKBENCH_CLASS.classicMainWrap}>
                                 {renderModeLayoutSection()}
                             </div>
-                            <div className="tt-shell-no-drag">
+                            <div className={WORKBENCH_CLASS.classicStatusWrap}>
                                 {renderStatusBarSection()}
                             </div>
                         </div>
@@ -333,3 +339,4 @@ export function WorkspaceShell({
         </div>
     );
 }
+

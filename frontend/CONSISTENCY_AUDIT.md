@@ -1,5 +1,11 @@
 # Consistency Audit — Gaps Not Covered by Existing Plans
 
+## Directive (Authoritative)
+
+Goal: Feature code must not own styling. All visual recipes must come from shared semantic tokens/primitives; if a shared token is missing, stop and ask before adding any feature-specific token.
+
+Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* / SETTINGS_*).
+
 **Scope**: This document identifies className inconsistencies the existing plans
 (`TEXT_ROLE_MIGRATION.md` and `SURFACE_CLEANUP_PLAN.md`) do **not** address.
 Each section proposes a concrete normalization strategy that can be scheduled
@@ -24,7 +30,7 @@ values.
 
 ### Proposed Fix
 
-Create an `INTERACTIVE_RECIPE` token map in `frontend/src/config/interactiveRecipes.ts`:
+Create an `INTERACTIVE_RECIPE` token map in `frontend/src/config/logic.ts`:
 
 ```ts
 export const INTERACTIVE_RECIPE = {
@@ -235,7 +241,7 @@ in the same file** for the same logical state.
 
 ### Proposed Fix
 
-Define tokens:
+Define tokens in `frontend/src/config/logic.ts`:
 
 ```ts
 export const VISUAL_STATE = {
@@ -269,7 +275,7 @@ in another.
 
 ### Proposed Fix
 
-Define transition tokens:
+Define transition tokens in `frontend/src/config/logic.ts`:
 
 ```ts
 export const TRANSITION = {
@@ -370,25 +376,25 @@ tracking note — no additional action needed beyond executing the surface plan.
 
 ### TEXT_ROLE_MIGRATION.md — Additions Needed
 
-1. **Add deprecated TEXT_ROLES mapping** (Section 3 above) to the Migration
-   Strategy, including the 16 affected references and their exact replacements.
-2. **Add INTERACTIVE_RECIPE** cross-reference: note that interactive states
-   (hover text color changes) should NOT be folded into TEXT_ROLE — they belong
-   in INTERACTIVE_RECIPE (Section 1 above).
-3. **Priority Files list**: Add the 5 `TorrentDetails_*.tsx` files that still
-   use deprecated `TEXT_ROLES`.
+- [x] **Add deprecated TEXT_ROLES mapping** (Section 3 above) to the Migration
+  Strategy, including the 16 affected references and their exact replacements.
+- [x] **Add INTERACTIVE_RECIPE** cross-reference: note that interactive states
+  (hover text color changes) should NOT be folded into TEXT_ROLE — they belong
+  in INTERACTIVE_RECIPE (Section 1 above).
+- [x] **Priority Files list**: Add the 5 `TorrentDetails_*.tsx` files that still
+  use deprecated `TEXT_ROLES`.
 
 ### SURFACE_CLEANUP_PLAN.md — Additions Needed
 
-1. **Add `<AlertPanel>`** to Phase 1.5 semantic components (Section 2 above).
-2. **Add STICKY_HEADER token** to Phase 1 primitives (Section 4 above).
-3. **Add z-index token expansion** to Phase 5 or a new Phase 0.5 pre-work
-   (Section 5 above).
-4. **Add scrollbar strategy** to Quick Reference (Section 8 above).
-5. **Add disabled-state token** to validation checklist (Section 6 above).
-6. **Add `<Toolbar>` note**: the existing `<Toolbar>` proposal also needs
-   transition tokens — currently toolbar buttons each define their own
-   `transition-colors duration-*`.
+- [x] **Add `<AlertPanel>`** to Phase 1.5 semantic components (Section 2 above).
+- [x] **Add STICKY_HEADER token** to Phase 1 primitives (Section 4 above).
+- [x] **Add z-index token expansion** to Phase 5 or a new Phase 0.5 pre-work
+  (Section 5 above).
+- [x] **Add scrollbar strategy** to Quick Reference (Section 8 above).
+- [x] **Add disabled-state token** to validation checklist (Section 6 above).
+- [x] **Add `<Toolbar>` note**: the existing `<Toolbar>` proposal also needs
+  transition tokens — currently toolbar buttons each define their own
+  `transition-colors duration-*`.
 
 ---
 
@@ -403,5 +409,18 @@ These can be batched with the existing plan phases:
 | 2 | Modal Normalization | Sticky header migration (4 files), deprecated TEXT_ROLES migration (5 files) |
 | 3 | Menus & Panels | INTERACTIVE_RECIPE for context menus, nav items |
 | 4 | Details & Cleanup | INTERACTIVE_RECIPE for buttons/settings, visual-state tokens everywhere |
+
+- [x] Week 0: Z-index token expansion, transition tokens, disabled-state tokens, `STICKY_HEADER` token
+- [x] Week 1: `<AlertPanel>` component, scrollbar strategy decision
+- [x] Week 2: Sticky header migration (4 files), deprecated TEXT_ROLES migration (5 files)
+- [x] Week 3: `INTERACTIVE_RECIPE` for context menus, nav items
+- [_] Week 4: `INTERACTIVE_RECIPE` for buttons/settings, visual-state tokens everywhere
+  - [x] Normalize `AddTorrentModal.tsx` by moving shell/layout class recipes into `glass-surface.ts` tokens.
+  - [x] Normalize `AddTorrentSettingsPanel.tsx` by moving settings-panel layout/state class recipes into `glass-surface.ts` tokens.
+  - [x] Normalize `TorrentDetails_Pieces_Heatmap.tsx` by moving heatmap shell/control class recipes into `glass-surface.ts` tokens.
+  - [x] Replace feature-prefixed modal/context style APIs with shared semantic names (`SETTINGS_MODAL_*` -> `APP_MODAL_*`, `PEERS_CONTEXT_MENU_*` -> `CONTEXT_MENU_*`, `PEERS_*` -> `SPLIT_VIEW_*`).
+  - [x] Merge repeated modal/split/context token groups into shared semantic objects (`APP_MODAL_CLASS`, `SPLIT_VIEW_CLASS`, `CONTEXT_MENU_CLASS`).
+  - [x] Merge remaining status/speed/settings token clusters into shared semantic objects (`APP_STATUS_CLASS`, `METRIC_CHART_CLASS`, `FORM_UI_CLASS`, `TORRENT_ADD_FORM_CLASS`) and migrate consumers.
+  - [_] Continue reducing ad-hoc feature-level class recipes in remaining high-drift files.
 
 ---

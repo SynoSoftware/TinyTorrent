@@ -9,12 +9,15 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, HardDrive, X } from "lucide-react";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import {
-    GLASS_MODAL_SURFACE,
+    INSET_BORDERED_ITEM_SURFACE,
+    INSET_ROUNDED_FULL_SURFACE,
+    INSET_ROUNDED_SURFACE,
+    MODAL_COMPACT_CLASSNAMES,
     MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_FRAME,
     MODAL_SURFACE_HEADER,
 } from "@/shared/ui/layout/glass-surface";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
@@ -82,13 +85,7 @@ export default function TorrentRecoveryModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!viewModel.busy}
-            classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    MODAL_SURFACE_FRAME,
-                    "w-full max-w-modal-compact",
-                ),
-            }}
+            classNames={MODAL_COMPACT_CLASSNAMES}
         >
             <ModalContent>
                 {() => (
@@ -100,10 +97,10 @@ export default function TorrentRecoveryModal({
                             )}
                         >
                             <div className="flex items-center gap-tools">
-                                <div className="surface-layer-1 rounded-full p-tight">
+                                <div className={INSET_ROUNDED_FULL_SURFACE}>
                                     <AlertTriangle className="toolbar-icon-size-md text-warning" />
                                 </div>
-                                <h2 className="text-scaled font-bold uppercase tracking-label text-foreground">
+                                <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
                                     {viewModel.title}
                                 </h2>
                             </div>
@@ -120,17 +117,17 @@ export default function TorrentRecoveryModal({
 
                         <ModalBody className="flex flex-col gap-stage p-panel">
                             <div className="flex flex-col gap-tight">
-                                <p className="text-scaled font-semibold text-foreground">
+                                <p className={TEXT_ROLE.bodyStrong}>
                                     {viewModel.statusText}
                                 </p>
-                                <p className="text-label text-foreground/70">
+                                <p className={TEXT_ROLE.bodySmall}>
                                     {viewModel.bodyText}
                                 </p>
                             </div>
-                            <div className="flex items-center gap-tools surface-layer-1 rounded-panel p-tight">
+                            <div className={cn("flex items-center gap-tools", INSET_ROUNDED_SURFACE)}>
                                 <HardDrive className="toolbar-icon-size-md text-foreground" />
                                 <span
-                                    className="font-mono text-label text-foreground truncate"
+                                    className={cn(TEXT_ROLE.code, "truncate")}
                                     title={viewModel.locationLabel}
                                 >
                                     {viewModel.locationLabel}
@@ -154,41 +151,46 @@ export default function TorrentRecoveryModal({
                                 />
                             )}
                             {viewModel.showWaitingForDrive && (
-                                <div className="text-label text-foreground/60">
+                                <div className={TEXT_ROLE.caption}>
                                     {t("recovery.status.waiting_for_drive")}
                                 </div>
                             )}
                             {viewModel.recoveryOutcomeMessage && (
-                                <div className="surface-layer-1 rounded-panel p-tight text-label text-foreground/70">
+                                <div
+                                    className={cn(
+                                        INSET_ROUNDED_SURFACE,
+                                        TEXT_ROLE.bodySmall,
+                                    )}
+                                >
                                     {viewModel.recoveryOutcomeMessage}
                                 </div>
                             )}
                             {viewModel.inbox.visible && (
-                                <div className="surface-layer-1 rounded-panel p-tight">
+                                <div className={INSET_ROUNDED_SURFACE}>
                                     <div className="flex flex-col gap-tight">
-                                        <p className="text-label font-semibold text-foreground">
+                                        <p className={cn(TEXT_ROLE.bodySmall, "font-semibold text-foreground")}>
                                             {viewModel.inbox.title}
                                         </p>
-                                        <p className="text-label text-foreground/70">
+                                        <p className={TEXT_ROLE.bodySmall}>
                                             {viewModel.inbox.subtitle}
                                         </p>
                                         <div className="flex flex-col gap-tight">
                                             {viewModel.inbox.items.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className="rounded-panel border border-default/20 p-tight"
+                                                    className={INSET_BORDERED_ITEM_SURFACE}
                                                 >
-                                                    <p className="text-label font-medium text-foreground truncate">
+                                                    <p className={cn(TEXT_ROLE.bodySmall, "font-medium text-foreground truncate")}>
                                                         {item.label}
                                                     </p>
-                                                    <p className="text-label text-foreground/70 truncate">
+                                                    <p className={cn(TEXT_ROLE.bodySmall, "truncate")}>
                                                         {item.description}
                                                     </p>
                                                 </div>
                                             ))}
                                         </div>
                                         {viewModel.inbox.moreCount > 0 && (
-                                            <p className="text-label text-foreground/60">
+                                            <p className={TEXT_ROLE.caption}>
                                                 {t("recovery.inbox.more", {
                                                     count: viewModel.inbox.moreCount,
                                                 })}

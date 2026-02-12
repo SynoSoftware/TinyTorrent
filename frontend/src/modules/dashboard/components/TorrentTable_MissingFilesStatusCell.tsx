@@ -1,4 +1,4 @@
-import { Chip, cn } from "@heroui/react";
+import { Chip } from "@heroui/react";
 import { AlertTriangle } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
@@ -12,6 +12,10 @@ import {
     formatRecoveryStatusFromClassification,
 } from "@/shared/utils/recoveryFormat";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
+import {
+    buildMissingFilesStatusTriggerClass,
+    STATUS_CHIP_CLASSNAMES,
+} from "@/shared/ui/layout/glass-surface";
 
 type MissingFilesStatusCellProps = {
     torrent: Torrent;
@@ -51,11 +55,7 @@ export function TorrentTable_MissingFilesStatusCell({
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={{
-                        base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-                        content:
-                            "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
-                    }}
+                    classNames={STATUS_CHIP_CLASSNAMES}
                 >
                     <div className="flex items-center justify-center gap-tools">
                         <AlertTriangle className="toolbar-icon-size-md text-warning" />
@@ -92,11 +92,8 @@ export function TorrentTable_MissingFilesStatusCell({
                 type="button"
                 onClick={handleOpenRecovery}
                 title={tooltip}
-                className={cn(
-                    "min-w-0 outline-none rounded-panel transition-opacity",
-                    isBusyWithOtherTorrent
-                        ? "cursor-pointer opacity-90 hover:opacity-90"
-                        : "cursor-pointer hover:opacity-90",
+                className={buildMissingFilesStatusTriggerClass(
+                    isBusyWithOtherTorrent,
                 )}
             >
                 <Chip
@@ -104,11 +101,7 @@ export function TorrentTable_MissingFilesStatusCell({
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={{
-                        base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-                        content:
-                            "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
-                    }}
+                    classNames={STATUS_CHIP_CLASSNAMES}
                 >
                     <div className="flex items-center justify-center gap-tools">
                         <AlertTriangle className="toolbar-icon-size-md text-warning" />

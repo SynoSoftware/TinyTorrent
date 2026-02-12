@@ -2,7 +2,8 @@ import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { ICON_STROKE_WIDTH, HEADER_BASE } from "@/config/logic";
+import { ICON_STROKE_WIDTH, HEADER_BASE, INTERACTIVE_RECIPE, TRANSITION } from "@/config/logic";
+import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
@@ -87,13 +88,13 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                     {renderedName}
                     {hasStatus ? (
                         <span
-                            className="text-label text-foreground/60 block"
+                            className={`${TEXT_ROLE.caption} block`}
                             title={statusTooltip ?? undefined}
                         >
                             {statusLabel}
                             {primaryHint && (
-                                <em className="text-label text-foreground/50">
-                                    — {primaryHint}
+                                <em className={withOpacity(TEXT_ROLE.caption, 50)}>
+                                    - {primaryHint}
                                 </em>
                             )}
                         </span>
@@ -111,10 +112,10 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                             aria-pressed={activeTab === tab}
                             onClick={() => onTabChange(tab)}
                             className={cn(
-                                "py-tight rounded-full  border  text-scaled font-bold transition-colors px-panel",
+                                `py-tight rounded-full border ${TEXT_ROLE.buttonText} font-bold ${TRANSITION.fast} px-panel`,
                                 activeTab === tab
                                     ? "text-foreground"
-                                    : "text-foreground/60 hover:text-foreground"
+                                    : `text-foreground/60 ${INTERACTIVE_RECIPE.navItem}`
                             )}
                         >
                             {t(

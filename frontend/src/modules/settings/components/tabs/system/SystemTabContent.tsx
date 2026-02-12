@@ -1,6 +1,5 @@
 import {
     Button,
-    Card,
     Chip,
     Switch,
     cn,
@@ -16,7 +15,11 @@ import {
     type SystemIntegrationReadOutcome,
 } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import { HEADER_BASE, SURFACE_BORDER } from "@/config/logic";
+import { VISUAL_STATE } from "@/config/logic";
+import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
+import {
+    FORM_UI_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
@@ -40,16 +43,10 @@ function SystemSectionCard({
     children,
 }: SystemSectionCardProps) {
     return (
-        <Card
-            shadow="sm"
-            className={`bg-content1/50 border ${SURFACE_BORDER} rounded-2xl p-panel`}
-        >
+        <div className={FORM_UI_CLASS.sectionCardEmphasized}>
             {title && (
                 <h3
-                    className={cn(
-                        HEADER_BASE,
-                        "text-scaled font-bold text-foreground/40 mb-panel leading-tight",
-                    )}
+                    className={FORM_UI_CLASS.sectionTitle}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -57,14 +54,14 @@ function SystemSectionCard({
             )}
             {description && (
                 <p
-                    className={cn(HEADER_BASE, "text-scaled mb-panel")}
+                    className={FORM_UI_CLASS.sectionDescription}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}
                 </p>
             )}
-            <div className="space-y-stage">{children}</div>
-        </Card>
+            <div className={FORM_UI_CLASS.sectionContentStack}>{children}</div>
+        </div>
     );
 }
 
@@ -86,20 +83,20 @@ function SystemRow({
     return (
         <div
             className={cn(
-                "flex flex-col gap-tight",
-                disabled && "opacity-50 pointer-events-none"
+                FORM_UI_CLASS.systemRow,
+                disabled && VISUAL_STATE.disabled
             )}
         >
-            <div className="flex items-center justify-between h-row px-panel">
+            <div className={FORM_UI_CLASS.systemRowHeader}>
                 <span
                     className={cn(
-                        "text-scaled font-medium text-foreground/80",
-                        disabled && "opacity-40"
+                        FORM_UI_CLASS.systemRowLabel,
+                        disabled && VISUAL_STATE.muted
                     )}
                 >
                     {label}
                 </span>
-                <div className="flex items-center gap-tools whitespace-nowrap">
+                <div className={FORM_UI_CLASS.systemRowControl}>
                     {control}
                     {status}
                 </div>
@@ -107,8 +104,8 @@ function SystemRow({
             {helper && (
                 <p
                     className={cn(
-                        "px-panel text-label text-foreground/60",
-                        disabled && "opacity-40"
+                        FORM_UI_CLASS.systemRowHelper,
+                        disabled && VISUAL_STATE.muted
                     )}
                 >
                     {helper}
@@ -131,7 +128,7 @@ function StatusChip({
             variant="flat"
             color={color}
             radius="sm"
-            className="font-semibold text-scaled tracking-tight"
+            className={FORM_UI_CLASS.systemStatusChip}
         >
             {label}
         </Chip>
@@ -321,11 +318,11 @@ export function SystemTabContent() {
                 title={t("settings.headers.system")}
                 description={t("settings.descriptions.system_integration")}
             >
-                <div className="mt-panel flex flex-col gap-tight">
-                    <p className="text-scaled text-foreground/80">
+                <div className={FORM_UI_CLASS.systemNoticeStack}>
+                    <p className={withOpacity(TEXT_ROLE.body, 80)}>
                         {t("settings.system.notice")}
                     </p>
-                    <p className="text-label text-foreground/60">
+                    <p className={TEXT_ROLE.caption}>
                         {t("settings.system.instructions")}
                     </p>
                 </div>
@@ -334,7 +331,7 @@ export function SystemTabContent() {
     }
 
     return (
-        <div className="space-y-stage">
+        <div className={FORM_UI_CLASS.systemRootStack}>
             <SystemSectionCard
                 title={t("settings.sections.system_integration")}
                 description={t("settings.descriptions.system_integration")}
@@ -387,4 +384,5 @@ export function SystemTabContent() {
         </div>
     );
 }
+
 

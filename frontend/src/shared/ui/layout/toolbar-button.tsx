@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ICON_STROKE_WIDTH, TRANSITION } from "@/config/logic";
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
@@ -108,7 +108,7 @@ export const ToolbarIconButton = forwardRef<
             variant={mergedVariant}
             radius="full"
             className={cn(
-                "p-tight inline-flex items-center justify-center transition-colors toolbar-icon-hit",
+                `p-tight inline-flex items-center justify-center ${TRANSITION.fast} toolbar-icon-hit`,
                 className
             )}
             aria-label={ariaLabel}

@@ -11,9 +11,11 @@ import {
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
+    ICON_BUTTON_SURFACE,
     INPUT_CLASSNAMES_MONO_SURFACE_EMPHASIZED,
     PANEL_SURFACE_FRAME,
 } from "@/shared/ui/layout/glass-surface";
+import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
 export function AddTorrentDestinationGatePanel() {
@@ -28,7 +30,7 @@ export function AddTorrentDestinationGatePanel() {
             )}
         >
             <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
-                <div className="flex items-center gap-tools text-label font-mono uppercase tracking-widest text-foreground/40">
+                <div className={cn("flex items-center gap-tools", withOpacity(TEXT_ROLE.codeCaption, 40))}>
                     <HardDrive className="toolbar-icon-size-md text-foreground/50" />
                     <span>
                         {t("modals.add_torrent.destination_prompt_mode_full")}
@@ -79,7 +81,7 @@ export function AddTorrentDestinationGatePanel() {
                             aria-label={t(
                                 "modals.add_torrent.destination_prompt_browse",
                             )}
-                            className="surface-layer-1 border border-default/10"
+                            className={ICON_BUTTON_SURFACE}
                         >
                             <FolderOpen className="toolbar-icon-size-md text-foreground/50" />
                         </Button>
@@ -89,7 +91,8 @@ export function AddTorrentDestinationGatePanel() {
 
             <div
                 className={cn(
-                    "h-status-chip flex items-center gap-tools text-label font-mono",
+                    "h-status-chip flex items-center gap-tools",
+                    TEXT_ROLE.codeMuted,
                     destinationGate.statusKind === "danger"
                         ? "text-danger"
                         : destinationGate.statusKind === "warning"

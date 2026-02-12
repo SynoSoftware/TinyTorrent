@@ -25,7 +25,6 @@ import {
     KEY_SCOPE,
     KEYMAP,
     ShortcutIntent,
-    SURFACE_BORDER,
     TABLE_LAYOUT,
 } from "@/config/logic";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
@@ -69,17 +68,17 @@ import type {
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import { cn } from "@heroui/react";
 import STATUS from "@/shared/status";
 import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
 type InteractionSensors = ReturnType<typeof useTorrentTableInteractions>;
 
 const AUTO_FIT_TOLERANCE_PX = 8;
-const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
+const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-dnd";
 
 const formatShortcutLabel = (value?: string | string[]) =>
     Array.isArray(value) ? value.join(" / ") : (value ?? "");
@@ -735,13 +734,7 @@ export function useTorrentTableViewModel({
     useEffect(() => {
         tableContainerRef.current?.focus();
     }, []);
-    const headerContainerClass = useMemo(
-        () =>
-            (cn(
-                `flex w-full sticky top-0 z-20 border-b ${SURFACE_BORDER} bg-content1/10 backdrop-blur-sm`,
-            ) ?? "") as string,
-        [],
-    );
+    const headerContainerClass = TABLE_VIEW_CLASS.header;
     const activeDragRow = useMemo(
         () => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null),
         [activeRowId, rowsById],

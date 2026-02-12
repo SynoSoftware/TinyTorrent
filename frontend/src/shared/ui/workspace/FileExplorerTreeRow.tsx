@@ -13,6 +13,19 @@ import {
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+import {
+    CHECKBOX_PRIMARY_CLASSNAMES,
+    FILE_TREE_CHEVRON_BUTTON_CLASS,
+    FILE_TREE_PRIORITY_CHIP_CLASS,
+    FILE_TREE_PROGRESS_CLASSNAMES,
+    FILE_TREE_ROW_CLASS,
+    FILE_TREE_ROW_DIMMED_CLASS,
+    MENU_ITEM_CLASSNAMES,
+    MENU_LIST_CLASSNAMES,
+    MENU_SURFACE_CLASS,
+    PRIORITY_CHIP_CLASSNAMES,
+} from "@/shared/ui/layout/glass-surface";
+import { TEXT_ROLE } from "@/config/textRoles";
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
@@ -70,8 +83,8 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     return (
         <div
             className={cn(
-                "grid grid-cols-file-tree items-center h-row px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 transition-colors",
-                !row.isWanted && "opacity-60 grayscale-[0.5]",
+                FILE_TREE_ROW_CLASS,
+                !row.isWanted && FILE_TREE_ROW_DIMMED_CLASS,
             )}
             style={
                 {
@@ -86,7 +99,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     isSelected={row.isSelected}
                     isIndeterminate={row.isIndeterminate}
                     onValueChange={onSelectionChange}
-                    classNames={{ wrapper: "after:bg-primary" }}
+                    classNames={CHECKBOX_PRIMARY_CLASSNAMES}
                 />
             </div>
 
@@ -97,7 +110,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             event.stopPropagation();
                             onToggleExpand();
                         }}
-                        className="file-tree-chevron-hit text-default-400 hover:text-foreground rounded-full hover:bg-default-200/50 transition-colors"
+                        className={FILE_TREE_CHEVRON_BUTTON_CLASS}
                     >
                         {row.isExpanded ? (
                             <ChevronDown className="toolbar-icon-size-sm" />
@@ -138,10 +151,8 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             size="sm"
                             variant="flat"
                             color={getPriorityColor(row.priority, row.isWanted)}
-                            className="h-status-chip gap-tight px-tight min-w-status-chip cursor-pointer hover:opacity-80 transition-opacity"
-                            classNames={{
-                                content: "text-label font-semibold uppercase px-0",
-                            }}
+                            className={FILE_TREE_PRIORITY_CHIP_CLASS}
+                            classNames={PRIORITY_CHIP_CLASSNAMES}
                         >
                             {getPriorityLabel(row.priority, row.isWanted, t)}
                         </Chip>
@@ -154,6 +165,10 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             if (key === "low") onSetPriority(1, indexes);
                             if (key === "skip") onSetPriority("skip", indexes);
                         }}
+                        variant="shadow"
+                        className={MENU_SURFACE_CLASS}
+                        classNames={MENU_LIST_CLASSNAMES}
+                        itemClasses={MENU_ITEM_CLASSNAMES}
                     >
                         <DropdownItem
                             key="high"
@@ -195,15 +210,12 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     size="sm"
                     value={progress}
                     color={progress === 100 ? "success" : "primary"}
-                    classNames={{
-                        track: "h-sep",
-                        indicator: "!transition-all h-sep",
-                    }}
+                    classNames={FILE_TREE_PROGRESS_CLASSNAMES}
                     aria-label="Download progress"
                 />
             </div>
 
-            <div className="text-right text-label text-default-400 font-mono">
+            <div className={`${TEXT_ROLE.codeMuted} text-right text-default-400`}>
                 {formatBytes(row.node.totalSize)}
             </div>
         </div>

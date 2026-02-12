@@ -9,7 +9,10 @@ import {
 } from "@/app/viewModels/useDevTestViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Section } from "@/shared/ui/layout/Section";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
+import {
+    DIAGNOSTIC_VIEW_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 export { DEV_TEST_PATH };
 
@@ -22,11 +25,6 @@ const DEV_STATUS_CHIP_COLOR: Record<DevTestStatusTone, ChipProps["color"]> = {
     warning: "warning",
     danger: "danger",
 };
-const DEV_STATUS_CHIP_CLASSNAMES = {
-    base: "border border-default/20 bg-content1/70",
-    content: "text-label font-semibold uppercase tracking-tight",
-} as const;
-
 function DevWorkflowStep({
     stepLabel,
     title,
@@ -37,8 +35,8 @@ function DevWorkflowStep({
     children: ReactNode;
 }) {
     return (
-        <div className="surface-layer-2 rounded-panel p-panel flex flex-col gap-stage">
-            <div className="flex flex-col gap-tight">
+        <div className={DIAGNOSTIC_VIEW_CLASS.stepCard}>
+            <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
                 <p className={DEV_STEP_LABEL_CLASS}>{stepLabel}</p>
                 <p className={DEV_GROUP_TITLE_CLASS}>{title}</p>
             </div>
@@ -62,7 +60,7 @@ function DevStatusToken({
             variant="flat"
             color={DEV_STATUS_CHIP_COLOR[tone]}
             className={className}
-            classNames={DEV_STATUS_CHIP_CLASSNAMES}
+            classNames={DIAGNOSTIC_VIEW_CLASS.statusChipClassNames}
         >
             {label}
         </Chip>
@@ -75,11 +73,11 @@ export default function DevTest() {
     return (
         <Section
             padding="stage"
-            className="min-h-screen surface-layer-0 text-foreground pb-stage"
+            className={DIAGNOSTIC_VIEW_CLASS.root}
         >
-            <div className="flex flex-col gap-stage">
-                <div className="flex flex-wrap items-center justify-between gap-tools">
-                    <div className="flex flex-col gap-tight">
+            <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
+                <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
+                    <div className={DIAGNOSTIC_VIEW_CLASS.topbarText}>
                         <h1 className={TEXT_ROLE.heading}>
                             {viewModel.header.title}
                         </h1>
@@ -92,14 +90,14 @@ export default function DevTest() {
                     </Button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-stage">
-                    <GlassPanel layer={1} className="p-panel">
-                        <div className="flex flex-col gap-stage">
-                            <div className="flex flex-col gap-tight">
+                <div className={DIAGNOSTIC_VIEW_CLASS.grid}>
+                    <GlassPanel layer={1} className={DIAGNOSTIC_VIEW_CLASS.panelPrimary}>
+                        <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
+                            <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
                                 <p className={DEV_STEP_LABEL_CLASS}>
                                     {viewModel.workflow.panels.inputs}
                                 </p>
-                                <h2 className="text-navbar font-semibold text-foreground">
+                                <h2 className={DIAGNOSTIC_VIEW_CLASS.sectionTitle}>
                                     {viewModel.header.title}
                                 </h2>
                             </div>
@@ -108,7 +106,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.scenario}
                                 title={viewModel.scenario.title}
                             >
-                                <div className="flex flex-col gap-tools">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsStack}>
                                     {viewModel.scenario.options.map(
                                         (option) => (
                                             <Button
@@ -124,10 +122,15 @@ export default function DevTest() {
                                                         : "default"
                                                 }
                                                 size="md"
-                                                className="h-auto w-full justify-start whitespace-normal text-left"
+                                                className={DIAGNOSTIC_VIEW_CLASS.optionButtonFull}
                                                 onPress={option.onSelect}
                                             >
-                                                <span className="text-scaled font-medium">
+                                                <span
+                                                    className={cn(
+                                                        TEXT_ROLE.body,
+                                                        "font-medium",
+                                                    )}
+                                                >
                                                     {option.label}
                                                 </span>
                                             </Button>
@@ -140,7 +143,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.confidence}
                                 title={viewModel.confidence.title}
                             >
-                                <div className="flex flex-wrap items-center gap-tools">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsWrap}>
                                     {viewModel.confidence.options.map(
                                         (option) => (
                                             <Button
@@ -169,7 +172,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.controls}
                                 title={viewModel.controls.title}
                             >
-                                <div className="flex flex-col gap-tools">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsStack}>
                                     <Switch
                                         isSelected={
                                             viewModel.controls
@@ -201,10 +204,15 @@ export default function DevTest() {
                                                             ? "primary"
                                                             : "default"
                                                     }
-                                                    className="justify-start text-left whitespace-normal"
+                                                className={DIAGNOSTIC_VIEW_CLASS.optionButtonLeft}
                                                     onPress={option.onSelect}
                                                 >
-                                                    <span className="text-scaled font-medium">
+                                                    <span
+                                                        className={cn(
+                                                            TEXT_ROLE.body,
+                                                            "font-medium",
+                                                        )}
+                                                    >
                                                         {
                                                             viewModel.controls
                                                                 .simulatePrefixLabel
@@ -222,7 +230,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.execute}
                                 title={viewModel.actions.applyScenarioLabel}
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-stage">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.executeRow}>
                                     <Button
                                         variant="shadow"
                                         color="primary"
@@ -233,7 +241,7 @@ export default function DevTest() {
                                     >
                                         {viewModel.actions.applyScenarioLabel}
                                     </Button>
-                                    <div className="flex flex-wrap items-center justify-end gap-tools">
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.executeActions}>
                                         <Button
                                             variant="light"
                                             size="md"
@@ -269,14 +277,19 @@ export default function DevTest() {
                                         </Button>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-tools text-label text-foreground/70">
+                                <div
+                                        className={cn(
+                                        DIAGNOSTIC_VIEW_CLASS.stateRow,
+                                        TEXT_ROLE.bodySmall,
+                                    )}
+                                >
                                     {viewModel.state.rows.map((row) => (
                                         <span
                                             key={row.id}
-                                            className="surface-layer-1 rounded-pill px-tight py-tight"
+                                            className={DIAGNOSTIC_VIEW_CLASS.statePill}
                                         >
                                             {row.label}{" "}
-                                            <span className="font-semibold text-foreground">
+                                            <span className={DIAGNOSTIC_VIEW_CLASS.statePillValue}>
                                                 {row.value}
                                             </span>
                                         </span>
@@ -286,23 +299,23 @@ export default function DevTest() {
                         </div>
                     </GlassPanel>
 
-                    <div className="lg:border-l lg:border-default/20 lg:pl-panel">
+                    <div className={DIAGNOSTIC_VIEW_CLASS.panelSecondaryWrap}>
                         <GlassPanel
                             layer={1}
-                            className="p-panel bg-content1/35"
+                            className={DIAGNOSTIC_VIEW_CLASS.panelSecondary}
                         >
-                            <div className="flex flex-col gap-stage">
-                                <div className="flex flex-col gap-tight">
+                            <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
+                                <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
                                     <p className={DEV_STEP_LABEL_CLASS}>
                                         {viewModel.workflow.panels.results}
                                     </p>
-                                    <h2 className="text-navbar font-semibold text-foreground">
+                                    <h2 className={DIAGNOSTIC_VIEW_CLASS.sectionTitle}>
                                         {viewModel.workflow.results.execution}
                                     </h2>
                                 </div>
 
-                                <div className="surface-layer-2 rounded-panel p-panel flex flex-col gap-stage">
-                                    <div className="flex flex-wrap items-center justify-between gap-tools">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.smokeCard}>
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
                                         <p className={DEV_GROUP_TITLE_CLASS}>
                                             {viewModel.smoke.title}
                                         </p>
@@ -318,16 +331,16 @@ export default function DevTest() {
                                             {viewModel.smoke.runLabel}
                                         </Button>
                                     </div>
-                                    <p className="text-label text-foreground/70">
+                                    <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.smoke.summaryText}
                                     </p>
-                                    <div className="surface-layer-1 rounded-panel p-tight flex flex-col divide-y divide-default/10">
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.smokeRows}>
                                         {viewModel.smoke.rows.map((row) => (
                                             <div
                                                 key={row.id}
-                                                className="py-tight flex flex-wrap items-center justify-between gap-tools"
+                                                className={DIAGNOSTIC_VIEW_CLASS.smokeRow}
                                             >
-                                                <span className="text-scaled text-foreground">
+                                                <span className={TEXT_ROLE.body}>
                                                     {row.label}
                                                 </span>
                                                 <DevStatusToken
@@ -339,24 +352,24 @@ export default function DevTest() {
                                     </div>
                                 </div>
 
-                                <div className="surface-layer-2 rounded-panel p-panel flex flex-col gap-stage">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.verifyCard}>
                                     <p className={DEV_GROUP_TITLE_CLASS}>
                                         {
                                             viewModel.workflow.results
                                                 .verification
                                         }
                                     </p>
-                                    <p className="text-label text-foreground/70">
+                                    <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.smoke.assertionTitle}
                                     </p>
-                                    <div className="surface-layer-1 rounded-panel overflow-hidden">
-                                        <table className="w-full border-separate border-spacing-0 text-left">
-                                            <thead className="bg-background/40">
-                                                <tr className="border-b border-default/15">
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.verifyTableWrap}>
+                                        <table className={DIAGNOSTIC_VIEW_CLASS.verifyTable}>
+                                            <thead className={DIAGNOSTIC_VIEW_CLASS.verifyHead}>
+                                                <tr className={DIAGNOSTIC_VIEW_CLASS.verifyHeadRow}>
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            "px-panel py-tight",
+                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -368,7 +381,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            "px-panel py-tight",
+                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -380,7 +393,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            "px-panel py-tight",
+                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -391,7 +404,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            "px-panel py-tight",
+                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -406,17 +419,17 @@ export default function DevTest() {
                                                     (assertion) => (
                                                         <tr
                                                             key={assertion.id}
-                                                            className="border-b border-default/10 last:border-b-0"
+                                                            className={DIAGNOSTIC_VIEW_CLASS.verifyRow}
                                                         >
-                                                            <td className="px-panel py-tight">
-                                                                <div className="flex flex-col gap-tight">
-                                                                    <span className="text-scaled text-foreground">
+                                                            <td className={DIAGNOSTIC_VIEW_CLASS.verifyCell}>
+                                                                <div className={DIAGNOSTIC_VIEW_CLASS.verifyLabelWrap}>
+                                                                    <span className={TEXT_ROLE.body}>
                                                                         {
                                                                             assertion.label
                                                                         }
                                                                     </span>
                                                                     {assertion.reasonLabel && (
-                                                                        <span className="text-label text-foreground/60">
+                                                                        <span className={TEXT_ROLE.caption}>
                                                                             {
                                                                                 assertion.reasonLabel
                                                                             }
@@ -424,17 +437,27 @@ export default function DevTest() {
                                                                     )}
                                                                 </div>
                                                             </td>
-                                                            <td className="px-panel py-tight text-scaled text-foreground/75">
+                                                            <td
+                                                                className={cn(
+                                                                    DIAGNOSTIC_VIEW_CLASS.verifyCell,
+                                                                    TEXT_ROLE_EXTENDED.tableCell,
+                                                                )}
+                                                            >
                                                                 {
                                                                     assertion.expectedLabel
                                                                 }
                                                             </td>
-                                                            <td className="px-panel py-tight text-scaled text-foreground/75">
+                                                            <td
+                                                                className={cn(
+                                                                    DIAGNOSTIC_VIEW_CLASS.verifyCell,
+                                                                    TEXT_ROLE_EXTENDED.tableCell,
+                                                                )}
+                                                            >
                                                                 {
                                                                     assertion.actualLabel
                                                                 }
                                                             </td>
-                                                            <td className="px-panel py-tight">
+                                                            <td className={DIAGNOSTIC_VIEW_CLASS.verifyCell}>
                                                                 <DevStatusToken
                                                                     label={
                                                                         assertion.assertionLabel
@@ -452,8 +475,8 @@ export default function DevTest() {
                                     </div>
                                 </div>
 
-                                <div className="surface-layer-2 rounded-panel p-panel flex flex-col gap-stage">
-                                    <div className="flex flex-wrap items-center justify-between gap-tools">
+                                <div className={DIAGNOSTIC_VIEW_CLASS.systemCard}>
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
                                         <p className={DEV_GROUP_TITLE_CLASS}>
                                             {
                                                 viewModel.workflow.results
@@ -472,25 +495,30 @@ export default function DevTest() {
                                             {viewModel.system.runLabel}
                                         </Button>
                                     </div>
-                                    <p className="text-label text-foreground/70">
+                                    <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.system.summaryText}
                                     </p>
-                                    <div className="flex flex-col gap-tools">
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemRows}>
                                         {viewModel.system.rows.map((row) => (
                                             <div
                                                 key={row.id}
-                                                className="surface-layer-1 rounded-panel p-tight border-l border-default/20 pl-panel flex flex-col gap-tools"
+                                                className={DIAGNOSTIC_VIEW_CLASS.systemRowCard}
                                             >
-                                                <div className="flex flex-wrap items-center justify-between gap-tools">
-                                                    <span className="text-scaled font-medium text-foreground">
+                                                <div className={DIAGNOSTIC_VIEW_CLASS.systemRowHead}>
+                                                    <span
+                                                        className={cn(
+                                                            TEXT_ROLE.body,
+                                                            "font-medium",
+                                                        )}
+                                                    >
                                                         {row.label}
                                                     </span>
-                                                    <span className="text-label text-foreground/60">
+                                                    <span className={TEXT_ROLE.caption}>
                                                         {row.eventLabel}
                                                     </span>
                                                 </div>
-                                                <div className="flex flex-wrap items-center gap-stage">
-                                                    <div className="flex items-center gap-tight">
+                                                <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusRow}>
+                                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusPair}>
                                                         <span
                                                             className={
                                                                 DEV_STEP_LABEL_CLASS
@@ -511,7 +539,7 @@ export default function DevTest() {
                                                             }
                                                         />
                                                     </div>
-                                                    <div className="flex items-center gap-tight">
+                                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusPair}>
                                                         <span
                                                             className={
                                                                 DEV_STEP_LABEL_CLASS
@@ -533,7 +561,12 @@ export default function DevTest() {
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-wrap items-center gap-stage text-label text-foreground/70">
+                                                <div
+                                                    className={cn(
+                                                        DIAGNOSTIC_VIEW_CLASS.systemMeta,
+                                                        TEXT_ROLE.bodySmall,
+                                                    )}
+                                                >
                                                     <span>
                                                         {
                                                             viewModel.system
@@ -550,7 +583,7 @@ export default function DevTest() {
                                                     </span>
                                                 </div>
                                                 {row.details && (
-                                                    <span className="text-label text-foreground/60">
+                                                    <span className={TEXT_ROLE.caption}>
                                                         {row.details}
                                                     </span>
                                                 )}
@@ -569,24 +602,40 @@ export default function DevTest() {
             />
 
             {viewModel.footer && (
-                <div className="fixed bottom-0 left-0 right-0 z-overlay border-t border-default/20 bg-content1/85 p-panel backdrop-blur-xl">
-                    <div className="flex flex-col gap-tools">
-                        <div className="flex flex-wrap items-center justify-between gap-tools">
-                            <div className="flex flex-wrap items-center gap-tools">
-                                <span className="text-label font-semibold text-foreground">
+                <div className={DIAGNOSTIC_VIEW_CLASS.footer}>
+                    <div className={DIAGNOSTIC_VIEW_CLASS.footerStack}>
+                        <div className={DIAGNOSTIC_VIEW_CLASS.footerRow}>
+                            <div className={DIAGNOSTIC_VIEW_CLASS.footerLeft}>
+                                <span
+                                    className={cn(
+                                        TEXT_ROLE.bodySmall,
+                                        "font-semibold text-foreground",
+                                    )}
+                                >
                                     {viewModel.footer.scenarioLabel}
                                 </span>
-                                <span className="surface-layer-1 rounded-panel px-tight py-tight text-label text-foreground/70">
+                                <span
+                                    className={cn(
+                                        DIAGNOSTIC_VIEW_CLASS.footerScenario,
+                                        TEXT_ROLE.bodySmall,
+                                    )}
+                                >
                                     {viewModel.footer.scenarioKindLabel}
                                 </span>
                                 {!viewModel.footer.isExpanded && (
-                                    <span className="text-label text-foreground/50 truncate flex-1 min-w-0">
+                                    <span
+                                        className={cn(
+                                            DIAGNOSTIC_VIEW_CLASS.footerSummary,
+                                            TEXT_ROLE.caption,
+                                            "text-foreground/50",
+                                        )}
+                                    >
                                         {viewModel.footer.summary}
                                     </span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-tools">
-                                <span className="text-label text-foreground/60">
+                            <div className={DIAGNOSTIC_VIEW_CLASS.footerRight}>
+                                <span className={TEXT_ROLE.caption}>
                                     {viewModel.footer.copyStatusLabel}
                                 </span>
                                 <Button
@@ -613,7 +662,13 @@ export default function DevTest() {
                         </div>
 
                         {viewModel.footer.isExpanded && (
-                            <pre className="whitespace-pre-wrap font-mono text-label leading-relaxed text-foreground/80 border-t border-default/10 pt-tight mt-tight">
+                            <pre
+                                className={cn(
+                                    DIAGNOSTIC_VIEW_CLASS.footerExpected,
+                                    TEXT_ROLE.codeMuted,
+                                    "text-foreground/80",
+                                )}
+                            >
                                 {viewModel.footer.expectedBehavior}
                             </pre>
                         )}
@@ -623,3 +678,4 @@ export default function DevTest() {
         </Section>
     );
 }
+

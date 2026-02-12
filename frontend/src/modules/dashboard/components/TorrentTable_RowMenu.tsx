@@ -9,11 +9,10 @@ import {
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
 import {
-    GLASS_MENU_SURFACE,
-    MENU_ITEM_SURFACE,
+    MENU_ITEM_CLASSNAMES,
+    MENU_LIST_CLASSNAMES,
     MENU_SECTION_HEADING,
-    MENU_SURFACE_FRAME,
-    MENU_SURFACE_LIST,
+    MENU_SURFACE_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
@@ -444,9 +443,9 @@ function TorrentTable_RowMenuInner({
             </DropdownTrigger>
             <DropdownMenu
                 variant="shadow"
-                className={cn(GLASS_MENU_SURFACE, MENU_SURFACE_FRAME)}
-                classNames={{ list: MENU_SURFACE_LIST }}
-                itemClasses={{ base: MENU_ITEM_SURFACE }}
+                className={MENU_SURFACE_CLASS}
+                classNames={MENU_LIST_CLASSNAMES}
+                itemClasses={MENU_ITEM_CLASSNAMES}
             >
                 {menuItems}
             </DropdownMenu>

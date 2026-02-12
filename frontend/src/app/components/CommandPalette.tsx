@@ -7,14 +7,27 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
+import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import {
     DETAILS_TOOLTIP_OPACITY_ANIMATION,
     STATUS_VISUAL_KEYS,
     STATUS_VISUALS,
 } from "@/config/logic";
 import {
-    GLASS_MODAL_SURFACE,
-    MODAL_SURFACE_FRAME,
+    COMMAND_PALETTE_BACKDROP_CLASS,
+    COMMAND_PALETTE_DESC_CLASS,
+    COMMAND_PALETTE_EMPTY_CLASS,
+    COMMAND_PALETTE_GROUP_WRAP_CLASS,
+    COMMAND_PALETTE_INPUT_CLASS,
+    COMMAND_PALETTE_ITEM_CLASS,
+    COMMAND_PALETTE_ITEM_ROW_CLASS,
+    COMMAND_PALETTE_LIST_CLASS,
+    COMMAND_PALETTE_OUTCOME_CLASS,
+    COMMAND_PALETTE_OVERLAY_CLASS,
+    COMMAND_PALETTE_PANEL_CLASS,
+    COMMAND_PALETTE_SECTION_CLASS,
+    COMMAND_PALETTE_SHORTCUT_KEY_CLASS,
+    COMMAND_PALETTE_SHORTCUT_WRAP_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 
 export type CommandActionOutcome =
@@ -143,24 +156,20 @@ function CommandPaletteOverlay({
     return (
         <motion.div
             {...OVERLAY_FADE_ANIMATION}
-            className="fixed inset-0 z-50"
+            className={COMMAND_PALETTE_OVERLAY_CLASS}
         >
             <motion.div
                 {...BACKDROP_FADE_ANIMATION}
-                className="absolute inset-0 bg-background/90 backdrop-blur-xl"
+                className={COMMAND_PALETTE_BACKDROP_CLASS}
                 onPointerDown={onClose}
             />
             <Section
                 padding="overlay"
-                className="relative h-full flex items-start justify-center"
+                className={COMMAND_PALETTE_SECTION_CLASS}
             >
                 <motion.div
                     {...PANEL_ANIMATION}
-                    className={cn(
-                        GLASS_MODAL_SURFACE,
-                        MODAL_SURFACE_FRAME,
-                        "relative z-10 w-full max-w-2xl",
-                    )}
+                    className={COMMAND_PALETTE_PANEL_CLASS}
                 >
                     <Command
                         value={query}
@@ -174,12 +183,12 @@ function CommandPaletteOverlay({
                     >
                         <Command.Input
                             placeholder={t("command_palette.placeholder")}
-                            className="rounded-none border-0 bg-transparent px-panel py-panel text-base font-semibold outline-none placeholder:text-foreground/50"
+                            className={COMMAND_PALETTE_INPUT_CLASS}
                         />
-                        <Command.List className="max-h-command-palette overflow-y-auto px-panel py-panel">
+                        <Command.List className={COMMAND_PALETTE_LIST_CLASS}>
                             {groupedActions.map(({ group, entries }) => (
-                                <div key={group} className="pb-panel">
-                                    <div className="text-scaled font-semibold uppercase tracking-0-2 text-default-500">
+                                <div key={group} className={COMMAND_PALETTE_GROUP_WRAP_CLASS}>
+                                    <div className={TEXT_ROLE_EXTENDED.commandSection}>
                                         {group}
                                     </div>
                                     <Command.Group>
@@ -190,19 +199,19 @@ function CommandPaletteOverlay({
                                                 onSelect={() =>
                                                     void handleSelect(action)
                                                 }
-                                                className="glass-panel mt-tight flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-panel px-panel text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none"
+                                                className={COMMAND_PALETTE_ITEM_CLASS}
                                             >
-                                                <div className="flex items-center justify-between text-sm font-semibold text-foreground">
+                                                <div className={COMMAND_PALETTE_ITEM_ROW_CLASS}>
                                                     <span>{action.title}</span>
                                                     {action.shortcut && (
-                                                        <div className="flex gap-tools text-scaled font-mono uppercase text-foreground/50">
+                                                        <div className={COMMAND_PALETTE_SHORTCUT_WRAP_CLASS}>
                                                             {action.shortcut.map(
                                                                 (key) => (
                                                                     <span
                                                                         key={
                                                                             key
                                                                         }
-                                                                        className="rounded-full border border-foreground/30 px-tight py-tight"
+                                                                        className={COMMAND_PALETTE_SHORTCUT_KEY_CLASS}
                                                                     >
                                                                         {key}
                                                                     </span>
@@ -212,7 +221,7 @@ function CommandPaletteOverlay({
                                                     )}
                                                 </div>
                                                 {action.description && (
-                                                    <p className="text-xs text-foreground/70">
+                                                    <p className={COMMAND_PALETTE_DESC_CLASS}>
                                                         {action.description}
                                                     </p>
                                                 )}
@@ -221,14 +230,16 @@ function CommandPaletteOverlay({
                                     </Command.Group>
                                 </div>
                             ))}
-                            <Command.Empty className="py-panel text-center text-sm text-foreground/60">
+                            <Command.Empty
+                                className={COMMAND_PALETTE_EMPTY_CLASS}
+                            >
                                 {t("command_palette.empty")}
                             </Command.Empty>
                         </Command.List>
                         {outcomeMessage ? (
                             <div
                                 className={cn(
-                                    "border-t border-default/20 px-panel py-tight text-xs font-medium",
+                                    COMMAND_PALETTE_OUTCOME_CLASS,
                                     outcomeToneClass,
                                 )}
                             >

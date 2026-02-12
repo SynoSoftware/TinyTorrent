@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { cn } from "@heroui/react";
 import type { TFunction } from "i18next";
 import {
     DEFAULT_COLUMN_ORDER,
@@ -7,6 +8,7 @@ import {
     type ColumnId,
 } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
+import { TEXT_ROLE } from "@/config/textRoles";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
@@ -41,7 +43,10 @@ export function useTorrentTableColumns({
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
                         <div
-                            className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
+                            className={cn(
+                                "flex items-center gap-tight",
+                                TEXT_ROLE.labelDense,
+                            )}
                             style={{
                                 letterSpacing: "var(--tt-tracking-ultra)",
                             }}

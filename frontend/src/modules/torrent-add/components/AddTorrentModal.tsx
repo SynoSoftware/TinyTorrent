@@ -19,6 +19,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { INTERACTION_CONFIG } from "@/config/logic";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 const SETTINGS_PANEL_DEFAULT = 40;
 const SETTINGS_PANEL_MIN = 25;
@@ -44,12 +45,14 @@ import {
 } from "lucide-react";
 
 import {
-    GLASS_MODAL_SURFACE,
+    IMPORT_MODAL_CLASS,
+    buildImportModalBodyPanelsClass,
+    buildAddTorrentModalClassNames,
+    buildImportResizeHandleBarClass,
+    buildImportSettingsPanelClass,
     MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_FRAME,
     MODAL_SURFACE_HEADER,
-    GLASS_PANEL_SURFACE,
-    PANE_SURFACE_FRAME,
+    IMPORT_FORM_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -66,6 +69,7 @@ import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components
 import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
 import { useAddTorrentViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewModel";
+import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 
 export interface AddTorrentModalProps {
     isOpen: boolean;
@@ -192,27 +196,16 @@ export function AddTorrentModal({
             hideCloseButton
             isDismissable={isDismissable}
             size={modalSize} // fullscreen is a pure layout expansion; destination gate is state-based
-            classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    MODAL_SURFACE_FRAME,
-                    "w-full",
-                    !showDestinationGate && isFullscreen
-                        ? "h-full"
-                        : showDestinationGate
-                          ? "max-h-modal-body"
-                          : "max-h-modal-body",
-                ),
-                body: "p-tight  ",
-                header: "p-none select-none blur-glass",
-                footer: "p-none select-none",
-            }}
+            classNames={buildAddTorrentModalClassNames({
+                showDestinationGate,
+                isFullscreen,
+            })}
         >
             <ModalContent>
                 <AddTorrentModalContextProvider value={modalContextValue}>
                     {showDestinationGate ? (
                         <div
-                            className="flex flex-col h-full"
+                            className={IMPORT_MODAL_CLASS.gateRoot}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
@@ -221,16 +214,21 @@ export function AddTorrentModal({
                             <ModalHeader
                                 className={cn(
                                     MODAL_SURFACE_HEADER,
-                                    "flex justify-between items-center gap-panel px-stage py-panel",
+                                    IMPORT_MODAL_CLASS.headerLayout,
                                 )}
                             >
-                                <div className="flex flex-col overflow-hidden gap-tight">
-                                    <h2 className="text-scaled font-bold tracking-widest uppercase text-foreground">
+                                <div className={IMPORT_MODAL_CLASS.titleStack}>
+                                    <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
                                         {t(
                                             "modals.add_torrent.destination_prompt_title",
                                         )}
                                     </h2>
-                                    <span className="text-label text-foreground/60 truncate font-mono leading-tight">
+                                    <span
+                                        className={cn(
+                                            TEXT_ROLE.caption,
+                                            IMPORT_MODAL_CLASS.sourceLabel,
+                                        )}
+                                    >
                                         {sourceLabel}
                                     </span>
                                 </div>
@@ -239,11 +237,11 @@ export function AddTorrentModal({
                                     onPress={handleModalCancel}
                                     ariaLabel={t("torrent_modal.actions.close")}
                                     iconSize="lg"
-                                    className="text-foreground/60 hover:text-foreground"
+                                    className={IMPORT_MODAL_CLASS.headerIconButton}
                                 />
                             </ModalHeader>
-                            <ModalBody className="flex-1 min-h-0 flex items-center justify-center">
-                                <div className="w-full max-w-modal">
+                            <ModalBody className={IMPORT_MODAL_CLASS.gateBody}>
+                                <div className={IMPORT_MODAL_CLASS.gateContent}>
                                     <AddTorrentDestinationGatePanel />
                                 </div>
                             </ModalBody>
@@ -251,21 +249,26 @@ export function AddTorrentModal({
                     ) : (
                         <form
                             ref={formRef}
-                            className="flex flex-col min-h-0 flex-1 relative"
+                            className={IMPORT_MODAL_CLASS.formRoot}
                             onSubmit={handleFormSubmit}
                             onKeyDown={handleFormKeyDown}
                         >
                             {shouldShowSubmittingOverlay && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal bg-background/40 blur-glass">
+                                <div className={IMPORT_MODAL_CLASS.submitOverlay}>
                                     {!shouldShowCloseConfirm ? (
                                         <>
                                             <Spinner color="primary" />
-                                            <p className="font-mono text-label uppercase tracking-widest">
+                                            <p className={TEXT_ROLE.codeCaption}>
                                                 {t(
                                                     "modals.add_torrent.submitting",
                                                 )}
                                             </p>
-                                            <p className="text-label font-mono text-foreground/40 text-center max-w-modal">
+                                            <p
+                                                className={cn(
+                                                    TEXT_ROLE.codeMuted,
+                                                    IMPORT_MODAL_CLASS.submitHint,
+                                                )}
+                                            >
                                                 {t(
                                                     "modals.add_torrent.submitting_close_hint",
                                                 )}
@@ -285,17 +288,27 @@ export function AddTorrentModal({
                                                 Icon={AlertTriangle}
                                                 className="text-warning"
                                             />
-                                            <p className="font-mono text-label uppercase tracking-widest text-foreground/70">
+                                            <p
+                                                className={cn(
+                                                    TEXT_ROLE.codeCaption,
+                                                    IMPORT_MODAL_CLASS.submitWarningTitle,
+                                                )}
+                                            >
                                                 {t(
                                                     "modals.add_torrent.close_while_submitting_title",
                                                 )}
                                             </p>
-                                            <p className="text-label font-mono text-foreground/40 text-center max-w-modal">
+                                            <p
+                                                className={cn(
+                                                    TEXT_ROLE.codeMuted,
+                                                    IMPORT_MODAL_CLASS.submitHint,
+                                                )}
+                                            >
                                                 {t(
                                                     "modals.add_torrent.close_while_submitting_body",
                                                 )}
                                             </p>
-                                            <div className="flex gap-tools">
+                                            <div className={IMPORT_MODAL_CLASS.submitActions}>
                                                 <Button
                                                     variant="flat"
                                                     onPress={cancelCloseConfirm}
@@ -322,18 +335,23 @@ export function AddTorrentModal({
                             <ModalHeader
                                 className={cn(
                                     MODAL_SURFACE_HEADER,
-                                    "flex justify-between items-center gap-panel px-stage py-panel",
+                                    IMPORT_MODAL_CLASS.headerLayout,
                                 )}
                             >
-                                <div className="flex flex-col overflow-hidden gap-tight">
-                                    <h2 className="text-label font-bold tracking-widest uppercase text-foreground">
+                                <div className={IMPORT_MODAL_CLASS.titleStack}>
+                                    <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
                                         {t("modals.add_torrent.title")}
                                     </h2>
-                                    <span className="text-scaled text-foreground/50 truncate font-mono leading-tight">
+                                    <span
+                                        className={cn(
+                                            TEXT_ROLE.codeMuted,
+                                            IMPORT_MODAL_CLASS.sourceMuted,
+                                        )}
+                                    >
                                         {sourceLabel}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-tools">
+                                <div className={IMPORT_MODAL_CLASS.headerActions}>
                                     <Chip
                                         size="md"
                                         variant="flat"
@@ -351,15 +369,14 @@ export function AddTorrentModal({
                                                 <HardDrive className="toolbar-icon-size-md" />
                                             )
                                         }
-                                        classNames={{
-                                            content: "font-mono font-bold",
-                                        }}
+                                        classNames={IMPORT_MODAL_CLASS.fileCountChipClassNames}
                                     >
                                         {t("modals.add_torrent.file_count", {
                                             count: files.length,
                                         })}
                                     </Chip>
-                                    <div className="h-status-chip w-px bg-content1/10 mx-tight" />
+                                    <div className={IMPORT_MODAL_CLASS.headerDivider} />
+
                                     {/* 2. Fullscreen Toggle */}
                                     <Tooltip
                                         content={
@@ -394,7 +411,7 @@ export function AddTorrentModal({
                                                 isSubmitting || submitLocked
                                             }
                                             iconSize="lg"
-                                            className="text-foreground/60 hover:text-foreground"
+                                            className={IMPORT_MODAL_CLASS.headerIconButton}
                                         />
                                     </Tooltip>
                                     <ToolbarIconButton
@@ -411,18 +428,18 @@ export function AddTorrentModal({
                                         isDisabled={
                                             isSubmitting || submitLocked
                                         }
-                                        className="text-foreground/60 hover:text-foreground"
+                                        className={IMPORT_MODAL_CLASS.headerIconButton}
                                     />
                                 </div>
                             </ModalHeader>
 
                             {/* --- SPLIT VIEW BODY --- */}
-                            <ModalBody className="flex-1 min-h-0 relative p-add-modal-pane-gap">
+                            <ModalBody className={IMPORT_MODAL_CLASS.body}>
                                 {dropActive && (
-                                    <div className="absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none">
-                                        <div className="bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse">
+                                    <div className={IMPORT_MODAL_CLASS.dropOverlay}>
+                                        <div className={IMPORT_MODAL_CLASS.dropOverlayChip}>
                                             <FolderOpen className="toolbar-icon-size-lg text-primary" />
-                                            <span className="text-scaled font-bold">
+                                            <span className={TEXT_ROLE.heading}>
                                                 {hasDestination
                                                     ? t(
                                                           "modals.add_torrent.drop_to_change_destination",
@@ -444,9 +461,8 @@ export function AddTorrentModal({
                                IMPORTANT: this wrapper must remain in-flow (not absolute), otherwise
                                ModalBody can collapse in normal mode and hide Step 2 controls. */}
                                     <motion.div
-                                        className={cn(
-                                            "flex flex-col flex-1 min-h-settings",
-                                            isFullscreen && "h-full min-h-0",
+                                        className={buildImportModalBodyPanelsClass(
+                                            isFullscreen,
                                         )}
                                         initial={false}
                                         animate={FULL_CONTENT_ANIMATION.visible}
@@ -457,7 +473,7 @@ export function AddTorrentModal({
                                     >
                                         <PanelGroup
                                             direction="horizontal"
-                                            className="flex-1 min-h-0"
+                                            className={IMPORT_MODAL_CLASS.panelGroup}
                                         >
                                             {/* === LEFT PANEL: CONFIGURATION === */}
                                             <Panel
@@ -475,12 +491,8 @@ export function AddTorrentModal({
                                                 onExpand={
                                                     handleSettingsPanelExpand
                                                 }
-                                                className={cn(
-                                                    GLASS_PANEL_SURFACE,
-                                                    PANE_SURFACE_FRAME,
-                                                    "bg-background/65",
-                                                    isSettingsCollapsed &&
-                                                        "min-w-0 w-0 border-none",
+                                                className={buildImportSettingsPanelClass(
+                                                    isSettingsCollapsed,
                                                 )}
                                             >
                                                 <AddTorrentSettingsPanel />
@@ -495,21 +507,19 @@ export function AddTorrentModal({
                                                         : setIsPanelResizeActive
                                                 }
                                                 className={cn(
-                                                    "w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel transition-colors group focus:outline-none relative",
+                                                    IMPORT_MODAL_CLASS.paneHandle,
                                                     isSettingsCollapsed
                                                         ? "cursor-default pointer-events-none"
                                                         : "cursor-col-resize",
                                                 )}
                                             >
-                                                <div className="absolute inset-x-0 py-panel flex justify-center pointer-events-none">
+                                                <div className={IMPORT_MODAL_CLASS.resizeHandleBarWrap}>
                                                     <div
-                                                        className={cn(
-                                                            "h-full w-divider transition-colors",
-                                                            isSettingsCollapsed
-                                                                ? "bg-transparent"
-                                                                : isPanelResizeActive
-                                                                  ? "bg-primary"
-                                                                  : "bg-default/30 group-hover:bg-primary/45",
+                                                        className={buildImportResizeHandleBarClass(
+                                                            {
+                                                                isSettingsCollapsed,
+                                                                isPanelResizeActive,
+                                                            },
                                                         )}
                                                     />
                                                 </div>
@@ -518,15 +528,11 @@ export function AddTorrentModal({
                                             <Panel
                                                 defaultSize={FILE_PANEL_DEFAULT}
                                                 minSize={FILE_PANEL_MIN}
-                                                className={cn(
-                                                    GLASS_PANEL_SURFACE,
-                                                    PANE_SURFACE_FRAME,
-                                                    "bg-content1/55",
-                                                )}
+                                                className={IMPORT_MODAL_CLASS.filePanel}
                                             >
-                                                <div className="flex flex-col flex-1 min-h-0 outline-none border-default">
+                                                <div className={IMPORT_MODAL_CLASS.filePanelContent}>
                                                     {/* Toolbar */}
-                                                    <div className="p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass">
+                                                    <div className={IMPORT_MODAL_CLASS.filePanelToolbar}>
                                                         {/* 3. Panel Toggle Button */}
                                                         <Tooltip
                                                             content={
@@ -555,7 +561,7 @@ export function AddTorrentModal({
                                                                               "modals.add_torrent.hide_settings",
                                                                           )
                                                                 }
-                                                                className="mr-tight text-foreground/35 hover:text-foreground/70"
+                                                                className={IMPORT_FORM_CLASS.settingsToggleButton}
                                                             >
                                                                 {isSettingsCollapsed ? (
                                                                     <SidebarOpen className="toolbar-icon-size-md" />
@@ -566,7 +572,9 @@ export function AddTorrentModal({
                                                         </Tooltip>
 
                                                         {/* Search removed - FileExplorerTree has its own integrated search */}
-                                                        <div className="flex-1 text-label text-foreground/40 font-semibold uppercase tracking-wider pl-tight select-none">
+                                                        <div
+                                                            className={IMPORT_MODAL_CLASS.filesTitle}
+                                                        >
                                                             {files.length > 0
                                                                 ? t(
                                                                       "torrent_modal.files_title",
@@ -578,7 +586,7 @@ export function AddTorrentModal({
                                                             <DropdownTrigger>
                                                                 <Button
                                                                     variant="flat"
-                                                                    className="surface-layer-1 border border-default/10 min-w-badge px-tight"
+                                                                    className={IMPORT_MODAL_CLASS.smartSelectButton}
                                                                     aria-label={t(
                                                                         "modals.add_torrent.smart_select_aria",
                                                                     )}
@@ -637,7 +645,7 @@ export function AddTorrentModal({
                                                                 </DropdownItem>
                                                                 <DropdownItem
                                                                     key="none"
-                                                                    className="text-danger"
+                                                                    className={IMPORT_MODAL_CLASS.dropdownDangerItem}
                                                                 >
                                                                     {t(
                                                                         "modals.add_torrent.select_none",
@@ -660,46 +668,55 @@ export function AddTorrentModal({
                             <ModalFooter
                                 className={cn(
                                     MODAL_SURFACE_FOOTER,
-                                    "flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between",
+                                    IMPORT_MODAL_CLASS.footerLayout,
                                 )}
                             >
-                                <div className="flex flex-col gap-tools">
+                                <div className={IMPORT_MODAL_CLASS.footerAlerts}>
                                     {submitError && (
-                                        <div className="flex items-center gap-tools text-danger text-label bg-danger/10 p-tight rounded-panel border border-danger/20 max-w-modal-compact">
+                                        <AlertPanel
+                                            severity="danger"
+                                            className={IMPORT_MODAL_CLASS.footerAlert}
+                                        >
                                             <AlertTriangle className="toolbar-icon-size-md shrink-0" />
-                                            <span className="font-bold truncate">
+                                            <span className={cn(TEXT_ROLE.bodyStrong, "truncate")}>
                                                 {submitError}
                                             </span>
-                                        </div>
+                                        </AlertPanel>
                                     )}
                                     {isDiskSpaceCritical && (
-                                        <div className="flex items-center gap-tools text-warning text-label bg-warning/10 p-tight rounded-panel border border-warning/20 max-w-modal-compact">
+                                        <AlertPanel
+                                            severity="warning"
+                                            className={IMPORT_MODAL_CLASS.footerAlert}
+                                        >
                                             <AlertTriangle className="toolbar-icon-size-md shrink-0" />
-                                            <span className="font-bold truncate">
+                                            <span className={cn(TEXT_ROLE.bodyStrong, "truncate")}>
                                                 {t(
                                                     "modals.add_torrent.disk_full_paused",
                                                 )}
                                             </span>
-                                        </div>
+                                        </AlertPanel>
                                     )}
                                     {primaryBlockReason && (
-                                        <div className="flex items-center gap-tools text-foreground/70 text-label bg-content1/5 p-tight rounded-panel border border-default/10 max-w-modal-compact">
+                                        <AlertPanel
+                                            severity="info"
+                                            className={IMPORT_MODAL_CLASS.footerInfoAlert}
+                                        >
                                             <AlertTriangle className="toolbar-icon-size-md shrink-0 text-foreground/50" />
-                                            <span className="font-bold truncate">
+                                            <span className={cn(TEXT_ROLE.bodyStrong, "truncate")}>
                                                 {primaryBlockReason}
                                             </span>
-                                        </div>
+                                        </AlertPanel>
                                     )}
                                 </div>
-                                <div className="flex flex-col gap-tools sm:items-end sm:justify-end">
-                                    <div className="flex flex-wrap items-center justify-end gap-tools">
+                                <div className={IMPORT_MODAL_CLASS.footerActionsStack}>
+                                    <div className={IMPORT_MODAL_CLASS.footerActionsRow}>
                                         {isSubmitting || submitLocked ? (
                                             <Tooltip
                                                 content={t(
                                                     "modals.add_torrent.submitting",
                                                 )}
                                             >
-                                                <div className="inline-block">
+                                                <div className={IMPORT_MODAL_CLASS.inlineBlock}>
                                                     <Button
                                                         variant="light"
                                                         onPress={
@@ -709,14 +726,14 @@ export function AddTorrentModal({
                                                             isSubmitting ||
                                                             submitLocked
                                                         }
-                                                        className="font-medium"
+                                                        className={IMPORT_MODAL_CLASS.cancelButton}
                                                     >
                                                         {t("modals.cancel")}
                                                     </Button>
                                                 </div>
                                             </Tooltip>
                                         ) : (
-                                            <div className="inline-block">
+                                            <div className={IMPORT_MODAL_CLASS.inlineBlock}>
                                                 <Button
                                                     variant="light"
                                                     onPress={handleModalCancel}
@@ -724,7 +741,7 @@ export function AddTorrentModal({
                                                         isSubmitting ||
                                                         submitLocked
                                                     }
-                                                    className="font-medium"
+                                                    className={IMPORT_MODAL_CLASS.cancelButton}
                                                 >
                                                     {t("modals.cancel")}
                                                 </Button>
@@ -756,7 +773,7 @@ export function AddTorrentModal({
                                                         <PlayCircle className="toolbar-icon-size-md" />
                                                     ))
                                                 }
-                                                className="font-bold px-stage min-w-button"
+                                                className={IMPORT_MODAL_CLASS.primaryButton}
                                             >
                                                 {commitMode === "paused"
                                                     ? t(
@@ -823,3 +840,4 @@ export function AddTorrentModal({
         </Modal>
     );
 }
+

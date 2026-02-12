@@ -1,6 +1,7 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { SURFACE_BORDER, TEXT_ROLES } from "@/config/logic";
+import { SURFACE_BORDER } from "@/config/logic";
+import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
 import {
     usePiecesMapViewModel,
     type PiecesMapProps,
@@ -36,60 +37,60 @@ const PiecesMapView = ({
                 style={{ letterSpacing: "var(--tt-tracking-wide)" }}
             >
                 <div className="flex flex-col gap-tight">
-                    <span className={TEXT_ROLES.label}>
+                    <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.pieces")}
                     </span>
-                    <span className="text-scaled font-mono text-foreground">
+                    <span className={TEXT_ROLE.code}>
                         {totalPieces}
                     </span>
                 </div>
 
                 <div className="flex flex-col gap-tight">
-                    <span className={TEXT_ROLES.label}>
+                    <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.piece_size")}
                     </span>
-                    <span className="text-scaled font-mono text-foreground">
+                    <span className={TEXT_ROLE.code}>
                         {pieceSizeLabel}
                     </span>
                 </div>
 
                 <div className="flex flex-col gap-tight">
-                    <span className={TEXT_ROLES.label}>
+                    <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.verified")}
                     </span>
-                    <span className="text-scaled font-mono text-foreground">
+                    <span className={TEXT_ROLE.code}>
                         {doneCount}
                     </span>
                 </div>
 
                 <div className="flex flex-col gap-tight">
-                    <span className={TEXT_ROLES.label}>
+                    <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
-                    <span className="text-scaled font-mono text-warning">
+                    <span className={withColor(TEXT_ROLE.code, "warning")}>
                         {downloadingCount}
                     </span>
                 </div>
 
                 <div className="flex flex-col gap-tight">
-                    <span className={TEXT_ROLES.label}>
+                    <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.missing")}
                     </span>
-                    <span className="text-scaled font-mono text-danger">
+                    <span className={withColor(TEXT_ROLE.code, "danger")}>
                         {missingCount}
                     </span>
                 </div>
             </div>
 
             {hasBinaryPieceStates && (
-                <div className="text-scaled text-foreground/60">
+                <div className={withOpacity(TEXT_ROLE.body, 60)}>
                     {t("torrent_modal.piece_map.binary_states_note")}
                 </div>
             )}
 
             <div
                 ref={rootRef}
-                className={`relative z-10 flex-1 min-h-0 rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden`}
+                className={`relative z-panel flex-1 min-h-0 rounded-2xl border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden`}
             >
                 <div className="relative w-full h-full">
                     <canvas
@@ -111,14 +112,19 @@ const PiecesMapView = ({
 
                     {tooltipLines.length > 0 && tooltipStyle && (
                         <div
-                            className="pointer-events-none absolute z-10 max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight text-scaled text-foreground/90 shadow-large backdrop-blur-xl"
+                            className={cn(
+                                "pointer-events-none absolute z-panel max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight shadow-large backdrop-blur-xl",
+                                TEXT_ROLE.body,
+                                "text-foreground/90",
+                            )}
                             style={tooltipStyle}
                         >
                             {tooltipLines.map((line, index) => (
                                 <span
                                     key={`piece-tooltip-${index}`}
                                     className={cn(
-                                        "block whitespace-normal text-scaled",
+                                        "block whitespace-normal",
+                                        TEXT_ROLE.body,
                                         index === 0
                                             ? "font-semibold"
                                             : "text-foreground/70"
@@ -149,7 +155,7 @@ const PiecesMapView = ({
                             borderRadius: 4,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.verified")}
                     </span>
                 </span>
@@ -165,7 +171,7 @@ const PiecesMapView = ({
                             border: `1px solid ${palette.primary}`,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
                 </span>
@@ -182,7 +188,7 @@ const PiecesMapView = ({
                             opacity: 0.2,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span className={TEXT_ROLE.bodyMuted}>
                         {t("torrent_modal.stats.missing")}
                     </span>
                 </span>

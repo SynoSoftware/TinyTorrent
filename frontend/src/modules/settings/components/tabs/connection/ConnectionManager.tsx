@@ -3,6 +3,7 @@ import { RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { TEXT_ROLE, withColor } from "@/config/textRoles";
 import { STATUS } from "@/shared/status";
 import { useConnectionConfig, buildRpcEndpoint, buildRpcServerUrl, DEFAULT_PROFILE_ID } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
@@ -139,10 +140,10 @@ export function ConnectionCredentialsCard() {
             <div className="space-y-tight">
                 <div className="flex items-center justify-between">
                     <div className="min-w-0 space-y-tight">
-                        <h3 className="text-scaled font-semibold text-foreground truncate">
+                        <h3 className={`${TEXT_ROLE.headingSection} truncate`}>
                             {profileLabel}
                         </h3>
-                        <p className="text-label text-foreground/60 font-mono break-all">
+                        <p className={`${TEXT_ROLE.caption} font-mono break-all`}>
                             {serverUrl}
                         </p>
                     </div>
@@ -156,7 +157,7 @@ export function ConnectionCredentialsCard() {
                         </Button>
                     </div>
                 </div>
-                <p className="text-label text-foreground/60">
+                <p className={TEXT_ROLE.caption}>
                     {t("settings.connection.local_mode_info")}
                 </p>
             </div>
@@ -167,10 +168,10 @@ export function ConnectionCredentialsCard() {
         <div className="space-y-stage">
             <div className="flex flex-col gap-tools sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-tight">
-                    <h3 className="text-scaled font-semibold text-foreground truncate">
+                    <h3 className={`${TEXT_ROLE.headingSection} truncate`}>
                         {profileLabel}
                     </h3>
-                    <p className="text-label text-foreground/60 font-mono break-all">
+                    <p className={`${TEXT_ROLE.caption} font-mono break-all`}>
                         {serverUrl}
                     </p>
                 </div>
@@ -197,13 +198,13 @@ export function ConnectionCredentialsCard() {
                             {connectionStatusLabel}
                         </Chip>
                         <div className="space-y-tight">
-                            <p className="text-label uppercase text-foreground/60">
+                            <p className={TEXT_ROLE.label}>
                                 {t("settings.connection.ui_mode_label")}
                             </p>
-                            <p className="text-scaled font-semibold text-foreground">
+                            <p className={TEXT_ROLE.headingSection}>
                                 {t(modeLabelKey)}
                             </p>
-                            <p className="text-label text-foreground/60">
+                            <p className={TEXT_ROLE.caption}>
                                 {t(modeSummaryKey)}
                             </p>
                         </div>
@@ -230,14 +231,14 @@ export function ConnectionCredentialsCard() {
             <div className="grid gap-tools">
                 {isOffline && (
                     <p
-                        className="text-label uppercase text-warning"
+                        className={withColor(TEXT_ROLE.label, "warning")}
                         style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                     >
                         {t("settings.connection.offline_warning")}
                     </p>
                 )}
                 {isInsecureBasicAuth && (
-                    <p className="text-label text-warning">
+                    <p className={withColor(TEXT_ROLE.caption, "warning")}>
                         {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
@@ -271,7 +272,7 @@ export function ConnectionCredentialsCard() {
                 {shouldShowAuthControls && (
                     <>
                         {!isAuthModeResolved && (
-                            <p className="text-label text-foreground/60">
+                            <p className={TEXT_ROLE.caption}>
                                 {t("settings.connection.detecting_signin")}
                             </p>
                         )}
@@ -307,7 +308,7 @@ export function ConnectionCredentialsCard() {
                     </>
                 )}
                 {isNativeMode && !showAdvanced && (
-                    <p className="text-label text-foreground/60 mt-tight">
+                    <p className={`${TEXT_ROLE.caption} mt-tight`}>
                         {t("settings.connection.local_mode_info")}
                     </p>
                 )}

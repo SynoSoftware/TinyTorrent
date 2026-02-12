@@ -17,13 +17,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { Magnet, X } from "lucide-react";
 
-import { INTERACTION_CONFIG } from "@/config/logic";
+import { INTERACTION_CONFIG, INTERACTIVE_RECIPE } from "@/config/logic";
 import {
-    GLASS_MODAL_SURFACE,
+    ADD_MAGNET_TEXTAREA_CLASSNAMES,
+    MODAL_BASE_CLASSNAMES,
     MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_FRAME,
     MODAL_SURFACE_HEADER,
+    STICKY_HEADER,
 } from "@/shared/ui/layout/glass-surface";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
@@ -97,9 +99,7 @@ export function AddMagnetModal({
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
-            classNames={{
-                base: cn(GLASS_MODAL_SURFACE, MODAL_SURFACE_FRAME),
-            }}
+            classNames={MODAL_BASE_CLASSNAMES}
         >
             <ModalContent>
                 {() => (
@@ -107,7 +107,8 @@ export function AddMagnetModal({
                         <div
                             className={cn(
                                 MODAL_SURFACE_HEADER,
-                                "sticky top-0 z-10 shrink-0 h-modal-header flex items-center justify-between px-stage py-panel bg-content1/30 backdrop-blur-xl",
+                                STICKY_HEADER,
+                                "shrink-0 h-modal-header flex items-center justify-between px-stage py-panel",
                             )}
                         >
                             <div className="flex items-center gap-tools">
@@ -116,7 +117,7 @@ export function AddMagnetModal({
                                     size="md"
                                     className="text-primary"
                                 />
-                                <span className="text-label tracking-label uppercase font-semibold">
+                                <span className={TEXT_ROLE.labelPrimary}>
                                     {t("modals.add_magnet.title")}
                                 </span>
                             </div>
@@ -126,7 +127,7 @@ export function AddMagnetModal({
                                 ariaLabel={t("torrent_modal.actions.close")}
                                 onPress={handleClose}
                                 iconSize="lg"
-                                className="text-foreground/40 hover:text-foreground hidden sm:flex"
+                                className={`text-foreground/40 hidden sm:flex ${INTERACTIVE_RECIPE.dismiss}`}
                             />
                         </div>
 
@@ -138,12 +139,10 @@ export function AddMagnetModal({
                                 onValueChange={setValue}
                                 placeholder={t("modals.add_magnet.placeholder")}
                                 variant="bordered"
-                                classNames={{
-                                    input: "font-mono text-scaled",
-                                }}
+                                classNames={ADD_MAGNET_TEXTAREA_CLASSNAMES}
                                 onKeyDown={handleKeyDown}
                             />
-                            <p className="text-foreground/70 text-scaled leading-relaxed">
+                            <p className={`${TEXT_ROLE.bodyMuted} leading-relaxed`}>
                                 {t("modals.add_magnet.hint")}
                             </p>
                         </ModalBody>
