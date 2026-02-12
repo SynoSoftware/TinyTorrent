@@ -22,6 +22,12 @@ import type { ClipboardWriteOutcome } from "@/shared/utils/clipboard";
 import { writeClipboardOutcome } from "@/shared/utils/clipboard";
 
 type CompletionStatus = "applied" | "cancelled" | "failed" | "pending";
+export type DevTestStatusTone =
+    | "default"
+    | "primary"
+    | "success"
+    | "warning"
+    | "danger";
 
 export interface DevTestChoiceOption<TId extends string> {
     id: TId;
@@ -50,6 +56,7 @@ export interface DevTestAssertionRowViewModel {
     expectedLabel: string;
     actualLabel: string;
     assertionLabel: string;
+    statusTone: DevTestStatusTone;
     reasonLabel: string | null;
 }
 
@@ -58,6 +65,7 @@ export interface DevTestSmokeRowViewModel {
     label: string;
     details: string | null;
     statusLabel: string;
+    statusTone: DevTestStatusTone;
 }
 
 export interface DevTestSystemEventRowViewModel {
@@ -65,7 +73,9 @@ export interface DevTestSystemEventRowViewModel {
     label: string;
     eventLabel: string;
     completionLabel: string;
+    completionTone: DevTestStatusTone;
     resumedLabel: string;
+    resumedTone: DevTestStatusTone;
     beforeState: string;
     afterState: string;
     details: string | null;
@@ -76,6 +86,23 @@ export interface DevTestViewModel {
         title: string;
         subtitle: string;
         backLabel: string;
+    };
+    workflow: {
+        panels: {
+            inputs: string;
+            results: string;
+        };
+        steps: {
+            scenario: string;
+            confidence: string;
+            controls: string;
+            execute: string;
+        };
+        results: {
+            execution: string;
+            verification: string;
+            systemReactions: string;
+        };
     };
     scenario: {
         title: string;
@@ -91,6 +118,7 @@ export interface DevTestViewModel {
         verifyFailsSelected: boolean;
         setVerifyFails: (value: boolean) => void;
         faultModeLabel: string;
+        simulatePrefixLabel: string;
         faultModes: DevTestChoiceOption<DevTestFaultMode>[];
     };
     actions: {
@@ -113,6 +141,12 @@ export interface DevTestViewModel {
         runDisabled: boolean;
         run: () => void;
         assertionTitle: string;
+        columns: {
+            scenario: string;
+            expected: string;
+            actual: string;
+            status: string;
+        };
         assertions: DevTestAssertionRowViewModel[];
         rows: DevTestSmokeRowViewModel[];
     };
@@ -163,6 +197,18 @@ export function useDevTestViewModel(): DevTestViewModel {
         (status: CompletionStatus) =>
             t(`dev.test.assertion.completion.${status}`),
         [t],
+    );
+    const resolveCompletionTone = useCallback(
+        (
+            actual: CompletionStatus,
+            expected: CompletionStatus = "applied",
+        ): DevTestStatusTone => {
+            if (actual === "pending") {
+                return "warning";
+            }
+            return actual === expected ? "success" : "danger";
+        },
+        [],
     );
 
     const scenarioOptions = useMemo<DevTestScenarioOption[]>(
@@ -257,9 +303,14 @@ export function useDevTestViewModel(): DevTestViewModel {
                 return {
                     id: smokeCase.scenarioId,
                     label: t(`dev.test.scenario.${smokeCase.scenarioId}`),
-                    expectedLabel: `${t("dev.test.assertion.expected")} ${resolveCompletionLabel(expectedStatus)}`,
-                    actualLabel: `${t("dev.test.assertion.actual")} ${resolveCompletionLabel(actualStatus)}`,
+                    expectedLabel: resolveCompletionLabel(expectedStatus),
+                    actualLabel: resolveCompletionLabel(actualStatus),
                     assertionLabel,
+                    statusTone: completion
+                        ? isMatch
+                            ? "success"
+                            : "danger"
+                        : "warning",
                     reasonLabel: completion?.reason
                         ? t("dev.test.assertion.reason", {
                               reason: completion.reason,
@@ -288,6 +339,13 @@ export function useDevTestViewModel(): DevTestViewModel {
                     label: t(`dev.test.scenario.${smokeCase.scenarioId}`),
                     details: result?.details ?? null,
                     statusLabel,
+                    statusTone: result
+                        ? result.status === "passed"
+                            ? "success"
+                            : "danger"
+                        : smoke.status === "running"
+                          ? "primary"
+                          : "warning",
                 };
             }),
         [smoke.resultByScenarioId, smoke.status, t],
@@ -312,13 +370,22 @@ export function useDevTestViewModel(): DevTestViewModel {
                     label: t(testCase.labelKey),
                     eventLabel: t(testCase.eventKey),
                     completionLabel,
+                    completionTone: resolveCompletionTone(
+                        result?.completion.actual ?? "pending",
+                        result?.completion.expected ?? "applied",
+                    ),
                     resumedLabel,
+                    resumedTone: result
+                        ? result.resumed
+                            ? "success"
+                            : "danger"
+                        : "warning",
                     beforeState: result?.beforeState ?? "-",
                     afterState: result?.afterState ?? "-",
                     details: result?.details ?? null,
                 };
             }),
-        [systemRunner.resultByCaseId, t],
+        [resolveCompletionTone, systemRunner.resultByCaseId, t],
     );
 
     const [isFooterExpanded, setIsFooterExpanded] = useState(false);
@@ -349,6 +416,23 @@ export function useDevTestViewModel(): DevTestViewModel {
                 subtitle: t("dev.test.subtitle"),
                 backLabel: t("dev.test.back_to_app"),
             },
+            workflow: {
+                panels: {
+                    inputs: t("dev.test.workflow.panel_inputs"),
+                    results: t("dev.test.workflow.panel_results"),
+                },
+                steps: {
+                    scenario: t("dev.test.workflow.step_1"),
+                    confidence: t("dev.test.workflow.step_2"),
+                    controls: t("dev.test.workflow.step_3"),
+                    execute: t("dev.test.workflow.step_4"),
+                },
+                results: {
+                    execution: t("dev.test.workflow.execution_state"),
+                    verification: t("dev.test.workflow.verification"),
+                    systemReactions: t("dev.test.workflow.system_reactions"),
+                },
+            },
             scenario: {
                 title: t("dev.test.section.scenario"),
                 options: scenarioOptions,
@@ -363,6 +447,7 @@ export function useDevTestViewModel(): DevTestViewModel {
                 verifyFailsSelected: controller.verifyFails,
                 setVerifyFails: controller.setVerifyFails,
                 faultModeLabel: t("dev.test.label.fault_mode"),
+                simulatePrefixLabel: t("dev.test.label.simulate_prefix"),
                 faultModes: faultModeOptions,
             },
             actions: {
@@ -398,6 +483,12 @@ export function useDevTestViewModel(): DevTestViewModel {
                     void smoke.runSmoke();
                 },
                 assertionTitle: t("dev.test.assertion.title"),
+                columns: {
+                    scenario: t("dev.test.assertion.column.scenario"),
+                    expected: t("dev.test.assertion.column.expected"),
+                    actual: t("dev.test.assertion.column.actual"),
+                    status: t("dev.test.assertion.column.status"),
+                },
                 assertions,
                 rows: smokeRows,
             },
