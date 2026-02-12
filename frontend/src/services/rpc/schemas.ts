@@ -6,6 +6,7 @@ import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
 } from "@/services/rpc/types";
+import { infraLogger } from "@/shared/utils/infraLogger";
 const zRpcResponse = z.object({
     result: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
@@ -22,13 +23,20 @@ const logValidationIssue = (
     payload: unknown,
     error: unknown
 ) => {
-    if (typeof console !== "undefined" && console.error) {
-        console.error(
-            `[tiny-torrent][rpc-validation] ${context} failed`,
+    infraLogger.error(
+        {
+            scope: "rpc_validation",
+            event: "parse_failed",
+            message: "RPC schema validation failed",
+            details: {
+                context,
+            },
+        },
+        {
             payload,
-            error
-        );
-    }
+            error,
+        },
+    );
 };
 
 const atobShim = (value: string) => {

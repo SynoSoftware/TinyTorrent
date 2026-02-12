@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
+import { infraLogger } from "@/shared/utils/infraLogger";
+import { scheduler } from "@/app/services/scheduler";
 
 export type FreeSpaceProbeState =
     | { status: "idle" }
@@ -46,15 +48,10 @@ export function useFreeSpaceProbe({
     useEffect(() => {
         const trimmed = path.trim();
         if (!checkFreeSpace || !enabled || !trimmed) {
-            const idleResetHandle = window.setTimeout(() => {
+            const cancelIdleReset = scheduler.scheduleTimeout(() => {
                 setState({ status: "idle" });
             }, 0);
-            return () => {
-                window.clearTimeout(idleResetHandle);
-            };
-        }
-        if (typeof window === "undefined") {
-            return;
+            return cancelIdleReset;
         }
 
         const runId = ++runIdRef.current;
@@ -70,15 +67,21 @@ export function useFreeSpaceProbe({
             // While user types within the same volume/share, keep stable stale value.
             setState({ status: "ok", value: scopedCached });
         }
-        console.debug("[add-torrent][free-space] probe:start", {
-            runId,
-            path: trimmed,
-            enabled,
-            warmCache:
-                (exactCached && exactCached.path === trimmed) || Boolean(scopedCached),
+        infraLogger.debug({
+            scope: "add_torrent",
+            event: "free_space_probe_start",
+            message: "Started free-space probe",
+            details: {
+                runId,
+                path: trimmed,
+                enabled,
+                warmCache:
+                    (exactCached && exactCached.path === trimmed) ||
+                    Boolean(scopedCached),
+            },
         });
 
-        const debounceHandle = window.setTimeout(() => {
+        const cancelDebounce = scheduler.scheduleTimeout(() => {
             // Only show explicit loading when we have no usable stale value.
             if (!scopedCached && !(exactCached && exactCached.path === trimmed)) {
                 setState({ status: "loading" });
@@ -95,12 +98,17 @@ export function useFreeSpaceProbe({
                     if (resolvedScope) {
                         scopedCacheRef.current.set(resolvedScope, space);
                     }
-                    console.debug("[add-torrent][free-space] probe:ok", {
-                        runId,
-                        requestedPath: trimmed,
-                        reportedPath: space.path,
-                        sizeBytes: space.sizeBytes,
-                        totalSize: space.totalSize,
+                    infraLogger.debug({
+                        scope: "add_torrent",
+                        event: "free_space_probe_ok",
+                        message: "Free-space probe completed",
+                        details: {
+                            runId,
+                            requestedPath: trimmed,
+                            reportedPath: space.path,
+                            sizeBytes: space.sizeBytes,
+                            totalSize: space.totalSize,
+                        },
                     });
                     setState({ status: "ok", value: space });
                 })
@@ -112,12 +120,19 @@ export function useFreeSpaceProbe({
                             : typeof error === "string"
                               ? error.trim()
                               : "";
-                    console.debug("[add-torrent][free-space] probe:error", {
-                        runId,
-                        path: trimmed,
-                        message: message || "(empty)",
-                        raw: error,
-                    });
+                    infraLogger.debug(
+                        {
+                            scope: "add_torrent",
+                            event: "free_space_probe_error",
+                            message: "Free-space probe failed",
+                            details: {
+                                runId,
+                                path: trimmed,
+                                message: message || "(empty)",
+                            },
+                        },
+                        error,
+                    );
                     if (scopedCached || (exactCached && exactCached.path === trimmed)) {
                         // Keep stale display to avoid flicker while typing.
                         return;
@@ -130,9 +145,7 @@ export function useFreeSpaceProbe({
                 });
         }, 220);
 
-        return () => {
-            window.clearTimeout(debounceHandle);
-        };
+        return cancelDebounce;
     }, [checkFreeSpace, enabled, path]);
 
     return state;

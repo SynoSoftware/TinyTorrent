@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { shellAgent } from "@/app/agents/shell-agent";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 function normalizePath(value: string) {
     return value.replace(/[\\/]+$/, "");
@@ -78,7 +79,15 @@ export function useOpenTorrentFolder() {
                 }
             }
             if (lastError) {
-                console.error("open folder failed", lastError);
+                infraLogger.error(
+                    {
+                        scope: "shell",
+                        event: "open_folder_failed",
+                        message: "Failed to open folder path via shell agent",
+                        details: { requestedPath: path },
+                    },
+                    lastError,
+                );
             }
             showFeedback(t("recovery.open_path_failed"), "warning");
             return { status: "failed" };

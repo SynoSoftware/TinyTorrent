@@ -12,6 +12,7 @@ import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { resetRecoveryRuntimeSessionState } from "@/services/recovery/recovery-runtime-lifecycle";
 import { resetTransportSessionRuntimeOwner } from "@/services/transport";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
@@ -20,7 +21,14 @@ const destroyClient = (client: EngineAdapter | null) => {
     try {
         client.destroy();
     } catch (error) {
-        console.error("failed to destroy torrent client", error);
+        infraLogger.error(
+            {
+                scope: "client_provider",
+                event: "destroy_failed",
+                message: "Failed to destroy torrent client instance",
+            },
+            error,
+        );
     }
 };
 

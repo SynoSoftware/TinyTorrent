@@ -16,6 +16,7 @@ import type {
 } from "@/services/rpc/entities";
 import { buildErrorEnvelope } from "@/services/rpc/recovery";
 import STATUS, { type TorrentStatus } from "@/shared/status";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 const STATUS_MAP: Record<number, TorrentStatus> = {
     0: STATUS.torrent.PAUSED,
@@ -287,13 +288,26 @@ const zipFileEntities = (
     const hasStats = statsCount > 0;
     const limit = hasStats ? Math.min(fileCount, statsCount) : fileCount;
     if (hasStats && fileCount !== statsCount) {
-        console.warn(
-            `[tiny-torrent][rpc] file/fileStats length mismatch for torrent ${detail.hashString}: files=${fileCount} fileStats=${statsCount}`
-        );
+        infraLogger.warn({
+            scope: "rpc_normalizer",
+            event: "file_stats_length_mismatch",
+            message: "Torrent file and fileStats lengths do not match",
+            details: {
+                torrentHash: detail.hashString,
+                filesCount: fileCount,
+                fileStatsCount: statsCount,
+            },
+        });
     } else if (!hasStats && fileCount > 0) {
-        console.warn(
-            `[tiny-torrent][rpc] missing fileStats for torrent ${detail.hashString}`
-        );
+        infraLogger.warn({
+            scope: "rpc_normalizer",
+            event: "file_stats_missing",
+            message: "Torrent response is missing fileStats",
+            details: {
+                torrentHash: detail.hashString,
+                filesCount: fileCount,
+            },
+        });
     }
     const result: TorrentFileEntity[] = [];
     for (let index = 0; index < limit; ++index) {

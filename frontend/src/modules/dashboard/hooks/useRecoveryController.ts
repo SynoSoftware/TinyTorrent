@@ -58,6 +58,7 @@ import {
     derivePathReason,
     getRecoveryFingerprint,
 } from "@/app/domain/recoveryUtils";
+import { infraLogger } from "@/shared/utils/infraLogger";
 import {
     BACKGROUND_REFRESH_INTERVAL_MS,
     RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS,
@@ -474,8 +475,17 @@ export function useRecoveryController({
                         try {
                             await shellAgent.createDirectory(downloadDir);
                         } catch (err) {
-                            console.warn(
-                                "failed to auto-create missing folder",
+                            infraLogger.warn(
+                                {
+                                    scope: "recovery_controller",
+                                    event: "auto_create_folder_failed",
+                                    message:
+                                        "Failed to auto-create missing folder before recovery flow",
+                                    details: {
+                                        downloadDir,
+                                        torrentId: torrent.id ?? torrent.hash,
+                                    },
+                                },
                                 err,
                             );
                         }
@@ -490,7 +500,18 @@ export function useRecoveryController({
                     options: sequenceOptions,
                 });
             } catch (err) {
-                console.error("missing files recovery flow failed", err);
+                infraLogger.error(
+                    {
+                        scope: "recovery_controller",
+                        event: "missing_files_flow_failed",
+                        message: "Missing-files recovery flow failed",
+                        details: {
+                            torrentId: torrent.id ?? torrent.hash,
+                            classificationKind: classification.kind,
+                        },
+                    },
+                    err,
+                );
                 throw err;
             }
         },
@@ -524,7 +545,15 @@ export function useRecoveryController({
                 );
                 setCachedProbe(id, probe);
             } catch (err) {
-                console.error("probeMissingFiles failed", err);
+                infraLogger.error(
+                    {
+                        scope: "recovery_controller",
+                        event: "probe_missing_files_failed",
+                        message: "Missing-files probe failed",
+                        details: { torrentId: id },
+                    },
+                    err,
+                );
             }
         },
         [client, engineCapabilities],
@@ -809,7 +838,18 @@ export function useRecoveryController({
                     try {
                         await refreshAfterRecovery(torrent);
                     } catch (err) {
-                        console.error("refresh after recovery failed", err);
+                        infraLogger.error(
+                            {
+                                scope: "recovery_controller",
+                                event: "refresh_after_recovery_failed",
+                                message:
+                                    "Failed to refresh data after recovery resolution",
+                                details: {
+                                    torrentId: torrent.id ?? torrent.hash,
+                                },
+                            },
+                            err,
+                        );
                     }
                     if (notifyDriveDetected) {
                         showFeedback(
@@ -875,8 +915,13 @@ export function useRecoveryController({
                 }
                 return false;
             } catch (err) {
-                console.error(
-                    "recovery resolution failed for recreate/pick-path",
+                infraLogger.error(
+                    {
+                        scope: "recovery_controller",
+                        event: "resolve_recreate_or_pick_path_failed",
+                        message:
+                            "Recovery resolution failed for recreate/pick-path flow",
+                    },
                     err,
                 );
                 return false;
@@ -1008,7 +1053,15 @@ export function useRecoveryController({
                     Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
                 );
             } catch (err) {
-                console.error("silent volume-loss recovery failed", err);
+                infraLogger.error(
+                    {
+                        scope: "recovery_controller",
+                        event: "silent_volume_recovery_failed",
+                        message: "Silent volume-loss recovery failed",
+                        details: { fingerprint },
+                    },
+                    err,
+                );
                 silentVolumeRecoveryNextRetryAtRef.current.set(
                     fingerprint,
                     Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
@@ -1065,7 +1118,18 @@ export function useRecoveryController({
                         try {
                             await refreshAfterRecovery(torrent);
                         } catch (err) {
-                            console.error("refresh after recovery failed", err);
+                            infraLogger.error(
+                                {
+                                    scope: "recovery_controller",
+                                    event: "refresh_after_recovery_failed",
+                                    message:
+                                        "Failed to refresh data after recovery resolution",
+                                    details: {
+                                        torrentId: torrent.id ?? torrent.hash,
+                                    },
+                                },
+                                err,
+                            );
                         }
                         if (gateResult.log === "verify_completed_paused") {
                             return { status: "applied" };
@@ -1205,7 +1269,17 @@ export function useRecoveryController({
             try {
                 await refreshAfterRecovery(target);
             } catch (err) {
-                console.error("refresh after retry probe failed", err);
+                infraLogger.error(
+                    {
+                        scope: "recovery_controller",
+                        event: "refresh_after_retry_probe_failed",
+                        message: "Failed to refresh data after retry probe",
+                        details: {
+                            torrentId: target.id ?? target.hash,
+                        },
+                    },
+                    err,
+                );
             }
 
             if (
