@@ -169,6 +169,34 @@ Goal: Feature code must not own styling. All visual recipes must come from share
 
 Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*` / `SETTINGS_*`).
 
+### **Hard Ban: No Raw Tailwind/HeroUI Classes in Feature/UI Code**
+
+To eliminate drift from `className="..."` recipes, UI/feature components must
+not author TailwindCSS or HeroUI utility class strings directly.
+
+**Rule:** Outside the theme/token layer, `className` / HeroUI `classNames` must
+be composed exclusively from shared token authorities.
+
+**Theme/token layer (allowed to contain raw utility strings):**
+- `frontend/src/shared/ui/layout/glass-surface.ts` (surface + chrome role tokens)
+- `frontend/src/config/textRoles.ts` (`TEXT_ROLE.*`)
+- `frontend/src/config/logic.ts` (`INTERACTIVE_RECIPE.*`, `TRANSITION.*`, `VISUAL_STATE.*`, etc.)
+
+**Forbidden in UI/feature components:**
+- Any inline `className="..."` Tailwind/HeroUI utility recipe (including “semantic” utilities like `bg-content1/10`)
+- Any inline HeroUI `classNames={{ ... }}` object
+- Any ad-hoc `hover:*`, `focus:*`, `active:*`, `rounded-*`, `shadow-*`, `backdrop-blur-*`, `bg-*`, `border-*` recipes
+
+**Allowed in UI/feature components:**
+- `className={TEXT_ROLE.body}`
+- `className={STANDARD_SURFACE_CLASS.semantic.settingsPanel}`
+- `className={cn(TEXT_ROLE.body, INTERACTIVE_RECIPE.buttonDefault)}` (composition is OK only when all inputs are tokens)
+
+**Exception policy (rare):**
+If a third-party component forces a one-off class, it must be wrapped into a
+shared token immediately, or explicitly flagged for follow-up (no silent
+exceptions).
+
 Enforcement:
 - Feature modules may compose shared semantic tokens only.
 - Introducing or expanding feature-prefixed styling namespaces is forbidden.
@@ -409,6 +437,7 @@ If a change causes any of these, it is a failure:
 
 Before claiming UI work is done, verify:
 
+- Token-only styling: no raw Tailwind/HeroUI class recipes were authored in feature/UI code; all styling composes shared token authorities.
 - Token-only geometry: no numeric Tailwind utilities or bracket classes were added.
 - No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
 - DRY: no repeated “glass recipe” strings; shared recipes are centralized.
@@ -1249,6 +1278,47 @@ Include a short section titled **“Rename Candidates”** containing:
 This enables fast, safe batch renames by the user (VS Code / IDE).
 
 ---
+
+### **Human-First Code (Hard Rule)**
+
+Code must be written so a human can understand and edit it quickly.
+The design system and architecture in this document are **the law** — code must
+consume existing authorities and must not invent its own competing rules.
+
+**Law of the land (single authority, single change):**
+
+- UI configuration and visual “dials” live in the declared authorities (theme/token layer + config). Modules/components must **consume** them, not create module-local “mini config”.
+- Modules/components may choose **semantic roles** (panel padding, modal body spacing, workbench surface), but may not choose new numbers/opacities/radii/shadows/blur recipes.
+- Any shared dial change (e.g., glass transparency `/50` → `/60`) must be possible via **one edit** in an authority. If it isn’t, a semantic role/token is missing — add it to the authority, do not patch call sites.
+- Bugs are fixed at the owning authority. Maintaining parallel implementations “to keep them in sync” is a design failure.
+
+**Human defaults (readable > clever):**
+
+- Prefer the simplest implementation that preserves the established contracts.
+- Prefer explicit names; keep identifiers short, but not cryptic.
+- Prefer small, local functions; prefer straight-line code + early returns.
+- Prefer predictable data shapes (discriminated unions) over boolean flag soup.
+
+**Human-scale API budgets (hard):**
+
+- If a function call needs many arguments (rule of thumb: > 5), the contract is wrong: use a typed options object or move the decision into an authority.
+- If a component requires a large prop bag (rule of thumb: > 8 meaningful props), the boundary is wrong: prefer consuming Context / ViewModel authority over parameter/prop plumbing.
+
+**Indirection budget (hard):**
+
+- Avoid “layer upon layer” wrapper chains. A developer should be able to understand a behavior via a small, direct path from entry point to owner.
+- Do not introduce wrapper hooks/components that only forward/rename values. A new layer must remove duplication, centralize authority, or standardize contracts.
+
+**Explicitly forbidden “AI-looking” patterns:**
+
+- Forward-only plumbing layers.
+- Over-parameterized helpers (especially boolean-heavy).
+- Default/gratuitous `useMemo` / `useCallback` without a measured reason.
+- TypeScript cleverness that reduces readability unless it prevents real bugs with the smallest clear solution.
+
+**Rationale comments (allowed, minimal):**
+
+- Add short comments only when a decision is non-obvious and ties to an invariant/contract (“why”, not “what”).
 
 ### **E. God Object / God Component Prohibition (Hard Stop)**
 

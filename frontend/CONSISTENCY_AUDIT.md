@@ -372,6 +372,87 @@ tracking note — no additional action needed beyond executing the surface plan.
 
 ---
 
+## 12. Surface Role Taxonomy (Single-File Theme Map)  (Priority: HIGH)
+
+### Problem
+
+`glass-surface.ts` is currently both a primitive authority and a broad feature
+style registry. That makes it easy to centralize code, but hard to preserve a
+small and predictable design vocabulary.
+
+Current risk:
+- Navbar, torrent table host, and status bar can drift into separate visual
+  materials even when they should read as one workbench surface family.
+- The same visual intent is represented by many near-duplicate strings instead
+  of a small set of semantic surface roles.
+
+### Target Model (keep one file, enforce role tiers)
+
+Keep the "god file" pattern, but formalize hard internal tiers:
+
+1. **Foundation tokens** (few): border language, blur levels, elevation,
+   radius, layer opacity.
+2. **Surface roles** (semantic): `surface.workbench`, `surface.panel`,
+   `surface.pane`, `surface.inset`, `surface.modal`, `surface.menu`,
+   `surface.tooltip`.
+3. **Chrome roles** (edge/sticky/divider): `chrome.edgeTop`,
+   `chrome.edgeBottom`, `chrome.stickyHeader`, etc.
+4. **Feature bindings** (many): `APP_NAV_CLASS`, `TABLE_VIEW_CLASS`,
+   `APP_STATUS_CLASS`, etc., but they may only compose roles from tiers 1–3.
+
+### Canonical Workbench Surface Rule
+
+The main app chrome should share one material family:
+- Navbar: `surface.workbench + chrome.edgeBottom + chrome.stickyHeader`
+- Torrent table host: `surface.workbench` (or inherits from parent) + optional
+  `surface.panel` where framed containers are needed
+- Status bar: `surface.workbench + chrome.edgeTop`
+
+Variation is allowed for role-specific behavior (stickiness, separators,
+content density), not for ad-hoc blur/background/border recipes.
+
+### Multi-Step Implementation Plan
+
+#### Step 1 — Declare role map in `glass-surface.ts`
+
+- Add a top-level `STANDARD_SURFACE_CLASS.layer` and
+  `STANDARD_SURFACE_CLASS.role` map.
+- Add a `STANDARD_SURFACE_CLASS.chrome` sub-map for edge/sticky/divider rules.
+- Keep existing exports intact for backward compatibility.
+
+#### Step 2 — Bind workbench triad to one surface family
+
+- Migrate `APP_NAV_CLASS` surface-bearing entries to compose
+  `surface.workbench` + chrome roles.
+- Migrate `TABLE_VIEW_CLASS` host/shell surface-bearing entries to compose the
+  same role.
+- Migrate `APP_STATUS_CLASS.footer` and related shell entries to the same role.
+
+#### Step 3 — Enforce role-only surface decisions
+
+- In feature bindings, disallow new raw additions of
+  `bg-*`, `border-*`, `backdrop-blur-*`, `shadow-*`, `rounded-*` unless they
+  are in tiers 1–3.
+- New visual intent must be introduced as a role token first, then consumed by
+  bindings.
+
+#### Step 4 — Collapse duplicates by intent
+
+- Consolidate repeated sticky/header recipes into one chrome role.
+- Consolidate repeated panel frame recipes into role-backed `surface.panel` and
+  `surface.pane` variants.
+- Consolidate floating surfaces (`modal/menu/tooltip`) under
+  `surface.modal/menu/tooltip` with role-level defaults.
+
+#### Step 5 — Validation and drift checks
+
+- Validate visual parity of navbar/table/status as one material family.
+- Add a checklist item to PR review: "Does this add a new visual recipe or
+  compose existing role tokens?"
+- Track any unavoidable exceptions with explicit rationale in this audit.
+
+---
+
 ## Integration Points with Existing Plans
 
 ### TEXT_ROLE_MIGRATION.md — Additions Needed
@@ -395,6 +476,10 @@ tracking note — no additional action needed beyond executing the surface plan.
 - [x] **Add `<Toolbar>` note**: the existing `<Toolbar>` proposal also needs
   transition tokens — currently toolbar buttons each define their own
   `transition-colors duration-*`.
+- [ ] **Add surface-role taxonomy** (Section 12 above): formalize Foundation →
+  Surface Roles → Chrome Roles → Feature Bindings in `glass-surface.ts`.
+- [ ] **Add workbench triad migration** (Section 12 above): normalize navbar,
+  torrent table host, and status bar to one `surface.workbench` family.
 
 ---
 
@@ -409,6 +494,7 @@ These can be batched with the existing plan phases:
 | 2 | Modal Normalization | Sticky header migration (4 files), deprecated TEXT_ROLES migration (5 files) |
 | 3 | Menus & Panels | INTERACTIVE_RECIPE for context menus, nav items |
 | 4 | Details & Cleanup | INTERACTIVE_RECIPE for buttons/settings, visual-state tokens everywhere |
+| 5 | Surface Role Convergence | Introduce role tiers in `glass-surface.ts`; align navbar/table/status to one workbench surface family |
 
 - [x] Week 0: Z-index token expansion, transition tokens, disabled-state tokens, `STICKY_HEADER` token
 - [x] Week 1: `<AlertPanel>` component, scrollbar strategy decision
