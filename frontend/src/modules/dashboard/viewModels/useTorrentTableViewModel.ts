@@ -638,12 +638,8 @@ export function useTorrentTableViewModel({
     });
 
     const headerSortableIds = useMemo(
-        () =>
-            table
-                .getAllLeafColumns()
-                .filter((column) => column.getIsVisible())
-                .map((column) => column.id),
-        [table],
+        () => table.getVisibleLeafColumns().map((column) => column.id),
+        [table, columnOrder, columnVisibility],
     );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
