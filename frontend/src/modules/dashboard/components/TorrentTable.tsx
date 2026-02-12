@@ -34,6 +34,7 @@ export function TorrentTable({
     const { refs, state, table, interaction, menus, lifecycle, surfaces } =
         tableViewModel;
     const { setTableContainerRef, setMeasureLayerRef } = refs;
+
     const tableShellClass = useMemo(
         () =>
             cn(
@@ -43,13 +44,9 @@ export function TorrentTable({
         [],
     );
 
-    const activeHeader = useMemo(
-        () =>
-            table.instance
-                .getFlatHeaders()
-                .find((header) => header.id === state.activeDragHeaderId),
-        [state.activeDragHeaderId, table.instance],
-    );
+    const activeHeader = table.instance
+        .getFlatHeaders()
+        .find((header) => header.id === state.activeDragHeaderId);
 
     return (
         <>
@@ -102,6 +99,7 @@ export function TorrentTable({
                         >
                             {activeHeader ? (
                                 <ColumnHeaderPreview
+                                    key={activeHeader.id}
                                     header={activeHeader}
                                     isAnimationSuppressed={
                                         state.isAnimationSuppressed
