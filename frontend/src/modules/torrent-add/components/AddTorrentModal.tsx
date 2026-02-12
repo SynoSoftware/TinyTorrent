@@ -63,10 +63,9 @@ import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrent
 import { AddTorrentFileTable } from "@/modules/torrent-add/components/AddTorrentFileTable";
 import type { SmartSelectCommand } from "@/modules/torrent-add/services/fileSelection";
 import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
-import type { AddTorrentModalContextValue } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
-import { useAddTorrentModalViewModel } from "@/modules/torrent-add/hooks/useAddTorrentModalViewModel";
+import { useAddTorrentViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewModel";
 
 export interface AddTorrentModalProps {
     isOpen: boolean;
@@ -112,7 +111,7 @@ export function AddTorrentModal({
     checkFreeSpace,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
-    const viewModel = useAddTorrentModalViewModel({
+    const viewModel = useAddTorrentViewModel({
         checkFreeSpace,
         commitMode,
         downloadDir,
@@ -120,6 +119,7 @@ export function AddTorrentModal({
         isSubmitting,
         onCancel,
         onConfirm,
+        onCommitModeChange,
         onDownloadDirChange,
         source,
     });
@@ -131,6 +131,10 @@ export function AddTorrentModal({
         settings,
         submission,
         source: sourceViewModel,
+        isDismissable,
+        handleDestinationGateKeyDown,
+        handleCommitModeAction,
+        modalContextValue,
     } = viewModel;
     const {
         formRef,
@@ -148,27 +152,11 @@ export function AddTorrentModal({
         submitLocked,
     } = modal;
     const {
-        destinationDraft,
-        handleBrowse,
-        handleDestinationGateContinue,
-        handleDestinationInputBlur,
-        handleDestinationInputKeyDown,
         hasDestination,
-        isDestinationDraftValid,
-        isTouchingDirectory,
-        recentPaths,
-        showBrowseAction,
         showDestinationGate,
-        step1DestinationMessage,
-        step1StatusKind,
-        step2StatusKind,
-        step2StatusMessage,
-        spaceErrorDetail,
         uiMode,
-        updateDestinationDraft,
     } = destination;
     const {
-        applyDroppedPath,
         dropActive,
         handleDragLeave,
         handleDragOver,
@@ -176,84 +164,23 @@ export function AddTorrentModal({
     } = dragDrop;
     const {
         files,
-        handleRowClick,
         handleSmartSelect,
         isSelectionEmpty,
-        layout,
-        onCyclePriority,
-        onSetPriority,
-        onRowSelectionChange,
-        priorities,
-        resolvedState,
-        rowSelection,
-        selectedCount,
-        selectedSize,
     } = table;
     const {
         canCollapseSettings,
         isFullscreen,
         isPanelResizeActive,
         isSettingsCollapsed,
-        sequential,
         setIsFullscreen,
         setIsPanelResizeActive,
-        setSequential,
-        setSkipHashCheck,
         settingsPanelRef,
-        skipHashCheck,
         toggleSettingsPanel,
         handleSettingsPanelCollapse,
         handleSettingsPanelExpand,
     } = settings;
     const { canConfirm, isDiskSpaceCritical, primaryBlockReason } = submission;
     const { sourceLabel } = sourceViewModel;
-
-    const modalContextValue: AddTorrentModalContextValue = {
-        destinationInput: {
-            value: destinationDraft,
-            onBlur: handleDestinationInputBlur,
-            onChange: updateDestinationDraft,
-            onKeyDown: handleDestinationInputKeyDown,
-        },
-        destinationGate: {
-            statusKind: step1StatusKind,
-            statusMessage: step1DestinationMessage,
-            isDestinationValid: isDestinationDraftValid,
-            isTouchingDirectory,
-            showBrowseAction,
-            onConfirm: handleDestinationGateContinue,
-            onBrowse: handleBrowse,
-        },
-        settings: {
-            onDrop: handleDrop,
-            onDragOver: handleDragOver,
-            onDragLeave: handleDragLeave,
-            recentPaths,
-            applyRecentPath: applyDroppedPath,
-            statusKind: step2StatusKind,
-            statusMessage: step2StatusMessage,
-            spaceErrorDetail,
-            showTransferFlags: source?.kind === "file",
-            sequential,
-            skipHashCheck,
-            setSequential,
-            setSkipHashCheck,
-        },
-        fileTable: {
-            files,
-            priorities,
-            resolvedState,
-            rowHeight: layout.rowHeight,
-            selectedCount,
-            selectedSize,
-            rowSelection,
-            onCyclePriority,
-            onRowClick: handleRowClick,
-            onRowSelectionChange,
-            onSetPriority,
-            onSmartSelect: handleSmartSelect,
-        },
-    };
 
     return (
         <Modal
@@ -263,9 +190,7 @@ export function AddTorrentModal({
             placement="center"
             motionProps={modalMotionProps}
             hideCloseButton
-            isDismissable={
-                !showDestinationGate && !isSubmitting && !submitLocked
-            }
+            isDismissable={isDismissable}
             size={modalSize} // fullscreen is a pure layout expansion; destination gate is state-based
             classNames={{
                 base: cn(
@@ -291,17 +216,7 @@ export function AddTorrentModal({
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
-                            onKeyDown={(e) => {
-                                if (e.key === "Escape") {
-                                    e.preventDefault();
-                                    handleModalCancel();
-                                    return;
-                                }
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleDestinationGateContinue();
-                                }
-                            }}
+                            onKeyDown={handleDestinationGateKeyDown}
                         >
                             <ModalHeader
                                 className={cn(
@@ -873,11 +788,7 @@ export function AddTorrentModal({
                                                     disallowEmptySelection
                                                     selectionMode="single"
                                                     selectedKeys={[commitMode]}
-                                                    onAction={(key) =>
-                                                        onCommitModeChange(
-                                                            key as AddTorrentCommitMode,
-                                                        )
-                                                    }
+                                                    onAction={handleCommitModeAction}
                                                 >
                                                     <DropdownItem
                                                         key="start"

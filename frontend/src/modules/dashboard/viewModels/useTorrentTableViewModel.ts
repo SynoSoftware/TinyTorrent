@@ -71,6 +71,8 @@ import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTab
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { cn } from "@heroui/react";
 import STATUS from "@/shared/status";
+import { scheduler } from "@/app/services/scheduler";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
@@ -153,6 +155,7 @@ export function useTorrentTableViewModel({
 }: TorrentTableParams): TorrentTableAPI {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
+    const { preferences } = usePreferences();
     const overlayPortalHost = useMemo(
         () =>
             typeof document !== "undefined" && document.body
@@ -197,14 +200,18 @@ export function useTorrentTableViewModel({
     );
     const [headerContextMenu, setHeaderContextMenu] =
         useState<HeaderContextMenu | null>(null);
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [columnOrder, setColumnOrder] =
-        useState<string[]>(DEFAULT_COLUMN_ORDER);
+    const [sorting, setSorting] = useState<SortingState>(
+        () => preferences.torrentTableState?.sorting ?? [],
+    );
+    const [columnOrder, setColumnOrder] = useState<string[]>(
+        () =>
+            preferences.torrentTableState?.columnOrder ?? DEFAULT_COLUMN_ORDER,
+    );
     const [columnVisibility, setColumnVisibility] = useState<
         Record<string, boolean>
-    >({});
+    >(() => preferences.torrentTableState?.columnVisibility ?? {});
     const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
-        {},
+        () => preferences.torrentTableState?.columnSizing ?? {},
     );
     const [columnSizingInfo, setColumnSizingInfo] =
         useState<ColumnSizingInfoState>({
@@ -387,8 +394,8 @@ export function useTorrentTableViewModel({
         endAnimationSuppression,
     });
 
-    useTorrentTablePersistence(
-        {
+    useTorrentTablePersistence({
+        initialState: {
             columnOrder: DEFAULT_COLUMN_ORDER,
             columnVisibility: {},
             columnSizing: {},
@@ -397,9 +404,9 @@ export function useTorrentTableViewModel({
         columnOrder,
         columnVisibility,
         columnSizing,
-        Boolean(columnSizingInfo.isResizingColumn),
+        isColumnResizing: Boolean(columnSizingInfo.isResizingColumn),
         sorting,
-    );
+    });
 
     const { createVirtualElement } = useContextMenuPosition({
         defaultMargin: fileContextMenuMargin,
@@ -650,16 +657,18 @@ export function useTorrentTableViewModel({
     );
 
     useEffect(() => {
-        const resizeTimerRef: { current: number | null } = { current: null };
+        const resizeTimerRef: { current: (() => void) | null } = {
+            current: null,
+        };
         const element = tableContainerRef.current;
         if (!element || typeof ResizeObserver === "undefined") return;
 
         const observer = new ResizeObserver(() => {
             if (resizeTimerRef.current !== null) {
-                window.clearTimeout(resizeTimerRef.current);
+                resizeTimerRef.current();
             }
             beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
-            resizeTimerRef.current = window.setTimeout(() => {
+            resizeTimerRef.current = scheduler.scheduleTimeout(() => {
                 endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
                 resizeTimerRef.current = null;
             }, 150);
@@ -669,7 +678,7 @@ export function useTorrentTableViewModel({
         return () => {
             observer.disconnect();
             if (resizeTimerRef.current !== null) {
-                window.clearTimeout(resizeTimerRef.current);
+                resizeTimerRef.current();
             }
             endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
         };

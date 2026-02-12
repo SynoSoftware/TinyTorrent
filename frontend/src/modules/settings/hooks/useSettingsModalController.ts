@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { UiMode } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
 import { shellAgent } from "@/app/agents/shell-agent";
+import { scheduler } from "@/app/services/scheduler";
 import { STATUS } from "@/shared/status";
 import {
     CLIPBOARD_BADGE_DURATION_MS,
@@ -157,7 +158,13 @@ export function useSettingsModalController(
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
     >("idle");
-    const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const jsonCopyTimerRef = useRef<(() => void) | null>(null);
+    const resetModalEphemeralState = useCallback(() => {
+        setModalFeedback(null);
+        setJsonCopyStatus("idle");
+        setCloseConfirmPending(false);
+        setInputDrafts(new Map());
+    }, []);
 
     const {
         uiCapabilities: {
@@ -172,7 +179,8 @@ export function useSettingsModalController(
     useEffect(() => {
         return () => {
             if (jsonCopyTimerRef.current) {
-                clearTimeout(jsonCopyTimerRef.current);
+                jsonCopyTimerRef.current();
+                jsonCopyTimerRef.current = null;
             }
         };
     }, []);
@@ -251,9 +259,9 @@ export function useSettingsModalController(
         const copied = outcome.status === "copied";
         setJsonCopyStatus(copied ? "copied" : "failed");
         if (jsonCopyTimerRef.current) {
-            clearTimeout(jsonCopyTimerRef.current);
+            jsonCopyTimerRef.current();
         }
-        jsonCopyTimerRef.current = window.setTimeout(() => {
+        jsonCopyTimerRef.current = scheduler.scheduleTimeout(() => {
             setJsonCopyStatus("idle");
         }, CLIPBOARD_BADGE_DURATION_MS);
         switch (outcome.status) {
@@ -276,61 +284,40 @@ export function useSettingsModalController(
     const hasUnsavedChanges = hasSaveableEdits || hasPendingDraftEdits;
 
     useEffect(() => {
-        if (!isOpen) {
-            wasOpenRef.current = false;
-            const resetHandle = window.setTimeout(() => {
-                setInputDrafts(new Map());
-            }, 0);
-            return () => {
-                window.clearTimeout(resetHandle);
-            };
-        }
+        if (!isOpen) return;
         if (wasOpenRef.current) {
             return;
         }
 
         wasOpenRef.current = true;
-        const initHandle = window.setTimeout(() => {
+        const cancelInit = scheduler.scheduleTimeout(() => {
             setOpenedConfigSnapshot({ ...safeInitialConfig });
             setConfig({ ...safeInitialConfig });
-            setModalFeedback(null);
-            setJsonCopyStatus("idle");
             setIsMobileMenuOpen(true);
-            setInputDrafts(new Map());
-            setCloseConfirmPending(false);
+            resetModalEphemeralState();
         }, 0);
-        return () => {
-            window.clearTimeout(initHandle);
-        };
-    }, [isOpen, safeInitialConfig]);
+        return cancelInit;
+    }, [isOpen, resetModalEphemeralState, safeInitialConfig]);
 
     useEffect(() => {
         if (!isOpen || hasSaveableEdits) {
             return;
         }
-        const syncHandle = window.setTimeout(() => {
+        const cancelSync = scheduler.scheduleTimeout(() => {
             setOpenedConfigSnapshot({ ...safeInitialConfig });
             setConfig({ ...safeInitialConfig });
         }, 0);
-        return () => {
-            window.clearTimeout(syncHandle);
-        };
+        return cancelSync;
     }, [hasSaveableEdits, isOpen, safeInitialConfig]);
 
     useEffect(() => {
-        if (isOpen) {
-            return;
-        }
-        const closeHandle = window.setTimeout(() => {
-            setModalFeedback(null);
-            setJsonCopyStatus("idle");
-            setCloseConfirmPending(false);
-            setInputDrafts(new Map());
+        if (isOpen) return;
+        wasOpenRef.current = false;
+        const cancelClose = scheduler.scheduleTimeout(() => {
+            resetModalEphemeralState();
         }, 0);
-        return () => {
-            window.clearTimeout(closeHandle);
-        };
-    }, [isOpen]);
+        return cancelClose;
+    }, [isOpen, resetModalEphemeralState]);
 
     const requestClose = useCallback(() => {
         if (isSaving) {
@@ -672,12 +659,10 @@ export function useSettingsModalController(
         if (safeVisibleTabs.find((tab) => tab.id === activeTab)) {
             return;
         }
-        const fallbackHandle = window.setTimeout(() => {
+        const cancelFallback = scheduler.scheduleTimeout(() => {
             setActiveTab(safeVisibleTabs[0]?.id ?? "speed");
         }, 0);
-        return () => {
-            window.clearTimeout(fallbackHandle);
-        };
+        return cancelFallback;
     }, [activeTab, safeVisibleTabs]);
 
     const settingsFormState = useMemo<SettingsFormStateContextValue>(

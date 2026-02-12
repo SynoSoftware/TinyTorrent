@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
+import { scheduler } from "@/app/services/scheduler";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import {
@@ -77,11 +78,11 @@ export const PeerMap = ({
         if (mode !== "instrument" || hoveredPeerId) return;
         const idleForMs = Date.now() - lastInteractionRef.current;
         if (idleForMs <= SPD_PHYSICS.DECAY_MS) return;
-        const decayTimer = window.setTimeout(() => {
+        const cancelDecayTimer = scheduler.scheduleTimeout(() => {
             setMode("impression");
         }, 0);
         return () => {
-            window.clearTimeout(decayTimer);
+            cancelDecayTimer();
         };
     }, [mode, hoveredPeerId, tick]);
 

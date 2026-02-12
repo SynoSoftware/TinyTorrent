@@ -1,13 +1,13 @@
 import React from "react";
 import { SortableContext } from "@dnd-kit/sortable";
-import type {
-    HeaderGroup,
-    Table,
-} from "@tanstack/react-table";
+import type { HeaderGroup, Table } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { cn } from "@heroui/react";
-import { TableHeaderContent, getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import {
+    TableHeaderContent,
+    getColumnWidthVarName,
+} from "@/modules/dashboard/components/TorrentTable_Shared";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
@@ -29,11 +29,12 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) transition-all",
-                PANEL_SHADOW
+                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 transition-all",
+                PANEL_SHADOW,
             )}
             style={{
-                width: getColumnWidthCss(column.id, column.getSize()),
+                [getColumnWidthVarName(column.id) as any]:
+                    `${column.getSize()}px`,
                 boxSizing: "border-box",
             }}
         >
@@ -86,7 +87,7 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
                             className="flex w-full min-w-max"
                             style={{
                                 width: getTableTotalWidthCss(
-                                    tableApi.getTotalSize()
+                                    tableApi.getTotalSize(),
                                 ),
                             }}
                         >
@@ -101,7 +102,7 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
                                         onContextMenu={(e: React.MouseEvent) =>
                                             handleHeaderContextMenu(
                                                 e,
-                                                header.column.id
+                                                header.column.id,
                                             )
                                         }
                                         onAutoFitColumn={
@@ -115,7 +116,7 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
                                                 header.column.id
                                         }
                                     />
-                                )
+                                ),
                             )}
                         </div>
                     ))}

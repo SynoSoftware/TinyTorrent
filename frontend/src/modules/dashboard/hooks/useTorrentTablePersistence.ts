@@ -4,6 +4,7 @@ import type {
     VisibilityState,
 } from "@tanstack/react-table";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import { scheduler } from "@/app/services/scheduler";
 import { TABLE_PERSIST_DEBOUNCE_MS } from "@/config/logic";
 
 // Persist table layout state via the Preferences provider.
@@ -15,14 +16,23 @@ type TorrentTablePersistentState = {
     sorting: SortingState;
 };
 
-export const useTorrentTablePersistence = (
-    initialState: TorrentTablePersistentState,
-    columnOrder: string[],
-    columnVisibility: VisibilityState,
-    columnSizing: Record<string, number>,
-    isColumnResizing: boolean,
-    sorting: SortingState
-) => {
+interface UseTorrentTablePersistenceParams {
+    initialState: TorrentTablePersistentState;
+    columnOrder: string[];
+    columnVisibility: VisibilityState;
+    columnSizing: Record<string, number>;
+    isColumnResizing: boolean;
+    sorting: SortingState;
+}
+
+export const useTorrentTablePersistence = ({
+    initialState,
+    columnOrder,
+    columnVisibility,
+    columnSizing,
+    isColumnResizing,
+    sorting,
+}: UseTorrentTablePersistenceParams) => {
     const { setTorrentTableState } = usePreferences();
 
     const latestStateRef = useRef({
@@ -31,7 +41,7 @@ export const useTorrentTablePersistence = (
         columnSizing: initialState.columnSizing,
         sorting: initialState.sorting,
     });
-    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saveTimeoutRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
         latestStateRef.current = {
@@ -43,17 +53,17 @@ export const useTorrentTablePersistence = (
 
         if (isColumnResizing) {
             if (saveTimeoutRef.current) {
-                window.clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current();
                 saveTimeoutRef.current = null;
             }
             return;
         }
 
         if (saveTimeoutRef.current) {
-            window.clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current();
         }
 
-        saveTimeoutRef.current = window.setTimeout(() => {
+        saveTimeoutRef.current = scheduler.scheduleTimeout(() => {
             setTorrentTableState(latestStateRef.current);
             saveTimeoutRef.current = null;
         }, TABLE_PERSIST_DEBOUNCE_MS);
@@ -70,7 +80,7 @@ export const useTorrentTablePersistence = (
         return () => {
             // NOTE: The Preferences provider owns storage persistence, so this cleanup simply flushes the last buffered state via `setTorrentTableState` before unmount.
             if (saveTimeoutRef.current) {
-                window.clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current();
                 saveTimeoutRef.current = null;
             }
             setTorrentTableState(latestStateRef.current);

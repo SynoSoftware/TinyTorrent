@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
+import { scheduler } from "@/app/services/scheduler";
 import type {
     OptimisticStatusEntry,
     OptimisticStatusMap,
@@ -159,17 +160,18 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
             }
         });
 
-        const immediateTimer = window.setTimeout(runReconcile, 0);
-        const graceExpiryTimer =
+        const cancelImmediateTimer = scheduler.scheduleTimeout(runReconcile, 0);
+        const cancelGraceExpiryTimer =
             nextGraceExpiryDelayMs === null
                 ? null
-                : window.setTimeout(runReconcile, nextGraceExpiryDelayMs + 1);
+                : scheduler.scheduleTimeout(
+                      runReconcile,
+                      nextGraceExpiryDelayMs + 1,
+                  );
 
         return () => {
-            window.clearTimeout(immediateTimer);
-            if (graceExpiryTimer !== null) {
-                window.clearTimeout(graceExpiryTimer);
-            }
+            cancelImmediateTimer();
+            cancelGraceExpiryTimer?.();
         };
     }, [torrents, storedOptimisticStatuses]);
 

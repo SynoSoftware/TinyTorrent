@@ -1,4 +1,5 @@
 import { STATUS } from "@/shared/status";
+import { scheduler } from "@/app/services/scheduler";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type {
     AddTorrentPayload,
@@ -33,6 +34,7 @@ export class DevTestAdapter implements EngineAdapter {
     private faultMode: DevTestFaultMode;
     private verifyFails: boolean;
     private readonly verifyDelayMs = 450;
+    private cancelVerifyTimeout: (() => void) | null = null;
 
     constructor(
         initialDetail: TorrentDetailEntity,
@@ -175,11 +177,13 @@ export class DevTestAdapter implements EngineAdapter {
             state: STATUS.torrent.CHECKING,
             verificationProgress: 0.2,
         });
-        window.setTimeout(() => {
+        this.cancelVerifyTimeout?.();
+        this.cancelVerifyTimeout = scheduler.scheduleTimeout(() => {
             this.updateDetail({
                 state: STATUS.torrent.PAUSED,
                 verificationProgress: 1,
             });
+            this.cancelVerifyTimeout = null;
         }, this.verifyDelayMs);
     }
 
@@ -245,5 +249,8 @@ export class DevTestAdapter implements EngineAdapter {
         };
     }
 
-    destroy(): void {}
+    destroy(): void {
+        this.cancelVerifyTimeout?.();
+        this.cancelVerifyTimeout = null;
+    }
 }

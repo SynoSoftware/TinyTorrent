@@ -126,7 +126,7 @@ const DEFAULT_TIMERS = {
 
 export const TOAST_DISPLAY_DURATION_MS = readNumber(
     uiConfig.toast_display_duration_ms,
-    DEFAULT_UI.toast_display_duration_ms
+    DEFAULT_UI.toast_display_duration_ms,
 );
 
 export const DEFAULT_RPC_ENDPOINT =
@@ -143,27 +143,27 @@ export const MAGNET_PROTOCOL_PREFIX =
 
 export const HISTORY_DATA_POINTS = readNumber(
     performanceConfig.history_data_points,
-    DEFAULT_PERFORMANCE.history_data_points
+    DEFAULT_PERFORMANCE.history_data_points,
 );
 
 export const HEARTBEAT_MAX_DELTA_CYCLES = readNumber(
     performanceConfig.max_delta_cycles,
-    DEFAULT_PERFORMANCE.max_delta_cycles
+    DEFAULT_PERFORMANCE.max_delta_cycles,
 );
 
 export const HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS = readNumber(
     performanceConfig.min_immediate_tick_ms,
-    DEFAULT_PERFORMANCE.min_immediate_tick_ms
+    DEFAULT_PERFORMANCE.min_immediate_tick_ms,
 );
 
 export const READ_RPC_CACHE_TTL_MS = readNumber(
     performanceConfig.read_rpc_cache_ms,
-    DEFAULT_PERFORMANCE.read_rpc_cache_ms
+    DEFAULT_PERFORMANCE.read_rpc_cache_ms,
 );
 
 export const TRANSPORT_CACHE_TTL_MS = readNumber(
     performanceConfig.transport_cache_ttl_ms,
-    DEFAULT_PERFORMANCE.transport_cache_ttl_ms
+    DEFAULT_PERFORMANCE.transport_cache_ttl_ms,
 );
 
 // --- SHELL (Classic / Immersive) ---
@@ -200,19 +200,19 @@ const immersiveShellConfig = asRecord(shellConfig.immersive);
 // Classic shell metrics (default for shared layout)
 const classicOuterRadius = readNumber(
     classicShellConfig.outer_radius,
-    DEFAULT_SHELL_CLASSIC.outer_radius
+    DEFAULT_SHELL_CLASSIC.outer_radius,
 );
 const classicRingPadding = readNumber(
     classicShellConfig.ring_padding,
-    DEFAULT_SHELL_CLASSIC.ring_padding
+    DEFAULT_SHELL_CLASSIC.ring_padding,
 );
 const classicPanelGap = readNumber(
     classicShellConfig.panel_gap,
-    DEFAULT_SHELL_CLASSIC.panel_gap
+    DEFAULT_SHELL_CLASSIC.panel_gap,
 );
 const classicHandleHitArea = readNumber(
     classicShellConfig.handle_hit_area,
-    DEFAULT_SHELL_CLASSIC.handle_hit_area
+    DEFAULT_SHELL_CLASSIC.handle_hit_area,
 );
 const classicInnerRadius = Math.max(0, classicOuterRadius - classicRingPadding);
 const classicInsetRadius = Math.max(0, classicInnerRadius - classicPanelGap);
@@ -228,15 +228,15 @@ const immersivePanelGap = readNumber(immersiveShellConfig.panel_gap, 0);
 // Increase immersive shell resize / handle hit-box to 20px by default
 const immersiveHandleHitArea = readNumber(
     immersiveShellConfig.handle_hit_area,
-    DEFAULT_SHELL_IMMERSIVE.handle_hit_area
+    DEFAULT_SHELL_IMMERSIVE.handle_hit_area,
 );
 const immersiveInnerRadius = Math.max(
     0,
-    immersiveOuterRadius - immersiveRingPadding
+    immersiveOuterRadius - immersiveRingPadding,
 );
 const immersiveInsetRadius = Math.max(
     0,
-    immersiveInnerRadius - immersivePanelGap
+    immersiveInnerRadius - immersivePanelGap,
 );
 
 export type ShellStyle = "classic" | "immersive";
@@ -348,26 +348,26 @@ export const LAYOUT_METRICS = {
 export const STATUS_CHIP_GAP = Math.max(2, LAYOUT_METRICS.panelGap);
 export const STATUS_CHIP_RADIUS = Math.max(
     2,
-    Math.round(LAYOUT_METRICS.innerRadius / 2)
+    Math.round(LAYOUT_METRICS.innerRadius / 2),
 );
 
 // Immersive workspace chrome tokens (owned by the immersive shell)
 export const IMMERSIVE_CHROME_PADDING = readNumber(
     immersiveShellConfig.chrome_padding,
-    DEFAULT_SHELL_IMMERSIVE.chrome_padding
+    DEFAULT_SHELL_IMMERSIVE.chrome_padding,
 );
 export const IMMERSIVE_MAIN_PADDING = readNumber(
     immersiveShellConfig.main_padding,
-    DEFAULT_SHELL_IMMERSIVE.main_padding
+    DEFAULT_SHELL_IMMERSIVE.main_padding,
 );
 export const IMMERSIVE_MAIN_CONTENT_PADDING = readNumber(
     immersiveShellConfig.main_content_padding,
-    immersivePanelGap
+    immersivePanelGap,
 );
 export const IMMERSIVE_MAIN_INNER_RADIUS = immersiveOuterRadius;
 export const IMMERSIVE_HUD_CARD_RADIUS = readNumber(
     immersiveShellConfig.hud_card_radius,
-    DEFAULT_SHELL_IMMERSIVE.hud_card_radius
+    DEFAULT_SHELL_IMMERSIVE.hud_card_radius,
 );
 
 export const IMMERSIVE_CHROME_RADIUS =
@@ -402,14 +402,8 @@ const uiLayout = asRecord(layoutConfig.ui);
 const scaleCfgTop = asRecord(uiLayout.scale);
 export const SCALE_BASES = {
     unit: readNumber(scaleCfgTop.unit, 4),
-    fontBase: readNumber(
-        scaleCfgTop.font_base ?? scaleCfgTop.fontBase,
-        11
-    ),
-    zoom: readNumber(
-        scaleCfgTop.zoom ?? scaleCfgTop.level ?? 1,
-        1
-    ),
+    fontBase: readNumber(scaleCfgTop.font_base ?? scaleCfgTop.fontBase, 11),
+    zoom: readNumber(scaleCfgTop.zoom ?? scaleCfgTop.level ?? 1, 1),
 };
 
 export const UI_BASES = {
@@ -507,7 +501,7 @@ const iconography = constants.iconography ?? {};
 const iconographyStrokeWidth = readNumber(iconography.stroke_width, 1.5);
 const iconographyStrokeWidthDense = readNumber(
     iconography.stroke_width_dense,
-    1.2
+    1.2,
 );
 
 export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth})`;
@@ -528,7 +522,7 @@ export const CELL_BASE_CLASS =
 // base so color, padding and typography remain consistent.
 // `HEADER_BASE` is typography-only: casing, scale, tracking and subdued text color.
 // It must NOT include background, padding, grid, border, or rounding.
-// 
+//
 // DEPRECATED: Use TEXT_ROLE.label from @/config/textRoles instead
 export const HEADER_BASE =
     "text-label font-bold uppercase tracking-label text-foreground/60";
@@ -692,15 +686,15 @@ export const STATUS_VISUALS: Record<
 
 export const TABLE_REFRESH_INTERVAL_MS = readNumber(
     heartbeatConfig.table_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.table_refresh_interval_ms
+    DEFAULT_HEARTBEATS.table_refresh_interval_ms,
 );
 export const DETAIL_REFRESH_INTERVAL_MS = readNumber(
     heartbeatConfig.detail_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.detail_refresh_interval_ms
+    DEFAULT_HEARTBEATS.detail_refresh_interval_ms,
 );
 export const BACKGROUND_REFRESH_INTERVAL_MS = readNumber(
     heartbeatConfig.background_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.background_refresh_interval_ms
+    DEFAULT_HEARTBEATS.background_refresh_interval_ms,
 );
 export const HEARTBEAT_INTERVALS = {
     detail: DETAIL_REFRESH_INTERVAL_MS,
@@ -710,47 +704,47 @@ export const HEARTBEAT_INTERVALS = {
 
 export const CLIPBOARD_BADGE_DURATION_MS = readNumber(
     timerConfig.clipboard_badge_duration_ms,
-    DEFAULT_TIMERS.clipboard_badge_duration_ms
+    DEFAULT_TIMERS.clipboard_badge_duration_ms,
 );
 
 export const FOCUS_RESTORE_DELAY_MS = readNumber(
     timerConfig.focus_restore_delay_ms,
-    DEFAULT_TIMERS.focus_restore_delay_ms
+    DEFAULT_TIMERS.focus_restore_delay_ms,
 );
 
 export const MAGNET_EVENT_DEDUP_WINDOW_MS = readNumber(
     timerConfig.magnet_event_dedup_window_ms,
-    DEFAULT_TIMERS.magnet_event_dedup_window_ms
+    DEFAULT_TIMERS.magnet_event_dedup_window_ms,
 );
 
 export const ACTION_FEEDBACK_START_TOAST_DURATION_MS = readNumber(
     timerConfig.action_feedback_start_toast_duration_ms,
-    DEFAULT_TIMERS.action_feedback_start_toast_duration_ms
+    DEFAULT_TIMERS.action_feedback_start_toast_duration_ms,
 );
 
 export const OPTIMISTIC_CHECKING_GRACE_MS = readNumber(
     timerConfig.optimistic_checking_grace_ms,
-    DEFAULT_TIMERS.optimistic_checking_grace_ms
+    DEFAULT_TIMERS.optimistic_checking_grace_ms,
 );
 
 export const WS_RECONNECT_INITIAL_DELAY_MS = readNumber(
     wsReconnectConfig.initial_delay_ms,
-    DEFAULT_TIMERS.ws_reconnect.initial_delay_ms
+    DEFAULT_TIMERS.ws_reconnect.initial_delay_ms,
 );
 
 export const WS_RECONNECT_MAX_DELAY_MS = readNumber(
     wsReconnectConfig.max_delay_ms,
-    DEFAULT_TIMERS.ws_reconnect.max_delay_ms
+    DEFAULT_TIMERS.ws_reconnect.max_delay_ms,
 );
 
 export const GHOST_TIMEOUT_MS = readNumber(
     timerConfig.ghost_timeout_ms,
-    DEFAULT_TIMERS.ghost_timeout_ms
+    DEFAULT_TIMERS.ghost_timeout_ms,
 );
 
 export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
     timerConfig.table_persist_debounce_ms,
-    DEFAULT_TIMERS.table_persist_debounce_ms
+    DEFAULT_TIMERS.table_persist_debounce_ms,
 );
 
 const configuredRecoveryPollInterval =
@@ -759,47 +753,46 @@ const configuredRecoveryPollInterval =
     readOptionalNumber(recoveryTimerConfig.probe_interval_ms);
 
 export const RECOVERY_POLL_INTERVAL_MS =
-    configuredRecoveryPollInterval ??
-    DEFAULT_TIMERS.recovery.poll_interval_ms;
+    configuredRecoveryPollInterval ?? DEFAULT_TIMERS.recovery.poll_interval_ms;
 
 export const RECOVERY_RETRY_COOLDOWN_MS = readNumber(
     recoveryTimerConfig.retry_cooldown_ms,
-    DEFAULT_TIMERS.recovery.retry_cooldown_ms
+    DEFAULT_TIMERS.recovery.retry_cooldown_ms,
 );
 
 export const RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS = readNumber(
     recoveryTimerConfig.modal_resolved_auto_close_delay_ms,
-    DEFAULT_TIMERS.recovery.modal_resolved_auto_close_delay_ms
+    DEFAULT_TIMERS.recovery.modal_resolved_auto_close_delay_ms,
 );
 
 export const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = readNumber(
     recoveryTimerConfig.modal_resolved_countdown_tick_ms,
-    DEFAULT_TIMERS.recovery.modal_resolved_countdown_tick_ms
+    DEFAULT_TIMERS.recovery.modal_resolved_countdown_tick_ms,
 );
 
 export const RECOVERY_PICK_PATH_SUCCESS_DELAY_MS = readNumber(
     recoveryTimerConfig.pick_path_success_delay_ms,
-    DEFAULT_TIMERS.recovery.pick_path_success_delay_ms
+    DEFAULT_TIMERS.recovery.pick_path_success_delay_ms,
 );
 
 export const RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS = readNumber(
     recoveryTimerConfig.active_state_poll_interval_ms,
-    DEFAULT_TIMERS.recovery.active_state_poll_interval_ms
+    DEFAULT_TIMERS.recovery.active_state_poll_interval_ms,
 );
 
 export const RECOVERY_PROBE_POLL_INTERVAL_MS = readNumber(
     recoveryTimerConfig.probe_poll_interval_ms,
-    DEFAULT_TIMERS.recovery.probe_poll_interval_ms
+    DEFAULT_TIMERS.recovery.probe_poll_interval_ms,
 );
 
 export const RECOVERY_PROBE_TIMEOUT_MS = readNumber(
     recoveryTimerConfig.probe_timeout_ms,
-    DEFAULT_TIMERS.recovery.probe_timeout_ms
+    DEFAULT_TIMERS.recovery.probe_timeout_ms,
 );
 
 export const RECOVERY_VERIFY_WATCH_INTERVAL_MS = readNumber(
     recoveryTimerConfig.verify_watch_interval_ms,
-    DEFAULT_TIMERS.recovery.verify_watch_interval_ms
+    DEFAULT_TIMERS.recovery.verify_watch_interval_ms,
 );
 
 export interface DragOverlayRootConfig {
@@ -864,7 +857,7 @@ export interface InteractionConfig {
 }
 
 const normalizeDragOverlay = (
-    dragOverlay: DragOverlayConfig
+    dragOverlay: DragOverlayConfig,
 ): DragOverlayConfig => ({
     ...dragOverlay,
     layers: dragOverlay.layers.map((layer) => ({
@@ -1053,7 +1046,7 @@ export const HEATMAP_HOVER_STROKE_INSET =
 export const HEATMAP_CELL_STROKE_INSET =
     DETAILS_AVAILABILITY_HEATMAP.cell_stroke_inset;
 export const HEATMAP_USE_UI_SAMPLING_SHIM = Boolean(
-    DETAILS_AVAILABILITY_HEATMAP.use_ui_sampling_shim
+    DETAILS_AVAILABILITY_HEATMAP.use_ui_sampling_shim,
 );
 
 export const DETAILS_SPEED_CHART = DETAILS_VISUALIZATIONS.speed_chart;

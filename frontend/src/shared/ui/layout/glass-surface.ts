@@ -1,4 +1,5 @@
-import { HEADER_BASE, SURFACE_BORDER } from "@/config/logic";
+import { SURFACE_BORDER } from "@/config/logic";
+import { TEXT_ROLE } from "@/config/textRoles";
 
 // Reusable glass surface styling for popups and dropdowns.
 export const GLASS_MODAL_SURFACE =
@@ -14,7 +15,7 @@ export const MENU_SURFACE_FRAME =
 export const MENU_SURFACE_LIST = "overflow-hidden";
 export const MENU_ITEM_SURFACE =
     "rounded-panel px-panel py-tight text-scaled font-medium transition-colors hover:bg-content2/70 hover:text-foreground active:bg-content2/80";
-export const MENU_SECTION_HEADING = `${HEADER_BASE} text-xs`;
+export const MENU_SECTION_HEADING = TEXT_ROLE.label;
 export const PANEL_SURFACE_FRAME =
     "rounded-panel border border-default/10 overflow-hidden";
 export const PANEL_SURFACE_INSET_FRAME =
@@ -22,8 +23,7 @@ export const PANEL_SURFACE_INSET_FRAME =
 export const PANE_SURFACE_FRAME =
     "flex flex-col min-h-0 overflow-hidden rounded-panel border border-default/20 shadow-small";
 export const GLASS_TOOLTIP_CLASSNAMES = {
-    content:
-        `bg-content1/80 border ${SURFACE_BORDER} backdrop-blur-3xl shadow-visual-large rounded-2xl px-panel py-tight text-scaled leading-tight text-foreground/90`,
+    content: `bg-content1/80 border ${SURFACE_BORDER} backdrop-blur-3xl shadow-visual-large rounded-2xl px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: "bg-content1/80",
 } as const;
 export const INPUT_CLASSNAMES_MONO_SURFACE = {
