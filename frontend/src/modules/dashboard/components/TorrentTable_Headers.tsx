@@ -6,7 +6,7 @@ import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/tor
 import { cn } from "@heroui/react";
 import {
     TableHeaderContent,
-    getColumnWidthVarName,
+    getColumnWidthCss,
 } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
@@ -29,12 +29,11 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 transition-all",
+                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) transition-all",
                 PANEL_SHADOW,
             )}
             style={{
-                [getColumnWidthVarName(column.id) as any]:
-                    `${column.getSize()}px`,
+                width: getColumnWidthCss(column.id, column.getSize()),
                 boxSizing: "border-box",
             }}
         >
