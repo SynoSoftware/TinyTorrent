@@ -5,16 +5,13 @@ import { STATUS } from "@/shared/status";
 import {
     cloneDevTorrentDetail,
     DEV_RECOVERY_TORRENT_ID,
-    type DevRecoveryFaultMode,
-    type DevRecoveryScenarioDefinition,
-    type DevRecoveryScenarioId,
+    type DevTestFaultMode,
+    type DevTestScenarioDefinition,
+    type DevTestScenarioId,
 } from "@/app/dev/recovery/scenarios";
-import type { DevRecoveryPlaygroundController } from "@/app/dev/recovery/useDevRecoveryPlaygroundController";
+import type { DevTestController } from "@/app/dev/recovery/useDevTestController";
 
-type TranslateFn = (
-    key: string,
-    options?: Record<string, unknown>,
-) => string;
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 export type RecoverySystemEventRunStatus =
     | "idle"
@@ -30,9 +27,9 @@ export type RecoverySystemEventCaseId =
 
 type RecoverySystemEventCase = {
     id: RecoverySystemEventCaseId;
-    scenarioId: DevRecoveryScenarioId;
-    expectedKind: DevRecoveryScenarioDefinition["kind"];
-    initialFaultMode: DevRecoveryFaultMode;
+    scenarioId: DevTestScenarioId;
+    expectedKind: DevTestScenarioDefinition["kind"];
+    initialFaultMode: DevTestFaultMode;
     verifyFails: boolean;
     labelKey: string;
     eventKey: string;
@@ -40,7 +37,7 @@ type RecoverySystemEventCase = {
 
 export type RecoverySystemEventCaseResult = {
     caseId: RecoverySystemEventCaseId;
-    scenarioId: DevRecoveryScenarioId;
+    scenarioId: DevTestScenarioId;
     labelKey: string;
     eventKey: string;
     status: "passed" | "failed";
@@ -62,8 +59,8 @@ const SYSTEM_EVENT_CASES: RecoverySystemEventCase[] = [
         expectedKind: "pathLoss",
         initialFaultMode: "disk_full",
         verifyFails: false,
-        labelKey: "dev.recovery_playground.system.case.disk_space_restored",
-        eventKey: "dev.recovery_playground.system.event.space_freed",
+        labelKey: "dev.test.system.case.disk_space_restored",
+        eventKey: "dev.test.system.event.space_freed",
     },
     {
         id: "volume_replugged",
@@ -71,8 +68,8 @@ const SYSTEM_EVENT_CASES: RecoverySystemEventCase[] = [
         expectedKind: "volumeLoss",
         initialFaultMode: "missing",
         verifyFails: false,
-        labelKey: "dev.recovery_playground.system.case.volume_replugged",
-        eventKey: "dev.recovery_playground.system.event.drive_replugged",
+        labelKey: "dev.test.system.case.volume_replugged",
+        eventKey: "dev.test.system.event.drive_replugged",
     },
     {
         id: "path_restored",
@@ -80,8 +77,8 @@ const SYSTEM_EVENT_CASES: RecoverySystemEventCase[] = [
         expectedKind: "pathLoss",
         initialFaultMode: "missing",
         verifyFails: false,
-        labelKey: "dev.recovery_playground.system.case.path_restored",
-        eventKey: "dev.recovery_playground.system.event.path_created",
+        labelKey: "dev.test.system.case.path_restored",
+        eventKey: "dev.test.system.event.path_created",
     },
     {
         id: "permissions_restored",
@@ -89,8 +86,8 @@ const SYSTEM_EVENT_CASES: RecoverySystemEventCase[] = [
         expectedKind: "accessDenied",
         initialFaultMode: "access_denied",
         verifyFails: false,
-        labelKey: "dev.recovery_playground.system.case.permissions_restored",
-        eventKey: "dev.recovery_playground.system.event.permissions_fixed",
+        labelKey: "dev.test.system.case.permissions_restored",
+        eventKey: "dev.test.system.event.permissions_fixed",
     },
 ];
 
@@ -125,7 +122,7 @@ const waitForCondition = async (
     return false;
 };
 
-const waitForCompletionWithTimeout = async <T,>(
+const waitForCompletionWithTimeout = async <T>(
     completion: Promise<T>,
     timeoutMs: number,
     timeoutError: string,
@@ -151,17 +148,20 @@ const isRecoveryActiveState = (state: string): boolean =>
 export interface RecoverySystemEventRunner {
     status: RecoverySystemEventRunStatus;
     results: RecoverySystemEventCaseResult[];
-    resultByCaseId: Map<RecoverySystemEventCaseId, RecoverySystemEventCaseResult>;
+    resultByCaseId: Map<
+        RecoverySystemEventCaseId,
+        RecoverySystemEventCaseResult
+    >;
     summaryText: string;
     runSystemEvents: () => Promise<void>;
 }
 
-export function useDevRecoverySystemEventRunner({
+export function useDevTestSystemEventRunner({
     t,
     controller,
 }: {
     t: TranslateFn;
-    controller: DevRecoveryPlaygroundController;
+    controller: DevTestController;
 }): RecoverySystemEventRunner {
     const [status, setStatus] = useState<RecoverySystemEventRunStatus>("idle");
     const [results, setResults] = useState<RecoverySystemEventCaseResult[]>([]);
@@ -267,7 +267,7 @@ export function useDevRecoverySystemEventRunner({
                     labelKey: testCase.labelKey,
                     eventKey: testCase.eventKey,
                     status: "passed",
-                    details: t("dev.recovery_playground.system.case_passed", {
+                    details: t("dev.test.system.case_passed", {
                         state: afterState,
                     }),
                     beforeState,
@@ -292,7 +292,7 @@ export function useDevRecoverySystemEventRunner({
                     details:
                         error instanceof Error
                             ? error.message
-                            : t("dev.recovery_playground.smoke.error_unknown"),
+                            : t("dev.test.smoke.error_unknown"),
                     beforeState,
                     afterState,
                     resumed,
@@ -335,8 +335,8 @@ export function useDevRecoverySystemEventRunner({
 
     const summaryText =
         status === "idle"
-            ? t("dev.recovery_playground.system.idle")
-            : t("dev.recovery_playground.system.summary", {
+            ? t("dev.test.system.idle")
+            : t("dev.test.system.summary", {
                   passed: passedCount,
                   total: SYSTEM_EVENT_CASES.length,
               });

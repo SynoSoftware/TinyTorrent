@@ -11,13 +11,13 @@ import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
-import { DevRecoveryAdapter } from "@/app/dev/recovery/adapter";
+import { DevTestAdapter } from "@/app/dev/recovery/adapter";
 import {
     cloneDevTorrentDetail,
     createDevScenarioTorrent,
-    DEV_RECOVERY_SCENARIOS,
-    type DevRecoveryFaultMode,
-    type DevRecoveryScenarioId,
+    DEV_TEST_SCENARIOS,
+    type DevTestFaultMode,
+    type DevTestScenarioId,
 } from "@/app/dev/recovery/scenarios";
 import type { TorrentDetailEntity } from "@/services/rpc/entities";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
@@ -59,7 +59,7 @@ type RecoveryControllerRef = {
 type ControllerHarnessProps = {
     controllerRef: RecoveryControllerRef;
     initialDetail: TorrentDetailEntity;
-    initialFaultMode: DevRecoveryFaultMode;
+    initialFaultMode: DevTestFaultMode;
 };
 
 function RecoveryControllerHarness({
@@ -68,7 +68,7 @@ function RecoveryControllerHarness({
     initialFaultMode,
 }: ControllerHarnessProps) {
     const adapter = useMemo(() => {
-        const instance = new DevRecoveryAdapter(initialDetail, initialFaultMode);
+        const instance = new DevTestAdapter(initialDetail, initialFaultMode);
         instance.configure({
             detail: initialDetail,
             faultMode: initialFaultMode,
@@ -108,7 +108,9 @@ function RecoveryControllerHarness({
     }, []);
 
     const dispatch = useCallback(
-        async (intent: TorrentIntentExtended): Promise<TorrentDispatchOutcome> => {
+        async (
+            intent: TorrentIntentExtended,
+        ): Promise<TorrentDispatchOutcome> => {
             try {
                 if (intent.type === "ENSURE_TORRENT_ACTIVE") {
                     await adapter.resume([String(intent.torrentId)]);
@@ -173,8 +175,8 @@ type MountedHarness = {
 };
 
 type MountOptions = {
-    scenarioId: DevRecoveryScenarioId;
-    faultMode?: DevRecoveryFaultMode;
+    scenarioId: DevTestScenarioId;
+    faultMode?: DevTestFaultMode;
     mutateTorrent?: (torrent: TorrentDetailEntity) => TorrentDetailEntity;
 };
 
@@ -207,8 +209,8 @@ const mountHarness = async ({
     mutateTorrent,
 }: MountOptions): Promise<MountedHarness> => {
     const scenario =
-        DEV_RECOVERY_SCENARIOS.find((item) => item.id === scenarioId) ??
-        DEV_RECOVERY_SCENARIOS[0];
+        DEV_TEST_SCENARIOS.find((item) => item.id === scenarioId) ??
+        DEV_TEST_SCENARIOS[0];
     const baseTorrent = createDevScenarioTorrent(scenario, "certain");
     const torrent = mutateTorrent ? mutateTorrent(baseTorrent) : baseTorrent;
     const controllerRef: RecoveryControllerRef = { current: null };
@@ -252,7 +254,8 @@ describe("useRecoveryController request contract", () => {
                 ...mounted.torrent,
                 errorEnvelope: undefined,
             };
-            const outcome = controller.actions.openRecoveryModal(notActionableTorrent);
+            const outcome =
+                controller.actions.openRecoveryModal(notActionableTorrent);
             expect(outcome).toEqual({ status: "not_actionable" });
         } finally {
             await mounted.cleanup();
@@ -274,7 +277,10 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
                 3_000,
             );
 
@@ -329,7 +335,10 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
                 3_000,
             );
             readController(mounted.controllerRef).modal.close();

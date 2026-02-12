@@ -3,49 +3,49 @@ import { useTranslation } from "react-i18next";
 import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
 import {
     devFaultModeLabelKey,
-    DEV_RECOVERY_SCENARIOS,
+    DEV_TEST_SCENARIOS,
     devRecoveryScenarioById,
-    type DevRecoveryFaultMode,
-    type DevRecoveryScenarioId,
+    type DevTestFaultMode as DevTestFaultMode,
+    type DevTestScenarioId,
 } from "@/app/dev/recovery/scenarios";
-import { useDevRecoveryPlaygroundController } from "@/app/dev/recovery/useDevRecoveryPlaygroundController";
+import { useDevTestController } from "@/app/dev/recovery/useDevTestController";
 import {
     RECOVERY_SMOKE_CASES,
-    useDevRecoverySmokeRunner,
-} from "@/app/dev/recovery/useDevRecoverySmokeRunner";
+    useDevTestSmokeRunner,
+} from "@/app/dev/recovery/useDevTestSmokeRunner";
 import {
     SYSTEM_EVENT_CASES,
-    useDevRecoverySystemEventRunner,
-} from "@/app/dev/recovery/useDevRecoverySystemEventRunner";
+    useDevTestSystemEventRunner,
+} from "@/app/dev/recovery/useDevTestSystemEventRunner";
 import type { RecoveryConfidence } from "@/services/rpc/entities";
 import type { ClipboardWriteOutcome } from "@/shared/utils/clipboard";
 import { writeClipboardOutcome } from "@/shared/utils/clipboard";
 
 type CompletionStatus = "applied" | "cancelled" | "failed" | "pending";
 
-export interface DevRecoveryChoiceOption<TId extends string> {
+export interface DevTestChoiceOption<TId extends string> {
     id: TId;
     label: string;
     isSelected: boolean;
     onSelect: () => void;
 }
 
-export interface DevRecoveryScenarioOption {
-    id: DevRecoveryScenarioId;
+export interface DevTestScenarioOption {
+    id: DevTestScenarioId;
     label: string;
     kindLabel: string;
     isSelected: boolean;
     onSelect: () => void;
 }
 
-export interface DevRecoveryStateRowViewModel {
+export interface DevTestStateRowViewModel {
     id: "current" | "modal" | "last_outcome";
     label: string;
     value: string;
 }
 
-export interface DevRecoveryAssertionRowViewModel {
-    id: DevRecoveryScenarioId;
+export interface DevTestAssertionRowViewModel {
+    id: DevTestScenarioId;
     label: string;
     expectedLabel: string;
     actualLabel: string;
@@ -53,14 +53,14 @@ export interface DevRecoveryAssertionRowViewModel {
     reasonLabel: string | null;
 }
 
-export interface DevRecoverySmokeRowViewModel {
-    id: DevRecoveryScenarioId;
+export interface DevTestSmokeRowViewModel {
+    id: DevTestScenarioId;
     label: string;
     details: string | null;
     statusLabel: string;
 }
 
-export interface DevRecoverySystemEventRowViewModel {
+export interface DevTestSystemEventRowViewModel {
     id: string;
     label: string;
     eventLabel: string;
@@ -71,7 +71,7 @@ export interface DevRecoverySystemEventRowViewModel {
     details: string | null;
 }
 
-export interface DevRecoveryPlaygroundViewModel {
+export interface DevTestViewModel {
     header: {
         title: string;
         subtitle: string;
@@ -79,11 +79,11 @@ export interface DevRecoveryPlaygroundViewModel {
     };
     scenario: {
         title: string;
-        options: DevRecoveryScenarioOption[];
+        options: DevTestScenarioOption[];
     };
     confidence: {
         title: string;
-        options: DevRecoveryChoiceOption<RecoveryConfidence>[];
+        options: DevTestChoiceOption<RecoveryConfidence>[];
     };
     controls: {
         title: string;
@@ -91,7 +91,7 @@ export interface DevRecoveryPlaygroundViewModel {
         verifyFailsSelected: boolean;
         setVerifyFails: (value: boolean) => void;
         faultModeLabel: string;
-        faultModes: DevRecoveryChoiceOption<DevRecoveryFaultMode>[];
+        faultModes: DevTestChoiceOption<DevTestFaultMode>[];
     };
     actions: {
         applyScenarioLabel: string;
@@ -104,7 +104,7 @@ export interface DevRecoveryPlaygroundViewModel {
         markPathAvailableDisabled: boolean;
     };
     state: {
-        rows: DevRecoveryStateRowViewModel[];
+        rows: DevTestStateRowViewModel[];
     };
     smoke: {
         title: string;
@@ -113,8 +113,8 @@ export interface DevRecoveryPlaygroundViewModel {
         runDisabled: boolean;
         run: () => void;
         assertionTitle: string;
-        assertions: DevRecoveryAssertionRowViewModel[];
-        rows: DevRecoverySmokeRowViewModel[];
+        assertions: DevTestAssertionRowViewModel[];
+        rows: DevTestSmokeRowViewModel[];
     };
     system: {
         title: string;
@@ -129,24 +129,27 @@ export interface DevRecoveryPlaygroundViewModel {
             before: string;
             after: string;
         };
-        rows: DevRecoverySystemEventRowViewModel[];
+        rows: DevTestSystemEventRowViewModel[];
     };
     footer: null | {
         scenarioLabel: string;
         scenarioKindLabel: string;
         expectedBehavior: string;
+        summary: string;
         copyLabel: string;
         copy: () => void;
         copyStatusLabel: string | null;
+        isExpanded: boolean;
+        toggleExpanded: () => void;
     };
     recoveryModalViewModel: RecoveryModalViewModel;
 }
 
-export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewModel {
+export function useDevTestViewModel(): DevTestViewModel {
     const { t } = useTranslation();
-    const controller = useDevRecoveryPlaygroundController({ t });
-    const smoke = useDevRecoverySmokeRunner({ t, controller });
-    const systemRunner = useDevRecoverySystemEventRunner({ t, controller });
+    const controller = useDevTestController({ t });
+    const smoke = useDevTestSmokeRunner({ t, controller });
+    const systemRunner = useDevTestSystemEventRunner({ t, controller });
     const [clipboardStatus, setClipboardStatus] = useState<
         ClipboardWriteOutcome["status"] | null
     >(null);
@@ -158,16 +161,16 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
 
     const resolveCompletionLabel = useCallback(
         (status: CompletionStatus) =>
-            t(`dev.recovery_playground.assertion.completion.${status}`),
+            t(`dev.test.assertion.completion.${status}`),
         [t],
     );
 
-    const scenarioOptions = useMemo<DevRecoveryScenarioOption[]>(
+    const scenarioOptions = useMemo<DevTestScenarioOption[]>(
         () =>
-            DEV_RECOVERY_SCENARIOS.map((scenario) => ({
+            DEV_TEST_SCENARIOS.map((scenario) => ({
                 id: scenario.id,
                 label: t(scenario.labelKey),
-                kindLabel: t(`dev.recovery_playground.kind.${scenario.kind}`),
+                kindLabel: t(`dev.test.kind.${scenario.kind}`),
                 isSelected: controller.selectedScenarioId === scenario.id,
                 onSelect: () => {
                     controller.setSelectedScenarioId(scenario.id);
@@ -177,60 +180,54 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
                     );
                 },
             })),
-        [
-            controller.selectedScenarioId,
-            controller.setFaultMode,
-            controller.setSelectedScenarioId,
-            controller.setVerifyFails,
-            t,
-        ],
+        [controller, t],
     );
 
     const confidenceOptions = useMemo<
-        DevRecoveryChoiceOption<RecoveryConfidence>[]
+        DevTestChoiceOption<RecoveryConfidence>[]
     >(
         () =>
             (["certain", "likely", "unknown"] as const).map((confidence) => ({
                 id: confidence,
-                label: t(`dev.recovery_playground.confidence.${confidence}`),
+                label: t(`dev.test.confidence.${confidence}`),
                 isSelected: controller.selectedConfidence === confidence,
                 onSelect: () => controller.setSelectedConfidence(confidence),
             })),
-        [controller.selectedConfidence, controller.setSelectedConfidence, t],
+        [controller, t],
     );
 
-    const faultModeOptions = useMemo<
-        DevRecoveryChoiceOption<DevRecoveryFaultMode>[]
-    >(
+    const faultModeOptions = useMemo<DevTestChoiceOption<DevTestFaultMode>[]>(
         () =>
-            (
-                ["ok", "missing", "access_denied", "disk_full"] as const
-            ).map((faultMode) => ({
-                id: faultMode,
-                label: t(devFaultModeLabelKey[faultMode]),
-                isSelected: controller.faultMode === faultMode,
-                onSelect: () => controller.setFaultMode(faultMode),
-            })),
-        [controller.faultMode, controller.setFaultMode, t],
+            (["ok", "missing", "access_denied", "disk_full"] as const).map(
+                (faultMode) => ({
+                    id: faultMode,
+                    label: t(devFaultModeLabelKey[faultMode]),
+                    isSelected: controller.faultMode === faultMode,
+                    onSelect: () => controller.setFaultMode(faultMode),
+                }),
+            ),
+        [controller, t],
     );
 
-    const stateRows = useMemo<DevRecoveryStateRowViewModel[]>(() => {
-        const rows: DevRecoveryStateRowViewModel[] = [
+    const stateRows = useMemo<DevTestStateRowViewModel[]>(() => {
+        const rows: DevTestStateRowViewModel[] = [
             {
                 id: "current",
-                label: t("dev.recovery_playground.state.current"),
+                label: t("dev.test.state.current"),
                 value: controller.currentStateLabel,
             },
             {
                 id: "modal",
-                label: t("dev.recovery_playground.state.modal_open"),
-                value: controller.isModalOpen ? t("labels.on") : t("labels.off"),
+                label: t("dev.test.state.modal_open"),
+                value: controller.isModalOpen
+                    ? t("labels.on")
+                    : t("labels.off"),
             },
         ];
         if (controller.lastOpenOutcome) {
             rows.push({
                 id: "last_outcome",
-                label: t("dev.recovery_playground.state.last_outcome"),
+                label: t("dev.test.state.last_outcome"),
                 value: controller.lastOpenOutcome,
             });
         }
@@ -242,29 +239,29 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
         t,
     ]);
 
-    const assertions = useMemo<DevRecoveryAssertionRowViewModel[]>(
+    const assertions = useMemo<DevTestAssertionRowViewModel[]>(
         () =>
             RECOVERY_SMOKE_CASES.map((smokeCase) => {
-                const result = smoke.resultByScenarioId.get(smokeCase.scenarioId);
+                const result = smoke.resultByScenarioId.get(
+                    smokeCase.scenarioId,
+                );
                 const completion = result?.completion;
                 const expectedStatus = completion?.expected ?? "applied";
                 const actualStatus = completion?.actual ?? "pending";
                 const isMatch = completion?.actual === completion?.expected;
                 const assertionLabel = completion
                     ? isMatch
-                        ? t("dev.recovery_playground.assertion.match")
-                        : t("dev.recovery_playground.assertion.mismatch")
-                    : t("dev.recovery_playground.assertion.pending");
+                        ? t("dev.test.assertion.match")
+                        : t("dev.test.assertion.mismatch")
+                    : t("dev.test.assertion.pending");
                 return {
                     id: smokeCase.scenarioId,
-                    label: t(
-                        `dev.recovery_playground.scenario.${smokeCase.scenarioId}`,
-                    ),
-                    expectedLabel: `${t("dev.recovery_playground.assertion.expected")} ${resolveCompletionLabel(expectedStatus)}`,
-                    actualLabel: `${t("dev.recovery_playground.assertion.actual")} ${resolveCompletionLabel(actualStatus)}`,
+                    label: t(`dev.test.scenario.${smokeCase.scenarioId}`),
+                    expectedLabel: `${t("dev.test.assertion.expected")} ${resolveCompletionLabel(expectedStatus)}`,
+                    actualLabel: `${t("dev.test.assertion.actual")} ${resolveCompletionLabel(actualStatus)}`,
                     assertionLabel,
                     reasonLabel: completion?.reason
-                        ? t("dev.recovery_playground.assertion.reason", {
+                        ? t("dev.test.assertion.reason", {
                               reason: completion.reason,
                           })
                         : null,
@@ -273,22 +270,22 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
         [resolveCompletionLabel, smoke.resultByScenarioId, t],
     );
 
-    const smokeRows = useMemo<DevRecoverySmokeRowViewModel[]>(
+    const smokeRows = useMemo<DevTestSmokeRowViewModel[]>(
         () =>
             RECOVERY_SMOKE_CASES.map((smokeCase) => {
-                const result = smoke.resultByScenarioId.get(smokeCase.scenarioId);
+                const result = smoke.resultByScenarioId.get(
+                    smokeCase.scenarioId,
+                );
                 const statusLabel = result
                     ? result.status === "passed"
-                        ? t("dev.recovery_playground.smoke.status.passed")
-                        : t("dev.recovery_playground.smoke.status.failed")
+                        ? t("dev.test.smoke.status.passed")
+                        : t("dev.test.smoke.status.failed")
                     : smoke.status === "running"
-                      ? t("dev.recovery_playground.smoke.status.running")
-                      : t("dev.recovery_playground.smoke.status.pending");
+                      ? t("dev.test.smoke.status.running")
+                      : t("dev.test.smoke.status.pending");
                 return {
                     id: smokeCase.scenarioId,
-                    label: t(
-                        `dev.recovery_playground.scenario.${smokeCase.scenarioId}`,
-                    ),
+                    label: t(`dev.test.scenario.${smokeCase.scenarioId}`),
                     details: result?.details ?? null,
                     statusLabel,
                 };
@@ -296,20 +293,20 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
         [smoke.resultByScenarioId, smoke.status, t],
     );
 
-    const systemRows = useMemo<DevRecoverySystemEventRowViewModel[]>(
+    const systemRows = useMemo<DevTestSystemEventRowViewModel[]>(
         () =>
             SYSTEM_EVENT_CASES.map((testCase) => {
                 const result = systemRunner.resultByCaseId.get(testCase.id);
                 const completionLabel = result
                     ? t(
-                          `dev.recovery_playground.assertion.completion.${result.completion.actual}`,
+                          `dev.test.assertion.completion.${result.completion.actual}`,
                       )
-                    : t("dev.recovery_playground.assertion.pending");
+                    : t("dev.test.assertion.pending");
                 const resumedLabel = result
                     ? result.resumed
-                        ? t("dev.recovery_playground.system.resumed_yes")
-                        : t("dev.recovery_playground.system.resumed_no")
-                    : t("dev.recovery_playground.system.resumed_pending");
+                        ? t("dev.test.system.resumed_yes")
+                        : t("dev.test.system.resumed_no")
+                    : t("dev.test.system.resumed_pending");
                 return {
                     id: testCase.id,
                     label: t(testCase.labelKey),
@@ -324,6 +321,8 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
         [systemRunner.resultByCaseId, t],
     );
 
+    const [isFooterExpanded, setIsFooterExpanded] = useState(false);
+
     const copyContext = useCallback(async () => {
         if (!selectedScenario) {
             setClipboardStatus("empty");
@@ -331,11 +330,11 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
         }
 
         const text = [
-            `${t("dev.recovery_playground.copy.scenario")}: ${t(selectedScenario.labelKey)} (${t(`dev.recovery_playground.kind.${selectedScenario.kind}`)})`,
-            `${t("dev.recovery_playground.label.fault_mode")}: ${t(devFaultModeLabelKey[selectedScenario.faultMode])}`,
-            `${t("dev.recovery_playground.copy.error_class")}: ${selectedScenario.errorClass}`,
+            `${t("dev.test.copy.scenario")}: ${t(selectedScenario.labelKey)} (${t(`dev.test.kind.${selectedScenario.kind}`)})`,
+            `${t("dev.test.label.fault_mode")}: ${t(devFaultModeLabelKey[selectedScenario.faultMode])}`,
+            `${t("dev.test.copy.error_class")}: ${selectedScenario.errorClass}`,
             "",
-            `${t("dev.recovery_playground.copy.expected_behavior")}:`,
+            `${t("dev.test.copy.expected_behavior")}:`,
             t(selectedScenario.expectedBehaviorKey),
         ].join("\n");
 
@@ -346,37 +345,31 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
     return useMemo(
         () => ({
             header: {
-                title: t("dev.recovery_playground.title"),
-                subtitle: t("dev.recovery_playground.subtitle"),
-                backLabel: t("dev.recovery_playground.back_to_app"),
+                title: t("dev.test.title"),
+                subtitle: t("dev.test.subtitle"),
+                backLabel: t("dev.test.back_to_app"),
             },
             scenario: {
-                title: t("dev.recovery_playground.section.scenario"),
+                title: t("dev.test.section.scenario"),
                 options: scenarioOptions,
             },
             confidence: {
-                title: t("dev.recovery_playground.section.confidence"),
+                title: t("dev.test.section.confidence"),
                 options: confidenceOptions,
             },
             controls: {
-                title: t("dev.recovery_playground.section.controls"),
-                verifyFailsLabel: t(
-                    "dev.recovery_playground.toggle.verify_fails",
-                ),
+                title: t("dev.test.section.controls"),
+                verifyFailsLabel: t("dev.test.toggle.verify_fails"),
                 verifyFailsSelected: controller.verifyFails,
                 setVerifyFails: controller.setVerifyFails,
-                faultModeLabel: t("dev.recovery_playground.label.fault_mode"),
+                faultModeLabel: t("dev.test.label.fault_mode"),
                 faultModes: faultModeOptions,
             },
             actions: {
-                applyScenarioLabel: t(
-                    "dev.recovery_playground.action.apply_scenario",
-                ),
-                openRecoveryLabel: t(
-                    "dev.recovery_playground.action.open_recovery",
-                ),
+                applyScenarioLabel: t("dev.test.action.apply_scenario"),
+                openRecoveryLabel: t("dev.test.action.open_recovery"),
                 markPathAvailableLabel: t(
-                    "dev.recovery_playground.action.mark_path_available",
+                    "dev.test.action.mark_path_available",
                 ),
                 applyScenario: () => {
                     void controller.applySelectedScenario();
@@ -394,39 +387,37 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
                 rows: stateRows,
             },
             smoke: {
-                title: t("dev.recovery_playground.section.smoke"),
+                title: t("dev.test.section.smoke"),
                 summaryText: smoke.summaryText,
                 runLabel:
                     smoke.status === "running"
-                        ? t("dev.recovery_playground.action.run_smoke_running")
-                        : t("dev.recovery_playground.action.run_smoke"),
+                        ? t("dev.test.action.run_smoke_running")
+                        : t("dev.test.action.run_smoke"),
                 runDisabled: smoke.status === "running",
                 run: () => {
                     void smoke.runSmoke();
                 },
-                assertionTitle: t("dev.recovery_playground.assertion.title"),
+                assertionTitle: t("dev.test.assertion.title"),
                 assertions,
                 rows: smokeRows,
             },
             system: {
-                title: t("dev.recovery_playground.section.system_events"),
+                title: t("dev.test.section.system_events"),
                 summaryText: systemRunner.summaryText,
                 runLabel:
                     systemRunner.status === "running"
-                        ? t("dev.recovery_playground.action.run_system_running")
-                        : t("dev.recovery_playground.action.run_system"),
+                        ? t("dev.test.action.run_system_running")
+                        : t("dev.test.action.run_system"),
                 runDisabled: systemRunner.status === "running",
                 run: () => {
                     void systemRunner.runSystemEvents();
                 },
                 columns: {
-                    event: t("dev.recovery_playground.system.column.event"),
-                    completion: t(
-                        "dev.recovery_playground.system.column.completion",
-                    ),
-                    resumed: t("dev.recovery_playground.system.column.resumed"),
-                    before: t("dev.recovery_playground.system.column.before"),
-                    after: t("dev.recovery_playground.system.column.after"),
+                    event: t("dev.test.system.column.event"),
+                    completion: t("dev.test.system.column.completion"),
+                    resumed: t("dev.test.system.column.resumed"),
+                    before: t("dev.test.system.column.before"),
+                    after: t("dev.test.system.column.after"),
                 },
                 rows: systemRows,
             },
@@ -434,20 +425,21 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
                 ? {
                       scenarioLabel: t(selectedScenario.labelKey),
                       scenarioKindLabel: t(
-                          `dev.recovery_playground.kind.${selectedScenario.kind}`,
+                          `dev.test.kind.${selectedScenario.kind}`,
                       ),
                       expectedBehavior: t(selectedScenario.expectedBehaviorKey),
-                      copyLabel: t(
-                          "dev.recovery_playground.action.copy_context",
-                      ),
+                      summary: t(selectedScenario.expectedBehaviorKey).split(
+                          "\n",
+                      )[0],
+                      copyLabel: t("dev.test.action.copy_context"),
                       copy: () => {
                           void copyContext();
                       },
                       copyStatusLabel: clipboardStatus
-                          ? t(
-                                `dev.recovery_playground.clipboard.${clipboardStatus}`,
-                            )
+                          ? t(`dev.test.clipboard.${clipboardStatus}`)
                           : null,
+                      isExpanded: isFooterExpanded,
+                      toggleExpanded: () => setIsFooterExpanded((p) => !p),
                   }
                 : null,
             recoveryModalViewModel: controller.recoveryModalViewModel,
@@ -456,27 +448,17 @@ export function useDevRecoveryPlaygroundViewModel(): DevRecoveryPlaygroundViewMo
             assertions,
             clipboardStatus,
             confidenceOptions,
-            controller.applySelectedScenario,
-            controller.detailData,
-            controller.faultMode,
-            controller.openRecoveryForCurrentDetail,
-            controller.recoveryModalViewModel,
-            controller.setFaultModeLive,
-            controller.setVerifyFails,
-            controller.verifyFails,
+            controller,
             copyContext,
             faultModeOptions,
+            isFooterExpanded,
             scenarioOptions,
             selectedScenario,
-            smoke.runSmoke,
-            smoke.status,
-            smoke.summaryText,
+            smoke,
             smokeRows,
             stateRows,
             systemRows,
-            systemRunner.runSystemEvents,
-            systemRunner.status,
-            systemRunner.summaryText,
+            systemRunner,
             t,
         ],
     );

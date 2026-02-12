@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { RecoveryConfidence, TorrentDetailEntity } from "@/services/rpc/entities";
+import type {
+    RecoveryConfidence,
+    TorrentDetailEntity,
+} from "@/services/rpc/entities";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type {
@@ -10,40 +13,37 @@ import type {
 import { STATUS } from "@/shared/status";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useRecoveryModalViewModel } from "@/app/viewModels/workspaceShellModels";
-import { DevRecoveryAdapter } from "@/app/dev/recovery/adapter";
+import { DevTestAdapter } from "@/app/dev/recovery/adapter";
 import {
     cloneDevTorrentDetail,
     createDevScenarioTorrent,
-    DEV_RECOVERY_SCENARIOS,
+    DEV_TEST_SCENARIOS,
     DEV_RECOVERY_TORRENT_ID,
     devRecoveryScenarioById,
-    type DevRecoveryFaultMode,
-    type DevRecoveryScenarioId,
+    type DevTestFaultMode,
+    type DevTestScenarioId,
 } from "@/app/dev/recovery/scenarios";
 
-type TranslateFn = (
-    key: string,
-    options?: Record<string, unknown>,
-) => string;
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 export type ApplyRecoveryScenarioParams = {
-    scenarioId: DevRecoveryScenarioId;
+    scenarioId: DevTestScenarioId;
     confidence: RecoveryConfidence;
-    faultMode?: DevRecoveryFaultMode;
+    faultMode?: DevTestFaultMode;
     verifyFails?: boolean;
 };
 
-export type DevRecoveryOpenOutcome =
+export type DevTestOpenOutcome =
     | OpenRecoveryModalOutcome
     | { status: "missing_detail" };
 
-export interface DevRecoveryPlaygroundController {
-    selectedScenarioId: DevRecoveryScenarioId;
-    setSelectedScenarioId: (value: DevRecoveryScenarioId) => void;
+export interface DevTestController {
+    selectedScenarioId: DevTestScenarioId;
+    setSelectedScenarioId: (value: DevTestScenarioId) => void;
     selectedConfidence: RecoveryConfidence;
     setSelectedConfidence: (value: RecoveryConfidence) => void;
-    faultMode: DevRecoveryFaultMode;
-    setFaultMode: (value: DevRecoveryFaultMode) => void;
+    faultMode: DevTestFaultMode;
+    setFaultMode: (value: DevTestFaultMode) => void;
     verifyFails: boolean;
     setVerifyFails: (value: boolean) => void;
     lastOpenOutcome: string | null;
@@ -53,11 +53,11 @@ export interface DevRecoveryPlaygroundController {
     recoveryModalViewModel: ReturnType<typeof useRecoveryModalViewModel>;
     applyScenarioPreset: (params: ApplyRecoveryScenarioParams) => Promise<void>;
     applySelectedScenario: () => Promise<void>;
-    openRecoveryForCurrentDetail: () => DevRecoveryOpenOutcome;
+    openRecoveryForCurrentDetail: () => DevTestOpenOutcome;
     openRecoveryForTorrent: (
         torrent: Torrent | TorrentDetail,
     ) => OpenRecoveryModalOutcome;
-    setFaultModeLive: (mode: DevRecoveryFaultMode) => Promise<void>;
+    setFaultModeLive: (mode: DevTestFaultMode) => Promise<void>;
     getTorrentDetail: (id: string) => Promise<TorrentDetailEntity>;
     closeRecoveryModal: () => void;
     releaseLocationEditor: () => void;
@@ -67,28 +67,28 @@ export interface DevRecoveryPlaygroundController {
     isPrimaryActionDisabled: () => boolean;
 }
 
-export function useDevRecoveryPlaygroundController({
+export function useDevTestController({
     t,
 }: {
     t: TranslateFn;
-}): DevRecoveryPlaygroundController {
+}): DevTestController {
     const [selectedScenarioId, setSelectedScenarioId] =
-        useState<DevRecoveryScenarioId>("path_loss");
+        useState<DevTestScenarioId>("path_loss");
     const [selectedConfidence, setSelectedConfidence] =
         useState<RecoveryConfidence>("certain");
-    const [faultMode, setFaultMode] = useState<DevRecoveryFaultMode>("missing");
+    const [faultMode, setFaultMode] = useState<DevTestFaultMode>("missing");
     const [verifyFails, setVerifyFails] = useState<boolean>(false);
     const [lastOpenOutcome, setLastOpenOutcome] = useState<string | null>(null);
 
-    const initialScenario = DEV_RECOVERY_SCENARIOS.find(
-        (item) => item.id === "path_loss",
-    ) ?? DEV_RECOVERY_SCENARIOS[0];
+    const initialScenario =
+        DEV_TEST_SCENARIOS.find((item) => item.id === "path_loss") ??
+        DEV_TEST_SCENARIOS[0];
     const initialTorrent = useMemo(
         () => createDevScenarioTorrent(initialScenario, "certain"),
         [initialScenario],
     );
     const adapter = useMemo(() => {
-        const instance = new DevRecoveryAdapter(
+        const instance = new DevTestAdapter(
             initialTorrent,
             initialScenario.faultMode,
         );
@@ -115,7 +115,9 @@ export function useDevRecoveryPlaygroundController({
 
     const refreshDetailData = useCallback(async () => {
         try {
-            const next = await adapter.getTorrentDetails(DEV_RECOVERY_TORRENT_ID);
+            const next = await adapter.getTorrentDetails(
+                DEV_RECOVERY_TORRENT_ID,
+            );
             setDetailData(cloneDevTorrentDetail(next));
         } catch {
             setDetailData(null);
@@ -133,7 +135,9 @@ export function useDevRecoveryPlaygroundController({
     }, []);
 
     const dispatch = useCallback(
-        async (intent: TorrentIntentExtended): Promise<TorrentDispatchOutcome> => {
+        async (
+            intent: TorrentIntentExtended,
+        ): Promise<TorrentDispatchOutcome> => {
             try {
                 if (intent.type === "ENSURE_TORRENT_ACTIVE") {
                     await adapter.resume([String(intent.torrentId)]);
@@ -233,7 +237,7 @@ export function useDevRecoveryPlaygroundController({
         async (params: ApplyRecoveryScenarioParams) => {
             const scenario =
                 devRecoveryScenarioById.get(params.scenarioId) ??
-                DEV_RECOVERY_SCENARIOS[0];
+                DEV_TEST_SCENARIOS[0];
             const nextFaultMode = params.faultMode ?? scenario.faultMode;
             const nextVerifyFails =
                 params.verifyFails ?? Boolean(scenario.verifyFailsByDefault);
@@ -285,7 +289,7 @@ export function useDevRecoveryPlaygroundController({
         [recovery.actions],
     );
 
-    const openRecoveryForCurrentDetail = useCallback((): DevRecoveryOpenOutcome => {
+    const openRecoveryForCurrentDetail = useCallback((): DevTestOpenOutcome => {
         const currentDetail = detailDataRef.current;
         if (!currentDetail) {
             return { status: "missing_detail" };
@@ -294,7 +298,7 @@ export function useDevRecoveryPlaygroundController({
     }, [openRecoveryForTorrent]);
 
     const setFaultModeLive = useCallback(
-        async (mode: DevRecoveryFaultMode) => {
+        async (mode: DevTestFaultMode) => {
             adapter.setFaultMode(mode);
             setFaultMode(mode);
             await refreshTorrents();
