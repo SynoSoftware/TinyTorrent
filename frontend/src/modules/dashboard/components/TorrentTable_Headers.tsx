@@ -11,6 +11,7 @@ import {
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
+import { TRANSITION } from "@/config/logic";
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 
@@ -29,7 +30,7 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) transition-all",
+                `relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) ${TRANSITION.medium}`,
                 PANEL_SHADOW,
             )}
             style={{

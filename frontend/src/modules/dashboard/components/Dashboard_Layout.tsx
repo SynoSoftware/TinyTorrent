@@ -24,10 +24,32 @@ import {
     ICON_STROKE_WIDTH,
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
-    SURFACE_BORDER,
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { Section } from "@/shared/ui/layout/Section";
+import {
+    buildDashboardInspectorPanelClass,
+    buildDashboardResizeHandleClass,
+    DASHBOARD_DROP_OVERLAY_ACCENT_CLASS,
+    DASHBOARD_DROP_OVERLAY_CLASS,
+    DASHBOARD_DROP_OVERLAY_ICON_WRAP_CLASS,
+    DASHBOARD_FULLSCREEN_BACKDROP_CLASS,
+    DASHBOARD_FULLSCREEN_OVERLAY_CLASS,
+    DASHBOARD_FULLSCREEN_PANEL_CLASS,
+    DASHBOARD_FULLSCREEN_SECTION_CLASS,
+    DASHBOARD_INSPECTOR_CONTENT_CLASS,
+    DASHBOARD_LAYOUT_CONTENT_CLASS,
+    DASHBOARD_LAYOUT_CONTENT_CLASSIC_SURFACE_CLASS,
+    DASHBOARD_LAYOUT_SHELL_CLASS,
+    DASHBOARD_MAIN_PANEL_CLASS,
+    DASHBOARD_PANELGROUP_CLASS,
+    DASHBOARD_RESIZE_HANDLE_BAR_CLASS,
+    DASHBOARD_RESIZE_HANDLE_INNER_CLASS,
+    DASHBOARD_SECTION_CLASS,
+    DASHBOARD_TABLE_CONTENT_CLASS,
+    DASHBOARD_TABLE_HOST_CLASS,
+    DASHBOARD_TABLE_WATERMARK_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -183,11 +205,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         return {
             // Always include a subtle top border to prevent jump when focus highlight appears
             className: cn(
-                "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
-                "border-t border-default/10",
-                // remove active top-border color so the main container does not
-                // gain a green focus line; keep a subtle neutral divider instead.
-                "bg-transparent",
+                DASHBOARD_LAYOUT_SHELL_CLASS,
             ),
             // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
@@ -195,8 +213,8 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
     const getContentStyles = () => ({
         className: cn(
-            "relative flex-1 min-h-0 w-full h-full overflow-hidden",
-            !isImmersiveShell && "bg-background/40",
+            DASHBOARD_LAYOUT_CONTENT_CLASS,
+            !isImmersiveShell && DASHBOARD_LAYOUT_CONTENT_CLASSIC_SURFACE_CLASS,
         ),
         style: isImmersiveShell
             ? undefined
@@ -210,15 +228,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <AnimatePresence>
             {isDropActive && (
                 <motion.div
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
+                    className={DASHBOARD_DROP_OVERLAY_CLASS}
                     {...OVERLAY_FADE_ANIMATION}
                 >
                     <motion.div
-                        className="absolute inset-2 border border-primary/60"
+                        className={DASHBOARD_DROP_OVERLAY_ACCENT_CLASS}
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
                         {...DROP_OVERLAY_ACCENT_ANIMATION}
                     />
-                    <div className={cn("relative z-10", DROP_OVERLAY_ROLE)}>
+                    <div className={cn(DASHBOARD_DROP_OVERLAY_ICON_WRAP_CLASS, DROP_OVERLAY_ROLE)}>
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
@@ -238,17 +256,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className={cn(
-                "flex-1 min-h-0 h-full w-full relative overflow-hidden  rounded-2xl",
-            )}
+            className={DASHBOARD_PANELGROUP_CLASS}
             style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
-            <Panel className="relative flex-1 min-h-0 shadow-medium">
+            <Panel className={DASHBOARD_MAIN_PANEL_CLASS}>
                 <div {...getShellStyles()} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
-                            className="relative z-10 h-full min-h-0 overflow-hidden"
+                            className={DASHBOARD_TABLE_HOST_CLASS}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
@@ -256,11 +272,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             {tableWatermarkEnabled && (
                                 <div
                                     aria-hidden="true"
-                                    className="torrent-table-watermark absolute inset-0 z-0 pointer-events-none"
+                                    className={DASHBOARD_TABLE_WATERMARK_CLASS}
                                 />
                             )}
                             <div
-                                className="relative z-10 h-full min-h-0"
+                                className={DASHBOARD_TABLE_CONTENT_CLASS}
                                 style={{ borderRadius: "inherit" }}
                             >
                                 <DetailOpenProvider
@@ -284,12 +300,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
             {/* --- RESIZE HANDLE (The Gap) --- */}
             <PanelResizeHandle
-                className={cn(
-                    "group relative z-10 transition-colors focus:outline-none",
-                    isHorizontalSplit
-                        ? "cursor-col-resize"
-                        : "cursor-row-resize",
-                )}
+                className={buildDashboardResizeHandleClass(isHorizontalSplit)}
                 hitAreaMargins={{
                     coarse: shell.handleHitArea,
                     fine: shell.handleHitArea,
@@ -299,11 +310,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     flexBasis: "var(--tt-gap)",
                 }}
             >
-                <div className="absolute inset-0 flex items-center justify-center">
+                <div className={DASHBOARD_RESIZE_HANDLE_INNER_CLASS}>
                     <div
-                        className={cn(
-                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50",
-                        )}
+                        className={DASHBOARD_RESIZE_HANDLE_BAR_CLASS}
                         style={
                             isHorizontalSplit
                                 ? {
@@ -327,21 +336,18 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                 minSize={26}
                 defaultSize={34}
                 onPointerDown={focusInspector}
-                className={cn(
-                    "hidden overflow-hidden lg:flex shadow-medium",
-                    isHorizontalSplit ? "h-full" : "w-full",
-                )}
+                className={buildDashboardInspectorPanelClass(isHorizontalSplit)}
             >
                 <div {...getShellStyles()}>
                     <div {...getContentStyles()}>
                         <div
-                            className="h-full min-h-0 flex-1 "
+                            className={DASHBOARD_INSPECTOR_CONTENT_CLASS}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
                         >
                             <motion.div
-                                className="h-full min-h-0 flex-1"
+                                className={DASHBOARD_INSPECTOR_CONTENT_CLASS}
                                 initial={false}
                                 animate={
                                     isDetailOpen
@@ -367,26 +373,24 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     );
 
     return (
-        <Section className="flex-1 min-h-0 h-full">
+        <Section className={DASHBOARD_SECTION_CLASS}>
             {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
                 {detailData && isDetailFullscreenActive && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className="fixed inset-0 z-40"
+                        className={DASHBOARD_FULLSCREEN_OVERLAY_CLASS}
                         {...OVERLAY_FADE_ANIMATION}
                         transition={{ duration: 0.25 }}
                     >
                         <Section
                             padding="stage"
-                            className="relative h-full flex items-center justify-center"
+                            className={DASHBOARD_FULLSCREEN_SECTION_CLASS}
                         >
-                            <div className="absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm" />
+                            <div className={DASHBOARD_FULLSCREEN_BACKDROP_CLASS} />
                             <motion.div
-                                className={cn(
-                                    `relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${SURFACE_BORDER} shadow-medium`,
-                                )}
+                                className={DASHBOARD_FULLSCREEN_PANEL_CLASS}
                                 style={{ borderRadius: `${shell.radius}px` }}
                                 {...FULLSCREEN_PANEL_ANIMATION}
                             >

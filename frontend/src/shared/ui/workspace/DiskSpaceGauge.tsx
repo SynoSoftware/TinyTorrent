@@ -1,8 +1,12 @@
-import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { SURFACE_BORDER } from "@/config/logic";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
+import {
+    CAPACITY_GAUGE_CLASS,
+    buildCapacityGaugeContainerClass,
+    buildCapacityGaugeIndicatorClass,
+} from "@/shared/ui/layout/glass-surface";
 
 export interface DiskSpaceGaugeProps {
     freeBytes?: number;
@@ -46,24 +50,13 @@ export function DiskSpaceGauge({
         : 0;
     const { t } = useTranslation();
 
-    const indicatorClasses = cn(
-        "h-full rounded-full",
-        isInsufficient
-            ? "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
-            : "bg-gradient-to-r from-success/50 to-success"
-    );
-    const containerClasses = cn(
-        "space-y-tight rounded-xl border bg-content1/15 p-panel",
-        {
-            "border-danger/40 bg-danger/5": isInsufficient,
-            [SURFACE_BORDER]: !isInsufficient,
-        }
-    );
+    const indicatorClasses = buildCapacityGaugeIndicatorClass(Boolean(isInsufficient));
+    const containerClasses = buildCapacityGaugeContainerClass(Boolean(isInsufficient));
 
     return (
         <div className={containerClasses}>
             <div
-                className="flex items-center justify-between font-semibold uppercase text-foreground/60"
+                className={CAPACITY_GAUGE_CLASS.header}
                 style={{
                     fontSize: "var(--tt-font-size-base)",
                     letterSpacing: "var(--tt-tracking-ultra)",
@@ -72,7 +65,7 @@ export function DiskSpaceGauge({
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span
                     style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className="font-mono text-foreground/40"
+                    className={CAPACITY_GAUGE_CLASS.path}
                 >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
@@ -80,12 +73,12 @@ export function DiskSpaceGauge({
             <div className="h-sep">
                 <SmoothProgressBar
                     value={Math.min(usedPercent + torrentPercent, 100)}
-                    trackClassName="h-full bg-content1/20"
+                    trackClassName={CAPACITY_GAUGE_CLASS.progressTrack}
                     indicatorClassName={indicatorClasses}
                 />
             </div>
             <div
-                className="flex justify-between font-mono text-foreground/60"
+                className={CAPACITY_GAUGE_CLASS.stats}
                 style={{ fontSize: "var(--tt-font-size-base)" }}
             >
                 <span>
@@ -104,7 +97,7 @@ export function DiskSpaceGauge({
             {isLoading && (
                 <p
                     style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className="text-foreground/50"
+                    className={CAPACITY_GAUGE_CLASS.hint}
                 >
                     {t("modals.disk_gauge.updating")}
                 </p>
@@ -112,16 +105,16 @@ export function DiskSpaceGauge({
             {hint && !error && (
                 <p
                     style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className="text-foreground/50"
+                    className={CAPACITY_GAUGE_CLASS.hint}
                 >
                     {hint}
                 </p>
             )}
             {error && (
-                <div className="flex items-center justify-between gap-tools">
+                <div className={CAPACITY_GAUGE_CLASS.errorRow}>
                     <p
                         style={{ fontSize: "var(--tt-font-size-base)" }}
-                        className="text-danger"
+                        className={TEXT_ROLE.statusError}
                     >
                         {error}
                     </p>

@@ -13,6 +13,7 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
+import { STATUS_CHIP_CLASSNAMES } from "@/shared/ui/layout/glass-surface";
 import {
     ArrowDown,
     ArrowUp,
@@ -181,11 +182,7 @@ export function TorrentTable_StatusCell({
                 variant="flat"
                 color={conf.color}
                 style={STATUS_CHIP_STYLE}
-                classNames={{
-                    base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-                    content:
-                        "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
-                }}
+                classNames={STATUS_CHIP_CLASSNAMES}
             >
                 <div className="flex items-center justify-center gap-tools">
                     <StatusIcon

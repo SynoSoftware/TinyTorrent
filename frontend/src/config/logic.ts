@@ -1070,6 +1070,33 @@ export const SPEED_BUCKET_COUNT_MED = 96;
 // Typography / tracking roles (semantic tokens)
 export const TRACKING_LABEL = "tracking-label";
 
+export const TRANSITION = {
+    fast: "transition-colors duration-150",
+    medium: "transition-all duration-200",
+    slow: "transition-all duration-300",
+    reveal: "transition-opacity duration-500",
+} as const;
+
+export const INTERACTIVE_RECIPE = {
+    buttonDefault: `${TRANSITION.fast} hover:bg-content2/50 active:scale-95`,
+    buttonPrimary: `${TRANSITION.fast} hover:bg-primary/20 active:scale-95`,
+    buttonDanger: `${TRANSITION.fast} hover:bg-danger/10 text-danger hover:text-danger-600`,
+    buttonGhost: `${TRANSITION.fast} hover:text-foreground hover:bg-content2/30`,
+    textReveal: `${TRANSITION.fast} hover:text-foreground`,
+    textMutedReveal: `${TRANSITION.fast} hover:text-foreground/70`,
+    menuItem: `${TRANSITION.fast} hover:bg-content2/50 cursor-pointer`,
+    menuItemDanger: `${TRANSITION.fast} hover:bg-danger/10 text-danger cursor-pointer`,
+    dismiss: `${TRANSITION.fast} hover:text-foreground hover:bg-content2/30 rounded-full`,
+    navItem: `${TRANSITION.fast} hover:text-foreground hover:bg-foreground/5`,
+    groupReveal: `${TRANSITION.reveal} group-hover:opacity-100 opacity-0`,
+} as const;
+
+export const VISUAL_STATE = {
+    disabled: "opacity-50 pointer-events-none",
+    muted: "opacity-40",
+    ghost: "opacity-20",
+} as const;
+
 type ShortcutIntentMap = {
     SelectAll: "action.select_all";
     Delete: "action.delete";

@@ -3,7 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
 import { PiecesMap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Map";
-import { TEXT_ROLES } from "@/config/logic";
+import { TEXT_ROLE } from "@/config/textRoles";
 
 interface PiecesTabProps {
     piecePercent: number;
@@ -28,12 +28,12 @@ export const PiecesTab = ({
                 <GlassPanel className="h-full w-full relative overflow-hidden p-panel">
                     <div className="flex items-center justify-between mb-tight shrink-0">
                         <span
-                            className={`${TEXT_ROLES.label} text-foreground/60`}
+                            className={TEXT_ROLE.label}
                         >
                             {t("torrent_modal.tabs.pieces")}
                         </span>
                         <span
-                            className={`${TEXT_ROLES.secondary} text-foreground/60`}
+                            className={`${TEXT_ROLE.bodyMuted} text-foreground/60`}
                         >
                             {t("torrent_modal.piece_map.tooltip_progress", {
                                 percent: Math.max(
@@ -63,12 +63,12 @@ export const PiecesTab = ({
                 <GlassPanel className="flex-1 overflow-hidden p-panel">
                     <div className="flex items-center justify-between mb-tight">
                         <span
-                            className={`${TEXT_ROLES.label} text-foreground/60`}
+                            className={TEXT_ROLE.label}
                         >
                             {t("torrent_modal.availability.label")}
                         </span>
                         <span
-                            className={`${TEXT_ROLES.helper} text-foreground/50`}
+                            className={`${TEXT_ROLE.caption} text-foreground/50`}
                         >
                             {t("torrent_modal.availability.legend_common")}
                         </span>

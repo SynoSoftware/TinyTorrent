@@ -10,7 +10,9 @@ import {
     DETAILS_PEER_MAP_CONFIG,
     ICON_STROKE_WIDTH,
     SURFACE_BORDER,
+    TRANSITION,
 } from "@/config/logic";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
@@ -223,9 +225,9 @@ export const PeerMap = ({
             onPointerDown={registerActivity}
             onMouseMove={registerActivity}
         >
-            <div className="flex items-center justify-between z-20 pointer-events-none">
+            <div className="flex items-center justify-between z-sticky pointer-events-none">
                 <div className="flex flex-col">
-                    <span className="text-label font-black uppercase text-foreground/30 tracking-0-4">
+                    <span className={TEXT_ROLE_EXTENDED.chartLabelMuted}>
                         {mode === "instrument"
                             ? t("peers.diagnostic_radar")
                             : t("peers.swarm_pulse")}
@@ -235,13 +237,13 @@ export const PeerMap = ({
                             Icon={Activity}
                             size="sm"
                             className={cn(
-                                "transition-opacity",
+                                TRANSITION.reveal,
                                 mode === "instrument"
                                     ? "opacity-100 text-primary"
                                     : "opacity-0"
                             )}
                         />
-                        <span className="text-scaled font-mono text-foreground/40">
+                        <span className={cn(TEXT_ROLE.codeMuted, "text-foreground/40")}>
                             {peers.length} NODES
                         </span>
                     </div>
@@ -253,7 +255,7 @@ export const PeerMap = ({
                             animate={{ opacity: 1, x: 0 }}
                             className="flex gap-tools items-center"
                         >
-                            <span className="text-label font-mono text-foreground/40 uppercase">
+                            <span className={cn(TEXT_ROLE.codeCaption, "text-foreground/40")}>
                                 Aperture:{" "}
                                 {formatSpeed(swarmStats.max * radialAperture)}
                             </span>
@@ -284,7 +286,7 @@ export const PeerMap = ({
                                 : palette.warning
                         }
                         strokeWidth={2}
-                        className="opacity-03 transition-colors duration-1000"
+                        className={`${TRANSITION.fast} opacity-03`}
                     />
 
                     <AnimatePresence>
@@ -415,7 +417,7 @@ export const PeerMap = ({
                                             }}
                                             stroke={palette.foreground}
                                             className={cn(
-                                                "transition-all",
+                                                TRANSITION.medium,
                                                 node.isUTP &&
                                                     "drop-shadow-primary-small"
                                             )}

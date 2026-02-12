@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { PANEL_SURFACE_INSET_FRAME } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
@@ -13,8 +14,8 @@ import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import {
     DETAILS_TAB_CONTENT_MAX_HEIGHT,
-    HEADER_BASE,
 } from "@/config/logic";
+import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
@@ -85,14 +86,14 @@ export const ContentTab = ({
     if (filesCount === 0) {
         return (
             <div className="flex h-full min-h-0 flex-col gap-panel">
-                <GlassPanel className="p-panel space-y-3 border border-warning/30 bg-warning/10">
-                    <div className={`${HEADER_BASE} text-scaled font-semibold text-warning`}>
+                <AlertPanel severity="warning" className="space-y-3">
+                    <div className={TEXT_ROLE.statusWarning}>
                         {t("torrent_modal.files_empty")}
                     </div>
-                    <div className="text-label text-warning/80 mb-tight">
+                    <div className={`${withColor(TEXT_ROLE.caption, "warning")} text-warning/80 mb-tight`}>
                         {t("torrent_modal.files_recovery_desc")}
                     </div>
-                </GlassPanel>
+                </AlertPanel>
             </div>
         );
     }
@@ -103,14 +104,14 @@ export const ContentTab = ({
                 <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-panel">
                         <div className="flex flex-col gap-tight">
-                            <span className={`${HEADER_BASE} text-scaled font-semibold text-foreground/60`}>
+                            <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
                                 {t("torrent_modal.files_title")}
                             </span>
-                            <p className="text-label text-foreground/60">
+                            <p className={TEXT_ROLE.caption}>
                                 {t("torrent_modal.files_description")}
                             </p>
                         </div>
-                        <span className={`${HEADER_BASE} text-label font-semibold`}>
+                        <span className={TEXT_ROLE.labelPrimary}>
                             {fileCountLabel}
                         </span>
                     </div>
@@ -119,14 +120,14 @@ export const ContentTab = ({
                 <div className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-panel">
                         <div className="flex flex-col gap-tight">
-                            <span className={`${HEADER_BASE} text-scaled font-semibold text-foreground/60`}>
+                            <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
                                 {t("torrent_modal.files_title")}
                             </span>
-                            <p className="text-label text-foreground/60">
+                            <p className={TEXT_ROLE.caption}>
                                 {t("torrent_modal.files_description")}
                             </p>
                         </div>
-                        <span className={`${HEADER_BASE} text-label font-semibold`}>
+                        <span className={TEXT_ROLE.labelPrimary}>
                             {fileCountLabel}
                         </span>
                     </div>
@@ -137,7 +138,7 @@ export const ContentTab = ({
                 className={`flex flex-1 min-h-0 flex-col ${PANEL_SURFACE_INSET_FRAME}`}
             >
                 <div
-                    className={`border-b border-default/10 px-panel py-panel ${HEADER_BASE} text-label font-semibold`}
+                    className={`border-b border-default/10 px-panel py-panel ${TEXT_ROLE.labelPrimary}`}
                 >
                     {t("torrent_modal.tabs.content")}
                 </div>

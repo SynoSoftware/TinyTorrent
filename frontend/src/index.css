@@ -136,6 +136,8 @@
     --z-panel: 10;
     --z-sticky: 20;
     --z-overlay: 30;
+    --z-dnd: 40;
+    --z-popover: 50;
     --z-modal: 40;
     --z-modal-internal: 41; /* modal-internal overlay, above modal but below toasts */
     --z-drop-overlay: 55; /* drop overlay should float above most UI but can be adjusted */
@@ -431,6 +433,14 @@
 
     .z-overlay {
         z-index: var(--z-overlay);
+    }
+
+    .z-dnd {
+        z-index: var(--z-dnd);
+    }
+
+    .z-popover {
+        z-index: var(--z-popover);
     }
 
     .z-modal {

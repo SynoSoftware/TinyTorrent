@@ -121,7 +121,7 @@ export function TorrentTable_SpeedCell({
                 </svg>
             )}
 
-            <div className="relative z-10 flex items-center h-full pointer-events-none">
+            <div className="relative z-panel flex items-center h-full pointer-events-none">
                 <span
                     className={cn(
                         DENSE_NUMERIC,

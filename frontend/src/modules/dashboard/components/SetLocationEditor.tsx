@@ -1,6 +1,7 @@
 import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
 
 interface SetLocationEditorProps {
     value: string;
@@ -31,7 +32,7 @@ export function SetLocationEditor({
     return (
         <div className="surface-layer-1 rounded-panel border border-divider p-panel space-y-stage">
             {caption && (
-                <div className="text-scaled font-semibold text-foreground/70">
+                <div className={withOpacity(TEXT_ROLE.headingSection, 70)}>
                     {caption}
                 </div>
             )}
@@ -40,22 +41,22 @@ export function SetLocationEditor({
                     <HardDrive className="toolbar-icon-size-md text-foreground" />
                 </div>
                 <div className="flex-1 space-y-tight">
-                    <label className="text-label text-foreground/60">
+                    <label className={TEXT_ROLE.caption}>
                         {t("directory_browser.path_label")}
                     </label>
                     <Input
-                        className="font-mono text-label"
+                        className={TEXT_ROLE.codeMuted}
                         value={value}
                         spellCheck="false"
                         onChange={(event) => onChange(event.target.value)}
                     />
                 </div>
             </div>
-            <p className="text-label text-foreground/70">
+            <p className={TEXT_ROLE.bodySmall}>
                 {helpText ?? t("directory_browser.manual_entry_prompt")}
             </p>
             {statusMessage && (
-                <div className="text-label text-foreground/70">
+                <div className={TEXT_ROLE.bodySmall}>
                     {statusMessage}
                 </div>
             )}
@@ -80,7 +81,7 @@ export function SetLocationEditor({
                 </Button>
             </div>
             {error && (
-                <div className="text-label text-danger">{error}</div>
+                <div className={withColor(TEXT_ROLE.caption, "danger")}>{error}</div>
             )}
         </div>
     );

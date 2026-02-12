@@ -139,7 +139,7 @@ const TorrentTable_Row = memo(
                     // Dragging overrides
                     canReorderQueue ? "cursor-grab" : "cursor-default",
                     isDragging &&
-                        "opacity-50 grayscale scale-98 z-50 cursor-grabbing"
+                        "opacity-50 grayscale scale-98 z-popover cursor-grabbing"
                 )}
                 style={rowStyle}
                 onClick={(e) => onRowClick(e, row.id, virtualRow.index)}

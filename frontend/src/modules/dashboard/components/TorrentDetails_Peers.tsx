@@ -4,11 +4,14 @@ import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
+    CONTEXT_MENU_CLASS,
     GLASS_TOOLTIP_CLASSNAMES,
-    PANEL_SURFACE_FRAME,
+    SPLIT_VIEW_CLASS,
+    buildSplitViewAddressClass,
+    buildSplitViewRowClass,
 } from "@/shared/ui/layout/glass-surface";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
-import { HEADER_BASE, ICON_STROKE_WIDTH, TEXT_ROLES } from "@/config/logic";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
@@ -42,13 +45,13 @@ export const PeersTab = ({
 
     if (viewModel.state.isEmpty) {
         const EmptyContent = (
-            <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+            <p className={SPLIT_VIEW_CLASS.emptyText}>
                 {viewModel.labels.emptyMessage}
             </p>
         );
 
         const emptyShell = (
-            <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
+            <GlassPanel className={SPLIT_VIEW_CLASS.emptyPanel}>
                 {EmptyContent}
             </GlassPanel>
         );
@@ -57,16 +60,16 @@ export const PeersTab = ({
     }
 
     return (
-        <div className="flex flex-col h-full min-h-0 overflow-hidden gap-tools">
+        <div className={SPLIT_VIEW_CLASS.root}>
             <PanelGroup direction="vertical">
                 <Panel defaultSize={40} minSize={0}>
-                    <GlassPanel className="flex flex-col h-full w-full">
-                        <div className="flex items-center justify-end gap-tools px-panel">
-                            <div className="text-label text-foreground/40 mr-2">
+                    <GlassPanel className={SPLIT_VIEW_CLASS.mapPanel}>
+                        <div className={SPLIT_VIEW_CLASS.hudRow}>
+                            <div className={SPLIT_VIEW_CLASS.hudLabel}>
                                 HUD
                             </div>
                         </div>
-                        <div className="h-full w-full">
+                        <div className={SPLIT_VIEW_CLASS.mapCanvas}>
                             <PeerMap
                                 peers={viewModel.data.peers}
                                 hoveredPeerId={viewModel.state.hoveredPeer}
@@ -78,46 +81,37 @@ export const PeersTab = ({
                 </Panel>
 
                 <PanelResizeHandle>
-                    <div className="h-sep cursor-row-resize flex items-center justify-center">
-                        <div className="w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 transition-colors" />
+                    <div className={SPLIT_VIEW_CLASS.resizeHandle}>
+                        <div className={SPLIT_VIEW_CLASS.resizeBar} />
                     </div>
                 </PanelResizeHandle>
 
                 <Panel defaultSize={60} minSize={10}>
                     <GlassPanel
                         layer={1}
-                        className={cn(
-                            PANEL_SURFACE_FRAME,
-                            "flex-1 min-h-0 relative flex flex-col rounded-2xl border-content1/30 bg-content1/10",
-                        )}
+                        className={SPLIT_VIEW_CLASS.listSurface}
                     >
-                        <div
-                            className={cn(
-                                "flex items-center gap-panel px-panel py-tight border-b border-content1/10",
-                                HEADER_BASE,
-                                "text-label text-foreground/30"
-                            )}
-                        >
-                            <span className="w-col-id">
+                        <div className={SPLIT_VIEW_CLASS.header}>
+                            <span className={SPLIT_VIEW_CLASS.headerFlagCol}>
                                 {viewModel.labels.flagsHeader}
                             </span>
-                            <span className="flex-1">
+                            <span className={SPLIT_VIEW_CLASS.headerEndpointCol}>
                                 {viewModel.labels.endpointHeader}
                             </span>
-                            <span className="w-col-client">
+                            <span className={SPLIT_VIEW_CLASS.headerClientCol}>
                                 {viewModel.labels.clientHeader}
                             </span>
-                            <span className="w-col-speed text-right">
+                            <span className={SPLIT_VIEW_CLASS.headerSpeedCol}>
                                 {viewModel.labels.downstreamHeader}
                             </span>
-                            <span className="w-col-speed text-right">
+                            <span className={SPLIT_VIEW_CLASS.headerSpeedCol}>
                                 {viewModel.labels.upstreamHeader}
                             </span>
                         </div>
 
                         <div
                             ref={listRef}
-                            className="flex-1 min-h-0 overflow-y-auto relative outline-none select-none"
+                            className={SPLIT_VIEW_CLASS.listScroll}
                         >
                             <div
                                 style={{
@@ -128,13 +122,10 @@ export const PeersTab = ({
                                 {viewModel.data.rowViewModels.map((rowView) => (
                                     <div
                                         key={rowView.key}
-                                        className={cn(
-                                            "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
-                                            rowView.isHovered
-                                                ? "bg-primary/10"
-                                                : "hover:bg-content1/5",
-                                            rowView.isHostile && "bg-danger/5",
-                                        )}
+                                        className={buildSplitViewRowClass({
+                                            hovered: rowView.isHovered,
+                                            hostile: rowView.isHostile,
+                                        })}
                                         style={{
                                             top: rowView.start,
                                             height: rowView.size,
@@ -154,8 +145,8 @@ export const PeersTab = ({
                                             )
                                         }
                                     >
-                                        <div className="w-col-id font-mono text-label text-foreground/60">
-                                            <div className="flex gap-tight">
+                                        <div className={SPLIT_VIEW_CLASS.flagsCol}>
+                                            <div className={SPLIT_VIEW_CLASS.flagsWrap}>
                                                 {rowView.flagCodes.map(
                                                     (flag, index) => (
                                                         <Tooltip
@@ -168,7 +159,7 @@ export const PeersTab = ({
                                                             }
                                                             delay={500}
                                                         >
-                                                            <span className="cursor-help hover:text-primary transition-colors">
+                                                            <span className={SPLIT_VIEW_CLASS.flagToken}>
                                                                 {flag}
                                                             </span>
                                                         </Tooltip>
@@ -177,40 +168,37 @@ export const PeersTab = ({
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 min-w-0 flex items-center gap-tools">
+                                        <div className={SPLIT_VIEW_CLASS.endpointCol}>
                                             {rowView.isEncrypted && (
                                                 <StatusIcon
                                                     Icon={ShieldCheck}
                                                     size="sm"
-                                                    className="text-success/50"
+                                                    className={SPLIT_VIEW_CLASS.encryptedIcon}
                                                 />
                                             )}
                                             {rowView.isUTP && (
                                                 <StatusIcon
                                                     Icon={Zap}
                                                     size="sm"
-                                                    className="text-primary/50"
+                                                    className={SPLIT_VIEW_CLASS.utpIcon}
                                                 />
                                             )}
                                             <span
-                                                className={cn(
-                                                    "text-scaled font-mono truncate",
-                                                    rowView.isHostile
-                                                        ? "text-danger"
-                                                        : "text-foreground/90",
+                                                className={buildSplitViewAddressClass(
+                                                    rowView.isHostile,
                                                 )}
                                             >
                                                 {rowView.peer.address}
                                             </span>
                                         </div>
 
-                                        <div className="w-col-client text-label text-foreground/40 truncate">
+                                        <div className={SPLIT_VIEW_CLASS.clientCol}>
                                             {rowView.clientName}
                                         </div>
-                                        <div className="w-col-speed font-mono text-scaled text-success text-right tabular-nums">
+                                        <div className={SPLIT_VIEW_CLASS.downRateCol}>
                                             {rowView.downRateLabel}
                                         </div>
-                                        <div className="w-col-speed font-mono text-scaled text-primary text-right tabular-nums">
+                                        <div className={SPLIT_VIEW_CLASS.upRateCol}>
                                             {rowView.upRateLabel}
                                         </div>
                                     </div>
@@ -219,25 +207,23 @@ export const PeersTab = ({
 
                             {viewModel.state.peerContextMenu && (
                                 <div
-                                    className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/90 p-tight backdrop-blur-3xl shadow-2xl"
+                                    className={CONTEXT_MENU_CLASS.panel}
                                     style={{
                                         top: viewModel.state.peerContextMenu.y,
                                         left: viewModel.state.peerContextMenu.x,
-                                        minWidth: 200,
+                                        ...CONTEXT_MENU_CLASS.panelStyle,
                                     }}
                                     onPointerDown={(event) =>
                                         event.stopPropagation()
                                     }
                                 >
-                                    <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
+                                    <div className={CONTEXT_MENU_CLASS.header}>
                                         <StatusIcon
                                             Icon={Info}
                                             size="sm"
-                                            className="text-foreground/30"
+                                            className={CONTEXT_MENU_CLASS.headerIcon}
                                         />
-                                        <span
-                                            className={`${TEXT_ROLES.label} text-foreground/40 truncate`}
-                                        >
+                                        <span className={CONTEXT_MENU_CLASS.headerText}>
                                             {
                                                 viewModel.state.peerContextMenu
                                                     .peer.address
@@ -250,7 +236,7 @@ export const PeersTab = ({
                                                 "copy_ip",
                                             )
                                         }
-                                        className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
+                                        className={CONTEXT_MENU_CLASS.actionButton}
                                     >
                                         <StatusIcon
                                             Icon={Copy}
@@ -265,7 +251,7 @@ export const PeersTab = ({
                                                 "add_peer",
                                             )
                                         }
-                                        className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
+                                        className={CONTEXT_MENU_CLASS.actionButton}
                                     >
                                         <StatusIcon
                                             Icon={UserPlus}
@@ -280,7 +266,7 @@ export const PeersTab = ({
                                                 "ban_ip",
                                             )
                                         }
-                                        className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
+                                        className={CONTEXT_MENU_CLASS.dangerActionButton}
                                     >
                                         <StatusIcon
                                             Icon={Ban}
@@ -298,3 +284,7 @@ export const PeersTab = ({
         </div>
     );
 };
+
+
+
+

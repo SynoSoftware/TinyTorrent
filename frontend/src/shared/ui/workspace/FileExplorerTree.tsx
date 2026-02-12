@@ -20,8 +20,36 @@ import type {
     FileExplorerTreeViewModel,
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import {
+    buildFileTreeSelectionActionsClass,
+    CHECKBOX_PRIMARY_CLASSNAMES,
+    FILE_TREE_CONTAINER_CLASS,
+    FILE_TREE_EMPTY_ICON_CLASS,
+    FILE_TREE_EMPTY_OVERLAY_CLASS,
+    FILE_TREE_EMPTY_TEXT_CLASS,
+    FILE_TREE_EXPAND_BUTTON_CLASS,
+    FILE_TREE_FILTER_BUTTON_CLASS,
+    FILE_TREE_FILTER_ICON_CLASS,
+    FILE_TREE_HEADER_CHECKBOX_WRAP_CLASS,
+    FILE_TREE_HEADER_PRIORITY_CLASS,
+    FILE_TREE_HEADER_PROGRESS_CLASS,
+    FILE_TREE_HEADER_ROW_CLASS,
+    FILE_TREE_HEADER_SIZE_CLASS,
+    FILE_TREE_PRIORITY_BUTTON_CLASS,
+    FILE_TREE_SEARCH_INPUT_CLASSNAMES,
+    FILE_TREE_SCROLL_CLASS,
+    FILE_TREE_SELECTION_ACTIONS_LABEL_CLASS,
+    FILE_TREE_TOOLBAR_CLASS,
+    FILE_TREE_TOOLS_DIVIDER_CLASS,
+    FILE_TREE_VIRTUAL_CANVAS_CLASS,
+    FILE_TREE_VIRTUAL_ROW_CLASS,
+    MENU_ITEM_CLASSNAMES,
+    MENU_LIST_CLASSNAMES,
+    MENU_SURFACE_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import { FileExplorerTreeRow } from "@/shared/ui/workspace/FileExplorerTreeRow";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
+import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 export type {
     FileExplorerContextAction,
@@ -109,13 +137,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({
     });
 
     return (
-        <GlassPanel className="flex flex-col h-full rounded-medium border border-default-200/50 shadow-small">
-            <div className="flex flex-wrap items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30">
+        <GlassPanel className={FILE_TREE_CONTAINER_CLASS}>
+            <div className={FILE_TREE_TOOLBAR_CLASS}>
                 <Input
-                    classNames={{
-                        base: "min-w-0",
-                        inputWrapper: "h-button text-scaled",
-                    }}
+                    classNames={FILE_TREE_SEARCH_INPUT_CLASSNAMES}
                     placeholder={t("actions.search")}
                     startContent={
                         <Search className="toolbar-icon-size-sm text-default-400" />
@@ -133,9 +158,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             size="md"
                             variant="shadow"
                             isIconOnly
-                            className="h-button toolbar-icon-hit"
+                            className={FILE_TREE_FILTER_BUTTON_CLASS}
                         >
-                            <Filter className="toolbar-icon-size-sm text-default-600" />
+                            <Filter className={FILE_TREE_FILTER_ICON_CLASS} />
                         </Button>
                     </DropdownTrigger>
                     <DropdownMenu
@@ -147,6 +172,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             )
                         }
                         disallowEmptySelection
+                        variant="shadow"
+                        className={MENU_SURFACE_CLASS}
+                        classNames={MENU_LIST_CLASSNAMES}
+                        itemClasses={MENU_ITEM_CLASSNAMES}
                     >
                         <DropdownItem key="all">{t("status.all")}</DropdownItem>
                         <DropdownItem key="video">
@@ -158,14 +187,14 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                     </DropdownMenu>
                 </Dropdown>
 
-                <div className="h-sep w-divider bg-default-300 mx-tight" />
+                <div className={FILE_TREE_TOOLS_DIVIDER_CLASS} />
 
                 <ButtonGroup size="md" variant="shadow">
                     <Button
                         onPress={expandAll}
                         isIconOnly
                         aria-label={t("actions.expand_all")}
-                        className="h-button toolbar-icon-hit"
+                        className={FILE_TREE_EXPAND_BUTTON_CLASS}
                     >
                         <ArrowDown className="toolbar-icon-size-sm" />
                     </Button>
@@ -173,7 +202,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         onPress={collapseAll}
                         isIconOnly
                         aria-label={t("actions.collapse_all")}
-                        className="h-button toolbar-icon-hit"
+                        className={FILE_TREE_EXPAND_BUTTON_CLASS}
                     >
                         <ArrowUp className="toolbar-icon-size-sm" />
                     </Button>
@@ -182,14 +211,13 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 <div className="flex-1" />
 
                 <div
-                    className={cn(
-                        "flex items-center gap-tools transition-opacity duration-200",
-                        selectedIndexes.size > 0
-                            ? "opacity-100"
-                            : "opacity-0 pointer-events-none",
+                    className={buildFileTreeSelectionActionsClass(
+                        selectedIndexes.size > 0,
                     )}
                 >
-                    <span className="text-label text-default-500 font-medium hidden sm:inline-block">
+                    <span
+                        className={FILE_TREE_SELECTION_ACTIONS_LABEL_CLASS}
+                    >
                         {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
                     </span>
                     <Dropdown>
@@ -201,7 +229,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                                 endContent={
                                     <ChevronDown className="toolbar-icon-size-sm" />
                                 }
-                                className="h-button text-scaled"
+                                className={FILE_TREE_PRIORITY_BUTTON_CLASS}
                             >
                                 {t("fields.priority")}
                             </Button>
@@ -213,6 +241,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                                 if (key === "low") handleSetPriority(1);
                                 if (key === "skip") handleSetPriority("skip");
                             }}
+                            variant="shadow"
+                            className={MENU_SURFACE_CLASS}
+                            classNames={MENU_LIST_CLASSNAMES}
+                            itemClasses={MENU_ITEM_CLASSNAMES}
                         >
                             <DropdownItem key="high">
                                 {t("priority.high")}
@@ -231,28 +263,33 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 </div>
             </div>
 
-            <div className="grid grid-cols-file-tree items-center px-panel py-tight border-b border-default-200/50 bg-default-100/50 text-label font-bold uppercase tracking-label text-default-500 z-sticky">
-                <div className="flex items-center justify-center">
+            <div
+                className={cn(
+                    FILE_TREE_HEADER_ROW_CLASS,
+                    TEXT_ROLE_EXTENDED.fileTreeHeader,
+                )}
+            >
+                <div className={FILE_TREE_HEADER_CHECKBOX_WRAP_CLASS}>
                     <Checkbox
                         size="sm"
                         isSelected={isAllSelected}
                         isIndeterminate={isIndeterminate}
                         onValueChange={handleSelectAll}
-                        classNames={{ wrapper: "after:bg-primary" }}
+                        classNames={CHECKBOX_PRIMARY_CLASSNAMES}
                     />
                 </div>
                 <div>{t("fields.name")}</div>
-                <div className="text-center">{t("fields.priority")}</div>
-                <div className="text-center">{t("fields.progress")}</div>
-                <div className="text-right">{t("fields.size")}</div>
+                <div className={FILE_TREE_HEADER_PRIORITY_CLASS}>{t("fields.priority")}</div>
+                <div className={FILE_TREE_HEADER_PROGRESS_CLASS}>{t("fields.progress")}</div>
+                <div className={FILE_TREE_HEADER_SIZE_CLASS}>{t("fields.size")}</div>
             </div>
 
             <div
                 ref={parentRef}
-                className="flex-1 overflow-auto min-h-0 relative scrollbar-hide"
+                className={FILE_TREE_SCROLL_CLASS}
             >
                 <div
-                    className="relative w-full"
+                    className={FILE_TREE_VIRTUAL_CANVAS_CLASS}
                     style={{ height: `${virtualizer.getTotalSize()}px` }}
                 >
                     {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -280,7 +317,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         return (
                             <div
                                 key={virtualRow.key}
-                                className="absolute top-0 left-0 w-full"
+                                className={FILE_TREE_VIRTUAL_ROW_CLASS}
                                 style={{
                                     height: `${virtualRow.size}px`,
                                     transform: `translateY(${virtualRow.start}px)`,
@@ -304,9 +341,9 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 </div>
 
                 {visibleNodes.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-default-400 gap-tools absolute inset-0">
-                        <Search className="toolbar-icon-size-lg opacity-20" />
-                        <p className="text-scaled opacity-50">
+                    <div className={FILE_TREE_EMPTY_OVERLAY_CLASS}>
+                        <Search className={FILE_TREE_EMPTY_ICON_CLASS} />
+                        <p className={FILE_TREE_EMPTY_TEXT_CLASS}>
                             {viewModel.emptyMessage ?? t("errors.no_results")}
                         </p>
                     </div>

@@ -2,7 +2,6 @@ import React, { memo, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import {
     flexRender,
@@ -12,11 +11,16 @@ import {
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH_DENSE,
-    HANDLE_HITAREA_CLASS,
-    CELL_BASE_CLASS,
-    CELL_PADDING_CLASS,
 } from "@/config/logic";
-import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
+import {
+    buildTorrentHeaderActivatorClass,
+    buildTorrentHeaderCellClass,
+    buildTorrentHeaderResizeBarClass,
+    buildTorrentHeaderSortIconClass,
+    TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
+    TORRENT_HEADER_RESIZE_BAR_STYLE,
+    TORRENT_HEADER_RESIZE_HANDLE_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
@@ -144,35 +148,22 @@ const TorrentTable_Header = memo(
                 role="columnheader"
                 tabIndex={-1}
                 onContextMenu={onContextMenu}
-                className={cn(
-                    "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-visible",
-                    "box-border",
-                    "border-l-2 border-l-transparent",
-                    canSort
-                        ? "cursor-pointer hover:bg-content1/10"
-                        : "cursor-default",
-                    isOverlay
-                        ? "bg-content1/90 cursor-grabbing"
-                        : "bg-transparent",
-                    isOverlay && PANEL_SHADOW,
-                    isDragging && !isOverlay ? "opacity-30" : "opacity-100"
-                )}
+                className={buildTorrentHeaderCellClass({
+                    canSort,
+                    isOverlay,
+                    isDragging,
+                })}
             >
                 <div
                     ref={setActivatorNodeRef}
                     {...attributes}
                     {...listeners}
-                    className={cn(
-                        CELL_BASE_CLASS,
-                        "flex-1 gap-tools",
-                        "text-scaled font-bold uppercase text-foreground/60",
-                        isOverlay && "text-foreground",
-                        CELL_PADDING_CLASS,
-                        align === "center" && "justify-center",
-                        align === "end" && "justify-end",
-                        isSelection && "justify-center"
-                    )}
-                    style={{ letterSpacing: "var(--tt-tracking-tight)" }}
+                    className={buildTorrentHeaderActivatorClass({
+                        isOverlay,
+                        align,
+                        isSelection,
+                    })}
+                    style={TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE}
                     onClick={
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
@@ -180,9 +171,8 @@ const TorrentTable_Header = memo(
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className={cn(
-                            "text-primary shrink-0 toolbar-icon-size-sm",
-                            sortArrowOpacity
+                        className={buildTorrentHeaderSortIconClass(
+                            sortArrowOpacity === "opacity-100",
                         )}
                     />
                 </div>
@@ -194,18 +184,13 @@ const TorrentTable_Header = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className={cn(
-                            "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-30",
-                            HANDLE_HITAREA_CLASS
-                        )}
+                        className={TORRENT_HEADER_RESIZE_HANDLE_CLASS}
                     >
                         <div
-                            className={cn(
-                                "bg-foreground/10 transition-colors rounded-full h-resize-h",
-                                "group-hover:bg-primary/50",
-                                isColumnResizing && "bg-primary h-resize-h"
+                            className={buildTorrentHeaderResizeBarClass(
+                                isColumnResizing,
                             )}
-                            style={{ width: "var(--tt-divider-width)" }}
+                            style={TORRENT_HEADER_RESIZE_BAR_STYLE}
                         />
                     </div>
                 )}

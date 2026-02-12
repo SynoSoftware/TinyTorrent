@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { SURFACE_BORDER } from "@/config/logic";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import STATUS from "@/shared/status";
+import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
 
 interface SpeedTabProps {
     torrentId: string | number;
@@ -26,13 +28,16 @@ export const SpeedTab = ({
     const Content = (
         <>
             {isChecking && (
-                <div className="mb-tight shrink-0 rounded-2xl border border-warning/30 bg-warning/10 p-panel text-scaled text-warning">
+                <AlertPanel
+                    severity="warning"
+                    className={`mb-tight shrink-0 ${withColor(TEXT_ROLE.body, "warning")}`}
+                >
                     {t("labels.status.torrent.checking")}
-                </div>
+                </AlertPanel>
             )}
             {isHistoryEmpty && (
                 <div
-                    className={`mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel text-scaled text-foreground/50`}
+                    className={`mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`}
                 >
                     {t("torrent_modal.speed.collecting_samples")}
                 </div>

@@ -21,7 +21,7 @@ import STATUS from "@/shared/status";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { type ReactNode, type RefObject } from "react";
-import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
+import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE, TRANSITION } from "@/config/logic";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
     formatBytes,
@@ -148,7 +148,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                         (torrent.errorString ? torrent.errorString : undefined)
                     }
                     className={cn(
-                        "font-medium truncate max-w-full transition-colors cap-height-text",
+                        `font-medium truncate max-w-full ${TRANSITION.fast} cap-height-text`,
                         TABLE_LAYOUT.fontSize,
                         torrent.state === STATUS.torrent.PAUSED &&
                             "text-foreground/50",

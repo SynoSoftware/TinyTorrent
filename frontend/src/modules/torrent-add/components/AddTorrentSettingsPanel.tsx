@@ -25,7 +25,17 @@ import {
 import { describePathKind } from "@/modules/torrent-add/utils/destination";
 import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-import { INPUT_CLASSNAMES_MONO_SURFACE } from "@/shared/ui/layout/glass-surface";
+import {
+    IMPORT_FORM_CLASS,
+    FORM_UI_CLASS,
+    buildImportFormStatusToneClass,
+    CHECKBOX_LABEL_BODY_SMALL_CLASSNAMES,
+    ICON_BUTTON_SURFACE,
+    INPUT_CLASSNAMES_MONO_SURFACE,
+    MENU_ITEM_CLASSNAMES,
+    MENU_LIST_CLASSNAMES,
+    MENU_SURFACE_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
@@ -36,27 +46,29 @@ export function AddTorrentSettingsPanel() {
     } = useAddTorrentModalContext();
 
     return (
-        <div className="p-panel flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        <div className={IMPORT_FORM_CLASS.root}>
             <div
-                className="flex flex-col gap-panel mb-panel"
+                className={IMPORT_FORM_CLASS.group}
                 onDrop={settings.onDrop}
                 onDragOver={settings.onDragOver}
                 onDragLeave={settings.onDragLeave}
             >
-                <div className="flex flex-col gap-tools">
+                <div className={FORM_UI_CLASS.switchBlock}>
                     <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
-                        <label className="text-label font-bold tracking-wider text-foreground/60 uppercase mb-panel flex items-center gap-tools">
+                        <label
+                            className={IMPORT_FORM_CLASS.label}
+                        >
                             <HardDrive className="toolbar-icon-size-md" />{" "}
                             {t("modals.add_torrent.destination")}
                         </label>
                     </Tooltip>
                 </div>
 
-                <div className="flex gap-tools group items-center">
+                <div className={IMPORT_FORM_CLASS.destinationRow}>
                     <motion.div
                         layout
                         layoutId={DESTINATION_INPUT_LAYOUT_ID}
-                        className="w-full flex-1"
+                        className={IMPORT_FORM_CLASS.destinationInputWrap}
                     >
                         <Input
                             value={destinationInput.value}
@@ -94,9 +106,9 @@ export function AddTorrentSettingsPanel() {
                                 aria-label={t(
                                     "modals.add_torrent.destination_prompt_browse"
                                 )}
-                                className="surface-layer-1 border border-default/10"
+                                className={ICON_BUTTON_SURFACE}
                             >
-                                <FolderOpen className="toolbar-icon-size-md text-foreground/50" />
+                                <FolderOpen className={IMPORT_FORM_CLASS.actionIcon} />
                             </Button>
                         </Tooltip>
                     )}
@@ -108,12 +120,18 @@ export function AddTorrentSettingsPanel() {
                                 variant="flat"
                                 aria-label={t("modals.add_torrent.history")}
                                 title={t("modals.add_torrent.history")}
-                                className="surface-layer-1 border border-default/10"
+                                className={ICON_BUTTON_SURFACE}
                             >
-                                <ChevronDown className="toolbar-icon-size-md text-foreground/50" />
+                                <ChevronDown className={IMPORT_FORM_CLASS.actionIcon} />
                             </Button>
                         </DropdownTrigger>
-                        <DropdownMenu aria-label={t("modals.add_torrent.history")}>
+                        <DropdownMenu
+                            aria-label={t("modals.add_torrent.history")}
+                            variant="shadow"
+                            className={MENU_SURFACE_CLASS}
+                            classNames={MENU_LIST_CLASSNAMES}
+                            itemClasses={MENU_ITEM_CLASSNAMES}
+                        >
                             {settings.recentPaths.length > 0 ? (
                                 settings.recentPaths.map((path) => (
                                     <DropdownItem
@@ -158,67 +176,65 @@ export function AddTorrentSettingsPanel() {
 
                 <div
                     className={cn(
-                        "h-status-chip flex items-center gap-tools text-label font-mono min-w-0",
-                        settings.statusKind === "danger"
-                            ? "text-danger"
-                            : settings.statusKind === "warning"
-                                ? "text-warning"
-                                : "text-foreground/60"
+                        IMPORT_FORM_CLASS.status,
+                        buildImportFormStatusToneClass(
+                            settings.statusKind,
+                        ),
                     )}
                 >
                     {settings.statusKind === "danger" ||
                     settings.statusKind === "warning" ? (
-                        <AlertTriangle className="toolbar-icon-size-md shrink-0" />
+                        <AlertTriangle className={IMPORT_FORM_CLASS.statusIcon} />
                     ) : settings.statusKind === "ok" ? (
                         <CheckCircle2 className="toolbar-icon-size-md shrink-0 text-success" />
                     ) : (
-                        <Info className="toolbar-icon-size-md shrink-0 text-foreground/40" />
+                        <Info className={IMPORT_FORM_CLASS.statusInfoIcon} />
                     )}
                     {settings.spaceErrorDetail ? (
                         <Tooltip content={settings.spaceErrorDetail}>
-                            <span className="truncate">
+                            <span className={IMPORT_FORM_CLASS.statusMessage}>
                                 {settings.statusMessage}
                             </span>
                         </Tooltip>
                     ) : (
-                        <span className="truncate">{settings.statusMessage}</span>
+                        <span className={IMPORT_FORM_CLASS.statusMessage}>
+                            {settings.statusMessage}
+                        </span>
                     )}
                 </div>
             </div>
 
             {settings.showTransferFlags && (
                 <>
-                    <Divider className="my-panel bg-foreground/25" aria-hidden="true" />
-                    <div className="flex flex-col gap-tools">
-                        <label className="text-label font-bold tracking-wider text-foreground/60 uppercase mb-panel flex items-center gap-tools">
+                    <Divider className={IMPORT_FORM_CLASS.flagsDivider} aria-hidden="true" />
+                    <div className={IMPORT_FORM_CLASS.flagsGroup}>
+                        <label
+                            className={IMPORT_FORM_CLASS.label}
+                        >
                             <Hash className="toolbar-icon-size-md" />{" "}
                             {t("modals.add_torrent.transfer_flags")}
                         </label>
-                        <div className="flex flex-col gap-tools">
+                        <div className={IMPORT_FORM_CLASS.flagsCheckboxes}>
                             <Checkbox
                                 isSelected={settings.sequential}
                                 onValueChange={settings.setSequential}
-                                classNames={{
-                                    label: "text-foreground/70 text-label",
-                                }}
+                                classNames={CHECKBOX_LABEL_BODY_SMALL_CLASSNAMES}
                             >
                                 <span className="flex items-center">
-                                    <ListOrdered className="toolbar-icon-size-md mr-2 text-foreground/50" />
+                                    <ListOrdered className={IMPORT_FORM_CLASS.flagsIcon} />
                                     {t(
                                         "modals.add_torrent.sequential_download"
                                     )}
                                 </span>
                             </Checkbox>
-                            <Divider className="bg-content1/5" />
+                            <Divider className={IMPORT_FORM_CLASS.flagsItemDivider} />
                             <Checkbox
                                 isSelected={settings.skipHashCheck}
                                 onValueChange={settings.setSkipHashCheck}
-                                classNames={{
-                                    label: "text-foreground/70 text-label",
-                                }}
+                                classNames={CHECKBOX_LABEL_BODY_SMALL_CLASSNAMES}
                             >
                                 <span className="flex items-center">
-                                    <CheckCircle2 className="toolbar-icon-size-md mr-2 text-foreground/50" />
+                                    <CheckCircle2 className={IMPORT_FORM_CLASS.flagsIcon} />
                                     {t("modals.add_torrent.skip_hash_check")}
                                 </span>
                             </Checkbox>
@@ -229,3 +245,4 @@ export function AddTorrentSettingsPanel() {
         </div>
     );
 }
+

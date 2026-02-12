@@ -6,12 +6,13 @@ import {
     SortableContext,
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { cn, Skeleton } from "@heroui/react";
+import { Skeleton } from "@heroui/react";
 import TorrentTable_Row from "@/modules/dashboard/components/TorrentTable_Row";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
-import { SURFACE_BORDER } from "@/config/logic";
-import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
+import {
+    TABLE_VIEW_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import {
     getTableTotalWidthCss,
     TableCellContent,
@@ -54,71 +55,67 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
     return (
         <div
             ref={parentRef}
-            className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
-            style={{ scrollbarGutter: "stable" }}
+            className={TABLE_VIEW_CLASS.bodyScroll}
+            style={TABLE_VIEW_CLASS.bodyScrollStyle}
         >
             {showSkeleton ? (
-                <div className="w-full">
+                <div className={TABLE_VIEW_CLASS.loadingRoot}>
                     {Array.from({ length: 10 }).map((_, i) => (
                         <div
                             key={i}
-                            className="flex items-center w-full border-b border-content1/5 px-panel"
+                            className={TABLE_VIEW_CLASS.loadingRow}
                             style={{
                                 height: tableLayout.rowHeight,
                             }}
                         >
-                            <div className="w-full h-indicator">
-                                <Skeleton className="h-full w-full rounded-md bg-content1/10" />
+                            <div className={TABLE_VIEW_CLASS.loadingSkeletonWrap}>
+                                <Skeleton className={TABLE_VIEW_CLASS.loadingSkeleton} />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : showEmptyState ? (
-                <div className="h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60">
+                <div className={TABLE_VIEW_CLASS.emptyRoot}>
                     <div
-                        className="flex items-center gap-tools text-xs font-semibold uppercase text-foreground/60"
-                        style={{
-                            letterSpacing: "var(--tt-tracking-ultra)",
-                        }}
+                        className={TABLE_VIEW_CLASS.emptyHintRow}
+                        style={TABLE_VIEW_CLASS.emptyHintTrackingStyle}
                     >
                         <StatusIcon
                             Icon={FileUp}
                             size="lg"
-                            className="text-primary"
+                            className={TABLE_VIEW_CLASS.emptyIcon}
                         />
                         <span>{emptyHint}</span>
                     </div>
                     <p
-                        className="text-scaled uppercase text-foreground/40"
-                        style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                        className={TABLE_VIEW_CLASS.emptySubtext}
+                        style={TABLE_VIEW_CLASS.emptySubtextTrackingStyle}
                     >
                         {emptyHintSubtext}
                     </p>
-                    <div className="w-full max-w-3xl space-y-tight">
+                    <div className={TABLE_VIEW_CLASS.emptyPreview}>
                         <div
-                            className="flex items-center gap-tools text-xs font-semibold uppercase text-foreground/60"
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
+                            className={TABLE_VIEW_CLASS.emptyHintRow}
+                            style={TABLE_VIEW_CLASS.emptyHintTrackingStyle}
                         >
-                            <span className="h-indicator w-full rounded-full bg-content1/20" />
+                            <span className={TABLE_VIEW_CLASS.emptyBar} />
                             <span>{headerName}</span>
                             <span>{headerSpeed}</span>
                         </div>
                         {Array.from({ length: 3 }).map((_, index) => (
                             <div
                                 key={index}
-                                className="grid grid-cols-torrent gap-tools rounded-2xl bg-content1/10 px-panel py-panel"
+                                className={TABLE_VIEW_CLASS.emptyPreviewRow}
                             >
-                                <span className="h-indicator w-full rounded-full bg-content1/20" />
-                                <span className="h-indicator w-full rounded-full bg-content1/20" />
-                                <span className="h-indicator w-full rounded-full bg-content1/20" />
+                                <span className={TABLE_VIEW_CLASS.emptyBar} />
+                                <span className={TABLE_VIEW_CLASS.emptyBar} />
+                                <span className={TABLE_VIEW_CLASS.emptyBar} />
                             </div>
                         ))}
                     </div>
                 </div>
             ) : showNoResultsState ? (
-                <div className="h-full flex items-center justify-center px-stage text-scaled uppercase text-foreground/50">
+                <div className={TABLE_VIEW_CLASS.noResults}>
                     {noResults}
                 </div>
             ) : (
@@ -134,7 +131,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         strategy={verticalListSortingStrategy}
                     >
                         <div
-                            className="relative w-full min-w-max"
+                            className={TABLE_VIEW_CLASS.bodyCanvas}
                             style={{
                                 height: rowVirtualizer.getTotalSize(),
                                 width: getTableTotalWidthCss(
@@ -184,13 +181,9 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         ),
                                         height: rowHeight,
                                     }}
-                                    className={cn(
-                                        "pointer-events-none border bg-background/90 backdrop-blur-3xl px-panel box-border",
-                                        SURFACE_BORDER,
-                                        PANEL_SHADOW,
-                                    )}
+                                    className={TABLE_VIEW_CLASS.dragOverlay}
                                 >
-                                    <div className="flex h-full w-full items-center">
+                                    <div className={TABLE_VIEW_CLASS.dragOverlayContent}>
                                         {activeDragRow
                                             .getVisibleCells()
                                             .map((cell) => (
@@ -210,7 +203,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
             {marqueeRect && (
                 <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20"
+                    className={TABLE_VIEW_CLASS.marquee}
                     style={{
                         left: marqueeRect.left,
                         top: marqueeRect.top,

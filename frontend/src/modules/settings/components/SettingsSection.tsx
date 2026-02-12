@@ -1,6 +1,8 @@
 import { Card, cn } from "@heroui/react";
 import type { ReactNode } from "react";
-import { HEADER_BASE, SURFACE_BORDER } from "@/config/logic";
+import {
+    FORM_UI_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 interface SettingsSectionProps {
     title?: string;
@@ -18,16 +20,13 @@ export function SettingsSection({
     return (
         <Card
             className={cn(
-                `p-panel rounded-2xl border ${SURFACE_BORDER} bg-content1/10`,
+                FORM_UI_CLASS.sectionCard,
                 className
             )}
         >
             {title && (
                 <h3
-                    className={cn(
-                        HEADER_BASE,
-                        "text-scaled font-bold text-foreground/40 mb-panel leading-tight"
-                    )}
+                    className={FORM_UI_CLASS.sectionTitle}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -35,7 +34,7 @@ export function SettingsSection({
             )}
             {description && (
                 <p
-                    className={cn(HEADER_BASE, "mb-panel text-scaled")}
+                    className={FORM_UI_CLASS.sectionDescription}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}

@@ -163,6 +163,17 @@ These documents describe the intended direction for reducing drift, but they are
 
 When working *in those areas*, align with them. If they conflict with existing code or reality, prefer the smallest safe change and flag what needs to be amended in the plan.
 
+## **3.6 Feature Styling Ownership (Hard Rule)**
+
+Goal: Feature code must not own styling. All visual recipes must come from shared semantic tokens/primitives; if a shared token is missing, stop and ask before adding any feature-specific token.
+
+Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*` / `SETTINGS_*`).
+
+Enforcement:
+- Feature modules may compose shared semantic tokens only.
+- Introducing or expanding feature-prefixed styling namespaces is forbidden.
+- If shared semantic authority is missing, implementation must pause and request direction instead of inventing local style authorities.
+
 # **Structural Layout Primitives (Authoritative)**
 
 UI layout and visual framing must be built exclusively from approved structural primitives.

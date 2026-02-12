@@ -12,8 +12,10 @@ import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH, SURFACE_BORDER } from "@/config/logic";
+import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
 interface GeneralTabProps {
@@ -51,15 +53,17 @@ export const GeneralTab = ({
             >
                 <div className="flex items-center justify-between">
                     <div className="flex-1">
-                        <div className="text-label text-foreground/60">
+                        <div className={TEXT_ROLE.caption}>
                             {t("torrent_modal.labels.save_path")}
                         </div>
-                        <code className="font-mono text-scaled text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word mt-2">
+                        <code
+                            className={`${TEXT_ROLE.codeMuted} bg-content1/20 px-tight py-tight rounded wrap-break-word mt-2`}
+                        >
                             {downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}
                         </code>
                     </div>
                     <div className="w-1/3 pl-4">
-                        <div className="text-label text-foreground/60">
+                        <div className={TEXT_ROLE.caption}>
                             {t("torrent_modal.controls.verify")}
                         </div>
                         <div className="mt-2">
@@ -93,28 +97,28 @@ export const GeneralTab = ({
             )}
 
             {general.showMissingFilesError && (
-                <GlassPanel className="p-panel border border-warning/30 bg-warning/10">
+                <AlertPanel severity="warning">
                     <div className="flex flex-col gap-tools">
-                        <span className="text-scaled font-semibold uppercase tracking-tight text-warning">
+                        <span className={TEXT_ROLE.statusWarning}>
                             {t("torrent_modal.errors.no_data_found_title")}
                         </span>
-                        <div className="flex flex-col gap-tight text-label font-mono text-warning/80">
+                        <div className={`flex flex-col gap-tight ${TEXT_ROLE.codeMuted} text-warning/80`}>
                             {general.probeLines.map((line) => (
                                 <span key={line}>{line}</span>
                             ))}
                         </div>
                         {general.classificationLabel && (
-                            <div className="text-label text-foreground/70">
+                            <div className={TEXT_ROLE.bodySmall}>
                                 {general.classificationLabel}
                             </div>
                         )}
                         {recoveryBlockedMessage && (
-                            <div className="text-label text-warning/80">
+                            <div className={`${withColor(TEXT_ROLE.caption, "warning")} text-warning/80`}>
                                 {recoveryBlockedMessage}
                             </div>
                         )}
                     </div>
-                </GlassPanel>
+                </AlertPanel>
             )}
 
             <div className="grid gap-tools sm:grid-cols-2">
@@ -124,10 +128,10 @@ export const GeneralTab = ({
                     >
                         <div className="flex items-center justify-between">
                             <div>
-                                <div className="text-label text-foreground/60">
+                                <div className={TEXT_ROLE.caption}>
                                     {t("torrent_modal.controls.title")}
                                 </div>
-                                <div className="text-scaled text-foreground/50">
+                                <div className={withOpacity(TEXT_ROLE.body, 50)}>
                                     {t("torrent_modal.controls.description")}
                                 </div>
                             </div>

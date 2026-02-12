@@ -7,6 +7,7 @@ import {
 } from "@/modules/settings/context/SettingsFormContext";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
+import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
 
 export function InterfaceTabContent() {
     const { t } = useTranslation();
@@ -28,10 +29,10 @@ export function InterfaceTabContent() {
                 <div className="space-y-stage">
                     <div className="flex items-start justify-between gap-panel">
                         <div className="min-w-0">
-                            <p className="text-scaled font-semibold text-foreground/80">
+                            <p className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
                                 {t("settings.labels.shellStyle")}
                             </p>
-                            <p className="text-label text-foreground/60">
+                            <p className={TEXT_ROLE.caption}>
                                 {t("settings.descriptions.shellStyle")}
                             </p>
                         </div>
@@ -66,10 +67,10 @@ export function InterfaceTabContent() {
                     {isImmersive && hasDismissedInsights && (
                         <div className="flex items-start justify-between gap-panel">
                             <div className="min-w-0">
-                                <p className="text-scaled font-semibold text-foreground/80">
+                                <p className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
                                     {t("settings.buttons.restore_hud")}
                                 </p>
-                                <p className="text-label text-foreground/60">
+                                <p className={TEXT_ROLE.caption}>
                                     {t("settings.descriptions.restore_hud")}
                                 </p>
                             </div>
@@ -92,7 +93,7 @@ export function InterfaceTabContent() {
                 className="mt-panel"
             >
                 <div className="flex items-center justify-between h-control-row">
-                    <span className="text-scaled font-medium text-foreground/80">
+                    <span className={`${withOpacity(TEXT_ROLE.body, 80)} font-medium`}>
                         {t("settings.labels.tableWatermark")}
                     </span>
                     <Switch
@@ -112,10 +113,10 @@ export function InterfaceTabContent() {
             >
                 <div className="flex items-center justify-between gap-panel">
                     <div>
-                        <span className="text-scaled font-semibold text-foreground/80">
+                        <span className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
                             {t("settings.labels.language")}
                         </span>
-                        <p className="text-label text-foreground/60">
+                        <p className={TEXT_ROLE.caption}>
                             {t("settings.descriptions.language_helper")}
                         </p>
                     </div>

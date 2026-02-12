@@ -7,12 +7,10 @@ import {
     ModalContent,
     ModalHeader,
     Checkbox,
-    cn,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    GLASS_MODAL_SURFACE,
-    MODAL_SURFACE_FRAME,
+    MODAL_BASE_CLASSNAMES,
 } from "@/shared/ui/layout/glass-surface";
 import {
     TORRENTTABLE_COLUMN_DEFS,
@@ -40,9 +38,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
             size="lg"
             backdrop="blur"
             motionProps={INTERACTION_CONFIG.modalBloom}
-            classNames={{
-                base: cn(GLASS_MODAL_SURFACE, MODAL_SURFACE_FRAME),
-            }}
+            classNames={MODAL_BASE_CLASSNAMES}
         >
             <ModalContent>
                 {() => (

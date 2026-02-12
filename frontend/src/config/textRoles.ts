@@ -179,6 +179,9 @@ export const MIGRATION_MAP = {
     "text-scaled font-bold text-foreground": "TEXT_ROLE.heading",
     "text-label font-bold uppercase tracking-label text-foreground/60":
         "TEXT_ROLE.label",
+    "text-scaled font-semibold text-foreground": "TEXT_ROLE.bodyStrong",
+    "text-scaled text-foreground/70": "TEXT_ROLE.bodyMuted",
+    "text-label text-foreground/60": "TEXT_ROLE.caption",
     "font-mono text-label uppercase tracking-widest": "TEXT_ROLE.codeCaption",
     "text-label text-foreground/70": "TEXT_ROLE.bodySmall",
     "text-scaled text-foreground/75": "TEXT_ROLE_EXTENDED.tableCell",

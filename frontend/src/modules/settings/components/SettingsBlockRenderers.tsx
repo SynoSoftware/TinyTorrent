@@ -14,8 +14,16 @@ import {
     type InputBlock,
     type SectionBlock,
 } from "@/modules/settings/data/settings-tabs";
-import { ICON_STROKE_WIDTH, SURFACE_BORDER } from "@/config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    VISUAL_STATE,
+} from "@/config/logic";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
+import {
+    buildSettingsBufferedInputClassNames,
+    FORM_UI_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 import {
     BufferedInput,
     type BufferedInputCommitOutcome,
@@ -49,20 +57,23 @@ export function SwitchSliderRenderer({
     const sliderValue = Number.isFinite(rawValue) ? rawValue : block.slider.min;
 
     return (
-        <div className="space-y-tight">
-            <div className="flex justify-between items-center">
+        <div className={FORM_UI_CLASS.blockStackTight}>
+            <div className={FORM_UI_CLASS.blockRowBetween}>
                 <Switch
                     size="md"
                     isSelected={isSwitchOn}
                     color={block.color}
                     onValueChange={(val) => updateConfig(block.switchKey, val)}
                 >
-                    <span className="text-scaled font-medium text-foreground/90">
+                    <span className={`${withOpacity(TEXT_ROLE.body, 90)} font-medium`}>
                         {t(block.labelKey)}
                     </span>
                 </Switch>
                 <div
-                    className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-tight py-tight rounded-md text-center"
+                    className={cn(
+                        withOpacity(TEXT_ROLE.code, 80),
+                        FORM_UI_CLASS.sliderValueBadge
+                    )}
                     style={{ minWidth: "var(--tt-badge-min-width)" }}
                 >
                     {block.valueSuffixKey
@@ -79,8 +90,8 @@ export function SwitchSliderRenderer({
                 onChange={(val) => updateConfig(block.sliderKey, val as number)}
                 isDisabled={sliderDisabled}
                 color={block.color}
-                classNames={{ thumb: "shadow-small" }}
-                className="opacity-90"
+                classNames={FORM_UI_CLASS.sliderClassNames}
+                className={FORM_UI_CLASS.slider}
             />
         </div>
     );
@@ -107,12 +118,13 @@ export function SwitchRenderer({
         (block.disabledWhenNotImmersive && !isImmersive);
 
     return (
-        <div className="flex flex-col gap-tight">
-            <div className="flex justify-between items-center h-control-row">
+        <div className={FORM_UI_CLASS.switchBlock}>
+            <div className={FORM_UI_CLASS.switchRow}>
                 <span
                     className={cn(
-                        "text-scaled font-medium text-foreground/80",
-                        isDisabled && "opacity-40"
+                        withOpacity(TEXT_ROLE.body, 80),
+                        "font-medium",
+                        isDisabled && VISUAL_STATE.muted,
                     )}
                 >
                     {t(block.labelKey)}
@@ -126,7 +138,7 @@ export function SwitchRenderer({
                 />
             </div>
             {blocklistUnsupported && (
-                <p className="text-label text-foreground/60">
+                <p className={TEXT_ROLE.caption}>
                     {t("settings.blocklist.unsupported")}
                 </p>
             )}
@@ -238,26 +250,15 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             isDisabled={isDisabled || blocklistUnsupported}
             onCommit={handleCommit}
             onDraftChange={(next) => setFieldDraft(block.stateKey, next)}
-            classNames={{
-                inputWrapper: cn(
-                    "h-button transition-colors",
-                    isDisabled || blocklistUnsupported
-                        ? "opacity-50"
-                        : "group-hover:border-primary/50"
-                ),
-                input: cn(
-                    "text-foreground/90",
-                    isMono
-                        ? "font-mono text-scaled tracking-tight"
-                        : "font-medium text-scaled"
-                ),
-                label: "text-foreground/60 font-medium text-label uppercase tracking-wider mb-tight",
-            }}
+            classNames={buildSettingsBufferedInputClassNames({
+                disabled: isDisabled || blocklistUnsupported,
+                mono: isMono,
+            })}
             endContent={
                 block.endIcon ? (
                     <block.endIcon
                         strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-foreground/40 shrink-0 toolbar-icon-size-sm"
+                        className={FORM_UI_CLASS.inputEndIcon}
                     />
                 ) : undefined
             }
@@ -266,14 +267,14 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     );
 
     const blocklistHelper = blocklistUnsupported ? (
-        <p className="text-label text-foreground/60">
+        <p className={TEXT_ROLE.caption}>
             {t("settings.blocklist.unsupported")}
         </p>
     ) : null;
 
     if (!sideAction || hideBrowseAction) {
         return (
-            <div className="group flex flex-col gap-tight">
+            <div className={FORM_UI_CLASS.inputGroup}>
                 {inputNode}
                 {blocklistHelper}
             </div>
@@ -281,9 +282,9 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     }
 
     return (
-        <div className="flex flex-col gap-tight group">
-            <div className="flex w-full items-end gap-tools">
-                <div className="flex-1 min-w-0">{inputNode}</div>
+        <div className={FORM_UI_CLASS.inputActionGroup}>
+            <div className={FORM_UI_CLASS.inputActionRow}>
+                <div className={FORM_UI_CLASS.inputActionFill}>{inputNode}</div>
                 <Button
                     size="md"
                     variant="shadow"
@@ -291,7 +292,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                     onPress={() => {
                         void handleSideAction();
                     }}
-                    className="h-button px-stage shrink-0 font-semibold text-scaled tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
+                    className={FORM_UI_CLASS.inputActionButton}
                     isDisabled={sideActionDisabled}
                 >
                     {t(sideAction.labelKey)}
@@ -309,7 +310,7 @@ export function InputPairRenderer({
 }) {
     const gridCols = block.inputs.length === 1 ? "grid-cols-1" : "grid-cols-2";
     return (
-        <div className={cn("grid gap-panel", gridCols)}>
+        <div className={cn(FORM_UI_CLASS.inputPairGrid, gridCols)}>
             {block.inputs.map((inputBlock, idx) => (
                 <SingleInputRenderer
                     key={inputBlock.stateKey || idx}
@@ -336,16 +337,16 @@ export function DaySelectorRenderer({
     };
 
     return (
-        <div className="space-y-tight">
-            <div className="flex items-center justify-between">
+        <div className={FORM_UI_CLASS.blockStackTight}>
+            <div className={FORM_UI_CLASS.blockRowBetween}>
                 <span
-                    className="text-label font-semibold uppercase text-foreground/70"
+                    className={TEXT_ROLE.labelDense}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {t(block.labelKey)}
                 </span>
             </div>
-            <div className="flex flex-wrap gap-tools">
+            <div className={FORM_UI_CLASS.daySelectorList}>
                 {ALT_SPEED_DAY_OPTIONS.map((day) => {
                     const isSelected = Boolean(selectedMask & day.mask);
                     return (
@@ -356,8 +357,10 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95 text-scaled min-w-0",
-                                isSelected ? "font-bold" : "text-foreground/60"
+                                FORM_UI_CLASS.daySelectorButton,
+                                isSelected
+                                    ? FORM_UI_CLASS.daySelectorSelected
+                                    : FORM_UI_CLASS.daySelectorUnselected
                             )}
                             style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                         >
@@ -389,10 +392,7 @@ export function SelectRenderer({
                     ? [String(config[block.stateKey])]
                     : []
             }
-            classNames={{
-                trigger: "h-button",
-                value: "text-scaled font-medium",
-            }}
+            classNames={FORM_UI_CLASS.selectClassNames}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
                 if (next) updateConfig(block.stateKey, next);
@@ -414,7 +414,7 @@ export function ButtonRowRenderer({
     const { buttonActions } = useSettingsFormActions();
 
     return (
-        <div className="flex">
+        <div className={FORM_UI_CLASS.buttonRow}>
             {block.buttons.map((btn) => (
                 <Button
                     key={btn.labelKey}
@@ -438,13 +438,13 @@ export function LanguageRenderer({
 }) {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center justify-between gap-panel">
+        <div className={FORM_UI_CLASS.languageRow}>
             <div>
-                <span className="text-scaled font-semibold text-foreground/80">
+                <span className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
                     {t(block.labelKey)}
                 </span>
                 {block.descriptionKey && (
-                    <p className="text-label text-foreground/60">
+                    <p className={TEXT_ROLE.caption}>
                         {t(block.descriptionKey)}
                     </p>
                 )}
@@ -476,14 +476,14 @@ export function RawConfigRenderer({
     };
 
     return (
-        <div className="space-y-tight">
-            <div className="flex items-center justify-between gap-panel">
+        <div className={FORM_UI_CLASS.blockStackTight}>
+            <div className={FORM_UI_CLASS.rawConfigHeader}>
                 <div>
-                    <span className="text-scaled font-semibold text-foreground/80">
+                    <span className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
                         {t(block.labelKey)}
                     </span>
                     {block.descriptionKey && (
-                        <p className="text-label text-foreground/50">
+                        <p className={withOpacity(TEXT_ROLE.caption, 50)}>
                             {t(block.descriptionKey)}
                         </p>
                     )}
@@ -505,19 +505,22 @@ export function RawConfigRenderer({
             </div>
             <div className="mt-tight">
                 {jsonCopyStatus === "copied" && (
-                    <p className="text-success text-label">
+                    <p className={withColor(TEXT_ROLE.caption, "success")}>
                         {t("settings.modal.clipboard_success")}
                     </p>
                 )}
                 {jsonCopyStatus === "failed" && (
-                    <p className="text-danger text-label">
+                    <p className={withColor(TEXT_ROLE.caption, "danger")}>
                         {t("settings.modal.clipboard_failed")}
                     </p>
                 )}
             </div>
-            <div className={`rounded-2xl border ${SURFACE_BORDER} bg-content1/30`}>
+            <div className={FORM_UI_CLASS.rawConfigPanel}>
                 <textarea
-                    className="w-full resize-none border-none bg-transparent px-panel py-panel text-scaled font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
+                    className={cn(
+                        withOpacity(TEXT_ROLE.code, 80),
+                        FORM_UI_CLASS.rawConfigTextarea,
+                    )}
                     rows={10}
                     value={configJson}
                     readOnly
@@ -529,5 +532,7 @@ export function RawConfigRenderer({
 }
 
 export function DividerRenderer() {
-    return <Divider className="my-panel opacity-50" />;
+    return <Divider className={FORM_UI_CLASS.divider} />;
 }
+
+

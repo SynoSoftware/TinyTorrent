@@ -25,9 +25,14 @@ import {
     SPEED_BUCKET_WIDTH_MED,
     SPEED_BUCKET_COUNT_SMALL,
     SPEED_BUCKET_COUNT_MED,
-    SURFACE_BORDER,
 } from "@/config/logic";
+import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { cn } from "@heroui/react";
+import {
+    buildMetricChartLayoutButtonClass,
+    buildMetricChartWindowButtonClass,
+    METRIC_CHART_CLASS,
+} from "@/shared/ui/layout/glass-surface";
 
 // Use Lucide icons to match project style and theme (color via currentColor)
 
@@ -344,9 +349,9 @@ const SeriesChart = ({
     return (
         <div
             ref={containerRef}
-            className={cn("w-full relative min-h-0", className)}
+            className={cn(METRIC_CHART_CLASS.canvasWrap, className)}
         >
-            <canvas ref={canvasRef} className="block w-full h-full" />
+            <canvas ref={canvasRef} className={METRIC_CHART_CLASS.canvas} />
             {/* Legend overlay removed from per-series chart to avoid referencing parent colors; legend is shown in CombinedChart */}
         </div>
     );
@@ -562,9 +567,9 @@ const CombinedChart = ({
     return (
         <div
             ref={containerRef}
-            className={cn("w-full relative min-h-0", className)}
+            className={cn(METRIC_CHART_CLASS.canvasWrap, className)}
         >
-            <canvas ref={canvasRef} className="block w-full h-full" />
+            <canvas ref={canvasRef} className={METRIC_CHART_CLASS.canvas} />
         </div>
     );
 };
@@ -682,32 +687,29 @@ export const SpeedChart = ({
     const upColor = getCssToken(SPEED_CHART_UP_STROKE_TOKEN) || palette.success;
 
     return (
-        <div className="flex flex-col gap-tools h-full min-h-0">
+        <div className={METRIC_CHART_CLASS.root}>
             {/* Header / Controls */}
-            <div className="flex items-center justify-between font-mono text-foreground/60 shrink-0">
-                <div className="flex items-center gap-panel">
-                    <span className="flex items-center gap-tight text-success font-bold">
+            <div className={METRIC_CHART_CLASS.header}>
+                <div className={METRIC_CHART_CLASS.metrics}>
+                    <span className={METRIC_CHART_CLASS.downMetric}>
                         ↓ {formatSpeed(latestDown)}
                     </span>
-                    <span className="flex items-center gap-tight text-primary font-bold">
+                    <span className={METRIC_CHART_CLASS.upMetric}>
                         ↑ {formatSpeed(latestUp)}
                     </span>
                 </div>
 
-                <div className="flex items-center gap-tight">
+                <div className={METRIC_CHART_CLASS.controls}>
                     <ButtonGroup
                         size="md"
                         variant="flat"
-                        className="bg-content1/20 rounded-panel p-tight gap-none mr-tight"
+                        className={METRIC_CHART_CLASS.layoutGroup}
                     >
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
-                            className={cn(
-                                "rounded-tight",
-                                layout === "split"
-                                    ? "bg-background shadow-small text-foreground"
-                                    : "bg-transparent text-foreground/50"
+                            className={buildMetricChartLayoutButtonClass(
+                                layout === "split",
                             )}
                             onPress={() => setLayout("split")}
                             ariaLabel={t(
@@ -717,11 +719,8 @@ export const SpeedChart = ({
                         <ToolbarIconButton
                             Icon={Layers}
                             iconSize="md"
-                            className={cn(
-                                "rounded-tight",
-                                layout === "combined"
-                                    ? "bg-background shadow-small text-foreground"
-                                    : "bg-transparent text-foreground/50"
+                            className={buildMetricChartLayoutButtonClass(
+                                layout === "combined",
                             )}
                             onPress={() => setLayout("combined")}
                             ariaLabel={t(
@@ -730,7 +729,7 @@ export const SpeedChart = ({
                         />
                     </ButtonGroup>
 
-                    <div className="flex bg-content1/20 rounded-pill p-tight">
+                    <div className={METRIC_CHART_CLASS.windowGroup}>
                         {SPEED_WINDOW_OPTIONS.map((option) => (
                             <Button
                                 key={option.key}
@@ -745,11 +744,8 @@ export const SpeedChart = ({
                                         ? "secondary"
                                         : "default"
                                 }
-                                className={cn(
-                                    "rounded-pill px-tight min-w-0 font-medium",
-                                    selectedWindow === option.key
-                                        ? "bg-foreground text-background shadow-small"
-                                        : "text-foreground/60"
+                                className={buildMetricChartWindowButtonClass(
+                                    selectedWindow === option.key,
                                 )}
                                 onPress={() => setSelectedWindow(option.key)}
                             >
@@ -760,19 +756,20 @@ export const SpeedChart = ({
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 flex flex-col gap-panel">
+            <div className={METRIC_CHART_CLASS.content}>
                 {layout === "split" ? (
                     <>
-                        <div
-                            className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
-                        >
+                        <div className={METRIC_CHART_CLASS.panel}>
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className="absolute uppercase tracking-wider font-bold text-success/60 z-panel pointer-events-none text-label"
+                                className={cn(
+                                    METRIC_CHART_CLASS.panelLabelWrap,
+                                    TEXT_ROLE_EXTENDED.chartLabelSuccess,
+                                )}
                             >
                                 Download
                             </span>
@@ -781,20 +778,21 @@ export const SpeedChart = ({
                                 timedRef={downTimed}
                                 windowMs={windowMs}
                                 maxRef={downMaxRef}
-                                className="flex-1"
+                                className={METRIC_CHART_CLASS.panelSeries}
                                 tick={tick} // Passed tick
                             />
                         </div>
-                        <div
-                            className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
-                        >
+                        <div className={METRIC_CHART_CLASS.panel}>
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className="absolute uppercase tracking-wider font-bold text-primary/60 z-panel pointer-events-none text-label"
+                                className={cn(
+                                    METRIC_CHART_CLASS.panelLabelWrap,
+                                    TEXT_ROLE_EXTENDED.chartLabelPrimary,
+                                )}
                             >
                                 Upload
                             </span>
@@ -803,15 +801,13 @@ export const SpeedChart = ({
                                 timedRef={upTimed}
                                 windowMs={windowMs}
                                 maxRef={upMaxRef}
-                                className="flex-1"
+                                className={METRIC_CHART_CLASS.panelSeries}
                                 tick={tick} // Passed tick
                             />
                         </div>
                     </>
                 ) : (
-                    <div
-                        className={`flex-1 min-h-0 flex flex-col rounded-panel border ${SURFACE_BORDER} bg-content1/10 p-panel overflow-hidden relative`}
-                    >
+                    <div className={METRIC_CHART_CLASS.panel}>
                         {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
                             downTimedRef={downTimed}
@@ -819,7 +815,7 @@ export const SpeedChart = ({
                             downColor={downColor}
                             upColor={upColor}
                             windowMs={windowMs}
-                            className="flex-1"
+                            className={METRIC_CHART_CLASS.panelSeries}
                             tick={tick} // Passed tick
                         />
                     </div>
@@ -828,3 +824,4 @@ export const SpeedChart = ({
         </div>
     );
 };
+

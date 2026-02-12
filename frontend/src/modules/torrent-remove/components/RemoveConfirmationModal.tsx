@@ -14,9 +14,8 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import {
-    GLASS_MODAL_SURFACE,
+    MODAL_COMPACT_CLASSNAMES,
     MODAL_SURFACE_FOOTER,
-    MODAL_SURFACE_FRAME,
     MODAL_SURFACE_HEADER,
 } from "@/shared/ui/layout/glass-surface";
 
@@ -136,13 +135,7 @@ export function RemoveConfirmationModal({
                 }
             }}
             backdrop="blur"
-            classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    MODAL_SURFACE_FRAME,
-                    "w-full max-w-modal-compact",
-                ),
-            }}
+            classNames={MODAL_COMPACT_CLASSNAMES}
         >
             <ModalContent>
                 <ModalHeader
