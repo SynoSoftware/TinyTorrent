@@ -1194,6 +1194,17 @@
                 "smoke": "Recovery smoke run",
                 "system_events": "System event recovery run"
             },
+            "workflow": {
+                "panel_inputs": "Inputs panel",
+                "panel_results": "Results panel",
+                "step_1": "Step 1 - Select scenario",
+                "step_2": "Step 2 - Confidence",
+                "step_3": "Step 3 - Controller overrides",
+                "step_4": "Step 4 - Execute",
+                "execution_state": "Execution state",
+                "verification": "Verification",
+                "system_reactions": "System reactions"
+            },
             "scenario": {
                 "data_gap": "Data gap",
                 "path_loss": "Path loss",
@@ -1216,7 +1227,8 @@
                 "verify_fails": "Force verify failure"
             },
             "label": {
-                "fault_mode": "Filesystem fault"
+                "fault_mode": "Filesystem fault",
+                "simulate_prefix": "Simulate:"
             },
             "fault": {
                 "ok": "Path OK",
@@ -1243,6 +1255,12 @@
                 "title": "Completion assertions",
                 "expected": "Expected:",
                 "actual": "Actual:",
+                "column": {
+                    "scenario": "Scenario",
+                    "expected": "Expected",
+                    "actual": "Actual",
+                    "status": "Status"
+                },
                 "match": "match",
                 "mismatch": "mismatch",
                 "pending": "pending",
@@ -1292,11 +1310,11 @@
                 "resumed_pending": "pending",
                 "case_passed": "resolved; active state {{state}}",
                 "column": {
-                    "event": "Event:",
-                    "completion": "Completion:",
-                    "resumed": "Resume:",
-                    "before": "Before:",
-                    "after": "After:"
+                    "event": "Event",
+                    "completion": "Completion",
+                    "resumed": "Resume",
+                    "before": "Before",
+                    "after": "After"
                 },
                 "case": {
                     "disk_space_restored": "Disk full -> free space restored",
