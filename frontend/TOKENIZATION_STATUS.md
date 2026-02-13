@@ -1,74 +1,48 @@
-# Tokenization Status
+# Tokenization Status (Final-Form Policy)
 
 Updated: 2026-02-13
 
-## Scope
+## Policy
 
-Keep `glass-surface.ts` as a single theme authority while converging on:
+Tokenization is no longer managed as a transitional migration.
 
-- foundation dials
-- minimal core roles
-- semantic extensions
-- feature bindings composed from shared roles/tokens
+Hard rules:
+- No intermediary compatibility states.
+- No temporary alias layers.
+- No feature-map growth as a long-term strategy.
+- No visual drift for the same intent.
+- No token-count optimization that degrades visual clarity.
 
-Goal: improve maintainability/consistency without materially flattening the UI.
+The only accepted direction is direct convergence to the minimal canonical
+token model in `TOKEN_CONTRACT.md`.
 
-Execution rule for remaining work:
+## Categorization Method (Required)
 
-- No new intermediary compatibility states.
-- No new temporary alias layers.
-- Migrate in larger verified batches directly to final semantic ownership.
-- Remove legacy keys in the same batch once usage reaches zero.
+Use actual rendered usage to decide token needs:
 
-## Conclusions So Far
+1. Run `npm run report:surface-tree`.
+2. Run `npm run report:surface-tree:all`.
+3. Review `frontend/reports/generated/surface-component-tree.generated.md`.
+4. Promote only repeated same-intent structures to canonical tokens.
+5. Keep single-use or intent-specific patterns local.
 
-- [x] Core contract exists and is enforced in one file:
-  `GLASS_SURFACE_DIAL`, `GLASS_ROLE_CORE`, `GLASS_ROLE_SEMANTIC`.
-- [x] Core role set is stabilized:
-  `surface` = `workbench/panel/pane/modal/inset/menu/overlay`
-  `chrome` = `edgeTop/edgeBottom/sticky/divider`
-  `state` = `interactive/disabled`
-  `text` = `heading/headingSection/bodyStrong/body/label/muted/caption/code`
-- [x] Dials reduced to perceptually distinct levels:
-  `opacity` 5, `blur` 3, `border` 2, `radius` 4, `elevation` 4.
-- [x] Guardrails are active:
-  `enforce:surface-foundation`, `enforce:surface-churn`,
-  `enforce:workbench-parity`, `enforce:workbench-consumers`.
-- [x] Component-tree correlation exists:
-  `report:surface-tree` and `report:surface-tree:all` ->
-  `SURFACE_COMPONENT_TREE.md` (51 analyzed components in `--all` mode).
-- [_] Visual behavior has been preserved by token/build checks; manual runtime
-  visual sweep is still pending.
+Merge filter:
+- Repeated structure alone is insufficient.
+- Parent integration semantics must also match before merging tokens.
 
-## Pending Tasks to Complete Tokenization
+## Current Direction
 
-- [_] Tree-driven extraction plan:
-  finalize a short list of shared structures to merge next
-  (modal scaffold, menu host/list/item, status chip, table header shell).
-- [x] Commonization batch 1:
-  unify modal scaffolding across all modals using shared modal primitives.
-  - [x] Added `APP_MODAL_CLASS.baseClassNames` and
-    `APP_MODAL_CLASS.compactClassNames`.
-  - [x] Migrated remaining direct modal shell consumers:
-    `AddMagnetModal`, `RemoveConfirmationModal`,
-    `TorrentRecoveryModal`, `TorrentTable_ColumnSettingsModal`.
-- [ ] Commonization batch 2:
-  unify repeated menu/status-chip/table-header patterns from tree report.
-- [ ] Dead-key cleanup:
-  remove zero-consumer/non-rendered token keys from feature maps.
-- [ ] Add unused-token enforcement:
-  script check for zero-consumer keys in `glass-surface.ts`.
-- [ ] Post-batch validation:
-  rerun tree report and record key-count reduction and reused-role increase.
-- [ ] Manual visual QA:
-  sign off parity for navbar/table/status and all modal families.
-- [ ] Completion gate:
-  move Section 12 Step 2 to `[x]` in `CONSISTENCY_AUDIT.md`.
+- Keep `glass-surface.ts` as single authority until canonical collapse is
+  complete.
+- Treat non-canonical feature bindings as debt to collapse/remove.
+- Reject PRs that introduce new transitional token layers.
 
 ## Validation Commands
 
 - `npm run enforce:surface-foundation`
 - `npm run enforce:surface-churn`
+- `npm run enforce:surface-unused`
+- `npm run enforce:surface-final-form`
 - `npm run enforce:workbench-parity`
 - `npm run enforce:workbench-consumers`
 - `npm run report:surface-tree`

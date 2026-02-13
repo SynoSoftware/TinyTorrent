@@ -6,6 +6,31 @@ Goal: Feature code must not own styling. All visual recipes must come from share
 
 Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* / SETTINGS_*).
 
+## Final-Form Override (Authoritative)
+
+This audit contains historical migration notes. Final-form policy now overrides
+all transitional language:
+
+- No transition phases.
+- No compatibility/alias layers.
+- No feature-owned token authorities as end-state.
+- No drift: one intent -> one canonical token.
+- No token minimization that weakens visual hierarchy.
+
+Token categorization must be tree-driven:
+- `npm run report:surface-tree`
+- `npm run report:surface-tree:all`
+- Use `frontend/reports/generated/surface-component-tree.generated.md` to decide whether a pattern is
+  repeated and should become a canonical token.
+
+When a checklist item in this document conflicts with final-form policy,
+final-form policy wins.
+
+Visual quality guard:
+- Similar surfaces may be merged only when parent integration is equivalent.
+- If two surfaces look close but serve different parent-child framing roles,
+  they must remain distinct semantic tokens.
+
 **Scope**: This document identifies className inconsistencies the existing plans
 (`TEXT_ROLE_MIGRATION.md` and `SURFACE_CLEANUP_PLAN.md`) do **not** address.
 Each section proposes a concrete normalization strategy that can be scheduled
@@ -459,7 +484,8 @@ content density), not for ad-hoc blur/background/border recipes.
 - [x] Export a usage inventory for current `glass-surface.ts` exports (symbol -> file count)
   before refactor.
 - [x] Generate page/modal/layout component trees + token usage correlation
-  (`npm run report:surface-tree` -> `frontend/SURFACE_COMPONENT_TREE.md`) to
+  (`npm run report:surface-tree` ->
+  `frontend/reports/generated/surface-component-tree.generated.md`) to
   drive low-risk shared extraction from actual rendered structures.
 - [x] Capture a baseline list of high-churn recipes (`bg-*`, `border-*`,
   `backdrop-blur-*`, `shadow-*`, `rounded-*`) so reduction is measurable.
@@ -627,7 +653,7 @@ Baseline snapshot (updated: 2026-02-12):
   `enforce:workbench-parity`, `enforce:workbench-consumers`.
 - [x] Structure-first correlation is now available for extraction planning:
   `report:surface-tree` and `report:surface-tree:all`
-  generate `frontend/SURFACE_COMPONENT_TREE.md`.
+  generate `frontend/reports/generated/surface-component-tree.generated.md`.
 - [x] Remaining migration mode is now final-form first:
   no new temporary compatibility aliases; convergence batches should land
   directly on target semantic ownership.
@@ -636,7 +662,8 @@ Baseline snapshot (updated: 2026-02-12):
 
 ### Pending Completion Tasks (Tokenization Endgame)
 
-- [x] Build extraction map from `SURFACE_COMPONENT_TREE.md`:
+- [x] Build extraction map from
+  `reports/generated/surface-component-tree.generated.md`:
   pick only repeated structural patterns (modal/menu/status-chip/table-header)
   and avoid collapsing unique feature expression.
   - [x] Batch-2 extraction map (2026-02-13):

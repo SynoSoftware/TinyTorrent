@@ -1,11 +1,26 @@
-# Token Contract (Current Authority)
+# Token Contract (Final-Form Only)
 
 Updated: 2026-02-13
 
 ## Purpose
 
-This document is the source-of-truth summary for the UI token contract used by TinyTorrent.
-It defines what is considered stable token authority, what is semantic extension, and what is still transitional binding.
+This document is the source of truth for TinyTorrent theme tokens.
+
+Hard policy:
+- No transition states.
+- No compatibility aliases.
+- No feature-owned token maps as long-term authorities.
+- No drift: one visual intent must map to one canonical token.
+
+Design-quality rule:
+- Do not minimize token count for its own sake.
+- Keep enough semantic tokens to preserve strong visual hierarchy and clear
+  parent-child integration.
+- A token set is correct when a human can track it and the UI remains
+  intentional, not flattened/neutered.
+
+If any other document suggests transitional or compatibility behavior, this
+file overrides it.
 
 Primary implementation file:
 - `frontend/src/shared/ui/layout/glass-surface.ts`
@@ -14,112 +29,72 @@ Related authorities:
 - `frontend/src/config/textRoles.ts`
 - `frontend/src/config/logic.ts`
 
-## Tier 1: Foundation Dials (Stable)
+## Canonical Token Model
 
-Authority:
-- `SURFACE.dial`
+### 1. Foundation Dials (`SURFACE.dial`)
 
-Keys:
 - `opacity`: `panel`, `workbench`, `pane`, `modal`, `overlay`
 - `blur`: `panel`, `soft`, `floating`
 - `border`: `soft`, `strong`
 - `radius`: `panel`, `modal`, `raised`, `full`
 - `elevation`: `panel`, `overlay`, `floating`, `menu`
 
-These are the single-change visual knobs (transparency, blur, border strength, radius, elevation).
+These are the only visual-material knobs.
 
-## Tier 2: Core Roles (Stable)
+### 2. Core Roles (`SURFACE.role`, `SURFACE.chrome`, `SURFACE.state`, `SURFACE.text`)
 
-Authority:
-- `SURFACE.role` (core surface roles)
-- `SURFACE.chrome` (core chrome roles)
-- `SURFACE.state` (interaction state roles)
-- `SURFACE.text` (text roles used by surface system)
-
-Core roles:
 - `SURFACE.role`: `workbench`, `panel`, `pane`, `modal`, `inset`, `menu`, `overlay`
 - `SURFACE.chrome`: `edgeTop`, `edgeBottom`, `sticky`, `divider`
 - `SURFACE.state`: `interactive`, `disabled`
 - `SURFACE.text`: `heading`, `headingSection`, `bodyStrong`, `body`, `label`, `muted`, `caption`, `code`
 
-## Tier 3: Semantic Extensions (Stable, Role-Level)
+### 3. Semantic Extensions (`SURFACE.surface`, `SURFACE.chromeEx`)
 
-Authority:
-- `SURFACE.surface`
-- `SURFACE.chromeEx`
+- `SURFACE.surface`: `workbenchShell`, `panelInset`, `tooltip`, `statusModule`,
+  `panelRaised`, `panelMuted`, `panelInfo`, `panelWorkflow`, `sidebarPanel`
+- `SURFACE.chromeEx`: `dividerSoft`, `headerBorder`, `footerBorder`,
+  `headerPassive`, `footerEnd`, `footerActionsPadded`
 
-Semantic surfaces:
-- `workbenchShell`
-- `panelInset`
-- `tooltip`
-- `statusModule`
-- `panelRaised`
-- `panelMuted`
-- `panelInfo`
-- `panelWorkflow`
-- `sidebarPanel`
+### 4. Composed Primitives (`SURFACE.modal`, `SURFACE.menu`, `SURFACE.atom`, `SURFACE.tooltip`)
 
-Semantic chrome:
-- `dividerSoft`
-- `headerBorder`
-- `footerBorder`
-- `headerPassive`
-- `footerEnd`
-- `footerActionsPadded`
+Reusable primitives composed strictly from foundation/role tokens.
 
-## Tier 4: Composed Primitives (Stable Utility Layer)
+## Forbidden Model
 
-Authority:
-- `SURFACE.modal`
-- `SURFACE.menu`
-- `SURFACE.atom`
-- `SURFACE.tooltip`
+Forbidden by policy:
+- Transitional binding maps as authorities.
+- Backward-compat alias layers.
+- Introducing new feature/domain token namespaces as end-state.
+- Multiple near-duplicate tokens for the same intent.
 
-These are reusable composed primitives built strictly from tiers 1-3.
+Existing non-minimal exports in `glass-surface.ts` are migration debt, not
+contract authority. They may only move toward deletion or collapse into the
+canonical model.
 
-## Internal Registry (Implementation Detail)
+## Tree-Driven Token Categorization (Required)
 
-`glass-surface.ts` still keeps internal role tiers:
-- `GLASS_ROLE_CORE`
-- `GLASS_ROLE_SEMANTIC`
+Token additions/removals must be based on real rendered usage, not preference.
 
-These are intentionally internal and not part of the public token contract.
+Workflow:
+1. Run `npm run report:surface-tree`.
+2. Run `npm run report:surface-tree:all`.
+3. Use `frontend/reports/generated/surface-component-tree.generated.md` to identify repeated structural
+   patterns.
+4. Only create a new token when the tree shows a repeated, same-intent pattern
+   with shared semantics.
+5. If a pattern is unique, keep it local and do not create a new token.
 
-## Current Binding Exports (Transitional, Not Final Token End-State)
+Decision rule:
+- Repetition + same semantic intent -> tokenize once.
+- Repetition without same intent -> do not merge.
+- Single-use pattern -> no token.
 
-These exports are currently used by consumers and are allowed for migration safety,
-but they are not the long-term "small semantic token set" target.
-
-- `MODAL`
-- `FORM`
-- `TABLE`
-- `DIAGNOSTIC`
-- `WORKBENCH`
-- `SPLIT`
-- `CONTEXT_MENU`
-- `COMMAND_PALETTE`
-- `METRIC_CHART`
-- `DASHBOARD`
-- `DETAILS`
-- `FORM_CONTROL`
-- `INPUT`
-- `FILE_BROWSER`
-- `HEATMAP`
-
-Navbar and status-bar bindings are now owned under:
-- `WORKBENCH.nav.*`
-- `WORKBENCH.status.*`
-
-## Final-Form Direction
-
-Target:
-- App-level semantic tokenization, not component-branded styling ownership.
-- Fewer authorities that express design language by intent.
-- Feature-level maps collapse into shared semantic groups.
-
-Expected steady-state:
-- Stable core remains `SURFACE` (+ `TEXT_ROLE`, `INTERACTIVE_RECIPE`, `TRANSITION`, `VISUAL_STATE`).
-- Transitional feature binding maps are reduced and removed as their consumers converge.
+Merge safety rule:
+- Only merge similar-looking tokens when parent integration is equivalent.
+- If surfaces attach differently to parent chrome (inset, edge-attached,
+  floating, raised, modal, menu), keep separate semantic tokens.
+- Merge must preserve light/dark behavior and interaction states
+  (hover/focus/active/disabled).
 
 ## Guardrails (Must Stay Green)
 
@@ -129,4 +104,6 @@ Expected steady-state:
 - `npm run enforce:surface-final-form`
 - `npm run enforce:workbench-parity`
 - `npm run enforce:workbench-consumers`
+- `npm run report:surface-tree`
+- `npm run report:surface-tree:all`
 - `npm run build`

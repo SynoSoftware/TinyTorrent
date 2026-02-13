@@ -4,6 +4,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
+const outDir = path.join(root, "reports", "generated");
 
 function runRg(pattern) {
     try {
@@ -34,18 +35,23 @@ function runRg(pattern) {
 }
 
 function writeReport(filename, contents) {
-    const target = path.join(root, filename);
+    fs.mkdirSync(outDir, { recursive: true });
+    const target = path.join(outDir, filename);
     fs.writeFileSync(target, contents ? `${contents}\n` : "", "utf8");
 }
 
 const classNamesMatches = runRg("classNames\\s*=");
 const classNameMatches = runRg("className\\s*=");
 
-writeReport("CLASSNAMES_OCCURRENCES_CURRENT.txt", classNamesMatches);
-writeReport("CLASSNAMES_OCCURRENCES.txt", classNamesMatches);
-writeReport("CLASSNAME_OCCURRENCES.txt", classNameMatches);
+const classNamesCurrentFile = "classnames-occurrences-current.generated.txt";
+const classNamesFile = "classnames-occurrences.generated.txt";
+const classNameFile = "classname-occurrences.generated.txt";
+
+writeReport(classNamesCurrentFile, classNamesMatches);
+writeReport(classNamesFile, classNamesMatches);
+writeReport(classNameFile, classNameMatches);
 
 console.log("Generated:");
-console.log(" - CLASSNAMES_OCCURRENCES_CURRENT.txt");
-console.log(" - CLASSNAMES_OCCURRENCES.txt");
-console.log(" - CLASSNAME_OCCURRENCES.txt");
+console.log(` - reports/generated/${classNamesCurrentFile}`);
+console.log(` - reports/generated/${classNamesFile}`);
+console.log(` - reports/generated/${classNameFile}`);
