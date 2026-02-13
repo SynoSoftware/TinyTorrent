@@ -8,35 +8,26 @@ import {
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
 const GLASS_SURFACE_DIAL = {
     opacity: {
-        workbench: "bg-content1/30",
         panel: "bg-content1/10",
+        workbench: "bg-content1/30",
         pane: "bg-content1/55",
         modal: "bg-content1/80",
         overlay: "bg-background/90",
-        subtle: "bg-content1/5",
-        workflow: "bg-content1/50",
     },
     blur: {
         panel: "blur-glass",
         soft: "backdrop-blur-sm",
         floating: "backdrop-blur-xl",
-        strong: "backdrop-blur-3xl",
-        sticky: "backdrop-blur-md",
     },
     border: {
         soft: "border border-default/10",
-        medium: "border border-default/15",
         strong: "border border-default/20",
-        subtle: SURFACE_BORDER,
-        edgeTop: "border-t border-default/20",
-        edgeBottom: "border-b border-default/20",
     },
     radius: {
         panel: "rounded-panel",
         modal: "rounded-modal",
         raised: "rounded-2xl",
         full: "rounded-full",
-        base: "rounded",
     },
     elevation: {
         panel: "shadow-small",
@@ -46,20 +37,32 @@ const GLASS_SURFACE_DIAL = {
     },
 } as const;
 
+const GLASS_PANE_SURFACE =
+    `flex flex-col min-h-0 overflow-hidden ${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.elevation.panel} ${GLASS_SURFACE_DIAL.opacity.pane}`;
+const GLASS_MENU_SURFACE =
+    `glass-panel surface-layer-2 text-foreground ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal}`;
+const GLASS_MENU_FRAME =
+    `overflow-hidden ${GLASS_SURFACE_DIAL.border.strong} p-tight`;
+const GLASS_OVERLAY_SURFACE =
+    `${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.opacity.overlay} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.overlay}`;
+
 const GLASS_ROLE_CORE = {
     surface: {
         workbench:
             `glass-panel surface-layer-1 text-foreground ${GLASS_SURFACE_DIAL.opacity.workbench}`,
         panel:
             `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.soft} overflow-hidden ${GLASS_SURFACE_DIAL.opacity.panel}`,
+        pane: GLASS_PANE_SURFACE,
         modal:
             `glass-panel surface-layer-2 text-foreground ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.modal} flex flex-col overflow-hidden ${GLASS_SURFACE_DIAL.border.strong}`,
         inset: `surface-layer-1 ${GLASS_SURFACE_DIAL.radius.panel} p-tight`,
+        menu: `${GLASS_MENU_SURFACE} ${GLASS_MENU_FRAME}`,
+        overlay: GLASS_OVERLAY_SURFACE,
     },
     chrome: {
-        edgeTop: GLASS_SURFACE_DIAL.border.edgeTop,
-        edgeBottom: GLASS_SURFACE_DIAL.border.edgeBottom,
-        sticky: `sticky top-0 z-sticky bg-background/80 ${GLASS_SURFACE_DIAL.blur.sticky}`,
+        edgeTop: "border-t border-default/20",
+        edgeBottom: "border-b border-default/20",
+        sticky: `sticky top-0 z-sticky bg-background/80 ${GLASS_SURFACE_DIAL.blur.soft}`,
         divider: "border-default/20",
     },
     state: {
@@ -67,9 +70,13 @@ const GLASS_ROLE_CORE = {
         disabled: VISUAL_STATE.disabled,
     },
     text: {
+        heading: TEXT_ROLE.heading,
+        headingSection: TEXT_ROLE.headingSection,
+        bodyStrong: TEXT_ROLE.bodyStrong,
         body: TEXT_ROLE.body,
         label: TEXT_ROLE.label,
         muted: TEXT_ROLE.bodyMuted,
+        caption: TEXT_ROLE.caption,
         code: TEXT_ROLE.code,
     },
 } as const;
@@ -77,21 +84,15 @@ const GLASS_ROLE_CORE = {
 const GLASS_MODAL_SURFACE = GLASS_ROLE_CORE.surface.modal;
 const MODAL_SURFACE_HEADER = GLASS_ROLE_CORE.chrome.edgeBottom;
 const MODAL_SURFACE_FOOTER = GLASS_ROLE_CORE.chrome.edgeTop;
-const GLASS_MENU_SURFACE =
-    `glass-panel surface-layer-2 text-foreground ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal}`;
-const MENU_SURFACE_FRAME =
-    `overflow-hidden ${GLASS_SURFACE_DIAL.border.strong} p-tight`;
 const MENU_SURFACE_LIST = "overflow-hidden";
 const MENU_ITEM_SURFACE =
     `rounded-panel px-panel py-tight text-scaled font-medium ${INTERACTIVE_RECIPE.menuItem} hover:text-foreground active:bg-content2/80`;
-const MENU_SURFACE_CLASS = `${GLASS_MENU_SURFACE} ${MENU_SURFACE_FRAME}`;
+const MENU_SURFACE_CLASS = GLASS_ROLE_CORE.surface.menu;
 const MENU_LIST_CLASSNAMES = { list: MENU_SURFACE_LIST } as const;
 const MENU_ITEM_CLASSNAMES = { base: MENU_ITEM_SURFACE } as const;
 const MENU_SECTION_HEADING = GLASS_ROLE_CORE.text.label;
 const PANEL_SURFACE_INSET_FRAME =
-    `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.medium} overflow-hidden`;
-const PANE_SURFACE_FRAME =
-    `flex flex-col min-h-0 overflow-hidden ${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.elevation.panel}`;
+    `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.soft} overflow-hidden`;
 const MODAL_SURFACE_BASE_CLASS = GLASS_MODAL_SURFACE;
 const MODAL_BASE_CLASSNAMES = {
     base: MODAL_SURFACE_BASE_CLASS,
@@ -116,10 +117,10 @@ const STANDARD_SURFACE_LAYER = {
     blurPanel: GLASS_SURFACE_DIAL.blur.panel,
     blurSoft: GLASS_SURFACE_DIAL.blur.soft,
     blurFloating: GLASS_SURFACE_DIAL.blur.floating,
-    blurStrong: GLASS_SURFACE_DIAL.blur.strong,
     elevationPanel: GLASS_SURFACE_DIAL.elevation.panel,
     elevationOverlay: GLASS_SURFACE_DIAL.elevation.overlay,
     elevationFloating: GLASS_SURFACE_DIAL.elevation.floating,
+    elevationMenu: GLASS_SURFACE_DIAL.elevation.menu,
     tintWorkbench: GLASS_SURFACE_DIAL.opacity.workbench,
     tintPanel: GLASS_SURFACE_DIAL.opacity.panel,
     tintPane: GLASS_SURFACE_DIAL.opacity.pane,
@@ -128,17 +129,14 @@ const STANDARD_SURFACE_LAYER = {
 } as const;
 const STANDARD_SURFACE_TOOLTIP = {
     content:
-        `${GLASS_SURFACE_DIAL.opacity.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.blur.strong} ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
+        `${GLASS_SURFACE_DIAL.opacity.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: GLASS_SURFACE_DIAL.opacity.modal,
 } as const;
-const STANDARD_SURFACE_CHROME = {
-    edgeTop: GLASS_ROLE_CORE.chrome.edgeTop,
-    edgeBottom: GLASS_ROLE_CORE.chrome.edgeBottom,
-    divider: GLASS_ROLE_CORE.chrome.divider,
+const STANDARD_SURFACE_CHROME = GLASS_ROLE_CORE.chrome;
+const GLASS_SEMANTIC_CHROME = {
     dividerSoft: SURFACE_BORDER,
     headerBorder: MODAL_SURFACE_HEADER,
     footerBorder: MODAL_SURFACE_FOOTER,
-    stickyHeader: GLASS_ROLE_CORE.chrome.sticky,
     headerPassive: `${MODAL_SURFACE_HEADER} select-none`,
     footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
     footerActionsPadded:
@@ -170,7 +168,7 @@ const STANDARD_SURFACE_MENU = {
 } as const;
 const STANDARD_SURFACE_ATOM = {
     iconButton: `surface-layer-1 ${GLASS_SURFACE_DIAL.border.soft}`,
-    codeInline: `bg-content1/20 px-tight py-tight ${GLASS_SURFACE_DIAL.radius.base}`,
+    codeInline: "bg-content1/20 px-tight py-tight rounded",
     insetRounded: GLASS_ROLE_CORE.surface.inset,
     insetRoundedFull: `surface-layer-1 ${GLASS_SURFACE_DIAL.radius.full} p-tight`,
     insetBorderedItem:
@@ -186,67 +184,55 @@ const STANDARD_SURFACE_ATOM = {
 } as const;
 const ROLE_PANEL_INSET_BASE =
     `${PANEL_SURFACE_INSET_FRAME} ${STANDARD_SURFACE_LAYER.tintPanel}`;
-const ROLE_PANE_BASE = `${PANE_SURFACE_FRAME} ${STANDARD_SURFACE_LAYER.tintPane}`;
 const ROLE_PANEL_RAISED =
     `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_MUTED =
-    `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.subtle}`;
+    `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_INFO =
     `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.workbench}`;
-// Compatibility roles keep existing consumers stable while migration converges on
-// the minimal core registry (surface/chrome/state/text).
-const GLASS_ROLE_COMPAT = {
+const GLASS_ROLE_SEMANTIC = {
     surface: {
         workbenchShell: `${STANDARD_SURFACE_ATOM.glassBlock} ${STANDARD_SURFACE_ATOM.shadowBlock}`,
         panelInset: ROLE_PANEL_INSET_BASE,
-        pane: ROLE_PANE_BASE,
-        menu: MENU_SURFACE_CLASS,
         tooltip: STANDARD_SURFACE_TOOLTIP.content,
-        floatingOverlay:
-            `${STANDARD_SURFACE_LAYER.borderStrong} ${STANDARD_SURFACE_LAYER.tintOverlay} ${STANDARD_SURFACE_LAYER.blurStrong} ${STANDARD_SURFACE_LAYER.elevationOverlay}`,
         statusModule:
-            `${STANDARD_SURFACE_LAYER.radiusModal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.subtle} ${STANDARD_SURFACE_LAYER.blurSoft}`,
+            `${STANDARD_SURFACE_LAYER.radiusModal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel} ${STANDARD_SURFACE_LAYER.blurSoft}`,
         panelRaised: ROLE_PANEL_RAISED,
         panelMuted: ROLE_PANEL_MUTED,
         panelInfo: ROLE_PANEL_INFO,
         panelWorkflow:
-            `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.workflow}`,
+            `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.pane}`,
         sidebarPanel:
-            `flex flex-col border-r ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.workflow} ${GLASS_SURFACE_DIAL.blur.panel}`,
+            `flex flex-col border-r ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.panel}`,
     },
+    chrome: GLASS_SEMANTIC_CHROME,
 } as const;
 
 export const GLASS_ROLE_REGISTRY = {
-    ...GLASS_ROLE_CORE,
-    compat: GLASS_ROLE_COMPAT,
+    core: GLASS_ROLE_CORE,
+    semantic: GLASS_ROLE_SEMANTIC,
 } as const;
 
-const STANDARD_SURFACE_ROLE = {
-    ...GLASS_ROLE_CORE.surface,
-    workbenchShell: GLASS_ROLE_COMPAT.surface.workbenchShell,
-    panelInset: GLASS_ROLE_COMPAT.surface.panelInset,
-    pane: GLASS_ROLE_COMPAT.surface.pane,
-    menu: GLASS_ROLE_COMPAT.surface.menu,
-    tooltip: GLASS_ROLE_COMPAT.surface.tooltip,
-    floatingOverlay: GLASS_ROLE_COMPAT.surface.floatingOverlay,
-    statusModule: GLASS_ROLE_COMPAT.surface.statusModule,
-    panelRaised: GLASS_ROLE_COMPAT.surface.panelRaised,
-    panelMuted: GLASS_ROLE_COMPAT.surface.panelMuted,
-    panelInfo: GLASS_ROLE_COMPAT.surface.panelInfo,
-    panelWorkflow: GLASS_ROLE_COMPAT.surface.panelWorkflow,
-    sidebarPanel: GLASS_ROLE_COMPAT.surface.sidebarPanel,
-} as const;
+const STANDARD_SURFACE_ROLE = GLASS_ROLE_CORE.surface;
+const STANDARD_SURFACE_SEMANTIC_SURFACE = GLASS_ROLE_SEMANTIC.surface;
+const STANDARD_SURFACE_CHROME_EXTENDED = GLASS_ROLE_SEMANTIC.chrome;
 const STANDARD_SURFACE_STATE = GLASS_ROLE_CORE.state;
 const STANDARD_SURFACE_TEXT = GLASS_ROLE_CORE.text;
+const MODAL_ICON_MD = "toolbar-icon-size-md";
+const MODAL_ICON_SM = "toolbar-icon-size-sm shrink-0";
+const MODAL_HEADER_ROW_BASE =
+    `${GLASS_SEMANTIC_CHROME.headerBorder} flex justify-between items-center gap-panel px-stage py-panel`;
 export const STANDARD_SURFACE_CLASS = {
     dial: GLASS_SURFACE_DIAL,
     registry: GLASS_ROLE_REGISTRY,
     layer: STANDARD_SURFACE_LAYER,
     role: STANDARD_SURFACE_ROLE,
+    surface: STANDARD_SURFACE_SEMANTIC_SURFACE,
     state: STANDARD_SURFACE_STATE,
     text: STANDARD_SURFACE_TEXT,
     tooltip: STANDARD_SURFACE_TOOLTIP,
     chrome: STANDARD_SURFACE_CHROME,
+    chromeEx: STANDARD_SURFACE_CHROME_EXTENDED,
     modal: STANDARD_SURFACE_MODAL,
     menu: STANDARD_SURFACE_MENU,
     atom: STANDARD_SURFACE_ATOM,
@@ -263,14 +249,17 @@ export const APP_MODAL_CLASS = {
     addTorrentModalHeightDefault: "max-h-modal-body",
     addTorrentModalChromeClassNames: STANDARD_SURFACE_CLASS.modal.chromeClassNames,
     sidebar:
-        `${STANDARD_SURFACE_CLASS.role.sidebarPanel} ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
+        `${STANDARD_SURFACE_CLASS.surface.sidebarPanel} ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
     sidebarHeader:
         "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
     headingFont: "tt-navbar-tab-font",
-    iconMd: "toolbar-icon-size-md",
-    iconSm: "toolbar-icon-size-sm shrink-0",
+    iconMd: MODAL_ICON_MD,
+    iconSm: MODAL_ICON_SM,
+    headerPassive: STANDARD_SURFACE_CLASS.chromeEx.headerPassive,
+    footerEnd: STANDARD_SURFACE_CLASS.chromeEx.footerEnd,
+    footerActionsPadded: STANDARD_SURFACE_CLASS.chromeEx.footerActionsPadded,
     sidebarCloseButton: "sm:hidden text-foreground/50",
     sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
     tabButtonBase:
@@ -284,7 +273,7 @@ export const APP_MODAL_CLASS = {
     versionWrapper: "p-panel border-t border-content1/10 shrink-0",
     versionText: `${TEXT_ROLE.codeCaption} text-foreground/30`,
     header:
-        `${STANDARD_SURFACE_CLASS.chrome.headerBorder} ${STANDARD_SURFACE_CLASS.chrome.stickyHeader} shrink-0 h-modal-header flex items-center justify-between px-stage`,
+        `${STANDARD_SURFACE_CLASS.chromeEx.headerBorder} ${STANDARD_SURFACE_CLASS.chrome.sticky} shrink-0 h-modal-header flex items-center justify-between px-stage`,
     headerLead: "flex items-center gap-tools",
     headerLeadPrimaryIcon: "text-primary",
     hintText: `${TEXT_ROLE.bodyMuted} leading-relaxed`,
@@ -298,7 +287,7 @@ export const APP_MODAL_CLASS = {
     inlineAlert: "px-panel py-tight",
     connectionStack: "space-y-stage",
     footer:
-        `${STANDARD_SURFACE_CLASS.chrome.footerBorder} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
+        `${STANDARD_SURFACE_CLASS.chromeEx.footerBorder} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
     footerConfirmContent: "w-full flex items-center gap-panel",
     footerTextWrap: "flex flex-col min-w-0",
     footerWarningTitle: `${TEXT_ROLE.bodyStrong} text-warning`,
@@ -306,7 +295,7 @@ export const APP_MODAL_CLASS = {
     footerButtonRow: "flex gap-tools ml-auto",
     footerResetButton: `opacity-70 ${INTERACTIVE_RECIPE.buttonDefault}`,
     footerSaveButton: "font-semibold shadow-small shadow-primary/20",
-    dialogHeader: `${STANDARD_SURFACE_CLASS.chrome.headerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
+    dialogHeader: `${STANDARD_SURFACE_CLASS.chromeEx.headerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
     dialogHeaderLead: "flex items-center gap-tools",
     dialogHeaderIconWrap: STANDARD_SURFACE_CLASS.atom.insetRoundedFull,
     dialogHeaderWarningIcon: "toolbar-icon-size-md text-warning",
@@ -322,7 +311,7 @@ export const APP_MODAL_CLASS = {
     dialogInsetLabel: `${TEXT_ROLE.bodySmall} font-medium text-foreground truncate`,
     dialogInsetDescription: `${TEXT_ROLE.bodySmall} truncate`,
     dialogOutcomePanel: `${STANDARD_SURFACE_CLASS.atom.insetRounded} ${TEXT_ROLE.bodySmall}`,
-    dialogFooter: `${STANDARD_SURFACE_CLASS.chrome.footerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
+    dialogFooter: `${STANDARD_SURFACE_CLASS.chromeEx.footerBorder} flex items-center justify-between gap-tools px-panel py-panel`,
     dialogFooterGroup: "flex items-center gap-tools",
     dialogSecondaryAction: "font-medium text-foreground",
     dialogPrimaryAction: "font-bold",
@@ -331,17 +320,17 @@ export const APP_MODAL_CLASS = {
     mainPane: "flex-1 min-h-0 flex flex-col bg-content1/10 blur-glass relative w-full",
     workflow: {
         gateRoot: "flex flex-col h-full",
-        header: `${STANDARD_SURFACE_CLASS.chrome.headerBorder} flex justify-between items-center gap-panel px-stage py-panel`,
+        header: MODAL_HEADER_ROW_BASE,
         titleStack: "flex flex-col overflow-hidden gap-tight",
         sourceLabelCaption: `${TEXT_ROLE.caption} truncate font-mono leading-tight`,
         sourceMutedLabel: `${TEXT_ROLE.codeMuted} text-foreground/50 truncate leading-tight`,
-        iconMd: "toolbar-icon-size-md",
-        iconMdPrimary: "toolbar-icon-size-md text-primary",
+        iconMd: MODAL_ICON_MD,
+        iconMdPrimary: `${MODAL_ICON_MD} text-primary`,
         iconLgPrimary: "toolbar-icon-size-lg text-primary",
-        iconMdSuccess: "toolbar-icon-size-md text-success",
-        iconMdWarning: "toolbar-icon-size-md text-warning",
-        iconAlert: "toolbar-icon-size-md shrink-0",
-        iconAlertMuted: "toolbar-icon-size-md shrink-0 text-foreground/50",
+        iconMdSuccess: `${MODAL_ICON_MD} text-success`,
+        iconMdWarning: `${MODAL_ICON_MD} text-warning`,
+        iconAlert: `${MODAL_ICON_MD} shrink-0`,
+        iconAlertMuted: `${MODAL_ICON_MD} shrink-0 text-foreground/50`,
         warningTone: "text-warning",
         footerAlertText: `${TEXT_ROLE.bodyStrong} truncate`,
         headerIconButton: `text-foreground/60 ${INTERACTIVE_RECIPE.textReveal}`,
@@ -378,7 +367,7 @@ export const APP_MODAL_CLASS = {
         footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
         footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
         footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
-        footer: `${STANDARD_SURFACE_CLASS.chrome.footerBorder} flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between`,
+        footer: `${STANDARD_SURFACE_CLASS.chromeEx.footerBorder} flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between`,
         inlineBlock: "inline-block",
         cancelButton: "font-medium",
         primaryButton: "font-bold px-stage min-w-button",
@@ -390,8 +379,8 @@ export const APP_MODAL_CLASS = {
 export const FORM_UI_CLASS = {
     sectionMarginTop: "mt-panel",
     sectionContentOffsetStack: "space-y-stage mt-panel",
-    sectionCard: `${STANDARD_SURFACE_CLASS.role.panelRaised} p-panel`,
-    sectionCardEmphasized: `${STANDARD_SURFACE_CLASS.role.panelWorkflow} p-panel`,
+    sectionCard: `${STANDARD_SURFACE_CLASS.surface.panelRaised} p-panel`,
+    sectionCardEmphasized: `${STANDARD_SURFACE_CLASS.surface.panelWorkflow} p-panel`,
     sectionTitle: `${TEXT_ROLE.heading} text-foreground/40 mb-panel leading-tight`,
     sectionDescription: `${TEXT_ROLE.body} mb-panel`,
     sectionContentStack: "space-y-stage",
@@ -442,7 +431,7 @@ export const FORM_UI_CLASS = {
     rawConfigStatusSuccess: withColor(TEXT_ROLE.caption, "success"),
     rawConfigStatusDanger: withColor(TEXT_ROLE.caption, "danger"),
     rawConfigCode: withOpacity(TEXT_ROLE.code, 80),
-    rawConfigPanel: STANDARD_SURFACE_CLASS.role.panelInfo,
+    rawConfigPanel: STANDARD_SURFACE_CLASS.surface.panelInfo,
     divider: "my-panel opacity-50",
     selectClassNames: {
         trigger: "h-button",
@@ -451,7 +440,7 @@ export const FORM_UI_CLASS = {
     sliderClassNames: { thumb: "shadow-small" } as const,
     rawConfigTextarea:
         "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-primary/40 focus:outline-none",
-    locationEditorRoot: `${STANDARD_SURFACE_CLASS.role.panelRaised} p-panel space-y-stage`,
+    locationEditorRoot: `${STANDARD_SURFACE_CLASS.surface.panelRaised} p-panel space-y-stage`,
     locationEditorCaption: withOpacity(TEXT_ROLE.headingSection, 70),
     locationEditorError: withColor(TEXT_ROLE.caption, "danger"),
     locationEditorRow: "flex items-stretch gap-tools",
@@ -516,7 +505,7 @@ export const FORM_UI_CLASS = {
 export const TABLE_VIEW_CLASS = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     workbenchSurface: STANDARD_SURFACE_CLASS.role.workbench,
-    workbenchShell: STANDARD_SURFACE_CLASS.role.workbenchShell,
+    workbenchShell: STANDARD_SURFACE_CLASS.surface.workbenchShell,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     hostRoot:
@@ -525,7 +514,7 @@ export const TABLE_VIEW_CLASS = {
         borderRadius: "inherit",
     } as const,
     header:
-        `flex w-full ${STANDARD_SURFACE_CLASS.chrome.edgeBottom} ${STANDARD_SURFACE_CLASS.chrome.stickyHeader}`,
+        `flex w-full ${STANDARD_SURFACE_CLASS.chrome.edgeBottom} ${STANDARD_SURFACE_CLASS.chrome.sticky}`,
     bodyScroll: "relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar",
     bodyScrollStyle: {
         scrollbarGutter: "stable",
@@ -533,7 +522,7 @@ export const TABLE_VIEW_CLASS = {
     bodyCanvas: "relative w-full min-w-max",
     noResults: `h-full flex items-center justify-center px-stage ${TEXT_ROLE.labelDense}`,
     dragOverlay:
-        `pointer-events-none ${STANDARD_SURFACE_CLASS.role.floatingOverlay} px-panel box-border`,
+        `pointer-events-none ${STANDARD_SURFACE_CLASS.role.overlay} px-panel box-border`,
     dragOverlayContent: "flex h-full w-full items-center",
     marquee:
         "pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20",
@@ -591,7 +580,7 @@ export const TABLE_VIEW_CLASS = {
             "font-medium drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]",
     } as const,
     detailsContentRoot: "flex h-full min-h-0 flex-col gap-panel",
-    detailsContentPanel: `flex flex-1 min-h-0 flex-col ${STANDARD_SURFACE_CLASS.role.panelInset}`,
+    detailsContentPanel: `flex flex-1 min-h-0 flex-col ${STANDARD_SURFACE_CLASS.surface.panelInset}`,
     detailsContentWarning: "flex flex-col gap-tools",
     detailsContentRecoveryNote: `${withColor(TEXT_ROLE.caption, "warning")} text-warning/80 mb-tight`,
     detailsContentHeaderShell: "p-panel flex flex-col gap-tools",
@@ -731,7 +720,7 @@ export const SPLIT_VIEW_CLASS = {
     mapStatDangerCount: withColor(TEXT_ROLE.code, "danger"),
     mapNote: withOpacity(TEXT_ROLE.body, 60),
     mapFrame:
-        `relative z-panel flex-1 min-h-0 ${STANDARD_SURFACE_CLASS.role.panelRaised} p-panel overflow-hidden`,
+        `relative z-panel flex-1 min-h-0 ${STANDARD_SURFACE_CLASS.surface.panelRaised} p-panel overflow-hidden`,
     mapFrameInner: "relative h-full w-full",
     mapCanvasLayer: "absolute inset-0 block h-full w-full rounded-2xl",
     mapCanvasOverlayLayer:
@@ -753,7 +742,7 @@ export const SPLIT_VIEW_CLASS = {
     resizeHandle: "h-sep cursor-row-resize flex items-center justify-center",
     resizeBar: `w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 ${TRANSITION.fast}`,
     listSurface:
-        `flex-1 min-h-0 relative flex flex-col ${STANDARD_SURFACE_CLASS.role.panelRaised}`,
+        `flex-1 min-h-0 relative flex flex-col ${STANDARD_SURFACE_CLASS.surface.panelRaised}`,
     header:
         `flex items-center gap-panel px-panel py-tight border-b border-content1/10 ${withOpacity(TEXT_ROLE.label, 30)}`,
     headerFlagCol: "w-col-id",
@@ -771,7 +760,7 @@ export const SPLIT_VIEW_CLASS = {
     downRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "success")}`,
     upRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "primary")}`,
     peerMapRoot:
-        `flex flex-col flex-1 ${STANDARD_SURFACE_CLASS.role.panelMuted} p-panel gap-tools overflow-hidden relative`,
+        `flex flex-col flex-1 ${STANDARD_SURFACE_CLASS.surface.panelMuted} p-panel gap-tools overflow-hidden relative`,
     peerMapHud: "flex items-center justify-between z-sticky pointer-events-none",
     peerMapHudMeta: "flex flex-col",
     peerMapHudStats: "flex items-center gap-tools",
@@ -881,7 +870,6 @@ export const buildContextMenuPanelStyle = (params: {
 export const APP_STATUS_CLASS = {
     workbenchSurface:
         `${STANDARD_SURFACE_CLASS.role.workbench} ${STANDARD_SURFACE_CLASS.chrome.edgeTop}`,
-    workbenchShell: STANDARD_SURFACE_CLASS.role.workbenchShell,
     iconCurrent: "text-current",
     iconMuted: "opacity-50",
     srOnly: "sr-only",
@@ -894,7 +882,7 @@ export const APP_STATUS_CLASS = {
     statIcon: "text-foreground/30",
     telemetryIconWrap: "inline-flex items-center",
     speedModule:
-        `flex flex-1 items-center h-full min-w-0 gap-tools group ${STANDARD_SURFACE_CLASS.role.statusModule} ${TRANSITION.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
+        `flex flex-1 items-center h-full min-w-0 gap-tools group ${STANDARD_SURFACE_CLASS.surface.statusModule} ${TRANSITION.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
     speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
     speedModuleGraph:
         `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${TRANSITION.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
@@ -913,7 +901,7 @@ export const APP_STATUS_CLASS = {
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
     footer:
-        `w-full shrink-0 select-none relative z-overlay overflow-visible ${STANDARD_SURFACE_CLASS.role.workbenchShell}`,
+        `w-full shrink-0 select-none relative z-overlay overflow-visible ${STANDARD_SURFACE_CLASS.surface.workbenchShell}`,
     main: "flex items-center justify-between gap-stage",
     speedFull: "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
     speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
@@ -1044,7 +1032,7 @@ export const DETAIL_VIEW_CLASS = {
     speedCollectingPanel:
         `mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`,
     generalRoot: "space-y-stage",
-    generalCard: `p-panel flex flex-col gap-tools ${STANDARD_SURFACE_CLASS.role.panelInfo}`,
+    generalCard: `p-panel flex flex-col gap-tools ${STANDARD_SURFACE_CLASS.surface.panelInfo}`,
     generalHeaderRow: "flex items-center justify-between",
     generalPathCode: `${TEXT_ROLE.codeMuted} ${STANDARD_SURFACE_CLASS.atom.codeInline} wrap-break-word mt-2`,
     generalPrimaryCol: "flex-1",
@@ -1074,7 +1062,7 @@ export const APP_NAV_CLASS = {
     root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
     workbenchSurface:
         `${STANDARD_SURFACE_CLASS.role.workbench} ${STANDARD_SURFACE_CLASS.chrome.edgeBottom}`,
-    workbenchShell: STANDARD_SURFACE_CLASS.role.workbenchShell,
+    workbenchShell: STANDARD_SURFACE_CLASS.surface.workbenchShell,
     titlebar: "app-titlebar flex w-full items-stretch",
     titlebarBaseStyle: {
         height: "var(--tt-navbar-h)",
@@ -1330,7 +1318,7 @@ export const buildFileBrowserSelectionActionsClass = (hasSelection: boolean) =>
 export const DETAIL_TABLE_CLASS = {
     root: "flex h-full flex-col gap-panel",
     toolbar:
-        `${STANDARD_SURFACE_CLASS.chrome.stickyHeader} flex items-center justify-between px-tight`,
+        `${STANDARD_SURFACE_CLASS.chrome.sticky} flex items-center justify-between px-tight`,
     toolbarGroup: "flex items-center gap-tools",
     toolbarIconPrimary: "text-primary",
     body: "relative min-h-0 flex-1",
@@ -1425,7 +1413,7 @@ export const buildFormStatusToneClass = (statusKind: string) =>
             ? "text-warning"
             : "text-foreground/60";
 export const HEATMAP_VIEW_CLASS = {
-    empty: `${STANDARD_SURFACE_CLASS.role.panelRaised} p-panel text-center`,
+    empty: `${STANDARD_SURFACE_CLASS.surface.panelRaised} p-panel text-center`,
     emptyMuted: withOpacity(TEXT_ROLE.body, 50),
     root: "flex flex-col gap-tools",
     header: "flex items-center justify-between",
@@ -1439,7 +1427,7 @@ export const HEATMAP_VIEW_CLASS = {
     zoomButton: "size-icon-btn rounded-full",
     zoomIcon: "text-current",
     zoomValue: withOpacity(TEXT_ROLE.code, 60),
-    canvasFrame: `${STANDARD_SURFACE_CLASS.role.panelRaised} p-tight ${TRANSITION.medium}`,
+    canvasFrame: `${STANDARD_SURFACE_CLASS.surface.panelRaised} p-tight ${TRANSITION.medium}`,
     canvasPulse: "opacity-70 shadow-availability ring-1 ring-primary/40",
     canvas: "w-full h-auto block rounded-2xl cursor-crosshair",
     labelTrackingStyle: {
@@ -1465,4 +1453,8 @@ export const buildSettingsBufferedInputClassNames = (params: {
         : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
     label: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
 });
+
+
+
+
 

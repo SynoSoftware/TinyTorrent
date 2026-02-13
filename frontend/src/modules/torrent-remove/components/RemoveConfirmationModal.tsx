@@ -13,6 +13,7 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import {
+    APP_MODAL_CLASS,
     STANDARD_SURFACE_CLASS,
     FORM_CONTROL_CLASS,
     FORM_UI_CLASS,
@@ -137,7 +138,7 @@ export function RemoveConfirmationModal({
             classNames={STANDARD_SURFACE_CLASS.modal.compactClassNames}
         >
             <ModalContent>
-                <ModalHeader className={STANDARD_SURFACE_CLASS.chrome.headerPassive}>
+                <ModalHeader className={APP_MODAL_CLASS.headerPassive}>
                     {t("remove_modal.title")}
                 </ModalHeader>
 
@@ -161,7 +162,7 @@ export function RemoveConfirmationModal({
                     </div>
                 </ModalBody>
 
-                <ModalFooter className={STANDARD_SURFACE_CLASS.chrome.footerEnd}>
+                <ModalFooter className={APP_MODAL_CLASS.footerEnd}>
                     <Button
                         variant="light"
                         onPress={resolvedOnClose}
@@ -188,3 +189,6 @@ export function RemoveConfirmationModal({
 }
 
 export default RemoveConfirmationModal;
+
+
+

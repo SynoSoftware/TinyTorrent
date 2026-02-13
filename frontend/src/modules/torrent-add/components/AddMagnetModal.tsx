@@ -141,7 +141,7 @@ export function AddMagnetModal({
                             </p>
                         </ModalBody>
                         <ModalFooter
-                            className={STANDARD_SURFACE_CLASS.chrome.footerActionsPadded}
+                            className={APP_MODAL_CLASS.footerActionsPadded}
                         >
                             <Button variant="light" onPress={handleClose}>
                                 {t("modals.cancel")}
@@ -162,3 +162,6 @@ export function AddMagnetModal({
         </Modal>
     );
 }
+
+
+

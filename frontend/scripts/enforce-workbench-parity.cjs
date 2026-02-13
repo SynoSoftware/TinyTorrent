@@ -25,7 +25,7 @@ const checks = [
     {
         objectName: "APP_NAV_CLASS",
         entryKey: "workbenchShell",
-        mustInclude: ["STANDARD_SURFACE_CLASS.role.workbenchShell"],
+        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
     },
     {
         objectName: "TABLE_VIEW_CLASS",
@@ -35,7 +35,7 @@ const checks = [
     {
         objectName: "TABLE_VIEW_CLASS",
         entryKey: "workbenchShell",
-        mustInclude: ["STANDARD_SURFACE_CLASS.role.workbenchShell"],
+        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
     },
     {
         objectName: "APP_STATUS_CLASS",
@@ -48,7 +48,7 @@ const checks = [
     {
         objectName: "APP_STATUS_CLASS",
         entryKey: "footer",
-        mustInclude: ["STANDARD_SURFACE_CLASS.role.workbenchShell"],
+        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
     },
 ];
 
@@ -101,7 +101,7 @@ if (failures.length > 0) {
         console.error(` - ${failure}`);
     }
     console.error(
-        "\nFix by composing the workbench triad from STANDARD_SURFACE_CLASS.role/chrome tokens.",
+        "\nFix by composing the workbench triad from STANDARD_SURFACE_CLASS core/semantic tokens.",
     );
     process.exit(2);
 }
