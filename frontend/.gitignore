@@ -27,3 +27,10 @@ dist-ssr
 package-lock.json
 
 .vercel
+
+# Mechanical reports (machine-generated)
+reports/generated/
+SURFACE_COMPONENT_TREE.md
+CLASSNAMES_OCCURRENCES_CURRENT.txt
+CLASSNAMES_OCCURRENCES.txt
+CLASSNAME_OCCURRENCES.txt

@@ -8,6 +8,18 @@ Goal: Feature code must not own styling. All visual recipes must come from share
 
 Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* / SETTINGS_*).
 
+Final-form override:
+- No transitional migration tracks.
+- No compatibility alias layers.
+- No feature-token authorities as end-state.
+- Use `report:surface-tree` and `report:surface-tree:all` as required
+  evidence for token categorization decisions.
+
+Design quality override:
+- Do not flatten visual language just to reduce token count.
+- Merge only when visual intent and parent integration are equivalent.
+- Keep enough semantic surface roles for clear hierarchy and readability.
+
 **Success Criteria**:
 - Every framed container uses **semantic component** (ActionCard, SettingsPanel, ListContainer, etc.)
 - Every layout pattern uses **semantic container** (Stack, Inline, FormSection, Toolbar)
@@ -17,6 +29,18 @@ Anti-goal: moving inline classes into feature-prefixed constants (like PEERS_* /
 - No feature code defines `blur-glass`, `backdrop-blur-*`, `border-*`, `shadow-*`, or `rounded-*` directly
 - No feature code uses raw `flex flex-col` or `flex gap-*` patterns (all via Stack/Inline)
 - Semantic naming enforces logical consistency (all action buttons use ActionCard, all settings use SettingsPanel)
+- Visual hierarchy remains intentional and non-neutered across parent/child
+  surface boundaries.
+
+### Merge Decision Rule (Authoritative)
+
+A similar-looking surface may be merged only if all checks pass:
+1. Same semantic intent.
+2. Same parent integration behavior.
+3. Same interaction behavior across states (`hover`, `focus`, `active`, disabled).
+4. Same readability and contrast outcomes across themes.
+
+If any check fails, keep separate semantic tokens.
 
 ---
 
@@ -1319,7 +1343,8 @@ Does the UI pattern have a semantic name?
 2. **Incremental commits**: One component per commit for easy rollback
 3. **Type safety**: New primitives enforce correct usage via TypeScript
 4. **Grep validation**: Run audit commands after each merge
-5. **Backward compat**: Keep glass-surface.ts exports during transition
+5. **Final-form only**: Do not keep backward-compat exports as a strategy.
+   Collapse directly to canonical tokens; treat compatibility layers as debt.
 
 ---
 
