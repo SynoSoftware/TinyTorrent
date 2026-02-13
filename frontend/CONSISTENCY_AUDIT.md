@@ -404,21 +404,26 @@ Keep the "god file" pattern, but formalize hard internal tiers:
 
 - [x] 1) Define final token model first (no code churn yet)
   - [x] Added a minimal role registry in `glass-surface.ts`:
-    `surface` (`workbench/panel/modal/inset`), `chrome`
-    (`edgeTop/edgeBottom/sticky/divider`), `state` (`interactive/disabled`), `text`.
+    `surface` (`workbench/panel/pane/modal/inset/menu/overlay`), `chrome`
+    (`edgeTop/edgeBottom/sticky/divider`), `state` (`interactive/disabled`),
+    and compact text hierarchy (`heading/headingSection/bodyStrong/body/label/muted/caption/code`).
   - [x] Centralized single-change dials (`opacity`, `blur`, `border`, `radius`, `elevation`)
     into one authority (`GLASS_SURFACE_DIAL`) and composed roles from those dials.
+  - [x] Collapsed foundation dial variants to perceptually distinct levels:
+    `opacity` 5, `blur` 3, `border` 2, `radius` 4, `elevation` 4.
 - [_] 2) Convert `glass-surface.ts` into a role registry
   - [x] Introduced `GLASS_ROLE_REGISTRY` and routed `STANDARD_SURFACE_CLASS`
     through registry-backed role/chrome/state/text composition.
-  - [x] Split registry internals into minimal core roles (`GLASS_ROLE_CORE`) and
-    explicit compatibility aliases (`GLASS_ROLE_COMPAT`) so old role names stay stable
-    while migration continues.
+  - [x] Split registry internals into strict minimal core roles (`GLASS_ROLE_CORE`)
+    plus semantic extensions (`GLASS_ROLE_SEMANTIC`) for non-core bindings.
   - [x] Kept `glass-surface.ts` as the single theme file (no multi-file split),
     while preserving an internal role-registry structure (`GLASS_ROLE_REGISTRY`
-    with core + compatibility layers) inside that one file.
+    with core + semantic layers) inside that one file.
+  - [x] Shortened semantic access for human-friendly usage:
+    `STANDARD_SURFACE_CLASS.surface.*` and `STANDARD_SURFACE_CLASS.chromeEx.*`
+    instead of long nested registry paths.
   - [_] Continue shrinking feature-binding recipe exports into compact semantic maps,
-    then remove compatibility-only composition layers after usages are migrated.
+    then remove remaining compatibility-only composition layers after usages are migrated.
 
 ### Canonical Workbench Surface Rule
 
@@ -437,6 +442,9 @@ content density), not for ad-hoc blur/background/border recipes.
 
 - [x] Export a usage inventory for current `glass-surface.ts` exports (symbol -> file count)
   before refactor.
+- [x] Generate page/modal/layout component trees + token usage correlation
+  (`npm run report:surface-tree` -> `frontend/SURFACE_COMPONENT_TREE.md`) to
+  drive low-risk shared extraction from actual rendered structures.
 - [x] Capture a baseline list of high-churn recipes (`bg-*`, `border-*`,
   `backdrop-blur-*`, `shadow-*`, `rounded-*`) so reduction is measurable.
 - [x] Identify which exports are true roles vs. feature bindings vs. legacy aliases.
@@ -527,6 +535,11 @@ Baseline snapshot (updated: 2026-02-12):
 #### [_] Step 5 — Validation and drift checks
 
 - [_] Validate visual parity of navbar/table/status as one material family.
+- [x] Add automated foundation contract enforcement:
+  `npm run enforce:surface-foundation` (script:
+  `frontend/scripts/enforce-surface-foundation.cjs`) asserts minimal core
+  role keys, dial-key ceilings, and core/semantic alias wiring in
+  `glass-surface.ts`.
 - [x] Add automated triad parity enforcement:
   `npm run enforce:workbench-parity` (script:
   `frontend/scripts/enforce-workbench-parity.cjs`) asserts
@@ -535,7 +548,7 @@ Baseline snapshot (updated: 2026-02-12):
   chrome roles.
 - [x] Extend automated parity enforcement to shell material:
   `APP_NAV_CLASS.workbenchShell`, `TABLE_VIEW_CLASS.workbenchShell`, and
-  `APP_STATUS_CLASS.footer` must compose `STANDARD_SURFACE_CLASS.role.workbenchShell`.
+  `APP_STATUS_CLASS.footer` must compose `STANDARD_SURFACE_CLASS.surface.workbenchShell`.
 - [x] Add automated consumer-level parity enforcement:
   `npm run enforce:workbench-consumers` (script:
   `frontend/scripts/enforce-workbench-consumers.cjs`) asserts
@@ -576,6 +589,52 @@ Baseline snapshot (updated: 2026-02-12):
 - No new feature-owned surface recipes are introduced.
 - Legacy aliases are removed (or explicitly tracked with owner + removal date).
 - `glass-surface.ts` contains role tiers + bindings, not duplicate visual recipes.
+
+### Current Conclusions (updated: 2026-02-13)
+
+- [x] Foundation contract is now explicit and enforced:
+  `GLASS_SURFACE_DIAL` + `GLASS_ROLE_CORE` + `GLASS_ROLE_SEMANTIC` in one file.
+- [x] Core role set is stable and human-usable:
+  `surface` (`workbench/panel/pane/modal/inset/menu/overlay`),
+  `chrome` (`edgeTop/edgeBottom/sticky/divider`),
+  `state` (`interactive/disabled`),
+  `text` (`heading/headingSection/bodyStrong/body/label/muted/caption/code`).
+- [x] Dial set was reduced to perceptually distinct levels and locked by guard:
+  `opacity` 5, `blur` 3, `border` 2, `radius` 4, `elevation` 4.
+- [x] Automated drift protection is in place:
+  `enforce:surface-foundation`, `enforce:surface-churn`,
+  `enforce:workbench-parity`, `enforce:workbench-consumers`.
+- [x] Structure-first correlation is now available for extraction planning:
+  `report:surface-tree` and `report:surface-tree:all`
+  generate `frontend/SURFACE_COMPONENT_TREE.md`.
+- [x] Remaining migration mode is now final-form first:
+  no new temporary compatibility aliases; convergence batches should land
+  directly on target semantic ownership.
+- [_] Visual parity confidence is high via build/contract checks, but final human
+  runtime sweep is still pending.
+
+### Pending Completion Tasks (Tokenization Endgame)
+
+- [_] Build extraction map from `SURFACE_COMPONENT_TREE.md`:
+  pick only repeated structural patterns (modal/menu/status-chip/table-header)
+  and avoid collapsing unique feature expression.
+- [ ] Execute low-risk commonization batch 1:
+  modal scaffold convergence (`header/body/footer` chrome/text/action primitives)
+  for all modal consumers, including column settings and remaining outliers.
+- [ ] Execute low-risk commonization batch 2:
+  menu + status-chip + table-header repeated structures from tree report.
+- [ ] Remove dead/non-rendered token keys discovered by usage correlation
+  (zero-consumer keys only; no visual recipe changes).
+- [ ] Add an automated unused-token guard for `glass-surface.ts` feature maps
+  (warn/fail on keys with zero consumers in `src/`).
+- [ ] Enforce final-form migration policy in review:
+  reject changes that introduce new temporary compatibility layers.
+- [ ] Re-run tree correlation after each batch and record net key reduction.
+- [ ] Complete manual visual sweep for:
+  navbar/table/status, settings modal, add-torrent modal, recovery/remove modals,
+  details inspector.
+- [ ] Mark Section 12 Step 2 complete once role registry is compact and
+  remaining bindings are correlated + justified.
 
 ---
 
@@ -647,6 +706,11 @@ These can be batched with the existing plan phases:
   - [x] Normalize `AddTorrentDestinationGatePanel.tsx` by moving remaining inline gate/status/action classes to shared workflow tokens.
   - [x] Normalize `AddTorrentSettingsPanel.tsx` by moving remaining inline icon/wrapper/danger-item classes to shared workflow tokens.
   - [x] Normalize `AddMagnetModal.tsx` by moving remaining inline header/body/footer/icon classes to shared modal tokens.
+  - [x] Consolidate modal chrome primitives into shared `APP_MODAL_CLASS`
+    (`headerPassive`, `footerEnd`, `footerActionsPadded`) and migrate
+    `AddMagnetModal` / `RemoveConfirmationModal` off direct `chromeEx` usage.
+  - [x] Remove dead status-bar surface token (`APP_STATUS_CLASS.workbenchShell`)
+    after verifying zero runtime consumers.
   - [x] Normalize `AddTorrentModal.tsx` by moving remaining inline icon/alert text classes to shared workflow tokens.
   - [x] Migrate `AddTorrentModal.tsx` inline icon and footer-alert class recipes to `APP_MODAL_CLASS.workflow` shared keys.
   - [x] Refactor `glass-surface.ts` into one canonical standard-surface authority and add missing semantic surface primitives.

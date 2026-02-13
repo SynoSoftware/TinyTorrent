@@ -50,7 +50,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
 
     const tableBody = (
         <table className={DETAIL_TABLE_CLASS.table}>
-            <thead className={STANDARD_SURFACE_CLASS.chrome.stickyHeader}>
+            <thead className={STANDARD_SURFACE_CLASS.chrome.sticky}>
                 <tr className={DETAIL_TABLE_CLASS.tableHeadRow}>
                     <th className={DETAIL_TABLE_CLASS.tableHeadCellIcon}>
                         <StatusIcon
@@ -206,3 +206,4 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
 };
 
 export default TrackersTab;
+
