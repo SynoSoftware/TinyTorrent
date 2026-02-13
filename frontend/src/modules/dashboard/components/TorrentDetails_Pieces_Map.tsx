@@ -1,10 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
-import {
-    SPLIT,
-    buildSplitViewCanvasInteractionStyle,
-    buildSplitViewLegendSwatchStyle,
-} from "@/shared/ui/layout/glass-surface";
+import { SPLIT } from "@/shared/ui/layout/glass-surface";
 import {
     usePiecesMapViewModel,
     type PiecesMapProps,
@@ -89,7 +85,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                         onMouseMove={handlers.onMouseMove}
                         onMouseLeave={handlers.onMouseLeave}
                         onMouseDown={handlers.onMouseDown}
-                        style={buildSplitViewCanvasInteractionStyle(cursor)}
+                        style={SPLIT.builder.canvasInteractionStyle(cursor)}
                     />
                     <canvas
                         ref={overlayRef}
@@ -125,7 +121,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                 <span className={SPLIT.mapLegendItem}>
                     <span
                         className={SPLIT.mapLegendSwatch}
-                        style={buildSplitViewLegendSwatchStyle({
+                        style={SPLIT.builder.legendSwatchStyle({
                             background: palette.success,
                         })}
                     />
@@ -137,7 +133,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                 <span className={SPLIT.mapLegendItem}>
                     <span
                         className={SPLIT.mapLegendSwatch}
-                        style={buildSplitViewLegendSwatchStyle({
+                        style={SPLIT.builder.legendSwatchStyle({
                             background: palette.warning,
                             border: `1px solid ${palette.primary}`,
                         })}
@@ -150,7 +146,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                 <span className={SPLIT.mapLegendItem}>
                     <span
                         className={SPLIT.mapLegendSwatch}
-                        style={buildSplitViewLegendSwatchStyle({
+                        style={SPLIT.builder.legendSwatchStyle({
                             background: palette.foreground,
                             border: `1px solid ${palette.danger}`,
                             opacity: 0.2,

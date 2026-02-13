@@ -6,13 +6,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { flexRender, type Column, type Table } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
-import {
-    buildTorrentHeaderActivatorClass,
-    buildTorrentHeaderCellClass,
-    buildTorrentHeaderResizeBarClass,
-    buildTorrentHeaderSortIconClass,
-    TORRENT_HEADER,
-} from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
@@ -140,7 +134,7 @@ const TorrentTable_Header = memo(
                 role="columnheader"
                 tabIndex={-1}
                 onContextMenu={onContextMenu}
-                className={buildTorrentHeaderCellClass({
+                className={TABLE.columnHeader.builder.cellClass({
                     canSort,
                     isOverlay,
                     isDragging,
@@ -150,12 +144,12 @@ const TorrentTable_Header = memo(
                     ref={setActivatorNodeRef}
                     {...attributes}
                     {...listeners}
-                    className={buildTorrentHeaderActivatorClass({
+                    className={TABLE.columnHeader.builder.activatorClass({
                         isOverlay,
                         align,
                         isSelection,
                     })}
-                    style={TORRENT_HEADER.activatorTrackingStyle}
+                    style={TABLE.columnHeader.activatorTrackingStyle}
                     onClick={
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
@@ -163,7 +157,7 @@ const TorrentTable_Header = memo(
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className={buildTorrentHeaderSortIconClass(
+                        className={TABLE.columnHeader.builder.sortIconClass(
                             sortArrowOpacity === "opacity-100",
                         )}
                     />
@@ -176,13 +170,13 @@ const TorrentTable_Header = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className={TORRENT_HEADER.resizeHandle}
+                        className={TABLE.columnHeader.resizeHandle}
                     >
                         <div
-                            className={buildTorrentHeaderResizeBarClass(
+                            className={TABLE.columnHeader.builder.resizeBarClass(
                                 isColumnResizing,
                             )}
-                            style={TORRENT_HEADER.resizeBarStyle}
+                            style={TABLE.columnHeader.resizeBarStyle}
                         />
                     </div>
                 )}

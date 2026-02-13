@@ -27,10 +27,7 @@ import { WindowControlButton } from "@/shared/ui/layout/window-control-button";
 import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import {
-    buildAppNavSelectionActionsClass,
-    NAV,
-} from "@/shared/ui/layout/glass-surface";
+import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import {
     getShellTokens,
     STATUS_VISUAL_KEYS,
@@ -72,19 +69,19 @@ export function Navbar({ viewModel }: NavbarProps) {
     const toneButtonClass = {
         primary:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.button ??
-            NAV.toneButtonFallback.primary,
+            WORKBENCH.nav.toneButtonFallback.primary,
         success:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]?.button ??
-            NAV.toneButtonFallback.success,
+            WORKBENCH.nav.toneButtonFallback.success,
         warning:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.button ??
-            NAV.toneButtonFallback.warning,
+            WORKBENCH.nav.toneButtonFallback.warning,
         danger:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]?.button ??
-            NAV.toneButtonFallback.danger,
+            WORKBENCH.nav.toneButtonFallback.danger,
         neutral:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.NEUTRAL]?.button ??
-            NAV.toneButtonFallback.neutral,
+            WORKBENCH.nav.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -93,38 +90,38 @@ export function Navbar({ viewModel }: NavbarProps) {
     };
 
     return (
-        <header className={cn(NAV.root, NAV.workbenchSurface)}>
+        <header className={cn(WORKBENCH.nav.root, WORKBENCH.nav.workbenchSurface)}>
             <div
-                className={NAV.titlebar}
+                className={WORKBENCH.nav.titlebar}
                 style={{
                     ...shell.surfaceStyle,
-                    ...NAV.titlebarBaseStyle,
+                    ...WORKBENCH.nav.titlebarBaseStyle,
                 }}
             >
                 <div
                     className={cn(
-                        NAV.workbenchShell,
+                        WORKBENCH.nav.workbenchShell,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
-                        NAV.main,
+                        WORKBENCH.nav.main,
                     )}
                     style={{
                         ...shell.outerStyle,
                     }}
                 >
-                    <div className={NAV.left}>
-                        <div className={NAV.brandGroup}>
+                    <div className={WORKBENCH.nav.left}>
+                        <div className={WORKBENCH.nav.brandGroup}>
                             <div
-                                className={NAV.brandIconWrap}
-                                style={NAV.brandIconStyle}
+                                className={WORKBENCH.nav.brandIconWrap}
+                                style={WORKBENCH.nav.brandIconStyle}
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className={NAV.brandTextWrap}>
-                                <span className={NAV.brandName}>
+                            <div className={WORKBENCH.nav.brandTextWrap}>
+                                <span className={WORKBENCH.nav.brandName}>
                                     {t("brand.name")}
                                 </span>
-                                <span className={NAV.brandVersion}>
+                                <span className={WORKBENCH.nav.brandVersion}>
                                     {t("brand.version", {
                                         version: APP_VERSION,
                                     })}
@@ -132,9 +129,9 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </div>
                         </div>
 
-                        <div className={NAV.primarySeparator} />
+                        <div className={WORKBENCH.nav.primarySeparator} />
 
-                        <div className={NAV.tabsWrap}>
+                        <div className={WORKBENCH.nav.tabsWrap}>
                             <Tabs
                                 aria-label={t("nav.filter_aria")}
                                 variant="light"
@@ -142,18 +139,18 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 radius="full"
                                 selectedKey={filter}
                                 onSelectionChange={handleFilterSelectionChange}
-                                classNames={NAV.filterTabsClassNames}
+                                classNames={WORKBENCH.nav.filterTabsClassNames}
                             >
                                 <Tab
                                     key="all"
                                     title={
-                                        <div className={NAV.tabTitle}>
+                                        <div className={WORKBENCH.nav.tabTitle}>
                                             <StatusIcon
                                                 Icon={ListChecks}
                                                 size="lg"
-                                                className={NAV.tabIcon}
+                                                className={WORKBENCH.nav.tabIcon}
                                             />
-                                            <span className={NAV.tabLabel}>
+                                            <span className={WORKBENCH.nav.tabLabel}>
                                                 {t("nav.filter_all")}
                                             </span>
                                         </div>
@@ -162,13 +159,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="downloading"
                                     title={
-                                        <div className={NAV.tabTitle}>
+                                        <div className={WORKBENCH.nav.tabTitle}>
                                             <StatusIcon
                                                 Icon={DownloadCloud}
                                                 size="lg"
-                                                className={NAV.tabIcon}
+                                                className={WORKBENCH.nav.tabIcon}
                                             />
-                                            <span className={NAV.tabLabel}>
+                                            <span className={WORKBENCH.nav.tabLabel}>
                                                 {t("nav.filter_downloading")}
                                             </span>
                                         </div>
@@ -177,13 +174,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="seeding"
                                     title={
-                                        <div className={NAV.tabTitle}>
+                                        <div className={WORKBENCH.nav.tabTitle}>
                                             <StatusIcon
                                                 Icon={UploadCloud}
                                                 size="lg"
-                                                className={NAV.tabIcon}
+                                                className={WORKBENCH.nav.tabIcon}
                                             />
-                                            <span className={NAV.tabLabel}>
+                                            <span className={WORKBENCH.nav.tabLabel}>
                                                 {t("nav.filter_seeding")}
                                             </span>
                                         </div>
@@ -192,10 +189,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </Tabs>
                         </div>
 
-                        <div className={NAV.searchWrap}>
+                        <div className={WORKBENCH.nav.searchWrap}>
                             <Input
-                                classNames={NAV.searchInputClassNames}
-                                style={NAV.searchStyle}
+                                classNames={WORKBENCH.nav.searchInputClassNames}
+                                style={WORKBENCH.nav.searchStyle}
                                 placeholder={t("nav.search_placeholder")}
                                 size="md"
                                 value={searchQuery}
@@ -208,14 +205,14 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     <StatusIcon
                                         Icon={Search}
                                         size="lg"
-                                        className={NAV.searchIcon}
+                                        className={WORKBENCH.nav.searchIcon}
                                     />
                                 }
                             />
                         </div>
                     </div>
-                    <div className={NAV.actions}>
-                        <div className={NAV.primaryActions}>
+                    <div className={WORKBENCH.nav.actions}>
+                        <div className={WORKBENCH.nav.primaryActions}>
                             <ToolbarIconButton
                                 Icon={FileUp}
                                 ariaLabel={t("toolbar.add_torrent")}
@@ -223,7 +220,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 onPress={onAddTorrent}
                                 className={cn(
                                     toneButtonClass.primary,
-                                    NAV.primaryActionEmphasis,
+                                    WORKBENCH.nav.primaryActionEmphasis,
                                 )}
                                 iconSize="lg"
                             />
@@ -238,12 +235,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                             />
                         </div>
                         <div
-                            className={NAV.selectionSeparator}
-                            style={NAV.selectionSeparatorStyle}
+                            className={WORKBENCH.nav.selectionSeparator}
+                            style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
 
                         <div
-                            className={buildAppNavSelectionActionsClass(
+                            className={WORKBENCH.nav.builder.selectionActionsClass(
                                 hasSelection,
                             )}
                         >
@@ -265,12 +262,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 className={cn(
                                     toneButtonClass.warning,
                                     emphasizeActions?.pause
-                                        ? NAV.selectionPauseEmphasis
+                                        ? WORKBENCH.nav.selectionPauseEmphasis
                                         : "",
                                 )}
                                 iconSize="lg"
                             />
-                            <div className={NAV.selectionExtraActions}>
+                            <div className={WORKBENCH.nav.selectionExtraActions}>
                                 <ToolbarIconButton
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
@@ -280,7 +277,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     className={cn(
                                         toneButtonClass.neutral,
                                         emphasizeActions?.forceRecheck
-                                            ? NAV.selectionRecheckEmphasis
+                                            ? WORKBENCH.nav.selectionRecheckEmphasis
                                             : "",
                                     )}
                                     iconSize="lg"
@@ -298,8 +295,8 @@ export function Navbar({ viewModel }: NavbarProps) {
                         </div>
 
                         <div
-                            className={NAV.selectionSeparator}
-                            style={NAV.selectionSeparatorStyle}
+                            className={WORKBENCH.nav.selectionSeparator}
+                            style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
 
                         <ToolbarIconButton
@@ -308,12 +305,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                             title={t("toolbar.settings")}
                             onPress={onSettings}
                             className={cn(
-                                NAV.ghostAction,
-                                NAV.ghostActionOverflow,
+                                WORKBENCH.nav.ghostAction,
+                                WORKBENCH.nav.ghostActionOverflow,
                             )}
                             iconSize="lg"
                         />
-                        <div className={NAV.themeMobileWrap}>
+                        <div className={WORKBENCH.nav.themeMobileWrap}>
                             <ToolbarIconButton
                                 Icon={Icon}
                                 ariaLabel={t("theme.toggle_label", {
@@ -324,8 +321,8 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 title={t("theme.toggle")}
                                 onPress={toggleTheme}
                                 className={cn(
-                                    NAV.ghostAction,
-                                    NAV.ghostActionOverflow,
+                                    WORKBENCH.nav.ghostAction,
+                                    WORKBENCH.nav.ghostActionOverflow,
                                 )}
                                 iconSize="lg"
                             />
@@ -333,17 +330,17 @@ export function Navbar({ viewModel }: NavbarProps) {
                     </div>
 
                     {rehashStatus?.active && (
-                        <div className={NAV.rehashWrap}>
-                            <div className={NAV.rehashTooltipWrap}>
+                        <div className={WORKBENCH.nav.rehashWrap}>
+                            <div className={WORKBENCH.nav.rehashTooltipWrap}>
                                 <SmoothProgressBar
                                     value={Math.min(
                                         Math.max(rehashStatus.value, 0),
                                         100,
                                     )}
-                                    trackClassName={NAV.rehashTrack}
-                                    indicatorClassName={NAV.rehashIndicator}
+                                    trackClassName={WORKBENCH.nav.rehashTrack}
+                                    indicatorClassName={WORKBENCH.nav.rehashIndicator}
                                 />
-                                <div className={NAV.rehashTooltip}>
+                                <div className={WORKBENCH.nav.rehashTooltip}>
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>
@@ -353,10 +350,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                 </div>
 
                 <div
-                    className={cn(NAV.workbenchShell, NAV.windowControls)}
+                    className={cn(
+                        WORKBENCH.nav.workbenchShell,
+                        WORKBENCH.nav.windowControls,
+                    )}
                     style={{
                         ...shell.outerStyle,
-                        ...NAV.windowControlsStyle,
+                        ...WORKBENCH.nav.windowControlsStyle,
                     }}
                 >
                     <WindowControlButton

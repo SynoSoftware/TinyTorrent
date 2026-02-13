@@ -74,18 +74,16 @@ Authority:
 - `SURFACE.menu`
 - `SURFACE.atom`
 - `SURFACE.tooltip`
-- `SURFACE.layer`
 
 These are reusable composed primitives built strictly from tiers 1-3.
 
-## Registry
+## Internal Registry (Implementation Detail)
 
-Authority:
-- `SURFACE_REGISTRY`
+`glass-surface.ts` still keeps internal role tiers:
+- `GLASS_ROLE_CORE`
+- `GLASS_ROLE_SEMANTIC`
 
-Structure:
-- `SURFACE_REGISTRY.core`
-- `SURFACE_REGISTRY.semantic`
+These are intentionally internal and not part of the public token contract.
 
 ## Current Binding Exports (Transitional, Not Final Token End-State)
 
@@ -95,21 +93,22 @@ but they are not the long-term "small semantic token set" target.
 - `MODAL`
 - `FORM`
 - `TABLE`
-- `NAV`
-- `STATUS_BAR`
-- `DETAILS_VIEW`
-- `SPLIT_VIEW`
+- `DIAGNOSTIC`
+- `WORKBENCH`
+- `SPLIT`
 - `CONTEXT_MENU`
 - `COMMAND_PALETTE`
 - `METRIC_CHART`
 - `DASHBOARD`
-- `DIAGNOSTIC_VIEW`
-- `WORKBENCH`
+- `DETAILS`
 - `FORM_CONTROL`
 - `INPUT`
 - `FILE_BROWSER`
-- `DETAIL_TABLE`
-- `HEATMAP_VIEW`
+- `HEATMAP`
+
+Navbar and status-bar bindings are now owned under:
+- `WORKBENCH.nav.*`
+- `WORKBENCH.status.*`
 
 ## Final-Form Direction
 
@@ -126,6 +125,8 @@ Expected steady-state:
 
 - `npm run enforce:surface-foundation`
 - `npm run enforce:surface-churn`
+- `npm run enforce:surface-unused`
+- `npm run enforce:surface-final-form`
 - `npm run enforce:workbench-parity`
 - `npm run enforce:workbench-consumers`
 - `npm run build`

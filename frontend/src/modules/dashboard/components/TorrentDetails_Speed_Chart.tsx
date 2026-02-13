@@ -28,11 +28,7 @@ import {
 } from "@/config/logic";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { cn } from "@heroui/react";
-import {
-    buildMetricChartLayoutButtonClass,
-    buildMetricChartWindowButtonClass,
-    METRIC_CHART,
-} from "@/shared/ui/layout/glass-surface";
+import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 
 // Use Lucide icons to match project style and theme (color via currentColor)
 
@@ -708,7 +704,7 @@ export const SpeedChart = ({
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
-                            className={buildMetricChartLayoutButtonClass(
+                            className={METRIC_CHART.builder.layoutButtonClass(
                                 layout === "split",
                             )}
                             onPress={() => setLayout("split")}
@@ -719,7 +715,7 @@ export const SpeedChart = ({
                         <ToolbarIconButton
                             Icon={Layers}
                             iconSize="md"
-                            className={buildMetricChartLayoutButtonClass(
+                            className={METRIC_CHART.builder.layoutButtonClass(
                                 layout === "combined",
                             )}
                             onPress={() => setLayout("combined")}
@@ -744,7 +740,7 @@ export const SpeedChart = ({
                                         ? "secondary"
                                         : "default"
                                 }
-                                className={buildMetricChartWindowButtonClass(
+                                className={METRIC_CHART.builder.windowButtonClass(
                                     selectedWindow === option.key,
                                 )}
                                 onPress={() => setSelectedWindow(option.key)}

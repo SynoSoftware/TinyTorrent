@@ -45,11 +45,6 @@ import {
 
 import {
     MODAL,
-    buildAddTorrentModalClassNames,
-    buildModalBodyPanelsClass,
-    buildModalPaneHandleClass,
-    buildModalResizeHandleBarClass,
-    buildModalSettingsPanelClass,
     FORM,
 } from "@/shared/ui/layout/glass-surface";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
@@ -182,7 +177,7 @@ export function AddTorrentModal({
             hideCloseButton
             isDismissable={isDismissable}
             size={modalSize} // fullscreen is a pure layout expansion; destination gate is state-based
-            classNames={buildAddTorrentModalClassNames({
+            classNames={MODAL.builder.addTorrentModalClassNames({
                 showDestinationGate,
                 isFullscreen,
             })}
@@ -478,7 +473,7 @@ export function AddTorrentModal({
                                IMPORTANT: this wrapper must remain in-flow (not absolute), otherwise
                                ModalBody can collapse in normal mode and hide Step 2 controls. */}
                                     <motion.div
-                                        className={buildModalBodyPanelsClass(
+                                        className={MODAL.builder.bodyPanelsClass(
                                             isFullscreen,
                                         )}
                                         initial={false}
@@ -510,7 +505,7 @@ export function AddTorrentModal({
                                                 onExpand={
                                                     handleSettingsPanelExpand
                                                 }
-                                                className={buildModalSettingsPanelClass(
+                                                className={MODAL.builder.settingsPanelClass(
                                                     isSettingsCollapsed,
                                                 )}
                                             >
@@ -525,7 +520,7 @@ export function AddTorrentModal({
                                                         ? undefined
                                                         : setIsPanelResizeActive
                                                 }
-                                                className={buildModalPaneHandleClass(
+                                                className={MODAL.builder.paneHandleClass(
                                                     isSettingsCollapsed,
                                                 )}
                                             >
@@ -536,7 +531,7 @@ export function AddTorrentModal({
                                                     }
                                                 >
                                                     <div
-                                                        className={buildModalResizeHandleBarClass(
+                                                        className={MODAL.builder.resizeHandleBarClass(
                                                             {
                                                                 isSettingsCollapsed,
                                                                 isPanelResizeActive,

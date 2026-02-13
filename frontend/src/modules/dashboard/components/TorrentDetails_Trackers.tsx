@@ -5,9 +5,8 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
-    DETAIL_TABLE,
+    DETAILS,
     SURFACE,
-    buildAvailabilityDotClass,
 } from "@/shared/ui/layout/glass-surface";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -34,13 +33,13 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
 
     if (viewModel.state.isEmpty) {
         const emptyContent = (
-            <p className={DETAIL_TABLE.emptyText}>
+            <p className={DETAILS.table.emptyText}>
                 {viewModel.labels.emptyMessage}
             </p>
         );
 
         const emptyShell = (
-            <GlassPanel className={DETAIL_TABLE.emptyPanel}>
+            <GlassPanel className={DETAILS.table.emptyPanel}>
                 {emptyContent}
             </GlassPanel>
         );
@@ -49,78 +48,78 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     }
 
     const tableBody = (
-        <table className={DETAIL_TABLE.table}>
+        <table className={DETAILS.table.table}>
             <thead className={SURFACE.chrome.sticky}>
-                <tr className={DETAIL_TABLE.tableHeadRow}>
-                    <th className={DETAIL_TABLE.tableHeadCellIcon}>
+                <tr className={DETAILS.table.tableHeadRow}>
+                    <th className={DETAILS.table.tableHeadCellIcon}>
                         <StatusIcon
                             Icon={Activity}
                             size="sm"
-                            className={DETAIL_TABLE.tableHeadIconMuted}
+                            className={DETAILS.table.tableHeadIconMuted}
                         />
                     </th>
-                    <th className={DETAIL_TABLE.tableHeadCell}>
+                    <th className={DETAILS.table.tableHeadCell}>
                         {viewModel.labels.hostnameHeader}
                     </th>
-                    <th className={DETAIL_TABLE.tableHeadCell}>
+                    <th className={DETAILS.table.tableHeadCell}>
                         {viewModel.labels.nextAnnounceHeader}
                     </th>
-                    <th className={DETAIL_TABLE.tableHeadCell}>
+                    <th className={DETAILS.table.tableHeadCell}>
                         {viewModel.labels.peersHeader}
                     </th>
-                    <th className={DETAIL_TABLE.tableHeadCellStatus}>
+                    <th className={DETAILS.table.tableHeadCellStatus}>
                         {viewModel.labels.statusHeader}
                     </th>
                 </tr>
             </thead>
 
-            <tbody className={DETAIL_TABLE.tableBody}>
+            <tbody className={DETAILS.table.tableBody}>
                 {viewModel.data.rows.map((row) => (
-                    <tr key={row.key} className={DETAIL_TABLE.tableRow}>
-                        <td className={DETAIL_TABLE.cellIcon}>
+                    <tr key={row.key} className={DETAILS.table.tableRow}>
+                        <td className={DETAILS.table.cellIcon}>
                             <div
-                                className={buildAvailabilityDotClass(
+                                className={DETAILS.table.builder.availabilityDotClass(
                                     row.isOnlineIndicator,
                                 )}
                             />
                         </td>
 
-                        <td className={DETAIL_TABLE.cellHost}>
+                        <td className={DETAILS.table.cellHost}>
                             {row.hostname}
                         </td>
 
-                        <td className={DETAIL_TABLE.cellAnnounce}>
-                            <div className={DETAIL_TABLE.announceRow}>
+                        <td className={DETAILS.table.cellAnnounce}>
+                            <div className={DETAILS.table.announceRow}>
                                 <StatusIcon Icon={Timer} size="sm" />
                                 {row.nextAnnounceLabel}
                             </div>
                         </td>
 
-                        <td className={DETAIL_TABLE.cellPeers}>
-                            <div className={DETAIL_TABLE.peerRow}>
+                        <td className={DETAILS.table.cellPeers}>
+                            <div className={DETAILS.table.peerRow}>
                                 <StatusIcon Icon={Users} size="sm" />
                                 {row.peersLabel}
                             </div>
                         </td>
 
-                        <td className={DETAIL_TABLE.cellStatus}>
+                        <td className={DETAILS.table.cellStatus}>
                             {row.statusTone === "pending" && (
                                 <span
-                                    className={DETAIL_TABLE.statusTone.pending}
+                                    className={DETAILS.table.statusTone.pending}
                                 >
                                     {row.statusLabel}
                                 </span>
                             )}
                             {row.statusTone === "online" && (
                                 <span
-                                    className={DETAIL_TABLE.statusTone.online}
+                                    className={DETAILS.table.statusTone.online}
                                 >
                                     {row.statusLabel}
                                 </span>
                             )}
                             {row.statusTone === "partial" && (
                                 <span
-                                    className={DETAIL_TABLE.statusTone.partial}
+                                    className={DETAILS.table.statusTone.partial}
                                 >
                                     {row.statusLabel}
                                 </span>
@@ -133,20 +132,20 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     );
 
     return (
-        <div className={DETAIL_TABLE.root}>
-            <div className={DETAIL_TABLE.toolbar}>
-                <div className={DETAIL_TABLE.toolbarGroup}>
+        <div className={DETAILS.table.root}>
+            <div className={DETAILS.table.toolbar}>
+                <div className={DETAILS.table.toolbarGroup}>
                     <StatusIcon
                         Icon={Activity}
                         size="md"
-                        className={DETAIL_TABLE.toolbarIconPrimary}
+                        className={DETAILS.table.toolbarIconPrimary}
                     />
                     <span className={TEXT_ROLE.label}>
                         {viewModel.labels.title}
                     </span>
                 </div>
 
-                <div className={DETAIL_TABLE.toolbarGroup}>
+                <div className={DETAILS.table.toolbarGroup}>
                     <ToolbarIconButton
                         Icon={Plus}
                         ariaLabel={viewModel.labels.toggleAddAriaLabel}
@@ -155,19 +154,19 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                 </div>
             </div>
 
-            <div className={DETAIL_TABLE.body}>
+            <div className={DETAILS.table.body}>
                 {isStandalone ? (
-                    <GlassPanel className={DETAIL_TABLE.panel}>
-                        <div className={DETAIL_TABLE.scroll}>{tableBody}</div>
+                    <GlassPanel className={DETAILS.table.panel}>
+                        <div className={DETAILS.table.scroll}>{tableBody}</div>
                     </GlassPanel>
                 ) : (
-                    <div className={DETAIL_TABLE.scroll}>{tableBody}</div>
+                    <div className={DETAILS.table.scroll}>{tableBody}</div>
                 )}
 
                 {viewModel.state.showAdd && (
-                    <GlassPanel layer={1} className={DETAIL_TABLE.overlay}>
-                        <div className={DETAIL_TABLE.overlayHeader}>
-                            <span className={DETAIL_TABLE.overlayTitle}>
+                    <GlassPanel layer={1} className={DETAILS.table.overlay}>
+                        <div className={DETAILS.table.overlayHeader}>
+                            <span className={DETAILS.table.overlayTitle}>
                                 {viewModel.labels.addTitle}
                             </span>
                             <ToolbarIconButton
@@ -176,17 +175,17 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                             />
                         </div>
 
-                        <div className={DETAIL_TABLE.overlayBody}>
+                        <div className={DETAILS.table.overlayBody}>
                             <Textarea
                                 value={viewModel.state.newTrackers}
                                 onValueChange={viewModel.actions.setNewTrackers}
                                 minRows={6}
                                 placeholder={viewModel.labels.addPlaceholder}
-                                classNames={DETAIL_TABLE.inputClassNames}
+                                classNames={DETAILS.table.inputClassNames}
                             />
                         </div>
 
-                        <div className={DETAIL_TABLE.overlayFooter}>
+                        <div className={DETAILS.table.overlayFooter}>
                             <Button
                                 variant="shadow"
                                 onPress={viewModel.actions.closeAdd}

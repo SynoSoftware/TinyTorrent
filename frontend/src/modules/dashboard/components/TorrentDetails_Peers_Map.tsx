@@ -5,8 +5,6 @@ import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
 import { scheduler } from "@/app/services/scheduler";
 import {
-    buildSplitViewPeerActivityClass,
-    buildSplitViewPeerNodeClass,
     SURFACE,
     SPLIT,
 } from "@/shared/ui/layout/glass-surface";
@@ -236,7 +234,7 @@ export const PeerMap = ({
                         <StatusIcon
                             Icon={Activity}
                             size="sm"
-                            className={buildSplitViewPeerActivityClass(
+                            className={SPLIT.builder.peerActivityClass(
                                 mode === "instrument",
                             )}
                         />
@@ -413,7 +411,7 @@ export const PeerMap = ({
                                                 damping: 24,
                                             }}
                                             stroke={palette.foreground}
-                                            className={buildSplitViewPeerNodeClass(
+                                            className={SPLIT.builder.peerNodeClass(
                                                 node.isUTP,
                                             )}
                                         />

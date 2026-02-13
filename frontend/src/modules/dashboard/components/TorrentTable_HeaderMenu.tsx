@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import {
     FORM_CONTROL,
     SURFACE,
-    buildContextMenuAnchorStyle,
+    CONTEXT_MENU,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 
@@ -47,7 +47,7 @@ export default function TorrentTable_HeaderMenu({
             >
                 <DropdownTrigger>
                     <div
-                        style={buildContextMenuAnchorStyle({
+                        style={CONTEXT_MENU.builder.anchorStyle({
                             top: headerMenuTriggerRect.top,
                             left: headerMenuTriggerRect.left,
                         })}

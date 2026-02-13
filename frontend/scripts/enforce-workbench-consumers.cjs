@@ -15,9 +15,9 @@ const checks = [
             "Navbar.tsx",
         ),
         mustInclude: [
-            "NAV.root",
-            "NAV.workbenchSurface",
-            "NAV.workbenchShell",
+            "WORKBENCH.nav.root",
+            "WORKBENCH.nav.workbenchSurface",
+            "WORKBENCH.nav.workbenchShell",
         ],
     },
     {
@@ -44,7 +44,10 @@ const checks = [
             "layout",
             "StatusBar.tsx",
         ),
-        mustInclude: ["STATUS_BAR.footer", "STATUS_BAR.workbenchSurface"],
+        mustInclude: [
+            "WORKBENCH.status.footer",
+            "WORKBENCH.status.workbenchSurface",
+        ],
     },
 ];
 
