@@ -15,7 +15,7 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 import { DETAIL_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
 
@@ -58,7 +58,7 @@ export const GeneralTab = ({
                             {t("torrent_modal.labels.save_path")}
                         </div>
                         <code
-                            className={`${TEXT_ROLE.codeMuted} bg-content1/20 px-tight py-tight rounded wrap-break-word mt-2`}
+                            className={DETAIL_VIEW_CLASS.generalPathCode}
                         >
                             {downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}
                         </code>
@@ -134,7 +134,7 @@ export const GeneralTab = ({
                                 <div className={TEXT_ROLE.caption}>
                                     {t("torrent_modal.controls.title")}
                                 </div>
-                                <div className={withOpacity(TEXT_ROLE.body, 50)}>
+                                <div className={DETAIL_VIEW_CLASS.generalControlsDescription}>
                                     {t("torrent_modal.controls.description")}
                                 </div>
                             </div>

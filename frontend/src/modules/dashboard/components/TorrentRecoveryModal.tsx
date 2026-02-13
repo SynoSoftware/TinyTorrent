@@ -155,7 +155,7 @@ export default function TorrentRecoveryModal({
                                 </div>
                             )}
                             {viewModel.inbox.visible && (
-                                <div className={STANDARD_SURFACE_CLASS.atom.insetRounded}>
+                                <div className={APP_MODAL_CLASS.dialogInsetPanel}>
                                     <div className={APP_MODAL_CLASS.dialogInsetStack}>
                                         <p className={APP_MODAL_CLASS.dialogInsetTitle}>
                                             {viewModel.inbox.title}
@@ -167,7 +167,7 @@ export default function TorrentRecoveryModal({
                                             {viewModel.inbox.items.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={STANDARD_SURFACE_CLASS.atom.insetBorderedItem}
+                                                    className={APP_MODAL_CLASS.dialogInsetItem}
                                                 >
                                                     <p className={APP_MODAL_CLASS.dialogInsetLabel}>
                                                         {item.label}
@@ -236,4 +236,3 @@ export default function TorrentRecoveryModal({
         </Modal>
     );
 }
-

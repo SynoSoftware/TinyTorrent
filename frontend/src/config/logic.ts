@@ -517,6 +517,27 @@ export const CELL_PADDING_CLASS = `pl-tight pr-tight`;
 export const CELL_BASE_CLASS =
     "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
 
+export const TABLE_CELL_CLASS = {
+    headerLabel: "gap-tools text-scaled font-bold uppercase text-foreground/60",
+    alignCenter: "justify-center",
+    alignEnd: "justify-end",
+    sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
+    measureLayer: "absolute pointer-events-none invisible",
+    measureRow: "flex",
+} as const;
+
+export const TABLE_ROW_CLASS = {
+    shell: "absolute top-0 left-0 border-b border-default/5 box-border",
+    dragCursorEnabled: "cursor-grab",
+    dragCursorDisabled: "cursor-default",
+    dragging: "opacity-50 grayscale scale-98 z-popover cursor-grabbing",
+    content: "relative flex items-center w-full h-full box-border",
+    selected: "bg-primary/20",
+    hover: "hover:bg-content1/10",
+    context: "bg-content1/20",
+    highlighted: "bg-foreground/10",
+} as const;
+
 // Shared header visual tokens used across table headers and inspector headers.
 // Components should compose layout-specific classes (grid/flex) with this
 // base so color, padding and typography remain consistent.

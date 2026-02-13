@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
@@ -89,7 +88,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                         >
                             {statusLabel}
                             {primaryHint && (
-                                <em className={withOpacity(TEXT_ROLE.caption, 50)}>
+                                <em className={DETAIL_VIEW_CLASS.headerPrimaryHint}>
                                     - {primaryHint}
                                 </em>
                             )}

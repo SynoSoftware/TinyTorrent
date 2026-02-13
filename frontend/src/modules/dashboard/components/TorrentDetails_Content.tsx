@@ -4,7 +4,6 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import {
     buildTableDetailsContentScrollStyle,
-    STANDARD_SURFACE_CLASS,
     TABLE_VIEW_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import {
@@ -19,7 +18,7 @@ import type { TorrentFileEntity } from "@/services/rpc/entities";
 import {
     DETAILS_TAB_CONTENT_MAX_HEIGHT,
 } from "@/config/logic";
-import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
@@ -94,7 +93,7 @@ export const ContentTab = ({
                     <div className={TEXT_ROLE.statusWarning}>
                         {t("torrent_modal.files_empty")}
                     </div>
-                    <div className={`${withColor(TEXT_ROLE.caption, "warning")} text-warning/80 mb-tight`}>
+                    <div className={TABLE_VIEW_CLASS.detailsContentRecoveryNote}>
                         {t("torrent_modal.files_recovery_desc")}
                     </div>
                 </AlertPanel>
@@ -108,7 +107,7 @@ export const ContentTab = ({
                 <GlassPanel className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
                     <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
                         <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
-                            <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
+                            <span className={TABLE_VIEW_CLASS.detailsContentHeaderTitle}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className={TEXT_ROLE.caption}>
@@ -124,7 +123,7 @@ export const ContentTab = ({
                 <div className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
                     <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
                         <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
-                            <span className={withOpacity(TEXT_ROLE.headingSection, 60)}>
+                            <span className={TABLE_VIEW_CLASS.detailsContentHeaderTitle}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className={TEXT_ROLE.caption}>
@@ -139,7 +138,7 @@ export const ContentTab = ({
             )}
 
             <GlassPanel
-                className={`flex flex-1 min-h-0 flex-col ${STANDARD_SURFACE_CLASS.frame.panelInset}`}
+                className={TABLE_VIEW_CLASS.detailsContentPanel}
             >
                 <div className={TABLE_VIEW_CLASS.detailsContentSectionHeader}>
                     {t("torrent_modal.tabs.content")}

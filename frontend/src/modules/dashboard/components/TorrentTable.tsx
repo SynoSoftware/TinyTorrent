@@ -39,7 +39,7 @@ export function TorrentTable({
         () =>
             cn(
                 TABLE_VIEW_CLASS.shellPanelBase,
-                STANDARD_SURFACE_CLASS.frame.panel,
+                STANDARD_SURFACE_CLASS.role.panel,
             ),
         [],
     );
@@ -65,8 +65,8 @@ export function TorrentTable({
                 style={TABLE_VIEW_CLASS.hostBorderRadiusStyle}
                 className={cn(
                     TABLE_VIEW_CLASS.hostRoot,
-                    !embedded && TABLE_VIEW_CLASS.hostAcrylic,
-                    !embedded && STANDARD_SURFACE_CLASS.atom.shadowBlock,
+                    !embedded && TABLE_VIEW_CLASS.workbenchSurface,
+                    !embedded && TABLE_VIEW_CLASS.workbenchShell,
                 )}
                 onClick={menus.closeContextMenu}
             >

@@ -136,7 +136,7 @@ export function AddMagnetModal({
                                 classNames={INPUT_SURFACE_CLASS.codeTextareaClassNames}
                                 onKeyDown={handleKeyDown}
                             />
-                            <p className={`${TEXT_ROLE.bodyMuted} leading-relaxed`}>
+                            <p className={APP_MODAL_CLASS.hintText}>
                                 {t("modals.add_magnet.hint")}
                             </p>
                         </ModalBody>

@@ -28,11 +28,7 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
-    STANDARD_SURFACE_CLASS,
-    buildAppNavMainStyle,
     buildAppNavSelectionActionsClass,
-    buildAppNavTitlebarStyle,
-    buildAppNavWindowControlsStyle,
     APP_NAV_CLASS,
 } from "@/shared/ui/layout/glass-surface";
 import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
@@ -93,20 +89,29 @@ export function Navbar({ viewModel }: NavbarProps) {
     };
 
     return (
-        <header className={APP_NAV_CLASS.root}>
+        <header
+            className={cn(
+                APP_NAV_CLASS.root,
+                APP_NAV_CLASS.workbenchSurface,
+            )}
+        >
             <div
                 className={APP_NAV_CLASS.titlebar}
-                style={buildAppNavTitlebarStyle(shell.surfaceStyle)}
+                style={{
+                    ...shell.surfaceStyle,
+                    ...APP_NAV_CLASS.titlebarBaseStyle,
+                }}
             >
                 <div
                     className={cn(
-                        STANDARD_SURFACE_CLASS.atom.glassBlock,
-                        STANDARD_SURFACE_CLASS.atom.shadowBlock,
+                        APP_NAV_CLASS.workbenchShell,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
                         APP_NAV_CLASS.main,
                     )}
-                    style={buildAppNavMainStyle(shell.outerStyle)}
+                    style={{
+                        ...shell.outerStyle,
+                    }}
                 >
                     <div className={APP_NAV_CLASS.left}>
                         <div className={APP_NAV_CLASS.brandGroup}>
@@ -346,11 +351,13 @@ export function Navbar({ viewModel }: NavbarProps) {
 
                 <div
                     className={cn(
-                        STANDARD_SURFACE_CLASS.atom.glassBlock,
-                        STANDARD_SURFACE_CLASS.atom.shadowBlock,
+                        APP_NAV_CLASS.workbenchShell,
                         APP_NAV_CLASS.windowControls,
                     )}
-                    style={buildAppNavWindowControlsStyle(shell.outerStyle)}
+                    style={{
+                        ...shell.outerStyle,
+                        ...APP_NAV_CLASS.windowControlsStyle,
+                    }}
                 >
                     <WindowControlButton
                         Icon={Icon}
@@ -387,4 +394,3 @@ export function Navbar({ viewModel }: NavbarProps) {
         </header>
     );
 }
-

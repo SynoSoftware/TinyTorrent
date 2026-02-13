@@ -155,7 +155,7 @@ function TelemetryIcon({
             className={cn(APP_STATUS_CLASS.telemetryIconWrap, toneClass)}
             title={title}
         >
-            <StatusIcon Icon={Icon} size="md" className="text-current" />
+            <StatusIcon Icon={Icon} size="md" className={APP_STATUS_CLASS.iconCurrent} />
         </span>
     );
 }
@@ -215,7 +215,7 @@ function SpeedModule({
                                     <StatusIcon
                                         Icon={Icon}
                                         size="xl"
-                                        className="text-current"
+                                        className={APP_STATUS_CLASS.iconCurrent}
                                     />
                                 </div>
                                 <div className={APP_STATUS_CLASS.speedModuleTextWrap}>
@@ -299,7 +299,7 @@ function StatusTelemetryGrid({
 
     return (
         <div
-            className="grid gap-x-stage gap-y-tight"
+            className={APP_STATUS_CLASS.telemetryGrid}
             style={{
                 gridTemplateColumns: "repeat(2, auto)",
                 gridTemplateRows: "repeat(2, auto)",
@@ -401,14 +401,14 @@ function EngineControlChip({
     const renderEngineLogo = () => {
         if (rpcStatus === STATUS.connection.IDLE) {
             return (
-                <StatusIcon Icon={RefreshCw} size="lg" className="opacity-50" />
+                <StatusIcon Icon={RefreshCw} size="lg" className={APP_STATUS_CLASS.iconMuted} />
             );
         }
         if (rpcStatus === STATUS.connection.ERROR) {
             return <StatusIcon Icon={AlertCircle} size="lg" />;
         }
         return (
-            <StatusIcon Icon={EngineIcon} size="lg" className="text-current" />
+            <StatusIcon Icon={EngineIcon} size="lg" className={APP_STATUS_CLASS.iconCurrent} />
         );
     };
 
@@ -542,7 +542,10 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     return (
         <footer
-            className={APP_STATUS_CLASS.footer}
+            className={cn(
+                APP_STATUS_CLASS.footer,
+                APP_STATUS_CLASS.workbenchSurface,
+            )}
             style={{
                 ...shell.outerStyle,
             }}
@@ -558,7 +561,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                     label={torrentStatLabel}
                     value={torrentStatValue}
                     Icon={isSelection ? Files : Activity}
-                    className="hidden sm:flex"
+                    className={APP_STATUS_CLASS.statGroupDesktop}
                     align="end"
                 />
 
@@ -589,7 +592,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                                 <NetworkGraph
                                     data={downloadHistory}
                                     color="success"
-                                    className="h-full w-full "
+                                    className={APP_STATUS_CLASS.speedCompactDownGraph}
                                 />
                             </div>
                             <div className={APP_STATUS_CLASS.speedCompactUpLayer}>
@@ -608,7 +611,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                                         className={APP_STATUS_CLASS.speedCompactDownIcon}
                                         aria-hidden="true"
                                     />
-                                    <span className="sr-only">
+                                    <span className={APP_STATUS_CLASS.srOnly}>
                                         {t("status_bar.down")}
                                     </span>
                                     <span className={APP_STATUS_CLASS.speedCompactValue}>
@@ -621,7 +624,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                                         className={APP_STATUS_CLASS.speedCompactUpIcon}
                                         aria-hidden="true"
                                     />
-                                    <span className="sr-only">
+                                    <span className={APP_STATUS_CLASS.srOnly}>
                                         {t("status_bar.up")}
                                     </span>
                                     <span className={APP_STATUS_CLASS.speedCompactValue}>

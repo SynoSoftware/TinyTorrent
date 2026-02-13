@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { TEXT_ROLE, withColor } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import {
     SPLIT_VIEW_CLASS,
     buildSplitViewCanvasInteractionStyle,
@@ -70,7 +70,7 @@ const PiecesMapView = ({
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
-                    <span className={withColor(TEXT_ROLE.code, "warning")}>
+                    <span className={SPLIT_VIEW_CLASS.mapStatWarningCount}>
                         {downloadingCount}
                     </span>
                 </div>
@@ -79,7 +79,7 @@ const PiecesMapView = ({
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.missing")}
                     </span>
-                    <span className={withColor(TEXT_ROLE.code, "danger")}>
+                    <span className={SPLIT_VIEW_CLASS.mapStatDangerCount}>
                         {missingCount}
                     </span>
                 </div>

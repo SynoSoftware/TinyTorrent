@@ -10,7 +10,6 @@ import {
 import { APP_VERSION } from "@/shared/version";
 import {
     APP_MODAL_CLASS,
-    buildSettingsModalClassNames,
 } from "@/shared/ui/layout/glass-surface";
 import { Section } from "@/shared/ui/layout/Section";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -53,7 +52,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
             )}
         >
             <div className={APP_MODAL_CLASS.sidebarHeader}>
-                <h2 className={cn(TEXT_ROLE.headingLarge, "tt-navbar-tab-font")}>
+                <h2 className={cn(TEXT_ROLE.headingLarge, APP_MODAL_CLASS.headingFont)}>
                     {t("settings.modal.title")}
                 </h2>
                 <Button
@@ -65,7 +64,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                 >
                     <X
                         strokeWidth={ICON_STROKE_WIDTH}
-                        className="toolbar-icon-size-md"
+                        className={APP_MODAL_CLASS.iconMd}
                     />
                 </Button>
             </div>
@@ -134,10 +133,10 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
                     className={APP_MODAL_CLASS.headerMobileBack}
                     onPress={controller.commands.onOpenMobileMenu}
                 >
-                    <ChevronLeft className="toolbar-icon-size-md" />
+                    <ChevronLeft className={APP_MODAL_CLASS.iconMd} />
                 </Button>
                 <div className={APP_MODAL_CLASS.headerTitleWrap}>
-                    <h1 className={cn(TEXT_ROLE.headingLarge, "tt-navbar-tab-font")}>
+                    <h1 className={cn(TEXT_ROLE.headingLarge, APP_MODAL_CLASS.headingFont)}>
                         {t(activeTabDefinition.headerKey)}
                     </h1>
                     {hasUnsavedChanges && (
@@ -294,11 +293,11 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
                 className={APP_MODAL_CLASS.footerResetButton}
                 onPress={controller.commands.onReset}
                 startContent={
-                    <RotateCcw
-                        strokeWidth={ICON_STROKE_WIDTH}
-                        className="toolbar-icon-size-sm shrink-0"
-                    />
-                }
+                            <RotateCcw
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className={APP_MODAL_CLASS.iconSm}
+                            />
+                        }
             >
                 {t("settings.modal.footer.reset_defaults")}
             </Button>
@@ -321,7 +320,7 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
                         !isSaving && (
                             <Save
                                 strokeWidth={ICON_STROKE_WIDTH}
-                                className="toolbar-icon-size-sm shrink-0"
+                                className={APP_MODAL_CLASS.iconSm}
                             />
                         )
                     }
@@ -345,7 +344,13 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             placement="center"
             size="5xl"
             hideCloseButton
-            classNames={buildSettingsModalClassNames(uiMode)}
+            classNames={{
+                base:
+                    uiMode === "Full"
+                        ? APP_MODAL_CLASS.settingsModalBaseFull
+                        : APP_MODAL_CLASS.settingsModalBaseRpc,
+                wrapper: APP_MODAL_CLASS.settingsModalWrapper,
+            }}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
             <ModalContent className={APP_MODAL_CLASS.contentWrapper}>

@@ -223,7 +223,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             Icon={FileUp}
                             size="xl"
                             strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-primary"
+                            className={DASHBOARD_LAYOUT_CLASS.dropOverlayIconTone}
                         />
                         <span className={DROP_OVERLAY_TITLE_ROLE}>
                             {t("drop_overlay.title")}

@@ -46,7 +46,6 @@ import {
 import {
     APP_MODAL_CLASS,
     buildModalBodyPanelsClass,
-    buildAddTorrentModalClassNames,
     buildModalPaneHandleClass,
     buildModalResizeHandleBarClass,
     buildModalSettingsPanelClass,
@@ -194,10 +193,14 @@ export function AddTorrentModal({
             hideCloseButton
             isDismissable={isDismissable}
             size={modalSize} // fullscreen is a pure layout expansion; destination gate is state-based
-            classNames={buildAddTorrentModalClassNames({
-                showDestinationGate,
-                isFullscreen,
-            })}
+            classNames={{
+                ...APP_MODAL_CLASS.addTorrentModalChromeClassNames,
+                base: `${APP_MODAL_CLASS.addTorrentModalBase} ${
+                    !showDestinationGate && isFullscreen
+                        ? APP_MODAL_CLASS.addTorrentModalHeightFull
+                        : APP_MODAL_CLASS.addTorrentModalHeightDefault
+                }`,
+            }}
         >
             <ModalContent>
                 <AddTorrentModalContextProvider value={modalContextValue}>

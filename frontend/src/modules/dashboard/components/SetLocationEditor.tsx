@@ -1,7 +1,7 @@
 import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { TEXT_ROLE, withColor, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
 
 interface SetLocationEditorProps {
@@ -33,7 +33,7 @@ export function SetLocationEditor({
     return (
         <div className={FORM_UI_CLASS.locationEditorRoot}>
             {caption && (
-                <div className={withOpacity(TEXT_ROLE.headingSection, 70)}>
+                <div className={FORM_UI_CLASS.locationEditorCaption}>
                     {caption}
                 </div>
             )}
@@ -82,7 +82,7 @@ export function SetLocationEditor({
                 </Button>
             </div>
             {error && (
-                <div className={withColor(TEXT_ROLE.caption, "danger")}>{error}</div>
+                <div className={FORM_UI_CLASS.locationEditorError}>{error}</div>
             )}
         </div>
     );
