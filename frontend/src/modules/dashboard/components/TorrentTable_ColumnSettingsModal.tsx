@@ -9,10 +9,7 @@ import {
     Checkbox,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import {
-    STANDARD_SURFACE_CLASS,
-    TABLE_VIEW_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { MODAL, TABLE } from "@/shared/ui/layout/glass-surface";
 import {
     TORRENTTABLE_COLUMN_DEFS,
     type ColumnId,
@@ -39,7 +36,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
             size="lg"
             backdrop="blur"
             motionProps={INTERACTION_CONFIG.modalBloom}
-            classNames={STANDARD_SURFACE_CLASS.modal.baseClassNames}
+            classNames={MODAL.baseClassNames}
         >
             <ModalContent>
                 {() => (
@@ -55,7 +52,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
                                 return (
                                     <div
                                         key={column.id}
-                                        className={TABLE_VIEW_CLASS.columnSettingsRow}
+                                        className={TABLE.columnSettingsRow}
                                     >
                                         <span>
                                             {t(

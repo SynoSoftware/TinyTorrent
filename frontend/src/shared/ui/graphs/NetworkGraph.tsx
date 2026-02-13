@@ -9,6 +9,7 @@ import {
     createSplinePoints,
 } from "@/shared/utils/spline";
 import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
+import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 
 const { networkGraph } = INTERACTION_CONFIG;
@@ -123,7 +124,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 y2={dimensions.height - 0.5}
                 stroke="currentColor"
                 strokeWidth={1}
-                className="opacity-10"
+                className={METRIC_CHART.baselineMuted}
             />
 
             {data.every((value) => value === 0) && (
@@ -134,7 +135,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                     y2={dimensions.height - 0.5}
                     stroke="currentColor"
                     strokeWidth={2}
-                    className={cn("opacity-60", colorClass)}
+                    className={cn(METRIC_CHART.baselineActive, colorClass)}
                 />
             )}
             <defs>
@@ -167,7 +168,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
             </defs>
             <motion.path
                 d={areaPath}
-                className={cn("opacity-20", colorClass)}
+                className={cn(METRIC_CHART.areaMuted, colorClass)}
                 fill={`url(#${gradId})`}
                 animate={{ d: areaPath }}
                 transition={areaTransition}

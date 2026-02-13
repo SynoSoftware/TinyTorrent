@@ -11,8 +11,8 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    FORM_CONTROL_CLASS,
-    STANDARD_SURFACE_CLASS,
+    FORM_CONTROL,
+    SURFACE,
     buildContextMenuAnchorStyle,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
@@ -55,18 +55,18 @@ export default function TorrentTable_HeaderMenu({
                 </DropdownTrigger>
                 <DropdownMenu
                     variant="shadow"
-                    classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
-                    itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
+                    classNames={SURFACE.menu.listClassNames}
+                    itemClasses={SURFACE.menu.itemClassNames}
                     className={cn(
-                        STANDARD_SURFACE_CLASS.menu.surface,
-                        STANDARD_SURFACE_CLASS.menu.minWidthSurface,
+                        SURFACE.menu.surface,
+                        SURFACE.menu.minWidthSurface,
                     )}
                 >
                     <DropdownItem
                         key="hide-column"
                         color="danger"
                         isDisabled={!isHeaderMenuHideEnabled}
-                        className={STANDARD_SURFACE_CLASS.menu.itemStrong}
+                        className={SURFACE.menu.itemStrong}
                         onPress={() =>
                             handleHeaderMenuAction(() =>
                                 headerMenuActiveColumn?.toggleVisibility(false),
@@ -77,7 +77,7 @@ export default function TorrentTable_HeaderMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="fit-all-columns"
-                        className={STANDARD_SURFACE_CLASS.menu.itemStrong}
+                        className={SURFACE.menu.itemStrong}
                         onPress={() =>
                             handleHeaderMenuAction(autoFitAllColumns)
                         }
@@ -95,9 +95,9 @@ export default function TorrentTable_HeaderMenu({
                                 <DropdownItem
                                     key={item.column.id}
                                     className={cn(
-                                        STANDARD_SURFACE_CLASS.menu.itemNested,
+                                        SURFACE.menu.itemNested,
                                         item.isPinned &&
-                                            STANDARD_SURFACE_CLASS.menu.itemPinned,
+                                            SURFACE.menu.itemPinned,
                                     )}
                                     closeOnSelect={false}
                                     onPress={() =>
@@ -114,7 +114,9 @@ export default function TorrentTable_HeaderMenu({
                                             isSelected={isVisible}
                                             size="md"
                                             disableAnimation
-                                            classNames={FORM_CONTROL_CLASS.checkboxMarginRightClassNames}
+                                            classNames={
+                                                FORM_CONTROL.checkboxMarginRightClassNames
+                                            }
                                         />
                                     }
                                 >

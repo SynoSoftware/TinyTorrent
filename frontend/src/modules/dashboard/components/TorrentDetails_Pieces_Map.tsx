@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
-    SPLIT_VIEW_CLASS,
+    SPLIT,
     buildSplitViewCanvasInteractionStyle,
     buildSplitViewLegendSwatchStyle,
 } from "@/shared/ui/layout/glass-surface";
@@ -11,11 +11,7 @@ import {
     type PiecesMapViewModel,
 } from "@/modules/dashboard/hooks/usePiecesMapViewModel";
 
-const PiecesMapView = ({
-    viewModel,
-}: {
-    viewModel: PiecesMapViewModel;
-}) => {
+const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
     const { t } = useTranslation();
     const {
         refs: { rootRef, canvasRef, overlayRef },
@@ -34,71 +30,62 @@ const PiecesMapView = ({
     const cursor = isDragging ? "grabbing" : "grab";
 
     return (
-        <div className={SPLIT_VIEW_CLASS.contentStack}>
+        <div className={SPLIT.contentStack}>
             <div
-                className={SPLIT_VIEW_CLASS.mapStatsRow}
-                style={SPLIT_VIEW_CLASS.mapStatsTrackingStyle}
+                className={SPLIT.mapStatsRow}
+                style={SPLIT.mapStatsTrackingStyle}
             >
-                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
+                <div className={SPLIT.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.pieces")}
                     </span>
-                    <span className={TEXT_ROLE.code}>
-                        {totalPieces}
-                    </span>
+                    <span className={TEXT_ROLE.code}>{totalPieces}</span>
                 </div>
 
-                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
+                <div className={SPLIT.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.piece_size")}
                     </span>
-                    <span className={TEXT_ROLE.code}>
-                        {pieceSizeLabel}
-                    </span>
+                    <span className={TEXT_ROLE.code}>{pieceSizeLabel}</span>
                 </div>
 
-                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
+                <div className={SPLIT.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.verified")}
                     </span>
-                    <span className={TEXT_ROLE.code}>
-                        {doneCount}
-                    </span>
+                    <span className={TEXT_ROLE.code}>{doneCount}</span>
                 </div>
 
-                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
+                <div className={SPLIT.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
-                    <span className={SPLIT_VIEW_CLASS.mapStatWarningCount}>
+                    <span className={SPLIT.mapStatWarningCount}>
                         {downloadingCount}
                     </span>
                 </div>
 
-                <div className={SPLIT_VIEW_CLASS.mapStatColumn}>
+                <div className={SPLIT.mapStatColumn}>
                     <span className={TEXT_ROLE.label}>
                         {t("torrent_modal.stats.missing")}
                     </span>
-                    <span className={SPLIT_VIEW_CLASS.mapStatDangerCount}>
+                    <span className={SPLIT.mapStatDangerCount}>
                         {missingCount}
                     </span>
                 </div>
             </div>
 
             {hasBinaryPieceStates && (
-                <div className={SPLIT_VIEW_CLASS.mapNote}>
+                <div className={SPLIT.mapNote}>
                     {t("torrent_modal.piece_map.binary_states_note")}
                 </div>
             )}
 
-            <div
-                ref={rootRef}
-                className={SPLIT_VIEW_CLASS.mapFrame}
-            >
-                <div className={SPLIT_VIEW_CLASS.mapFrameInner}>
+            <div ref={rootRef} className={SPLIT.mapFrame}>
+                <div className={SPLIT.mapFrameInner}>
                     <canvas
                         ref={canvasRef}
-                        className={SPLIT_VIEW_CLASS.mapCanvasLayer}
+                        className={SPLIT.mapCanvasLayer}
                         onMouseMove={handlers.onMouseMove}
                         onMouseLeave={handlers.onMouseLeave}
                         onMouseDown={handlers.onMouseDown}
@@ -106,21 +93,18 @@ const PiecesMapView = ({
                     />
                     <canvas
                         ref={overlayRef}
-                        className={SPLIT_VIEW_CLASS.mapCanvasOverlayLayer}
+                        className={SPLIT.mapCanvasOverlayLayer}
                     />
 
                     {tooltipLines.length > 0 && tooltipStyle && (
-                        <div
-                            className={SPLIT_VIEW_CLASS.mapTooltip}
-                            style={tooltipStyle}
-                        >
+                        <div className={SPLIT.mapTooltip} style={tooltipStyle}>
                             {tooltipLines.map((line, index) => (
                                 <span
                                     key={`piece-tooltip-${index}`}
                                     className={
                                         index === 0
-                                            ? SPLIT_VIEW_CLASS.mapTooltipPrimaryLine
-                                            : SPLIT_VIEW_CLASS.mapTooltipSecondaryLine
+                                            ? SPLIT.mapTooltipPrimaryLine
+                                            : SPLIT.mapTooltipSecondaryLine
                                     }
                                 >
                                     {line}
@@ -129,18 +113,18 @@ const PiecesMapView = ({
                         </div>
                     )}
 
-                    <div className={SPLIT_VIEW_CLASS.mapHintWrap}>
-                        <div className={SPLIT_VIEW_CLASS.mapHintChip}>
+                    <div className={SPLIT.mapHintWrap}>
+                        <div className={SPLIT.mapHintChip}>
                             {t("torrent_modal.piece_map.hint_interact")}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className={SPLIT_VIEW_CLASS.mapLegendRow}>
-                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
+            <div className={SPLIT.mapLegendRow}>
+                <span className={SPLIT.mapLegendItem}>
                     <span
-                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        className={SPLIT.mapLegendSwatch}
                         style={buildSplitViewLegendSwatchStyle({
                             background: palette.success,
                         })}
@@ -150,9 +134,9 @@ const PiecesMapView = ({
                     </span>
                 </span>
 
-                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
+                <span className={SPLIT.mapLegendItem}>
                     <span
-                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        className={SPLIT.mapLegendSwatch}
                         style={buildSplitViewLegendSwatchStyle({
                             background: palette.warning,
                             border: `1px solid ${palette.primary}`,
@@ -163,9 +147,9 @@ const PiecesMapView = ({
                     </span>
                 </span>
 
-                <span className={SPLIT_VIEW_CLASS.mapLegendItem}>
+                <span className={SPLIT.mapLegendItem}>
                     <span
-                        className={SPLIT_VIEW_CLASS.mapLegendSwatch}
+                        className={SPLIT.mapLegendSwatch}
                         style={buildSplitViewLegendSwatchStyle({
                             background: palette.foreground,
                             border: `1px solid ${palette.danger}`,

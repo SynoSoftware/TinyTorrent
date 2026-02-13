@@ -11,7 +11,7 @@ const targetFile = path.join(
     "layout",
     "glass-surface.ts",
 );
-const marker = "export const APP_MODAL_CLASS";
+const marker = "export const MODAL";
 
 const MAX_ALLOWED = {
     "bg-*": 110,
@@ -59,7 +59,7 @@ if (overages.length > 0) {
         console.error(` - ${item.name}: ${item.count} (max ${item.maxAllowed})`);
     }
     console.error(
-        "\nFix by routing new surface recipes into STANDARD_SURFACE_CLASS.layer/role/chrome and reusing those tokens.",
+        "\nFix by routing new surface recipes into SURFACE.layer/role/chrome and reusing those tokens.",
     );
     process.exit(2);
 }

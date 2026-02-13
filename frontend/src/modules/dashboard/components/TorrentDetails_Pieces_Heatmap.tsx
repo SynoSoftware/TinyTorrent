@@ -6,8 +6,8 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
     buildHeatmapCanvasFrameClass,
-    STANDARD_SURFACE_CLASS,
-    HEATMAP_VIEW_CLASS,
+    SURFACE,
+    HEATMAP,
 } from "@/shared/ui/layout/glass-surface";
 import {
     getAvailabilityColor,
@@ -51,12 +51,12 @@ export const AvailabilityHeatmap = ({
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
     const [zoomPulseUntilTick, setZoomPulseUntilTick] = useState<number | null>(
-        null
+        null,
     );
     // Decoupled: visuals update only when pieceAvailability changes
     const availabilityList = useMemo(
         () => pieceAvailability ?? [],
-        [pieceAvailability]
+        [pieceAvailability],
     );
     // UI clock for redraw cadence (independent of server updates)
     const { tick } = useUiClock();
@@ -76,7 +76,7 @@ export const AvailabilityHeatmap = ({
                 return next;
             });
         },
-        [tick]
+        [tick],
     );
     const isZooming = zoomPulseUntilTick !== null && tick <= zoomPulseUntilTick;
 
@@ -101,7 +101,7 @@ export const AvailabilityHeatmap = ({
         return Array.from({ length: sampleCount }, (_, index) => {
             const pieceIndex = Math.min(
                 availabilityList.length - 1,
-                Math.round(index * step)
+                Math.round(index * step),
             );
             return {
                 pieceIndex,
@@ -115,16 +115,16 @@ export const AvailabilityHeatmap = ({
         1;
     const gridRows = Math.max(
         1,
-        Math.ceil(sampledCells.length / PIECE_COLUMNS)
+        Math.ceil(sampledCells.length / PIECE_COLUMNS),
     );
     const totalCells = gridRows * PIECE_COLUMNS;
     const heatCells = useMemo(
         () =>
             Array.from(
                 { length: totalCells },
-                (_, index) => sampledCells[index] ?? null
+                (_, index) => sampledCells[index] ?? null,
             ),
-        [sampledCells, totalCells]
+        [sampledCells, totalCells],
     );
 
     const canvasWidth =
@@ -175,7 +175,7 @@ export const AvailabilityHeatmap = ({
                     ctx.shadowColor = color;
                     ctx.shadowBlur = Math.min(
                         HEATMAP_SHADOW_BLUR_MAX,
-                        (cell.value / maxPeers) * HEATMAP_SHADOW_BLUR_MAX + 1
+                        (cell.value / maxPeers) * HEATMAP_SHADOW_BLUR_MAX + 1,
                     );
                 }
             } else {
@@ -186,7 +186,7 @@ export const AvailabilityHeatmap = ({
                 x,
                 y,
                 HEATMAP_CANVAS_CELL_SIZE,
-                HEATMAP_CANVAS_CELL_SIZE
+                HEATMAP_CANVAS_CELL_SIZE,
             );
             if (stableHoveredCell?.gridIndex === index) {
                 ctx.strokeStyle = palette.highlight;
@@ -247,70 +247,76 @@ export const AvailabilityHeatmap = ({
                 peers: cell.value,
             });
         },
-        [canvasWidth, canvasHeight, cellPitch, gridRows, heatCells]
+        [canvasWidth, canvasHeight, cellPitch, gridRows, heatCells],
     );
 
     const tooltipContent = stableHoveredCell
-        ? formatTooltip(stableHoveredCell.pieceIndex + 1, stableHoveredCell.peers)
+        ? formatTooltip(
+              stableHoveredCell.pieceIndex + 1,
+              stableHoveredCell.peers,
+          )
         : undefined;
 
     if (!hasAvailability) {
         return (
-            <div className={cn(HEATMAP_VIEW_CLASS.empty, HEATMAP_VIEW_CLASS.emptyMuted)}>
+            <div className={cn(HEATMAP.empty, HEATMAP.emptyMuted)}>
                 {emptyLabel}
             </div>
         );
     }
 
     return (
-        <motion.div layout className={HEATMAP_VIEW_CLASS.root}>
-            <div className={HEATMAP_VIEW_CLASS.header}>
-                <span className={TEXT_ROLE.label} style={HEATMAP_VIEW_CLASS.labelTrackingStyle}>
+        <motion.div layout className={HEATMAP.root}>
+            <div className={HEATMAP.header}>
+                <span
+                    className={TEXT_ROLE.label}
+                    style={HEATMAP.labelTrackingStyle}
+                >
                     {label}
                 </span>
-                <div className={cn(HEATMAP_VIEW_CLASS.legend, HEATMAP_VIEW_CLASS.legendMuted)}>
-                    <span className={HEATMAP_VIEW_CLASS.legendItem}>
+                <div className={cn(HEATMAP.legend, HEATMAP.legendMuted)}>
+                    <span className={HEATMAP.legendItem}>
                         <span
                             className={cn(
-                                HEATMAP_VIEW_CLASS.legendDot,
-                                HEATMAP_VIEW_CLASS.legendDotRare,
+                                HEATMAP.legendDot,
+                                HEATMAP.legendDotRare,
                             )}
                         />
                         {legendRare}
                     </span>
-                    <span className={HEATMAP_VIEW_CLASS.legendItem}>
+                    <span className={HEATMAP.legendItem}>
                         <span
                             className={cn(
-                                HEATMAP_VIEW_CLASS.legendDot,
-                                HEATMAP_VIEW_CLASS.legendDotCommon,
+                                HEATMAP.legendDot,
+                                HEATMAP.legendDotCommon,
                             )}
                         />
                         {legendCommon}
                     </span>
                 </div>
-                <div className={HEATMAP_VIEW_CLASS.controls}>
+                <div className={HEATMAP.controls}>
                     <Button
                         size="md"
                         variant="shadow"
                         color="default"
-                        className={HEATMAP_VIEW_CLASS.zoomButton}
+                        className={HEATMAP.zoomButton}
                         onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
                     >
                         <StatusIcon
                             Icon={ZoomOut}
                             size="sm"
-                            className={HEATMAP_VIEW_CLASS.zoomIcon}
+                            className={HEATMAP.zoomIcon}
                         />
                     </Button>
-                    <span className={HEATMAP_VIEW_CLASS.zoomValue}>
+                    <span className={HEATMAP.zoomValue}>
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button
                         size="md"
                         variant="shadow"
                         color="default"
-                        className={HEATMAP_VIEW_CLASS.zoomButton}
+                        className={HEATMAP.zoomButton}
                         onPress={() => handleZoom("in")}
                         isDisabled={
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
@@ -319,26 +325,24 @@ export const AvailabilityHeatmap = ({
                         <StatusIcon
                             Icon={ZoomIn}
                             size="sm"
-                            className={HEATMAP_VIEW_CLASS.zoomIcon}
+                            className={HEATMAP.zoomIcon}
                         />
                     </Button>
                 </div>
             </div>
-            <div
-                className={buildHeatmapCanvasFrameClass(isZooming)}
-            >
+            <div className={buildHeatmapCanvasFrameClass(isZooming)}>
                 <Tooltip
                     content={tooltipContent}
                     delay={0}
                     closeDelay={0}
-                    classNames={STANDARD_SURFACE_CLASS.tooltip}
+                    classNames={SURFACE.tooltip}
                     isDisabled={!stableHoveredCell}
                 >
                     <canvas
                         ref={canvasRef}
                         width={canvasWidth}
                         height={canvasHeight}
-                        className={HEATMAP_VIEW_CLASS.canvas}
+                        className={HEATMAP.canvas}
                         onMouseMove={handleHeatmapHover}
                         onMouseLeave={() => setHoveredCell(null)}
                     />

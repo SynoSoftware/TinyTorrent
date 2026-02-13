@@ -21,7 +21,11 @@ import STATUS from "@/shared/status";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { type ReactNode, type RefObject } from "react";
-import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE, TRANSITION } from "@/config/logic";
+import {
+    TABLE_LAYOUT,
+    ICON_STROKE_WIDTH_DENSE,
+    TRANSITION,
+} from "@/config/logic";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
     formatBytes,
@@ -35,7 +39,7 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
-import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 
 // --- TYPES ---
 export type ColumnId =
@@ -142,17 +146,17 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.name,
         headerIcon: FileText,
         render: ({ torrent }) => (
-            <div className={TABLE_VIEW_CLASS.columnDefs.nameCell}>
+            <div className={TABLE.columnDefs.nameCell}>
                 <span
                     title={
                         torrent.errorEnvelope?.errorMessage ??
                         (torrent.errorString ? torrent.errorString : undefined)
                     }
                     className={cn(
-                        TABLE_VIEW_CLASS.columnDefs.nameLabel,
+                        TABLE.columnDefs.nameLabel,
                         TABLE_LAYOUT.fontSize,
                         torrent.state === STATUS.torrent.PAUSED &&
-                            TABLE_VIEW_CLASS.columnDefs.nameLabelPaused,
+                            TABLE.columnDefs.nameLabelPaused,
                     )}
                 >
                     {torrent.name}
@@ -175,27 +179,27 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             const displayProgress = getEffectiveProgress(torrent);
             const progressIndicatorClass =
                 torrent.state === STATUS.torrent.PAUSED
-                    ? TABLE_VIEW_CLASS.columnDefs.progressIndicatorPaused
+                    ? TABLE.columnDefs.progressIndicatorPaused
                     : torrent.state === STATUS.torrent.SEEDING
-                      ? TABLE_VIEW_CLASS.columnDefs.progressIndicatorSeeding
-                      : TABLE_VIEW_CLASS.columnDefs.progressIndicatorActive;
+                      ? TABLE.columnDefs.progressIndicatorSeeding
+                      : TABLE.columnDefs.progressIndicatorActive;
             return (
-                <div className={TABLE_VIEW_CLASS.columnDefs.progressCell}>
+                <div className={TABLE.columnDefs.progressCell}>
                     <div
                         className={cn(
-                            TABLE_VIEW_CLASS.columnDefs.progressMetricsRow,
+                            TABLE.columnDefs.progressMetricsRow,
                             DENSE_NUMERIC,
                         )}
                     >
                         <span>{(displayProgress * 100).toFixed(1)}%</span>
-                        <span className={TABLE_VIEW_CLASS.columnDefs.progressSecondary}>
+                        <span className={TABLE.columnDefs.progressSecondary}>
                             {formatBytes(torrent.totalSize * displayProgress)}
                         </span>
                     </div>
                     <SmoothProgressBar
                         value={displayProgress * 100}
-                        className={TABLE_VIEW_CLASS.columnDefs.progressBar}
-                        trackClassName={TABLE_VIEW_CLASS.columnDefs.progressTrack}
+                        className={TABLE.columnDefs.progressBar}
+                        trackClassName={TABLE.columnDefs.progressTrack}
                         indicatorClassName={progressIndicatorClass}
                     />
                 </div>
@@ -230,7 +234,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
         headerIcon: ListOrdered,
         render: ({ torrent }) => (
-            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericMuted, DENSE_NUMERIC)}>
+            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
                 {formatQueueOrdinal(torrent.queuePosition)}
             </span>
         ),
@@ -252,7 +256,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 return (
                     <span
                         className={cn(
-                            TABLE_VIEW_CLASS.columnDefs.numericSoft,
+                            TABLE.columnDefs.numericSoft,
                             DENSE_NUMERIC,
                         )}
                         title={t("labels.status.torrent.checking")}
@@ -273,10 +277,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     : t("table.eta", { time: relativeLabel });
             return (
                 <span
-                    className={cn(
-                        TABLE_VIEW_CLASS.columnDefs.numericSoft,
-                        DENSE_NUMERIC,
-                    )}
+                    className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}
                     title={tooltip}
                 >
                     {absoluteLabel}
@@ -314,21 +315,16 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.peerSummary.connected,
         headerIcon: Network,
         render: ({ torrent }) => (
-            <div
-                className={cn(
-                    TABLE_VIEW_CLASS.columnDefs.peersRow,
-                    DENSE_NUMERIC,
-                )}
-            >
+            <div className={cn(TABLE.columnDefs.peersRow, DENSE_NUMERIC)}>
                 <StatusIcon
                     Icon={Users}
                     size="md"
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className={TABLE_VIEW_CLASS.columnDefs.peersIcon}
+                    className={TABLE.columnDefs.peersIcon}
                 />
                 <span>{torrent.peerSummary.connected}</span>
-                <span className={TABLE_VIEW_CLASS.columnDefs.peersDivider}>/</span>
-                <span className={TABLE_VIEW_CLASS.columnDefs.peersSeedCount}>
+                <span className={TABLE.columnDefs.peersDivider}>/</span>
+                <span className={TABLE.columnDefs.peersSeedCount}>
                     {torrent.peerSummary.seeds ?? "-"}
                 </span>
             </div>
@@ -346,7 +342,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.totalSize,
         headerIcon: HardDrive,
         render: ({ torrent }) => (
-            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericDim, DENSE_NUMERIC)}>
+            <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
                 {formatBytes(torrent.totalSize)}
             </span>
         ),
@@ -363,7 +359,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => ratioValue(torrent),
         headerIcon: TrendingUp,
         render: ({ torrent }) => (
-            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericMuted, DENSE_NUMERIC)}>
+            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
                 {ratioValue(torrent).toFixed(2)}
             </span>
         ),
@@ -381,7 +377,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Clock,
         render: ({ torrent }) => (
             <span
-                className={cn(TABLE_VIEW_CLASS.columnDefs.numericDim, DENSE_NUMERIC)}
+                className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}
                 title={formatDate(torrent.added)}
             >
                 {formatRelativeTime(torrent.added)}

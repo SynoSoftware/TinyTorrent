@@ -15,40 +15,40 @@ const source = fs.readFileSync(target, "utf8");
 
 const checks = [
     {
-        objectName: "APP_NAV_CLASS",
+        objectName: "NAV",
         entryKey: "workbenchSurface",
         mustInclude: [
-            "STANDARD_SURFACE_CLASS.role.workbench",
-            "STANDARD_SURFACE_CLASS.chrome.edgeBottom",
+            "SURFACE.role.workbench",
+            "SURFACE.chrome.edgeBottom",
         ],
     },
     {
-        objectName: "APP_NAV_CLASS",
+        objectName: "NAV",
         entryKey: "workbenchShell",
-        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
+        mustInclude: ["SURFACE.surface.workbenchShell"],
     },
     {
-        objectName: "TABLE_VIEW_CLASS",
+        objectName: "TABLE",
         entryKey: "workbenchSurface",
-        mustInclude: ["STANDARD_SURFACE_CLASS.role.workbench"],
+        mustInclude: ["SURFACE.role.workbench"],
     },
     {
-        objectName: "TABLE_VIEW_CLASS",
+        objectName: "TABLE",
         entryKey: "workbenchShell",
-        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
+        mustInclude: ["SURFACE.surface.workbenchShell"],
     },
     {
-        objectName: "APP_STATUS_CLASS",
+        objectName: "STATUS_BAR",
         entryKey: "workbenchSurface",
         mustInclude: [
-            "STANDARD_SURFACE_CLASS.role.workbench",
-            "STANDARD_SURFACE_CLASS.chrome.edgeTop",
+            "SURFACE.role.workbench",
+            "SURFACE.chrome.edgeTop",
         ],
     },
     {
-        objectName: "APP_STATUS_CLASS",
+        objectName: "STATUS_BAR",
         entryKey: "footer",
-        mustInclude: ["STANDARD_SURFACE_CLASS.surface.workbenchShell"],
+        mustInclude: ["SURFACE.surface.workbenchShell"],
     },
 ];
 
@@ -101,7 +101,7 @@ if (failures.length > 0) {
         console.error(` - ${failure}`);
     }
     console.error(
-        "\nFix by composing the workbench triad from STANDARD_SURFACE_CLASS core/semantic tokens.",
+        "\nFix by composing the workbench triad from SURFACE core/semantic tokens.",
     );
     process.exit(2);
 }

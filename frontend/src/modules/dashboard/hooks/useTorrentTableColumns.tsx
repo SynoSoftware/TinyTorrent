@@ -11,7 +11,7 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { RefObject } from "react";
-import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 
 export function useTorrentTableColumns({
     t,
@@ -42,12 +42,12 @@ export function useTorrentTableColumns({
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
                         <div
-                            className={TABLE_VIEW_CLASS.columnHeaderLabel}
-                            style={TABLE_VIEW_CLASS.columnHeaderLabelTrackingStyle}
+                            className={TABLE.columnHeaderLabel}
+                            style={TABLE.columnHeaderLabelTrackingStyle}
                         >
                             <HeaderIcon
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className={TABLE_VIEW_CLASS.columnHeaderPulseIcon}
+                                className={TABLE.columnHeaderPulseIcon}
                             />
                             <span>{label}</span>
                         </div>
@@ -79,7 +79,7 @@ export function useTorrentTableColumns({
             speedHistoryRef,
             optimisticStatuses,
         }),
-        [optimisticStatuses, speedHistoryRef]
+        [optimisticStatuses, speedHistoryRef],
     );
 
     return { columns, tableMeta };

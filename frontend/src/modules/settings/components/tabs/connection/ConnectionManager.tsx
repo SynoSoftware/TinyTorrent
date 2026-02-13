@@ -5,11 +5,16 @@ import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { STATUS } from "@/shared/status";
-import { useConnectionConfig, buildRpcEndpoint, buildRpcServerUrl, DEFAULT_PROFILE_ID } from "@/app/context/ConnectionConfigContext";
+import {
+    useConnectionConfig,
+    buildRpcEndpoint,
+    buildRpcServerUrl,
+    DEFAULT_PROFILE_ID,
+} from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
 import { useSettingsFormActions } from "@/modules/settings/context/SettingsFormContext";
-import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)
@@ -32,15 +37,15 @@ function useConnectionManagerState(): ConnectionManagerState {
                     ConnectionProfile,
                     "host" | "port" | "username" | "password"
                 >
-            >
+            >,
         ) => {
             updateProfile(activeProfile.id, patch);
         },
-        [activeProfile.id, updateProfile]
+        [activeProfile.id, updateProfile],
     );
     const endpointPreview = useMemo(
         () => buildRpcEndpoint(activeProfile),
-        [activeProfile]
+        [activeProfile],
     );
     const { rpcStatus } = useSession();
     return {
@@ -109,7 +114,7 @@ export function ConnectionCredentialsCard() {
 
     const serverUrl = useMemo(
         () => buildRpcServerUrl(activeProfile),
-        [activeProfile]
+        [activeProfile],
     );
     const profileLabel = useMemo(() => {
         const explicitLabel = activeProfile.label.trim();
@@ -138,17 +143,17 @@ export function ConnectionCredentialsCard() {
     // In native/local host mode, collapse remote controls behind an Advanced toggle.
     if (isNativeMode && !showAdvanced) {
         return (
-            <div className={FORM_UI_CLASS.connection.localRoot}>
-                <div className={FORM_UI_CLASS.connection.localHeader}>
-                    <div className={FORM_UI_CLASS.connection.localHeaderInfo}>
-                        <h3 className={FORM_UI_CLASS.connection.profileTitle}>
+            <div className={FORM.connection.localRoot}>
+                <div className={FORM.connection.localHeader}>
+                    <div className={FORM.connection.localHeaderInfo}>
+                        <h3 className={FORM.connection.profileTitle}>
                             {profileLabel}
                         </h3>
-                        <p className={FORM_UI_CLASS.connection.profileEndpoint}>
+                        <p className={FORM.connection.profileEndpoint}>
                             {serverUrl}
                         </p>
                     </div>
-                    <div className={FORM_UI_CLASS.connection.localHeaderActions}>
+                    <div className={FORM.connection.localHeaderActions}>
                         <Button
                             size="md"
                             variant="ghost"
@@ -166,18 +171,18 @@ export function ConnectionCredentialsCard() {
     }
 
     return (
-        <div className={FORM_UI_CLASS.connection.root}>
-            <div className={FORM_UI_CLASS.connection.topRow}>
-                <div className={FORM_UI_CLASS.connection.topRowInfo}>
-                    <h3 className={FORM_UI_CLASS.connection.profileTitle}>
+        <div className={FORM.connection.root}>
+            <div className={FORM.connection.topRow}>
+                <div className={FORM.connection.topRowInfo}>
+                    <h3 className={FORM.connection.profileTitle}>
                         {profileLabel}
                     </h3>
-                    <p className={FORM_UI_CLASS.connection.profileEndpoint}>
+                    <p className={FORM.connection.profileEndpoint}>
                         {serverUrl}
                     </p>
                 </div>
-                <div className={FORM_UI_CLASS.connection.topRowActions}>
-                    <div className={FORM_UI_CLASS.connection.statusRow}>
+                <div className={FORM.connection.topRowActions}>
+                    <div className={FORM.connection.statusRow}>
                         <Chip
                             size="md"
                             variant="shadow"
@@ -186,19 +191,19 @@ export function ConnectionCredentialsCard() {
                                 statusColor === "success" ? (
                                     <CheckCircle
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className={FORM_UI_CLASS.connection.iconSmall}
+                                        className={FORM.connection.iconSmall}
                                     />
                                 ) : (
                                     <XCircle
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className={FORM_UI_CLASS.connection.iconSmall}
+                                        className={FORM.connection.iconSmall}
                                     />
                                 )
                             }
                         >
                             {connectionStatusLabel}
                         </Chip>
-                        <div className={FORM_UI_CLASS.connection.statusMeta}>
+                        <div className={FORM.connection.statusMeta}>
                             <p className={TEXT_ROLE.label}>
                                 {t("settings.connection.ui_mode_label")}
                             </p>
@@ -221,7 +226,7 @@ export function ConnectionCredentialsCard() {
                         startContent={
                             <RefreshCw
                                 strokeWidth={ICON_STROKE_WIDTH}
-                                className={FORM_UI_CLASS.connection.iconSmall}
+                                className={FORM.connection.iconSmall}
                             />
                         }
                     >
@@ -229,21 +234,21 @@ export function ConnectionCredentialsCard() {
                     </Button>
                 </div>
             </div>
-            <div className={FORM_UI_CLASS.connection.fieldsStack}>
+            <div className={FORM.connection.fieldsStack}>
                 {isOffline && (
                     <p
-                        className={FORM_UI_CLASS.connection.offlineWarning}
-                        style={FORM_UI_CLASS.connection.offlineWarningTrackingStyle}
+                        className={FORM.connection.offlineWarning}
+                        style={FORM.connection.offlineWarningTrackingStyle}
                     >
                         {t("settings.connection.offline_warning")}
                     </p>
                 )}
                 {isInsecureBasicAuth && (
-                    <p className={FORM_UI_CLASS.connection.insecureAuthWarning}>
+                    <p className={FORM.connection.insecureAuthWarning}>
                         {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
-                <div className={FORM_UI_CLASS.connection.fieldsPairGrid}>
+                <div className={FORM.connection.fieldsPairGrid}>
                     <Input
                         label={t("settings.connection.host")}
                         labelPlacement="outside"
@@ -253,7 +258,7 @@ export function ConnectionCredentialsCard() {
                         onChange={(event) =>
                             handleUpdate({ host: event.target.value })
                         }
-                        className={FORM_UI_CLASS.connection.inputHeight}
+                        className={FORM.connection.inputHeight}
                         disabled={!remoteInputsEnabled}
                     />
                     <Input
@@ -266,18 +271,18 @@ export function ConnectionCredentialsCard() {
                         onChange={(event) =>
                             handleUpdate({ port: event.target.value })
                         }
-                        className={FORM_UI_CLASS.connection.inputHeight}
+                        className={FORM.connection.inputHeight}
                         disabled={!remoteInputsEnabled}
                     />
                 </div>
                 {shouldShowAuthControls && (
                     <>
                         {!isAuthModeResolved && (
-                            <p className={FORM_UI_CLASS.connection.detectingSignin}>
+                            <p className={FORM.connection.detectingSignin}>
                                 {t("settings.connection.detecting_signin")}
                             </p>
                         )}
-                        <div className={FORM_UI_CLASS.connection.fieldsPairGrid}>
+                        <div className={FORM.connection.fieldsPairGrid}>
                             <Input
                                 label={t("settings.connection.username")}
                                 labelPlacement="outside"
@@ -309,7 +314,7 @@ export function ConnectionCredentialsCard() {
                     </>
                 )}
                 {isNativeMode && !showAdvanced && (
-                    <p className={FORM_UI_CLASS.connection.localModeHint}>
+                    <p className={FORM.connection.localModeHint}>
                         {t("settings.connection.local_mode_info")}
                     </p>
                 )}

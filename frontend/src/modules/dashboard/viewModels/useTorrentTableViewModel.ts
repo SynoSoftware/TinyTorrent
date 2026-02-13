@@ -71,7 +71,7 @@ import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import STATUS from "@/shared/status";
 import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
@@ -734,7 +734,7 @@ export function useTorrentTableViewModel({
     useEffect(() => {
         tableContainerRef.current?.focus();
     }, []);
-    const headerContainerClass = TABLE_VIEW_CLASS.header;
+    const headerContainerClass = TABLE.header;
     const activeDragRow = useMemo(
         () => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null),
         [activeRowId, rowsById],

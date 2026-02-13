@@ -26,45 +26,44 @@ import { describePathKind } from "@/modules/torrent-add/utils/destination";
 import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import {
-    FORM_UI_CLASS,
+    FORM,
     buildFormStatusToneClass,
-    FORM_CONTROL_CLASS,
-    INPUT_SURFACE_CLASS,
-    STANDARD_SURFACE_CLASS,
+    FORM_CONTROL,
+    INPUT,
+    SURFACE,
 } from "@/shared/ui/layout/glass-surface";
 
 export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
-    const {
-        destinationInput,
-        destinationGate,
-        settings,
-    } = useAddTorrentModalContext();
+    const { destinationInput, destinationGate, settings } =
+        useAddTorrentModalContext();
 
     return (
-        <div className={FORM_UI_CLASS.workflow.root}>
+        <div className={FORM.workflow.root}>
             <div
-                className={FORM_UI_CLASS.workflow.group}
+                className={FORM.workflow.group}
                 onDrop={settings.onDrop}
                 onDragOver={settings.onDragOver}
                 onDragLeave={settings.onDragLeave}
             >
-                <div className={FORM_UI_CLASS.switchBlock}>
-                    <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
-                        <label
-                            className={FORM_UI_CLASS.workflow.label}
-                        >
-                            <HardDrive className={FORM_UI_CLASS.workflow.labelIcon} />{" "}
+                <div className={FORM.switchBlock}>
+                    <Tooltip
+                        content={t(
+                            "modals.add_torrent.destination_prompt_help",
+                        )}
+                    >
+                        <label className={FORM.workflow.label}>
+                            <HardDrive className={FORM.workflow.labelIcon} />{" "}
                             {t("modals.add_torrent.destination")}
                         </label>
                     </Tooltip>
                 </div>
 
-                <div className={FORM_UI_CLASS.workflow.destinationRow}>
+                <div className={FORM.workflow.destinationRow}>
                     <motion.div
                         layout
                         layoutId={DESTINATION_INPUT_LAYOUT_ID}
-                        className={FORM_UI_CLASS.workflow.destinationInputWrap}
+                        className={FORM.workflow.destinationInputWrap}
                     >
                         <Input
                             value={destinationInput.value}
@@ -74,17 +73,19 @@ export function AddTorrentSettingsPanel() {
                             onBlur={destinationInput.onBlur}
                             onKeyDown={destinationInput.onKeyDown}
                             aria-label={t(
-                                "modals.add_torrent.destination_input_aria"
+                                "modals.add_torrent.destination_input_aria",
                             )}
                             placeholder={t(
-                                "modals.add_torrent.destination_placeholder"
+                                "modals.add_torrent.destination_placeholder",
                             )}
                             variant="flat"
                             autoComplete="off"
-                            classNames={INPUT_SURFACE_CLASS.mono}
+                            classNames={INPUT.mono}
                             startContent={
                                 <FolderOpen
-                                    className={FORM_UI_CLASS.workflow.destinationInputIcon}
+                                    className={
+                                        FORM.workflow.destinationInputIcon
+                                    }
                                 />
                             }
                         />
@@ -92,7 +93,7 @@ export function AddTorrentSettingsPanel() {
                     {destinationGate.showBrowseAction && (
                         <Tooltip
                             content={t(
-                                "modals.add_torrent.destination_prompt_browse"
+                                "modals.add_torrent.destination_prompt_browse",
                             )}
                         >
                             <Button
@@ -102,11 +103,13 @@ export function AddTorrentSettingsPanel() {
                                 variant="flat"
                                 isLoading={destinationGate.isTouchingDirectory}
                                 aria-label={t(
-                                    "modals.add_torrent.destination_prompt_browse"
+                                    "modals.add_torrent.destination_prompt_browse",
                                 )}
-                                className={STANDARD_SURFACE_CLASS.atom.iconButton}
+                                className={SURFACE.atom.iconButton}
                             >
-                                <FolderOpen className={FORM_UI_CLASS.workflow.actionIcon} />
+                                <FolderOpen
+                                    className={FORM.workflow.actionIcon}
+                                />
                             </Button>
                         </Tooltip>
                     )}
@@ -118,17 +121,19 @@ export function AddTorrentSettingsPanel() {
                                 variant="flat"
                                 aria-label={t("modals.add_torrent.history")}
                                 title={t("modals.add_torrent.history")}
-                                className={STANDARD_SURFACE_CLASS.atom.iconButton}
+                                className={SURFACE.atom.iconButton}
                             >
-                                <ChevronDown className={FORM_UI_CLASS.workflow.actionIcon} />
+                                <ChevronDown
+                                    className={FORM.workflow.actionIcon}
+                                />
                             </Button>
                         </DropdownTrigger>
                         <DropdownMenu
                             aria-label={t("modals.add_torrent.history")}
                             variant="shadow"
-                            className={STANDARD_SURFACE_CLASS.menu.surface}
-                            classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
-                            itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
+                            className={SURFACE.menu.surface}
+                            classNames={SURFACE.menu.listClassNames}
+                            itemClasses={SURFACE.menu.itemClassNames}
                         >
                             {settings.recentPaths.length > 0 ? (
                                 settings.recentPaths.map((path) => (
@@ -139,22 +144,26 @@ export function AddTorrentSettingsPanel() {
                                             if (kind.kind === "drive")
                                                 return t(
                                                     "modals.add_torrent.path_kind_drive",
-                                                    { drive: kind.drive }
+                                                    { drive: kind.drive },
                                                 );
                                             if (kind.kind === "network")
                                                 return t(
-                                                    "modals.add_torrent.path_kind_network"
+                                                    "modals.add_torrent.path_kind_network",
                                                 );
                                             if (kind.kind === "posix")
                                                 return t(
-                                                    "modals.add_torrent.path_kind_posix"
+                                                    "modals.add_torrent.path_kind_posix",
                                                 );
                                             return t(
-                                                "modals.add_torrent.path_kind_unknown"
+                                                "modals.add_torrent.path_kind_unknown",
                                             );
                                         })()}
                                         startContent={
-                                            <HardDrive className={FORM_UI_CLASS.workflow.labelIcon} />
+                                            <HardDrive
+                                                className={
+                                                    FORM.workflow.labelIcon
+                                                }
+                                            />
                                         }
                                         onPress={() =>
                                             settings.applyRecentPath(path)
@@ -174,28 +183,28 @@ export function AddTorrentSettingsPanel() {
 
                 <div
                     className={cn(
-                        FORM_UI_CLASS.workflow.status,
-                        buildFormStatusToneClass(
-                            settings.statusKind,
-                        ),
+                        FORM.workflow.status,
+                        buildFormStatusToneClass(settings.statusKind),
                     )}
                 >
                     {settings.statusKind === "danger" ||
                     settings.statusKind === "warning" ? (
-                        <AlertTriangle className={FORM_UI_CLASS.workflow.statusIcon} />
+                        <AlertTriangle className={FORM.workflow.statusIcon} />
                     ) : settings.statusKind === "ok" ? (
-                        <CheckCircle2 className={FORM_UI_CLASS.workflow.statusSuccessIcon} />
+                        <CheckCircle2
+                            className={FORM.workflow.statusSuccessIcon}
+                        />
                     ) : (
-                        <Info className={FORM_UI_CLASS.workflow.statusInfoIcon} />
+                        <Info className={FORM.workflow.statusInfoIcon} />
                     )}
                     {settings.spaceErrorDetail ? (
                         <Tooltip content={settings.spaceErrorDetail}>
-                            <span className={FORM_UI_CLASS.workflow.statusMessage}>
+                            <span className={FORM.workflow.statusMessage}>
                                 {settings.statusMessage}
                             </span>
                         </Tooltip>
                     ) : (
-                        <span className={FORM_UI_CLASS.workflow.statusMessage}>
+                        <span className={FORM.workflow.statusMessage}>
                             {settings.statusMessage}
                         </span>
                     )}
@@ -204,35 +213,46 @@ export function AddTorrentSettingsPanel() {
 
             {settings.showTransferFlags && (
                 <>
-                    <Divider className={FORM_UI_CLASS.workflow.flagsDivider} aria-hidden="true" />
-                    <div className={FORM_UI_CLASS.workflow.flagsGroup}>
-                        <label
-                            className={FORM_UI_CLASS.workflow.label}
-                        >
-                            <Hash className={FORM_UI_CLASS.workflow.labelIcon} />{" "}
+                    <Divider
+                        className={FORM.workflow.flagsDivider}
+                        aria-hidden="true"
+                    />
+                    <div className={FORM.workflow.flagsGroup}>
+                        <label className={FORM.workflow.label}>
+                            <Hash className={FORM.workflow.labelIcon} />{" "}
                             {t("modals.add_torrent.transfer_flags")}
                         </label>
-                        <div className={FORM_UI_CLASS.workflow.flagsCheckboxes}>
-                                <Checkbox
-                                    isSelected={settings.sequential}
-                                    onValueChange={settings.setSequential}
-                                    classNames={FORM_CONTROL_CLASS.checkboxLabelBodySmallClassNames}
-                                >
-                                <span className={FORM_UI_CLASS.workflow.flagsItemLabel}>
-                                    <ListOrdered className={FORM_UI_CLASS.workflow.flagsIcon} />
+                        <div className={FORM.workflow.flagsCheckboxes}>
+                            <Checkbox
+                                isSelected={settings.sequential}
+                                onValueChange={settings.setSequential}
+                                classNames={
+                                    FORM_CONTROL.checkboxLabelBodySmallClassNames
+                                }
+                            >
+                                <span className={FORM.workflow.flagsItemLabel}>
+                                    <ListOrdered
+                                        className={FORM.workflow.flagsIcon}
+                                    />
                                     {t(
-                                        "modals.add_torrent.sequential_download"
+                                        "modals.add_torrent.sequential_download",
                                     )}
                                 </span>
                             </Checkbox>
-                            <Divider className={FORM_UI_CLASS.workflow.flagsItemDivider} />
-                                <Checkbox
-                                    isSelected={settings.skipHashCheck}
-                                    onValueChange={settings.setSkipHashCheck}
-                                    classNames={FORM_CONTROL_CLASS.checkboxLabelBodySmallClassNames}
-                                >
-                                <span className={FORM_UI_CLASS.workflow.flagsItemLabel}>
-                                    <CheckCircle2 className={FORM_UI_CLASS.workflow.flagsIcon} />
+                            <Divider
+                                className={FORM.workflow.flagsItemDivider}
+                            />
+                            <Checkbox
+                                isSelected={settings.skipHashCheck}
+                                onValueChange={settings.setSkipHashCheck}
+                                classNames={
+                                    FORM_CONTROL.checkboxLabelBodySmallClassNames
+                                }
+                            >
+                                <span className={FORM.workflow.flagsItemLabel}>
+                                    <CheckCircle2
+                                        className={FORM.workflow.flagsIcon}
+                                    />
                                     {t("modals.add_torrent.skip_hash_check")}
                                 </span>
                             </Checkbox>
@@ -243,4 +263,3 @@ export function AddTorrentSettingsPanel() {
         </div>
     );
 }
-

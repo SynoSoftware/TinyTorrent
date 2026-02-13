@@ -9,7 +9,8 @@ import {
 } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import {
-    APP_MODAL_CLASS,
+    MODAL,
+    buildSettingsModalClassNames,
 } from "@/shared/ui/layout/glass-surface";
 import { Section } from "@/shared/ui/layout/Section";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -45,40 +46,38 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
     return (
         <div
             className={cn(
-                APP_MODAL_CLASS.sidebar,
-                !isMobileMenuOpen
-                    ? APP_MODAL_CLASS.sidebarHidden
-                    : APP_MODAL_CLASS.sidebarVisible,
+                MODAL.sidebar,
+                !isMobileMenuOpen ? MODAL.sidebarHidden : MODAL.sidebarVisible,
             )}
         >
-            <div className={APP_MODAL_CLASS.sidebarHeader}>
-                <h2 className={cn(TEXT_ROLE.headingLarge, APP_MODAL_CLASS.headingFont)}>
+            <div className={MODAL.sidebarHeader}>
+                <h2 className={cn(TEXT_ROLE.headingLarge, MODAL.headingFont)}>
                     {t("settings.modal.title")}
                 </h2>
                 <Button
                     isIconOnly
                     variant="shadow"
                     size="md"
-                    className={APP_MODAL_CLASS.sidebarCloseButton}
+                    className={MODAL.sidebarCloseButton}
                     onPress={controller.commands.onRequestClose}
                 >
                     <X
                         strokeWidth={ICON_STROKE_WIDTH}
-                        className={APP_MODAL_CLASS.iconMd}
+                        className={MODAL.iconMd}
                     />
                 </Button>
             </div>
 
-            <div className={APP_MODAL_CLASS.sidebarBody}>
+            <div className={MODAL.sidebarBody}>
                 {safeVisibleTabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => controller.commands.onSelectTab(tab.id)}
                         className={cn(
-                            APP_MODAL_CLASS.tabButtonBase,
+                            MODAL.tabButtonBase,
                             activeTabDefinition.id === tab.id
-                                ? APP_MODAL_CLASS.tabButtonActive
-                                : APP_MODAL_CLASS.tabButtonInactive,
+                                ? MODAL.tabButtonActive
+                                : MODAL.tabButtonInactive,
                         )}
                         style={{
                             fontSize: "var(--icon)",
@@ -87,25 +86,25 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                         <tab.icon
                             strokeWidth={ICON_STROKE_WIDTH}
                             className={cn(
-                                APP_MODAL_CLASS.tabIcon,
+                                MODAL.tabIcon,
                                 activeTabDefinition.id === tab.id
-                                    ? APP_MODAL_CLASS.tabIconActive
-                                    : APP_MODAL_CLASS.tabIconInactive,
+                                    ? MODAL.tabIconActive
+                                    : MODAL.tabIconInactive,
                             )}
                         />
                         <span>{t(tab.labelKey)}</span>
                         {activeTabDefinition.id === tab.id && (
                             <motion.div
                                 layoutId="activeTabIndicator"
-                                className={APP_MODAL_CLASS.tabIndicator}
+                                className={MODAL.tabIndicator}
                             />
                         )}
                     </button>
                 ))}
             </div>
 
-            <div className={APP_MODAL_CLASS.versionWrapper}>
-                <div className={APP_MODAL_CLASS.versionText}>
+            <div className={MODAL.versionWrapper}>
+                <div className={MODAL.versionText}>
                     {t("brand.version", { version: APP_VERSION })}
                 </div>
             </div>
@@ -122,27 +121,28 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
     const { activeTabDefinition, hasUnsavedChanges } = controller.modal;
 
     return (
-        <div
-            className={APP_MODAL_CLASS.header}
-        >
-            <div className={APP_MODAL_CLASS.headerLead}>
+        <div className={MODAL.header}>
+            <div className={MODAL.headerLead}>
                 <Button
                     isIconOnly
                     variant="shadow"
                     size="md"
-                    className={APP_MODAL_CLASS.headerMobileBack}
+                    className={MODAL.headerMobileBack}
                     onPress={controller.commands.onOpenMobileMenu}
                 >
-                    <ChevronLeft className={APP_MODAL_CLASS.iconMd} />
+                    <ChevronLeft className={MODAL.iconMd} />
                 </Button>
-                <div className={APP_MODAL_CLASS.headerTitleWrap}>
-                    <h1 className={cn(TEXT_ROLE.headingLarge, APP_MODAL_CLASS.headingFont)}>
+                <div className={MODAL.headerTitleWrap}>
+                    <h1
+                        className={cn(
+                            TEXT_ROLE.headingLarge,
+                            MODAL.headingFont,
+                        )}
+                    >
                         {t(activeTabDefinition.headerKey)}
                     </h1>
                     {hasUnsavedChanges && (
-                        <span
-                            className={APP_MODAL_CLASS.headerUnsaved}
-                        >
+                        <span className={MODAL.headerUnsaved}>
                             {t("settings.unsaved_changes")}
                         </span>
                     )}
@@ -153,7 +153,7 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
                 ariaLabel={t("torrent_modal.actions.close")}
                 onPress={controller.commands.onRequestClose}
                 iconSize="lg"
-                className={APP_MODAL_CLASS.desktopClose}
+                className={MODAL.desktopClose}
             />
         </div>
     );
@@ -164,8 +164,14 @@ interface SettingsContentProps {
 }
 
 const SETTINGS_TAB_CONTENT_ANIMATION = {
-    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity, y: 10 },
-    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity, y: 0 },
+    initial: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        y: 10,
+    },
+    animate: {
+        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        y: 0,
+    },
     exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity, y: -10 },
     transition: { duration: 0.2 },
 } as const;
@@ -181,19 +187,18 @@ function SettingsContent({ controller }: SettingsContentProps) {
         settingsFormActions,
     } = controller.modal;
     return (
-        <Section
-            padding="modal"
-            className={APP_MODAL_CLASS.scrollContent}
-        >
+        <Section padding="modal" className={MODAL.scrollContent}>
             {tabsFallbackActive && (
-                <AlertPanel severity="warning" className={APP_MODAL_CLASS.alert}>
+                <AlertPanel severity="warning" className={MODAL.alert}>
                     {t("settings.modal.error_no_tabs")}
                 </AlertPanel>
             )}
             {modalFeedback && (
                 <AlertPanel
-                    severity={modalFeedback.type === "error" ? "danger" : "success"}
-                    className={APP_MODAL_CLASS.alert}
+                    severity={
+                        modalFeedback.type === "error" ? "danger" : "success"
+                    }
+                    className={MODAL.alert}
                 >
                     {modalFeedback.text}
                 </AlertPanel>
@@ -202,12 +207,12 @@ function SettingsContent({ controller }: SettingsContentProps) {
                 <motion.div
                     key={activeTabDefinition.id}
                     {...SETTINGS_TAB_CONTENT_ANIMATION}
-                    className={APP_MODAL_CLASS.contentStack}
+                    className={MODAL.contentStack}
                 >
                     {settingsLoadError && (
                         <AlertPanel
                             severity="warning"
-                            className={APP_MODAL_CLASS.inlineAlert}
+                            className={MODAL.inlineAlert}
                         >
                             {t("settings.load_error")}
                         </AlertPanel>
@@ -223,7 +228,7 @@ function SettingsContent({ controller }: SettingsContentProps) {
                                     "settings.descriptions.connection_profiles",
                                 )}
                             >
-                                <div className={APP_MODAL_CLASS.connectionStack}>
+                                <div className={MODAL.connectionStack}>
                                     <ConnectionCredentialsCard />
                                 </div>
                             </SettingsSection>
@@ -252,17 +257,17 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
 
     if (closeConfirmPending) {
         return (
-            <div className={APP_MODAL_CLASS.footer}>
-                <div className={APP_MODAL_CLASS.footerConfirmContent}>
-                    <div className={APP_MODAL_CLASS.footerTextWrap}>
-                        <span className={APP_MODAL_CLASS.footerWarningTitle}>
+            <div className={MODAL.footer}>
+                <div className={MODAL.footerConfirmContent}>
+                    <div className={MODAL.footerTextWrap}>
+                        <span className={MODAL.footerWarningTitle}>
                             {t("settings.modal.discard_title")}
                         </span>
                         <span className={TEXT_ROLE.caption}>
                             {t("settings.modal.discard_body")}
                         </span>
                     </div>
-                    <div className={APP_MODAL_CLASS.footerActions}>
+                    <div className={MODAL.footerActions}>
                         <Button
                             size="md"
                             variant="light"
@@ -285,23 +290,23 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
     }
 
     return (
-        <div className={APP_MODAL_CLASS.footer}>
+        <div className={MODAL.footer}>
             <Button
                 size="md"
                 variant="shadow"
                 color="danger"
-                className={APP_MODAL_CLASS.footerResetButton}
+                className={MODAL.footerResetButton}
                 onPress={controller.commands.onReset}
                 startContent={
-                            <RotateCcw
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className={APP_MODAL_CLASS.iconSm}
-                            />
-                        }
+                    <RotateCcw
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className={MODAL.iconSm}
+                    />
+                }
             >
                 {t("settings.modal.footer.reset_defaults")}
             </Button>
-            <div className={APP_MODAL_CLASS.footerButtonRow}>
+            <div className={MODAL.footerButtonRow}>
                 <Button
                     size="md"
                     variant="light"
@@ -320,11 +325,11 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
                         !isSaving && (
                             <Save
                                 strokeWidth={ICON_STROKE_WIDTH}
-                                className={APP_MODAL_CLASS.iconSm}
+                                className={MODAL.iconSm}
                             />
                         )
                     }
-                    className={APP_MODAL_CLASS.footerSaveButton}
+                    className={MODAL.footerSaveButton}
                 >
                     {t("settings.modal.footer.save")}
                 </Button>
@@ -344,19 +349,13 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             placement="center"
             size="5xl"
             hideCloseButton
-            classNames={{
-                base:
-                    uiMode === "Full"
-                        ? APP_MODAL_CLASS.settingsModalBaseFull
-                        : APP_MODAL_CLASS.settingsModalBaseRpc,
-                wrapper: APP_MODAL_CLASS.settingsModalWrapper,
-            }}
+            classNames={buildSettingsModalClassNames(uiMode === "Full")}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
-            <ModalContent className={APP_MODAL_CLASS.contentWrapper}>
-                <div className={APP_MODAL_CLASS.layout}>
+            <ModalContent className={MODAL.contentWrapper}>
+                <div className={MODAL.layout}>
                     <SettingsSidebar controller={controller} />
-                    <div className={APP_MODAL_CLASS.mainPane}>
+                    <div className={MODAL.mainPane}>
                         <SettingsHeader controller={controller} />
                         <SettingsContent controller={controller} />
                         <SettingsFooter controller={controller} />
@@ -371,6 +370,3 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     const controller = useSettingsModalController(viewModel);
     return <SettingsModalView controller={controller} />;
 }
-
-
-

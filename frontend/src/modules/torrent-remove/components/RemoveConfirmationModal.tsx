@@ -12,12 +12,7 @@ import {
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
-import {
-    APP_MODAL_CLASS,
-    STANDARD_SURFACE_CLASS,
-    FORM_CONTROL_CLASS,
-    FORM_UI_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { MODAL, FORM, FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 
 interface RemoveConfirmationModalProps {
     isOpen?: boolean;
@@ -135,15 +130,15 @@ export function RemoveConfirmationModal({
                 }
             }}
             backdrop="blur"
-            classNames={STANDARD_SURFACE_CLASS.modal.compactClassNames}
+            classNames={MODAL.compactClassNames}
         >
             <ModalContent>
-                <ModalHeader className={APP_MODAL_CLASS.headerPassive}>
+                <ModalHeader className={MODAL.headerPassive}>
                     {t("remove_modal.title")}
                 </ModalHeader>
 
                 <ModalBody>
-                    <div className={FORM_UI_CLASS.stackTools}>
+                    <div className={FORM.stackTools}>
                         <p>
                             {resolvedTorrentCount === 1
                                 ? t("remove_modal.single_torrent_message")
@@ -155,14 +150,14 @@ export function RemoveConfirmationModal({
                         <Checkbox
                             isSelected={deleteData}
                             onValueChange={setDeleteData}
-                            classNames={FORM_CONTROL_CLASS.checkboxLabelBodySmallClassNames}
+                            classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
                         >
                             {t("remove_modal.delete_files_option")}
                         </Checkbox>
                     </div>
                 </ModalBody>
 
-                <ModalFooter className={APP_MODAL_CLASS.footerEnd}>
+                <ModalFooter className={MODAL.footerEnd}>
                     <Button
                         variant="light"
                         onPress={resolvedOnClose}
@@ -189,6 +184,3 @@ export function RemoveConfirmationModal({
 }
 
 export default RemoveConfirmationModal;
-
-
-

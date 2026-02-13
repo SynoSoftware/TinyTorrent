@@ -3,7 +3,7 @@ import { TEXT_ROLE } from "@/config/textRoles";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
-    METRIC_CHART_CLASS,
+    METRIC_CHART,
     buildCapacityGaugeContainerClass,
     buildCapacityGaugeIndicatorClass,
 } from "@/shared/ui/layout/glass-surface";
@@ -50,33 +50,37 @@ export function DiskSpaceGauge({
         : 0;
     const { t } = useTranslation();
 
-    const indicatorClasses = buildCapacityGaugeIndicatorClass(Boolean(isInsufficient));
-    const containerClasses = buildCapacityGaugeContainerClass(Boolean(isInsufficient));
+    const indicatorClasses = buildCapacityGaugeIndicatorClass(
+        Boolean(isInsufficient),
+    );
+    const containerClasses = buildCapacityGaugeContainerClass(
+        Boolean(isInsufficient),
+    );
 
     return (
         <div className={containerClasses}>
             <div
-                className={METRIC_CHART_CLASS.capacityGauge.header}
-                style={METRIC_CHART_CLASS.capacityGauge.headerStyle}
+                className={METRIC_CHART.capacityGauge.header}
+                style={METRIC_CHART.capacityGauge.headerStyle}
             >
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span
-                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART_CLASS.capacityGauge.path}
+                    style={METRIC_CHART.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART.capacityGauge.path}
                 >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
-            <div className={METRIC_CHART_CLASS.capacityGauge.progressWrap}>
+            <div className={METRIC_CHART.capacityGauge.progressWrap}>
                 <SmoothProgressBar
                     value={Math.min(usedPercent + torrentPercent, 100)}
-                    trackClassName={METRIC_CHART_CLASS.capacityGauge.progressTrack}
+                    trackClassName={METRIC_CHART.capacityGauge.progressTrack}
                     indicatorClassName={indicatorClasses}
                 />
             </div>
             <div
-                className={METRIC_CHART_CLASS.capacityGauge.stats}
-                style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
+                className={METRIC_CHART.capacityGauge.stats}
+                style={METRIC_CHART.capacityGauge.baseTextStyle}
             >
                 <span>
                     {t("modals.disk_gauge.used")}{" "}
@@ -93,24 +97,24 @@ export function DiskSpaceGauge({
             </div>
             {isLoading && (
                 <p
-                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART_CLASS.capacityGauge.hint}
+                    style={METRIC_CHART.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART.capacityGauge.hint}
                 >
                     {t("modals.disk_gauge.updating")}
                 </p>
             )}
             {hint && !error && (
                 <p
-                    style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART_CLASS.capacityGauge.hint}
+                    style={METRIC_CHART.capacityGauge.baseTextStyle}
+                    className={METRIC_CHART.capacityGauge.hint}
                 >
                     {hint}
                 </p>
             )}
             {error && (
-                <div className={METRIC_CHART_CLASS.capacityGauge.errorRow}>
+                <div className={METRIC_CHART.capacityGauge.errorRow}>
                     <p
-                        style={METRIC_CHART_CLASS.capacityGauge.baseTextStyle}
+                        style={METRIC_CHART.capacityGauge.baseTextStyle}
                         className={TEXT_ROLE.statusError}
                     >
                         {error}

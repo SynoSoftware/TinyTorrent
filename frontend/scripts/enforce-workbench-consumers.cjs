@@ -15,9 +15,9 @@ const checks = [
             "Navbar.tsx",
         ),
         mustInclude: [
-            "APP_NAV_CLASS.root",
-            "APP_NAV_CLASS.workbenchSurface",
-            "APP_NAV_CLASS.workbenchShell",
+            "NAV.root",
+            "NAV.workbenchSurface",
+            "NAV.workbenchShell",
         ],
     },
     {
@@ -30,9 +30,9 @@ const checks = [
             "TorrentTable.tsx",
         ),
         mustInclude: [
-            "TABLE_VIEW_CLASS.hostRoot",
-            "TABLE_VIEW_CLASS.workbenchSurface",
-            "TABLE_VIEW_CLASS.workbenchShell",
+            "TABLE.hostRoot",
+            "TABLE.workbenchSurface",
+            "TABLE.workbenchShell",
         ],
     },
     {
@@ -44,7 +44,7 @@ const checks = [
             "layout",
             "StatusBar.tsx",
         ),
-        mustInclude: ["APP_STATUS_CLASS.footer", "APP_STATUS_CLASS.workbenchSurface"],
+        mustInclude: ["STATUS_BAR.footer", "STATUS_BAR.workbenchSurface"],
     },
 ];
 

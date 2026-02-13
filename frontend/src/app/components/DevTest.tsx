@@ -10,9 +10,7 @@ import {
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Section } from "@/shared/ui/layout/Section";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-import {
-    DIAGNOSTIC_VIEW_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { DIAGNOSTIC } from "@/shared/ui/layout/glass-surface";
 
 export { DEV_TEST_PATH };
 
@@ -35,8 +33,8 @@ function DevWorkflowStep({
     children: ReactNode;
 }) {
     return (
-        <div className={DIAGNOSTIC_VIEW_CLASS.stepCard}>
-            <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
+        <div className={DIAGNOSTIC.stepCard}>
+            <div className={DIAGNOSTIC.stepHeader}>
                 <p className={DEV_STEP_LABEL_CLASS}>{stepLabel}</p>
                 <p className={DEV_GROUP_TITLE_CLASS}>{title}</p>
             </div>
@@ -60,7 +58,7 @@ function DevStatusToken({
             variant="flat"
             color={DEV_STATUS_CHIP_COLOR[tone]}
             className={className}
-            classNames={DIAGNOSTIC_VIEW_CLASS.statusChipClassNames}
+            classNames={DIAGNOSTIC.statusChipClassNames}
         >
             {label}
         </Chip>
@@ -71,13 +69,10 @@ export default function DevTest() {
     const viewModel = useDevTestViewModel();
 
     return (
-        <Section
-            padding="stage"
-            className={DIAGNOSTIC_VIEW_CLASS.root}
-        >
-            <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
-                <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
-                    <div className={DIAGNOSTIC_VIEW_CLASS.topbarText}>
+        <Section padding="stage" className={DIAGNOSTIC.root}>
+            <div className={DIAGNOSTIC.stack}>
+                <div className={DIAGNOSTIC.topbar}>
+                    <div className={DIAGNOSTIC.topbarText}>
                         <h1 className={TEXT_ROLE.heading}>
                             {viewModel.header.title}
                         </h1>
@@ -90,14 +85,14 @@ export default function DevTest() {
                     </Button>
                 </div>
 
-                <div className={DIAGNOSTIC_VIEW_CLASS.grid}>
-                    <GlassPanel layer={1} className={DIAGNOSTIC_VIEW_CLASS.panelPrimary}>
-                        <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
-                            <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
+                <div className={DIAGNOSTIC.grid}>
+                    <GlassPanel layer={1} className={DIAGNOSTIC.panelPrimary}>
+                        <div className={DIAGNOSTIC.stack}>
+                            <div className={DIAGNOSTIC.stepHeader}>
                                 <p className={DEV_STEP_LABEL_CLASS}>
                                     {viewModel.workflow.panels.inputs}
                                 </p>
-                                <h2 className={DIAGNOSTIC_VIEW_CLASS.sectionTitle}>
+                                <h2 className={DIAGNOSTIC.sectionTitle}>
                                     {viewModel.header.title}
                                 </h2>
                             </div>
@@ -106,7 +101,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.scenario}
                                 title={viewModel.scenario.title}
                             >
-                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsStack}>
+                                <div className={DIAGNOSTIC.optionsStack}>
                                     {viewModel.scenario.options.map(
                                         (option) => (
                                             <Button
@@ -122,7 +117,9 @@ export default function DevTest() {
                                                         : "default"
                                                 }
                                                 size="md"
-                                                className={DIAGNOSTIC_VIEW_CLASS.optionButtonFull}
+                                                className={
+                                                    DIAGNOSTIC.optionButtonFull
+                                                }
                                                 onPress={option.onSelect}
                                             >
                                                 <span
@@ -143,7 +140,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.confidence}
                                 title={viewModel.confidence.title}
                             >
-                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsWrap}>
+                                <div className={DIAGNOSTIC.optionsWrap}>
                                     {viewModel.confidence.options.map(
                                         (option) => (
                                             <Button
@@ -172,7 +169,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.controls}
                                 title={viewModel.controls.title}
                             >
-                                <div className={DIAGNOSTIC_VIEW_CLASS.optionsStack}>
+                                <div className={DIAGNOSTIC.optionsStack}>
                                     <Switch
                                         isSelected={
                                             viewModel.controls
@@ -188,7 +185,11 @@ export default function DevTest() {
                                     <p className={DEV_STEP_LABEL_CLASS}>
                                         {viewModel.controls.faultModeLabel}
                                     </p>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.optionsGridResponsive}>
+                                    <div
+                                        className={
+                                            DIAGNOSTIC.optionsGridResponsive
+                                        }
+                                    >
                                         {viewModel.controls.faultModes.map(
                                             (option) => (
                                                 <Button
@@ -204,13 +205,15 @@ export default function DevTest() {
                                                             ? "primary"
                                                             : "default"
                                                     }
-                                                className={DIAGNOSTIC_VIEW_CLASS.optionButtonLeft}
+                                                    className={
+                                                        DIAGNOSTIC.optionButtonLeft
+                                                    }
                                                     onPress={option.onSelect}
                                                 >
                                                     <span
                                                         className={cn(
                                                             TEXT_ROLE.body,
-                                                            DIAGNOSTIC_VIEW_CLASS.optionLabelStrong,
+                                                            DIAGNOSTIC.optionLabelStrong,
                                                         )}
                                                     >
                                                         {
@@ -230,7 +233,7 @@ export default function DevTest() {
                                 stepLabel={viewModel.workflow.steps.execute}
                                 title={viewModel.actions.applyScenarioLabel}
                             >
-                                <div className={DIAGNOSTIC_VIEW_CLASS.executeRow}>
+                                <div className={DIAGNOSTIC.executeRow}>
                                     <Button
                                         variant="shadow"
                                         color="primary"
@@ -241,7 +244,7 @@ export default function DevTest() {
                                     >
                                         {viewModel.actions.applyScenarioLabel}
                                     </Button>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.executeActions}>
+                                    <div className={DIAGNOSTIC.executeActions}>
                                         <Button
                                             variant="light"
                                             size="md"
@@ -278,18 +281,22 @@ export default function DevTest() {
                                     </div>
                                 </div>
                                 <div
-                                        className={cn(
-                                        DIAGNOSTIC_VIEW_CLASS.stateRow,
+                                    className={cn(
+                                        DIAGNOSTIC.stateRow,
                                         TEXT_ROLE.bodySmall,
                                     )}
                                 >
                                     {viewModel.state.rows.map((row) => (
                                         <span
                                             key={row.id}
-                                            className={DIAGNOSTIC_VIEW_CLASS.statePill}
+                                            className={DIAGNOSTIC.statePill}
                                         >
                                             {row.label}{" "}
-                                            <span className={DIAGNOSTIC_VIEW_CLASS.statePillValue}>
+                                            <span
+                                                className={
+                                                    DIAGNOSTIC.statePillValue
+                                                }
+                                            >
                                                 {row.value}
                                             </span>
                                         </span>
@@ -299,23 +306,23 @@ export default function DevTest() {
                         </div>
                     </GlassPanel>
 
-                    <div className={DIAGNOSTIC_VIEW_CLASS.panelSecondaryWrap}>
+                    <div className={DIAGNOSTIC.panelSecondaryWrap}>
                         <GlassPanel
                             layer={1}
-                            className={DIAGNOSTIC_VIEW_CLASS.panelSecondary}
+                            className={DIAGNOSTIC.panelSecondary}
                         >
-                            <div className={DIAGNOSTIC_VIEW_CLASS.stack}>
-                                <div className={DIAGNOSTIC_VIEW_CLASS.stepHeader}>
+                            <div className={DIAGNOSTIC.stack}>
+                                <div className={DIAGNOSTIC.stepHeader}>
                                     <p className={DEV_STEP_LABEL_CLASS}>
                                         {viewModel.workflow.panels.results}
                                     </p>
-                                    <h2 className={DIAGNOSTIC_VIEW_CLASS.sectionTitle}>
+                                    <h2 className={DIAGNOSTIC.sectionTitle}>
                                         {viewModel.workflow.results.execution}
                                     </h2>
                                 </div>
 
-                                <div className={DIAGNOSTIC_VIEW_CLASS.smokeCard}>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
+                                <div className={DIAGNOSTIC.smokeCard}>
+                                    <div className={DIAGNOSTIC.topbar}>
                                         <p className={DEV_GROUP_TITLE_CLASS}>
                                             {viewModel.smoke.title}
                                         </p>
@@ -334,13 +341,15 @@ export default function DevTest() {
                                     <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.smoke.summaryText}
                                     </p>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.smokeRows}>
+                                    <div className={DIAGNOSTIC.smokeRows}>
                                         {viewModel.smoke.rows.map((row) => (
                                             <div
                                                 key={row.id}
-                                                className={DIAGNOSTIC_VIEW_CLASS.smokeRow}
+                                                className={DIAGNOSTIC.smokeRow}
                                             >
-                                                <span className={TEXT_ROLE.body}>
+                                                <span
+                                                    className={TEXT_ROLE.body}
+                                                >
                                                     {row.label}
                                                 </span>
                                                 <DevStatusToken
@@ -352,7 +361,7 @@ export default function DevTest() {
                                     </div>
                                 </div>
 
-                                <div className={DIAGNOSTIC_VIEW_CLASS.verifyCard}>
+                                <div className={DIAGNOSTIC.verifyCard}>
                                     <p className={DEV_GROUP_TITLE_CLASS}>
                                         {
                                             viewModel.workflow.results
@@ -362,14 +371,24 @@ export default function DevTest() {
                                     <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.smoke.assertionTitle}
                                     </p>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.verifyTableWrap}>
-                                        <table className={DIAGNOSTIC_VIEW_CLASS.verifyTable}>
-                                            <thead className={DIAGNOSTIC_VIEW_CLASS.verifyHead}>
-                                                <tr className={DIAGNOSTIC_VIEW_CLASS.verifyHeadRow}>
+                                    <div className={DIAGNOSTIC.verifyTableWrap}>
+                                        <table
+                                            className={DIAGNOSTIC.verifyTable}
+                                        >
+                                            <thead
+                                                className={
+                                                    DIAGNOSTIC.verifyHead
+                                                }
+                                            >
+                                                <tr
+                                                    className={
+                                                        DIAGNOSTIC.verifyHeadRow
+                                                    }
+                                                >
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
+                                                            DIAGNOSTIC.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -381,7 +400,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
+                                                            DIAGNOSTIC.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -393,7 +412,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
+                                                            DIAGNOSTIC.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -404,7 +423,7 @@ export default function DevTest() {
                                                     <th
                                                         className={cn(
                                                             DEV_STEP_LABEL_CLASS,
-                                                            DIAGNOSTIC_VIEW_CLASS.verifyHeaderCell,
+                                                            DIAGNOSTIC.verifyHeaderCell,
                                                         )}
                                                     >
                                                         {
@@ -419,17 +438,35 @@ export default function DevTest() {
                                                     (assertion) => (
                                                         <tr
                                                             key={assertion.id}
-                                                            className={DIAGNOSTIC_VIEW_CLASS.verifyRow}
+                                                            className={
+                                                                DIAGNOSTIC.verifyRow
+                                                            }
                                                         >
-                                                            <td className={DIAGNOSTIC_VIEW_CLASS.verifyCell}>
-                                                                <div className={DIAGNOSTIC_VIEW_CLASS.verifyLabelWrap}>
-                                                                    <span className={TEXT_ROLE.body}>
+                                                            <td
+                                                                className={
+                                                                    DIAGNOSTIC.verifyCell
+                                                                }
+                                                            >
+                                                                <div
+                                                                    className={
+                                                                        DIAGNOSTIC.verifyLabelWrap
+                                                                    }
+                                                                >
+                                                                    <span
+                                                                        className={
+                                                                            TEXT_ROLE.body
+                                                                        }
+                                                                    >
                                                                         {
                                                                             assertion.label
                                                                         }
                                                                     </span>
                                                                     {assertion.reasonLabel && (
-                                                                        <span className={TEXT_ROLE.caption}>
+                                                                        <span
+                                                                            className={
+                                                                                TEXT_ROLE.caption
+                                                                            }
+                                                                        >
                                                                             {
                                                                                 assertion.reasonLabel
                                                                             }
@@ -439,7 +476,7 @@ export default function DevTest() {
                                                             </td>
                                                             <td
                                                                 className={cn(
-                                                                    DIAGNOSTIC_VIEW_CLASS.verifyCell,
+                                                                    DIAGNOSTIC.verifyCell,
                                                                     TEXT_ROLE_EXTENDED.tableCell,
                                                                 )}
                                                             >
@@ -449,7 +486,7 @@ export default function DevTest() {
                                                             </td>
                                                             <td
                                                                 className={cn(
-                                                                    DIAGNOSTIC_VIEW_CLASS.verifyCell,
+                                                                    DIAGNOSTIC.verifyCell,
                                                                     TEXT_ROLE_EXTENDED.tableCell,
                                                                 )}
                                                             >
@@ -457,7 +494,11 @@ export default function DevTest() {
                                                                     assertion.actualLabel
                                                                 }
                                                             </td>
-                                                            <td className={DIAGNOSTIC_VIEW_CLASS.verifyCell}>
+                                                            <td
+                                                                className={
+                                                                    DIAGNOSTIC.verifyCell
+                                                                }
+                                                            >
                                                                 <DevStatusToken
                                                                     label={
                                                                         assertion.assertionLabel
@@ -475,8 +516,8 @@ export default function DevTest() {
                                     </div>
                                 </div>
 
-                                <div className={DIAGNOSTIC_VIEW_CLASS.systemCard}>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.topbar}>
+                                <div className={DIAGNOSTIC.systemCard}>
+                                    <div className={DIAGNOSTIC.topbar}>
                                         <p className={DEV_GROUP_TITLE_CLASS}>
                                             {
                                                 viewModel.workflow.results
@@ -498,27 +539,45 @@ export default function DevTest() {
                                     <p className={TEXT_ROLE.bodySmall}>
                                         {viewModel.system.summaryText}
                                     </p>
-                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemRows}>
+                                    <div className={DIAGNOSTIC.systemRows}>
                                         {viewModel.system.rows.map((row) => (
                                             <div
                                                 key={row.id}
-                                                className={DIAGNOSTIC_VIEW_CLASS.systemRowCard}
+                                                className={
+                                                    DIAGNOSTIC.systemRowCard
+                                                }
                                             >
-                                                <div className={DIAGNOSTIC_VIEW_CLASS.systemRowHead}>
+                                                <div
+                                                    className={
+                                                        DIAGNOSTIC.systemRowHead
+                                                    }
+                                                >
                                                     <span
                                                         className={cn(
                                                             TEXT_ROLE.body,
-                                                            DIAGNOSTIC_VIEW_CLASS.optionLabelStrong,
+                                                            DIAGNOSTIC.optionLabelStrong,
                                                         )}
                                                     >
                                                         {row.label}
                                                     </span>
-                                                    <span className={TEXT_ROLE.caption}>
+                                                    <span
+                                                        className={
+                                                            TEXT_ROLE.caption
+                                                        }
+                                                    >
                                                         {row.eventLabel}
                                                     </span>
                                                 </div>
-                                                <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusRow}>
-                                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusPair}>
+                                                <div
+                                                    className={
+                                                        DIAGNOSTIC.systemStatusRow
+                                                    }
+                                                >
+                                                    <div
+                                                        className={
+                                                            DIAGNOSTIC.systemStatusPair
+                                                        }
+                                                    >
                                                         <span
                                                             className={
                                                                 DEV_STEP_LABEL_CLASS
@@ -539,7 +598,11 @@ export default function DevTest() {
                                                             }
                                                         />
                                                     </div>
-                                                    <div className={DIAGNOSTIC_VIEW_CLASS.systemStatusPair}>
+                                                    <div
+                                                        className={
+                                                            DIAGNOSTIC.systemStatusPair
+                                                        }
+                                                    >
                                                         <span
                                                             className={
                                                                 DEV_STEP_LABEL_CLASS
@@ -563,7 +626,7 @@ export default function DevTest() {
                                                 </div>
                                                 <div
                                                     className={cn(
-                                                        DIAGNOSTIC_VIEW_CLASS.systemMeta,
+                                                        DIAGNOSTIC.systemMeta,
                                                         TEXT_ROLE.bodySmall,
                                                     )}
                                                 >
@@ -583,7 +646,11 @@ export default function DevTest() {
                                                     </span>
                                                 </div>
                                                 {row.details && (
-                                                    <span className={TEXT_ROLE.caption}>
+                                                    <span
+                                                        className={
+                                                            TEXT_ROLE.caption
+                                                        }
+                                                    >
                                                         {row.details}
                                                     </span>
                                                 )}
@@ -602,21 +669,21 @@ export default function DevTest() {
             />
 
             {viewModel.footer && (
-                <div className={DIAGNOSTIC_VIEW_CLASS.footer}>
-                    <div className={DIAGNOSTIC_VIEW_CLASS.footerStack}>
-                        <div className={DIAGNOSTIC_VIEW_CLASS.footerRow}>
-                            <div className={DIAGNOSTIC_VIEW_CLASS.footerLeft}>
+                <div className={DIAGNOSTIC.footer}>
+                    <div className={DIAGNOSTIC.footerStack}>
+                        <div className={DIAGNOSTIC.footerRow}>
+                            <div className={DIAGNOSTIC.footerLeft}>
                                 <span
                                     className={cn(
                                         TEXT_ROLE.bodySmall,
-                                        DIAGNOSTIC_VIEW_CLASS.footerScenarioLabel,
+                                        DIAGNOSTIC.footerScenarioLabel,
                                     )}
                                 >
                                     {viewModel.footer.scenarioLabel}
                                 </span>
                                 <span
                                     className={cn(
-                                        DIAGNOSTIC_VIEW_CLASS.footerScenario,
+                                        DIAGNOSTIC.footerScenario,
                                         TEXT_ROLE.bodySmall,
                                     )}
                                 >
@@ -625,16 +692,16 @@ export default function DevTest() {
                                 {!viewModel.footer.isExpanded && (
                                     <span
                                         className={cn(
-                                            DIAGNOSTIC_VIEW_CLASS.footerSummary,
+                                            DIAGNOSTIC.footerSummary,
                                             TEXT_ROLE.caption,
-                                            DIAGNOSTIC_VIEW_CLASS.footerSummaryMuted,
+                                            DIAGNOSTIC.footerSummaryMuted,
                                         )}
                                     >
                                         {viewModel.footer.summary}
                                     </span>
                                 )}
                             </div>
-                            <div className={DIAGNOSTIC_VIEW_CLASS.footerRight}>
+                            <div className={DIAGNOSTIC.footerRight}>
                                 <span className={TEXT_ROLE.caption}>
                                     {viewModel.footer.copyStatusLabel}
                                 </span>
@@ -664,9 +731,9 @@ export default function DevTest() {
                         {viewModel.footer.isExpanded && (
                             <pre
                                 className={cn(
-                                    DIAGNOSTIC_VIEW_CLASS.footerExpected,
+                                    DIAGNOSTIC.footerExpected,
                                     TEXT_ROLE.codeMuted,
-                                    DIAGNOSTIC_VIEW_CLASS.footerExpectedTone,
+                                    DIAGNOSTIC.footerExpectedTone,
                                 )}
                             >
                                 {viewModel.footer.expectedBehavior}
@@ -678,4 +745,3 @@ export default function DevTest() {
         </Section>
     );
 }
-

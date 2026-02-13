@@ -1,5 +1,6 @@
 import { cn } from "@heroui/react";
 import type { CSSProperties } from "react";
+import { SURFACE } from "@/shared/ui/layout/glass-surface";
 
 interface TinyTorrentIconProps {
     className?: string;
@@ -16,7 +17,7 @@ export function TinyTorrentIcon({
         <img
             src="/tinyTorrent.svg"
             alt={title ?? "TinyTorrent"}
-            className={cn("object-contain", className)}
+            className={cn(SURFACE.atom.objectContain, className)}
             style={style}
         />
     );

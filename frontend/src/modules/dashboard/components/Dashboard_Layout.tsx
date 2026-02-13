@@ -30,7 +30,7 @@ import { Section } from "@/shared/ui/layout/Section";
 import {
     buildDashboardInspectorPanelClass,
     buildDashboardResizeHandleClass,
-    DASHBOARD_LAYOUT_CLASS,
+    DASHBOARD,
 } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
@@ -83,16 +83,8 @@ interface DashboardLayoutProps {
 }
 
 export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
-    const {
-        workspaceStyle,
-        table,
-        detail,
-        detailSplitDirection,
-    } = viewModel;
-    const {
-        tableWatermarkEnabled,
-        isDropActive = false,
-    } = table;
+    const { workspaceStyle, table, detail, detailSplitDirection } = viewModel;
+    const { tableWatermarkEnabled, isDropActive = false } = table;
     const {
         detailData,
         handleRequestDetails,
@@ -186,17 +178,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const getShellStyles = () => {
         return {
             // Always include a subtle top border to prevent jump when focus highlight appears
-            className: cn(
-                DASHBOARD_LAYOUT_CLASS.root,
-            ),
+            className: cn(DASHBOARD.root),
             // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
     };
 
     const getContentStyles = () => ({
         className: cn(
-            DASHBOARD_LAYOUT_CLASS.content,
-            !isImmersiveShell && DASHBOARD_LAYOUT_CLASS.contentClassicSurface,
+            DASHBOARD.content,
+            !isImmersiveShell && DASHBOARD.contentClassicSurface,
         ),
         style: isImmersiveShell
             ? undefined
@@ -210,20 +200,25 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <AnimatePresence>
             {isDropActive && (
                 <motion.div
-                    className={DASHBOARD_LAYOUT_CLASS.dropOverlay}
+                    className={DASHBOARD.dropOverlay}
                     {...OVERLAY_FADE_ANIMATION}
                 >
                     <motion.div
-                        className={DASHBOARD_LAYOUT_CLASS.dropOverlayAccent}
+                        className={DASHBOARD.dropOverlayAccent}
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
                         {...DROP_OVERLAY_ACCENT_ANIMATION}
                     />
-                    <div className={cn(DASHBOARD_LAYOUT_CLASS.dropOverlayIconWrap, DROP_OVERLAY_ROLE)}>
+                    <div
+                        className={cn(
+                            DASHBOARD.dropOverlayIconWrap,
+                            DROP_OVERLAY_ROLE,
+                        )}
+                    >
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
                             strokeWidth={ICON_STROKE_WIDTH}
-                            className={DASHBOARD_LAYOUT_CLASS.dropOverlayIconTone}
+                            className={DASHBOARD.dropOverlayIconTone}
                         />
                         <span className={DROP_OVERLAY_TITLE_ROLE}>
                             {t("drop_overlay.title")}
@@ -238,15 +233,15 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className={DASHBOARD_LAYOUT_CLASS.panelGroup}
+            className={DASHBOARD.panelGroup}
             style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
-            <Panel className={DASHBOARD_LAYOUT_CLASS.mainPanel}>
+            <Panel className={DASHBOARD.mainPanel}>
                 <div {...getShellStyles()} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
-                            className={DASHBOARD_LAYOUT_CLASS.tableHost}
+                            className={DASHBOARD.tableHost}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
@@ -254,11 +249,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             {tableWatermarkEnabled && (
                                 <div
                                     aria-hidden="true"
-                                    className={DASHBOARD_LAYOUT_CLASS.tableWatermark}
+                                    className={DASHBOARD.tableWatermark}
                                 />
                             )}
                             <div
-                                className={DASHBOARD_LAYOUT_CLASS.tableContent}
+                                className={DASHBOARD.tableContent}
                                 style={{ borderRadius: "inherit" }}
                             >
                                 <DetailOpenProvider
@@ -292,9 +287,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     flexBasis: "var(--tt-gap)",
                 }}
             >
-                <div className={DASHBOARD_LAYOUT_CLASS.resizeHandleInner}>
+                <div className={DASHBOARD.resizeHandleInner}>
                     <div
-                        className={DASHBOARD_LAYOUT_CLASS.resizeHandleBar}
+                        className={DASHBOARD.resizeHandleBar}
                         style={
                             isHorizontalSplit
                                 ? {
@@ -323,13 +318,13 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                 <div {...getShellStyles()}>
                     <div {...getContentStyles()}>
                         <div
-                            className={DASHBOARD_LAYOUT_CLASS.inspectorContent}
+                            className={DASHBOARD.inspectorContent}
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
                         >
                             <motion.div
-                                className={DASHBOARD_LAYOUT_CLASS.inspectorContent}
+                                className={DASHBOARD.inspectorContent}
                                 initial={false}
                                 animate={
                                     isDetailOpen
@@ -355,30 +350,32 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     );
 
     return (
-        <Section className={DASHBOARD_LAYOUT_CLASS.section}>
+        <Section className={DASHBOARD.section}>
             {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
                 {detailData && isDetailFullscreenActive && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className={DASHBOARD_LAYOUT_CLASS.fullscreenOverlay}
+                        className={DASHBOARD.fullscreenOverlay}
                         {...OVERLAY_FADE_ANIMATION}
                         transition={{ duration: 0.25 }}
                     >
                         <Section
                             padding="stage"
-                            className={DASHBOARD_LAYOUT_CLASS.fullscreenSection}
+                            className={DASHBOARD.fullscreenSection}
                         >
-                            <div className={DASHBOARD_LAYOUT_CLASS.fullscreenBackdrop} />
+                            <div className={DASHBOARD.fullscreenBackdrop} />
                             <motion.div
-                                className={DASHBOARD_LAYOUT_CLASS.fullscreenPanel}
+                                className={DASHBOARD.fullscreenPanel}
                                 style={{ borderRadius: `${shell.radius}px` }}
                                 {...FULLSCREEN_PANEL_ANIMATION}
                             >
                                 <TorrentDetails
                                     viewModel={detail}
-                                    isDetailFullscreen={isDetailFullscreenActive}
+                                    isDetailFullscreen={
+                                        isDetailFullscreenActive
+                                    }
                                     isRecoveryBlocked={isDetailRecoveryBlocked}
                                     isStandalone={true}
                                     onDock={handleDetailDock}

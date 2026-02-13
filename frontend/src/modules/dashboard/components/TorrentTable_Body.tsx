@@ -10,9 +10,7 @@ import { Skeleton } from "@heroui/react";
 import TorrentTable_Row from "@/modules/dashboard/components/TorrentTable_Row";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
-import {
-    TABLE_VIEW_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
     getTableTotalWidthCss,
     TableCellContent,
@@ -55,69 +53,64 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
     return (
         <div
             ref={parentRef}
-            className={TABLE_VIEW_CLASS.bodyScroll}
-            style={TABLE_VIEW_CLASS.bodyScrollStyle}
+            className={TABLE.bodyScroll}
+            style={TABLE.bodyScrollStyle}
         >
             {showSkeleton ? (
-                <div className={TABLE_VIEW_CLASS.loadingRoot}>
+                <div className={TABLE.loadingRoot}>
                     {Array.from({ length: 10 }).map((_, i) => (
                         <div
                             key={i}
-                            className={TABLE_VIEW_CLASS.loadingRow}
+                            className={TABLE.loadingRow}
                             style={{
                                 height: tableLayout.rowHeight,
                             }}
                         >
-                            <div className={TABLE_VIEW_CLASS.loadingSkeletonWrap}>
-                                <Skeleton className={TABLE_VIEW_CLASS.loadingSkeleton} />
+                            <div className={TABLE.loadingSkeletonWrap}>
+                                <Skeleton className={TABLE.loadingSkeleton} />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : showEmptyState ? (
-                <div className={TABLE_VIEW_CLASS.emptyRoot}>
+                <div className={TABLE.emptyRoot}>
                     <div
-                        className={TABLE_VIEW_CLASS.emptyHintRow}
-                        style={TABLE_VIEW_CLASS.emptyHintTrackingStyle}
+                        className={TABLE.emptyHintRow}
+                        style={TABLE.emptyHintTrackingStyle}
                     >
                         <StatusIcon
                             Icon={FileUp}
                             size="lg"
-                            className={TABLE_VIEW_CLASS.emptyIcon}
+                            className={TABLE.emptyIcon}
                         />
                         <span>{emptyHint}</span>
                     </div>
                     <p
-                        className={TABLE_VIEW_CLASS.emptySubtext}
-                        style={TABLE_VIEW_CLASS.emptySubtextTrackingStyle}
+                        className={TABLE.emptySubtext}
+                        style={TABLE.emptySubtextTrackingStyle}
                     >
                         {emptyHintSubtext}
                     </p>
-                    <div className={TABLE_VIEW_CLASS.emptyPreview}>
+                    <div className={TABLE.emptyPreview}>
                         <div
-                            className={TABLE_VIEW_CLASS.emptyHintRow}
-                            style={TABLE_VIEW_CLASS.emptyHintTrackingStyle}
+                            className={TABLE.emptyHintRow}
+                            style={TABLE.emptyHintTrackingStyle}
                         >
-                            <span className={TABLE_VIEW_CLASS.emptyBar} />
+                            <span className={TABLE.emptyBar} />
                             <span>{headerName}</span>
                             <span>{headerSpeed}</span>
                         </div>
                         {Array.from({ length: 3 }).map((_, index) => (
-                            <div
-                                key={index}
-                                className={TABLE_VIEW_CLASS.emptyPreviewRow}
-                            >
-                                <span className={TABLE_VIEW_CLASS.emptyBar} />
-                                <span className={TABLE_VIEW_CLASS.emptyBar} />
-                                <span className={TABLE_VIEW_CLASS.emptyBar} />
+                            <div key={index} className={TABLE.emptyPreviewRow}>
+                                <span className={TABLE.emptyBar} />
+                                <span className={TABLE.emptyBar} />
+                                <span className={TABLE.emptyBar} />
                             </div>
                         ))}
                     </div>
                 </div>
             ) : showNoResultsState ? (
-                <div className={TABLE_VIEW_CLASS.noResults}>
-                    {noResults}
-                </div>
+                <div className={TABLE.noResults}>{noResults}</div>
             ) : (
                 <DndContext
                     collisionDetection={closestCenter}
@@ -131,7 +124,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         strategy={verticalListSortingStrategy}
                     >
                         <div
-                            className={TABLE_VIEW_CLASS.bodyCanvas}
+                            className={TABLE.bodyCanvas}
                             style={{
                                 height: rowVirtualizer.getTotalSize(),
                                 width: getTableTotalWidthCss(
@@ -181,9 +174,9 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         ),
                                         height: rowHeight,
                                     }}
-                                    className={TABLE_VIEW_CLASS.dragOverlay}
+                                    className={TABLE.dragOverlay}
                                 >
-                                    <div className={TABLE_VIEW_CLASS.dragOverlayContent}>
+                                    <div className={TABLE.dragOverlayContent}>
                                         {activeDragRow
                                             .getVisibleCells()
                                             .map((cell) => (
@@ -203,7 +196,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
             {marqueeRect && (
                 <div
                     aria-hidden="true"
-                    className={TABLE_VIEW_CLASS.marquee}
+                    className={TABLE.marquee}
                     style={{
                         left: marqueeRect.left,
                         top: marqueeRect.top,

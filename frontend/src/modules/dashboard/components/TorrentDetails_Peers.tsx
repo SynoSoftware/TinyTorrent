@@ -5,11 +5,11 @@ import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     buildContextMenuPanelStyle,
-    CONTEXT_MENU_CLASS,
+    CONTEXT_MENU,
     buildSplitViewVirtualCanvasStyle,
     buildSplitViewVirtualRowStyle,
-    STANDARD_SURFACE_CLASS,
-    SPLIT_VIEW_CLASS,
+    SURFACE,
+    SPLIT,
     buildSplitViewAddressClass,
     buildSplitViewRowClass,
 } from "@/shared/ui/layout/glass-surface";
@@ -48,31 +48,25 @@ export const PeersTab = ({
 
     if (viewModel.state.isEmpty) {
         const EmptyContent = (
-            <p className={SPLIT_VIEW_CLASS.emptyText}>
-                {viewModel.labels.emptyMessage}
-            </p>
+            <p className={SPLIT.emptyText}>{viewModel.labels.emptyMessage}</p>
         );
 
         const emptyShell = (
-            <GlassPanel className={SPLIT_VIEW_CLASS.emptyPanel}>
-                {EmptyContent}
-            </GlassPanel>
+            <GlassPanel className={SPLIT.emptyPanel}>{EmptyContent}</GlassPanel>
         );
 
         return emptyShell;
     }
 
     return (
-        <div className={SPLIT_VIEW_CLASS.root}>
+        <div className={SPLIT.root}>
             <PanelGroup direction="vertical">
                 <Panel defaultSize={40} minSize={0}>
-                    <GlassPanel className={SPLIT_VIEW_CLASS.mapPanel}>
-                        <div className={SPLIT_VIEW_CLASS.hudRow}>
-                            <div className={SPLIT_VIEW_CLASS.hudLabel}>
-                                HUD
-                            </div>
+                    <GlassPanel className={SPLIT.mapPanel}>
+                        <div className={SPLIT.hudRow}>
+                            <div className={SPLIT.hudLabel}>HUD</div>
                         </div>
-                        <div className={SPLIT_VIEW_CLASS.mapCanvas}>
+                        <div className={SPLIT.mapCanvas}>
                             <PeerMap
                                 peers={viewModel.data.peers}
                                 hoveredPeerId={viewModel.state.hoveredPeer}
@@ -84,38 +78,32 @@ export const PeersTab = ({
                 </Panel>
 
                 <PanelResizeHandle>
-                    <div className={SPLIT_VIEW_CLASS.resizeHandle}>
-                        <div className={SPLIT_VIEW_CLASS.resizeBar} />
+                    <div className={SPLIT.resizeHandle}>
+                        <div className={SPLIT.resizeBar} />
                     </div>
                 </PanelResizeHandle>
 
                 <Panel defaultSize={60} minSize={10}>
-                    <GlassPanel
-                        layer={1}
-                        className={SPLIT_VIEW_CLASS.listSurface}
-                    >
-                        <div className={SPLIT_VIEW_CLASS.header}>
-                            <span className={SPLIT_VIEW_CLASS.headerFlagCol}>
+                    <GlassPanel layer={1} className={SPLIT.listSurface}>
+                        <div className={SPLIT.header}>
+                            <span className={SPLIT.headerFlagCol}>
                                 {viewModel.labels.flagsHeader}
                             </span>
-                            <span className={SPLIT_VIEW_CLASS.headerEndpointCol}>
+                            <span className={SPLIT.headerEndpointCol}>
                                 {viewModel.labels.endpointHeader}
                             </span>
-                            <span className={SPLIT_VIEW_CLASS.headerClientCol}>
+                            <span className={SPLIT.headerClientCol}>
                                 {viewModel.labels.clientHeader}
                             </span>
-                            <span className={SPLIT_VIEW_CLASS.headerSpeedCol}>
+                            <span className={SPLIT.headerSpeedCol}>
                                 {viewModel.labels.downstreamHeader}
                             </span>
-                            <span className={SPLIT_VIEW_CLASS.headerSpeedCol}>
+                            <span className={SPLIT.headerSpeedCol}>
                                 {viewModel.labels.upstreamHeader}
                             </span>
                         </div>
 
-                        <div
-                            ref={listRef}
-                            className={SPLIT_VIEW_CLASS.listScroll}
-                        >
+                        <div ref={listRef} className={SPLIT.listScroll}>
                             <div
                                 style={buildSplitViewVirtualCanvasStyle(
                                     viewModel.metrics.totalSize,
@@ -147,8 +135,8 @@ export const PeersTab = ({
                                             )
                                         }
                                     >
-                                        <div className={SPLIT_VIEW_CLASS.flagsCol}>
-                                            <div className={SPLIT_VIEW_CLASS.flagsWrap}>
+                                        <div className={SPLIT.flagsCol}>
+                                            <div className={SPLIT.flagsWrap}>
                                                 {rowView.flagCodes.map(
                                                     (flag, index) => (
                                                         <Tooltip
@@ -157,11 +145,15 @@ export const PeersTab = ({
                                                                 flag,
                                                             )}
                                                             classNames={
-                                                                STANDARD_SURFACE_CLASS.tooltip
+                                                                SURFACE.tooltip
                                                             }
                                                             delay={500}
                                                         >
-                                                            <span className={SPLIT_VIEW_CLASS.flagToken}>
+                                                            <span
+                                                                className={
+                                                                    SPLIT.flagToken
+                                                                }
+                                                            >
                                                                 {flag}
                                                             </span>
                                                         </Tooltip>
@@ -170,19 +162,21 @@ export const PeersTab = ({
                                             </div>
                                         </div>
 
-                                        <div className={SPLIT_VIEW_CLASS.endpointCol}>
+                                        <div className={SPLIT.endpointCol}>
                                             {rowView.isEncrypted && (
                                                 <StatusIcon
                                                     Icon={ShieldCheck}
                                                     size="sm"
-                                                    className={SPLIT_VIEW_CLASS.encryptedIcon}
+                                                    className={
+                                                        SPLIT.encryptedIcon
+                                                    }
                                                 />
                                             )}
                                             {rowView.isUTP && (
                                                 <StatusIcon
                                                     Icon={Zap}
                                                     size="sm"
-                                                    className={SPLIT_VIEW_CLASS.utpIcon}
+                                                    className={SPLIT.utpIcon}
                                                 />
                                             )}
                                             <span
@@ -194,13 +188,13 @@ export const PeersTab = ({
                                             </span>
                                         </div>
 
-                                        <div className={SPLIT_VIEW_CLASS.clientCol}>
+                                        <div className={SPLIT.clientCol}>
                                             {rowView.clientName}
                                         </div>
-                                        <div className={SPLIT_VIEW_CLASS.downRateCol}>
+                                        <div className={SPLIT.downRateCol}>
                                             {rowView.downRateLabel}
                                         </div>
-                                        <div className={SPLIT_VIEW_CLASS.upRateCol}>
+                                        <div className={SPLIT.upRateCol}>
                                             {rowView.upRateLabel}
                                         </div>
                                     </div>
@@ -209,7 +203,7 @@ export const PeersTab = ({
 
                             {viewModel.state.peerContextMenu && (
                                 <div
-                                    className={CONTEXT_MENU_CLASS.panel}
+                                    className={CONTEXT_MENU.panel}
                                     style={buildContextMenuPanelStyle({
                                         x: viewModel.state.peerContextMenu.x,
                                         y: viewModel.state.peerContextMenu.y,
@@ -218,13 +212,15 @@ export const PeersTab = ({
                                         event.stopPropagation()
                                     }
                                 >
-                                    <div className={CONTEXT_MENU_CLASS.header}>
+                                    <div className={CONTEXT_MENU.header}>
                                         <StatusIcon
                                             Icon={Info}
                                             size="sm"
-                                            className={CONTEXT_MENU_CLASS.headerIcon}
+                                            className={CONTEXT_MENU.headerIcon}
                                         />
-                                        <span className={CONTEXT_MENU_CLASS.headerText}>
+                                        <span
+                                            className={CONTEXT_MENU.headerText}
+                                        >
                                             {
                                                 viewModel.state.peerContextMenu
                                                     .peer.address
@@ -237,7 +233,7 @@ export const PeersTab = ({
                                                 "copy_ip",
                                             )
                                         }
-                                        className={CONTEXT_MENU_CLASS.actionButton}
+                                        className={CONTEXT_MENU.actionButton}
                                     >
                                         <StatusIcon
                                             Icon={Copy}
@@ -252,7 +248,7 @@ export const PeersTab = ({
                                                 "add_peer",
                                             )
                                         }
-                                        className={CONTEXT_MENU_CLASS.actionButton}
+                                        className={CONTEXT_MENU.actionButton}
                                     >
                                         <StatusIcon
                                             Icon={UserPlus}
@@ -267,7 +263,9 @@ export const PeersTab = ({
                                                 "ban_ip",
                                             )
                                         }
-                                        className={CONTEXT_MENU_CLASS.dangerActionButton}
+                                        className={
+                                            CONTEXT_MENU.dangerActionButton
+                                        }
                                     >
                                         <StatusIcon
                                             Icon={Ban}
@@ -285,6 +283,3 @@ export const PeersTab = ({
         </div>
     );
 };
-
-
-

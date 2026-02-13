@@ -4,7 +4,7 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import {
     buildTableDetailsContentScrollStyle,
-    TABLE_VIEW_CLASS,
+    TABLE,
 } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
@@ -15,9 +15,7 @@ import {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import {
-    DETAILS_TAB_CONTENT_MAX_HEIGHT,
-} from "@/config/logic";
+import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
@@ -88,12 +86,15 @@ export const ContentTab = ({
 
     if (filesCount === 0) {
         return (
-            <div className={TABLE_VIEW_CLASS.detailsContentRoot}>
-                <AlertPanel severity="warning" className={TABLE_VIEW_CLASS.detailsContentWarning}>
+            <div className={TABLE.detailsContentRoot}>
+                <AlertPanel
+                    severity="warning"
+                    className={TABLE.detailsContentWarning}
+                >
                     <div className={TEXT_ROLE.statusWarning}>
                         {t("torrent_modal.files_empty")}
                     </div>
-                    <div className={TABLE_VIEW_CLASS.detailsContentRecoveryNote}>
+                    <div className={TABLE.detailsContentRecoveryNote}>
                         {t("torrent_modal.files_recovery_desc")}
                     </div>
                 </AlertPanel>
@@ -102,12 +103,12 @@ export const ContentTab = ({
     }
 
     return (
-        <div className={TABLE_VIEW_CLASS.detailsContentRoot}>
+        <div className={TABLE.detailsContentRoot}>
             {isStandalone ? (
-                <GlassPanel className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
-                    <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
-                        <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
-                            <span className={TABLE_VIEW_CLASS.detailsContentHeaderTitle}>
+                <GlassPanel className={TABLE.detailsContentHeaderShell}>
+                    <div className={TABLE.detailsContentHeaderRow}>
+                        <div className={TABLE.detailsContentHeaderMeta}>
+                            <span className={TABLE.detailsContentHeaderTitle}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className={TEXT_ROLE.caption}>
@@ -120,10 +121,10 @@ export const ContentTab = ({
                     </div>
                 </GlassPanel>
             ) : (
-                <div className={TABLE_VIEW_CLASS.detailsContentHeaderShell}>
-                    <div className={TABLE_VIEW_CLASS.detailsContentHeaderRow}>
-                        <div className={TABLE_VIEW_CLASS.detailsContentHeaderMeta}>
-                            <span className={TABLE_VIEW_CLASS.detailsContentHeaderTitle}>
+                <div className={TABLE.detailsContentHeaderShell}>
+                    <div className={TABLE.detailsContentHeaderRow}>
+                        <div className={TABLE.detailsContentHeaderMeta}>
+                            <span className={TABLE.detailsContentHeaderTitle}>
                                 {t("torrent_modal.files_title")}
                             </span>
                             <p className={TEXT_ROLE.caption}>
@@ -137,15 +138,13 @@ export const ContentTab = ({
                 </div>
             )}
 
-            <GlassPanel
-                className={TABLE_VIEW_CLASS.detailsContentPanel}
-            >
-                <div className={TABLE_VIEW_CLASS.detailsContentSectionHeader}>
+            <GlassPanel className={TABLE.detailsContentPanel}>
+                <div className={TABLE.detailsContentSectionHeader}>
                     {t("torrent_modal.tabs.content")}
                 </div>
-                <div className={TABLE_VIEW_CLASS.detailsContentListHost}>
+                <div className={TABLE.detailsContentListHost}>
                     <div
-                        className={TABLE_VIEW_CLASS.detailsContentListScroll}
+                        className={TABLE.detailsContentListScroll}
                         style={buildTableDetailsContentScrollStyle(
                             DETAILS_TAB_CONTENT_MAX_HEIGHT,
                         )}

@@ -2,10 +2,7 @@ import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import { cn } from "@heroui/react";
 import React, { useMemo } from "react";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
-import {
-    STANDARD_SURFACE_CLASS,
-    TABLE_VIEW_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { SURFACE, TABLE } from "@/shared/ui/layout/glass-surface";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ColumnMeasurementLayer } from "@/modules/dashboard/components/TorrentTable_Shared";
 import {
@@ -36,11 +33,7 @@ export function TorrentTable({
     const { setTableContainerRef, setMeasureLayerRef } = refs;
 
     const tableShellClass = useMemo(
-        () =>
-            cn(
-                TABLE_VIEW_CLASS.shellPanelBase,
-                STANDARD_SURFACE_CLASS.role.panel,
-            ),
+        () => cn(TABLE.shellPanelBase, SURFACE.role.panel),
         [],
     );
 
@@ -62,11 +55,11 @@ export function TorrentTable({
                 data-tt-layout-suppressed={
                     state.isAnimationSuppressed ? "true" : undefined
                 }
-                style={TABLE_VIEW_CLASS.hostBorderRadiusStyle}
+                style={TABLE.hostBorderRadiusStyle}
                 className={cn(
-                    TABLE_VIEW_CLASS.hostRoot,
-                    !embedded && TABLE_VIEW_CLASS.workbenchSurface,
-                    !embedded && TABLE_VIEW_CLASS.workbenchShell,
+                    TABLE.hostRoot,
+                    !embedded && TABLE.workbenchSurface,
+                    !embedded && TABLE.workbenchShell,
                 )}
                 onClick={menus.closeContextMenu}
             >

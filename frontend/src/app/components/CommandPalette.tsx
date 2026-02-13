@@ -13,9 +13,7 @@ import {
     STATUS_VISUAL_KEYS,
     STATUS_VISUALS,
 } from "@/config/logic";
-import {
-    COMMAND_PALETTE_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
 
 export type CommandActionOutcome =
     | { status: "success" }
@@ -143,20 +141,17 @@ function CommandPaletteOverlay({
     return (
         <motion.div
             {...OVERLAY_FADE_ANIMATION}
-            className={COMMAND_PALETTE_CLASS.overlay}
+            className={COMMAND_PALETTE.overlay}
         >
             <motion.div
                 {...BACKDROP_FADE_ANIMATION}
-                className={COMMAND_PALETTE_CLASS.backdrop}
+                className={COMMAND_PALETTE.backdrop}
                 onPointerDown={onClose}
             />
-            <Section
-                padding="overlay"
-                className={COMMAND_PALETTE_CLASS.section}
-            >
+            <Section padding="overlay" className={COMMAND_PALETTE.section}>
                 <motion.div
                     {...PANEL_ANIMATION}
-                    className={COMMAND_PALETTE_CLASS.panel}
+                    className={COMMAND_PALETTE.panel}
                 >
                     <Command
                         value={query}
@@ -170,12 +165,19 @@ function CommandPaletteOverlay({
                     >
                         <Command.Input
                             placeholder={t("command_palette.placeholder")}
-                            className={COMMAND_PALETTE_CLASS.input}
+                            className={COMMAND_PALETTE.input}
                         />
-                        <Command.List className={COMMAND_PALETTE_CLASS.list}>
+                        <Command.List className={COMMAND_PALETTE.list}>
                             {groupedActions.map(({ group, entries }) => (
-                                <div key={group} className={COMMAND_PALETTE_CLASS.groupWrap}>
-                                    <div className={TEXT_ROLE_EXTENDED.commandSection}>
+                                <div
+                                    key={group}
+                                    className={COMMAND_PALETTE.groupWrap}
+                                >
+                                    <div
+                                        className={
+                                            TEXT_ROLE_EXTENDED.commandSection
+                                        }
+                                    >
                                         {group}
                                     </div>
                                     <Command.Group>
@@ -186,19 +188,29 @@ function CommandPaletteOverlay({
                                                 onSelect={() =>
                                                     void handleSelect(action)
                                                 }
-                                                className={COMMAND_PALETTE_CLASS.item}
+                                                className={COMMAND_PALETTE.item}
                                             >
-                                                <div className={COMMAND_PALETTE_CLASS.itemRow}>
+                                                <div
+                                                    className={
+                                                        COMMAND_PALETTE.itemRow
+                                                    }
+                                                >
                                                     <span>{action.title}</span>
                                                     {action.shortcut && (
-                                                        <div className={COMMAND_PALETTE_CLASS.shortcutWrap}>
+                                                        <div
+                                                            className={
+                                                                COMMAND_PALETTE.shortcutWrap
+                                                            }
+                                                        >
                                                             {action.shortcut.map(
                                                                 (key) => (
                                                                     <span
                                                                         key={
-                                                                        key
+                                                                            key
                                                                         }
-                                                                        className={COMMAND_PALETTE_CLASS.shortcutKey}
+                                                                        className={
+                                                                            COMMAND_PALETTE.shortcutKey
+                                                                        }
                                                                     >
                                                                         {key}
                                                                     </span>
@@ -208,7 +220,11 @@ function CommandPaletteOverlay({
                                                     )}
                                                 </div>
                                                 {action.description && (
-                                                    <p className={COMMAND_PALETTE_CLASS.description}>
+                                                    <p
+                                                        className={
+                                                            COMMAND_PALETTE.description
+                                                        }
+                                                    >
                                                         {action.description}
                                                     </p>
                                                 )}
@@ -217,16 +233,14 @@ function CommandPaletteOverlay({
                                     </Command.Group>
                                 </div>
                             ))}
-                            <Command.Empty
-                                className={COMMAND_PALETTE_CLASS.empty}
-                            >
+                            <Command.Empty className={COMMAND_PALETTE.empty}>
                                 {t("command_palette.empty")}
                             </Command.Empty>
                         </Command.List>
                         {outcomeMessage ? (
                             <div
                                 className={cn(
-                                    COMMAND_PALETTE_CLASS.outcome,
+                                    COMMAND_PALETTE.outcome,
                                     outcomeToneClass,
                                 )}
                             >

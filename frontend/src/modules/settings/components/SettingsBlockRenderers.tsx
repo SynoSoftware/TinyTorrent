@@ -14,15 +14,12 @@ import {
     type InputBlock,
     type SectionBlock,
 } from "@/modules/settings/data/settings-tabs";
-import {
-    ICON_STROKE_WIDTH,
-    VISUAL_STATE,
-} from "@/config/logic";
+import { ICON_STROKE_WIDTH, VISUAL_STATE } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import {
     buildSettingsBufferedInputClassNames,
-    FORM_UI_CLASS,
+    FORM,
 } from "@/shared/ui/layout/glass-surface";
 import {
     BufferedInput,
@@ -57,23 +54,20 @@ export function SwitchSliderRenderer({
     const sliderValue = Number.isFinite(rawValue) ? rawValue : block.slider.min;
 
     return (
-        <div className={FORM_UI_CLASS.blockStackTight}>
-            <div className={FORM_UI_CLASS.blockRowBetween}>
+        <div className={FORM.blockStackTight}>
+            <div className={FORM.blockRowBetween}>
                 <Switch
                     size="md"
                     isSelected={isSwitchOn}
                     color={block.color}
                     onValueChange={(val) => updateConfig(block.switchKey, val)}
                 >
-                    <span className={FORM_UI_CLASS.switchSliderLabel}>
+                    <span className={FORM.switchSliderLabel}>
                         {t(block.labelKey)}
                     </span>
                 </Switch>
                 <div
-                    className={cn(
-                        FORM_UI_CLASS.sliderValueText,
-                        FORM_UI_CLASS.sliderValueBadge
-                    )}
+                    className={cn(FORM.sliderValueText, FORM.sliderValueBadge)}
                     style={{ minWidth: "var(--tt-badge-min-width)" }}
                 >
                     {block.valueSuffixKey
@@ -90,8 +84,8 @@ export function SwitchSliderRenderer({
                 onChange={(val) => updateConfig(block.sliderKey, val as number)}
                 isDisabled={sliderDisabled}
                 color={block.color}
-                classNames={FORM_UI_CLASS.sliderClassNames}
-                className={FORM_UI_CLASS.slider}
+                classNames={FORM.sliderClassNames}
+                className={FORM.slider}
             />
         </div>
     );
@@ -111,18 +105,19 @@ export function SwitchRenderer({
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const blocklistUnsupported =
-        block.stateKey === "blocklist_enabled" && !capabilities.blocklistSupported;
+        block.stateKey === "blocklist_enabled" &&
+        !capabilities.blocklistSupported;
     const isDisabled =
         blocklistUnsupported ||
         baseDisabled ||
         (block.disabledWhenNotImmersive && !isImmersive);
 
     return (
-        <div className={FORM_UI_CLASS.switchBlock}>
-            <div className={FORM_UI_CLASS.switchRow}>
+        <div className={FORM.switchBlock}>
+            <div className={FORM.switchRow}>
                 <span
                     className={cn(
-                        FORM_UI_CLASS.switchLabel,
+                        FORM.switchLabel,
                         isDisabled && VISUAL_STATE.muted,
                     )}
                 >
@@ -149,12 +144,8 @@ export function SwitchRenderer({
 export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const { t } = useTranslation();
     const { config, updateConfig, setFieldDraft } = useSettingsFormState();
-    const {
-        capabilities,
-        buttonActions,
-        canBrowseDirectories,
-        onBrowse,
-    } = useSettingsFormActions();
+    const { capabilities, buttonActions, canBrowseDirectories, onBrowse } =
+        useSettingsFormActions();
 
     const dependsOn = block.dependsOn;
     const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
@@ -185,7 +176,8 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
 
     const isBrowseAction = sideAction?.type === "browse";
     const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
-    const sideActionDisabled = isDisabled || hideBrowseAction || blocklistUnsupported;
+    const sideActionDisabled =
+        isDisabled || hideBrowseAction || blocklistUnsupported;
 
     const handleSideAction = async () => {
         if (!sideAction) return;
@@ -257,7 +249,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 block.endIcon ? (
                     <block.endIcon
                         strokeWidth={ICON_STROKE_WIDTH}
-                        className={FORM_UI_CLASS.inputEndIcon}
+                        className={FORM.inputEndIcon}
                     />
                 ) : undefined
             }
@@ -273,7 +265,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
 
     if (!sideAction || hideBrowseAction) {
         return (
-            <div className={FORM_UI_CLASS.inputGroup}>
+            <div className={FORM.inputGroup}>
                 {inputNode}
                 {blocklistHelper}
             </div>
@@ -281,9 +273,9 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     }
 
     return (
-        <div className={FORM_UI_CLASS.inputActionGroup}>
-            <div className={FORM_UI_CLASS.inputActionRow}>
-                <div className={FORM_UI_CLASS.inputActionFill}>{inputNode}</div>
+        <div className={FORM.inputActionGroup}>
+            <div className={FORM.inputActionRow}>
+                <div className={FORM.inputActionFill}>{inputNode}</div>
                 <Button
                     size="md"
                     variant="shadow"
@@ -291,7 +283,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                     onPress={() => {
                         void handleSideAction();
                     }}
-                    className={FORM_UI_CLASS.inputActionButton}
+                    className={FORM.inputActionButton}
                     isDisabled={sideActionDisabled}
                 >
                     {t(sideAction.labelKey)}
@@ -309,7 +301,7 @@ export function InputPairRenderer({
 }) {
     const gridCols = block.inputs.length === 1 ? "grid-cols-1" : "grid-cols-2";
     return (
-        <div className={cn(FORM_UI_CLASS.inputPairGrid, gridCols)}>
+        <div className={cn(FORM.inputPairGrid, gridCols)}>
             {block.inputs.map((inputBlock, idx) => (
                 <SingleInputRenderer
                     key={inputBlock.stateKey || idx}
@@ -336,8 +328,8 @@ export function DaySelectorRenderer({
     };
 
     return (
-        <div className={FORM_UI_CLASS.blockStackTight}>
-            <div className={FORM_UI_CLASS.blockRowBetween}>
+        <div className={FORM.blockStackTight}>
+            <div className={FORM.blockRowBetween}>
                 <span
                     className={TEXT_ROLE.labelDense}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
@@ -345,7 +337,7 @@ export function DaySelectorRenderer({
                     {t(block.labelKey)}
                 </span>
             </div>
-            <div className={FORM_UI_CLASS.daySelectorList}>
+            <div className={FORM.daySelectorList}>
                 {ALT_SPEED_DAY_OPTIONS.map((day) => {
                     const isSelected = Boolean(selectedMask & day.mask);
                     return (
@@ -356,10 +348,10 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                FORM_UI_CLASS.daySelectorButton,
+                                FORM.daySelectorButton,
                                 isSelected
-                                    ? FORM_UI_CLASS.daySelectorSelected
-                                    : FORM_UI_CLASS.daySelectorUnselected
+                                    ? FORM.daySelectorSelected
+                                    : FORM.daySelectorUnselected,
                             )}
                             style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                         >
@@ -391,7 +383,7 @@ export function SelectRenderer({
                     ? [String(config[block.stateKey])]
                     : []
             }
-            classNames={FORM_UI_CLASS.selectClassNames}
+            classNames={FORM.selectClassNames}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
                 if (next) updateConfig(block.stateKey, next);
@@ -413,7 +405,7 @@ export function ButtonRowRenderer({
     const { buttonActions } = useSettingsFormActions();
 
     return (
-        <div className={FORM_UI_CLASS.buttonRow}>
+        <div className={FORM.buttonRow}>
             {block.buttons.map((btn) => (
                 <Button
                     key={btn.labelKey}
@@ -437,9 +429,9 @@ export function LanguageRenderer({
 }) {
     const { t } = useTranslation();
     return (
-        <div className={FORM_UI_CLASS.languageRow}>
+        <div className={FORM.languageRow}>
             <div>
-                <span className={FORM_UI_CLASS.interfaceRowTitle}>
+                <span className={FORM.interfaceRowTitle}>
                     {t(block.labelKey)}
                 </span>
                 {block.descriptionKey && (
@@ -475,14 +467,14 @@ export function RawConfigRenderer({
     };
 
     return (
-        <div className={FORM_UI_CLASS.blockStackTight}>
-            <div className={FORM_UI_CLASS.rawConfigHeader}>
+        <div className={FORM.blockStackTight}>
+            <div className={FORM.rawConfigHeader}>
                 <div>
-                    <span className={FORM_UI_CLASS.rawConfigTitle}>
+                    <span className={FORM.rawConfigTitle}>
                         {t(block.labelKey)}
                     </span>
                     {block.descriptionKey && (
-                        <p className={FORM_UI_CLASS.rawConfigDescription}>
+                        <p className={FORM.rawConfigDescription}>
                             {t(block.descriptionKey)}
                         </p>
                     )}
@@ -498,28 +490,25 @@ export function RawConfigRenderer({
                     {jsonCopyStatus === "copied"
                         ? t("settings.buttons.copy_config_copied")
                         : jsonCopyStatus === "failed"
-                        ? t("settings.buttons.copy_config_failed")
-                        : t("settings.buttons.copy_config")}
+                          ? t("settings.buttons.copy_config_failed")
+                          : t("settings.buttons.copy_config")}
                 </Button>
             </div>
-            <div className={FORM_UI_CLASS.rawConfigFeedback}>
+            <div className={FORM.rawConfigFeedback}>
                 {jsonCopyStatus === "copied" && (
-                    <p className={FORM_UI_CLASS.rawConfigStatusSuccess}>
+                    <p className={FORM.rawConfigStatusSuccess}>
                         {t("settings.modal.clipboard_success")}
                     </p>
                 )}
                 {jsonCopyStatus === "failed" && (
-                    <p className={FORM_UI_CLASS.rawConfigStatusDanger}>
+                    <p className={FORM.rawConfigStatusDanger}>
                         {t("settings.modal.clipboard_failed")}
                     </p>
                 )}
             </div>
-            <div className={FORM_UI_CLASS.rawConfigPanel}>
+            <div className={FORM.rawConfigPanel}>
                 <textarea
-                    className={cn(
-                        FORM_UI_CLASS.rawConfigCode,
-                        FORM_UI_CLASS.rawConfigTextarea,
-                    )}
+                    className={cn(FORM.rawConfigCode, FORM.rawConfigTextarea)}
                     rows={10}
                     value={configJson}
                     readOnly
@@ -531,7 +520,5 @@ export function RawConfigRenderer({
 }
 
 export function DividerRenderer() {
-    return <Divider className={FORM_UI_CLASS.divider} />;
+    return <Divider className={FORM.divider} />;
 }
-
-

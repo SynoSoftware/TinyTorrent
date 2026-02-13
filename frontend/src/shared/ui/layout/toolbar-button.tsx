@@ -11,6 +11,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { ICON_STROKE_WIDTH, TRANSITION } from "@/config/logic";
+import { SURFACE } from "@/shared/ui/layout/glass-surface";
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
@@ -72,7 +73,7 @@ export const ToolbarIconButton = forwardRef<
             return (
                 <Icon
                     strokeWidth={strokeWidth}
-                    className={cn("text-current", iconClass)}
+                    className={cn(SURFACE.atom.textCurrent, iconClass)}
                     style={{ width: sizeVar, height: sizeVar }}
                 />
             );
@@ -93,12 +94,18 @@ export const ToolbarIconButton = forwardRef<
                 height: sizeVar,
             };
             return cloneElement(element, {
-                className: cn(iconClass, "text-current", elProps.className),
+                className: cn(
+                    iconClass,
+                    SURFACE.atom.textCurrent,
+                    elProps.className,
+                ),
                 style: mergedStyle,
             });
         }
 
-        return <span className={cn(iconClass, "text-current")}>{node}</span>;
+        return (
+            <span className={cn(iconClass, SURFACE.atom.textCurrent)}>{node}</span>
+        );
     })();
 
     return (

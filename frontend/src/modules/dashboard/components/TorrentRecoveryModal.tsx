@@ -11,10 +11,7 @@ import { AlertTriangle, HardDrive, X } from "lucide-react";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
-import {
-    APP_MODAL_CLASS,
-    STANDARD_SURFACE_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { MODAL } from "@/shared/ui/layout/glass-surface";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 
 export interface RecoveryModalViewModel {
@@ -80,17 +77,19 @@ export default function TorrentRecoveryModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!viewModel.busy}
-            classNames={STANDARD_SURFACE_CLASS.modal.compactClassNames}
+            classNames={MODAL.compactClassNames}
         >
             <ModalContent>
                 {() => (
                     <>
-                        <ModalHeader
-                            className={APP_MODAL_CLASS.dialogHeader}
-                        >
-                            <div className={APP_MODAL_CLASS.dialogHeaderLead}>
-                                <div className={APP_MODAL_CLASS.dialogHeaderIconWrap}>
-                                    <AlertTriangle className={APP_MODAL_CLASS.dialogHeaderWarningIcon} />
+                        <ModalHeader className={MODAL.dialogHeader}>
+                            <div className={MODAL.dialogHeaderLead}>
+                                <div className={MODAL.dialogHeaderIconWrap}>
+                                    <AlertTriangle
+                                        className={
+                                            MODAL.dialogHeaderWarningIcon
+                                        }
+                                    />
                                 </div>
                                 <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
                                     {viewModel.title}
@@ -107,8 +106,8 @@ export default function TorrentRecoveryModal({
                             </Button>
                         </ModalHeader>
 
-                        <ModalBody className={APP_MODAL_CLASS.dialogBody}>
-                            <div className={APP_MODAL_CLASS.dialogSectionStack}>
+                        <ModalBody className={MODAL.dialogBody}>
+                            <div className={MODAL.dialogSectionStack}>
                                 <p className={TEXT_ROLE.bodyStrong}>
                                     {viewModel.statusText}
                                 </p>
@@ -116,10 +115,12 @@ export default function TorrentRecoveryModal({
                                     {viewModel.bodyText}
                                 </p>
                             </div>
-                            <div className={APP_MODAL_CLASS.dialogLocationRow}>
-                                <HardDrive className={APP_MODAL_CLASS.dialogLocationIcon} />
+                            <div className={MODAL.dialogLocationRow}>
+                                <HardDrive
+                                    className={MODAL.dialogLocationIcon}
+                                />
                                 <span
-                                    className={APP_MODAL_CLASS.dialogLocationLabel}
+                                    className={MODAL.dialogLocationLabel}
                                     title={viewModel.locationLabel}
                                 >
                                     {viewModel.locationLabel}
@@ -148,40 +149,51 @@ export default function TorrentRecoveryModal({
                                 </div>
                             )}
                             {viewModel.recoveryOutcomeMessage && (
-                                <div
-                                    className={APP_MODAL_CLASS.dialogOutcomePanel}
-                                >
+                                <div className={MODAL.dialogOutcomePanel}>
                                     {viewModel.recoveryOutcomeMessage}
                                 </div>
                             )}
                             {viewModel.inbox.visible && (
-                                <div className={APP_MODAL_CLASS.dialogInsetPanel}>
-                                    <div className={APP_MODAL_CLASS.dialogInsetStack}>
-                                        <p className={APP_MODAL_CLASS.dialogInsetTitle}>
+                                <div className={MODAL.dialogInsetPanel}>
+                                    <div className={MODAL.dialogInsetStack}>
+                                        <p className={MODAL.dialogInsetTitle}>
                                             {viewModel.inbox.title}
                                         </p>
                                         <p className={TEXT_ROLE.bodySmall}>
                                             {viewModel.inbox.subtitle}
                                         </p>
-                                        <div className={APP_MODAL_CLASS.dialogInsetStack}>
-                                            {viewModel.inbox.items.map((item) => (
-                                                <div
-                                                    key={item.id}
-                                                    className={APP_MODAL_CLASS.dialogInsetItem}
-                                                >
-                                                    <p className={APP_MODAL_CLASS.dialogInsetLabel}>
-                                                        {item.label}
-                                                    </p>
-                                                    <p className={APP_MODAL_CLASS.dialogInsetDescription}>
-                                                        {item.description}
-                                                    </p>
-                                                </div>
-                                            ))}
+                                        <div className={MODAL.dialogInsetStack}>
+                                            {viewModel.inbox.items.map(
+                                                (item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={
+                                                            MODAL.dialogInsetItem
+                                                        }
+                                                    >
+                                                        <p
+                                                            className={
+                                                                MODAL.dialogInsetLabel
+                                                            }
+                                                        >
+                                                            {item.label}
+                                                        </p>
+                                                        <p
+                                                            className={
+                                                                MODAL.dialogInsetDescription
+                                                            }
+                                                        >
+                                                            {item.description}
+                                                        </p>
+                                                    </div>
+                                                ),
+                                            )}
                                         </div>
                                         {viewModel.inbox.moreCount > 0 && (
                                             <p className={TEXT_ROLE.caption}>
                                                 {t("recovery.inbox.more", {
-                                                    count: viewModel.inbox.moreCount,
+                                                    count: viewModel.inbox
+                                                        .moreCount,
                                                 })}
                                             </p>
                                         )}
@@ -190,29 +202,27 @@ export default function TorrentRecoveryModal({
                             )}
                         </ModalBody>
 
-                        <ModalFooter
-                            className={APP_MODAL_CLASS.dialogFooter}
-                        >
-                            <div className={APP_MODAL_CLASS.dialogFooterGroup}>
+                        <ModalFooter className={MODAL.dialogFooter}>
+                            <div className={MODAL.dialogFooterGroup}>
                                 {viewModel.showRecreate && (
                                     <Button
                                         variant="light"
                                         size="md"
                                         onPress={viewModel.onRecreate}
                                         isDisabled={viewModel.busy}
-                                        className={APP_MODAL_CLASS.dialogSecondaryAction}
+                                        className={MODAL.dialogSecondaryAction}
                                     >
                                         {t("recovery.action_recreate")}
                                     </Button>
                                 )}
                             </div>
-                            <div className={APP_MODAL_CLASS.dialogFooterGroup}>
+                            <div className={MODAL.dialogFooterGroup}>
                                 <Button
                                     variant="light"
                                     size="md"
                                     onPress={viewModel.onClose}
                                     isDisabled={viewModel.busy}
-                                    className={APP_MODAL_CLASS.dialogSecondaryAction}
+                                    className={MODAL.dialogSecondaryAction}
                                 >
                                     {viewModel.cancelLabel}
                                 </Button>
@@ -224,7 +234,7 @@ export default function TorrentRecoveryModal({
                                     isDisabled={
                                         viewModel.primaryAction.isDisabled
                                     }
-                                    className={APP_MODAL_CLASS.dialogPrimaryAction}
+                                    className={MODAL.dialogPrimaryAction}
                                 >
                                     {viewModel.primaryAction.label}
                                 </Button>

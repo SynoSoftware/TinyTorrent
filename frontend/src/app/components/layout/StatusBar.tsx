@@ -28,10 +28,8 @@ import {
     STATUS_VISUAL_KEYS,
     STATUS_VISUALS,
 } from "@/config/logic";
-import { STATUS } from "@/shared/status";
-import {
-    APP_STATUS_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { STATUS as APP_STATUS } from "@/shared/status";
+import { STATUS_BAR } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 import type { NetworkTelemetry } from "@/services/rpc/entities";
@@ -48,14 +46,14 @@ const DISK_LABELS: Record<string, string> = {
 };
 
 const TRANSPORT_LABELS: Record<TransportStatus, string> = {
-    [STATUS.connection.POLLING]: "status_bar.transport_polling",
-    [STATUS.connection.OFFLINE]: "status_bar.transport_offline",
+    [APP_STATUS.connection.POLLING]: "status_bar.transport_polling",
+    [APP_STATUS.connection.OFFLINE]: "status_bar.transport_offline",
 };
 
 const RPC_STATUS_LABEL: Record<string, string> = {
-    [STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
-    [STATUS.connection.IDLE]: "status_bar.rpc_idle",
-    [STATUS.connection.ERROR]: "status_bar.rpc_error",
+    [APP_STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
+    [APP_STATUS.connection.IDLE]: "status_bar.rpc_idle",
+    [APP_STATUS.connection.ERROR]: "status_bar.rpc_error",
 };
 
 /* ------------------------------------------------------------------ */
@@ -63,8 +61,8 @@ const RPC_STATUS_LABEL: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 
 type TransportStatus =
-    | typeof STATUS.connection.POLLING
-    | typeof STATUS.connection.OFFLINE;
+    | typeof APP_STATUS.connection.POLLING
+    | typeof APP_STATUS.connection.OFFLINE;
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
 interface StatusBarProps {
@@ -97,30 +95,23 @@ function StatGroup({
     return (
         <div
             className={cn(
-                APP_STATUS_CLASS.statGroup,
+                STATUS_BAR.statGroup,
                 align === "end"
-                    ? APP_STATUS_CLASS.statGroupEnd
-                    : APP_STATUS_CLASS.statGroupStart,
-                className
+                    ? STATUS_BAR.statGroupEnd
+                    : STATUS_BAR.statGroupStart,
+                className,
             )}
         >
-            <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>
-                {label}
-            </span>
-            <div className={APP_STATUS_CLASS.statValueRow}>
-                <span
-                    className={cn(
-                        APP_STATUS_CLASS.statValueText,
-                    )}
-                    title={value}
-                >
+            <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>{label}</span>
+            <div className={STATUS_BAR.statValueRow}>
+                <span className={cn(STATUS_BAR.statValueText)} title={value}>
                     {value}
                 </span>
                 {Icon && (
                     <StatusIcon
                         Icon={Icon}
                         size="md"
-                        className={APP_STATUS_CLASS.statIcon}
+                        className={STATUS_BAR.statIcon}
                     />
                 )}
             </div>
@@ -139,11 +130,11 @@ function TelemetryIcon({
 }) {
     const toneKey =
         tone === "ok"
-            ? STATUS.connection.CONNECTED
+            ? APP_STATUS.connection.CONNECTED
             : tone === "warn"
               ? STATUS_VISUAL_KEYS.tone.WARNING
               : tone === "bad"
-                ? STATUS.connection.ERROR
+                ? APP_STATUS.connection.ERROR
                 : STATUS_VISUAL_KEYS.tone.MUTED;
     const toneClass =
         STATUS_VISUALS[toneKey]?.text ??
@@ -152,10 +143,14 @@ function TelemetryIcon({
 
     return (
         <span
-            className={cn(APP_STATUS_CLASS.telemetryIconWrap, toneClass)}
+            className={cn(STATUS_BAR.telemetryIconWrap, toneClass)}
             title={title}
         >
-            <StatusIcon Icon={Icon} size="md" className={APP_STATUS_CLASS.iconCurrent} />
+            <StatusIcon
+                Icon={Icon}
+                size="md"
+                className={STATUS_BAR.iconCurrent}
+            />
         </span>
     );
 }
@@ -191,40 +186,40 @@ function SpeedModule({
 
     return (
         <>
-            <div
-                className={APP_STATUS_CLASS.speedModule}
-            >
-                <div className={APP_STATUS_CLASS.speedModuleGraphWrap}>
+            <div className={STATUS_BAR.speedModule}>
+                <div className={STATUS_BAR.speedModuleGraphWrap}>
                     <div
-                        className={APP_STATUS_CLASS.speedModuleGraph}
+                        className={STATUS_BAR.speedModuleGraph}
                         style={{ minWidth: UI_BASES.statusbar.min100 }}
                     >
                         <NetworkGraph
                             data={history}
                             color={tone}
-                            className={APP_STATUS_CLASS.speedModuleGraphCanvas}
+                            className={STATUS_BAR.speedModuleGraphCanvas}
                         />
-                        <div className={APP_STATUS_CLASS.speedModuleOverlay}>
-                            <div className={APP_STATUS_CLASS.speedModuleOverlayRow}>
+                        <div className={STATUS_BAR.speedModuleOverlay}>
+                            <div className={STATUS_BAR.speedModuleOverlayRow}>
                                 <div
                                     className={cn(
-                                        APP_STATUS_CLASS.speedModuleIconWrap,
-                                        iconToneClass
+                                        STATUS_BAR.speedModuleIconWrap,
+                                        iconToneClass,
                                     )}
                                 >
                                     <StatusIcon
                                         Icon={Icon}
                                         size="xl"
-                                        className={APP_STATUS_CLASS.iconCurrent}
+                                        className={STATUS_BAR.iconCurrent}
                                     />
                                 </div>
-                                <div className={APP_STATUS_CLASS.speedModuleTextWrap}>
+                                <div className={STATUS_BAR.speedModuleTextWrap}>
                                     <span
-                                        className={APP_STATUS_CLASS.speedModuleLabel}
+                                        className={STATUS_BAR.speedModuleLabel}
                                     >
                                         {t(labelKey)}
                                     </span>
-                                    <span className={APP_STATUS_CLASS.speedModuleValue}>
+                                    <span
+                                        className={STATUS_BAR.speedModuleValue}
+                                    >
                                         {formatSpeed(value)}
                                     </span>
                                 </div>
@@ -235,7 +230,7 @@ function SpeedModule({
             </div>
             {separator && (
                 <div
-                    className={APP_STATUS_CLASS.speedSeparator}
+                    className={STATUS_BAR.speedSeparator}
                     style={{ height: "var(--tt-sep-h)" }}
                 />
             )}
@@ -264,22 +259,22 @@ function StatusTelemetryGrid({
 
     // ENGINE (combined: state + transport)
     const engineIcon =
-        rpcStatus === STATUS.connection.ERROR
+        rpcStatus === APP_STATUS.connection.ERROR
             ? AlertCircle
-            : transportStatus === STATUS.connection.POLLING
-            ? ArrowUpDown
-            : Activity;
+            : transportStatus === APP_STATUS.connection.POLLING
+              ? ArrowUpDown
+              : Activity;
 
     const engineTone =
-        rpcStatus === STATUS.connection.ERROR
+        rpcStatus === APP_STATUS.connection.ERROR
             ? "bad"
-            : rpcStatus === STATUS.connection.IDLE
-            ? "warn"
-            : transportStatus === STATUS.connection.POLLING
-            ? "warn"
-            : rpcStatus === STATUS.connection.CONNECTED
-            ? "ok"
-            : "bad";
+            : rpcStatus === APP_STATUS.connection.IDLE
+              ? "warn"
+              : transportStatus === APP_STATUS.connection.POLLING
+                ? "warn"
+                : rpcStatus === APP_STATUS.connection.CONNECTED
+                  ? "ok"
+                  : "bad";
 
     // NETWORK
     const discoveryEnabled =
@@ -289,17 +284,17 @@ function StatusTelemetryGrid({
     // If we're not connected, render discovery as muted to avoid showing
     // stale/passive telemetry while disconnected.
     const discoveryTone =
-        rpcStatus !== STATUS.connection.CONNECTED
+        rpcStatus !== APP_STATUS.connection.CONNECTED
             ? "muted"
             : telemetry == null
-            ? "muted"
-            : discoveryEnabled
-            ? "ok"
-            : "warn";
+              ? "muted"
+              : discoveryEnabled
+                ? "ok"
+                : "warn";
 
     return (
         <div
-            className={APP_STATUS_CLASS.telemetryGrid}
+            className={STATUS_BAR.telemetryGrid}
             style={{
                 gridTemplateColumns: "repeat(2, auto)",
                 gridTemplateRows: "repeat(2, auto)",
@@ -313,11 +308,11 @@ function StatusTelemetryGrid({
                 title={t("status_bar.engine_telemetry_tooltip", {
                     transport: t(
                         TRANSPORT_LABELS[transportStatus] ??
-                            `status_bar.transport_${transportStatus}`
+                            `status_bar.transport_${transportStatus}`,
                     ),
                     status: t(
                         RPC_STATUS_LABEL[rpcStatus] ??
-                            `status_bar.rpc_${rpcStatus}`
+                            `status_bar.rpc_${rpcStatus}`,
                     ),
                 })}
             />
@@ -328,22 +323,22 @@ function StatusTelemetryGrid({
                     diskState === "ok"
                         ? "ok"
                         : diskState === "warn"
-                        ? "warn"
-                        : diskState === "bad"
-                        ? "bad"
-                        : "muted"
+                          ? "warn"
+                          : diskState === "bad"
+                            ? "bad"
+                            : "muted"
                 }
                 title={
                     freeBytes != null
                         ? `${t(
                               DISK_LABELS[diskState] ??
-                                  `status_bar.disk_${diskState}`
+                                  `status_bar.disk_${diskState}`,
                           )}\n\n${t("status_bar.disk_free", {
                               size: formatBytes(freeBytes),
                           })}`
                         : t(
                               DISK_LABELS[diskState] ??
-                                  `status_bar.disk_${diskState}`
+                                  `status_bar.disk_${diskState}`,
                           )
                 }
             />
@@ -394,21 +389,29 @@ function EngineControlChip({
     // connected visual when possible so the HUD remains informative.
     const statusVisual =
         STATUS_VISUALS[rpcStatus] ??
-        STATUS_VISUALS[STATUS.connection.CONNECTED] ??
+        STATUS_VISUALS[APP_STATUS.connection.CONNECTED] ??
         Object.values(STATUS_VISUALS)[0];
     const EngineIcon = uiMode === "Full" ? TinyTorrentIcon : TransmissionIcon;
 
     const renderEngineLogo = () => {
-        if (rpcStatus === STATUS.connection.IDLE) {
+        if (rpcStatus === APP_STATUS.connection.IDLE) {
             return (
-                <StatusIcon Icon={RefreshCw} size="lg" className={APP_STATUS_CLASS.iconMuted} />
+                <StatusIcon
+                    Icon={RefreshCw}
+                    size="lg"
+                    className={STATUS_BAR.iconMuted}
+                />
             );
         }
-        if (rpcStatus === STATUS.connection.ERROR) {
+        if (rpcStatus === APP_STATUS.connection.ERROR) {
             return <StatusIcon Icon={AlertCircle} size="lg" />;
         }
         return (
-            <StatusIcon Icon={EngineIcon} size="lg" className={APP_STATUS_CLASS.iconCurrent} />
+            <StatusIcon
+                Icon={EngineIcon}
+                size="lg"
+                className={STATUS_BAR.iconCurrent}
+            />
         );
     };
 
@@ -421,11 +424,11 @@ function EngineControlChip({
                 }
             }}
             className={cn(
-                APP_STATUS_CLASS.engineButton,
+                STATUS_BAR.engineButton,
                 statusVisual.bg,
                 statusVisual.border,
                 statusVisual.text,
-                statusVisual.shadow
+                statusVisual.shadow,
             )}
             title={tooltip}
             style={{
@@ -435,12 +438,12 @@ function EngineControlChip({
         >
             {renderEngineLogo()}
 
-            {rpcStatus === STATUS.connection.CONNECTED && (
-                <span className={APP_STATUS_CLASS.engineConnectedWrap}>
+            {rpcStatus === APP_STATUS.connection.CONNECTED && (
+                <span className={STATUS_BAR.engineConnectedWrap}>
                     <motion.span
                         className={cn(
-                            APP_STATUS_CLASS.engineConnectedPulse,
-                            statusVisual.glow
+                            STATUS_BAR.engineConnectedPulse,
+                            statusVisual.glow,
                         )}
                         style={{
                             width: "var(--tt-dot-size)",
@@ -456,7 +459,7 @@ function EngineControlChip({
                         }}
                     />
                     <span
-                        className={APP_STATUS_CLASS.engineConnectedDot}
+                        className={STATUS_BAR.engineConnectedDot}
                         style={{
                             width: "var(--tt-dot-size)",
                             height: "var(--tt-dot-size)",
@@ -521,7 +524,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     // Determine a localized server type label for the control tooltip.
     const modeLabel =
-        rpcStatus === STATUS.connection.CONNECTED
+        rpcStatus === APP_STATUS.connection.CONNECTED
             ? uiMode === "Full"
                 ? t("settings.connection.ui_mode_full_label")
                 : t("settings.connection.ui_mode_rpc_label")
@@ -542,16 +545,13 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     return (
         <footer
-            className={cn(
-                APP_STATUS_CLASS.footer,
-                APP_STATUS_CLASS.workbenchSurface,
-            )}
+            className={cn(STATUS_BAR.footer, STATUS_BAR.workbenchSurface)}
             style={{
                 ...shell.outerStyle,
             }}
         >
             <div
-                className={APP_STATUS_CLASS.main}
+                className={STATUS_BAR.main}
                 style={{
                     ...shell.surfaceStyle,
                     height: "var(--tt-statusbar-h)",
@@ -561,12 +561,12 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                     label={torrentStatLabel}
                     value={torrentStatValue}
                     Icon={isSelection ? Files : Activity}
-                    className={APP_STATUS_CLASS.statGroupDesktop}
+                    className={STATUS_BAR.statGroupDesktop}
                     align="end"
                 />
 
                 {/* LEFT: SPEEDS - full (shown at sm+) */}
-                <div className={APP_STATUS_CLASS.speedFull}>
+                <div className={STATUS_BAR.speedFull}>
                     <SpeedModule
                         labelKey="status_bar.down"
                         value={downSpeed}
@@ -585,49 +585,59 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                 </div>
 
                 {/* LEFT: SPEEDS - compact (xs) */}
-                <div className={APP_STATUS_CLASS.speedCompact}>
-                    <div className={APP_STATUS_CLASS.speedCompactGraphWrap}>
-                        <div className={APP_STATUS_CLASS.speedCompactLayer}>
-                            <div className={APP_STATUS_CLASS.speedCompactLayer}>
+                <div className={STATUS_BAR.speedCompact}>
+                    <div className={STATUS_BAR.speedCompactGraphWrap}>
+                        <div className={STATUS_BAR.speedCompactLayer}>
+                            <div className={STATUS_BAR.speedCompactLayer}>
                                 <NetworkGraph
                                     data={downloadHistory}
                                     color="success"
-                                    className={APP_STATUS_CLASS.speedCompactDownGraph}
+                                    className={STATUS_BAR.speedCompactDownGraph}
                                 />
                             </div>
-                            <div className={APP_STATUS_CLASS.speedCompactUpLayer}>
+                            <div className={STATUS_BAR.speedCompactUpLayer}>
                                 <NetworkGraph
                                     data={uploadHistory}
                                     color="primary"
-                                    className={APP_STATUS_CLASS.speedCompactUpGraph}
+                                    className={STATUS_BAR.speedCompactUpGraph}
                                 />
                             </div>
                         </div>
 
-                        <div className={APP_STATUS_CLASS.speedCompactOverlay}>
-                            <div className={APP_STATUS_CLASS.speedCompactOverlayRow}>
-                                <div className={APP_STATUS_CLASS.speedCompactColumn}>
+                        <div className={STATUS_BAR.speedCompactOverlay}>
+                            <div className={STATUS_BAR.speedCompactOverlayRow}>
+                                <div className={STATUS_BAR.speedCompactColumn}>
                                     <ArrowDown
-                                        className={APP_STATUS_CLASS.speedCompactDownIcon}
+                                        className={
+                                            STATUS_BAR.speedCompactDownIcon
+                                        }
                                         aria-hidden="true"
                                     />
-                                    <span className={APP_STATUS_CLASS.srOnly}>
+                                    <span className={STATUS_BAR.srOnly}>
                                         {t("status_bar.down")}
                                     </span>
-                                    <span className={APP_STATUS_CLASS.speedCompactValue}>
+                                    <span
+                                        className={STATUS_BAR.speedCompactValue}
+                                    >
                                         {formatSpeed(downSpeed)}
                                     </span>
                                 </div>
-                                <div className={APP_STATUS_CLASS.speedCompactDivider} />
-                                <div className={APP_STATUS_CLASS.speedCompactColumn}>
+                                <div
+                                    className={STATUS_BAR.speedCompactDivider}
+                                />
+                                <div className={STATUS_BAR.speedCompactColumn}>
                                     <ArrowUp
-                                        className={APP_STATUS_CLASS.speedCompactUpIcon}
+                                        className={
+                                            STATUS_BAR.speedCompactUpIcon
+                                        }
                                         aria-hidden="true"
                                     />
-                                    <span className={APP_STATUS_CLASS.srOnly}>
+                                    <span className={STATUS_BAR.srOnly}>
                                         {t("status_bar.up")}
                                     </span>
-                                    <span className={APP_STATUS_CLASS.speedCompactValue}>
+                                    <span
+                                        className={STATUS_BAR.speedCompactValue}
+                                    >
                                         {formatSpeed(upSpeed)}
                                     </span>
                                 </div>
@@ -638,7 +648,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
                 {/* RIGHT: HUD */}
                 <div
-                    className={APP_STATUS_CLASS.right}
+                    className={STATUS_BAR.right}
                     style={{
                         height: "var(--tt-statusbar-h)",
                     }}
@@ -662,4 +672,3 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         </footer>
     );
 }
-

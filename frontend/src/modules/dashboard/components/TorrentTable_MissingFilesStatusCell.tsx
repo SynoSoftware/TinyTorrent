@@ -14,7 +14,7 @@ import {
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import {
     buildMissingFilesStatusTriggerClass,
-    FORM_CONTROL_CLASS,
+    FORM_CONTROL,
 } from "@/shared/ui/layout/glass-surface";
 
 type MissingFilesStatusCellProps = {
@@ -49,16 +49,16 @@ export function TorrentTable_MissingFilesStatusCell({
 
     if (!classification) {
         return (
-            <div className={FORM_CONTROL_CLASS.statusChipContainer}>
+            <div className={FORM_CONTROL.statusChipContainer}>
                 <Chip
                     size="md"
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={FORM_CONTROL_CLASS.statusChipClassNames}
+                    classNames={FORM_CONTROL.statusChipClassNames}
                 >
-                    <div className={FORM_CONTROL_CLASS.statusChipContent}>
-                        <AlertTriangle className={FORM_CONTROL_CLASS.statusChipWarningIcon} />
+                    <div className={FORM_CONTROL.statusChipContent}>
+                        <AlertTriangle className={FORM_CONTROL.statusChipWarningIcon} />
                         <span>{t("recovery.generic_header")}</span>
                     </div>
                 </Chip>
@@ -80,14 +80,17 @@ export function TorrentTable_MissingFilesStatusCell({
 
     const handleOpenRecovery = () => {
         const outcome = openRecoveryModal(torrent);
-        if (outcome.status === "requested" || outcome.status === "already_open") {
+        if (
+            outcome.status === "requested" ||
+            outcome.status === "already_open"
+        ) {
             return;
         }
         showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
     };
 
     return (
-        <div className={FORM_CONTROL_CLASS.statusChipContainer}>
+        <div className={FORM_CONTROL.statusChipContainer}>
             <button
                 type="button"
                 onClick={handleOpenRecovery}
@@ -101,11 +104,13 @@ export function TorrentTable_MissingFilesStatusCell({
                     variant="flat"
                     color="warning"
                     style={STATUS_CHIP_STYLE}
-                    classNames={FORM_CONTROL_CLASS.statusChipClassNames}
+                    classNames={FORM_CONTROL.statusChipClassNames}
                 >
-                    <div className={FORM_CONTROL_CLASS.statusChipContent}>
-                        <AlertTriangle className={FORM_CONTROL_CLASS.statusChipWarningIcon} />
-                        <span className={FORM_CONTROL_CLASS.statusChipLabel}>{statusText}</span>
+                    <div className={FORM_CONTROL.statusChipContent}>
+                        <AlertTriangle className={FORM_CONTROL.statusChipWarningIcon} />
+                        <span className={FORM_CONTROL.statusChipLabel}>
+                            {statusText}
+                        </span>
                     </div>
                 </Chip>
             </button>
