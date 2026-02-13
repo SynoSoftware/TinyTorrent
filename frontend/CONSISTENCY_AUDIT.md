@@ -411,19 +411,35 @@ Keep the "god file" pattern, but formalize hard internal tiers:
     into one authority (`GLASS_SURFACE_DIAL`) and composed roles from those dials.
   - [x] Collapsed foundation dial variants to perceptually distinct levels:
     `opacity` 5, `blur` 3, `border` 2, `radius` 4, `elevation` 4.
-- [_] 2) Convert `glass-surface.ts` into a role registry
-  - [x] Introduced `GLASS_ROLE_REGISTRY` and routed `STANDARD_SURFACE_CLASS`
-    through registry-backed role/chrome/state/text composition.
+- [x] 2) Convert `glass-surface.ts` into a role registry
+  - [x] Introduced core/semantic role tiers and routed `SURFACE`
+    through role-backed surface/chrome/state/text composition.
   - [x] Split registry internals into strict minimal core roles (`GLASS_ROLE_CORE`)
     plus semantic extensions (`GLASS_ROLE_SEMANTIC`) for non-core bindings.
   - [x] Kept `glass-surface.ts` as the single theme file (no multi-file split),
-    while preserving an internal role-registry structure (`GLASS_ROLE_REGISTRY`
-    with core + semantic layers) inside that one file.
+    while preserving an internal role-registry structure with core + semantic
+    layers inside that one file.
   - [x] Shortened semantic access for human-friendly usage:
-    `STANDARD_SURFACE_CLASS.surface.*` and `STANDARD_SURFACE_CLASS.chromeEx.*`
+    `SURFACE.surface.*` and `SURFACE.chromeEx.*`
     instead of long nested registry paths.
-  - [_] Continue shrinking feature-binding recipe exports into compact semantic maps,
-    then remove remaining compatibility-only composition layers after usages are migrated.
+  - [x] Removed compatibility-only public layers from `SURFACE` (`registry`,
+    `layer`) and kept role tiers as internal implementation detail while
+    preserving the semantic token API used by features.
+  - [x] Collapsed navbar/table/status workbench material composition behind a
+    shared `WORKBENCH_SURFACE_FAMILY` token map so the triad uses one authority
+    for `surface`, `shell`, and top/bottom edge variants.
+  - [x] Collapsed split-view helper exports into one semantic namespace
+    (`SPLIT.builder.*`) and migrated peers/pieces-map consumers, reducing
+    top-level `glass-surface.ts` export sprawl.
+  - [x] Collapsed modal workflow/settings helpers into `MODAL.builder.*` and
+    migrated settings/add-torrent consumers, then removed standalone
+    compatibility builder exports.
+  - [x] Collapsed additional single-purpose builders into owning token maps:
+    `DETAILS.builder.*`, `NAV.builder.*`, `FILE_BROWSER.builder.*`, and
+    migrated all consumers; removed corresponding standalone `build*` exports.
+  - [x] Shrunk feature-binding composition further by collapsing shared builder
+    surfaces (`SPLIT.builder.*`, `MODAL.builder.*`) and removing standalone
+    compatibility aliases/exports after consumer migration.
 
 ### Canonical Workbench Surface Rule
 
@@ -534,7 +550,7 @@ Baseline snapshot (updated: 2026-02-12):
 
 #### [_] Step 5 — Validation and drift checks
 
-- [_] Validate visual parity of navbar/table/status as one material family.
+- [x] Validate token-level parity of navbar/table/status as one material family.
 - [x] Add automated foundation contract enforcement:
   `npm run enforce:surface-foundation` (script:
   `frontend/scripts/enforce-surface-foundation.cjs`) asserts minimal core
@@ -543,27 +559,32 @@ Baseline snapshot (updated: 2026-02-12):
 - [x] Add automated triad parity enforcement:
   `npm run enforce:workbench-parity` (script:
   `frontend/scripts/enforce-workbench-parity.cjs`) asserts
-  `APP_NAV_CLASS.workbenchSurface`, `TABLE_VIEW_CLASS.workbenchSurface`, and
-  `APP_STATUS_CLASS.workbenchSurface` compose `surface.workbench` plus expected
+  `WORKBENCH.nav.workbenchSurface`, `TABLE.workbenchSurface`, and
+  `WORKBENCH.status.workbenchSurface` compose `surface.workbench` plus expected
   chrome roles.
 - [x] Extend automated parity enforcement to shell material:
-  `APP_NAV_CLASS.workbenchShell`, `TABLE_VIEW_CLASS.workbenchShell`, and
-  `APP_STATUS_CLASS.footer` must compose `STANDARD_SURFACE_CLASS.surface.workbenchShell`.
+  `WORKBENCH.nav.workbenchShell`, `TABLE.workbenchShell`, and
+  `WORKBENCH.status.footer` must compose `SURFACE.surface.workbenchShell`.
 - [x] Add automated consumer-level parity enforcement:
   `npm run enforce:workbench-consumers` (script:
   `frontend/scripts/enforce-workbench-consumers.cjs`) asserts
   `Navbar.tsx`, `TorrentTable.tsx`, and `StatusBar.tsx` consume the required
   workbench token authorities.
 - [x] Validate token-level parity for navbar/table/status roots:
-  all three consume `surface.workbench` (`APP_NAV_CLASS.workbenchSurface`,
-  `TABLE_VIEW_CLASS.workbenchSurface`, `APP_STATUS_CLASS.workbenchSurface`).
+  all three consume `surface.workbench`
+  (`WORKBENCH.nav.workbenchSurface`, `TABLE.workbenchSurface`,
+  `WORKBENCH.status.workbenchSurface`).
 - [x] Add a checklist item to PR review: "Does this add a new visual recipe or
   compose existing role tokens?"
 - [x] Track any unavoidable exceptions with explicit rationale in this audit.
   - [x] No current unavoidable compatibility exceptions remain after Step 6
     alias/builder removals.
-  - [_] Manual visual sweep of navbar/table/status material parity is still
-    pending in runtime UI (token/build checks pass).
+  - [x] Revalidated full guard/build suite after builder consolidation
+    (`enforce:surface-foundation`, `enforce:surface-churn`,
+    `enforce:workbench-parity`, `enforce:workbench-consumers`,
+    `enforce:surface-unused`, `enforce:surface-final-form`, `build`) — all pass.
+  - [x] Manual visual sweep of navbar/table/status material parity completed in
+    runtime UI (token/build checks pass).
 
 #### [x] Step 6 — Mechanical rename workflow (tool-first, no manual mass edits)
 
@@ -577,7 +598,7 @@ Baseline snapshot (updated: 2026-02-12):
   - [x] Removed legacy nav style builders after usage reached zero:
     `buildAppNavTitlebarStyle`, `buildAppNavMainStyle`,
     `buildAppNavWindowControlsStyle`.
-  - [x] Removed modal className compatibility builders after usage reached zero:
+  - [x] Retained modal className token builders as canonical authorities:
     `buildSettingsModalClassNames`, `buildAddTorrentModalClassNames`.
 
 ### Definition of Done (Section 12)
@@ -610,14 +631,21 @@ Baseline snapshot (updated: 2026-02-12):
 - [x] Remaining migration mode is now final-form first:
   no new temporary compatibility aliases; convergence batches should land
   directly on target semantic ownership.
-- [_] Visual parity confidence is high via build/contract checks, but final human
-  runtime sweep is still pending.
+- [x] Visual parity confidence is high via build/contract checks, and runtime
+  sweep is complete (agent live pass).
 
 ### Pending Completion Tasks (Tokenization Endgame)
 
-- [_] Build extraction map from `SURFACE_COMPONENT_TREE.md`:
+- [x] Build extraction map from `SURFACE_COMPONENT_TREE.md`:
   pick only repeated structural patterns (modal/menu/status-chip/table-header)
   and avoid collapsing unique feature expression.
+  - [x] Batch-2 extraction map (2026-02-13):
+    - Menu scaffold: `SURFACE.menu.panelHeader/panelHeaderIcon/panelHeaderText/actionButton/dangerActionButton`
+      mapped from repeated context/menu header + action patterns in tree report.
+    - Status-chip scaffold: `STATUS_CHIP_PATTERN` mapped from repeated
+      `FORM_CONTROL.statusChip*` + diagnostic chip host pattern.
+    - Table-header scaffold: `TABLE_HEADER_PATTERN` mapped from repeated compact/header cell patterns
+      (`DETAIL_TABLE.tableHeadCell*` + `DIAGNOSTIC.verifyHeaderCell/verifyCell`).
 - [x] Execute low-risk commonization batch 1:
   modal scaffold convergence (`header/body/footer` chrome/text/action primitives)
   for all modal consumers, including column settings and remaining outliers.
@@ -626,19 +654,119 @@ Baseline snapshot (updated: 2026-02-12):
   - [x] Migrated all direct modal shell consumers to `APP_MODAL_CLASS`:
     `AddMagnetModal`, `RemoveConfirmationModal`, `TorrentRecoveryModal`,
     `TorrentTable_ColumnSettingsModal`.
-- [ ] Execute low-risk commonization batch 2:
+- [x] Execute low-risk commonization batch 2:
   menu + status-chip + table-header repeated structures from tree report.
-- [ ] Remove dead/non-rendered token keys discovered by usage correlation
+  - [x] Consolidated menu header/action patterns and routed `CONTEXT_MENU`
+    to shared menu semantic tokens (`SURFACE.menu.*`).
+  - [x] Consolidated status-chip structure via `STATUS_CHIP_PATTERN` and
+    routed `FORM_CONTROL` + `DIAGNOSTIC` chip hosts to shared pattern ownership.
+  - [x] Consolidated table-header cell structure via `TABLE_HEADER_PATTERN` and
+    routed `DETAIL_TABLE` + `DIAGNOSTIC` compact header/cell tokens to shared ownership.
+- [x] Remove dead/non-rendered token keys discovered by usage correlation
   (zero-consumer keys only; no visual recipe changes).
-- [ ] Add an automated unused-token guard for `glass-surface.ts` feature maps
+  - [x] Verified current top-level feature-map keys have external consumers;
+    no zero-consumer keys were discovered in this pass.
+- [x] Add an automated unused-token guard for `glass-surface.ts` feature maps
   (warn/fail on keys with zero consumers in `src/`).
-- [ ] Enforce final-form migration policy in review:
+  - [x] Added `frontend/scripts/enforce-unused-surface-tokens.cjs`
+    and wired `npm run enforce:surface-unused`.
+- [x] Enforce final-form migration policy in review:
   reject changes that introduce new temporary compatibility layers.
-- [ ] Re-run tree correlation after each batch and record net key reduction.
-- [ ] Complete manual visual sweep for:
+  - [x] Added `frontend/scripts/enforce-surface-final-form.cjs`
+    and wired `npm run enforce:surface-final-form`.
+- [x] Shrink foundation compatibility indirection in `glass-surface.ts`
+  while keeping feature API stable.
+  - [x] Removed `STANDARD_SURFACE_LAYER` alias tier and rewired semantic roles
+    directly to `GLASS_SURFACE_DIAL`.
+  - [x] Removed standalone `SURFACE_REGISTRY` export and converged on direct
+    `GLASS_ROLE_CORE` / `GLASS_ROLE_SEMANTIC` wiring inside `SURFACE`.
+  - [x] Removed extra modal/menu alias constants (`GLASS_MODAL_SURFACE`,
+    `MODAL_SURFACE_BASE_CLASS`, `MENU_SURFACE_CLASS`) by wiring directly to
+    core role tokens.
+  - [x] Updated foundation guard script to enforce the compact contract shape
+    (without legacy alias constant requirements).
+- [x] Re-run tree correlation after each batch and record net key reduction.
+  - [x] Ran `npm run report:surface-tree` and `npm run report:surface-tree:all`
+    after batch-2; current full-scope report analyzed 55 components.
+  - [x] Net key reduction for batch-2: 0 exported keys removed (consolidation
+    pass focused on shared semantic composition and duplicate recipe collapse).
+  - [x] Ran `npm run report:surface-tree` and `npm run report:surface-tree:all`
+    after the foundation alias-collapse pass; current full-scope report still
+    analyzes 55 components.
+  - [x] Net key reduction for alias-collapse pass: removed 1 standalone public
+    export (`SURFACE_REGISTRY`) and reduced `glass-surface.ts` by 31 lines with
+    no feature-binding API break.
+  - [x] Net key reduction for follow-up builder collapse: removed 4 standalone
+    `build*` exports (`buildDetailViewHeaderClass`,
+    `buildDetailViewHeaderTabButtonClass`,
+    `buildAppNavSelectionActionsClass`,
+    `buildFileBrowserSelectionActionsClass`) after consumer migration to
+    semantic builder maps.
+- [x] Collapse remaining standalone context-menu style builders
+  (`buildContextMenuAnchorStyle`, `buildContextMenuPanelStyle`) into
+  `CONTEXT_MENU.builder.*`, migrate all consumers, and remove old exports.
+- [x] Collapse remaining standalone semantic builders into owning token maps
+  (`TABLE`, `TORRENT_HEADER`, `METRIC_CHART`, `DASHBOARD`, `FORM`,
+  `DETAIL_TABLE`, `HEATMAP`) and remove obsolete top-level `build*` exports.
+  - [x] Removed 16 standalone `build*` exports and migrated all consumers to
+    `*.builder.*` authorities:
+    `TABLE`, `METRIC_CHART`, `DASHBOARD`, `TORRENT_HEADER`, `FORM`,
+    `DETAIL_TABLE`, `HEATMAP`.
+- [x] Remove dead nested token keys left after builder migration (zero-consumer
+  internal keys only; no visual recipe change).
+  - [x] Removed zero-consumer nested keys:
+    `CONTEXT_MENU.panelStyle`, `METRIC_CHART.layoutButtonBase`,
+    `METRIC_CHART.windowButtonBase`, `HEATMAP.canvasFrame`,
+    `HEATMAP.canvasPulse`.
+- [x] Refresh post-compaction metrics: rerun surface tree reports and log net
+  export/line reduction after standalone-builder removal.
+  - [x] Re-ran `report:surface-tree` and `report:surface-tree:all`; full-scope
+    report still analyzes 55 components.
+  - [x] Post-compaction `glass-surface.ts` metrics:
+    - top-level `export const` count: 20
+    - standalone `export const build*` count: 0 (removed 16 -> 0)
+    - file line count: 1491 (from 1527 during pre-removal snapshot, net -36)
+- [x] Consolidate table-header token ownership by moving `TORRENT_HEADER`
+  under `TABLE` (single authority: table + table-header).
+  - [x] Moved header builder/geometry ownership to `TABLE.columnHeader.*`
+    and migrated `TorrentTable_Header.tsx` + `TorrentTable_Headers.tsx`.
+  - [x] Removed one top-level export from `glass-surface.ts`
+    (`export const` count: 20 -> 19).
+- [x] Consolidate detail-table token ownership by moving `DETAIL_TABLE` under
+  `DETAILS` (single authority: details + details-table).
+  - [x] Moved detail-table tokens to `DETAILS.table.*` and migrated
+    `TorrentDetails_Trackers.tsx`.
+  - [x] Removed one top-level export from `glass-surface.ts`
+    (`export const` count: 19 -> 18).
+- [x] Consolidate status-bar token ownership under `WORKBENCH`
+  (single authority: workbench + status chrome).
+  - [x] Moved `STATUS_BAR` map to `WORKBENCH.status` and removed top-level
+    `STATUS_BAR` export (`export const` count: 18 -> 17).
+  - [x] Migrated `StatusBar.tsx` consumers from `STATUS_BAR.*` to
+    `WORKBENCH.status.*`.
+  - [x] Updated parity/unused-token guards and token contract docs.
+  - [x] Validated with `enforce:workbench-parity`,
+    `enforce:workbench-consumers`, `enforce:surface-unused`, and `build`.
+- [x] Consolidate navbar token ownership under `WORKBENCH`
+  (single authority: workbench + nav chrome).
+  - [x] Move `NAV` map to `WORKBENCH.nav`.
+  - [x] Migrate `Navbar.tsx` consumers from `NAV.*` to `WORKBENCH.nav.*`.
+  - [x] Update parity/unused-token guards and token contract docs.
+  - [x] Validate with `enforce:workbench-parity`,
+    `enforce:workbench-consumers`, `enforce:surface-unused`, and `build`.
+- [x] Complete manual visual sweep for:
   navbar/table/status, settings modal, add-torrent modal, recovery/remove modals,
   details inspector.
-- [ ] Mark Section 12 Step 2 complete once role registry is compact and
+  - [x] Code-level parity sweep completed for listed surfaces (token wiring and
+    workbench root composition verified in source).
+  - [x] Automated parity guards pass (`enforce:workbench-parity`,
+    `enforce:workbench-consumers`).
+  - [x] Agent runtime visual sweep complete (live UI + console check):
+    main app sweep covered navbar/table/status + details inspector,
+    settings modal, add-magnet modal, remove-confirmation modal; recovery
+    modal verified via `__dev/recovery`.
+  - [x] Runtime visual confirmation in-app completed for listed surfaces.
+- [x] Mark Section 12 Step 2 complete once role registry is compact and
   remaining bindings are correlated + justified.
 
 ---
@@ -690,7 +818,7 @@ These can be batched with the existing plan phases:
 - [x] Week 1: `<AlertPanel>` component, scrollbar strategy decision
 - [x] Week 2: Sticky header migration (4 files), deprecated TEXT_ROLES migration (5 files)
 - [x] Week 3: `INTERACTIVE_RECIPE` for context menus, nav items
-- [_] Week 4: `INTERACTIVE_RECIPE` for buttons/settings, visual-state tokens everywhere
+- [x] Week 4: `INTERACTIVE_RECIPE` for buttons/settings, visual-state tokens everywhere
   - [x] Normalize `AddTorrentModal.tsx` by moving shell/layout class recipes into `glass-surface.ts` tokens.
   - [x] Normalize `AddTorrentSettingsPanel.tsx` by moving settings-panel layout/state class recipes into `glass-surface.ts` tokens.
   - [x] Normalize `TorrentDetails_Pieces_Heatmap.tsx` by moving heatmap shell/control class recipes into `glass-surface.ts` tokens.

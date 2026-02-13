@@ -9,7 +9,6 @@ import {
     getColumnWidthCss,
 } from "@/modules/dashboard/components/TorrentTable_Shared";
 import {
-    buildTorrentHeaderCellClass,
     TABLE,
 } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
@@ -32,7 +31,7 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                buildTorrentHeaderCellClass({
+                TABLE.columnHeader.builder.cellClass({
                     canSort: false,
                     isOverlay: true,
                     isDragging: false,

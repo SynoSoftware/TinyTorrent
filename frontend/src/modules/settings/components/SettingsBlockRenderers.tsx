@@ -17,10 +17,7 @@ import {
 import { ICON_STROKE_WIDTH, VISUAL_STATE } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
-import {
-    buildSettingsBufferedInputClassNames,
-    FORM,
-} from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 import {
     BufferedInput,
     type BufferedInputCommitOutcome,
@@ -241,7 +238,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             isDisabled={isDisabled || blocklistUnsupported}
             onCommit={handleCommit}
             onDraftChange={(next) => setFieldDraft(block.stateKey, next)}
-            classNames={buildSettingsBufferedInputClassNames({
+            classNames={FORM.builder.settingsBufferedInputClassNames({
                 disabled: isDisabled || blocklistUnsupported,
                 mono: isMono,
             })}

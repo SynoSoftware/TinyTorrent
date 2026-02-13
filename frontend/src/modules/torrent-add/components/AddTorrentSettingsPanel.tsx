@@ -27,7 +27,6 @@ import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/Ad
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import {
     FORM,
-    buildFormStatusToneClass,
     FORM_CONTROL,
     INPUT,
     SURFACE,
@@ -184,7 +183,7 @@ export function AddTorrentSettingsPanel() {
                 <div
                     className={cn(
                         FORM.workflow.status,
-                        buildFormStatusToneClass(settings.statusKind),
+                        FORM.builder.statusToneClass(settings.statusKind),
                     )}
                 >
                     {settings.statusKind === "danger" ||

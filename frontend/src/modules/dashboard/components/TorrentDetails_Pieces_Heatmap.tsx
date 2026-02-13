@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
-    buildHeatmapCanvasFrameClass,
     SURFACE,
     HEATMAP,
 } from "@/shared/ui/layout/glass-surface";
@@ -330,7 +329,7 @@ export const AvailabilityHeatmap = ({
                     </Button>
                 </div>
             </div>
-            <div className={buildHeatmapCanvasFrameClass(isZooming)}>
+            <div className={HEATMAP.builder.canvasFrameClass(isZooming)}>
                 <Tooltip
                     content={tooltipContent}
                     delay={0}

@@ -2,11 +2,7 @@ import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
-import {
-    METRIC_CHART,
-    buildCapacityGaugeContainerClass,
-    buildCapacityGaugeIndicatorClass,
-} from "@/shared/ui/layout/glass-surface";
+import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 
 export interface DiskSpaceGaugeProps {
     freeBytes?: number;
@@ -50,10 +46,10 @@ export function DiskSpaceGauge({
         : 0;
     const { t } = useTranslation();
 
-    const indicatorClasses = buildCapacityGaugeIndicatorClass(
+    const indicatorClasses = METRIC_CHART.capacityGauge.builder.indicatorClass(
         Boolean(isInsufficient),
     );
-    const containerClasses = buildCapacityGaugeContainerClass(
+    const containerClasses = METRIC_CHART.capacityGauge.builder.containerClass(
         Boolean(isInsufficient),
     );
 

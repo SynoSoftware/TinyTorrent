@@ -79,25 +79,45 @@ const GLASS_ROLE_CORE = {
     },
 } as const;
 
-const GLASS_MODAL_SURFACE = GLASS_ROLE_CORE.surface.modal;
 const MODAL_SURFACE_HEADER = GLASS_ROLE_CORE.chrome.edgeBottom;
 const MODAL_SURFACE_FOOTER = GLASS_ROLE_CORE.chrome.edgeTop;
 const MENU_SURFACE_LIST = "overflow-hidden";
 const MENU_ITEM_SURFACE = `rounded-panel px-panel py-tight text-scaled font-medium ${INTERACTIVE_RECIPE.menuItem} hover:text-foreground active:bg-content2/80`;
-const MENU_SURFACE_CLASS = GLASS_ROLE_CORE.surface.menu;
 const MENU_LIST_CLASSNAMES = { list: MENU_SURFACE_LIST } as const;
 const MENU_ITEM_CLASSNAMES = { base: MENU_ITEM_SURFACE } as const;
 const MENU_SECTION_HEADING = GLASS_ROLE_CORE.text.label;
+const MENU_PANEL_HEADER = `px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools`;
+const MENU_PANEL_HEADER_ICON = "text-foreground/30";
+const MENU_PANEL_HEADER_TEXT = `${TEXT_ROLE.label} text-foreground/40 truncate`;
+const MENU_ACTION_BUTTON_BASE = `w-full flex items-center gap-tools px-panel py-tight rounded-xl ${TEXT_ROLE.buttonText}`;
+const MENU_ACTION_BUTTON = `${MENU_ACTION_BUTTON_BASE} ${INTERACTIVE_RECIPE.menuItem}`;
+const MENU_ACTION_BUTTON_DANGER = `${MENU_ACTION_BUTTON_BASE} ${withColor(TEXT_ROLE.buttonText, "danger")} ${INTERACTIVE_RECIPE.menuItemDanger} border-t border-content1/10 mt-tight`;
+const STATUS_CHIP_PATTERN = {
+    base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
+    content:
+        "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
+    container: "min-w-0 w-full flex items-center justify-center h-full",
+    contentWrap: "flex items-center justify-center gap-tools",
+    warningIcon: "toolbar-icon-size-md text-warning",
+    currentIcon: "text-current",
+    label: "truncate max-w-full",
+} as const;
+const TABLE_HEADER_PATTERN = {
+    compactCell: "px-panel py-tight",
+    sectionDividerCell: "border-b border-default/10 px-tight py-panel",
+    iconCell: "border-b border-default/10 py-panel pl-panel pr-tight",
+    statusCell:
+        "border-b border-default/10 py-panel pl-tight pr-panel text-right",
+} as const;
 const PANEL_SURFACE_INSET_FRAME = `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.soft} overflow-hidden`;
-const MODAL_SURFACE_BASE_CLASS = GLASS_MODAL_SURFACE;
 const MODAL_BASE_CLASSNAMES = {
-    base: MODAL_SURFACE_BASE_CLASS,
+    base: GLASS_ROLE_CORE.surface.modal,
 } as const;
 const MODAL_COMPACT_CLASSNAMES = {
-    base: `${MODAL_SURFACE_BASE_CLASS} w-full max-w-modal-compact`,
+    base: `${GLASS_ROLE_CORE.surface.modal} w-full max-w-modal-compact`,
 } as const;
 const MODAL_BASE_WRAPPER_HIDDEN_CLASSNAMES = {
-    base: MODAL_SURFACE_BASE_CLASS,
+    base: GLASS_ROLE_CORE.surface.modal,
     wrapper: "overflow-hidden",
 } as const;
 const MODAL_CHROME_CLASSNAMES = {
@@ -105,29 +125,10 @@ const MODAL_CHROME_CLASSNAMES = {
     header: `p-none select-none ${GLASS_SURFACE_DIAL.blur.panel}`,
     footer: "p-none select-none",
 } as const;
-const STANDARD_SURFACE_LAYER = {
-    borderSoft: GLASS_SURFACE_DIAL.border.soft,
-    borderStrong: GLASS_SURFACE_DIAL.border.strong,
-    radiusPanel: GLASS_SURFACE_DIAL.radius.panel,
-    radiusModal: GLASS_SURFACE_DIAL.radius.modal,
-    blurPanel: GLASS_SURFACE_DIAL.blur.panel,
-    blurSoft: GLASS_SURFACE_DIAL.blur.soft,
-    blurFloating: GLASS_SURFACE_DIAL.blur.floating,
-    elevationPanel: GLASS_SURFACE_DIAL.elevation.panel,
-    elevationOverlay: GLASS_SURFACE_DIAL.elevation.overlay,
-    elevationFloating: GLASS_SURFACE_DIAL.elevation.floating,
-    elevationMenu: GLASS_SURFACE_DIAL.elevation.menu,
-    tintWorkbench: GLASS_SURFACE_DIAL.opacity.workbench,
-    tintPanel: GLASS_SURFACE_DIAL.opacity.panel,
-    tintPane: GLASS_SURFACE_DIAL.opacity.pane,
-    tintModal: GLASS_SURFACE_DIAL.opacity.modal,
-    tintOverlay: GLASS_SURFACE_DIAL.opacity.overlay,
-} as const;
-const STANDARD_SURFACE_TOOLTIP = {
+const SURFACE_TOOLTIP = {
     content: `${GLASS_SURFACE_DIAL.opacity.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: GLASS_SURFACE_DIAL.opacity.modal,
 } as const;
-const STANDARD_SURFACE_CHROME = GLASS_ROLE_CORE.chrome;
 const GLASS_SEMANTIC_CHROME = {
     dividerSoft: SURFACE_BORDER,
     headerBorder: MODAL_SURFACE_HEADER,
@@ -136,16 +137,16 @@ const GLASS_SEMANTIC_CHROME = {
     footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
     footerActionsPadded: `${MODAL_SURFACE_FOOTER} px-stage py-panel flex items-center justify-end gap-tools`,
 } as const;
-const STANDARD_SURFACE_MODAL = {
+const SURFACE_MODAL = {
     baseClassNames: MODAL_BASE_CLASSNAMES,
     compactClassNames: MODAL_COMPACT_CLASSNAMES,
     baseWrapperHiddenClassNames: MODAL_BASE_WRAPPER_HIDDEN_CLASSNAMES,
     chromeClassNames: MODAL_CHROME_CLASSNAMES,
-    baseClass: MODAL_SURFACE_BASE_CLASS,
+    baseClass: GLASS_ROLE_CORE.surface.modal,
 } as const;
-const STANDARD_SURFACE_MENU = {
-    surface: MENU_SURFACE_CLASS,
-    dirPickerSurface: `min-w-dir-picker ${MENU_SURFACE_CLASS}`,
+const SURFACE_MENU = {
+    surface: GLASS_ROLE_CORE.surface.menu,
+    dirPickerSurface: `min-w-dir-picker ${GLASS_ROLE_CORE.surface.menu}`,
     minWidthSurface: "min-w-(--tt-menu-min-width)",
     listClassNames: MENU_LIST_CLASSNAMES,
     itemClassNames: MENU_ITEM_CLASSNAMES,
@@ -159,8 +160,13 @@ const STANDARD_SURFACE_MENU = {
     flagInlineWrap: "text-lg leading-none",
     checkIconPrimary: "text-primary",
     sectionHeading: MENU_SECTION_HEADING,
+    panelHeader: MENU_PANEL_HEADER,
+    panelHeaderIcon: MENU_PANEL_HEADER_ICON,
+    panelHeaderText: MENU_PANEL_HEADER_TEXT,
+    actionButton: MENU_ACTION_BUTTON,
+    dangerActionButton: MENU_ACTION_BUTTON_DANGER,
 } as const;
-const STANDARD_SURFACE_ATOM = {
+const SURFACE_ATOM = {
     iconButton: `surface-layer-1 ${GLASS_SURFACE_DIAL.border.soft}`,
     textCurrent: "text-current",
     objectContain: "object-contain",
@@ -177,16 +183,16 @@ const STANDARD_SURFACE_ATOM = {
     shadowPanel: GLASS_SURFACE_DIAL.elevation.overlay,
     glassBlock: "acrylic shadow-inner",
 } as const;
-const ROLE_PANEL_INSET_BASE = `${PANEL_SURFACE_INSET_FRAME} ${STANDARD_SURFACE_LAYER.tintPanel}`;
+const ROLE_PANEL_INSET_BASE = `${PANEL_SURFACE_INSET_FRAME} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_RAISED = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_MUTED = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_INFO = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.workbench}`;
 const GLASS_ROLE_SEMANTIC = {
     surface: {
-        workbenchShell: `${STANDARD_SURFACE_ATOM.glassBlock} ${STANDARD_SURFACE_ATOM.shadowBlock}`,
+        workbenchShell: `${SURFACE_ATOM.glassBlock} ${SURFACE_ATOM.shadowBlock}`,
         panelInset: ROLE_PANEL_INSET_BASE,
-        tooltip: STANDARD_SURFACE_TOOLTIP.content,
-        statusModule: `${STANDARD_SURFACE_LAYER.radiusModal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel} ${STANDARD_SURFACE_LAYER.blurSoft}`,
+        tooltip: SURFACE_TOOLTIP.content,
+        statusModule: `${GLASS_SURFACE_DIAL.radius.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel} ${GLASS_SURFACE_DIAL.blur.soft}`,
         panelRaised: ROLE_PANEL_RAISED,
         panelMuted: ROLE_PANEL_MUTED,
         panelInfo: ROLE_PANEL_INFO,
@@ -195,34 +201,27 @@ const GLASS_ROLE_SEMANTIC = {
     },
     chrome: GLASS_SEMANTIC_CHROME,
 } as const;
-
-export const SURFACE_REGISTRY = {
-    core: GLASS_ROLE_CORE,
-    semantic: GLASS_ROLE_SEMANTIC,
-} as const;
-
-const STANDARD_SURFACE_ROLE = GLASS_ROLE_CORE.surface;
-const STANDARD_SURFACE_SEMANTIC_SURFACE = GLASS_ROLE_SEMANTIC.surface;
-const STANDARD_SURFACE_CHROME_EXTENDED = GLASS_ROLE_SEMANTIC.chrome;
-const STANDARD_SURFACE_STATE = GLASS_ROLE_CORE.state;
-const STANDARD_SURFACE_TEXT = GLASS_ROLE_CORE.text;
 const MODAL_ICON_MD = "toolbar-icon-size-md";
 const MODAL_ICON_SM = "toolbar-icon-size-sm shrink-0";
 const MODAL_HEADER_ROW_BASE = `${GLASS_SEMANTIC_CHROME.headerBorder} flex justify-between items-center gap-panel px-stage py-panel`;
 export const SURFACE = {
     dial: GLASS_SURFACE_DIAL,
-    registry: SURFACE_REGISTRY,
-    layer: STANDARD_SURFACE_LAYER,
-    role: STANDARD_SURFACE_ROLE,
-    surface: STANDARD_SURFACE_SEMANTIC_SURFACE,
-    state: STANDARD_SURFACE_STATE,
-    text: STANDARD_SURFACE_TEXT,
-    tooltip: STANDARD_SURFACE_TOOLTIP,
-    chrome: STANDARD_SURFACE_CHROME,
-    chromeEx: STANDARD_SURFACE_CHROME_EXTENDED,
-    modal: STANDARD_SURFACE_MODAL,
-    menu: STANDARD_SURFACE_MENU,
-    atom: STANDARD_SURFACE_ATOM,
+    role: GLASS_ROLE_CORE.surface,
+    surface: GLASS_ROLE_SEMANTIC.surface,
+    state: GLASS_ROLE_CORE.state,
+    text: GLASS_ROLE_CORE.text,
+    tooltip: SURFACE_TOOLTIP,
+    chrome: GLASS_ROLE_CORE.chrome,
+    chromeEx: GLASS_ROLE_SEMANTIC.chrome,
+    modal: SURFACE_MODAL,
+    menu: SURFACE_MENU,
+    atom: SURFACE_ATOM,
+} as const;
+const WORKBENCH_SURFACE_FAMILY = {
+    surface: SURFACE.role.workbench,
+    shell: SURFACE.surface.workbenchShell,
+    topEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeTop}`,
+    bottomEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeBottom}`,
 } as const;
 
 export const MODAL = {
@@ -365,7 +364,78 @@ export const MODAL = {
             content: `${TEXT_ROLE.code} font-bold`,
         } as const,
     } as const,
+    builder: {
+        paneHandleClass: (isSettingsCollapsed: boolean) =>
+            `${MODAL.workflow.paneHandle} ${
+                isSettingsCollapsed
+                    ? MODAL.workflow.paneHandleDisabled
+                    : MODAL.workflow.paneHandleEnabled
+            }`,
+        bodyPanelsClass: (isFullscreen: boolean) =>
+            isFullscreen
+                ? "flex flex-col flex-1 min-h-settings h-full min-h-0"
+                : "flex flex-col flex-1 min-h-settings",
+        settingsPanelClass: (isSettingsCollapsed: boolean) =>
+            [
+                SURFACE.atom.glassPanel,
+                SURFACE.role.pane,
+                "bg-background/65",
+                isSettingsCollapsed ? "min-w-0 w-0 border-none" : "",
+            ]
+                .filter(Boolean)
+                .join(" "),
+        settingsModalClassNames: (isFullMode: boolean) =>
+            ({
+                base: isFullMode
+                    ? MODAL.settingsModalBaseFull
+                    : MODAL.settingsModalBaseRpc,
+                wrapper: MODAL.settingsModalWrapper,
+            }) as const,
+        addTorrentModalClassNames: (params: {
+            showDestinationGate: boolean;
+            isFullscreen: boolean;
+        }) =>
+            ({
+                ...MODAL.addTorrentModalChromeClassNames,
+                base: `${MODAL.addTorrentModalBase} ${
+                    !params.showDestinationGate && params.isFullscreen
+                        ? MODAL.addTorrentModalHeightFull
+                        : MODAL.addTorrentModalHeightDefault
+                }`,
+            }) as const,
+        resizeHandleBarClass: (params: {
+            isSettingsCollapsed: boolean;
+            isPanelResizeActive: boolean;
+        }) =>
+            params.isSettingsCollapsed
+                ? `h-full w-divider ${TRANSITION.fast} bg-transparent`
+                : `h-full w-divider ${TRANSITION.fast} ${
+                      params.isPanelResizeActive
+                          ? "bg-primary/55"
+                          : "bg-default/30 group-hover:bg-primary/45"
+                  }`,
+    } as const,
 } as const;
+const FORM_STATUS_TONE_CLASS = (statusKind: string) =>
+    statusKind === "danger"
+        ? "text-danger"
+        : statusKind === "warning"
+          ? "text-warning"
+          : "text-foreground/60";
+// Justification: settings input semantics depend on state (`disabled`, `mono`);
+// this builder prevents repeated inline classNames objects in renderers.
+const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: {
+    disabled: boolean;
+    mono: boolean;
+}) => ({
+    inputWrapper: params.disabled
+        ? `h-button ${TRANSITION.fast} ${VISUAL_STATE.disabled}`
+        : `h-button ${TRANSITION.fast} group-hover:border-primary/50`,
+    input: params.mono
+        ? `${withOpacity(TEXT_ROLE.body, 90)} font-mono tracking-tight`
+        : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
+    label: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
+});
 export const FORM = {
     sectionMarginTop: "mt-panel",
     sectionContentOffsetStack: "space-y-stage mt-panel",
@@ -489,13 +559,89 @@ export const FORM = {
         } as const,
         insecureAuthWarning: withColor(TEXT_ROLE.caption, "warning"),
     } as const,
+    builder: {
+        statusToneClass: FORM_STATUS_TONE_CLASS,
+        settingsBufferedInputClassNames: SETTINGS_BUFFERED_INPUT_CLASS_NAMES,
+    } as const,
 } as const;
+const TORRENT_HEADER_CELL_BASE_CLASS = `relative flex items-center h-row border-r border-content1/10 ${TRANSITION.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
+const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
+    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none flex-1 gap-tools text-scaled font-bold uppercase text-foreground/60 pl-tight pr-tight";
+const TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE = {
+    letterSpacing: "var(--tt-tracking-tight)",
+} as const;
+const TORRENT_HEADER_RESIZE_HANDLE_CLASS =
+    "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-overlay w-handle";
+const TORRENT_HEADER_RESIZE_BAR_STYLE = {
+    width: "var(--tt-divider-width)",
+} as const;
+const TORRENT_HEADER = {
+    activatorTrackingStyle: TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
+    resizeHandle: TORRENT_HEADER_RESIZE_HANDLE_CLASS,
+    resizeBarStyle: TORRENT_HEADER_RESIZE_BAR_STYLE,
+    builder: {
+        cellClass: (params: {
+            canSort: boolean;
+            isOverlay: boolean;
+            isDragging: boolean;
+        }) =>
+            [
+                TORRENT_HEADER_CELL_BASE_CLASS,
+                params.canSort
+                    ? "cursor-pointer hover:bg-content1/10"
+                    : "cursor-default",
+                params.isOverlay
+                    ? "bg-content1/90 cursor-grabbing"
+                    : "bg-transparent",
+                params.isOverlay ? SURFACE.atom.shadowPanel : "",
+                params.isDragging && !params.isOverlay
+                    ? "opacity-30"
+                    : "opacity-100",
+            ]
+                .filter(Boolean)
+                .join(" "),
+        activatorClass: (params: {
+            isOverlay: boolean;
+            align: "start" | "center" | "end";
+            isSelection: boolean;
+        }) =>
+            [
+                TORRENT_HEADER_ACTIVATOR_BASE_CLASS,
+                params.isOverlay ? "text-foreground" : "",
+                params.align === "center" ? "justify-center" : "",
+                params.align === "end" ? "justify-end" : "",
+                params.isSelection ? "justify-center" : "",
+            ]
+                .filter(Boolean)
+                .join(" "),
+        sortIconClass: (visible: boolean) =>
+            `text-primary shrink-0 toolbar-icon-size-sm ${visible ? "opacity-100" : "opacity-0"}`,
+        resizeBarClass: (isResizing: boolean) =>
+            [
+                `bg-foreground/10 ${TRANSITION.fast} rounded-full h-resize-h`,
+                "group-hover:bg-primary/50",
+                isResizing ? "bg-primary h-resize-h" : "",
+            ]
+                .filter(Boolean)
+                .join(" "),
+    } as const,
+} as const;
+const TABLE_DETAILS_CONTENT_SCROLL_STYLE = (maxHeight: number) => ({
+    maxHeight,
+});
+const TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS = (
+    isBusyWithOtherTorrent: boolean,
+) =>
+    isBusyWithOtherTorrent
+        ? `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer opacity-90 hover:opacity-90`
+        : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
-    workbenchSurface: SURFACE.role.workbench,
-    workbenchShell: SURFACE.surface.workbenchShell,
+    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
+    workbenchShell: WORKBENCH_SURFACE_FAMILY.shell,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
+    columnHeader: TORRENT_HEADER,
     hostRoot:
         "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
     hostBorderRadiusStyle: {
@@ -581,13 +727,14 @@ export const TABLE = {
     detailsContentListHost: "flex-1 min-h-0 overflow-hidden",
     detailsContentListScroll:
         "h-full min-h-0 overflow-y-auto px-panel py-panel",
+    builder: {
+        detailsContentScrollStyle: TABLE_DETAILS_CONTENT_SCROLL_STYLE,
+        missingFilesStatusTriggerClass: TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS,
+    } as const,
 } as const;
-export const buildTableDetailsContentScrollStyle = (maxHeight: number) => ({
-    maxHeight,
-});
 export const DIAGNOSTIC = {
     statusChipClassNames: {
-        base: "border border-default/20 bg-content1/70",
+        base: `${STATUS_CHIP_PATTERN.base} border border-default/20 bg-content1/70`,
         content: `${TEXT_ROLE_EXTENDED.badge} font-semibold`,
     } as const,
     root: "min-h-screen surface-layer-0 text-foreground pb-stage",
@@ -621,9 +768,9 @@ export const DIAGNOSTIC = {
     verifyTable: "w-full border-separate border-spacing-0 text-left",
     verifyHead: "bg-background/40",
     verifyHeadRow: "border-b border-default/15",
-    verifyHeaderCell: "px-panel py-tight",
+    verifyHeaderCell: TABLE_HEADER_PATTERN.compactCell,
     verifyRow: "border-b border-default/10 last:border-b-0",
-    verifyCell: "px-panel py-tight",
+    verifyCell: TABLE_HEADER_PATTERN.compactCell,
     verifyLabelWrap: "flex flex-col gap-tight",
     systemCard: "surface-layer-2 rounded-panel p-panel flex flex-col gap-stage",
     systemRows: "flex flex-col gap-tools",
@@ -646,6 +793,142 @@ export const DIAGNOSTIC = {
         "whitespace-pre-wrap leading-relaxed border-t border-default/10 pt-tight mt-tight",
     footerExpectedTone: "text-foreground/80",
 } as const;
+const WORKBENCH_NAV = {
+    root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
+    workbenchSurface: WORKBENCH_SURFACE_FAMILY.bottomEdge,
+    workbenchShell: WORKBENCH_SURFACE_FAMILY.shell,
+    titlebar: "app-titlebar flex w-full items-stretch",
+    titlebarBaseStyle: {
+        height: "var(--tt-navbar-h)",
+        gap: "var(--spacing-panel)",
+    } as const,
+    main: "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative",
+    left: "flex items-center gap-tools min-w-0",
+    brandGroup: "flex items-center gap-tools pr-tight",
+    brandIconWrap: "flex items-center justify-center",
+    brandIconStyle: {
+        width: "var(--tt-brand-icon-size)",
+        height: "var(--tt-brand-icon-size)",
+    } as const,
+    brandTextWrap: "hidden xl:flex flex-col justify-center ml-tight",
+    brandName:
+        "font-bold tracking-tight text-foreground text-base leading-none text-navbar",
+    brandVersion: `${TEXT_ROLE.codeMuted} text-xs font-medium leading-none mt-0.5 text-default-400`,
+    primarySeparator:
+        "hidden min-[600px]:flex h-sep w-px bg-default-200/50 mx-tight",
+    tabsWrap: "hidden min-[1200px]:flex text-navbar min-w-0",
+    tabTitle: "flex items-center gap-tight",
+    tabLabel: "hidden min-[1600px]:inline",
+    tabIcon: "text-default-400",
+    searchWrap: "hidden min-[1400px]:flex",
+    searchStyle: {
+        width: "var(--tt-search-width)",
+        fontSize: "var(--tt-fz-navbar)",
+    } as const,
+    searchIcon: "text-default-400",
+    actions: `flex items-center gap-tools ${TRANSITION.medium} shrink-0 opacity-100`,
+    primaryActions: "flex items-center gap-tools min-w-0",
+    primaryActionEmphasis: "ring-1 ring-primary/20",
+    selectionSeparator: "hidden sm:flex w-px bg-default-200/50 mx-tight",
+    selectionSeparatorStyle: {
+        height: "calc(var(--tt-navbar-h) / 2)",
+    } as const,
+    selectionExtraActions: "hidden min-[600px]:flex gap-tools",
+    selectionPauseEmphasis: "ring-1 ring-warning/30 shadow-sm",
+    selectionRecheckEmphasis: "ring-1 ring-default/20 shadow-sm",
+    ghostAction: `text-default-400 ${INTERACTIVE_RECIPE.buttonGhost}`,
+    ghostActionOverflow: "overflow-visible",
+    themeMobileWrap: "flex max-[799px]:flex min-[800px]:hidden",
+    rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
+    rehashTooltipWrap: "relative group cursor-help",
+    rehashTrack: "h-track bg-transparent",
+    rehashIndicator:
+        "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
+    rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${INTERACTIVE_RECIPE.groupReveal}`,
+    windowControls:
+        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
+    windowControlsStyle: {
+        paddingLeft: 0,
+        paddingRight: 0,
+    } as const,
+    toneButtonFallback: {
+        primary: `text-primary ${INTERACTIVE_RECIPE.buttonPrimary}`,
+        success: `text-success ${INTERACTIVE_RECIPE.buttonDefault}`,
+        warning: `text-warning ${INTERACTIVE_RECIPE.buttonDefault}`,
+        danger: INTERACTIVE_RECIPE.buttonDanger,
+        neutral: `text-default-500 ${INTERACTIVE_RECIPE.buttonGhost}`,
+    } as const,
+    filterTabsClassNames: {
+        base: "",
+        tabList:
+            "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
+        cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full",
+        tab: `px-panel font-semibold text-default-500 text-navbar ${INTERACTIVE_RECIPE.navItem}`,
+    } as const,
+    searchInputClassNames: {
+        base: TRANSITION.medium,
+        mainWrapper: "h-navbar-pill",
+        input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
+        inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${TRANSITION.fast}`,
+    } as const,
+    builder: {
+        selectionActionsClass: (hasSelection: boolean) =>
+            hasSelection
+                ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
+                : `flex items-center gap-tools ${TRANSITION.medium} opacity-30 pointer-events-none grayscale`,
+    } as const,
+} as const;
+const WORKBENCH_STATUS = {
+    workbenchSurface: WORKBENCH_SURFACE_FAMILY.topEdge,
+    iconCurrent: "text-current",
+    iconMuted: "opacity-50",
+    srOnly: "sr-only",
+    statGroup: "flex flex-col gap-tight whitespace-nowrap",
+    statGroupDesktop: "hidden sm:flex",
+    statGroupEnd: "items-end",
+    statGroupStart: "items-start",
+    statValueRow: "flex items-center gap-tools",
+    statValueText: `${TEXT_ROLE_EXTENDED.statusBarValue} truncate text-right font-semibold`,
+    statIcon: "text-foreground/30",
+    telemetryIconWrap: "inline-flex items-center",
+    speedModule: `flex flex-1 items-center h-full min-w-0 gap-tools group ${SURFACE.surface.statusModule} ${TRANSITION.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
+    speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
+    speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${TRANSITION.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
+    speedModuleGraphCanvas: "absolute inset-0 h-full w-full",
+    speedModuleOverlay:
+        "absolute inset-0 flex items-center justify-start px-panel pointer-events-none",
+    speedModuleOverlayRow: "flex items-center gap-tools text-foreground",
+    speedModuleIconWrap: `flex items-center justify-center rounded-modal ${TRANSITION.fast} toolbar-icon-size-xl`,
+    speedModuleTextWrap: "flex flex-col gap-tight text-left",
+    speedModuleLabel: `${TEXT_ROLE_EXTENDED.statusBarLabel} text-foreground/40`,
+    speedModuleValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
+    speedSeparator: "w-px bg-content1/10",
+    engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${TRANSITION.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
+    engineConnectedWrap:
+        "absolute inset-0 flex items-start justify-end p-tight",
+    engineConnectedPulse: "absolute inline-flex rounded-full",
+    engineConnectedDot: "relative inline-flex rounded-full bg-current",
+    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_SURFACE_FAMILY.shell}`,
+    main: "flex items-center justify-between gap-stage",
+    speedFull:
+        "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
+    speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
+    speedCompactGraphWrap: "relative flex-1 h-full min-h-0",
+    speedCompactLayer: "absolute inset-0",
+    speedCompactUpLayer: "absolute inset-0 z-panel",
+    speedCompactDownGraph: "h-full w-full",
+    speedCompactUpGraph: "h-full w-full opacity-60 mix-blend-screen",
+    speedCompactOverlay:
+        "relative z-overlay flex items-center justify-center h-full pointer-events-none",
+    speedCompactOverlayRow: "flex items-center gap-tight text-center",
+    speedCompactColumn: "flex flex-col items-center",
+    speedCompactDownIcon: "toolbar-icon-size-md text-success",
+    speedCompactUpIcon: "toolbar-icon-size-md text-primary",
+    speedCompactValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
+    speedCompactDivider: "w-px h-nav bg-content1/10 mx-tight",
+    right: "flex shrink-0 items-center border-l border-content1/10 gap-stage",
+    telemetryGrid: "grid gap-x-stage gap-y-tight",
+} as const;
 export const WORKBENCH = {
     root: "tt-app-shell relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20",
     content: "relative z-panel flex w-full flex-1",
@@ -653,6 +936,8 @@ export const WORKBENCH = {
     nativeShellInner: "native-shell-inner",
     nativeShellMain: "native-shell-main",
     iconCurrent: "text-current",
+    nav: WORKBENCH_NAV,
+    status: WORKBENCH_STATUS,
     reconnectToast: "fixed z-toast",
     section: "tt-shell-body flex w-full flex-1 flex-col",
     sectionGapImmersive: "gap-stage",
@@ -769,66 +1054,62 @@ export const SPLIT = {
     peerMapActivityIconInactive: "opacity-0",
     peerMapNodeMotion: TRANSITION.medium,
     peerMapNodeGlow: "drop-shadow-primary-small",
+    builder: {
+        addressClass: (isHostile: boolean) =>
+            isHostile
+                ? `${TEXT_ROLE.code} truncate text-danger`
+                : `${TEXT_ROLE.code} truncate text-foreground/90`,
+        peerActivityClass: (isInstrument: boolean) =>
+            isInstrument
+                ? `${TRANSITION.reveal} opacity-100 text-primary`
+                : `${TRANSITION.reveal} opacity-0`,
+        peerNodeClass: (isUTP: boolean) =>
+            isUTP
+                ? `${TRANSITION.medium} drop-shadow-primary-small`
+                : TRANSITION.medium,
+        rowClass: (params: { hovered: boolean; hostile: boolean }) =>
+            params.hostile
+                ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-danger/5`
+                : params.hovered
+                  ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-primary/10`
+                  : `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 hover:bg-content1/5`,
+        virtualCanvasStyle: (totalSize: number) =>
+            ({
+                height: totalSize,
+                position: "relative",
+            }) as const,
+        virtualRowStyle: (params: { top: number; height: number }) =>
+            ({
+                top: params.top,
+                height: params.height,
+            }) as const,
+        canvasInteractionStyle: (cursor: string) =>
+            ({
+                cursor,
+                touchAction: "none",
+                pointerEvents: "auto",
+            }) as const,
+        legendSwatchStyle: (params: {
+            background: string;
+            border?: string;
+            opacity?: number;
+        }) =>
+            ({
+                width: 14,
+                height: 14,
+                background: params.background,
+                border: params.border,
+                opacity: params.opacity,
+                display: "inline-block",
+            }) as const,
+    } as const,
 } as const;
-export const buildSplitViewAddressClass = (isHostile: boolean) =>
-    isHostile
-        ? `${TEXT_ROLE.code} truncate text-danger`
-        : `${TEXT_ROLE.code} truncate text-foreground/90`;
-export const buildSplitViewPeerActivityClass = (isInstrument: boolean) =>
-    isInstrument
-        ? `${SPLIT.peerMapActivityIcon} ${SPLIT.peerMapActivityIconActive}`
-        : `${SPLIT.peerMapActivityIcon} ${SPLIT.peerMapActivityIconInactive}`;
-export const buildSplitViewPeerNodeClass = (isUTP: boolean) =>
-    isUTP
-        ? `${SPLIT.peerMapNodeMotion} ${SPLIT.peerMapNodeGlow}`
-        : SPLIT.peerMapNodeMotion;
-export const buildSplitViewRowClass = (params: {
-    hovered: boolean;
-    hostile: boolean;
-}) =>
-    params.hostile
-        ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-danger/5`
-        : params.hovered
-          ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-primary/10`
-          : `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 hover:bg-content1/5`;
-export const buildSplitViewVirtualCanvasStyle = (totalSize: number) =>
-    ({
-        height: totalSize,
-        position: "relative",
-    }) as const;
-export const buildSplitViewVirtualRowStyle = (params: {
-    top: number;
-    height: number;
-}) =>
-    ({
-        top: params.top,
-        height: params.height,
-    }) as const;
-export const buildSplitViewCanvasInteractionStyle = (cursor: string) =>
-    ({
-        cursor,
-        touchAction: "none",
-        pointerEvents: "auto",
-    }) as const;
-export const buildSplitViewLegendSwatchStyle = (params: {
-    background: string;
-    border?: string;
-    opacity?: number;
-}) =>
-    ({
-        width: 14,
-        height: 14,
-        background: params.background,
-        border: params.border,
-        opacity: params.opacity,
-        display: "inline-block",
-    }) as const;
+const CONTEXT_MENU_PANEL_STYLE = { minWidth: 200 } as const;
 export const CONTEXT_MENU = {
     panel: `pointer-events-auto absolute z-popover ${SURFACE.role.menu}`,
-    panelStyle: { minWidth: 200 } as const,
-    header: "px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools",
-    headerIcon: "text-foreground/30",
-    headerText: `${TEXT_ROLE.label} text-foreground/40 truncate`,
+    header: SURFACE.menu.panelHeader,
+    headerIcon: SURFACE.menu.panelHeaderIcon,
+    headerText: SURFACE.menu.panelHeaderText,
     sectionHeading: `border-t ${SURFACE_BORDER} pt-panel`,
     sectionHeadingStrong: `border-t ${SURFACE_BORDER} mt-tight pt-tight font-bold`,
     sectionHeadingTrackingStyle: {
@@ -837,79 +1118,44 @@ export const CONTEXT_MENU = {
     sectionNestedItem: "pl-stage",
     editorItem: `border-t ${SURFACE_BORDER} p-0`,
     editorWrap: "px-panel pt-panel",
-    actionButton: `w-full flex items-center gap-tools px-panel py-tight rounded-xl ${TEXT_ROLE.buttonText} ${INTERACTIVE_RECIPE.menuItem}`,
-    dangerActionButton: `w-full flex items-center gap-tools px-panel py-tight rounded-xl ${withColor(TEXT_ROLE.buttonText, "danger")} ${INTERACTIVE_RECIPE.menuItemDanger} border-t border-content1/10 mt-tight`,
+    actionButton: SURFACE.menu.actionButton,
+    dangerActionButton: SURFACE.menu.dangerActionButton,
+    builder: {
+        anchorStyle: (params: { top: number; left: number }) =>
+            ({
+                position: "fixed",
+                top: params.top,
+                left: params.left,
+                width: 0,
+                height: 0,
+            }) as const,
+        panelStyle: (params: { x: number; y: number }) => ({
+            top: params.y,
+            left: params.x,
+            ...CONTEXT_MENU_PANEL_STYLE,
+        }),
+    } as const,
 } as const;
-export const buildContextMenuAnchorStyle = (params: {
-    top: number;
-    left: number;
-}) =>
-    ({
-        position: "fixed",
-        top: params.top,
-        left: params.left,
-        width: 0,
-        height: 0,
-    }) as const;
-export const buildContextMenuPanelStyle = (params: {
-    x: number;
-    y: number;
-}) => ({
-    top: params.y,
-    left: params.x,
-    ...CONTEXT_MENU.panelStyle,
-});
-export const STATUS_BAR = {
-    workbenchSurface: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeTop}`,
-    iconCurrent: "text-current",
-    iconMuted: "opacity-50",
-    srOnly: "sr-only",
-    statGroup: "flex flex-col gap-tight whitespace-nowrap",
-    statGroupDesktop: "hidden sm:flex",
-    statGroupEnd: "items-end",
-    statGroupStart: "items-start",
-    statValueRow: "flex items-center gap-tools",
-    statValueText: `${TEXT_ROLE_EXTENDED.statusBarValue} truncate text-right font-semibold`,
-    statIcon: "text-foreground/30",
-    telemetryIconWrap: "inline-flex items-center",
-    speedModule: `flex flex-1 items-center h-full min-w-0 gap-tools group ${SURFACE.surface.statusModule} ${TRANSITION.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
-    speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
-    speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${TRANSITION.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
-    speedModuleGraphCanvas: "absolute inset-0 h-full w-full",
-    speedModuleOverlay:
-        "absolute inset-0 flex items-center justify-start px-panel pointer-events-none",
-    speedModuleOverlayRow: "flex items-center gap-tools text-foreground",
-    speedModuleIconWrap: `flex items-center justify-center rounded-modal ${TRANSITION.fast} toolbar-icon-size-xl`,
-    speedModuleTextWrap: "flex flex-col gap-tight text-left",
-    speedModuleLabel: `${TEXT_ROLE_EXTENDED.statusBarLabel} text-foreground/40`,
-    speedModuleValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
-    speedSeparator: "w-px bg-content1/10",
-    engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${TRANSITION.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
-    engineConnectedWrap:
-        "absolute inset-0 flex items-start justify-end p-tight",
-    engineConnectedPulse: "absolute inline-flex rounded-full",
-    engineConnectedDot: "relative inline-flex rounded-full bg-current",
-    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${SURFACE.surface.workbenchShell}`,
-    main: "flex items-center justify-between gap-stage",
-    speedFull:
-        "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
-    speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
-    speedCompactGraphWrap: "relative flex-1 h-full min-h-0",
-    speedCompactLayer: "absolute inset-0",
-    speedCompactUpLayer: "absolute inset-0 z-panel",
-    speedCompactDownGraph: "h-full w-full",
-    speedCompactUpGraph: "h-full w-full opacity-60 mix-blend-screen",
-    speedCompactOverlay:
-        "relative z-overlay flex items-center justify-center h-full pointer-events-none",
-    speedCompactOverlayRow: "flex items-center gap-tight text-center",
-    speedCompactColumn: "flex flex-col items-center",
-    speedCompactDownIcon: "toolbar-icon-size-md text-success",
-    speedCompactUpIcon: "toolbar-icon-size-md text-primary",
-    speedCompactValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
-    speedCompactDivider: "w-px h-nav bg-content1/10 mx-tight",
-    right: "flex shrink-0 items-center border-l border-content1/10 gap-stage",
-    telemetryGrid: "grid gap-x-stage gap-y-tight",
-} as const;
+const METRIC_CHART_LAYOUT_BUTTON_CLASS = (active: boolean) =>
+    active
+        ? "rounded-tight bg-background shadow-small text-foreground"
+        : "rounded-tight bg-transparent text-foreground/50";
+const METRIC_CHART_WINDOW_BUTTON_CLASS = (active: boolean) =>
+    active
+        ? "rounded-pill px-tight min-w-0 font-medium bg-foreground text-background shadow-small"
+        : "rounded-pill px-tight min-w-0 font-medium text-foreground/60";
+const METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS = (
+    isInsufficient: boolean,
+) =>
+    isInsufficient
+        ? `${METRIC_CHART.capacityGauge.container} border-danger/40 bg-danger/5`
+        : `${METRIC_CHART.capacityGauge.container} ${SURFACE_BORDER}`;
+const METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS = (
+    isInsufficient: boolean,
+) =>
+    isInsufficient
+        ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
+        : "h-full rounded-full bg-gradient-to-r from-success/50 to-success";
 export const METRIC_CHART = {
     canvasWrap: "w-full relative min-h-0",
     canvas: "block w-full h-full",
@@ -920,9 +1166,7 @@ export const METRIC_CHART = {
     upMetric: "flex items-center gap-tight text-primary font-bold",
     controls: "flex items-center gap-tight",
     layoutGroup: "bg-content1/20 rounded-panel p-tight gap-none mr-tight",
-    layoutButtonBase: "rounded-tight",
     windowGroup: "flex bg-content1/20 rounded-pill p-tight",
-    windowButtonBase: "rounded-pill px-tight min-w-0 font-medium",
     content: "flex-1 min-h-0 flex flex-col gap-panel",
     panel: `flex-1 min-h-0 flex flex-col ${SURFACE.role.panel} p-panel relative`,
     panelLabelWrap: "absolute z-panel pointer-events-none",
@@ -950,16 +1194,24 @@ export const METRIC_CHART = {
         hint: `${TEXT_ROLE.caption} text-foreground/50`,
         errorRow: "flex items-center justify-between gap-tools",
         progressTrack: "h-full bg-content1/20",
+        builder: {
+            containerClass: METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS,
+            indicatorClass: METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS,
+        } as const,
+    } as const,
+    builder: {
+        layoutButtonClass: METRIC_CHART_LAYOUT_BUTTON_CLASS,
+        windowButtonClass: METRIC_CHART_WINDOW_BUTTON_CLASS,
     } as const,
 } as const;
-export const buildMetricChartLayoutButtonClass = (active: boolean) =>
-    active
-        ? `${METRIC_CHART.layoutButtonBase} bg-background shadow-small text-foreground`
-        : `${METRIC_CHART.layoutButtonBase} bg-transparent text-foreground/50`;
-export const buildMetricChartWindowButtonClass = (active: boolean) =>
-    active
-        ? `${METRIC_CHART.windowButtonBase} bg-foreground text-background shadow-small`
-        : `${METRIC_CHART.windowButtonBase} text-foreground/60`;
+const DASHBOARD_RESIZE_HANDLE_CLASS = (isHorizontalSplit: boolean) =>
+    isHorizontalSplit
+        ? `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-col-resize`
+        : `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-row-resize`;
+const DASHBOARD_INSPECTOR_PANEL_CLASS = (isHorizontalSplit: boolean) =>
+    isHorizontalSplit
+        ? "hidden overflow-hidden lg:flex shadow-medium h-full"
+        : "hidden overflow-hidden lg:flex shadow-medium w-full";
 export const DASHBOARD = {
     root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${TRANSITION.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
@@ -985,17 +1237,63 @@ export const DASHBOARD = {
     fullscreenBackdrop:
         "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
     fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${SURFACE_BORDER} shadow-medium`,
+    builder: {
+        resizeHandleClass: DASHBOARD_RESIZE_HANDLE_CLASS,
+        inspectorPanelClass: DASHBOARD_INSPECTOR_PANEL_CLASS,
+    } as const,
 } as const;
-export const buildDashboardResizeHandleClass = (isHorizontalSplit: boolean) =>
-    isHorizontalSplit
-        ? `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-col-resize`
-        : `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-row-resize`;
-export const buildDashboardInspectorPanelClass = (
-    isHorizontalSplit: boolean,
-) =>
-    isHorizontalSplit
-        ? "hidden overflow-hidden lg:flex shadow-medium h-full"
-        : "hidden overflow-hidden lg:flex shadow-medium w-full";
+const DETAIL_TABLE_AVAILABILITY_DOT_CLASS = (isOnline: boolean) =>
+    isOnline
+        ? "size-dot rounded-full shadow-dot bg-success shadow-success/50"
+        : "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
+const DETAILS_TABLE = {
+    root: "flex h-full flex-col gap-panel",
+    toolbar: `${SURFACE.chrome.sticky} flex items-center justify-between px-tight`,
+    toolbarGroup: "flex items-center gap-tools",
+    toolbarIconPrimary: "text-primary",
+    body: "relative min-h-0 flex-1",
+    panel: "min-h-0 flex-1 overflow-hidden",
+    scroll: "h-full overflow-auto",
+    emptyPanel: SPLIT.emptyPanel,
+    emptyText: SPLIT.emptyText,
+    table: "w-full border-separate border-spacing-0 text-left",
+    tableHeadRow: `${TEXT_ROLE.label} text-foreground/40`,
+    tableHeadIconMuted: "text-foreground/50",
+    tableHeadCellIcon: TABLE_HEADER_PATTERN.iconCell,
+    tableHeadCell: TABLE_HEADER_PATTERN.sectionDividerCell,
+    tableHeadCellStatus: TABLE_HEADER_PATTERN.statusCell,
+    tableBody: TEXT_ROLE.code,
+    tableRow: "group hover:bg-primary/5",
+    cellIcon: "border-b border-default/5 py-panel pl-panel pr-tight",
+    cellHost:
+        "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",
+    cellAnnounce:
+        "border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums",
+    cellPeers: "border-b border-default/5 px-tight py-panel text-foreground/70",
+    cellStatus: `border-b border-default/5 py-panel pl-tight pr-panel text-right ${TEXT_ROLE.labelPrimary}`,
+    statusTone: {
+        pending: "text-foreground/50",
+        online: "text-success",
+        partial: "text-warning",
+    } as const,
+    announceRow: "flex items-center gap-tight",
+    peerRow: "flex items-center gap-tools",
+    overlay:
+        "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
+    overlayHeader:
+        "flex items-center justify-between border-b border-default/10 px-panel py-panel",
+    overlayTitle: withColor(TEXT_ROLE.labelPrimary, "primary"),
+    overlayBody: "flex-1 p-panel",
+    overlayFooter:
+        "flex justify-end gap-tools border-t border-default/10 p-panel",
+    inputClassNames: {
+        input: "font-mono",
+        inputWrapper: "bg-background/40",
+    } as const,
+    builder: {
+        availabilityDotClass: DETAIL_TABLE_AVAILABILITY_DOT_CLASS,
+    } as const,
+} as const;
 export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${SURFACE.atom.glassBlock} ${SURFACE.atom.shadowBlock}`,
     rootStandalone: "overflow-y-auto",
@@ -1041,98 +1339,19 @@ export const DETAILS = {
     generalVerificationTrack: "h-3 bg-transparent",
     generalVerificationIndicator:
         "h-3 bg-gradient-to-r from-primary to-success",
-} as const;
-export const buildDetailViewHeaderClass = (isStandalone: boolean) =>
-    isStandalone
-        ? DETAILS.headerRoot
-        : `${DETAILS.headerRoot} ${DETAILS.headerRootEmbedded}`;
-export const buildDetailViewHeaderTabButtonClass = (isActive: boolean) =>
-    isActive
-        ? `${DETAILS.headerTabBase} ${DETAILS.headerTabActive}`
-        : `${DETAILS.headerTabBase} ${DETAILS.headerTabInactive}`;
-export const NAV = {
-    root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
-    workbenchSurface: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeBottom}`,
-    workbenchShell: SURFACE.surface.workbenchShell,
-    titlebar: "app-titlebar flex w-full items-stretch",
-    titlebarBaseStyle: {
-        height: "var(--tt-navbar-h)",
-        gap: "var(--spacing-panel)",
-    } as const,
-    main: "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative",
-    left: "flex items-center gap-tools min-w-0",
-    brandGroup: "flex items-center gap-tools pr-tight",
-    brandIconWrap: "flex items-center justify-center",
-    brandIconStyle: {
-        width: "var(--tt-brand-icon-size)",
-        height: "var(--tt-brand-icon-size)",
-    } as const,
-    brandTextWrap: "hidden xl:flex flex-col justify-center ml-tight",
-    brandName:
-        "font-bold tracking-tight text-foreground text-base leading-none text-navbar",
-    brandVersion: `${TEXT_ROLE.codeMuted} text-xs font-medium leading-none mt-0.5 text-default-400`,
-    primarySeparator:
-        "hidden min-[600px]:flex h-sep w-px bg-default-200/50 mx-tight",
-    tabsWrap: "hidden min-[1200px]:flex text-navbar min-w-0",
-    tabTitle: "flex items-center gap-tight",
-    tabLabel: "hidden min-[1600px]:inline",
-    tabIcon: "text-default-400",
-    searchWrap: "hidden min-[1400px]:flex",
-    searchStyle: {
-        width: "var(--tt-search-width)",
-        fontSize: "var(--tt-fz-navbar)",
-    } as const,
-    searchIcon: "text-default-400",
-    actions: `flex items-center gap-tools ${TRANSITION.medium} shrink-0 opacity-100`,
-    primaryActions: "flex items-center gap-tools min-w-0",
-    primaryActionEmphasis: "ring-1 ring-primary/20",
-    selectionSeparator: "hidden sm:flex w-px bg-default-200/50 mx-tight",
-    selectionSeparatorStyle: {
-        height: "calc(var(--tt-navbar-h) / 2)",
-    } as const,
-    selectionExtraActions: "hidden min-[600px]:flex gap-tools",
-    selectionPauseEmphasis: "ring-1 ring-warning/30 shadow-sm",
-    selectionRecheckEmphasis: "ring-1 ring-default/20 shadow-sm",
-    ghostAction: `text-default-400 ${INTERACTIVE_RECIPE.buttonGhost}`,
-    ghostActionOverflow: "overflow-visible",
-    themeMobileWrap: "flex max-[799px]:flex min-[800px]:hidden",
-    rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
-    rehashTooltipWrap: "relative group cursor-help",
-    rehashTrack: "h-track bg-transparent",
-    rehashIndicator:
-        "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
-    rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${INTERACTIVE_RECIPE.groupReveal}`,
-    windowControls:
-        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
-    windowControlsStyle: {
-        paddingLeft: 0,
-        paddingRight: 0,
-    } as const,
-    toneButtonFallback: {
-        primary: `text-primary ${INTERACTIVE_RECIPE.buttonPrimary}`,
-        success: `text-success ${INTERACTIVE_RECIPE.buttonDefault}`,
-        warning: `text-warning ${INTERACTIVE_RECIPE.buttonDefault}`,
-        danger: INTERACTIVE_RECIPE.buttonDanger,
-        neutral: `text-default-500 ${INTERACTIVE_RECIPE.buttonGhost}`,
-    } as const,
-    filterTabsClassNames: {
-        base: "",
-        tabList:
-            "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
-        cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full",
-        tab: `px-panel font-semibold text-default-500 text-navbar ${INTERACTIVE_RECIPE.navItem}`,
-    } as const,
-    searchInputClassNames: {
-        base: TRANSITION.medium,
-        mainWrapper: "h-navbar-pill",
-        input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
-        inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${TRANSITION.fast}`,
+    table: DETAILS_TABLE,
+    builder: {
+        headerClass: (isStandalone: boolean) =>
+            isStandalone
+                ? DETAILS.headerRoot
+                : `${DETAILS.headerRoot} ${DETAILS.headerRootEmbedded}`,
+        headerTabButtonClass: (isActive: boolean) =>
+            isActive
+                ? `${DETAILS.headerTabBase} ${DETAILS.headerTabActive}`
+                : `${DETAILS.headerTabBase} ${DETAILS.headerTabInactive}`,
     } as const,
 } as const;
-export const buildAppNavSelectionActionsClass = (hasSelection: boolean) =>
-    hasSelection
-        ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
-        : `flex items-center gap-tools ${TRANSITION.medium} opacity-30 pointer-events-none grayscale`;
+
 export const COMMAND_PALETTE = {
     overlay: "fixed inset-0 z-popover",
     backdrop: "absolute inset-0 bg-background/90 backdrop-blur-xl",
@@ -1150,62 +1369,6 @@ export const COMMAND_PALETTE = {
     empty: `py-panel text-center ${TEXT_ROLE.caption}`,
     outcome: "border-t border-default/20 px-panel py-tight text-xs font-medium",
 } as const;
-const TORRENT_HEADER_CELL_BASE_CLASS = `relative flex items-center h-row border-r border-content1/10 ${TRANSITION.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
-export const buildTorrentHeaderCellClass = (params: {
-    canSort: boolean;
-    isOverlay: boolean;
-    isDragging: boolean;
-}) =>
-    [
-        TORRENT_HEADER_CELL_BASE_CLASS,
-        params.canSort
-            ? "cursor-pointer hover:bg-content1/10"
-            : "cursor-default",
-        params.isOverlay ? "bg-content1/90 cursor-grabbing" : "bg-transparent",
-        params.isOverlay ? SURFACE.atom.shadowPanel : "",
-        params.isDragging && !params.isOverlay ? "opacity-30" : "opacity-100",
-    ]
-        .filter(Boolean)
-        .join(" ");
-const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
-    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none flex-1 gap-tools text-scaled font-bold uppercase text-foreground/60 pl-tight pr-tight";
-const TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE = {
-    letterSpacing: "var(--tt-tracking-tight)",
-} as const;
-export const buildTorrentHeaderActivatorClass = (params: {
-    isOverlay: boolean;
-    align: "start" | "center" | "end";
-    isSelection: boolean;
-}) =>
-    [
-        TORRENT_HEADER_ACTIVATOR_BASE_CLASS,
-        params.isOverlay ? "text-foreground" : "",
-        params.align === "center" ? "justify-center" : "",
-        params.align === "end" ? "justify-end" : "",
-        params.isSelection ? "justify-center" : "",
-    ]
-        .filter(Boolean)
-        .join(" ");
-export const buildTorrentHeaderSortIconClass = (visible: boolean) =>
-    `text-primary shrink-0 toolbar-icon-size-sm ${visible ? "opacity-100" : "opacity-0"}`;
-const TORRENT_HEADER_RESIZE_HANDLE_CLASS =
-    "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-overlay w-handle";
-export const buildTorrentHeaderResizeBarClass = (isResizing: boolean) =>
-    [
-        `bg-foreground/10 ${TRANSITION.fast} rounded-full h-resize-h`,
-        "group-hover:bg-primary/50",
-        isResizing ? "bg-primary h-resize-h" : "",
-    ]
-        .filter(Boolean)
-        .join(" ");
-const TORRENT_HEADER_RESIZE_BAR_STYLE = {
-    width: "var(--tt-divider-width)",
-} as const;
-export const TORRENT_HEADER = {
-    activatorTrackingStyle: TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
-    resizeHandle: TORRENT_HEADER_RESIZE_HANDLE_CLASS,
-    resizeBarStyle: TORRENT_HEADER_RESIZE_BAR_STYLE,
-} as const;
 export const FORM_CONTROL = {
     checkboxPrimaryClassNames: { wrapper: "after:bg-primary" } as const,
     checkboxMarginRightClassNames: { base: "mr-tight" } as const,
@@ -1216,16 +1379,14 @@ export const FORM_CONTROL = {
         content: "text-label font-semibold uppercase px-0",
     } as const,
     statusChipClassNames: {
-        base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-        content:
-            "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
+        base: STATUS_CHIP_PATTERN.base,
+        content: STATUS_CHIP_PATTERN.content,
     } as const,
-    statusChipContainer:
-        "min-w-0 w-full flex items-center justify-center h-full",
-    statusChipContent: "flex items-center justify-center gap-tools",
-    statusChipWarningIcon: "toolbar-icon-size-md text-warning",
-    statusChipCurrentIcon: "text-current",
-    statusChipLabel: "truncate max-w-full",
+    statusChipContainer: STATUS_CHIP_PATTERN.container,
+    statusChipContent: STATUS_CHIP_PATTERN.contentWrap,
+    statusChipWarningIcon: STATUS_CHIP_PATTERN.warningIcon,
+    statusChipCurrentIcon: STATUS_CHIP_PATTERN.currentIcon,
+    statusChipLabel: STATUS_CHIP_PATTERN.label,
 } as const;
 export const INPUT = {
     mono: {
@@ -1302,130 +1463,15 @@ export const FILE_BROWSER = {
     priorityMenuNormalIcon: "toolbar-icon-size-sm text-primary",
     priorityMenuLowIcon: "toolbar-icon-size-sm text-warning",
     priorityMenuSkipIcon: "toolbar-icon-size-sm",
-} as const;
-export const buildFileBrowserSelectionActionsClass = (hasSelection: boolean) =>
-    hasSelection
-        ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
-        : `flex items-center gap-tools ${TRANSITION.medium} opacity-0 pointer-events-none`;
-export const DETAIL_TABLE = {
-    root: "flex h-full flex-col gap-panel",
-    toolbar: `${SURFACE.chrome.sticky} flex items-center justify-between px-tight`,
-    toolbarGroup: "flex items-center gap-tools",
-    toolbarIconPrimary: "text-primary",
-    body: "relative min-h-0 flex-1",
-    panel: "min-h-0 flex-1 overflow-hidden",
-    scroll: "h-full overflow-auto",
-    emptyPanel: SPLIT.emptyPanel,
-    emptyText: SPLIT.emptyText,
-    table: "w-full border-separate border-spacing-0 text-left",
-    tableHeadRow: `${TEXT_ROLE.label} text-foreground/40`,
-    tableHeadIconMuted: "text-foreground/50",
-    tableHeadCellIcon: "border-b border-default/10 py-panel pl-panel pr-tight",
-    tableHeadCell: "border-b border-default/10 px-tight py-panel",
-    tableHeadCellStatus:
-        "border-b border-default/10 py-panel pl-tight pr-panel text-right",
-    tableBody: TEXT_ROLE.code,
-    tableRow: "group hover:bg-primary/5",
-    cellIcon: "border-b border-default/5 py-panel pl-panel pr-tight",
-    cellHost:
-        "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",
-    cellAnnounce:
-        "border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums",
-    cellPeers: "border-b border-default/5 px-tight py-panel text-foreground/70",
-    cellStatus: `border-b border-default/5 py-panel pl-tight pr-panel text-right ${TEXT_ROLE.labelPrimary}`,
-    statusTone: {
-        pending: "text-foreground/50",
-        online: "text-success",
-        partial: "text-warning",
-    } as const,
-    announceRow: "flex items-center gap-tight",
-    peerRow: "flex items-center gap-tools",
-    overlay:
-        "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
-    overlayHeader:
-        "flex items-center justify-between border-b border-default/10 px-panel py-panel",
-    overlayTitle: withColor(TEXT_ROLE.labelPrimary, "primary"),
-    overlayBody: "flex-1 p-panel",
-    overlayFooter:
-        "flex justify-end gap-tools border-t border-default/10 p-panel",
-    inputClassNames: {
-        input: "font-mono",
-        inputWrapper: "bg-background/40",
+    builder: {
+        selectionActionsClass: (hasSelection: boolean) =>
+            hasSelection
+                ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
+                : `flex items-center gap-tools ${TRANSITION.medium} opacity-0 pointer-events-none`,
     } as const,
 } as const;
-export const buildAvailabilityDotClass = (isOnline: boolean) =>
-    isOnline
-        ? "size-dot rounded-full shadow-dot bg-success shadow-success/50"
-        : "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
-export const buildCapacityGaugeContainerClass = (isInsufficient: boolean) =>
-    isInsufficient
-        ? `${METRIC_CHART.capacityGauge.container} border-danger/40 bg-danger/5`
-        : `${METRIC_CHART.capacityGauge.container} ${SURFACE_BORDER}`;
-export const buildCapacityGaugeIndicatorClass = (isInsufficient: boolean) =>
-    isInsufficient
-        ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
-        : "h-full rounded-full bg-gradient-to-r from-success/50 to-success";
-export const buildMissingFilesStatusTriggerClass = (
-    isBusyWithOtherTorrent: boolean,
-) =>
-    isBusyWithOtherTorrent
-        ? `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer opacity-90 hover:opacity-90`
-        : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
-export const buildModalPaneHandleBarClass = (isActive: boolean) =>
-    isActive ? "bg-primary/55" : "bg-default/30 group-hover:bg-primary/45";
-export const buildModalPaneHandleClass = (isSettingsCollapsed: boolean) =>
-    `${MODAL.workflow.paneHandle} ${
-        isSettingsCollapsed
-            ? MODAL.workflow.paneHandleDisabled
-            : MODAL.workflow.paneHandleEnabled
-    }`;
-export const buildModalBodyPanelsClass = (isFullscreen: boolean) =>
-    isFullscreen
-        ? "flex flex-col flex-1 min-h-settings h-full min-h-0"
-        : "flex flex-col flex-1 min-h-settings";
-export const buildModalSettingsPanelClass = (isSettingsCollapsed: boolean) =>
-    [
-        SURFACE.atom.glassPanel,
-        SURFACE.role.pane,
-        "bg-background/65",
-        isSettingsCollapsed ? "min-w-0 w-0 border-none" : "",
-    ]
-        .filter(Boolean)
-        .join(" ");
-export const buildSettingsModalClassNames = (isFullMode: boolean) =>
-    ({
-        base: isFullMode
-            ? MODAL.settingsModalBaseFull
-            : MODAL.settingsModalBaseRpc,
-        wrapper: MODAL.settingsModalWrapper,
-    }) as const;
-export const buildAddTorrentModalClassNames = (params: {
-    showDestinationGate: boolean;
-    isFullscreen: boolean;
-}) =>
-    ({
-        ...MODAL.addTorrentModalChromeClassNames,
-        base: `${MODAL.addTorrentModalBase} ${
-            !params.showDestinationGate && params.isFullscreen
-                ? MODAL.addTorrentModalHeightFull
-                : MODAL.addTorrentModalHeightDefault
-        }`,
-    }) as const;
-export const buildModalResizeHandleBarClass = (params: {
-    isSettingsCollapsed: boolean;
-    isPanelResizeActive: boolean;
-}) =>
-    params.isSettingsCollapsed
-        ? `h-full w-divider ${TRANSITION.fast} bg-transparent`
-        : `h-full w-divider ${TRANSITION.fast} ${buildModalPaneHandleBarClass(
-              params.isPanelResizeActive,
-          )}`;
-export const buildFormStatusToneClass = (statusKind: string) =>
-    statusKind === "danger"
-        ? "text-danger"
-        : statusKind === "warning"
-          ? "text-warning"
-          : "text-foreground/60";
+const HEATMAP_CANVAS_FRAME_CLASS = `${SURFACE.surface.panelRaised} p-tight ${TRANSITION.medium}`;
+const HEATMAP_CANVAS_PULSE_CLASS = "opacity-70 shadow-availability ring-1 ring-primary/40";
 export const HEATMAP = {
     empty: `${SURFACE.surface.panelRaised} p-panel text-center`,
     emptyMuted: withOpacity(TEXT_ROLE.body, 50),
@@ -1441,28 +1487,14 @@ export const HEATMAP = {
     zoomButton: "size-icon-btn rounded-full",
     zoomIcon: "text-current",
     zoomValue: withOpacity(TEXT_ROLE.code, 60),
-    canvasFrame: `${SURFACE.surface.panelRaised} p-tight ${TRANSITION.medium}`,
-    canvasPulse: "opacity-70 shadow-availability ring-1 ring-primary/40",
     canvas: "w-full h-auto block rounded-2xl cursor-crosshair",
     labelTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
+    builder: {
+        canvasFrameClass: (isZooming: boolean) =>
+            isZooming
+                ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}`
+                : HEATMAP_CANVAS_FRAME_CLASS,
+    } as const,
 } as const;
-export const buildHeatmapCanvasFrameClass = (isZooming: boolean) =>
-    isZooming
-        ? `${HEATMAP.canvasFrame} ${HEATMAP.canvasPulse}`
-        : HEATMAP.canvasFrame;
-// Justification: settings input semantics depend on state (`disabled`, `mono`);
-// this builder prevents repeated inline classNames objects in renderers.
-export const buildSettingsBufferedInputClassNames = (params: {
-    disabled: boolean;
-    mono: boolean;
-}) => ({
-    inputWrapper: params.disabled
-        ? `h-button ${TRANSITION.fast} ${VISUAL_STATE.disabled}`
-        : `h-button ${TRANSITION.fast} group-hover:border-primary/50`,
-    input: params.mono
-        ? `${withOpacity(TEXT_ROLE.body, 90)} font-mono tracking-tight`
-        : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
-    label: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
-});

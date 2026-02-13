@@ -182,29 +182,75 @@ expectExactKeys(
     "GLASS_ROLE_CORE.text",
 );
 
-if (!source.includes("const STANDARD_SURFACE_CHROME = GLASS_ROLE_CORE.chrome;")) {
-    fail("STANDARD_SURFACE_CHROME must point directly to GLASS_ROLE_CORE.chrome");
+const semanticBody = findBraceBlock(source, "const GLASS_ROLE_SEMANTIC =");
+if (!semanticBody) fail("GLASS_ROLE_SEMANTIC object not found");
+expectExactKeys(
+    extractKeysByIndent(semanticBody, 4),
+    ["surface", "chrome"],
+    "GLASS_ROLE_SEMANTIC",
+);
+const semanticSurfaceBody = findBraceBlock(semanticBody, "surface:");
+if (!semanticSurfaceBody) fail("GLASS_ROLE_SEMANTIC.surface object not found");
+expectExactKeys(
+    extractKeysByIndent(semanticSurfaceBody, 8),
+    [
+        "workbenchShell",
+        "panelInset",
+        "tooltip",
+        "statusModule",
+        "panelRaised",
+        "panelMuted",
+        "panelInfo",
+        "panelWorkflow",
+        "sidebarPanel",
+    ],
+    "GLASS_ROLE_SEMANTIC.surface",
+);
+if (!semanticBody.includes("chrome: GLASS_SEMANTIC_CHROME")) {
+    fail("GLASS_ROLE_SEMANTIC.chrome must point to GLASS_SEMANTIC_CHROME");
 }
-if (!source.includes("const STANDARD_SURFACE_ROLE = GLASS_ROLE_CORE.surface;")) {
-    fail("STANDARD_SURFACE_ROLE must point directly to GLASS_ROLE_CORE.surface");
+const semanticChromeBody = findBraceBlock(source, "const GLASS_SEMANTIC_CHROME =");
+if (!semanticChromeBody) fail("GLASS_SEMANTIC_CHROME object not found");
+for (const key of [
+    "dividerSoft:",
+    "headerBorder:",
+    "footerBorder:",
+    "headerPassive:",
+    "footerEnd:",
+    "footerActionsPadded:",
+]) {
+    if (!semanticChromeBody.includes(key)) {
+        fail(`GLASS_ROLE_SEMANTIC.chrome missing key ${key.replace(":", "")}`);
+    }
 }
-if (!source.includes("const STANDARD_SURFACE_SEMANTIC_SURFACE = GLASS_ROLE_SEMANTIC.surface;")) {
-    fail("STANDARD_SURFACE_SEMANTIC_SURFACE must point to GLASS_ROLE_SEMANTIC.surface");
+
+const surfaceExportBody = findBraceBlock(source, "export const SURFACE =");
+if (!surfaceExportBody) fail("SURFACE export object not found");
+expectExactKeys(
+    extractKeysByIndent(surfaceExportBody, 4),
+    [
+        "dial",
+        "role",
+        "surface",
+        "state",
+        "text",
+        "tooltip",
+        "chrome",
+        "chromeEx",
+        "modal",
+        "menu",
+        "atom",
+    ],
+    "SURFACE",
+);
+if (!source.includes("role: GLASS_ROLE_CORE.surface")) {
+    fail("SURFACE.role must expose GLASS_ROLE_CORE.surface");
 }
-if (!source.includes("const STANDARD_SURFACE_CHROME_EXTENDED = GLASS_ROLE_SEMANTIC.chrome;")) {
-    fail("STANDARD_SURFACE_CHROME_EXTENDED must point to GLASS_ROLE_SEMANTIC.chrome");
+if (!source.includes("surface: GLASS_ROLE_SEMANTIC.surface")) {
+    fail("SURFACE.surface must expose GLASS_ROLE_SEMANTIC.surface");
 }
-if (!source.includes("core: GLASS_ROLE_CORE")) {
-    fail("GLASS_ROLE_REGISTRY must expose core tier");
-}
-if (!source.includes("semantic: GLASS_ROLE_SEMANTIC")) {
-    fail("GLASS_ROLE_REGISTRY must expose semantic tier");
-}
-if (!source.includes("surface: STANDARD_SURFACE_SEMANTIC_SURFACE")) {
-    fail("SURFACE must expose semantic surfaces via surface.*");
-}
-if (!source.includes("chromeEx: STANDARD_SURFACE_CHROME_EXTENDED")) {
-    fail("SURFACE must expose semantic chrome via chromeEx.*");
+if (!source.includes("chromeEx: GLASS_ROLE_SEMANTIC.chrome")) {
+    fail("SURFACE.chromeEx must expose GLASS_ROLE_SEMANTIC.chrome");
 }
 
 console.log("Surface foundation check: core roles and semantic split contract satisfied.");

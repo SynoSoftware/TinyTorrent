@@ -12,7 +12,6 @@ import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddT
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     FORM,
-    buildFormStatusToneClass,
     INPUT,
     SURFACE,
 } from "@/shared/ui/layout/glass-surface";
@@ -89,7 +88,7 @@ export function AddTorrentDestinationGatePanel() {
             <div
                 className={cn(
                     FORM.workflow.status,
-                    buildFormStatusToneClass(destinationGate.statusKind),
+                    FORM.builder.statusToneClass(destinationGate.statusKind),
                 )}
             >
                 {destinationGate.statusKind === "danger" ||

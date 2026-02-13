@@ -11,7 +11,6 @@ import type { CollectionChildren } from "@react-types/shared";
 import {
     SURFACE,
     CONTEXT_MENU,
-    buildContextMenuAnchorStyle,
 } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
@@ -432,7 +431,7 @@ function TorrentTable_RowMenuInner({
         >
             <DropdownTrigger>
                 <div
-                    style={buildContextMenuAnchorStyle({
+                    style={CONTEXT_MENU.builder.anchorStyle({
                         top: rect.top,
                         left: rect.left,
                     })}

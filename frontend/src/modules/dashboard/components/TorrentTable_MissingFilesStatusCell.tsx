@@ -13,8 +13,8 @@ import {
 } from "@/shared/utils/recoveryFormat";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import {
-    buildMissingFilesStatusTriggerClass,
     FORM_CONTROL,
+    TABLE,
 } from "@/shared/ui/layout/glass-surface";
 
 type MissingFilesStatusCellProps = {
@@ -95,7 +95,7 @@ export function TorrentTable_MissingFilesStatusCell({
                 type="button"
                 onClick={handleOpenRecovery}
                 title={tooltip}
-                className={buildMissingFilesStatusTriggerClass(
+                className={TABLE.builder.missingFilesStatusTriggerClass(
                     isBusyWithOtherTorrent,
                 )}
             >

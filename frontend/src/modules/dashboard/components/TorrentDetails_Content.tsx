@@ -2,10 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
-import {
-    buildTableDetailsContentScrollStyle,
-    TABLE,
-} from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
     type FileExplorerContextAction,
@@ -145,7 +142,7 @@ export const ContentTab = ({
                 <div className={TABLE.detailsContentListHost}>
                     <div
                         className={TABLE.detailsContentListScroll}
-                        style={buildTableDetailsContentScrollStyle(
+                        style={TABLE.builder.detailsContentScrollStyle(
                             DETAILS_TAB_CONTENT_MAX_HEIGHT,
                         )}
                     >

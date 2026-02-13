@@ -4,14 +4,9 @@ import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
-    buildContextMenuPanelStyle,
     CONTEXT_MENU,
-    buildSplitViewVirtualCanvasStyle,
-    buildSplitViewVirtualRowStyle,
     SURFACE,
     SPLIT,
-    buildSplitViewAddressClass,
-    buildSplitViewRowClass,
 } from "@/shared/ui/layout/glass-surface";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
@@ -105,18 +100,18 @@ export const PeersTab = ({
 
                         <div ref={listRef} className={SPLIT.listScroll}>
                             <div
-                                style={buildSplitViewVirtualCanvasStyle(
+                                style={SPLIT.builder.virtualCanvasStyle(
                                     viewModel.metrics.totalSize,
                                 )}
                             >
                                 {viewModel.data.rowViewModels.map((rowView) => (
                                     <div
                                         key={rowView.key}
-                                        className={buildSplitViewRowClass({
+                                        className={SPLIT.builder.rowClass({
                                             hovered: rowView.isHovered,
                                             hostile: rowView.isHostile,
                                         })}
-                                        style={buildSplitViewVirtualRowStyle({
+                                        style={SPLIT.builder.virtualRowStyle({
                                             top: rowView.start,
                                             height: rowView.size,
                                         })}
@@ -180,7 +175,7 @@ export const PeersTab = ({
                                                 />
                                             )}
                                             <span
-                                                className={buildSplitViewAddressClass(
+                                                className={SPLIT.builder.addressClass(
                                                     rowView.isHostile,
                                                 )}
                                             >
@@ -204,7 +199,7 @@ export const PeersTab = ({
                             {viewModel.state.peerContextMenu && (
                                 <div
                                     className={CONTEXT_MENU.panel}
-                                    style={buildContextMenuPanelStyle({
+                                    style={CONTEXT_MENU.builder.panelStyle({
                                         x: viewModel.state.peerContextMenu.x,
                                         y: viewModel.state.peerContextMenu.y,
                                     })}

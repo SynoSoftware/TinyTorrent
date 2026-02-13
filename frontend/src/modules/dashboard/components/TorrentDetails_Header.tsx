@@ -5,11 +5,7 @@ import { ICON_STROKE_WIDTH } from "@/config/logic";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
-import {
-    buildDetailViewHeaderClass,
-    buildDetailViewHeaderTabButtonClass,
-    DETAILS,
-} from "@/shared/ui/layout/glass-surface";
+import { DETAILS } from "@/shared/ui/layout/glass-surface";
 
 const DETAIL_TAB_LABELS: Record<string, string> = {
     general: "inspector.tab.general",
@@ -70,7 +66,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
 
     return (
         <div
-            className={buildDetailViewHeaderClass(isStandalone)}
+            className={DETAILS.builder.headerClass(isStandalone)}
             style={DETAILS.headerTrackingStyle}
         >
             {/* LEFT */}
@@ -106,7 +102,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                             type="button"
                             aria-pressed={activeTab === tab}
                             onClick={() => onTabChange(tab)}
-                            className={buildDetailViewHeaderTabButtonClass(
+                            className={DETAILS.builder.headerTabButtonClass(
                                 activeTab === tab,
                             )}
                         >

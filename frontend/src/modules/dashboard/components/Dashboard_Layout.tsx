@@ -27,11 +27,7 @@ import {
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { Section } from "@/shared/ui/layout/Section";
-import {
-    buildDashboardInspectorPanelClass,
-    buildDashboardResizeHandleClass,
-    DASHBOARD,
-} from "@/shared/ui/layout/glass-surface";
+import { DASHBOARD } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -277,7 +273,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
             {/* --- RESIZE HANDLE (The Gap) --- */}
             <PanelResizeHandle
-                className={buildDashboardResizeHandleClass(isHorizontalSplit)}
+                className={DASHBOARD.builder.resizeHandleClass(
+                    isHorizontalSplit,
+                )}
                 hitAreaMargins={{
                     coarse: shell.handleHitArea,
                     fine: shell.handleHitArea,
@@ -313,7 +311,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                 minSize={26}
                 defaultSize={34}
                 onPointerDown={focusInspector}
-                className={buildDashboardInspectorPanelClass(isHorizontalSplit)}
+                className={DASHBOARD.builder.inspectorPanelClass(
+                    isHorizontalSplit,
+                )}
             >
                 <div {...getShellStyles()}>
                     <div {...getContentStyles()}>

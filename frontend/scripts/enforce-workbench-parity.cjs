@@ -13,42 +13,67 @@ const target = path.join(
 );
 const source = fs.readFileSync(target, "utf8");
 
-const checks = [
+const familyChecks = [
     {
-        objectName: "NAV",
-        entryKey: "workbenchSurface",
-        mustInclude: [
-            "SURFACE.role.workbench",
-            "SURFACE.chrome.edgeBottom",
-        ],
-    },
-    {
-        objectName: "NAV",
-        entryKey: "workbenchShell",
-        mustInclude: ["SURFACE.surface.workbenchShell"],
-    },
-    {
-        objectName: "TABLE",
-        entryKey: "workbenchSurface",
+        entryKey: "surface",
         mustInclude: ["SURFACE.role.workbench"],
     },
     {
+        entryKey: "shell",
+        mustInclude: ["SURFACE.surface.workbenchShell"],
+    },
+    {
+        entryKey: "topEdge",
+        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeTop"],
+    },
+    {
+        entryKey: "bottomEdge",
+        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeBottom"],
+    },
+];
+
+const checks = [
+    {
+        objectName: "TABLE",
+        entryKey: "workbenchSurface",
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.surface"],
+    },
+    {
         objectName: "TABLE",
         entryKey: "workbenchShell",
-        mustInclude: ["SURFACE.surface.workbenchShell"],
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
     },
     {
-        objectName: "STATUS_BAR",
+        objectName: "WORKBENCH",
+        entryKey: "nav",
+        mustInclude: ["WORKBENCH_NAV"],
+    },
+    {
+        objectName: "WORKBENCH",
+        entryKey: "status",
+        mustInclude: ["WORKBENCH_STATUS"],
+    },
+];
+const constChecks = [
+    {
+        constName: "WORKBENCH_NAV",
         entryKey: "workbenchSurface",
-        mustInclude: [
-            "SURFACE.role.workbench",
-            "SURFACE.chrome.edgeTop",
-        ],
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.bottomEdge"],
     },
     {
-        objectName: "STATUS_BAR",
+        constName: "WORKBENCH_NAV",
+        entryKey: "workbenchShell",
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
+    },
+    {
+        constName: "WORKBENCH_STATUS",
+        entryKey: "workbenchSurface",
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.topEdge"],
+    },
+    {
+        constName: "WORKBENCH_STATUS",
         entryKey: "footer",
-        mustInclude: ["SURFACE.surface.workbenchShell"],
+        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
     },
 ];
 
@@ -59,6 +84,16 @@ function escapeRegex(text) {
 function extractObjectBody(objectName) {
     const pattern = new RegExp(
         `export const ${escapeRegex(objectName)} = \\{([\\s\\S]*?)\\} as const;`,
+        "m",
+    );
+    const match = source.match(pattern);
+    if (!match) return null;
+    return match[1];
+}
+
+function extractConstObjectBody(constName) {
+    const pattern = new RegExp(
+        `const ${escapeRegex(constName)} = \\{([\\s\\S]*?)\\} as const;`,
         "m",
     );
     const match = source.match(pattern);
@@ -78,7 +113,36 @@ function extractEntryBody(objectName, entryKey) {
     return `${entryKey}: ${match[1]}`;
 }
 
+function extractConstEntryBody(constName, entryKey) {
+    const objectBody = extractConstObjectBody(constName);
+    if (!objectBody) return null;
+    const pattern = new RegExp(
+        `${escapeRegex(entryKey)}:\\s*([\\s\\S]*?)(?:,\\n|,\\r\\n)`,
+        "m",
+    );
+    const match = objectBody.match(pattern);
+    if (!match) return null;
+    return `${entryKey}: ${match[1]}`;
+}
+
 const failures = [];
+
+for (const check of familyChecks) {
+    const body = extractConstEntryBody("WORKBENCH_SURFACE_FAMILY", check.entryKey);
+    if (!body) {
+        failures.push(
+            `WORKBENCH_SURFACE_FAMILY.${check.entryKey}: missing entry`,
+        );
+        continue;
+    }
+    for (const token of check.mustInclude) {
+        if (!body.includes(token)) {
+            failures.push(
+                `WORKBENCH_SURFACE_FAMILY.${check.entryKey}: missing token '${token}'`,
+            );
+        }
+    }
+}
 
 for (const check of checks) {
     const body = extractEntryBody(check.objectName, check.entryKey);
@@ -90,6 +154,21 @@ for (const check of checks) {
         if (!body.includes(token)) {
             failures.push(
                 `${check.objectName}.${check.entryKey}: missing token '${token}'`,
+            );
+        }
+    }
+}
+
+for (const check of constChecks) {
+    const body = extractConstEntryBody(check.constName, check.entryKey);
+    if (!body) {
+        failures.push(`${check.constName}.${check.entryKey}: missing entry`);
+        continue;
+    }
+    for (const token of check.mustInclude) {
+        if (!body.includes(token)) {
+            failures.push(
+                `${check.constName}.${check.entryKey}: missing token '${token}'`,
             );
         }
     }

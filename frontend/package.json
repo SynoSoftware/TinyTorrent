@@ -12,6 +12,8 @@
         "enforce:geometry": "node ./scripts/enforce-geometry.cjs",
         "enforce:surface-foundation": "node ./scripts/enforce-surface-foundation.cjs",
         "enforce:surface-churn": "node ./scripts/enforce-surface-churn.cjs",
+        "enforce:surface-unused": "node ./scripts/enforce-unused-surface-tokens.cjs",
+        "enforce:surface-final-form": "node ./scripts/enforce-surface-final-form.cjs",
         "enforce:workbench-parity": "node ./scripts/enforce-workbench-parity.cjs",
         "enforce:workbench-consumers": "node ./scripts/enforce-workbench-consumers.cjs",
         "report:surface-tree": "node ./scripts/generate-surface-component-tree.cjs",

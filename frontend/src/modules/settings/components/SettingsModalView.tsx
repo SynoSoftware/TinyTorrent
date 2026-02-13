@@ -8,10 +8,7 @@ import {
     DETAILS_TOOLTIP_OPACITY_ANIMATION,
 } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
-import {
-    MODAL,
-    buildSettingsModalClassNames,
-} from "@/shared/ui/layout/glass-surface";
+import { MODAL } from "@/shared/ui/layout/glass-surface";
 import { Section } from "@/shared/ui/layout/Section";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
@@ -349,7 +346,7 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             placement="center"
             size="5xl"
             hideCloseButton
-            classNames={buildSettingsModalClassNames(uiMode === "Full")}
+            classNames={MODAL.builder.settingsModalClassNames(uiMode === "Full")}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
             <ModalContent className={MODAL.contentWrapper}>

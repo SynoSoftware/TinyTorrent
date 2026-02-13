@@ -21,7 +21,6 @@ import type {
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
-    buildFileBrowserSelectionActionsClass,
     FILE_BROWSER,
     FORM_CONTROL,
     SURFACE,
@@ -190,7 +189,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 <div className={FILE_BROWSER.toolbarSpacer} />
 
                 <div
-                    className={buildFileBrowserSelectionActionsClass(
+                    className={FILE_BROWSER.builder.selectionActionsClass(
                         selectedIndexes.size > 0,
                     )}
                 >

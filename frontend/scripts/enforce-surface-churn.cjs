@@ -59,7 +59,7 @@ if (overages.length > 0) {
         console.error(` - ${item.name}: ${item.count} (max ${item.maxAllowed})`);
     }
     console.error(
-        "\nFix by routing new surface recipes into SURFACE.layer/role/chrome and reusing those tokens.",
+        "\nFix by routing new surface recipes into SURFACE.role/surface/chrome and reusing those tokens.",
     );
     process.exit(2);
 }
