@@ -16,6 +16,7 @@
         "enforce:workbench-consumers": "node ./scripts/enforce-workbench-consumers.cjs",
         "report:surface-tree": "node ./scripts/generate-surface-component-tree.cjs",
         "report:surface-tree:all": "node ./scripts/generate-surface-component-tree.cjs --all",
+        "report:classname-occurrences": "node ./scripts/generate-classname-occurrences.cjs",
         "classify:zoom": "node ./scripts/classify_zoom.cjs",
         "generate:zoom-report": "node ./scripts/generate_zoom_report.cjs",
         "generate:tailwind-mapping": "node scripts/generate_tailwind_mapping.cjs",

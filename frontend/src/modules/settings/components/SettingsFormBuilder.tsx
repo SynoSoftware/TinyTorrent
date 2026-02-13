@@ -18,7 +18,7 @@ import {
     DividerRenderer,
 } from "@/modules/settings/components/SettingsBlockRenderers";
 import type { ReactNode } from "react";
-import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 
 interface SettingsFormBuilderProps {
     tab: TabDefinition;
@@ -101,7 +101,9 @@ function renderBlock(block: SectionBlock, blockIndex: number) {
         }
         case "divider": {
             const Renderer = BLOCK_COMPONENTS.divider;
-            return <Renderer key={`${block.type}-${blockIndex}`} block={block} />;
+            return (
+                <Renderer key={`${block.type}-${blockIndex}`} block={block} />
+            );
         }
         default:
             return null;
@@ -117,7 +119,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
             {tab.sections.map((section, idx) => {
                 // Filter hidden blocks
                 const visibleBlocks = section.blocks.filter(
-                    (block) => !block.visible || block.visible(config)
+                    (block) => !block.visible || block.visible(config),
                 );
 
                 if (!visibleBlocks.length) {
@@ -137,9 +139,9 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                                 : undefined
                         }
                     >
-                        <div className={FORM_UI_CLASS.sectionContentOffsetStack}>
+                        <div className={FORM.sectionContentOffsetStack}>
                             {visibleBlocks.map((block, blockIndex) =>
-                                renderBlock(block, blockIndex)
+                                renderBlock(block, blockIndex),
                             )}
                         </div>
                     </SettingsSection>

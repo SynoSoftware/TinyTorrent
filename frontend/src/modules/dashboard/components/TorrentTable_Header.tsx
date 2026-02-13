@@ -3,21 +3,15 @@ import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import {
-    flexRender,
-    type Column,
-    type Table,
-} from "@tanstack/react-table";
+import { flexRender, type Column, type Table } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import {
-    ICON_STROKE_WIDTH_DENSE,
-} from "@/config/logic";
+import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import {
     buildTorrentHeaderActivatorClass,
     buildTorrentHeaderCellClass,
     buildTorrentHeaderResizeBarClass,
     buildTorrentHeaderSortIconClass,
-    TORRENT_HEADER_CLASS,
+    TORRENT_HEADER,
 } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 
@@ -161,7 +155,7 @@ const TorrentTable_Header = memo(
                         align,
                         isSelection,
                     })}
-                    style={TORRENT_HEADER_CLASS.activatorTrackingStyle}
+                    style={TORRENT_HEADER.activatorTrackingStyle}
                     onClick={
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
@@ -182,19 +176,19 @@ const TorrentTable_Header = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className={TORRENT_HEADER_CLASS.resizeHandle}
+                        className={TORRENT_HEADER.resizeHandle}
                     >
                         <div
                             className={buildTorrentHeaderResizeBarClass(
                                 isColumnResizing,
                             )}
-                            style={TORRENT_HEADER_CLASS.resizeBarStyle}
+                            style={TORRENT_HEADER.resizeBarStyle}
                         />
                     </div>
                 )}
             </motion.div>
         );
-    }
+    },
 );
 
 export default TorrentTable_Header;

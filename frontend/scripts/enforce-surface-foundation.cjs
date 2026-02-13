@@ -201,10 +201,10 @@ if (!source.includes("semantic: GLASS_ROLE_SEMANTIC")) {
     fail("GLASS_ROLE_REGISTRY must expose semantic tier");
 }
 if (!source.includes("surface: STANDARD_SURFACE_SEMANTIC_SURFACE")) {
-    fail("STANDARD_SURFACE_CLASS must expose semantic surfaces via surface.*");
+    fail("SURFACE must expose semantic surfaces via surface.*");
 }
 if (!source.includes("chromeEx: STANDARD_SURFACE_CHROME_EXTENDED")) {
-    fail("STANDARD_SURFACE_CLASS must expose semantic chrome via chromeEx.*");
+    fail("SURFACE must expose semantic chrome via chromeEx.*");
 }
 
 console.log("Surface foundation check: core roles and semantic split contract satisfied.");

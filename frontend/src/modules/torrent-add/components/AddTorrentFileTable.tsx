@@ -10,11 +10,9 @@ import type {
     TorrentFileEntity,
     LibtorrentPriority,
 } from "@/services/rpc/entities";
-import type {
-    FilePriority,
-} from "@/modules/torrent-add/services/fileSelection";
+import type { FilePriority } from "@/modules/torrent-add/services/fileSelection";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-import { APP_MODAL_CLASS } from "@/shared/ui/layout/glass-surface";
+import { MODAL } from "@/shared/ui/layout/glass-surface";
 
 const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
     low: 1,
@@ -108,7 +106,7 @@ export const AddTorrentFileTable = () => {
 
     // 5. Render
     return (
-        <div className={APP_MODAL_CLASS.workflow.fileTableShell}>
+        <div className={MODAL.workflow.fileTableShell}>
             <FileExplorerTree viewModel={viewModel} />
         </div>
     );

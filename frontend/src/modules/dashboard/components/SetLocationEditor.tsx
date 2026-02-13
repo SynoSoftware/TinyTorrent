@@ -2,7 +2,7 @@ import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 
 interface SetLocationEditorProps {
     value: string;
@@ -31,17 +31,15 @@ export function SetLocationEditor({
     const { t } = useTranslation();
     const trimmedValue = value.trim();
     return (
-        <div className={FORM_UI_CLASS.locationEditorRoot}>
+        <div className={FORM.locationEditorRoot}>
             {caption && (
-                <div className={FORM_UI_CLASS.locationEditorCaption}>
-                    {caption}
-                </div>
+                <div className={FORM.locationEditorCaption}>{caption}</div>
             )}
-            <div className={FORM_UI_CLASS.locationEditorRow}>
-                <div className={FORM_UI_CLASS.locationEditorIconWrap}>
-                    <HardDrive className={FORM_UI_CLASS.locationEditorIcon} />
+            <div className={FORM.locationEditorRow}>
+                <div className={FORM.locationEditorIconWrap}>
+                    <HardDrive className={FORM.locationEditorIcon} />
                 </div>
-                <div className={FORM_UI_CLASS.locationEditorField}>
+                <div className={FORM.locationEditorField}>
                     <label className={TEXT_ROLE.caption}>
                         {t("directory_browser.path_label")}
                     </label>
@@ -57,11 +55,9 @@ export function SetLocationEditor({
                 {helpText ?? t("directory_browser.manual_entry_prompt")}
             </p>
             {statusMessage && (
-                <div className={TEXT_ROLE.bodySmall}>
-                    {statusMessage}
-                </div>
+                <div className={TEXT_ROLE.bodySmall}>{statusMessage}</div>
             )}
-            <div className={FORM_UI_CLASS.locationEditorActions}>
+            <div className={FORM.locationEditorActions}>
                 <Button
                     variant="shadow"
                     size="md"
@@ -81,10 +77,7 @@ export function SetLocationEditor({
                     {t("modals.cancel")}
                 </Button>
             </div>
-            {error && (
-                <div className={FORM_UI_CLASS.locationEditorError}>{error}</div>
-            )}
+            {error && <div className={FORM.locationEditorError}>{error}</div>}
         </div>
     );
 }
-

@@ -4,7 +4,7 @@ import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import STATUS from "@/shared/status";
-import { DETAIL_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { DETAILS } from "@/shared/ui/layout/glass-surface";
 
 interface SpeedTabProps {
     torrentId: string | number;
@@ -29,18 +29,18 @@ export const SpeedTab = ({
             {isChecking && (
                 <AlertPanel
                     severity="warning"
-                    className={DETAIL_VIEW_CLASS.speedCheckingAlert}
+                    className={DETAILS.speedCheckingAlert}
                 >
                     {t("labels.status.torrent.checking")}
                 </AlertPanel>
             )}
             {isHistoryEmpty && (
-                <div className={DETAIL_VIEW_CLASS.speedCollectingPanel}>
+                <div className={DETAILS.speedCollectingPanel}>
                     {t("torrent_modal.speed.collecting_samples")}
                 </div>
             )}
 
-            <div className={DETAIL_VIEW_CLASS.speedChartHost}>
+            <div className={DETAILS.speedChartHost}>
                 <SpeedChart
                     downHistory={downHistory}
                     upHistory={upHistory}
@@ -51,15 +51,13 @@ export const SpeedTab = ({
     );
 
     return (
-        <div className={DETAIL_VIEW_CLASS.speedRoot}>
+        <div className={DETAILS.speedRoot}>
             {isStandalone ? (
-                <GlassPanel className={DETAIL_VIEW_CLASS.speedStandaloneSurface}>
+                <GlassPanel className={DETAILS.speedStandaloneSurface}>
                     {Content}
                 </GlassPanel>
             ) : (
-                <div className={DETAIL_VIEW_CLASS.speedEmbeddedSurface}>
-                    {Content}
-                </div>
+                <div className={DETAILS.speedEmbeddedSurface}>{Content}</div>
             )}
         </div>
     );

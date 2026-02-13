@@ -1,5 +1,18 @@
 import { memo, type CSSProperties } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, File as FileIcon, FileAudio, FileImage, FileText, FileVideo, Folder, Minus, X } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    ChevronDown,
+    ChevronRight,
+    File as FileIcon,
+    FileAudio,
+    FileImage,
+    FileText,
+    FileVideo,
+    Folder,
+    Minus,
+    X,
+} from "lucide-react";
 import {
     Checkbox,
     Chip,
@@ -14,34 +27,37 @@ import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import {
-    FILE_BROWSER_CLASS,
-    FORM_CONTROL_CLASS,
-    STANDARD_SURFACE_CLASS,
+    FILE_BROWSER,
+    FORM_CONTROL,
+    SURFACE,
 } from "@/shared/ui/layout/glass-surface";
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
     onToggleExpand: () => void;
     onSelectionChange: (selected: boolean) => void;
-    onSetPriority: (priority: LibtorrentPriority | "skip", indexes?: number[]) => void;
+    onSetPriority: (
+        priority: LibtorrentPriority | "skip",
+        indexes?: number[],
+    ) => void;
     t: (key: string) => string;
 }
 
 const getFileIcon = (filename: string) => {
     const extension = filename.split(".").pop()?.toLowerCase();
     if (["mp4", "mkv", "avi", "mov", "webm"].includes(extension || "")) {
-        return <FileVideo className={FILE_BROWSER_CLASS.iconVideo} />;
+        return <FileVideo className={FILE_BROWSER.iconVideo} />;
     }
     if (["mp3", "wav", "flac", "aac"].includes(extension || "")) {
-        return <FileAudio className={FILE_BROWSER_CLASS.iconAudio} />;
+        return <FileAudio className={FILE_BROWSER.iconAudio} />;
     }
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension || "")) {
-        return <FileImage className={FILE_BROWSER_CLASS.iconImage} />;
+        return <FileImage className={FILE_BROWSER.iconImage} />;
     }
     if (["txt", "md", "pdf", "doc", "docx"].includes(extension || "")) {
-        return <FileText className={FILE_BROWSER_CLASS.iconText} />;
+        return <FileText className={FILE_BROWSER.iconText} />;
     }
-    return <FileIcon className={FILE_BROWSER_CLASS.iconDefault} />;
+    return <FileIcon className={FILE_BROWSER.iconDefault} />;
 };
 
 const getPriorityColor = (priority: LibtorrentPriority, isWanted: boolean) => {
@@ -75,8 +91,8 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     return (
         <div
             className={cn(
-                FILE_BROWSER_CLASS.row,
-                !row.isWanted && FILE_BROWSER_CLASS.rowDimmed,
+                FILE_BROWSER.row,
+                !row.isWanted && FILE_BROWSER.rowDimmed,
             )}
             style={
                 {
@@ -84,39 +100,39 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 } as CSSProperties
             }
         >
-            <div className={FILE_BROWSER_CLASS.rowCheckboxWrap}>
+            <div className={FILE_BROWSER.rowCheckboxWrap}>
                 <Checkbox
                     size="sm"
                     radius="sm"
                     isSelected={row.isSelected}
                     isIndeterminate={row.isIndeterminate}
                     onValueChange={onSelectionChange}
-                    classNames={FORM_CONTROL_CLASS.checkboxPrimaryClassNames}
+                    classNames={FORM_CONTROL.checkboxPrimaryClassNames}
                 />
             </div>
 
-            <div className={FILE_BROWSER_CLASS.rowNameCell}>
+            <div className={FILE_BROWSER.rowNameCell}>
                 {row.node.isFolder ? (
                     <button
                         onClick={(event) => {
                             event.stopPropagation();
                             onToggleExpand();
                         }}
-                        className={FILE_BROWSER_CLASS.chevronButton}
+                        className={FILE_BROWSER.chevronButton}
                     >
                         {row.isExpanded ? (
-                            <ChevronDown className={FILE_BROWSER_CLASS.iconSmall} />
+                            <ChevronDown className={FILE_BROWSER.iconSmall} />
                         ) : (
-                            <ChevronRight className={FILE_BROWSER_CLASS.iconSmall} />
+                            <ChevronRight className={FILE_BROWSER.iconSmall} />
                         )}
                     </button>
                 ) : (
-                    <div className={FILE_BROWSER_CLASS.rowIndentSpacer} />
+                    <div className={FILE_BROWSER.rowIndentSpacer} />
                 )}
 
-                <div className={FILE_BROWSER_CLASS.rowIconWrap}>
+                <div className={FILE_BROWSER.rowIconWrap}>
                     {row.node.isFolder ? (
-                        <Folder className={FILE_BROWSER_CLASS.rowFolderIcon} />
+                        <Folder className={FILE_BROWSER.rowFolderIcon} />
                     ) : (
                         getFileIcon(row.node.name)
                     )}
@@ -124,10 +140,10 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 
                 <span
                     className={cn(
-                        FILE_BROWSER_CLASS.rowNameBase,
+                        FILE_BROWSER.rowNameBase,
                         row.node.isFolder
-                            ? FILE_BROWSER_CLASS.rowNameFolder
-                            : FILE_BROWSER_CLASS.rowNameFile,
+                            ? FILE_BROWSER.rowNameFolder
+                            : FILE_BROWSER.rowNameFile,
                     )}
                     title={row.node.name}
                     onClick={row.node.isFolder ? onToggleExpand : undefined}
@@ -136,15 +152,15 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </span>
             </div>
 
-            <div className={FILE_BROWSER_CLASS.rowPriorityWrap}>
+            <div className={FILE_BROWSER.rowPriorityWrap}>
                 <Dropdown>
                     <DropdownTrigger>
                         <Chip
                             size="sm"
                             variant="flat"
                             color={getPriorityColor(row.priority, row.isWanted)}
-                            className={FILE_BROWSER_CLASS.priorityChip}
-                            classNames={FORM_CONTROL_CLASS.priorityChipClassNames}
+                            className={FILE_BROWSER.priorityChip}
+                            classNames={FORM_CONTROL.priorityChipClassNames}
                         >
                             {getPriorityLabel(row.priority, row.isWanted, t)}
                         </Chip>
@@ -158,14 +174,18 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             if (key === "skip") onSetPriority("skip", indexes);
                         }}
                         variant="shadow"
-                        className={STANDARD_SURFACE_CLASS.menu.surface}
-                        classNames={STANDARD_SURFACE_CLASS.menu.listClassNames}
-                        itemClasses={STANDARD_SURFACE_CLASS.menu.itemClassNames}
+                        className={SURFACE.menu.surface}
+                        classNames={SURFACE.menu.listClassNames}
+                        itemClasses={SURFACE.menu.itemClassNames}
                     >
                         <DropdownItem
                             key="high"
                             startContent={
-                                <ArrowUp className={FILE_BROWSER_CLASS.priorityMenuHighIcon} />
+                                <ArrowUp
+                                    className={
+                                        FILE_BROWSER.priorityMenuHighIcon
+                                    }
+                                />
                             }
                         >
                             {t("priority.high")}
@@ -174,7 +194,9 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             key="normal"
                             startContent={
                                 <Minus
-                                    className={FILE_BROWSER_CLASS.priorityMenuNormalIcon}
+                                    className={
+                                        FILE_BROWSER.priorityMenuNormalIcon
+                                    }
                                 />
                             }
                         >
@@ -183,16 +205,22 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                         <DropdownItem
                             key="low"
                             startContent={
-                                <ArrowDown className={FILE_BROWSER_CLASS.priorityMenuLowIcon} />
+                                <ArrowDown
+                                    className={FILE_BROWSER.priorityMenuLowIcon}
+                                />
                             }
                         >
                             {t("priority.low")}
                         </DropdownItem>
                         <DropdownItem
                             key="skip"
-                            className={FILE_BROWSER_CLASS.priorityMenuDangerItem}
+                            className={FILE_BROWSER.priorityMenuDangerItem}
                             startContent={
-                                <X className={FILE_BROWSER_CLASS.priorityMenuSkipIcon} />
+                                <X
+                                    className={
+                                        FILE_BROWSER.priorityMenuSkipIcon
+                                    }
+                                />
                             }
                         >
                             {t("priority.dont_download")}
@@ -201,17 +229,17 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </Dropdown>
             </div>
 
-            <div className={FILE_BROWSER_CLASS.rowProgressWrap}>
+            <div className={FILE_BROWSER.rowProgressWrap}>
                 <Progress
                     size="sm"
                     value={progress}
                     color={progress === 100 ? "success" : "primary"}
-                    classNames={FILE_BROWSER_CLASS.progressClassNames}
+                    classNames={FILE_BROWSER.progressClassNames}
                     aria-label="Download progress"
                 />
             </div>
 
-            <div className={FILE_BROWSER_CLASS.rowSizeText}>
+            <div className={FILE_BROWSER.rowSizeText}>
                 {formatBytes(row.node.totalSize)}
             </div>
         </div>

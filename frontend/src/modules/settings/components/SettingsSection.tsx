@@ -1,8 +1,6 @@
 import { Card, cn } from "@heroui/react";
 import type { ReactNode } from "react";
-import {
-    FORM_UI_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 
 interface SettingsSectionProps {
     title?: string;
@@ -18,15 +16,10 @@ export function SettingsSection({
     children,
 }: SettingsSectionProps) {
     return (
-        <Card
-            className={cn(
-                FORM_UI_CLASS.sectionCard,
-                className
-            )}
-        >
+        <Card className={cn(FORM.sectionCard, className)}>
             {title && (
                 <h3
-                    className={FORM_UI_CLASS.sectionTitle}
+                    className={FORM.sectionTitle}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -34,7 +27,7 @@ export function SettingsSection({
             )}
             {description && (
                 <p
-                    className={FORM_UI_CLASS.sectionDescription}
+                    className={FORM.sectionDescription}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}

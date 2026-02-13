@@ -1,11 +1,6 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
 import { Button } from "@heroui/react";
-import {
-    Folder,
-    Play,
-    Pause,
-    Trash2,
-} from "lucide-react";
+import { Folder, Play, Pause, Trash2 } from "lucide-react";
 import React from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { useTranslation } from "react-i18next";
@@ -17,7 +12,7 @@ import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
-import { DETAIL_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { DETAILS } from "@/shared/ui/layout/glass-surface";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -48,35 +43,36 @@ export const GeneralTab = ({
     const ToggleIcon = isActive ? Pause : Play;
 
     return (
-        <div className={DETAIL_VIEW_CLASS.generalRoot}>
-            <GlassPanel
-                className={DETAIL_VIEW_CLASS.generalCard}
-            >
-                <div className={DETAIL_VIEW_CLASS.generalHeaderRow}>
-                    <div className={DETAIL_VIEW_CLASS.generalPrimaryCol}>
+        <div className={DETAILS.generalRoot}>
+            <GlassPanel className={DETAILS.generalCard}>
+                <div className={DETAILS.generalHeaderRow}>
+                    <div className={DETAILS.generalPrimaryCol}>
                         <div className={TEXT_ROLE.caption}>
                             {t("torrent_modal.labels.save_path")}
                         </div>
-                        <code
-                            className={DETAIL_VIEW_CLASS.generalPathCode}
-                        >
-                            {downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}
+                        <code className={DETAILS.generalPathCode}>
+                            {downloadDir ??
+                                torrent.downloadDir ??
+                                torrent.savePath ??
+                                ""}
                         </code>
                     </div>
-                    <div className={DETAIL_VIEW_CLASS.generalVerifyCol}>
+                    <div className={DETAILS.generalVerifyCol}>
                         <div className={TEXT_ROLE.caption}>
                             {t("torrent_modal.controls.verify")}
                         </div>
-                        <div className={DETAIL_VIEW_CLASS.generalVerifyWrap}>
+                        <div className={DETAILS.generalVerifyWrap}>
                             {(() => {
                                 const p = torrent.verificationProgress ?? 0;
                                 const percent = p > 1 ? p : p * 100;
                                 return (
                                     <SmoothProgressBar
                                         value={percent}
-                                        trackClassName={DETAIL_VIEW_CLASS.generalVerificationTrack}
+                                        trackClassName={
+                                            DETAILS.generalVerificationTrack
+                                        }
                                         indicatorClassName={
-                                            DETAIL_VIEW_CLASS.generalVerificationIndicator
+                                            DETAILS.generalVerificationIndicator
                                         }
                                     />
                                 );
@@ -101,11 +97,11 @@ export const GeneralTab = ({
 
             {general.showMissingFilesError && (
                 <AlertPanel severity="warning">
-                    <div className={DETAIL_VIEW_CLASS.generalWarningStack}>
+                    <div className={DETAILS.generalWarningStack}>
                         <span className={TEXT_ROLE.statusWarning}>
                             {t("torrent_modal.errors.no_data_found_title")}
                         </span>
-                        <div className={DETAIL_VIEW_CLASS.generalProbeStack}>
+                        <div className={DETAILS.generalProbeStack}>
                             {general.probeLines.map((line) => (
                                 <span key={line}>{line}</span>
                             ))}
@@ -116,7 +112,7 @@ export const GeneralTab = ({
                             </div>
                         )}
                         {recoveryBlockedMessage && (
-                            <div className={DETAIL_VIEW_CLASS.generalRecoveryHint}>
+                            <div className={DETAILS.generalRecoveryHint}>
                                 {recoveryBlockedMessage}
                             </div>
                         )}
@@ -124,22 +120,24 @@ export const GeneralTab = ({
                 </AlertPanel>
             )}
 
-            <div className={DETAIL_VIEW_CLASS.generalControlsGrid}>
-                <div className={DETAIL_VIEW_CLASS.generalControlsSpan}>
-                    <GlassPanel
-                        className={DETAIL_VIEW_CLASS.generalCard}
-                    >
-                        <div className={DETAIL_VIEW_CLASS.generalHeaderRow}>
+            <div className={DETAILS.generalControlsGrid}>
+                <div className={DETAILS.generalControlsSpan}>
+                    <GlassPanel className={DETAILS.generalCard}>
+                        <div className={DETAILS.generalHeaderRow}>
                             <div>
                                 <div className={TEXT_ROLE.caption}>
                                     {t("torrent_modal.controls.title")}
                                 </div>
-                                <div className={DETAIL_VIEW_CLASS.generalControlsDescription}>
+                                <div
+                                    className={
+                                        DETAILS.generalControlsDescription
+                                    }
+                                >
                                     {t("torrent_modal.controls.description")}
                                 </div>
                             </div>
-                            <div className={DETAIL_VIEW_CLASS.generalControlsMeta}>
-                                <div className={DETAIL_VIEW_CLASS.generalControlsActions}>
+                            <div className={DETAILS.generalControlsMeta}>
+                                <div className={DETAILS.generalControlsActions}>
                                     {/* Force reannounce moved to Trackers tab per UX decision */}
                                     <Button
                                         size="md"
@@ -152,7 +150,9 @@ export const GeneralTab = ({
                                             <ToggleIcon
                                                 size={16}
                                                 strokeWidth={ICON_STROKE_WIDTH}
-                                                className={DETAIL_VIEW_CLASS.generalButtonIcon}
+                                                className={
+                                                    DETAILS.generalButtonIcon
+                                                }
                                             />
                                             {mainActionLabel}
                                         </>
@@ -167,14 +167,14 @@ export const GeneralTab = ({
                                         <>
                                             <Folder
                                                 size={16}
-                                                strokeWidth={
-                                                    ICON_STROKE_WIDTH
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className={
+                                                    DETAILS.generalButtonIcon
                                                 }
-                                                className={DETAIL_VIEW_CLASS.generalButtonIcon}
                                             />
                                             {t("directory_browser.select", {
                                                 name: t(
-                                                    "torrent_modal.labels.save_path"
+                                                    "torrent_modal.labels.save_path",
                                                 ),
                                             })}
                                         </>
@@ -189,7 +189,9 @@ export const GeneralTab = ({
                                             <Trash2
                                                 size={16}
                                                 strokeWidth={ICON_STROKE_WIDTH}
-                                                className={DETAIL_VIEW_CLASS.generalButtonIcon}
+                                                className={
+                                                    DETAILS.generalButtonIcon
+                                                }
                                             />
                                             {t("toolbar.remove")}
                                         </>
@@ -216,4 +218,3 @@ export const GeneralTab = ({
 export default GeneralTab;
 
 // Recovery modal: keep at module bottom to avoid cluttering main render logic
-

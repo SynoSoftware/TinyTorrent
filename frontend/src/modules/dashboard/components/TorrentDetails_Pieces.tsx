@@ -1,5 +1,5 @@
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { SPLIT_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { SPLIT } from "@/shared/ui/layout/glass-surface";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
@@ -24,29 +24,25 @@ export const PiecesTab = ({
     const { t } = useTranslation();
 
     return (
-        <PanelGroup direction="vertical" className={SPLIT_VIEW_CLASS.panelGroup}>
-            <Panel defaultSize={50} className={SPLIT_VIEW_CLASS.panel} collapsible>
-                <GlassPanel className={SPLIT_VIEW_CLASS.surfacePanel}>
-                    <div className={SPLIT_VIEW_CLASS.sectionHeader}>
-                        <span
-                            className={TEXT_ROLE.label}
-                        >
+        <PanelGroup direction="vertical" className={SPLIT.panelGroup}>
+            <Panel defaultSize={50} className={SPLIT.panel} collapsible>
+                <GlassPanel className={SPLIT.surfacePanel}>
+                    <div className={SPLIT.sectionHeader}>
+                        <span className={TEXT_ROLE.label}>
                             {t("torrent_modal.tabs.pieces")}
                         </span>
-                        <span
-                            className={SPLIT_VIEW_CLASS.sectionHeaderMeta}
-                        >
+                        <span className={SPLIT.sectionHeaderMeta}>
                             {t("torrent_modal.piece_map.tooltip_progress", {
                                 percent: Math.max(
                                     0,
-                                    Math.min(100, piecePercent ?? 0)
+                                    Math.min(100, piecePercent ?? 0),
                                 ),
                             })}
                         </span>
                     </div>
 
-                    <div className={SPLIT_VIEW_CLASS.surfacePanelBody}>
-                        <div className={SPLIT_VIEW_CLASS.surfacePanelFill}>
+                    <div className={SPLIT.surfacePanelBody}>
+                        <div className={SPLIT.surfacePanelFill}>
                             <PiecesMap
                                 percent={piecePercent}
                                 pieceCount={pieceCount}
@@ -59,22 +55,18 @@ export const PiecesTab = ({
             </Panel>
 
             <PanelResizeHandle>
-                <div className={SPLIT_VIEW_CLASS.resizeHandle}>
-                    <div className={SPLIT_VIEW_CLASS.resizeBar} />
+                <div className={SPLIT.resizeHandle}>
+                    <div className={SPLIT.resizeBar} />
                 </div>
             </PanelResizeHandle>
 
-            <Panel defaultSize={50} className={SPLIT_VIEW_CLASS.panel}>
-                <GlassPanel className={SPLIT_VIEW_CLASS.surfacePanel}>
-                    <div className={SPLIT_VIEW_CLASS.sectionHeader}>
-                        <span
-                            className={TEXT_ROLE.label}
-                        >
+            <Panel defaultSize={50} className={SPLIT.panel}>
+                <GlassPanel className={SPLIT.surfacePanel}>
+                    <div className={SPLIT.sectionHeader}>
+                        <span className={TEXT_ROLE.label}>
                             {t("torrent_modal.availability.label")}
                         </span>
-                        <span
-                            className={SPLIT_VIEW_CLASS.sectionHeaderCaption}
-                        >
+                        <span className={SPLIT.sectionHeaderCaption}>
                             {t("torrent_modal.availability.legend_common")}
                         </span>
                     </div>
@@ -83,10 +75,10 @@ export const PiecesTab = ({
                         label={t("torrent_modal.availability.label")}
                         legendRare={t("torrent_modal.availability.legend_rare")}
                         legendCommon={t(
-                            "torrent_modal.availability.legend_common"
+                            "torrent_modal.availability.legend_common",
                         )}
                         emptyLabel={t(
-                            "torrent_modal.availability.backend_missing"
+                            "torrent_modal.availability.backend_missing",
                         )}
                         formatTooltip={(piece, peers) =>
                             t("torrent_modal.availability.tooltip", {

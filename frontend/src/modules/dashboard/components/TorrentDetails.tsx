@@ -2,9 +2,7 @@ import { cn } from "@heroui/react";
 import { TorrentDetailHeader } from "@/modules/dashboard/components/TorrentDetails_Header";
 import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
 import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
-import {
-    DETAIL_VIEW_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { DETAILS } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
 export interface TorrentDetailsProps {
@@ -41,23 +39,20 @@ export function TorrentDetails({
     const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
         torrent,
     });
-    const {
-        active,
-        setActive,
-        handleKeyDown,
-        activeSurface,
-    } = useTorrentDetailTabCoordinator({
-        viewModel,
-        isRecoveryBlocked: isRecoveryBlocked ?? viewModel.isDetailRecoveryBlocked,
-        isStandalone,
-    });
+    const { active, setActive, handleKeyDown, activeSurface } =
+        useTorrentDetailTabCoordinator({
+            viewModel,
+            isRecoveryBlocked:
+                isRecoveryBlocked ?? viewModel.isDetailRecoveryBlocked,
+            isStandalone,
+        });
 
     return (
         <div
             className={cn(
                 className,
-                DETAIL_VIEW_CLASS.root,
-                isStandalone ? DETAIL_VIEW_CLASS.rootStandalone : null,
+                DETAILS.root,
+                isStandalone ? DETAILS.rootStandalone : null,
             )}
             tabIndex={0}
             onKeyDown={handleKeyDown}
@@ -77,9 +72,7 @@ export function TorrentDetails({
                 primaryHint={primaryHint}
             />
 
-            <div className={DETAIL_VIEW_CLASS.body}>
-                {activeSurface}
-            </div>
+            <div className={DETAILS.body}>{activeSurface}</div>
         </div>
     );
 }

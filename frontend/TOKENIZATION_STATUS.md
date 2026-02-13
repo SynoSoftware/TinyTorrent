@@ -45,8 +45,13 @@ Execution rule for remaining work:
 - [_] Tree-driven extraction plan:
   finalize a short list of shared structures to merge next
   (modal scaffold, menu host/list/item, status chip, table header shell).
-- [ ] Commonization batch 1:
+- [x] Commonization batch 1:
   unify modal scaffolding across all modals using shared modal primitives.
+  - [x] Added `APP_MODAL_CLASS.baseClassNames` and
+    `APP_MODAL_CLASS.compactClassNames`.
+  - [x] Migrated remaining direct modal shell consumers:
+    `AddMagnetModal`, `RemoveConfirmationModal`,
+    `TorrentRecoveryModal`, `TorrentTable_ColumnSettingsModal`.
 - [ ] Commonization batch 2:
   unify repeated menu/status-chip/table-header patterns from tree report.
 - [ ] Dead-key cleanup:

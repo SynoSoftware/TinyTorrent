@@ -8,7 +8,7 @@ import {
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 
 export function InterfaceTabContent() {
     const { t } = useTranslation();
@@ -27,17 +27,17 @@ export function InterfaceTabContent() {
     return (
         <>
             <SettingsSection title={t("settings.sections.dashboard")}>
-                <div className={FORM_UI_CLASS.interfaceStack}>
-                    <div className={FORM_UI_CLASS.interfaceRow}>
-                        <div className={FORM_UI_CLASS.interfaceRowInfo}>
-                            <p className={FORM_UI_CLASS.interfaceRowTitle}>
+                <div className={FORM.interfaceStack}>
+                    <div className={FORM.interfaceRow}>
+                        <div className={FORM.interfaceRowInfo}>
+                            <p className={FORM.interfaceRowTitle}>
                                 {t("settings.labels.shellStyle")}
                             </p>
                             <p className={TEXT_ROLE.caption}>
                                 {t("settings.descriptions.shellStyle")}
                             </p>
                         </div>
-                        <div className={FORM_UI_CLASS.interfaceRowActions}>
+                        <div className={FORM.interfaceRowActions}>
                             <Button
                                 size="md"
                                 variant={isImmersive ? "light" : "shadow"}
@@ -66,9 +66,9 @@ export function InterfaceTabContent() {
                     </div>
 
                     {isImmersive && hasDismissedInsights && (
-                        <div className={FORM_UI_CLASS.interfaceRow}>
-                            <div className={FORM_UI_CLASS.interfaceRowInfo}>
-                                <p className={FORM_UI_CLASS.interfaceRowTitle}>
+                        <div className={FORM.interfaceRow}>
+                            <div className={FORM.interfaceRowInfo}>
+                                <p className={FORM.interfaceRowTitle}>
                                     {t("settings.buttons.restore_hud")}
                                 </p>
                                 <p className={TEXT_ROLE.caption}>
@@ -91,10 +91,10 @@ export function InterfaceTabContent() {
             <SettingsSection
                 title={t("settings.sections.visuals")}
                 description={t("settings.descriptions.table_watermark")}
-                className={FORM_UI_CLASS.sectionMarginTop}
+                className={FORM.sectionMarginTop}
             >
-                <div className={FORM_UI_CLASS.switchRow}>
-                    <span className={FORM_UI_CLASS.systemRowLabel}>
+                <div className={FORM.switchRow}>
+                    <span className={FORM.systemRowLabel}>
                         {t("settings.labels.tableWatermark")}
                     </span>
                     <Switch
@@ -110,11 +110,11 @@ export function InterfaceTabContent() {
             <SettingsSection
                 title={t("settings.sections.localization")}
                 description={t("settings.descriptions.language")}
-                className={FORM_UI_CLASS.sectionMarginTop}
+                className={FORM.sectionMarginTop}
             >
-                <div className={FORM_UI_CLASS.languageRow}>
+                <div className={FORM.languageRow}>
                     <div>
-                        <span className={FORM_UI_CLASS.interfaceRowTitle}>
+                        <span className={FORM.interfaceRowTitle}>
                             {t("settings.labels.language")}
                         </span>
                         <p className={TEXT_ROLE.caption}>
@@ -128,7 +128,7 @@ export function InterfaceTabContent() {
             <SettingsSection
                 title={t("settings.sections.advanced")}
                 description={t("settings.descriptions.config_export")}
-                className={FORM_UI_CLASS.sectionMarginTop}
+                className={FORM.sectionMarginTop}
             >
                 <RawConfigRenderer
                     block={{

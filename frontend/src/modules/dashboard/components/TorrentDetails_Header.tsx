@@ -8,7 +8,7 @@ import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
 import {
     buildDetailViewHeaderClass,
     buildDetailViewHeaderTabButtonClass,
-    DETAIL_VIEW_CLASS,
+    DETAILS,
 } from "@/shared/ui/layout/glass-surface";
 
 const DETAIL_TAB_LABELS: Record<string, string> = {
@@ -63,7 +63,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     const { t } = useTranslation();
     const renderedName = truncateTorrentName(
         torrent?.name,
-        t("general.unknown")
+        t("general.unknown"),
     );
 
     const hasStatus = Boolean(statusLabel);
@@ -71,24 +71,24 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     return (
         <div
             className={buildDetailViewHeaderClass(isStandalone)}
-            style={DETAIL_VIEW_CLASS.headerTrackingStyle}
+            style={DETAILS.headerTrackingStyle}
         >
             {/* LEFT */}
-            <div className={DETAIL_VIEW_CLASS.headerLeft}>
+            <div className={DETAILS.headerLeft}>
                 <Info
                     strokeWidth={ICON_STROKE_WIDTH}
-                    className={DETAIL_VIEW_CLASS.headerInfoIcon}
+                    className={DETAILS.headerInfoIcon}
                 />
-                <span className={DETAIL_VIEW_CLASS.headerTitle}>
+                <span className={DETAILS.headerTitle}>
                     {renderedName}
                     {hasStatus ? (
                         <span
-                            className={DETAIL_VIEW_CLASS.headerStatus}
+                            className={DETAILS.headerStatus}
                             title={statusTooltip ?? undefined}
                         >
                             {statusLabel}
                             {primaryHint && (
-                                <em className={DETAIL_VIEW_CLASS.headerPrimaryHint}>
+                                <em className={DETAILS.headerPrimaryHint}>
                                     - {primaryHint}
                                 </em>
                             )}
@@ -98,8 +98,8 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             </div>
 
             {/* CENTER */}
-            <div className={DETAIL_VIEW_CLASS.headerCenter}>
-                <div className={DETAIL_VIEW_CLASS.headerTabs}>
+            <div className={DETAILS.headerCenter}>
+                <div className={DETAILS.headerTabs}>
                     {DETAIL_TABS.map((tab) => (
                         <button
                             key={tab}
@@ -111,7 +111,8 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                             )}
                         >
                             {t(
-                                DETAIL_TAB_LABELS[tab] ?? `inspector.tab.${tab}`
+                                DETAIL_TAB_LABELS[tab] ??
+                                    `inspector.tab.${tab}`,
                             )}
                         </button>
                     ))}
@@ -119,7 +120,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             </div>
 
             {/* RIGHT */}
-            <div className={DETAIL_VIEW_CLASS.headerRight}>
+            <div className={DETAILS.headerRight}>
                 {!isDetailFullscreen && onPopout && (
                     <ToolbarIconButton
                         Icon={PinOff}

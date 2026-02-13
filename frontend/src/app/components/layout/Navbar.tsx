@@ -29,9 +29,13 @@ import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import {
     buildAppNavSelectionActionsClass,
-    APP_NAV_CLASS,
+    NAV,
 } from "@/shared/ui/layout/glass-surface";
-import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
+import {
+    getShellTokens,
+    STATUS_VISUAL_KEYS,
+    STATUS_VISUALS,
+} from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
@@ -68,19 +72,19 @@ export function Navbar({ viewModel }: NavbarProps) {
     const toneButtonClass = {
         primary:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.button ??
-            APP_NAV_CLASS.toneButtonFallback.primary,
+            NAV.toneButtonFallback.primary,
         success:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]?.button ??
-            APP_NAV_CLASS.toneButtonFallback.success,
+            NAV.toneButtonFallback.success,
         warning:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.button ??
-            APP_NAV_CLASS.toneButtonFallback.warning,
+            NAV.toneButtonFallback.warning,
         danger:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]?.button ??
-            APP_NAV_CLASS.toneButtonFallback.danger,
+            NAV.toneButtonFallback.danger,
         neutral:
             STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.NEUTRAL]?.button ??
-            APP_NAV_CLASS.toneButtonFallback.neutral,
+            NAV.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -89,43 +93,38 @@ export function Navbar({ viewModel }: NavbarProps) {
     };
 
     return (
-        <header
-            className={cn(
-                APP_NAV_CLASS.root,
-                APP_NAV_CLASS.workbenchSurface,
-            )}
-        >
+        <header className={cn(NAV.root, NAV.workbenchSurface)}>
             <div
-                className={APP_NAV_CLASS.titlebar}
+                className={NAV.titlebar}
                 style={{
                     ...shell.surfaceStyle,
-                    ...APP_NAV_CLASS.titlebarBaseStyle,
+                    ...NAV.titlebarBaseStyle,
                 }}
             >
                 <div
                     className={cn(
-                        APP_NAV_CLASS.workbenchShell,
+                        NAV.workbenchShell,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
-                        APP_NAV_CLASS.main,
+                        NAV.main,
                     )}
                     style={{
                         ...shell.outerStyle,
                     }}
                 >
-                    <div className={APP_NAV_CLASS.left}>
-                        <div className={APP_NAV_CLASS.brandGroup}>
+                    <div className={NAV.left}>
+                        <div className={NAV.brandGroup}>
                             <div
-                                className={APP_NAV_CLASS.brandIconWrap}
-                                style={APP_NAV_CLASS.brandIconStyle}
+                                className={NAV.brandIconWrap}
+                                style={NAV.brandIconStyle}
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className={APP_NAV_CLASS.brandTextWrap}>
-                                <span className={APP_NAV_CLASS.brandName}>
+                            <div className={NAV.brandTextWrap}>
+                                <span className={NAV.brandName}>
                                     {t("brand.name")}
                                 </span>
-                                <span className={APP_NAV_CLASS.brandVersion}>
+                                <span className={NAV.brandVersion}>
                                     {t("brand.version", {
                                         version: APP_VERSION,
                                     })}
@@ -133,9 +132,9 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </div>
                         </div>
 
-                        <div className={APP_NAV_CLASS.primarySeparator} />
+                        <div className={NAV.primarySeparator} />
 
-                        <div className={APP_NAV_CLASS.tabsWrap}>
+                        <div className={NAV.tabsWrap}>
                             <Tabs
                                 aria-label={t("nav.filter_aria")}
                                 variant="light"
@@ -143,18 +142,18 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 radius="full"
                                 selectedKey={filter}
                                 onSelectionChange={handleFilterSelectionChange}
-                                classNames={APP_NAV_CLASS.filterTabsClassNames}
+                                classNames={NAV.filterTabsClassNames}
                             >
                                 <Tab
                                     key="all"
                                     title={
-                                        <div className={APP_NAV_CLASS.tabTitle}>
+                                        <div className={NAV.tabTitle}>
                                             <StatusIcon
                                                 Icon={ListChecks}
                                                 size="lg"
-                                                className={APP_NAV_CLASS.tabIcon}
+                                                className={NAV.tabIcon}
                                             />
-                                            <span className={APP_NAV_CLASS.tabLabel}>
+                                            <span className={NAV.tabLabel}>
                                                 {t("nav.filter_all")}
                                             </span>
                                         </div>
@@ -163,13 +162,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="downloading"
                                     title={
-                                        <div className={APP_NAV_CLASS.tabTitle}>
+                                        <div className={NAV.tabTitle}>
                                             <StatusIcon
                                                 Icon={DownloadCloud}
                                                 size="lg"
-                                                className={APP_NAV_CLASS.tabIcon}
+                                                className={NAV.tabIcon}
                                             />
-                                            <span className={APP_NAV_CLASS.tabLabel}>
+                                            <span className={NAV.tabLabel}>
                                                 {t("nav.filter_downloading")}
                                             </span>
                                         </div>
@@ -178,13 +177,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <Tab
                                     key="seeding"
                                     title={
-                                        <div className={APP_NAV_CLASS.tabTitle}>
+                                        <div className={NAV.tabTitle}>
                                             <StatusIcon
                                                 Icon={UploadCloud}
                                                 size="lg"
-                                                className={APP_NAV_CLASS.tabIcon}
+                                                className={NAV.tabIcon}
                                             />
-                                            <span className={APP_NAV_CLASS.tabLabel}>
+                                            <span className={NAV.tabLabel}>
                                                 {t("nav.filter_seeding")}
                                             </span>
                                         </div>
@@ -193,10 +192,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </Tabs>
                         </div>
 
-                        <div className={APP_NAV_CLASS.searchWrap}>
+                        <div className={NAV.searchWrap}>
                             <Input
-                                classNames={APP_NAV_CLASS.searchInputClassNames}
-                                style={APP_NAV_CLASS.searchStyle}
+                                classNames={NAV.searchInputClassNames}
+                                style={NAV.searchStyle}
                                 placeholder={t("nav.search_placeholder")}
                                 size="md"
                                 value={searchQuery}
@@ -209,14 +208,14 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     <StatusIcon
                                         Icon={Search}
                                         size="lg"
-                                        className={APP_NAV_CLASS.searchIcon}
+                                        className={NAV.searchIcon}
                                     />
                                 }
                             />
                         </div>
                     </div>
-                    <div className={APP_NAV_CLASS.actions}>
-                        <div className={APP_NAV_CLASS.primaryActions}>
+                    <div className={NAV.actions}>
+                        <div className={NAV.primaryActions}>
                             <ToolbarIconButton
                                 Icon={FileUp}
                                 ariaLabel={t("toolbar.add_torrent")}
@@ -224,7 +223,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 onPress={onAddTorrent}
                                 className={cn(
                                     toneButtonClass.primary,
-                                    APP_NAV_CLASS.primaryActionEmphasis,
+                                    NAV.primaryActionEmphasis,
                                 )}
                                 iconSize="lg"
                             />
@@ -239,11 +238,15 @@ export function Navbar({ viewModel }: NavbarProps) {
                             />
                         </div>
                         <div
-                            className={APP_NAV_CLASS.selectionSeparator}
-                            style={APP_NAV_CLASS.selectionSeparatorStyle}
+                            className={NAV.selectionSeparator}
+                            style={NAV.selectionSeparatorStyle}
                         />
 
-                        <div className={buildAppNavSelectionActionsClass(hasSelection)}>
+                        <div
+                            className={buildAppNavSelectionActionsClass(
+                                hasSelection,
+                            )}
+                        >
                             <ToolbarIconButton
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}
@@ -262,12 +265,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 className={cn(
                                     toneButtonClass.warning,
                                     emphasizeActions?.pause
-                                        ? APP_NAV_CLASS.selectionPauseEmphasis
+                                        ? NAV.selectionPauseEmphasis
                                         : "",
                                 )}
                                 iconSize="lg"
                             />
-                            <div className={APP_NAV_CLASS.selectionExtraActions}>
+                            <div className={NAV.selectionExtraActions}>
                                 <ToolbarIconButton
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
@@ -277,7 +280,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     className={cn(
                                         toneButtonClass.neutral,
                                         emphasizeActions?.forceRecheck
-                                            ? APP_NAV_CLASS.selectionRecheckEmphasis
+                                            ? NAV.selectionRecheckEmphasis
                                             : "",
                                     )}
                                     iconSize="lg"
@@ -295,8 +298,8 @@ export function Navbar({ viewModel }: NavbarProps) {
                         </div>
 
                         <div
-                            className={APP_NAV_CLASS.selectionSeparator}
-                            style={APP_NAV_CLASS.selectionSeparatorStyle}
+                            className={NAV.selectionSeparator}
+                            style={NAV.selectionSeparatorStyle}
                         />
 
                         <ToolbarIconButton
@@ -305,12 +308,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                             title={t("toolbar.settings")}
                             onPress={onSettings}
                             className={cn(
-                                APP_NAV_CLASS.ghostAction,
-                                APP_NAV_CLASS.ghostActionOverflow,
+                                NAV.ghostAction,
+                                NAV.ghostActionOverflow,
                             )}
                             iconSize="lg"
                         />
-                        <div className={APP_NAV_CLASS.themeMobileWrap}>
+                        <div className={NAV.themeMobileWrap}>
                             <ToolbarIconButton
                                 Icon={Icon}
                                 ariaLabel={t("theme.toggle_label", {
@@ -321,8 +324,8 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 title={t("theme.toggle")}
                                 onPress={toggleTheme}
                                 className={cn(
-                                    APP_NAV_CLASS.ghostAction,
-                                    APP_NAV_CLASS.ghostActionOverflow,
+                                    NAV.ghostAction,
+                                    NAV.ghostActionOverflow,
                                 )}
                                 iconSize="lg"
                             />
@@ -330,17 +333,17 @@ export function Navbar({ viewModel }: NavbarProps) {
                     </div>
 
                     {rehashStatus?.active && (
-                        <div className={APP_NAV_CLASS.rehashWrap}>
-                            <div className={APP_NAV_CLASS.rehashTooltipWrap}>
+                        <div className={NAV.rehashWrap}>
+                            <div className={NAV.rehashTooltipWrap}>
                                 <SmoothProgressBar
                                     value={Math.min(
                                         Math.max(rehashStatus.value, 0),
                                         100,
                                     )}
-                                    trackClassName={APP_NAV_CLASS.rehashTrack}
-                                    indicatorClassName={APP_NAV_CLASS.rehashIndicator}
+                                    trackClassName={NAV.rehashTrack}
+                                    indicatorClassName={NAV.rehashIndicator}
                                 />
-                                <div className={APP_NAV_CLASS.rehashTooltip}>
+                                <div className={NAV.rehashTooltip}>
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>
@@ -350,13 +353,10 @@ export function Navbar({ viewModel }: NavbarProps) {
                 </div>
 
                 <div
-                    className={cn(
-                        APP_NAV_CLASS.workbenchShell,
-                        APP_NAV_CLASS.windowControls,
-                    )}
+                    className={cn(NAV.workbenchShell, NAV.windowControls)}
                     style={{
                         ...shell.outerStyle,
-                        ...APP_NAV_CLASS.windowControlsStyle,
+                        ...NAV.windowControlsStyle,
                     }}
                 >
                     <WindowControlButton

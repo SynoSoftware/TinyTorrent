@@ -7,14 +7,11 @@ import { scheduler } from "@/app/services/scheduler";
 import {
     buildSplitViewPeerActivityClass,
     buildSplitViewPeerNodeClass,
-    STANDARD_SURFACE_CLASS,
-    SPLIT_VIEW_CLASS,
+    SURFACE,
+    SPLIT,
 } from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
-import {
-    DETAILS_PEER_MAP_CONFIG,
-    ICON_STROKE_WIDTH,
-} from "@/config/logic";
+import { DETAILS_PEER_MAP_CONFIG, ICON_STROKE_WIDTH } from "@/config/logic";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -110,7 +107,7 @@ export const PeerMap = ({
             return dl > 0;
         }).length;
         const hurting = peers.filter(
-            (p) => p.peerIsChoking && p.clientIsInterested
+            (p) => p.peerIsChoking && p.clientIsInterested,
         ).length;
         const healthScore =
             peers.length > 0 ? (helping - hurting) / peers.length : 0;
@@ -147,7 +144,7 @@ export const PeerMap = ({
             // theta (Angle): Morph between Personality-Hash and Warped-Progress
             const warpedProgress = Math.pow(
                 peer.progress || 0,
-                SPD_PHYSICS.PROGRESS_WARP
+                SPD_PHYSICS.PROGRESS_WARP,
             );
             const seedSource =
                 (peer.address && String(peer.address).trim()) ||
@@ -217,33 +214,33 @@ export const PeerMap = ({
             const next = prev + e.deltaY * SPD_PHYSICS.WHEEL_SENSITIVITY;
             return Math.min(
                 Math.max(next, SPD_PHYSICS.APERTURE_LIMITS.MIN),
-                SPD_PHYSICS.APERTURE_LIMITS.MAX
+                SPD_PHYSICS.APERTURE_LIMITS.MAX,
             );
         });
     };
 
     return (
         <div
-            className={SPLIT_VIEW_CLASS.peerMapRoot}
+            className={SPLIT.peerMapRoot}
             onPointerDown={registerActivity}
             onMouseMove={registerActivity}
         >
-            <div className={SPLIT_VIEW_CLASS.peerMapHud}>
-                <div className={SPLIT_VIEW_CLASS.peerMapHudMeta}>
+            <div className={SPLIT.peerMapHud}>
+                <div className={SPLIT.peerMapHudMeta}>
                     <span className={TEXT_ROLE_EXTENDED.chartLabelMuted}>
                         {mode === "instrument"
                             ? t("peers.diagnostic_radar")
                             : t("peers.swarm_pulse")}
                     </span>
-                    <div className={SPLIT_VIEW_CLASS.peerMapHudStats}>
+                    <div className={SPLIT.peerMapHudStats}>
                         <StatusIcon
                             Icon={Activity}
                             size="sm"
                             className={buildSplitViewPeerActivityClass(
-                                mode === "instrument"
+                                mode === "instrument",
                             )}
                         />
-                        <span className={SPLIT_VIEW_CLASS.peerMapNodeCount}>
+                        <span className={SPLIT.peerMapNodeCount}>
                             {peers.length} NODES
                         </span>
                     </div>
@@ -253,26 +250,26 @@ export const PeerMap = ({
                         <motion.div
                             initial={{ opacity: 0, x: 5 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className={SPLIT_VIEW_CLASS.peerMapInstrumentInfo}
+                            className={SPLIT.peerMapInstrumentInfo}
                         >
-                            <span className={SPLIT_VIEW_CLASS.peerMapAperture}>
+                            <span className={SPLIT.peerMapAperture}>
                                 Aperture:{" "}
                                 {formatSpeed(swarmStats.max * radialAperture)}
                             </span>
                             <StatusIcon
                                 Icon={Compass}
                                 size="sm"
-                                className={SPLIT_VIEW_CLASS.peerMapCompassIcon}
+                                className={SPLIT.peerMapCompassIcon}
                             />
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
 
-            <div className={SPLIT_VIEW_CLASS.peerMapCanvasWrap}>
+            <div className={SPLIT.peerMapCanvasWrap}>
                 <svg
                     viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
-                    className={SPLIT_VIEW_CLASS.peerMapSvg}
+                    className={SPLIT.peerMapSvg}
                     onWheel={handleWheel}
                 >
                     <circle
@@ -286,7 +283,7 @@ export const PeerMap = ({
                                 : palette.warning
                         }
                         strokeWidth={2}
-                        className={SPLIT_VIEW_CLASS.peerMapRing}
+                        className={SPLIT.peerMapRing}
                     />
 
                     <AnimatePresence>
@@ -295,7 +292,7 @@ export const PeerMap = ({
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className={SPLIT_VIEW_CLASS.peerMapGuides}
+                                className={SPLIT.peerMapGuides}
                             >
                                 {[0.2, 0.4, 0.6, 0.8, 1.0].map((lvl) => (
                                     <circle
@@ -306,7 +303,7 @@ export const PeerMap = ({
                                         fill="none"
                                         stroke="currentColor"
                                         strokeWidth={0.2}
-                                        className={SPLIT_VIEW_CLASS.peerMapGuideCircle}
+                                        className={SPLIT.peerMapGuideCircle}
                                         strokeDasharray="1 4"
                                     />
                                 ))}
@@ -321,7 +318,7 @@ export const PeerMap = ({
                                             y2={C + Math.sin(ang) * R_MAX}
                                             stroke="currentColor"
                                             strokeWidth={0.2}
-                                            className={SPLIT_VIEW_CLASS.peerMapGuideAxis}
+                                            className={SPLIT.peerMapGuideAxis}
                                         />
                                     );
                                 })}
@@ -357,10 +354,10 @@ export const PeerMap = ({
                                     content={`${
                                         node.peer.address
                                     } • ${formatSpeed(
-                                        node.peer.rateToClient
+                                        node.peer.rateToClient,
                                     )} DL`}
                                     isDisabled={mode === "impression"}
-                                    classNames={STANDARD_SURFACE_CLASS.tooltip}
+                                    classNames={SURFACE.tooltip}
                                 >
                                     <g
                                         onMouseEnter={() => onHover?.(node.id)}

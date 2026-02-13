@@ -13,7 +13,7 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 import { formatSpeed } from "@/shared/utils/format";
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
@@ -100,10 +100,10 @@ export function TorrentTable_SpeedCell({
         "text-foreground/60";
 
     return (
-        <div className={TABLE_VIEW_CLASS.speedCell.root}>
+        <div className={TABLE.speedCell.root}>
             {hasSignal && (
                 <svg
-                    className={cn(TABLE_VIEW_CLASS.speedCell.sparkline, speedColorClass)}
+                    className={cn(TABLE.speedCell.sparkline, speedColorClass)}
                     viewBox={`0 0 ${sparklineWidth} ${sparklineHeight}`}
                     preserveAspectRatio="none"
                     aria-hidden
@@ -118,11 +118,11 @@ export function TorrentTable_SpeedCell({
                 </svg>
             )}
 
-            <div className={TABLE_VIEW_CLASS.speedCell.valueRow}>
+            <div className={TABLE.speedCell.valueRow}>
                 <span
                     className={cn(
                         DENSE_NUMERIC,
-                        TABLE_VIEW_CLASS.speedCell.valueText,
+                        TABLE.speedCell.valueText,
                         speedColorClass,
                     )}
                 >

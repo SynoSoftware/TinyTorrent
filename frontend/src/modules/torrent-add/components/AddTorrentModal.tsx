@@ -44,12 +44,13 @@ import {
 } from "lucide-react";
 
 import {
-    APP_MODAL_CLASS,
+    MODAL,
+    buildAddTorrentModalClassNames,
     buildModalBodyPanelsClass,
     buildModalPaneHandleClass,
     buildModalResizeHandleBarClass,
     buildModalSettingsPanelClass,
-    FORM_UI_CLASS,
+    FORM,
 } from "@/shared/ui/layout/glass-surface";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -152,22 +153,10 @@ export function AddTorrentModal({
         submitError,
         submitLocked,
     } = modal;
-    const {
-        hasDestination,
-        showDestinationGate,
-        uiMode,
-    } = destination;
-    const {
-        dropActive,
-        handleDragLeave,
-        handleDragOver,
-        handleDrop,
-    } = dragDrop;
-    const {
-        files,
-        handleSmartSelect,
-        isSelectionEmpty,
-    } = table;
+    const { hasDestination, showDestinationGate, uiMode } = destination;
+    const { dropActive, handleDragLeave, handleDragOver, handleDrop } =
+        dragDrop;
+    const { files, handleSmartSelect, isSelectionEmpty } = table;
     const {
         canCollapseSettings,
         isFullscreen,
@@ -193,36 +182,36 @@ export function AddTorrentModal({
             hideCloseButton
             isDismissable={isDismissable}
             size={modalSize} // fullscreen is a pure layout expansion; destination gate is state-based
-            classNames={{
-                ...APP_MODAL_CLASS.addTorrentModalChromeClassNames,
-                base: `${APP_MODAL_CLASS.addTorrentModalBase} ${
-                    !showDestinationGate && isFullscreen
-                        ? APP_MODAL_CLASS.addTorrentModalHeightFull
-                        : APP_MODAL_CLASS.addTorrentModalHeightDefault
-                }`,
-            }}
+            classNames={buildAddTorrentModalClassNames({
+                showDestinationGate,
+                isFullscreen,
+            })}
         >
             <ModalContent>
                 <AddTorrentModalContextProvider value={modalContextValue}>
                     {showDestinationGate ? (
                         <div
-                            className={APP_MODAL_CLASS.workflow.gateRoot}
+                            className={MODAL.workflow.gateRoot}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
                             onKeyDown={handleDestinationGateKeyDown}
                         >
-                            <ModalHeader
-                                className={APP_MODAL_CLASS.workflow.header}
-                            >
-                                <div className={APP_MODAL_CLASS.workflow.titleStack}>
-                                    <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
+                            <ModalHeader className={MODAL.workflow.header}>
+                                <div className={MODAL.workflow.titleStack}>
+                                    <h2
+                                        className={
+                                            TEXT_ROLE_EXTENDED.modalTitle
+                                        }
+                                    >
                                         {t(
                                             "modals.add_torrent.destination_prompt_title",
                                         )}
                                     </h2>
                                     <span
-                                        className={APP_MODAL_CLASS.workflow.sourceLabelCaption}
+                                        className={
+                                            MODAL.workflow.sourceLabelCaption
+                                        }
                                     >
                                         {sourceLabel}
                                     </span>
@@ -232,11 +221,11 @@ export function AddTorrentModal({
                                     onPress={handleModalCancel}
                                     ariaLabel={t("torrent_modal.actions.close")}
                                     iconSize="lg"
-                                    className={APP_MODAL_CLASS.workflow.headerIconButton}
+                                    className={MODAL.workflow.headerIconButton}
                                 />
                             </ModalHeader>
-                            <ModalBody className={APP_MODAL_CLASS.workflow.gateBody}>
-                                <div className={APP_MODAL_CLASS.workflow.gateContent}>
+                            <ModalBody className={MODAL.workflow.gateBody}>
+                                <div className={MODAL.workflow.gateContent}>
                                     <AddTorrentDestinationGatePanel />
                                 </div>
                             </ModalBody>
@@ -244,22 +233,29 @@ export function AddTorrentModal({
                     ) : (
                         <form
                             ref={formRef}
-                            className={APP_MODAL_CLASS.workflow.formRoot}
+                            className={MODAL.workflow.formRoot}
                             onSubmit={handleFormSubmit}
                             onKeyDown={handleFormKeyDown}
                         >
                             {shouldShowSubmittingOverlay && (
-                                <div className={APP_MODAL_CLASS.workflow.submitOverlay}>
+                                <div className={MODAL.workflow.submitOverlay}>
                                     {!shouldShowCloseConfirm ? (
                                         <>
                                             <Spinner color="primary" />
-                                            <p className={TEXT_ROLE.codeCaption}>
+                                            <p
+                                                className={
+                                                    TEXT_ROLE.codeCaption
+                                                }
+                                            >
                                                 {t(
                                                     "modals.add_torrent.submitting",
                                                 )}
                                             </p>
                                             <p
-                                                className={APP_MODAL_CLASS.workflow.submitHintMuted}
+                                                className={
+                                                    MODAL.workflow
+                                                        .submitHintMuted
+                                                }
                                             >
                                                 {t(
                                                     "modals.add_torrent.submitting_close_hint",
@@ -278,23 +274,35 @@ export function AddTorrentModal({
                                         <>
                                             <StatusIcon
                                                 Icon={AlertTriangle}
-                                                className={APP_MODAL_CLASS.workflow.warningTone}
+                                                className={
+                                                    MODAL.workflow.warningTone
+                                                }
                                             />
                                             <p
-                                                className={APP_MODAL_CLASS.workflow.submitWarningTitleCaption}
+                                                className={
+                                                    MODAL.workflow
+                                                        .submitWarningTitleCaption
+                                                }
                                             >
                                                 {t(
                                                     "modals.add_torrent.close_while_submitting_title",
                                                 )}
                                             </p>
                                             <p
-                                                className={APP_MODAL_CLASS.workflow.submitHintMuted}
+                                                className={
+                                                    MODAL.workflow
+                                                        .submitHintMuted
+                                                }
                                             >
                                                 {t(
                                                     "modals.add_torrent.close_while_submitting_body",
                                                 )}
                                             </p>
-                                            <div className={APP_MODAL_CLASS.workflow.submitActions}>
+                                            <div
+                                                className={
+                                                    MODAL.workflow.submitActions
+                                                }
+                                            >
                                                 <Button
                                                     variant="flat"
                                                     onPress={cancelCloseConfirm}
@@ -318,20 +326,24 @@ export function AddTorrentModal({
                                 </div>
                             )}
                             {/* --- HEADER --- */}
-                            <ModalHeader
-                                className={APP_MODAL_CLASS.workflow.header}
-                            >
-                                <div className={APP_MODAL_CLASS.workflow.titleStack}>
-                                    <h2 className={TEXT_ROLE_EXTENDED.modalTitle}>
+                            <ModalHeader className={MODAL.workflow.header}>
+                                <div className={MODAL.workflow.titleStack}>
+                                    <h2
+                                        className={
+                                            TEXT_ROLE_EXTENDED.modalTitle
+                                        }
+                                    >
                                         {t("modals.add_torrent.title")}
                                     </h2>
                                     <span
-                                        className={APP_MODAL_CLASS.workflow.sourceMutedLabel}
+                                        className={
+                                            MODAL.workflow.sourceMutedLabel
+                                        }
                                     >
                                         {sourceLabel}
                                     </span>
                                 </div>
-                                <div className={APP_MODAL_CLASS.workflow.headerActions}>
+                                <div className={MODAL.workflow.headerActions}>
                                     <Chip
                                         size="md"
                                         variant="flat"
@@ -344,18 +356,31 @@ export function AddTorrentModal({
                                         }
                                         startContent={
                                             hasDestination ? (
-                                                <Inbox className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                <Inbox
+                                                    className={
+                                                        MODAL.workflow.iconMd
+                                                    }
+                                                />
                                             ) : (
-                                                <HardDrive className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                <HardDrive
+                                                    className={
+                                                        MODAL.workflow.iconMd
+                                                    }
+                                                />
                                             )
                                         }
-                                        classNames={APP_MODAL_CLASS.workflow.fileCountChipClassNames}
+                                        classNames={
+                                            MODAL.workflow
+                                                .fileCountChipClassNames
+                                        }
                                     >
                                         {t("modals.add_torrent.file_count", {
                                             count: files.length,
                                         })}
                                     </Chip>
-                                    <div className={APP_MODAL_CLASS.workflow.headerDivider} />
+                                    <div
+                                        className={MODAL.workflow.headerDivider}
+                                    />
 
                                     {/* 2. Fullscreen Toggle */}
                                     <Tooltip
@@ -391,7 +416,9 @@ export function AddTorrentModal({
                                                 isSubmitting || submitLocked
                                             }
                                             iconSize="lg"
-                                            className={APP_MODAL_CLASS.workflow.headerIconButton}
+                                            className={
+                                                MODAL.workflow.headerIconButton
+                                            }
                                         />
                                     </Tooltip>
                                     <ToolbarIconButton
@@ -408,17 +435,27 @@ export function AddTorrentModal({
                                         isDisabled={
                                             isSubmitting || submitLocked
                                         }
-                                        className={APP_MODAL_CLASS.workflow.headerIconButton}
+                                        className={
+                                            MODAL.workflow.headerIconButton
+                                        }
                                     />
                                 </div>
                             </ModalHeader>
 
                             {/* --- SPLIT VIEW BODY --- */}
-                            <ModalBody className={APP_MODAL_CLASS.workflow.body}>
+                            <ModalBody className={MODAL.workflow.body}>
                                 {dropActive && (
-                                    <div className={APP_MODAL_CLASS.workflow.dropOverlay}>
-                                        <div className={APP_MODAL_CLASS.workflow.dropOverlayChip}>
-                                            <FolderOpen className={APP_MODAL_CLASS.workflow.iconLgPrimary} />
+                                    <div className={MODAL.workflow.dropOverlay}>
+                                        <div
+                                            className={
+                                                MODAL.workflow.dropOverlayChip
+                                            }
+                                        >
+                                            <FolderOpen
+                                                className={
+                                                    MODAL.workflow.iconLgPrimary
+                                                }
+                                            />
                                             <span className={TEXT_ROLE.heading}>
                                                 {hasDestination
                                                     ? t(
@@ -453,7 +490,9 @@ export function AddTorrentModal({
                                     >
                                         <PanelGroup
                                             direction="horizontal"
-                                            className={APP_MODAL_CLASS.workflow.panelGroup}
+                                            className={
+                                                MODAL.workflow.panelGroup
+                                            }
                                         >
                                             {/* === LEFT PANEL: CONFIGURATION === */}
                                             <Panel
@@ -490,7 +529,12 @@ export function AddTorrentModal({
                                                     isSettingsCollapsed,
                                                 )}
                                             >
-                                                <div className={APP_MODAL_CLASS.workflow.resizeHandleBarWrap}>
+                                                <div
+                                                    className={
+                                                        MODAL.workflow
+                                                            .resizeHandleBarWrap
+                                                    }
+                                                >
                                                     <div
                                                         className={buildModalResizeHandleBarClass(
                                                             {
@@ -505,11 +549,23 @@ export function AddTorrentModal({
                                             <Panel
                                                 defaultSize={FILE_PANEL_DEFAULT}
                                                 minSize={FILE_PANEL_MIN}
-                                                className={APP_MODAL_CLASS.workflow.filePanel}
+                                                className={
+                                                    MODAL.workflow.filePanel
+                                                }
                                             >
-                                                <div className={APP_MODAL_CLASS.workflow.filePanelContent}>
+                                                <div
+                                                    className={
+                                                        MODAL.workflow
+                                                            .filePanelContent
+                                                    }
+                                                >
                                                     {/* Toolbar */}
-                                                    <div className={APP_MODAL_CLASS.workflow.filePanelToolbar}>
+                                                    <div
+                                                        className={
+                                                            MODAL.workflow
+                                                                .filePanelToolbar
+                                                        }
+                                                    >
                                                         {/* 3. Panel Toggle Button */}
                                                         <Tooltip
                                                             content={
@@ -538,19 +594,38 @@ export function AddTorrentModal({
                                                                               "modals.add_torrent.hide_settings",
                                                                           )
                                                                 }
-                                                                className={FORM_UI_CLASS.workflow.settingsToggleButton}
+                                                                className={
+                                                                    FORM
+                                                                        .workflow
+                                                                        .settingsToggleButton
+                                                                }
                                                             >
                                                                 {isSettingsCollapsed ? (
-                                                                    <SidebarOpen className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                                    <SidebarOpen
+                                                                        className={
+                                                                            MODAL
+                                                                                .workflow
+                                                                                .iconMd
+                                                                        }
+                                                                    />
                                                                 ) : (
-                                                                    <SidebarClose className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                                    <SidebarClose
+                                                                        className={
+                                                                            MODAL
+                                                                                .workflow
+                                                                                .iconMd
+                                                                        }
+                                                                    />
                                                                 )}
                                                             </Button>
                                                         </Tooltip>
 
                                                         {/* Search removed - FileExplorerTree has its own integrated search */}
                                                         <div
-                                                            className={APP_MODAL_CLASS.workflow.filesTitle}
+                                                            className={
+                                                                MODAL.workflow
+                                                                    .filesTitle
+                                                            }
                                                         >
                                                             {files.length > 0
                                                                 ? t(
@@ -563,12 +638,22 @@ export function AddTorrentModal({
                                                             <DropdownTrigger>
                                                                 <Button
                                                                     variant="flat"
-                                                                    className={APP_MODAL_CLASS.workflow.smartSelectButton}
+                                                                    className={
+                                                                        MODAL
+                                                                            .workflow
+                                                                            .smartSelectButton
+                                                                    }
                                                                     aria-label={t(
                                                                         "modals.add_torrent.smart_select_aria",
                                                                     )}
                                                                 >
-                                                                    <Sparkles className={APP_MODAL_CLASS.workflow.iconMdPrimary} />
+                                                                    <Sparkles
+                                                                        className={
+                                                                            MODAL
+                                                                                .workflow
+                                                                                .iconMdPrimary
+                                                                        }
+                                                                    />
                                                                 </Button>
                                                             </DropdownTrigger>
                                                             <DropdownMenu
@@ -594,7 +679,13 @@ export function AddTorrentModal({
                                                                 <DropdownItem
                                                                     key="videos"
                                                                     startContent={
-                                                                        <FileVideo className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                                        <FileVideo
+                                                                            className={
+                                                                                MODAL
+                                                                                    .workflow
+                                                                                    .iconMd
+                                                                            }
+                                                                        />
                                                                     }
                                                                 >
                                                                     {t(
@@ -604,7 +695,13 @@ export function AddTorrentModal({
                                                                 <DropdownItem
                                                                     key="largest"
                                                                     startContent={
-                                                                        <ArrowDown className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                                        <ArrowDown
+                                                                            className={
+                                                                                MODAL
+                                                                                    .workflow
+                                                                                    .iconMd
+                                                                            }
+                                                                        />
                                                                     }
                                                                 >
                                                                     {t(
@@ -622,7 +719,11 @@ export function AddTorrentModal({
                                                                 </DropdownItem>
                                                                 <DropdownItem
                                                                     key="none"
-                                                                    className={APP_MODAL_CLASS.workflow.dropdownDangerItem}
+                                                                    className={
+                                                                        MODAL
+                                                                            .workflow
+                                                                            .dropdownDangerItem
+                                                                    }
                                                                 >
                                                                     {t(
                                                                         "modals.add_torrent.select_none",
@@ -642,17 +743,26 @@ export function AddTorrentModal({
                             </ModalBody>
 
                             {/* --- FOOTER --- */}
-                            <ModalFooter
-                                className={APP_MODAL_CLASS.workflow.footer}
-                            >
-                                <div className={APP_MODAL_CLASS.workflow.footerAlerts}>
+                            <ModalFooter className={MODAL.workflow.footer}>
+                                <div className={MODAL.workflow.footerAlerts}>
                                     {submitError && (
                                         <AlertPanel
                                             severity="danger"
-                                            className={APP_MODAL_CLASS.workflow.footerAlert}
+                                            className={
+                                                MODAL.workflow.footerAlert
+                                            }
                                         >
-                                            <AlertTriangle className={APP_MODAL_CLASS.workflow.iconAlert} />
-                                            <span className={APP_MODAL_CLASS.workflow.footerAlertText}>
+                                            <AlertTriangle
+                                                className={
+                                                    MODAL.workflow.iconAlert
+                                                }
+                                            />
+                                            <span
+                                                className={
+                                                    MODAL.workflow
+                                                        .footerAlertText
+                                                }
+                                            >
                                                 {submitError}
                                             </span>
                                         </AlertPanel>
@@ -660,10 +770,21 @@ export function AddTorrentModal({
                                     {isDiskSpaceCritical && (
                                         <AlertPanel
                                             severity="warning"
-                                            className={APP_MODAL_CLASS.workflow.footerAlert}
+                                            className={
+                                                MODAL.workflow.footerAlert
+                                            }
                                         >
-                                            <AlertTriangle className={APP_MODAL_CLASS.workflow.iconAlert} />
-                                            <span className={APP_MODAL_CLASS.workflow.footerAlertText}>
+                                            <AlertTriangle
+                                                className={
+                                                    MODAL.workflow.iconAlert
+                                                }
+                                            />
+                                            <span
+                                                className={
+                                                    MODAL.workflow
+                                                        .footerAlertText
+                                                }
+                                            >
                                                 {t(
                                                     "modals.add_torrent.disk_full_paused",
                                                 )}
@@ -673,24 +794,49 @@ export function AddTorrentModal({
                                     {primaryBlockReason && (
                                         <AlertPanel
                                             severity="info"
-                                            className={APP_MODAL_CLASS.workflow.footerInfoAlert}
+                                            className={
+                                                MODAL.workflow.footerInfoAlert
+                                            }
                                         >
-                                            <AlertTriangle className={APP_MODAL_CLASS.workflow.iconAlertMuted} />
-                                            <span className={APP_MODAL_CLASS.workflow.footerAlertText}>
+                                            <AlertTriangle
+                                                className={
+                                                    MODAL.workflow
+                                                        .iconAlertMuted
+                                                }
+                                            />
+                                            <span
+                                                className={
+                                                    MODAL.workflow
+                                                        .footerAlertText
+                                                }
+                                            >
                                                 {primaryBlockReason}
                                             </span>
                                         </AlertPanel>
                                     )}
                                 </div>
-                                <div className={APP_MODAL_CLASS.workflow.footerActionsStack}>
-                                    <div className={APP_MODAL_CLASS.workflow.footerActionsRow}>
+                                <div
+                                    className={
+                                        MODAL.workflow.footerActionsStack
+                                    }
+                                >
+                                    <div
+                                        className={
+                                            MODAL.workflow.footerActionsRow
+                                        }
+                                    >
                                         {isSubmitting || submitLocked ? (
                                             <Tooltip
                                                 content={t(
                                                     "modals.add_torrent.submitting",
                                                 )}
                                             >
-                                                <div className={APP_MODAL_CLASS.workflow.inlineBlock}>
+                                                <div
+                                                    className={
+                                                        MODAL.workflow
+                                                            .inlineBlock
+                                                    }
+                                                >
                                                     <Button
                                                         variant="light"
                                                         onPress={
@@ -700,14 +846,21 @@ export function AddTorrentModal({
                                                             isSubmitting ||
                                                             submitLocked
                                                         }
-                                                        className={APP_MODAL_CLASS.workflow.cancelButton}
+                                                        className={
+                                                            MODAL.workflow
+                                                                .cancelButton
+                                                        }
                                                     >
                                                         {t("modals.cancel")}
                                                     </Button>
                                                 </div>
                                             </Tooltip>
                                         ) : (
-                                            <div className={APP_MODAL_CLASS.workflow.inlineBlock}>
+                                            <div
+                                                className={
+                                                    MODAL.workflow.inlineBlock
+                                                }
+                                            >
                                                 <Button
                                                     variant="light"
                                                     onPress={handleModalCancel}
@@ -715,7 +868,10 @@ export function AddTorrentModal({
                                                         isSubmitting ||
                                                         submitLocked
                                                     }
-                                                    className={APP_MODAL_CLASS.workflow.cancelButton}
+                                                    className={
+                                                        MODAL.workflow
+                                                            .cancelButton
+                                                    }
                                                 >
                                                     {t("modals.cancel")}
                                                 </Button>
@@ -742,12 +898,24 @@ export function AddTorrentModal({
                                                     !isSubmitting &&
                                                     !submitLocked &&
                                                     (commitMode === "paused" ? (
-                                                        <PauseCircle className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                        <PauseCircle
+                                                            className={
+                                                                MODAL.workflow
+                                                                    .iconMd
+                                                            }
+                                                        />
                                                     ) : (
-                                                        <PlayCircle className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                        <PlayCircle
+                                                            className={
+                                                                MODAL.workflow
+                                                                    .iconMd
+                                                            }
+                                                        />
                                                     ))
                                                 }
-                                                className={APP_MODAL_CLASS.workflow.primaryButton}
+                                                className={
+                                                    MODAL.workflow.primaryButton
+                                                }
                                             >
                                                 {commitMode === "paused"
                                                     ? t(
@@ -769,7 +937,12 @@ export function AddTorrentModal({
                                                             submitLocked
                                                         }
                                                     >
-                                                        <ChevronDown className={APP_MODAL_CLASS.workflow.iconMd} />
+                                                        <ChevronDown
+                                                            className={
+                                                                MODAL.workflow
+                                                                    .iconMd
+                                                            }
+                                                        />
                                                     </Button>
                                                 </DropdownTrigger>
                                                 <DropdownMenu
@@ -779,12 +952,20 @@ export function AddTorrentModal({
                                                     disallowEmptySelection
                                                     selectionMode="single"
                                                     selectedKeys={[commitMode]}
-                                                    onAction={handleCommitModeAction}
+                                                    onAction={
+                                                        handleCommitModeAction
+                                                    }
                                                 >
                                                     <DropdownItem
                                                         key="start"
                                                         startContent={
-                                                            <PlayCircle className={APP_MODAL_CLASS.workflow.iconMdSuccess} />
+                                                            <PlayCircle
+                                                                className={
+                                                                    MODAL
+                                                                        .workflow
+                                                                        .iconMdSuccess
+                                                                }
+                                                            />
                                                         }
                                                     >
                                                         {t(
@@ -794,7 +975,13 @@ export function AddTorrentModal({
                                                     <DropdownItem
                                                         key="paused"
                                                         startContent={
-                                                            <PauseCircle className={APP_MODAL_CLASS.workflow.iconMdWarning} />
+                                                            <PauseCircle
+                                                                className={
+                                                                    MODAL
+                                                                        .workflow
+                                                                        .iconMdWarning
+                                                                }
+                                                            />
                                                         }
                                                     >
                                                         {t(
@@ -814,4 +1001,3 @@ export function AddTorrentModal({
         </Modal>
     );
 }
-

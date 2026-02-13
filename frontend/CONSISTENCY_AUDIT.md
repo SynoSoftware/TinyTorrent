@@ -618,9 +618,14 @@ Baseline snapshot (updated: 2026-02-12):
 - [_] Build extraction map from `SURFACE_COMPONENT_TREE.md`:
   pick only repeated structural patterns (modal/menu/status-chip/table-header)
   and avoid collapsing unique feature expression.
-- [ ] Execute low-risk commonization batch 1:
+- [x] Execute low-risk commonization batch 1:
   modal scaffold convergence (`header/body/footer` chrome/text/action primitives)
   for all modal consumers, including column settings and remaining outliers.
+  - [x] Added shared modal shell tokens on `APP_MODAL_CLASS`:
+    `baseClassNames`, `compactClassNames`.
+  - [x] Migrated all direct modal shell consumers to `APP_MODAL_CLASS`:
+    `AddMagnetModal`, `RemoveConfirmationModal`, `TorrentRecoveryModal`,
+    `TorrentTable_ColumnSettingsModal`.
 - [ ] Execute low-risk commonization batch 2:
   menu + status-chip + table-header repeated structures from tree report.
 - [ ] Remove dead/non-rendered token keys discovered by usage correlation

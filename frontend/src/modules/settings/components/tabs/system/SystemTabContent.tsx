@@ -1,9 +1,4 @@
-import {
-    Button,
-    Chip,
-    Switch,
-    cn,
-} from "@heroui/react";
+import { Button, Chip, Switch, cn } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,9 +12,7 @@ import {
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { VISUAL_STATE } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import {
-    FORM_UI_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
@@ -43,10 +36,10 @@ function SystemSectionCard({
     children,
 }: SystemSectionCardProps) {
     return (
-        <div className={FORM_UI_CLASS.sectionCardEmphasized}>
+        <div className={FORM.sectionCardEmphasized}>
             {title && (
                 <h3
-                    className={FORM_UI_CLASS.sectionTitle}
+                    className={FORM.sectionTitle}
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -54,13 +47,13 @@ function SystemSectionCard({
             )}
             {description && (
                 <p
-                    className={FORM_UI_CLASS.sectionDescription}
+                    className={FORM.sectionDescription}
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}
                 </p>
             )}
-            <div className={FORM_UI_CLASS.sectionContentStack}>{children}</div>
+            <div className={FORM.sectionContentStack}>{children}</div>
         </div>
     );
 }
@@ -81,22 +74,17 @@ function SystemRow({
     disabled,
 }: SystemRowProps) {
     return (
-        <div
-            className={cn(
-                FORM_UI_CLASS.systemRow,
-                disabled && VISUAL_STATE.disabled
-            )}
-        >
-            <div className={FORM_UI_CLASS.systemRowHeader}>
+        <div className={cn(FORM.systemRow, disabled && VISUAL_STATE.disabled)}>
+            <div className={FORM.systemRowHeader}>
                 <span
                     className={cn(
-                        FORM_UI_CLASS.systemRowLabel,
-                        disabled && VISUAL_STATE.muted
+                        FORM.systemRowLabel,
+                        disabled && VISUAL_STATE.muted,
                     )}
                 >
                     {label}
                 </span>
-                <div className={FORM_UI_CLASS.systemRowControl}>
+                <div className={FORM.systemRowControl}>
                     {control}
                     {status}
                 </div>
@@ -104,8 +92,8 @@ function SystemRow({
             {helper && (
                 <p
                     className={cn(
-                        FORM_UI_CLASS.systemRowHelper,
-                        disabled && VISUAL_STATE.muted
+                        FORM.systemRowHelper,
+                        disabled && VISUAL_STATE.muted,
                     )}
                 >
                     {helper}
@@ -128,7 +116,7 @@ function StatusChip({
             variant="flat"
             color={color}
             radius="sm"
-            className={FORM_UI_CLASS.systemStatusChip}
+            className={FORM.systemStatusChip}
         >
             {label}
         </Chip>
@@ -153,30 +141,32 @@ export function SystemTabContent() {
     >(null);
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
-    const refreshIntegration = useCallback(async (): Promise<SystemIntegrationReadOutcome> => {
-        if (!canUseShell) {
-            setIntegrationReadStatus("unsupported");
-            setIntegrationLoading(false);
-            return { status: "unsupported" };
-        }
-        setIntegrationLoading(true);
-        try {
-            const outcome = await shellAgent.getSystemIntegrationStatusReadOutcome();
-            setIntegrationReadStatus(outcome.status);
-            if (outcome.status === "ok") {
-                setIntegrationStatus({
-                    autorun: Boolean(outcome.value.autorun),
-                    associations: Boolean(outcome.value.associations),
-                });
+    const refreshIntegration =
+        useCallback(async (): Promise<SystemIntegrationReadOutcome> => {
+            if (!canUseShell) {
+                setIntegrationReadStatus("unsupported");
+                setIntegrationLoading(false);
+                return { status: "unsupported" };
             }
-            return outcome;
-        } catch {
-            setIntegrationReadStatus("failed");
-            return { status: "failed" };
-        } finally {
-            setIntegrationLoading(false);
-        }
-    }, [canUseShell]);
+            setIntegrationLoading(true);
+            try {
+                const outcome =
+                    await shellAgent.getSystemIntegrationStatusReadOutcome();
+                setIntegrationReadStatus(outcome.status);
+                if (outcome.status === "ok") {
+                    setIntegrationStatus({
+                        autorun: Boolean(outcome.value.autorun),
+                        associations: Boolean(outcome.value.associations),
+                    });
+                }
+                return outcome;
+            } catch {
+                setIntegrationReadStatus("failed");
+                return { status: "failed" };
+            } finally {
+                setIntegrationLoading(false);
+            }
+        }, [canUseShell]);
 
     useEffect(() => {
         if (!canUseShell) {
@@ -263,23 +253,23 @@ export function SystemTabContent() {
         !canUseShell || integrationReadStatus === "unsupported"
             ? t("settings.system.handlers_unsupported")
             : integrationLoading
-            ? t("settings.system.handlers_unknown")
-            : integrationReadStatus === "failed"
-            ? t("settings.system.handlers_read_failed")
-            : integrationStatus.associations
-            ? t("settings.system.handlers_registered")
-            : t("settings.system.handlers_not_registered");
+              ? t("settings.system.handlers_unknown")
+              : integrationReadStatus === "failed"
+                ? t("settings.system.handlers_read_failed")
+                : integrationStatus.associations
+                  ? t("settings.system.handlers_registered")
+                  : t("settings.system.handlers_not_registered");
 
     const associationChipColor =
         integrationReadStatus === "failed"
             ? "warning"
             : integrationReadStatus === "ok" &&
-              !integrationLoading &&
-              integrationStatus.associations
-            ? "success"
-            : integrationReadStatus === "ok" && !integrationLoading
-            ? "danger"
-            : "default";
+                !integrationLoading &&
+                integrationStatus.associations
+              ? "success"
+              : integrationReadStatus === "ok" && !integrationLoading
+                ? "danger"
+                : "default";
 
     const associationButtonLabel = integrationStatus.associations
         ? t("settings.system.refreshAssociation")
@@ -292,12 +282,12 @@ export function SystemTabContent() {
         !canUseShell || integrationReadStatus === "unsupported"
             ? t("settings.system.autorun_status_unsupported")
             : integrationLoading
-            ? t("settings.system.autorun_unknown")
-            : integrationReadStatus === "failed"
-            ? t("settings.system.autorun_read_failed")
-            : integrationStatus.autorun
-            ? t("settings.system.autorun_enabled")
-            : t("settings.system.autorun_disabled");
+              ? t("settings.system.autorun_unknown")
+              : integrationReadStatus === "failed"
+                ? t("settings.system.autorun_read_failed")
+                : integrationStatus.autorun
+                  ? t("settings.system.autorun_enabled")
+                  : t("settings.system.autorun_disabled");
 
     const autorunDisabled =
         !canUseShell ||
@@ -309,8 +299,8 @@ export function SystemTabContent() {
         integrationReadStatus === "failed"
             ? t("settings.system.integration_read_failed")
             : integrationReadStatus === "unsupported"
-            ? t("settings.system.integration_read_unsupported")
-            : undefined;
+              ? t("settings.system.integration_read_unsupported")
+              : undefined;
 
     if (!canUseShell) {
         return (
@@ -318,8 +308,8 @@ export function SystemTabContent() {
                 title={t("settings.headers.system")}
                 description={t("settings.descriptions.system_integration")}
             >
-                <div className={FORM_UI_CLASS.systemNoticeStack}>
-                    <p className={FORM_UI_CLASS.systemNoticeBody}>
+                <div className={FORM.systemNoticeStack}>
+                    <p className={FORM.systemNoticeBody}>
                         {t("settings.system.notice")}
                     </p>
                     <p className={TEXT_ROLE.caption}>
@@ -331,7 +321,7 @@ export function SystemTabContent() {
     }
 
     return (
-        <div className={FORM_UI_CLASS.systemRootStack}>
+        <div className={FORM.systemRootStack}>
             <SystemSectionCard
                 title={t("settings.sections.system_integration")}
                 description={t("settings.descriptions.system_integration")}
@@ -384,5 +374,3 @@ export function SystemTabContent() {
         </div>
     );
 }
-
-

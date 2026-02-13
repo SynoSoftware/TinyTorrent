@@ -17,12 +17,7 @@ import { useTranslation } from "react-i18next";
 import { Magnet, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
-import {
-    APP_MODAL_CLASS,
-    FORM_UI_CLASS,
-    INPUT_SURFACE_CLASS,
-    STANDARD_SURFACE_CLASS,
-} from "@/shared/ui/layout/glass-surface";
+import { MODAL, FORM, INPUT } from "@/shared/ui/layout/glass-surface";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -97,19 +92,17 @@ export function AddMagnetModal({
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
-            classNames={STANDARD_SURFACE_CLASS.modal.baseClassNames}
+            classNames={MODAL.baseClassNames}
         >
             <ModalContent>
                 {() => (
                     <>
-                        <div
-                            className={APP_MODAL_CLASS.header}
-                        >
-                            <div className={APP_MODAL_CLASS.headerLead}>
+                        <div className={MODAL.header}>
+                            <div className={MODAL.headerLead}>
                                 <StatusIcon
                                     Icon={Magnet}
                                     size="md"
-                                    className={APP_MODAL_CLASS.headerLeadPrimaryIcon}
+                                    className={MODAL.headerLeadPrimaryIcon}
                                 />
                                 <span className={TEXT_ROLE.labelPrimary}>
                                     {t("modals.add_magnet.title")}
@@ -121,11 +114,11 @@ export function AddMagnetModal({
                                 ariaLabel={t("torrent_modal.actions.close")}
                                 onPress={handleClose}
                                 iconSize="lg"
-                                className={APP_MODAL_CLASS.desktopClose}
+                                className={MODAL.desktopClose}
                             />
                         </div>
 
-                        <ModalBody className={FORM_UI_CLASS.bodyStackPanel}>
+                        <ModalBody className={FORM.bodyStackPanel}>
                             <Textarea
                                 ref={textareaRef}
                                 autoFocus
@@ -133,16 +126,14 @@ export function AddMagnetModal({
                                 onValueChange={setValue}
                                 placeholder={t("modals.add_magnet.placeholder")}
                                 variant="bordered"
-                                classNames={INPUT_SURFACE_CLASS.codeTextareaClassNames}
+                                classNames={INPUT.codeTextareaClassNames}
                                 onKeyDown={handleKeyDown}
                             />
-                            <p className={APP_MODAL_CLASS.hintText}>
+                            <p className={MODAL.hintText}>
                                 {t("modals.add_magnet.hint")}
                             </p>
                         </ModalBody>
-                        <ModalFooter
-                            className={APP_MODAL_CLASS.footerActionsPadded}
-                        >
+                        <ModalFooter className={MODAL.footerActionsPadded}>
                             <Button variant="light" onPress={handleClose}>
                                 {t("modals.cancel")}
                             </Button>
@@ -162,6 +153,3 @@ export function AddMagnetModal({
         </Modal>
     );
 }
-
-
-

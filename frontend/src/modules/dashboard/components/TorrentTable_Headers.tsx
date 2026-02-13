@@ -10,7 +10,7 @@ import {
 } from "@/modules/dashboard/components/TorrentTable_Shared";
 import {
     buildTorrentHeaderCellClass,
-    TABLE_VIEW_CLASS,
+    TABLE,
 } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
@@ -37,7 +37,7 @@ export const ColumnHeaderPreview = ({
                     isOverlay: true,
                     isDragging: false,
                 }),
-                TABLE_VIEW_CLASS.headerPreviewPadding,
+                TABLE.headerPreviewPadding,
             )}
             style={{
                 width: getColumnWidthCss(column.id, column.getSize()),
@@ -90,7 +90,7 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
                     .map((headerGroup: HeaderGroup<Torrent>) => (
                         <div
                             key={headerGroup.id}
-                            className={TABLE_VIEW_CLASS.headerGroupRow}
+                            className={TABLE.headerGroupRow}
                             style={{
                                 width: getTableTotalWidthCss(
                                     tableApi.getTotalSize(),
