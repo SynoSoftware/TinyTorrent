@@ -189,7 +189,7 @@ export function TorrentTable_StatusCell({
                         Icon={Icon}
                         size="md"
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className="text-current"
+                        className={FORM_CONTROL_CLASS.statusChipCurrentIcon}
                     />
                     <span className={FORM_CONTROL_CLASS.statusChipLabel} title={tooltip}>
                         {statusLabel}

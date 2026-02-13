@@ -188,7 +188,7 @@ export default function DevTest() {
                                     <p className={DEV_STEP_LABEL_CLASS}>
                                         {viewModel.controls.faultModeLabel}
                                     </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-tools">
+                                    <div className={DIAGNOSTIC_VIEW_CLASS.optionsGridResponsive}>
                                         {viewModel.controls.faultModes.map(
                                             (option) => (
                                                 <Button
@@ -210,7 +210,7 @@ export default function DevTest() {
                                                     <span
                                                         className={cn(
                                                             TEXT_ROLE.body,
-                                                            "font-medium",
+                                                            DIAGNOSTIC_VIEW_CLASS.optionLabelStrong,
                                                         )}
                                                     >
                                                         {
@@ -508,7 +508,7 @@ export default function DevTest() {
                                                     <span
                                                         className={cn(
                                                             TEXT_ROLE.body,
-                                                            "font-medium",
+                                                            DIAGNOSTIC_VIEW_CLASS.optionLabelStrong,
                                                         )}
                                                     >
                                                         {row.label}
@@ -609,7 +609,7 @@ export default function DevTest() {
                                 <span
                                     className={cn(
                                         TEXT_ROLE.bodySmall,
-                                        "font-semibold text-foreground",
+                                        DIAGNOSTIC_VIEW_CLASS.footerScenarioLabel,
                                     )}
                                 >
                                     {viewModel.footer.scenarioLabel}
@@ -627,7 +627,7 @@ export default function DevTest() {
                                         className={cn(
                                             DIAGNOSTIC_VIEW_CLASS.footerSummary,
                                             TEXT_ROLE.caption,
-                                            "text-foreground/50",
+                                            DIAGNOSTIC_VIEW_CLASS.footerSummaryMuted,
                                         )}
                                     >
                                         {viewModel.footer.summary}
@@ -666,7 +666,7 @@ export default function DevTest() {
                                 className={cn(
                                     DIAGNOSTIC_VIEW_CLASS.footerExpected,
                                     TEXT_ROLE.codeMuted,
-                                    "text-foreground/80",
+                                    DIAGNOSTIC_VIEW_CLASS.footerExpectedTone,
                                 )}
                             >
                                 {viewModel.footer.expectedBehavior}

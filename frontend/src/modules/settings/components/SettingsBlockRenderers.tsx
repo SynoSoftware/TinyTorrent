@@ -18,7 +18,7 @@ import {
     ICON_STROKE_WIDTH,
     VISUAL_STATE,
 } from "@/config/logic";
-import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import {
     buildSettingsBufferedInputClassNames,
@@ -65,13 +65,13 @@ export function SwitchSliderRenderer({
                     color={block.color}
                     onValueChange={(val) => updateConfig(block.switchKey, val)}
                 >
-                    <span className={`${withOpacity(TEXT_ROLE.body, 90)} font-medium`}>
+                    <span className={FORM_UI_CLASS.switchSliderLabel}>
                         {t(block.labelKey)}
                     </span>
                 </Switch>
                 <div
                     className={cn(
-                        withOpacity(TEXT_ROLE.code, 80),
+                        FORM_UI_CLASS.sliderValueText,
                         FORM_UI_CLASS.sliderValueBadge
                     )}
                     style={{ minWidth: "var(--tt-badge-min-width)" }}
@@ -122,8 +122,7 @@ export function SwitchRenderer({
             <div className={FORM_UI_CLASS.switchRow}>
                 <span
                     className={cn(
-                        withOpacity(TEXT_ROLE.body, 80),
-                        "font-medium",
+                        FORM_UI_CLASS.switchLabel,
                         isDisabled && VISUAL_STATE.muted,
                     )}
                 >
@@ -440,7 +439,7 @@ export function LanguageRenderer({
     return (
         <div className={FORM_UI_CLASS.languageRow}>
             <div>
-                <span className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
+                <span className={FORM_UI_CLASS.interfaceRowTitle}>
                     {t(block.labelKey)}
                 </span>
                 {block.descriptionKey && (
@@ -479,11 +478,11 @@ export function RawConfigRenderer({
         <div className={FORM_UI_CLASS.blockStackTight}>
             <div className={FORM_UI_CLASS.rawConfigHeader}>
                 <div>
-                    <span className={withOpacity(TEXT_ROLE.bodyStrong, 80)}>
+                    <span className={FORM_UI_CLASS.rawConfigTitle}>
                         {t(block.labelKey)}
                     </span>
                     {block.descriptionKey && (
-                        <p className={withOpacity(TEXT_ROLE.caption, 50)}>
+                        <p className={FORM_UI_CLASS.rawConfigDescription}>
                             {t(block.descriptionKey)}
                         </p>
                     )}
@@ -503,14 +502,14 @@ export function RawConfigRenderer({
                         : t("settings.buttons.copy_config")}
                 </Button>
             </div>
-            <div className="mt-tight">
+            <div className={FORM_UI_CLASS.rawConfigFeedback}>
                 {jsonCopyStatus === "copied" && (
-                    <p className={withColor(TEXT_ROLE.caption, "success")}>
+                    <p className={FORM_UI_CLASS.rawConfigStatusSuccess}>
                         {t("settings.modal.clipboard_success")}
                     </p>
                 )}
                 {jsonCopyStatus === "failed" && (
-                    <p className={withColor(TEXT_ROLE.caption, "danger")}>
+                    <p className={FORM_UI_CLASS.rawConfigStatusDanger}>
                         {t("settings.modal.clipboard_failed")}
                     </p>
                 )}
@@ -518,7 +517,7 @@ export function RawConfigRenderer({
             <div className={FORM_UI_CLASS.rawConfigPanel}>
                 <textarea
                     className={cn(
-                        withOpacity(TEXT_ROLE.code, 80),
+                        FORM_UI_CLASS.rawConfigCode,
                         FORM_UI_CLASS.rawConfigTextarea,
                     )}
                     rows={10}

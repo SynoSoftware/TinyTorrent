@@ -400,6 +400,26 @@ Keep the "god file" pattern, but formalize hard internal tiers:
 4. **Feature bindings** (many): `APP_NAV_CLASS`, `TABLE_VIEW_CLASS`,
    `APP_STATUS_CLASS`, etc., but they may only compose roles from tiers 1–3.
 
+### Theme Refactor Plan Status (updated: 2026-02-13)
+
+- [x] 1) Define final token model first (no code churn yet)
+  - [x] Added a minimal role registry in `glass-surface.ts`:
+    `surface` (`workbench/panel/modal/inset`), `chrome`
+    (`edgeTop/edgeBottom/sticky/divider`), `state` (`interactive/disabled`), `text`.
+  - [x] Centralized single-change dials (`opacity`, `blur`, `border`, `radius`, `elevation`)
+    into one authority (`GLASS_SURFACE_DIAL`) and composed roles from those dials.
+- [_] 2) Convert `glass-surface.ts` into a role registry
+  - [x] Introduced `GLASS_ROLE_REGISTRY` and routed `STANDARD_SURFACE_CLASS`
+    through registry-backed role/chrome/state/text composition.
+  - [x] Split registry internals into minimal core roles (`GLASS_ROLE_CORE`) and
+    explicit compatibility aliases (`GLASS_ROLE_COMPAT`) so old role names stay stable
+    while migration continues.
+  - [x] Kept `glass-surface.ts` as the single theme file (no multi-file split),
+    while preserving an internal role-registry structure (`GLASS_ROLE_REGISTRY`
+    with core + compatibility layers) inside that one file.
+  - [_] Continue shrinking feature-binding recipe exports into compact semantic maps,
+    then remove compatibility-only composition layers after usages are migrated.
+
 ### Canonical Workbench Surface Rule
 
 The main app chrome should share one material family:
@@ -413,43 +433,149 @@ content density), not for ad-hoc blur/background/border recipes.
 
 ### Multi-Step Implementation Plan
 
-#### Step 1 — Declare role map in `glass-surface.ts`
+#### [x] Step 0 — Freeze baseline + inventory
 
-- Add a top-level `STANDARD_SURFACE_CLASS.layer` and
+- [x] Export a usage inventory for current `glass-surface.ts` exports (symbol -> file count)
+  before refactor.
+- [x] Capture a baseline list of high-churn recipes (`bg-*`, `border-*`,
+  `backdrop-blur-*`, `shadow-*`, `rounded-*`) so reduction is measurable.
+- [x] Identify which exports are true roles vs. feature bindings vs. legacy aliases.
+
+Baseline snapshot (updated: 2026-02-12):
+- High-churn recipe counts (current):
+  - `bg-*`: 220
+  - `border-*`: 182
+  - `backdrop-blur-*`: 17
+  - `shadow-*`: 74
+  - `rounded-*`: 93
+- Top `glass-surface.ts` export references (current, file count):
+  - `STANDARD_SURFACE_CLASS` (20), `FORM_UI_CLASS` (9),
+    `TABLE_VIEW_CLASS` (7), `FORM_CONTROL_CLASS` (7),
+    `APP_MODAL_CLASS` (5), `SPLIT_VIEW_CLASS` (4),
+    `DETAIL_VIEW_CLASS` (4), `METRIC_CHART_CLASS` (3),
+    `INPUT_SURFACE_CLASS` (3)
+- Export category snapshot (current):
+  - True role authority: `STANDARD_SURFACE_CLASS` (surface/chrome/menu/modal/frame/atom/semantic tiers).
+  - Feature bindings: `APP_NAV_CLASS`, `TABLE_VIEW_CLASS`, `APP_STATUS_CLASS`,
+    `APP_MODAL_CLASS`, `DETAIL_VIEW_CLASS`, `SPLIT_VIEW_CLASS`,
+    `FORM_UI_CLASS`, `FILE_BROWSER_CLASS`, `DETAIL_TABLE_CLASS`,
+    `HEATMAP_VIEW_CLASS`, `WORKBENCH_CLASS`, `METRIC_CHART_CLASS`,
+    `FORM_CONTROL_CLASS`, `INPUT_SURFACE_CLASS`, `CONTEXT_MENU_CLASS`,
+    `COMMAND_PALETTE_CLASS`, `TORRENT_HEADER_CLASS`, `DASHBOARD_LAYOUT_CLASS`,
+    `DIAGNOSTIC_VIEW_CLASS`.
+  - Compatibility/legacy-style builders still pending collapse:
+    none (cleared in Step 6).
+  - Completed alias removals:
+    `STANDARD_SURFACE_CLASS.frame`,
+    `STANDARD_SURFACE_CLASS.semantic`,
+    `buildAppNavTitlebarStyle`, `buildAppNavMainStyle`,
+    `buildAppNavWindowControlsStyle`,
+    `buildSettingsModalClassNames`, `buildAddTorrentModalClassNames`.
+
+#### [x] Step 1 — Declare role map in `glass-surface.ts`
+
+- [x] Add a top-level `STANDARD_SURFACE_CLASS.layer` and
   `STANDARD_SURFACE_CLASS.role` map.
-- Add a `STANDARD_SURFACE_CLASS.chrome` sub-map for edge/sticky/divider rules.
-- Keep existing exports intact for backward compatibility.
+- [x] Add a `STANDARD_SURFACE_CLASS.chrome` sub-map for edge/sticky/divider rules.
+- [x] Keep existing exports intact for backward compatibility.
 
-#### Step 2 — Bind workbench triad to one surface family
+#### [x] Step 2 — Bind workbench triad to one surface family
 
-- Migrate `APP_NAV_CLASS` surface-bearing entries to compose
+- [x] Migrate `APP_NAV_CLASS` surface-bearing entries to compose
   `surface.workbench` + chrome roles.
-- Migrate `TABLE_VIEW_CLASS` host/shell surface-bearing entries to compose the
+- [x] Migrate `TABLE_VIEW_CLASS` host/shell surface-bearing entries to compose the
   same role.
-- Migrate `APP_STATUS_CLASS.footer` and related shell entries to the same role.
+- [x] Migrate `APP_STATUS_CLASS.footer` and related shell entries to the same role.
 
-#### Step 3 — Enforce role-only surface decisions
+#### [x] Step 3 — Enforce role-only surface decisions
 
-- In feature bindings, disallow new raw additions of
+- [x] In feature bindings, disallow new raw additions of
   `bg-*`, `border-*`, `backdrop-blur-*`, `shadow-*`, `rounded-*` unless they
   are in tiers 1–3.
-- New visual intent must be introduced as a role token first, then consumed by
+- [x] New visual intent must be introduced as a role token first, then consumed by
   bindings.
+- [x] Started token routing in `glass-surface.ts` by moving table drag-overlay,
+  status speed-module shell, context-menu panel, command-palette panel, and
+  sticky table/detail header shells to `STANDARD_SURFACE_CLASS.role/chrome`.
+- [x] Add an explicit automated regression guard (lint/check) for new raw
+  surface recipes in feature bindings.
+  - Added `npm run enforce:surface-churn` (script: `frontend/scripts/enforce-surface-churn.cjs`)
+    to block raw recipe growth in `glass-surface.ts` feature-binding scope.
+  - Current enforced ceiling (feature-binding scope): `bg-*` 110, `border-*` 110,
+    `backdrop-blur-*` 7, `shadow-*` 34, `rounded-*` 60.
 
-#### Step 4 — Collapse duplicates by intent
+#### [x] Step 4 — Collapse duplicates by intent
 
-- Consolidate repeated sticky/header recipes into one chrome role.
-- Consolidate repeated panel frame recipes into role-backed `surface.panel` and
+- [x] Consolidate repeated sticky/header recipes into one chrome role.
+- [x] Consolidate repeated panel frame recipes into role-backed `surface.panel` and
   `surface.pane` variants.
-- Consolidate floating surfaces (`modal/menu/tooltip`) under
+- [x] Consolidate floating surfaces (`modal/menu/tooltip`) under
   `surface.modal/menu/tooltip` with role-level defaults.
+- [x] Add shared panel role variants in `STANDARD_SURFACE_CLASS.role`
+  (`panelRaised`, `panelMuted`, `panelInfo`) and migrate repeated `rounded-2xl +
+  border + bg-content1/*` recipes in split/heatmap/semantic panel surfaces.
+- [x] Add shared base panel/pane role constants (`ROLE_PANEL_BASE`, `ROLE_PANE_BASE`)
+  and migrate additional panel/pane consumers (`workflow.filePanel`,
+  `SPLIT_VIEW_CLASS.listSurface`, `METRIC_CHART_CLASS.panel`,
+  `DETAIL_VIEW_CLASS.generalCard`) to role-backed composition.
+- [x] Migrate remaining direct frame-surface consumers to role surfaces
+  (`STANDARD_SURFACE_CLASS.frame.panel/pane/panelInset` ->
+  `STANDARD_SURFACE_CLASS.role.panel/pane/panelInset`) in
+  `AddTorrentSettingsPanel`, `TorrentTable`, `TorrentDetails_Content`, and
+  modal settings-pane builders.
 
-#### Step 5 — Validation and drift checks
+#### [_] Step 5 — Validation and drift checks
 
-- Validate visual parity of navbar/table/status as one material family.
-- Add a checklist item to PR review: "Does this add a new visual recipe or
+- [_] Validate visual parity of navbar/table/status as one material family.
+- [x] Add automated triad parity enforcement:
+  `npm run enforce:workbench-parity` (script:
+  `frontend/scripts/enforce-workbench-parity.cjs`) asserts
+  `APP_NAV_CLASS.workbenchSurface`, `TABLE_VIEW_CLASS.workbenchSurface`, and
+  `APP_STATUS_CLASS.workbenchSurface` compose `surface.workbench` plus expected
+  chrome roles.
+- [x] Extend automated parity enforcement to shell material:
+  `APP_NAV_CLASS.workbenchShell`, `TABLE_VIEW_CLASS.workbenchShell`, and
+  `APP_STATUS_CLASS.footer` must compose `STANDARD_SURFACE_CLASS.role.workbenchShell`.
+- [x] Add automated consumer-level parity enforcement:
+  `npm run enforce:workbench-consumers` (script:
+  `frontend/scripts/enforce-workbench-consumers.cjs`) asserts
+  `Navbar.tsx`, `TorrentTable.tsx`, and `StatusBar.tsx` consume the required
+  workbench token authorities.
+- [x] Validate token-level parity for navbar/table/status roots:
+  all three consume `surface.workbench` (`APP_NAV_CLASS.workbenchSurface`,
+  `TABLE_VIEW_CLASS.workbenchSurface`, `APP_STATUS_CLASS.workbenchSurface`).
+- [x] Add a checklist item to PR review: "Does this add a new visual recipe or
   compose existing role tokens?"
-- Track any unavoidable exceptions with explicit rationale in this audit.
+- [x] Track any unavoidable exceptions with explicit rationale in this audit.
+  - [x] No current unavoidable compatibility exceptions remain after Step 6
+    alias/builder removals.
+  - [_] Manual visual sweep of navbar/table/status material parity is still
+    pending in runtime UI (token/build checks pass).
+
+#### [x] Step 6 — Mechanical rename workflow (tool-first, no manual mass edits)
+
+- [x] Keep compatibility aliases while migrating usages.
+- [x] Perform symbol migrations via tooling (rename/references), not manual file-by-file edits.
+- [x] Batch by role family (`workbench`, `panel/pane`, `modal/menu/tooltip`) and
+  verify each batch before removing aliases.
+- [x] Remove alias exports only when usage count reaches zero.
+  - [x] Removed `STANDARD_SURFACE_CLASS.frame` after usage reached zero.
+  - [x] Removed `STANDARD_SURFACE_CLASS.semantic` after usage reached zero.
+  - [x] Removed legacy nav style builders after usage reached zero:
+    `buildAppNavTitlebarStyle`, `buildAppNavMainStyle`,
+    `buildAppNavWindowControlsStyle`.
+  - [x] Removed modal className compatibility builders after usage reached zero:
+    `buildSettingsModalClassNames`, `buildAddTorrentModalClassNames`.
+
+### Definition of Done (Section 12)
+
+- Shared dial edit test passes: a change like transparency `/50 -> /60` is a
+  one-authority edit (theme/token layer) with no feature call-site edits.
+- Navbar, torrent table host, and status bar resolve to one
+  `surface.workbench` material family with chrome-role-only variation.
+- No new feature-owned surface recipes are introduced.
+- Legacy aliases are removed (or explicitly tracked with owner + removal date).
+- `glass-surface.ts` contains role tiers + bindings, not duplicate visual recipes.
 
 ---
 
@@ -476,9 +602,9 @@ content density), not for ad-hoc blur/background/border recipes.
 - [x] **Add `<Toolbar>` note**: the existing `<Toolbar>` proposal also needs
   transition tokens — currently toolbar buttons each define their own
   `transition-colors duration-*`.
-- [ ] **Add surface-role taxonomy** (Section 12 above): formalize Foundation →
+- [x] **Add surface-role taxonomy** (Section 12 above): formalize Foundation →
   Surface Roles → Chrome Roles → Feature Bindings in `glass-surface.ts`.
-- [ ] **Add workbench triad migration** (Section 12 above): normalize navbar,
+- [x] **Add workbench triad migration** (Section 12 above): normalize navbar,
   torrent table host, and status bar to one `surface.workbench` family.
 
 ---
@@ -528,7 +654,7 @@ These can be batched with the existing plan phases:
   - [x] Normalize `LanguageMenu.tsx` by moving inline menu item/surface selection classes into shared `MENU_CLASS` tokens.
   - [x] Normalize `AddTorrentFileTable.tsx` by moving inline file-table shell classes into shared workflow/list tokens.
   - [x] Normalize `DiskSpaceGauge.tsx` by moving inline separator/text-size style recipes into shared metric tokens.
-  - [_] Continue reducing ad-hoc feature-level class recipes in remaining high-drift files.
+  - [x] Continue reducing ad-hoc feature-level class recipes in remaining high-drift files.
   - [x] Normalize `TorrentDetails_Peers.tsx` by moving remaining inline style objects (virtual canvas/rows/context-menu placement) to shared split-view/context token builders.
   - [x] Normalize `TorrentTable_RowMenu.tsx` by moving remaining inline menu section/editor/anchor class+style recipes to shared context-menu token builders.
   - [x] Normalize `TorrentTable_HeaderMenu.tsx` and `TorrentTable_ColumnSettingsModal.tsx` by moving remaining inline menu/item/row recipes to shared menu/table tokens.
@@ -543,5 +669,25 @@ These can be batched with the existing plan phases:
   - [x] Normalize `SetLocationEditor.tsx` by moving remaining inline surface/layout/icon recipes to shared form/modal tokens.
   - [x] Normalize `TorrentDetails_Header.tsx` by moving remaining inline layout/tab/header recipes to shared detail-view token builders.
   - [x] Normalize `useTorrentTableColumns.tsx` by moving remaining inline header label/icon class+style recipes to shared table-view tokens.
+  - [x] Normalize `TorrentTable_ColumnDefs.tsx` by moving remaining inline table-cell/progress/peers class recipes into shared `TABLE_VIEW_CLASS.columnDefs` tokens.
+  - [x] Normalize `TorrentTable_SpeedColumnCell.tsx` by moving remaining inline sparkline/value shell class recipes into shared `TABLE_VIEW_CLASS.speedCell` tokens.
+  - [x] Normalize `TorrentTable_Headers.tsx` by moving remaining inline header preview/container class recipes to shared header/table token builders.
+  - [x] Normalize `TorrentTable_Shared.tsx` by moving remaining inline header/cell measurement and sort-icon recipes to shared `TABLE_CELL_CLASS` tokens.
+  - [x] Normalize `TorrentTable_Row.tsx` by moving remaining inline row shell/selection/drag state recipes to shared `TABLE_ROW_CLASS` tokens.
+  - [x] Normalize `TorrentTable_StatusColumnCell.tsx` by moving remaining inline status-icon tone class to shared `FORM_CONTROL_CLASS` token ownership.
+  - [x] Normalize `Dashboard_Layout.tsx` by moving remaining inline drop-overlay icon tone class to shared `DASHBOARD_LAYOUT_CLASS` token ownership.
+  - [x] Normalize `StatusBar.tsx` by moving remaining inline icon/screen-reader/grid/visibility utility classes to shared `APP_STATUS_CLASS` token ownership.
+  - [x] Normalize `InterfaceTabContent.tsx` by moving remaining inline section/layout class recipes to shared `FORM_UI_CLASS` token ownership.
+  - [x] Normalize `ConnectionManager.tsx` by moving remaining inline connection layout/icon/input/warning class recipes to shared `FORM_UI_CLASS.connection` token ownership.
+  - [x] Normalize `SettingsModalView.tsx` by moving remaining inline modal heading/icon utility class recipes to shared `APP_MODAL_CLASS` token ownership.
+  - [x] Normalize `SettingsFormBuilder.tsx` by moving remaining inline section content stack spacing recipe to shared `FORM_UI_CLASS` token ownership.
+  - [x] Normalize `SettingsBlockRenderers.tsx` by moving remaining inline raw-config feedback spacing recipe to shared `FORM_UI_CLASS` token ownership.
+  - [x] Normalize remaining ad-hoc text-tone compositions in `SettingsBlockRenderers.tsx`, `SetLocationEditor.tsx`, `TorrentDetails_Header.tsx`, `TorrentDetails_Pieces_Map.tsx`, `SystemTabContent.tsx`, and `TorrentDetails_General.tsx` to shared token authorities (`FORM_UI_CLASS`, `DETAIL_VIEW_CLASS`, `SPLIT_VIEW_CLASS`).
+  - [x] Normalize `ConnectionManager.tsx`, `TorrentDetails_General.tsx`, and `TorrentDetails_Content.tsx` remaining template-style class recipes to shared `FORM_UI_CLASS` / `DETAIL_VIEW_CLASS` / `TABLE_VIEW_CLASS` token ownership.
+  - [x] Eliminate remaining raw `className="..."` and template `className={\`...\`}` recipes in `modules/dashboard/components`, `modules/settings/components`, and `app/components/layout` by routing to shared token authorities.
+  - [x] Normalize remaining app/workflow recipe literals in `AddMagnetModal.tsx`, `WorkspaceShell.tsx`, and `DevTest.tsx` to shared `APP_MODAL_CLASS` / `WORKBENCH_CLASS` / `DIAGNOSTIC_VIEW_CLASS` token ownership.
+  - [x] Normalize `TorrentDetails_Content.tsx` content panel wrapper to shared `TABLE_VIEW_CLASS.detailsContentPanel`.
+  - [x] Normalize `TorrentRecoveryModal.tsx` inbox inset wrappers to shared `APP_MODAL_CLASS.dialogInsetPanel` / `APP_MODAL_CLASS.dialogInsetItem`.
+  - [x] Converge navbar/table/status shell material to shared `surface.workbenchShell` and enforce with `enforce:workbench-parity` + `enforce:workbench-consumers`.
 
 ---

@@ -35,6 +35,7 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
+import { TABLE_VIEW_CLASS } from "@/shared/ui/layout/glass-surface";
 
 // --- TYPES ---
 export type ColumnId =
@@ -141,17 +142,17 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.name,
         headerIcon: FileText,
         render: ({ torrent }) => (
-            <div className="flex min-w-0 items-center h-full">
+            <div className={TABLE_VIEW_CLASS.columnDefs.nameCell}>
                 <span
                     title={
                         torrent.errorEnvelope?.errorMessage ??
                         (torrent.errorString ? torrent.errorString : undefined)
                     }
                     className={cn(
-                        `font-medium truncate max-w-full ${TRANSITION.fast} cap-height-text`,
+                        TABLE_VIEW_CLASS.columnDefs.nameLabel,
                         TABLE_LAYOUT.fontSize,
                         torrent.state === STATUS.torrent.PAUSED &&
-                            "text-foreground/50",
+                            TABLE_VIEW_CLASS.columnDefs.nameLabelPaused,
                     )}
                 >
                     {torrent.name}
@@ -172,30 +173,30 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Percent,
         render: ({ torrent }) => {
             const displayProgress = getEffectiveProgress(torrent);
+            const progressIndicatorClass =
+                torrent.state === STATUS.torrent.PAUSED
+                    ? TABLE_VIEW_CLASS.columnDefs.progressIndicatorPaused
+                    : torrent.state === STATUS.torrent.SEEDING
+                      ? TABLE_VIEW_CLASS.columnDefs.progressIndicatorSeeding
+                      : TABLE_VIEW_CLASS.columnDefs.progressIndicatorActive;
             return (
-                <div className="flex flex-col gap-tight w-full min-w-0 py-tight">
+                <div className={TABLE_VIEW_CLASS.columnDefs.progressCell}>
                     <div
                         className={cn(
-                            "flex justify-between items-end font-medium opacity-80",
+                            TABLE_VIEW_CLASS.columnDefs.progressMetricsRow,
                             DENSE_NUMERIC,
                         )}
                     >
                         <span>{(displayProgress * 100).toFixed(1)}%</span>
-                        <span className="text-foreground/40">
+                        <span className={TABLE_VIEW_CLASS.columnDefs.progressSecondary}>
                             {formatBytes(torrent.totalSize * displayProgress)}
                         </span>
                     </div>
                     <SmoothProgressBar
                         value={displayProgress * 100}
-                        className="h-indicator"
-                        trackClassName="bg-content1/20 h-full"
-                        indicatorClassName={cn(
-                            torrent.state === STATUS.torrent.PAUSED
-                                ? "bg-gradient-to-r from-warning/50 to-warning"
-                                : torrent.state === STATUS.torrent.SEEDING
-                                  ? "bg-gradient-to-r from-primary/50 to-primary"
-                                  : "bg-gradient-to-r from-success/50 to-success",
-                        )}
+                        className={TABLE_VIEW_CLASS.columnDefs.progressBar}
+                        trackClassName={TABLE_VIEW_CLASS.columnDefs.progressTrack}
+                        indicatorClassName={progressIndicatorClass}
                     />
                 </div>
             );
@@ -229,7 +230,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
         headerIcon: ListOrdered,
         render: ({ torrent }) => (
-            <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
+            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericMuted, DENSE_NUMERIC)}>
                 {formatQueueOrdinal(torrent.queuePosition)}
             </span>
         ),
@@ -251,7 +252,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 return (
                     <span
                         className={cn(
-                            "text-foreground/70 min-w-0",
+                            TABLE_VIEW_CLASS.columnDefs.numericSoft,
                             DENSE_NUMERIC,
                         )}
                         title={t("labels.status.torrent.checking")}
@@ -272,7 +273,10 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     : t("table.eta", { time: relativeLabel });
             return (
                 <span
-                    className={cn("text-foreground/70 min-w-0", DENSE_NUMERIC)}
+                    className={cn(
+                        TABLE_VIEW_CLASS.columnDefs.numericSoft,
+                        DENSE_NUMERIC,
+                    )}
                     title={tooltip}
                 >
                     {absoluteLabel}
@@ -312,7 +316,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => (
             <div
                 className={cn(
-                    "flex items-center justify-end gap-tight text-foreground/60 min-w-0",
+                    TABLE_VIEW_CLASS.columnDefs.peersRow,
                     DENSE_NUMERIC,
                 )}
             >
@@ -320,11 +324,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     Icon={Users}
                     size="md"
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className="opacity-50 text-current"
+                    className={TABLE_VIEW_CLASS.columnDefs.peersIcon}
                 />
                 <span>{torrent.peerSummary.connected}</span>
-                <span className="opacity-30">/</span>
-                <span className="opacity-50">
+                <span className={TABLE_VIEW_CLASS.columnDefs.peersDivider}>/</span>
+                <span className={TABLE_VIEW_CLASS.columnDefs.peersSeedCount}>
                     {torrent.peerSummary.seeds ?? "-"}
                 </span>
             </div>
@@ -342,7 +346,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.totalSize,
         headerIcon: HardDrive,
         render: ({ torrent }) => (
-            <span className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}>
+            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericDim, DENSE_NUMERIC)}>
                 {formatBytes(torrent.totalSize)}
             </span>
         ),
@@ -359,7 +363,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => ratioValue(torrent),
         headerIcon: TrendingUp,
         render: ({ torrent }) => (
-            <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
+            <span className={cn(TABLE_VIEW_CLASS.columnDefs.numericMuted, DENSE_NUMERIC)}>
                 {ratioValue(torrent).toFixed(2)}
             </span>
         ),
@@ -377,7 +381,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Clock,
         render: ({ torrent }) => (
             <span
-                className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}
+                className={cn(TABLE_VIEW_CLASS.columnDefs.numericDim, DENSE_NUMERIC)}
                 title={formatDate(torrent.added)}
             >
                 {formatRelativeTime(torrent.added)}

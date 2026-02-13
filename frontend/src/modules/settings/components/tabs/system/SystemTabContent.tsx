@@ -16,7 +16,7 @@ import {
 } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { VISUAL_STATE } from "@/config/logic";
-import { TEXT_ROLE, withOpacity } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import {
     FORM_UI_CLASS,
 } from "@/shared/ui/layout/glass-surface";
@@ -319,7 +319,7 @@ export function SystemTabContent() {
                 description={t("settings.descriptions.system_integration")}
             >
                 <div className={FORM_UI_CLASS.systemNoticeStack}>
-                    <p className={withOpacity(TEXT_ROLE.body, 80)}>
+                    <p className={FORM_UI_CLASS.systemNoticeBody}>
                         {t("settings.system.notice")}
                     </p>
                     <p className={TEXT_ROLE.caption}>

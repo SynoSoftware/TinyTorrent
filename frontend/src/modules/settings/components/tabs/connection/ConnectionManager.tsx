@@ -3,12 +3,13 @@ import { RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { TEXT_ROLE, withColor } from "@/config/textRoles";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { STATUS } from "@/shared/status";
 import { useConnectionConfig, buildRpcEndpoint, buildRpcServerUrl, DEFAULT_PROFILE_ID } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
 import { useSettingsFormActions } from "@/modules/settings/context/SettingsFormContext";
+import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)
@@ -137,17 +138,17 @@ export function ConnectionCredentialsCard() {
     // In native/local host mode, collapse remote controls behind an Advanced toggle.
     if (isNativeMode && !showAdvanced) {
         return (
-            <div className="space-y-tight">
-                <div className="flex items-center justify-between">
-                    <div className="min-w-0 space-y-tight">
-                        <h3 className={`${TEXT_ROLE.headingSection} truncate`}>
+            <div className={FORM_UI_CLASS.connection.localRoot}>
+                <div className={FORM_UI_CLASS.connection.localHeader}>
+                    <div className={FORM_UI_CLASS.connection.localHeaderInfo}>
+                        <h3 className={FORM_UI_CLASS.connection.profileTitle}>
                             {profileLabel}
                         </h3>
-                        <p className={`${TEXT_ROLE.caption} font-mono break-all`}>
+                        <p className={FORM_UI_CLASS.connection.profileEndpoint}>
                             {serverUrl}
                         </p>
                     </div>
-                    <div className="flex items-center gap-tools">
+                    <div className={FORM_UI_CLASS.connection.localHeaderActions}>
                         <Button
                             size="md"
                             variant="ghost"
@@ -165,18 +166,18 @@ export function ConnectionCredentialsCard() {
     }
 
     return (
-        <div className="space-y-stage">
-            <div className="flex flex-col gap-tools sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 space-y-tight">
-                    <h3 className={`${TEXT_ROLE.headingSection} truncate`}>
+        <div className={FORM_UI_CLASS.connection.root}>
+            <div className={FORM_UI_CLASS.connection.topRow}>
+                <div className={FORM_UI_CLASS.connection.topRowInfo}>
+                    <h3 className={FORM_UI_CLASS.connection.profileTitle}>
                         {profileLabel}
                     </h3>
-                    <p className={`${TEXT_ROLE.caption} font-mono break-all`}>
+                    <p className={FORM_UI_CLASS.connection.profileEndpoint}>
                         {serverUrl}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-stage">
-                    <div className="flex items-center gap-tools">
+                <div className={FORM_UI_CLASS.connection.topRowActions}>
+                    <div className={FORM_UI_CLASS.connection.statusRow}>
                         <Chip
                             size="md"
                             variant="shadow"
@@ -185,19 +186,19 @@ export function ConnectionCredentialsCard() {
                                 statusColor === "success" ? (
                                     <CheckCircle
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className="toolbar-icon-size-sm shrink-0"
+                                        className={FORM_UI_CLASS.connection.iconSmall}
                                     />
                                 ) : (
                                     <XCircle
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className="toolbar-icon-size-sm shrink-0"
+                                        className={FORM_UI_CLASS.connection.iconSmall}
                                     />
                                 )
                             }
                         >
                             {connectionStatusLabel}
                         </Chip>
-                        <div className="space-y-tight">
+                        <div className={FORM_UI_CLASS.connection.statusMeta}>
                             <p className={TEXT_ROLE.label}>
                                 {t("settings.connection.ui_mode_label")}
                             </p>
@@ -220,7 +221,7 @@ export function ConnectionCredentialsCard() {
                         startContent={
                             <RefreshCw
                                 strokeWidth={ICON_STROKE_WIDTH}
-                                className="toolbar-icon-size-sm shrink-0"
+                                className={FORM_UI_CLASS.connection.iconSmall}
                             />
                         }
                     >
@@ -228,21 +229,21 @@ export function ConnectionCredentialsCard() {
                     </Button>
                 </div>
             </div>
-            <div className="grid gap-tools">
+            <div className={FORM_UI_CLASS.connection.fieldsStack}>
                 {isOffline && (
                     <p
-                        className={withColor(TEXT_ROLE.label, "warning")}
-                        style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                        className={FORM_UI_CLASS.connection.offlineWarning}
+                        style={FORM_UI_CLASS.connection.offlineWarningTrackingStyle}
                     >
                         {t("settings.connection.offline_warning")}
                     </p>
                 )}
                 {isInsecureBasicAuth && (
-                    <p className={withColor(TEXT_ROLE.caption, "warning")}>
+                    <p className={FORM_UI_CLASS.connection.insecureAuthWarning}>
                         {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
-                <div className="grid gap-tools sm:grid-cols-2">
+                <div className={FORM_UI_CLASS.connection.fieldsPairGrid}>
                     <Input
                         label={t("settings.connection.host")}
                         labelPlacement="outside"
@@ -252,7 +253,7 @@ export function ConnectionCredentialsCard() {
                         onChange={(event) =>
                             handleUpdate({ host: event.target.value })
                         }
-                        className="h-button"
+                        className={FORM_UI_CLASS.connection.inputHeight}
                         disabled={!remoteInputsEnabled}
                     />
                     <Input
@@ -265,18 +266,18 @@ export function ConnectionCredentialsCard() {
                         onChange={(event) =>
                             handleUpdate({ port: event.target.value })
                         }
-                        className="h-button"
+                        className={FORM_UI_CLASS.connection.inputHeight}
                         disabled={!remoteInputsEnabled}
                     />
                 </div>
                 {shouldShowAuthControls && (
                     <>
                         {!isAuthModeResolved && (
-                            <p className={TEXT_ROLE.caption}>
+                            <p className={FORM_UI_CLASS.connection.detectingSignin}>
                                 {t("settings.connection.detecting_signin")}
                             </p>
                         )}
-                        <div className="grid gap-tools sm:grid-cols-2">
+                        <div className={FORM_UI_CLASS.connection.fieldsPairGrid}>
                             <Input
                                 label={t("settings.connection.username")}
                                 labelPlacement="outside"
@@ -308,7 +309,7 @@ export function ConnectionCredentialsCard() {
                     </>
                 )}
                 {isNativeMode && !showAdvanced && (
-                    <p className={`${TEXT_ROLE.caption} mt-tight`}>
+                    <p className={FORM_UI_CLASS.connection.localModeHint}>
                         {t("settings.connection.local_mode_info")}
                     </p>
                 )}

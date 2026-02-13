@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
+import { TABLE_ROW_CLASS } from "@/config/logic";
 
 import type { TorrentTableRowProps } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
@@ -134,12 +135,13 @@ const TorrentTable_Row = memo(
                         : `torrent-row-shell-${row.id}`
                 }
                 className={cn(
-                    "absolute top-0 left-0 border-b border-default/5",
-                    "box-border",
+                    TABLE_ROW_CLASS.shell,
                     // Dragging overrides
-                    canReorderQueue ? "cursor-grab" : "cursor-default",
+                    canReorderQueue
+                        ? TABLE_ROW_CLASS.dragCursorEnabled
+                        : TABLE_ROW_CLASS.dragCursorDisabled,
                     isDragging &&
-                        "opacity-50 grayscale scale-98 z-popover cursor-grabbing"
+                        TABLE_ROW_CLASS.dragging
                 )}
                 style={rowStyle}
                 onClick={(e) => onRowClick(e, row.id, virtualRow.index)}
@@ -156,10 +158,16 @@ const TorrentTable_Row = memo(
                     }
                     initial={false}
                     className={cn(
-                        "relative flex items-center w-full h-full box-border",
-                        isSelected ? "bg-primary/20" : "hover:bg-content1/10",
-                        isContext && !isSelected && "bg-content1/20",
-                        isHighlighted && !isSelected && "bg-foreground/10"
+                        TABLE_ROW_CLASS.content,
+                        isSelected
+                            ? TABLE_ROW_CLASS.selected
+                            : TABLE_ROW_CLASS.hover,
+                        isContext &&
+                            !isSelected &&
+                            TABLE_ROW_CLASS.context,
+                        isHighlighted &&
+                            !isSelected &&
+                            TABLE_ROW_CLASS.highlighted
                     )}
                 >
                     {row.getVisibleCells().map((cell) => (

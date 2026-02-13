@@ -18,6 +18,7 @@ import {
     DividerRenderer,
 } from "@/modules/settings/components/SettingsBlockRenderers";
 import type { ReactNode } from "react";
+import { FORM_UI_CLASS } from "@/shared/ui/layout/glass-surface";
 
 interface SettingsFormBuilderProps {
     tab: TabDefinition;
@@ -136,7 +137,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                                 : undefined
                         }
                     >
-                        <div className="space-y-stage mt-panel">
+                        <div className={FORM_UI_CLASS.sectionContentOffsetStack}>
                             {visibleBlocks.map((block, blockIndex) =>
                                 renderBlock(block, blockIndex)
                             )}

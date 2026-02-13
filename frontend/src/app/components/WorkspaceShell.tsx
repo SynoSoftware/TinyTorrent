@@ -159,7 +159,7 @@ export function WorkspaceShell({
                     padding={shellSectionPadding}
                     className={cn(
                         WORKBENCH_CLASS.section,
-                        isNativeHost && "native-shell-body",
+                        isNativeHost && WORKBENCH_CLASS.nativeShellBody,
                         isImmersiveShell
                             ? WORKBENCH_CLASS.sectionGapImmersive
                             : WORKBENCH_CLASS.sectionGapClassic,
@@ -189,7 +189,7 @@ export function WorkspaceShell({
                                 <div
                                     className={cn(
                                         WORKBENCH_CLASS.immersiveMainWrap,
-                                        isNativeHost && "native-shell-inner",
+                                        isNativeHost && WORKBENCH_CLASS.nativeShellInner,
                                     )}
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
@@ -199,7 +199,7 @@ export function WorkspaceShell({
                                 <main
                                     className={cn(
                                         WORKBENCH_CLASS.immersiveMain,
-                                        isNativeHost && "native-shell-main",
+                                        isNativeHost && WORKBENCH_CLASS.nativeShellMain,
                                     )}
                                     style={{
                                         borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
@@ -269,7 +269,7 @@ export function WorkspaceShell({
                                                         <StatusIcon
                                                             Icon={X}
                                                             size="md"
-                                                            className="text-current"
+                                                            className={WORKBENCH_CLASS.iconCurrent}
                                                         />
                                                     </button>
 
@@ -283,7 +283,7 @@ export function WorkspaceShell({
                                                             <StatusIcon
                                                                 Icon={Icon}
                                                                 size="lg"
-                                                                className="text-current"
+                                                                className={WORKBENCH_CLASS.iconCurrent}
                                                             />
                                                         </div>
 
@@ -291,10 +291,10 @@ export function WorkspaceShell({
                                                             <p className={TEXT_ROLE.caption}>
                                                                 {card.title}
                                                             </p>
-                                                            <p className={`mt-tight ${TEXT_ROLE.bodyStrong}`}>
+                                                            <p className={WORKBENCH_CLASS.immersiveHudTextLabel}>
                                                                 {card.label}
                                                             </p>
-                                                            <p className={`mt-panel ${TEXT_ROLE.caption}`}>
+                                                            <p className={WORKBENCH_CLASS.immersiveHudTextDescription}>
                                                                 {
                                                                     card.description
                                                                 }

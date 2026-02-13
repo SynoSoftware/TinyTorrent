@@ -12,6 +12,7 @@ import {
     ICON_STROKE_WIDTH_DENSE,
     CELL_BASE_CLASS,
     CELL_PADDING_CLASS,
+    TABLE_CELL_CLASS,
 } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 
@@ -34,7 +35,7 @@ export const getTableTotalWidthCss = (fallbackPx: number) =>
 
 export const MEASURE_HEADER_SELECTOR = "[data-tt-measure-header]";
 export const MEASURE_CELL_SELECTOR = "[data-tt-measure-cell]";
-export const MEASURE_LAYER_CLASS = "absolute pointer-events-none invisible";
+export const MEASURE_LAYER_CLASS = TABLE_CELL_CLASS.measureLayer;
 
 export const TableHeaderContent = memo(
     ({
@@ -66,11 +67,11 @@ export const TableHeaderContent = memo(
                 }
                 className={cn(
                     useBaseClass && CELL_BASE_CLASS,
-                    "gap-tools text-scaled font-bold uppercase text-foreground/60",
+                    TABLE_CELL_CLASS.headerLabel,
                     CELL_PADDING_CLASS,
-                    align === "center" && "justify-center",
-                    align === "end" && "justify-end",
-                    isSelection && "justify-center"
+                    align === "center" && TABLE_CELL_CLASS.alignCenter,
+                    align === "end" && TABLE_CELL_CLASS.alignEnd,
+                    isSelection && TABLE_CELL_CLASS.alignCenter
                 )}
                 style={{
                     letterSpacing: "var(--tt-tracking-tight)",
@@ -85,7 +86,7 @@ export const TableHeaderContent = memo(
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className={cn(
-                            "text-primary shrink-0 toolbar-icon-size-sm",
+                            TABLE_CELL_CLASS.sortIcon,
                             sortArrowOpacity
                         )}
                     />
@@ -113,9 +114,9 @@ export const TableCellContent = memo(
                 className={cn(
                     CELL_BASE_CLASS,
                     CELL_PADDING_CLASS,
-                    align === "center" && "justify-center",
-                    align === "end" && "justify-end",
-                    isSelection && "justify-center"
+                    align === "center" && TABLE_CELL_CLASS.alignCenter,
+                    align === "end" && TABLE_CELL_CLASS.alignEnd,
+                    isSelection && TABLE_CELL_CLASS.alignCenter
                 )}
                 style={{
                     width: isMeasurement
@@ -156,7 +157,7 @@ export const ColumnMeasurementLayer = memo(
                 aria-hidden="true"
                 className={MEASURE_LAYER_CLASS}
             >
-                <div className="flex">
+                <div className={TABLE_CELL_CLASS.measureRow}>
                     {headers.map((header) => (
                         <TableHeaderContent
                             key={header.id}
@@ -166,7 +167,7 @@ export const ColumnMeasurementLayer = memo(
                     ))}
                 </div>
                 {rows.map((row) => (
-                    <div key={row.id} className="flex">
+                    <div key={row.id} className={TABLE_CELL_CLASS.measureRow}>
                         {row.getVisibleCells().map((cell) => (
                             <TableCellContent
                                 key={cell.id}
