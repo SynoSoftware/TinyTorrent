@@ -17,41 +17,47 @@ TinyTorrent optimizes for:
 
 Hard invariants protect architecture.
 Feature implementation remains cohesive, human-readable, and minimally prescribed.
+The North Star guides decisions but does not override §21.
 
 If a rule increases ceremony without preventing architectural decay, it does not belong here.
 
 ---
 
-## **Architecture Invariants Summary (Non-Redundant Overview)**
+## **Constitutional Source Of Law (Hard)**
 
-This section is a summary only.
-Canonical definitions and merge-gating law live in §21.
-If this summary conflicts with §21, §21 wins.
+§21 is the only canonical source of architectural law.
+All other sections must comply with §21.
+If duplication or conflict exists, §21 governs.
+Other hard sections may define enforcement gates and workflows, but they may not define parallel architectural invariants.
 
-1. **Single Authority per Decision** (§21.2)
-   Every behavioral decision has exactly one declared owner.
+## **Rule Tiers**
 
-2. **Single Public Contract Surface per Domain** (§21.12)
-   UI-facing operations expose exactly one contract and return typed outcomes.
+This document uses three rule tiers:
 
-3. **Typed Outcomes for Expected Failures** (§20.5, §21.12)
-   Expected failures are data, not exceptions.
+- **Tier 1 — Foundational Invariants:** §21 only
+- **Tier 2 — Enforced System Contracts:** boundary contracts for UI, RPC, ViewModel, runtime, and integration
+- **Tier 3 — Implementation Defaults & UX Standards:** current tools, interaction standards, and guidance
 
-4. **No Parallel Truths** (§20.1, §21.2, §21.3)
-   State, configuration, or behavior may not be duplicated across layers.
+## **Rule Derivation Model**
 
-5. **Configuration Authority** (§21.7)
-   The system has exactly one configuration source of truth.
+- §21 defines all foundational invariants (Tier 1).
+- Tier 2 sections define enforceable contracts derived from §21 for specific subsystems (UI, ViewModel, RPC, Runtime).
+- Tier 3 sections define replaceable implementation defaults and UX standards.
+- Tier 2 may operationalize §21 but may not redefine or contradict it.
+- Only §21 may introduce new architectural invariants.
 
-6. **Surface & Token Authority** (§0.1, §3.6)
-   Semantic visual meaning must flow through declared token/surface authorities.
+## **Architecture Invariants Index (Reference-Only)**
 
-7. **No Refactor Debt** (§21.10, §21.11)
-   A change may not increase responsibility surface, authority ambiguity, or wrapper indirection.
+Use this as a map; definitions and merge-gating law are in §21.
 
-Everything else in this document supports the canonical invariants in §21.
-
-If a rule does not protect one of these, it is not invariant-level.
+1. Single authority per decision: see §21.2.
+2. State ownership and lifecycle: see §21.3 and §21.4.
+3. Explicit contract gating: see §21.5 and §21.6.
+4. Configuration authority: see §21.7.
+5. Context authority and parameter boundaries: see §21.8.
+6. Traceability and indirection budgets: see §21.10 and §21.11.
+7. Single public contract surface: see §21.12.
+8. Integration-first ownership gate: see §21.13.
 
 ---
 
@@ -79,11 +85,11 @@ Architecture invariants are not.
 
 If you’re unsure what to do, follow these rules first, then read the referenced section(s).
 
-- **One owner per decision/state.** Every non-trivial decision has exactly one owner (Component / Hook / ViewModel / Orchestrator / Config / Token authority). (§21)
-- **Authority-first.** If a concept has an authority, you must use it; bypassing named authorities is an architectural regression. (See **Authority Registry** below; see `frontend/TOKEN_CONTRACT.md` for surface tokens.)
-- **Owner-extension-first.** Before adding a new module/hook/service/constant set, attempt to extend the existing owner. If you still add a new surface, include an Owner Extension Statement in the change note when landing the change. (§0.2, §21)
-- **Typed outcomes for expected failures.** “Expected” failures (auth, unavailable, conflicts, validation) are outcomes, not exceptions. Do not create parallel “throw” and “outcome” APIs for the same operation. (§20.5)
-- **Gate capabilities twice.** UI hides/disables, but the decision owner (ViewModel/service/orchestrator) must still enforce and return a typed outcome. (§21)
+- **Law source:** architectural decisions are governed by §21.
+- **Authority-first:** use declared authorities; do not bypass them. (See §0.1 and §3)
+- **Owner-extension-first:** extend existing owners before adding new surfaces. (See §0.2 and §21.13)
+- **Outcome contracts:** expected failures are typed outcomes, not exception control flow. (See §21.12 and §20)
+- **UI vs control plane:** UI may hide/disable capabilities, but boundary owners must enforce outcomes. (See §20 and §21)
 - **Diff-first for user-visible changes.** If behavior or UI output changes and the change is meant to land (or be reviewed), the change note must describe it explicitly and include the relevant diff artifact (screenshots/video for UI; surface-tree + guardrails for token/surface changes). (`frontend/TOKEN_CONTRACT.md`)
 - **Change note must list commands run (when landing/reviewing).** Include the exact `npm run ...` commands executed (lint/test/build + any relevant enforce/report scripts). If something cannot be run, state it explicitly and why.
 
@@ -120,7 +126,7 @@ A change is not eligible to land (or be treated as done) if it introduces any of
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
 - duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
 - a new surface without an Owner Extension Statement (§0.2)
-- expected failures represented as exceptions instead of typed outcomes (§20.5)
+- expected failures represented as exceptions instead of typed outcomes (§20.1)
 
 ## **0.4 Solo Dev Workflow (Low Ceremony)**
 
@@ -235,6 +241,19 @@ This file is a **contract**, not a style guide. It defines *principles* that kee
 - Canonical UI authority rules live in **§3** and **§21**.
 - **§5** is checklist/enforcement guidance only and does not define new authorities.
 
+## **3.0 Styling Authority Chain (Tier 2 Contract)**
+
+All styling authority follows this chain:
+
+1. **Root Knobs:** §3.1
+2. **Token Pipeline:** §3.2
+3. **Semantic Authorities:** §3.6
+4. **Structural Primitives:** Structural Layout Primitives section
+5. **Feature Mechanics:** local utilities for layout mechanics only
+6. **Enforcement:** §5 checklist
+
+If a styling rule is not in this chain, it is guidance, not authority.
+
 ## **3.1 Root Knobs Are the Only Global Dials**
 
 The UI must remain stable under the three global scale knobs:
@@ -289,62 +308,28 @@ These documents describe the intended direction for reducing drift, but they are
 
 When working *in those areas*, align with them. If they conflict with existing code or reality, prefer the smallest safe change and flag what needs to be amended in the plan.
 
-## **3.6 Feature Styling Ownership (Hard Rule)**
+## **3.6 Feature Styling Ownership (Tier 2 Contract)**
 
-Goal: keep semantic visual language centralized while allowing local mechanical layout utilities.
-Feature code must not create competing semantic surface/typography authorities.
+Feature code must consume shared semantic authorities for visual meaning and may use local utilities for layout mechanics.
 
-Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*` / `SETTINGS_*`).
+**Semantic authority locations:**
+- `frontend/src/shared/ui/layout/glass-surface.ts`
+- `frontend/src/config/textRoles.ts`
+- `frontend/src/config/logic.ts`
 
-### **Drift vs Repetition (Do Not Mix)**
-
-- **Problem A: Visual drift (hard rule).**
-  Prevent with semantic authorities (surface/elevation/border/radius/text roles/interactive recipes).
-- **Problem B: Repetition (optimization rule).**
-  Solve only when reuse is proven; do not pre-abstract local layout mechanics.
-
-### **Three-Layer Styling Model**
-
-1. **Layer 1 - Semantic Surfaces and Meaning (Hard)**
-- Mandatory token authority for visual meaning (surface/elevation/foreground hierarchy/interactive state).
-- No ad-hoc semantic visual recipes in feature code.
-
-2. **Layer 2 - Mechanical Layout Utilities (Flexible)**
-- Local Tailwind/HeroUI utility usage is allowed for mechanics:
-  `flex`, `items-*`, `justify-*`, `gap-*`, `px-*`, `py-*`, `m*`, `w*`, `h*`, `text-sm|base|lg`.
-- Mechanical utility repetition is acceptable and not treated as drift by itself.
-
-3. **Layer 3 - Reusable Pattern Promotion (Outcome-Based)**
-- Promote to a shared semantic utility/primitive when reuse is stable and semantic meaning exists.
-- Promotion is driven by reuse, not purity.
-
-### **Authority Boundaries**
-
-**Theme/token layer (semantic authority; allowed to contain raw utility strings):**
-- `frontend/src/shared/ui/layout/glass-surface.ts` (surface + chrome role tokens)
-- `frontend/src/config/textRoles.ts` (`TEXT_ROLE.*`)
-- `frontend/src/config/logic.ts` (`INTERACTIVE_RECIPE.*`, `TRANSITION.*`, `VISUAL_STATE.*`, etc.)
-
-**Forbidden in UI/feature components (semantic drift sources):**
-- ad-hoc surface recipes using `bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`
+**Forbidden in feature/UI components:**
+- ad-hoc semantic surface recipes (`bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`) used as local semantic systems
 - feature-local semantic styling authorities (feature-prefixed token maps/constants)
-- inline semantic visual systems that duplicate `TEXT_ROLE`, `INTERACTIVE_RECIPE`, `VISUAL_STATE`, or surface authorities
+- duplicate semantic systems that parallel shared authorities
 
-**Allowed in UI/feature components:**
-- `className={TEXT_ROLE.body}`
-- `className={STANDARD_SURFACE_CLASS.semantic.settingsPanel}`
-- `className={cn(TEXT_ROLE.body, INTERACTIVE_RECIPE.buttonDefault)}`
-- `className="surface-card flex items-center gap-4 px-4 py-3"` (semantic + mechanical composition is allowed)
-- inline `classNames={{ ... }}` for third-party components when using existing authorities and local mechanics (no ad-hoc semantic surface recipes)
+**Allowed in feature/UI components:**
+- compose semantic classes from shared authorities
+- local mechanical utilities for spacing/alignment/sizing
+- third-party `classNames` composition when semantic meaning still comes from shared authorities
 
-**Exception policy (rare):**
-If a third-party component forces a one-off class, it must be wrapped into a
-shared semantic token when it affects semantic visual meaning; mechanical layout-only classes can remain local.
-
-Enforcement:
-- Feature modules must consume shared semantic authorities for meaning.
-- Introducing or expanding feature-prefixed styling namespaces is forbidden.
-- If a semantic authority is missing, add/extend it instead of inventing a local semantic authority.
+**Promotion rule:**
+- Promote to shared utilities/primitives when reuse is stable and semantic meaning exists.
+- If a semantic role is missing, extend the authority chain instead of creating local semantic rules.
 
 # **Structural Layout Primitives (Authority Scope)**
 
@@ -490,10 +475,9 @@ No other component may assume these responsibilities.
 
 # **4. Theming & Semantic Tokens**
 
-This section defines non-negotiable UI constraints and is subject to §5 enforcement.
+This section defines theme defaults and semantic mappings inside the §3 styling authority chain.
 
-**Mandatory:**
-Use **HeroUI semantic tokens** everywhere.
+Use **HeroUI semantic tokens** for semantic color meaning.
 
 ### **The Layered Depth System (Semantic Glass)**
 
@@ -505,8 +489,7 @@ We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves
 | **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
 | **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
 
-**Rule:**
-Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
+Every glass layer (Layers 1 and 2) should keep a subtle semantic border (`border-default/xx`) so edges remain readable across themes.
 
 - **Layer 0 (App Shell):**
 
@@ -529,8 +512,6 @@ These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
 ---
 
 ## **Color Rules**
-
-**Mandatory:** Light/dark mode must work flawlessly.
 
 **Use:**
 
@@ -581,22 +562,13 @@ If a change causes any of these, it is a failure:
 
 Before claiming UI work is done, verify:
 
-- Semantic styling authority: surfaces/elevation/borders/radius/interactive/visual state use shared semantic authorities (no ad-hoc semantic recipes in feature code).
-- Mechanical layout flexibility: local spacing/alignment utilities are acceptable; promote only when reuse is stable and semantic meaning exists.
-- No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
-- DRY: no repeated “glass recipe” strings; shared recipes are centralized.
-- Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
-- Typography scaling and layout scaling were not conflated.
-- **Typography authority (§3K.1):** semantic text roles use `TEXT_ROLE.*`; mechanical typography sizing (`text-sm|base|lg`) is allowed for local layout/readability when it does not define a new semantic role.
-- **Interactive-state authority (§3K.2):** no ad-hoc hover/focus/active recipes; all use `INTERACTIVE_RECIPE.*`.
-- **Visual-state authority (§3K.3):** disabled = `VISUAL_STATE.disabled`; no mixed `opacity-40`/`opacity-50`.
-- **Alert surfaces (§3K.4):** no inline `border-warning/30 bg-warning/10`; all use `<AlertPanel>`.
-- **Transition authority (§3K.5):** no ad-hoc `transition-* duration-*`; all use `TRANSITION.*`.
-- **Sticky headers (§3K.6):** no ad-hoc `sticky top-0 z-* bg-* backdrop-blur-*`; all use `STICKY_HEADER`.
-- **Z-index authority (§3J):** no raw `z-10`…`z-50`; all use `z-panel`…`z-popover`.
-- **Scrollbar strategy (Landing Gate):** prefer `overlay-scrollbar` for panes. If a container intentionally uses native scrollbars, it must be explicit and must not cause layout shifts.
-
-Any landed/reviewed change that bypasses semantic styling authorities or introduces conflicting local semantic systems is invalid and must be fixed before landing.
+- Root knobs and token pipeline are respected (§3.1, §3.2).
+- Semantic meaning comes from declared authorities, not feature-local semantic systems (§3.6).
+- Structural framing uses shared primitives where applicable (Structural Layout Primitives).
+- Local utilities are mechanical only, and promotions follow stable semantic reuse (§3.6).
+- Theme semantics remain consistent across light/dark and status mappings (§4).
+- Scroll behavior does not introduce layout shift in pane workflows (§7).
+- No duplicate semantic recipe strings were introduced where a shared authority exists.
 
 ## **C. Agent Output Requirement**
 
@@ -630,7 +602,7 @@ Remote connections exist only for debugging/convenience and must not alter featu
 - **Icons:** Lucide (tree-shaken)
 - **State:** React Hooks; Zustand only when truly necessary
 - **Data/Validation:** RPC boundaries must be schema-validated. Current default: **Zod**. Never trust the backend blindly.
-- **Virtualization:** Large lists (for example `> 50` items) must be virtualized. Current default: `@tanstack/react-virtual`.
+- **Virtualization:** Large lists must be virtualized. Current default: `@tanstack/react-virtual`.
 - **Command Palette:** Keyboard-driven command navigation (for example `Cmd+K`) must exist. Current default: `cmdk`.
 - **Pane Engine:** Panes must preserve mount continuity and support size=`0` collapse semantics. Current default: `react-resizable-panels`.
 - **Window Controls:** Custom Titlebar implementation (frameless window).
@@ -1010,7 +982,7 @@ The frontend runs on a **dual transport**:
 
 ### Requirements
 
-- Virtualization mandatory for lists > 50 items.
+- Large lists must be virtualized.
 - No console noise.
 - No unused imports.
 - Strict TypeScript everywhere.
@@ -1045,145 +1017,67 @@ All agents operate as tool-UI engineers: behavior must be deterministic, traceab
 
 ---
 
-# **14. Architectural Principles (Mandatory)**
+# **14. Architectural Principles (Operational Summary)**
 
-All ownership and authority rules are governed by §21 Architecture Invariants.
+This section is a plain-language operational interpretation of §21 for day-to-day implementation.
+It does not introduce, redefine, or enforce architectural invariants.
 
-- **HeroUI governs controls (buttons, inputs, menus).**
-    The **Workbench Shell** (titlebar, panels, splitters, chrome, glass layers) is 100% custom.
-    Tailwind + Motion define all shell surfaces, transitions, and layout behavior.
-    No external UI frameworks beyond HeroUI + `react-resizable-panels`.
+- **Keep control/shell boundaries explicit.**
+  Controls come from shared control surfaces; shell chrome remains authority-driven.
+  (Derived from §21.2 and §21.12.)
 
-- **One primary responsibility per unit. Cohesion beats atomization.**
-    Split only when responsibilities are independently reusable or duplication exists.
+- **Keep units cohesive.**
+  Split only when it removes duplication or clarifies ownership/lifecycle boundaries.
+  (Derived from §21.3 and §21.13.)
 
-- **Pure UI.**
-    Components render. They don’t fetch, store, or decide business rules.
+- **Keep views pure.**
+  Views render and emit intents; domain decisions and IO stay outside view components.
+  (Derived from §21.2 and §21.12.)
 
-- **Hard layer boundaries.**
-    Data flows: RPC → services → state/hooks → components.
-    Never backwards, never sideways.
+- **Keep layer flow one-way.**
+  Data flow is RPC/adapter → services/domain → viewmodel/state → components.
+  (Derived from §21.5 and §21.12.)
 
-- **Typed reality, not guesses.**
-    Data structures match real RPC shapes exactly.
+- **Keep data contracts explicit.**
+  Typed data and validated boundaries are the default for runtime decisions.
+  (Derived from §21.5 and §21.12.)
 
-- **Local state first.**
-    Global state only when multiple distant parts truly need it.
+- **Keep state ownership intentional.**
+  Prefer local ownership until cross-feature authority is actually required.
+  (Derived from §21.3 and §21.8.)
 
-- **Don’t reinvent solved problems.**
-    Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
+- **Keep tool choices pragmatic.**
+  Use established tools when they pay off; treat defaults as replaceable policy.
+  (Derived from Rule Tiers and Current Implementation Defaults.)
 
-## **View–ViewModel–Model Rule (Hard)**
+## **View–ViewModel–Model (Operational Pattern)**
 
-### 1. View (UI Components)
+This pattern operationalizes §21 for frontend feature design.
 
-- Rendering only
-- Local visual state allowed
-- Emits typed intents
-- Must not:
+### **View**
 
-  - orchestrate workflows
-  - call adapters directly
-  - coordinate multiple domain concerns
+- Render UI and maintain local visual state.
+- Emit typed intents to command surfaces.
+- Route workflow and side effects through ViewModel commands.
 
-### 2. ViewModel (Feature Authority)
+### **Model / Domain / Services**
 
-- Owns **UI-facing feature state**
-- Aggregates domain data for a feature
-- Coordinates commands exposed to the View
-- Defines the **single tracing surface** for a feature
-- Must remain **cohesive**: a feature’s ViewModel should be readable in one place and must not be fragmented into multiple wrapper ViewModels unless responsibilities are independently reusable
+- Own business logic and engine/IO interaction.
+- Avoid UI state and UI-specific branching.
 
-### 3. Model / Domain / Services
+### **ViewModel Role**
 
-- Business logic and engine interaction
-- No UI awareness
-- No UI state
+1. Expose one primary feature ViewModel surface, owned inside the feature module.
+2. Translate service/domain outcomes into UI-facing state.
+3. Expose command surfaces consumed by views.
+4. Avoid wrapper-viewmodel fragmentation unless it removes duplication or establishes a reusable boundary.
+5. Place truly cross-feature UI authority under `src/app/`.
 
-### **ViewModel Cohesion Rule (Hard)**
+### **Context And Command Routing**
 
-A feature must expose **one primary ViewModel authority**.
-That primary ViewModel must be defined inside the feature module.
-Splitting feature ViewModel authority across `src/app/` and `src/modules/` is forbidden.
-Splitting a ViewModel into multiple wrapper ViewModels is forbidden unless the split removes duplication or creates independently reusable domain boundaries.
-
-This directly prevents the “useXVM / useXSelectionVM / useXInteractionVM / useXStateVM” fragmentation pattern.
-
-### **ViewModel Boundary Rule (Hard)**
-
-A ViewModel is the only layer allowed to:
-
-* translate domain/service outcomes into UI-facing state
-* coordinate multiple services
-* expose UI command surfaces
-* define loading/error/empty presentation states
-
-Views must not aggregate service data directly.
-
-Cross-feature/global UI authority that cannot be owned by a single feature may live under `src/app/` (for example app-level providers/controllers). Feature-specific ViewModels must remain module-local.
-
-### Why this matters
-
-Your architecture already enforces:
-
-- authority ownership
-- control-plane orchestration
-- adapter boundaries
-
-But without an explicit **ViewModel authority layer**, refactors can push responsibilities downward into many tiny hooks instead of keeping **feature-level cohesion**, which is where maintainability actually lives.
-
-Maintainable frontends almost always stabilize around:
-
-```
-View  ->  ViewModel  ->  Services / Domain
-```
-
-not:
-
-```
-View -> 6 wrapper hooks -> orchestrator -> adapter -> service
-```
-
-
-## **Context Authority & Prop Budget (Hard Rule)**
-
-**Prop drilling is forbidden as an architectural strategy.**
-
-1. **Context Authority**
-If a value is:
-- global or cross-cutting
-- used by more than one distant component
-- already represented by an existing Context
-
-→ it **must be read from that Context**.
-It must **not** be passed through components as props.
-
-If no suitable Context exists:
-- do **not** invent cross-feature local state
-- prop threading is allowed **within a single cohesive feature subtree**
-- for cross-cutting values, stop and define/register the missing authority (Context) before landing
-
-2. **Prop Budget**
-High prop counts are acceptable when the props belong to a single cohesive feature. Prop reduction must not be achieved by introducing artificial Contexts, wrappers, or forwarding layers.
-
-3. **Explicitly Forbidden**
-- pass-through props
-- props that mirror Context values
-- local “shadow” state of global identity (e.g. filtered copies)
-- components whose main role is wiring parameters
-
-**If a change requires threading values through components, the ownership is wrong. Fix authority, not plumbing.**
-
-- Values with a clear Context owner must not be threaded through hooks or orchestrators as parameters.
-
-### **Command Surface Completeness Rule (Hard)**
-
-UI components must obtain commands from an authoritative command surface:
-
-• Feature scope → Feature ViewModel (preferred)
-• Cross-cutting/global scope → Context (required)
-
-Prop-routing command callbacks across unrelated components is forbidden.
+- Read context-owned values from Context at point of use.
+- Avoid pass-through command props across unrelated component branches.
+- Use feature ViewModel commands for feature scope and context/app command surfaces for cross-feature scope.
 
 
 # **15. Project Structure (Optimized for Single Developer)**
@@ -1431,20 +1325,7 @@ This enables fast, safe batch renames by the user (VS Code / IDE).
 ### **Human-First Code**
 
 Code must be written so a human can understand and edit it quickly.
-This section is intentionally split into **Hard** architecture constraints and **Default** coding guidelines.
-
-**Human-First Architecture Constraints (Hard):**
-
-- These constraints are merge-gating and interpreted through §21 (especially §21.10-§21.13).
-- UI configuration and visual “dials” live in declared authorities (theme/token layer + config). Modules/components must **consume** them, not create module-local “mini config”.
-- Shared dial changes (for example glass transparency `/50` -> `/60`) must be possible via one authority edit. If not, the authority is incomplete and must be extended.
-- Parallel semantic systems are forbidden. Fix bugs at the owning authority instead of keeping multiple implementations “in sync”.
-- Wrapper-only layers are forbidden. Forwarding hooks/components must remove duplication, centralize authority, or standardize contracts.
-- Boolean-flag-driven control flow for command/orchestration decisions is forbidden.
-- API budget: if a function needs many args (rule of thumb: `> 5`), redesign the contract (typed options object or move the decision to the authority).
-- Component boundary budget: if a component needs a large prop bag (rule of thumb: `> 8` meaningful props), fix ownership and reduce parameter plumbing.
-- Indirection budget: avoid wrapper pyramids; user actions must remain traceable through a short, direct path to the owner.
-- God-object growth is forbidden (see §16.E).
+Enforcement for structural constraints lives in §21, §0.3, and §5.
 
 **Human Coding Guidelines (Default):**
 
@@ -1455,6 +1336,7 @@ This section is intentionally split into **Hard** architecture constraints and *
 - Avoid unnecessary TypeScript cleverness unless it prevents a real bug with a clearer contract.
 - Avoid default/gratuitous `useMemo` / `useCallback` without a measured reason.
 - Avoid speculative abstractions when a local implementation is clearer.
+- If argument or prop surfaces indicate boundary leakage, redesign the boundary at the owning authority.
 
 **Rationale comments (allowed, minimal):**
 
@@ -1615,42 +1497,27 @@ Before landing/reviewing, resolve placement (amend this document if needed).
 
 ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
 
-# **20. Mandatory Architectural Rules**
+# **20. Enforced Operational Contracts (Tier 2)**
 
-1. **Global Truth Over Local Convenience**
-   Code MUST optimize for a single, global source of truth.
-   No component, hook, or UI surface may infer, guess, or re-derive behavior already owned elsewhere.
+This section defines operational contracts derived from §21 for daily implementation.
+If anything here conflicts with §21, §21 governs.
 
-2. **Completed Contracts Only**
-   Every abstraction MUST define:
+1. **Outcome-First Public Actions**  
+   Public command surfaces return typed outcomes. Expected failures are data, not exception control flow.  
+   See §21.12.
 
-   - success paths
-   - failure paths
-   - unsupported states
-   - cancellation / no-op outcomes
+2. **Capability Resolution In Control Plane**  
+   Capability detection happens once in control-plane owners and is published as explicit state.  
+   See §21.2 and §21.5.
 
-   Partial contracts, silent returns, or “best-effort” behavior are forbidden.
+3. **Completed Contract Surfaces**  
+   Public contracts must define success, failure, unsupported, and cancel/no-op outcomes.  
+   Partial or silent contracts are invalid.  
+   See §21.5 and §21.12.
 
-3. **Declared Behavioral Ownership**
-   Every non-trivial behavior MUST have exactly one declared owner (module, orchestrator, or service).
-   No behavior may be split across call sites, UI layers, or helpers without a single coordinating authority.
-
-4. **No Capability Probing Outside the Control Plane**
-   Environment, platform, or engine capabilities MUST be resolved once and published as explicit state.
-   Callers may *consume* capability — never detect it themselves.
-
-5. **Outcomes Are Data, Not Side-Effects**
-   Public actions MUST return typed outcomes that describe what happened (`success`, `manual`, `canceled`, `unsupported`, etc.).
-   Callers may not infer results from UI changes or absence of errors.
-
-6. **Shared UI State Requires Arbitration**
-   Any state that can be triggered from multiple surfaces MUST include:
-
-   - ownership rules
-   - conflict resolution
-   - explicit rejection reasons
-
-   First writer wins is forbidden unless documented.
+4. **Shared UI State Arbitration**  
+   Multi-surface UI state requires explicit ownership, conflict handling, and rejection semantics.  
+   See §21.2, §21.3, and §21.12.
 
 
 # **21. Architecture Invariants (Foundational — Hard Rules)**
@@ -1658,8 +1525,6 @@ ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- witho
 These rules define the non-negotiable structural laws of the system.
 All subsequent sections (UI, tokens, runtime, RPC, components, hooks)
 are constrained by these invariants.
-
-Violations are regressions, not tradeoffs.
 
 
 ## **21.0 Architecture Invariants (Hard Rules; Prevent Refactors)**
@@ -1669,6 +1534,7 @@ These rules exist to prevent hidden coupling and accidental complexity.
 ### **21.1 Enforcement Clause (Hard)**
 
 Any landed/reviewed change that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
+Violations are regressions, not tradeoffs.
 
 If a rule blocks implementation, the rule must be amended first (in this document), not worked around.
 
@@ -1770,7 +1636,7 @@ New abstraction layers (wrappers, adapters, forwarding hooks) are permitted only
 
 For any operation domain there must be exactly one public contract surface exposed to the UI/control plane.
 
-UI-facing command surfaces MUST return typed outcomes (per §20.5).
+UI-facing command surfaces MUST return typed outcomes (per §20.1).
 Exceptions may exist only internally and must be converted once at the boundary owner (ViewModel / orchestrator / service).
 
 Providing parallel “throw” and “outcome” variants for the same operations is forbidden.
@@ -1797,3 +1663,43 @@ Creation of parallel abstractions representing the same responsibility remains a
 
 **Enforcement Clause:**
 Claims such as “cleaner,” “more modular,” or “better separation” are insufficient justification unless accompanied by explicit, verifiable evidence of duplication removal, ownership clarification, responsibility-surface reduction, or execution-path simplification.
+
+## **21.14 Boundary Surface Leakage Rule (Hard)**
+
+Function signatures, prop surfaces, and forwarding layers must remain cohesive with ownership boundaries.
+
+- If a boundary accumulates parameter plumbing or pass-through props, ownership is leaking and must be redesigned at the authority.
+- Wrapper-only layers are forbidden unless they remove duplication, standardize contracts, or reduce ambiguity.
+- Control-plane behavior must not be encoded as boolean-flag construction in UI surfaces.
+
+## **21.15 No Redundant Law Rule (Hard)**
+
+This document must not contain duplicate invariant definitions.
+
+- If two sections express the same invariant, one section must be canonical and the other must reference it.
+- Architectural law is canonical only in §21.
+- Non-§21 sections may define implementation policy, defaults, and checklists, but must not duplicate invariant text as parallel law.
+
+## **21.16 Authority File Layering Rule (Hard)**
+
+Authority files must preserve internal layer order and may not interleave layers.
+
+- Required order: **Primitives -> Composition -> Features -> Builders**.
+- Cross-layer declarations are allowed only through downstream consumption; reverse-layer coupling is forbidden.
+- If a declaration does not fit a single layer, the authority boundary is incomplete and must be corrected before landing.
+
+## **21.17 Authority File Split Rule (Hard)**
+
+Do not split authority files by default.
+
+- Split only when a file contains multiple independent authorities with distinct ownership or lifecycle boundaries.
+- Mechanical size, line count, or stylistic preference alone is insufficient justification for splitting.
+- If a split is introduced, the change must preserve a single canonical authority per decision domain.
+
+## **21.18 Authority File Scope Rule (Hard)**
+
+An authority file must not accumulate unrelated domains, orchestration logic, or cross-layer behavior.
+
+- Authority files may define and compose their own domain semantics, but may not absorb orchestration/control-plane responsibilities from other owners.
+- Cross-domain additions are valid only when they are part of the same declared authority and lifecycle boundary.
+- If unrelated domains are added, the change is an architectural regression and must be restructured.
