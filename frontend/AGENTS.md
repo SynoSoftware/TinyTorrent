@@ -7,6 +7,74 @@ Single authoritative reference for the architecture, UI/UX rules, design tokens,
 
 ---
 
+# **North Star**
+
+TinyTorrent optimizes for:
+
+- Structural integrity at system boundaries
+- Low friction inside feature scope
+- No cleanup debt later
+
+Hard invariants protect architecture.
+Feature implementation remains cohesive, human-readable, and minimally prescribed.
+
+If a rule increases ceremony without preventing architectural decay, it does not belong here.
+
+---
+
+## **Architecture Invariants Summary (Non-Redundant Overview)**
+
+This section is a summary only.
+Canonical definitions and merge-gating law live in §21.
+If this summary conflicts with §21, §21 wins.
+
+1. **Single Authority per Decision** (§21.2)
+   Every behavioral decision has exactly one declared owner.
+
+2. **Single Public Contract Surface per Domain** (§21.12)
+   UI-facing operations expose exactly one contract and return typed outcomes.
+
+3. **Typed Outcomes for Expected Failures** (§20.5, §21.12)
+   Expected failures are data, not exceptions.
+
+4. **No Parallel Truths** (§20.1, §21.2, §21.3)
+   State, configuration, or behavior may not be duplicated across layers.
+
+5. **Configuration Authority** (§21.7)
+   The system has exactly one configuration source of truth.
+
+6. **Surface & Token Authority** (§0.1, §3.6)
+   Semantic visual meaning must flow through declared token/surface authorities.
+
+7. **No Refactor Debt** (§21.10, §21.11)
+   A change may not increase responsibility surface, authority ambiguity, or wrapper indirection.
+
+Everything else in this document supports the canonical invariants in §21.
+
+If a rule does not protect one of these, it is not invariant-level.
+
+---
+
+## **Current Implementation Defaults (Replaceable)**
+
+The following represent the current chosen tools and patterns.
+They are defaults, not architectural invariants.
+
+They may change if replaced without violating the canonical Hard Invariants in §21.
+
+- React + TypeScript
+- Tailwind + HeroUI
+- Framer Motion for structural motion
+- react-resizable-panels for pane persistence
+- cmdk for command palette
+- Zod for boundary validation
+- @tanstack/react-virtual for virtualization
+
+Tooling is replaceable.
+Architecture invariants are not.
+
+---
+
 # **0. Quick Rules (Read This First)**
 
 If you’re unsure what to do, follow these rules first, then read the referenced section(s).
@@ -29,7 +97,8 @@ Adding a new authority (a new “source of truth” surface) is forbidden unless
 - **Text roles / typography roles:** `frontend/src/config/textRoles.ts`
 - **RPC schema/validation authority:** `frontend/src/services/rpc/schemas.ts`
 - **RPC transport outcome semantics:** `frontend/src/services/transport.ts`
-- **Feature decision owner (primary):** `frontend/src/app/viewModels/`
+- **Feature ViewModel Authority (primary):** each feature module owns exactly one primary ViewModel, defined inside that module (for example `frontend/src/modules/dashboard/hooks.ts`)
+- **Cross-feature/global ViewModel authority (optional):** `frontend/src/app/` (only when no single feature can own the concern)
 - **Orchestration owner (cross-feature coordination):** `frontend/src/app/orchestrators/`
 - **Shared UI primitives:** `frontend/src/shared/ui/`
 
@@ -70,7 +139,7 @@ TinyTorrent is a fast, low-bloat desktop workbench for torrent control with dete
 
 **Compact UI is explicitly NOT a goal.**
 
-### **The Density Rule (Authoritative)**
+### **The Density Rule**
 >
 > **Density is achieved through information design, not UI shrinkage.**
 
@@ -88,7 +157,7 @@ TinyTorrent is a fast, low-bloat desktop workbench for torrent control with dete
 
 ---
 
-## **2c. Typography vs Geometry Ownership (Authoritative)**
+## **2c. Typography vs Geometry Ownership (Scaling Contract)**
 
 TinyTorrent uses two root scaling systems with non-overlapping responsibilities. This is hard policy, not style.
 
@@ -119,7 +188,7 @@ The following MUST scale with layout rhythm:
 - Scrollbar thickness
 - Resize/drag handle hit-target geometry
 
-### **Hard Rule**
+### **Scaling Constraint**
 
 Composing typography tokens with geometry tokens in the same component is expected; the rule forbids deriving a single token from both systems.
 
@@ -132,9 +201,9 @@ If an element requires both:
 
 ### **Constraint Directionality**
 
-Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typography content exceeds the Geometry container, the content must truncate or scroll—the container must **never** grow to fit the text. This preserves the "Command Center" layout stability.
+Geometry-owned containers (Sidebars, Navs) impose layout constraints. If Typography content exceeds the Geometry container, the content must truncate or scroll—the container must **never** grow to fit the text. This preserves the "Command Center" layout stability.
 
-### **§2d. Surface Ownership (Authoritative)**
+### **§2d. Surface Ownership (Surface Contract)**
 
 **Definitions**
 
@@ -161,6 +230,10 @@ Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typog
 # **3. Design System Contract (Principles)**
 
 This file is a **contract**, not a style guide. It defines *principles* that keep the UI consistent and prevent drift **without** requiring mass className churn.
+
+**UI authority boundary (explicit):**
+- Canonical UI authority rules live in **§3** and **§21**.
+- **§5** is checklist/enforcement guidance only and does not define new authorities.
 
 ## **3.1 Root Knobs Are the Only Global Dials**
 
@@ -230,7 +303,7 @@ Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*`
 - **Problem B: Repetition (optimization rule).**
   Solve only when reuse is proven; do not pre-abstract local layout mechanics.
 
-### **Three-Layer Styling Model (Authoritative)**
+### **Three-Layer Styling Model**
 
 1. **Layer 1 - Semantic Surfaces and Meaning (Hard)**
 - Mandatory token authority for visual meaning (surface/elevation/foreground hierarchy/interactive state).
@@ -241,9 +314,8 @@ Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*`
   `flex`, `items-*`, `justify-*`, `gap-*`, `px-*`, `py-*`, `m*`, `w*`, `h*`, `text-sm|base|lg`.
 - Mechanical utility repetition is acceptable and not treated as drift by itself.
 
-3. **Layer 3 - Reusable Pattern Promotion (Threshold-Based)**
-- Promote to a shared semantic utility/primitive when a class combination appears
-  in `3+` different files or clearly represents a stable, named pattern.
+3. **Layer 3 - Reusable Pattern Promotion (Outcome-Based)**
+- Promote to a shared semantic utility/primitive when reuse is stable and semantic meaning exists.
 - Promotion is driven by reuse, not purity.
 
 ### **Authority Boundaries**
@@ -274,18 +346,18 @@ Enforcement:
 - Introducing or expanding feature-prefixed styling namespaces is forbidden.
 - If a semantic authority is missing, add/extend it instead of inventing a local semantic authority.
 
-# **Structural Layout Primitives (Authoritative)**
+# **Structural Layout Primitives (Authority Scope)**
 
 Structural primitives own shared layout/surface patterns with clear intent.
 Use them where they add consistency and reuse value; do not force them for every local layout decision.
 
 This rule exists to ensure deterministic surface semantics and reduce repetition where it is real.
 
-**Layout Authority Rule (Hard)**
+**Layout Authority Rule**
 
 Semantic visual framing must be owned by structural primitives or semantic roles.
 Mechanical layout spacing/grouping/alignment may be authored locally with utilities.
-Repeated layout recipes become candidates for extraction only when reuse threshold is met.
+Repeated layout recipes become candidates for extraction when reuse is stable and semantic meaning exists.
 
 ---
 
@@ -372,7 +444,7 @@ Must not:
 
 ---
 
-## **2. Hard Usage Rules**
+## **2. Usage Rules**
 
 1. Any container that visually frames content (panel, modal body, inspector block, card, table shell) **must use `Surface`**.
 
@@ -382,7 +454,7 @@ Must not:
 
 4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
 
-5. Promotion rule: if the same layout class combination appears in `3+` different files (or represents a stable named pattern), extract it to a shared semantic utility/primitive.
+5. Promotion rule: extract to a shared semantic utility/primitive when reuse is stable and semantic meaning exists.
 
 6. Surface/Section/Stack/Cluster primitives must live in shared UI primitives (single authority location) and be reused across the application.
    Feature modules must never define local variants.
@@ -397,7 +469,7 @@ During refactors:
 
 * If a container applies background + border + radius + blur -> replace with `Surface`.
 * If a container applies centering/max-width/stage padding -> replace with `Section`.
-* Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster` only when repetition threshold is met.
+* Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster` when reuse is stable and semantic meaning exists.
 
 Incremental migration is allowed; primitives must be used for all newly written UI.
 
@@ -489,9 +561,11 @@ All shell-level constants (fallback grays, noise strength, etc.) live in `config
 
 ---
 
-# **5. UI Consistency Enforcement (Non-Negotiable)**
+# **5. UI Consistency Enforcement Checklist**
 
 **Applies to all UI, including §§2, 3, 4, and 8**
+This section enforces §3 + §21 during implementation/review.
+It does not introduce new UI authority rules.
 
 ## **A. Consistency Contract**
 
@@ -508,7 +582,7 @@ If a change causes any of these, it is a failure:
 Before claiming UI work is done, verify:
 
 - Semantic styling authority: surfaces/elevation/borders/radius/interactive/visual state use shared semantic authorities (no ad-hoc semantic recipes in feature code).
-- Mechanical layout flexibility: local spacing/alignment utilities are acceptable; they should be promoted only when repetition threshold is met.
+- Mechanical layout flexibility: local spacing/alignment utilities are acceptable; promote only when reuse is stable and semantic meaning exists.
 - No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
 - DRY: no repeated “glass recipe” strings; shared recipes are centralized.
 - Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
@@ -551,14 +625,14 @@ Remote connections exist only for debugging/convenience and must not alter featu
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** TailwindCSS v4 + HeroUI (Premium Control Layer)
-- **Motion:** Framer Motion — required for all interactive state changes (layout, sorting, drag). Complex components must use motion to express structure.
+- **Motion:** Structural state changes must be motion-authored. Current default: Framer Motion.
 - **Drag & Drop:** `react-dropzone` (full-window detection)
 - **Icons:** Lucide (tree-shaken)
 - **State:** React Hooks; Zustand only when truly necessary
-- **Data/Validation:** **Zod** is mandatory for all RPC boundaries. Never trust the backend blindly.
-- **Virtualization:** `@tanstack/react-virtual` is **mandatory** for any list > 50 items (Torrents, Files, Peers).
-- **Command Palette:** `cmdk` for keyboard-driven navigation (`Cmd+K`).
-- **Layout Engine:** `react-resizable-panels` (**CRITICAL**). This library provides the VS Code–like split-pane behavior (smooth resizing, min/max constraints, collapsing).
+- **Data/Validation:** RPC boundaries must be schema-validated. Current default: **Zod**. Never trust the backend blindly.
+- **Virtualization:** Large lists (for example `> 50` items) must be virtualized. Current default: `@tanstack/react-virtual`.
+- **Command Palette:** Keyboard-driven command navigation (for example `Cmd+K`) must exist. Current default: `cmdk`.
+- **Pane Engine:** Panes must preserve mount continuity and support size=`0` collapse semantics. Current default: `react-resizable-panels`.
 - **Window Controls:** Custom Titlebar implementation (frameless window).
 - **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
 
@@ -673,8 +747,9 @@ To prevent "Slow Table / Fast CPU Burn":
 
 # **7. UI/UX Philosophy**
 
-Framer Motion is required for structural transitions (layout, reorder, open/close, drag).
-Do not require Motion for every small visual state; use the shared `TRANSITION.*` authority for simple hover/focus/active fades.
+Structural state changes must be motion-authored (layout, reorder, open/close, drag).
+Current default: Framer Motion.
+Do not require motion for every small visual state; use the shared `TRANSITION.*` authority for simple hover/focus/active fades.
 
 ### **The "Tool" Interaction Model**
 
@@ -1028,6 +1103,8 @@ All ownership and authority rules are governed by §21 Architecture Invariants.
 ### **ViewModel Cohesion Rule (Hard)**
 
 A feature must expose **one primary ViewModel authority**.
+That primary ViewModel must be defined inside the feature module.
+Splitting feature ViewModel authority across `src/app/` and `src/modules/` is forbidden.
 Splitting a ViewModel into multiple wrapper ViewModels is forbidden unless the split removes duplication or creates independently reusable domain boundaries.
 
 This directly prevents the “useXVM / useXSelectionVM / useXInteractionVM / useXStateVM” fragmentation pattern.
@@ -1042,6 +1119,8 @@ A ViewModel is the only layer allowed to:
 * define loading/error/empty presentation states
 
 Views must not aggregate service data directly.
+
+Cross-feature/global UI authority that cannot be owned by a single feature may live under `src/app/` (for example app-level providers/controllers). Feature-specific ViewModels must remain module-local.
 
 ### Why this matters
 
@@ -1128,11 +1207,11 @@ src/
 |   |   |-- Inspector_Panel.tsx      # The Resizable Details Pane
 |   |   |-- Inspector_Files.tsx      # Uses Shared SimpleTable
 |   |   |-- Inspector_Peers.tsx      # Uses Shared SimpleTable
-|   |   \-- hooks.ts                 # All local hooks for this module
+|   |   \-- hooks.ts                 # Primary feature ViewModel + local hooks
 |   |
 |   \-- settings/
 |       |-- SettingsModal.tsx
-|       \-- hooks.ts
+|       \-- hooks.ts                 # Primary feature ViewModel + local hooks
 |
 |-- services/                 # External Integrations
 |   |-- rpc/
@@ -1349,42 +1428,33 @@ This enables fast, safe batch renames by the user (VS Code / IDE).
 
 ---
 
-### **Human-First Code (Hard Rule)**
+### **Human-First Code**
 
 Code must be written so a human can understand and edit it quickly.
-The design system and architecture in this document are **the law** — code must
-consume existing authorities and must not invent its own competing rules.
+This section is intentionally split into **Hard** architecture constraints and **Default** coding guidelines.
 
-**Law of the land (single authority, single change):**
+**Human-First Architecture Constraints (Hard):**
 
-- UI configuration and visual “dials” live in the declared authorities (theme/token layer + config). Modules/components must **consume** them, not create module-local “mini config”.
-- Modules/components may choose local mechanical layout values (spacing/alignment/sizing) while consuming semantic roles for visual meaning. They may not introduce competing semantic recipes for opacities/radii/shadows/blur/surface hierarchy.
-- Any shared dial change (e.g., glass transparency `/50` → `/60`) must be possible via **one edit** in an authority. If it isn’t, a semantic role/token is missing — add it to the authority, do not patch call sites.
-- Bugs are fixed at the owning authority. Maintaining parallel implementations “to keep them in sync” is a design failure.
+- These constraints are merge-gating and interpreted through §21 (especially §21.10-§21.13).
+- UI configuration and visual “dials” live in declared authorities (theme/token layer + config). Modules/components must **consume** them, not create module-local “mini config”.
+- Shared dial changes (for example glass transparency `/50` -> `/60`) must be possible via one authority edit. If not, the authority is incomplete and must be extended.
+- Parallel semantic systems are forbidden. Fix bugs at the owning authority instead of keeping multiple implementations “in sync”.
+- Wrapper-only layers are forbidden. Forwarding hooks/components must remove duplication, centralize authority, or standardize contracts.
+- Boolean-flag-driven control flow for command/orchestration decisions is forbidden.
+- API budget: if a function needs many args (rule of thumb: `> 5`), redesign the contract (typed options object or move the decision to the authority).
+- Component boundary budget: if a component needs a large prop bag (rule of thumb: `> 8` meaningful props), fix ownership and reduce parameter plumbing.
+- Indirection budget: avoid wrapper pyramids; user actions must remain traceable through a short, direct path to the owner.
+- God-object growth is forbidden (see §16.E).
 
-**Human defaults (readable > clever):**
+**Human Coding Guidelines (Default):**
 
-- Prefer the simplest implementation that preserves the established contracts.
-- Prefer explicit names; keep identifiers short, but not cryptic.
-- Prefer small, local functions; prefer straight-line code + early returns.
-- Prefer predictable data shapes (discriminated unions) over boolean flag soup.
-
-**Human-scale API budgets (hard):**
-
-- If a function call needs many arguments (rule of thumb: > 5), the contract is wrong: use a typed options object or move the decision into an authority.
-- If a component requires a large prop bag (rule of thumb: > 8 meaningful props), the boundary is wrong: prefer consuming Context / ViewModel authority over parameter/prop plumbing.
-
-**Indirection budget (hard):**
-
-- Avoid “layer upon layer” wrapper chains. A developer should be able to understand a behavior via a small, direct path from entry point to owner.
-- Do not introduce wrapper hooks/components that only forward/rename values. A new layer must remove duplication, centralize authority, or standardize contracts.
-
-**Explicitly forbidden “AI-looking” patterns:**
-
-- Forward-only plumbing layers.
-- Over-parameterized helpers (especially boolean-heavy).
-- Default/gratuitous `useMemo` / `useCallback` without a measured reason.
-- TypeScript cleverness that reduces readability unless it prevents real bugs with the smallest clear solution.
+- Prefer the simplest implementation that preserves established contracts.
+- Prefer explicit names; keep identifiers short but not cryptic.
+- Prefer small local functions and straight-line code with early returns when it improves readability.
+- Prefer predictable data shapes (for example discriminated unions) over ad-hoc flag combinations.
+- Avoid unnecessary TypeScript cleverness unless it prevents a real bug with a clearer contract.
+- Avoid default/gratuitous `useMemo` / `useCallback` without a measured reason.
+- Avoid speculative abstractions when a local implementation is clearer.
 
 **Rationale comments (allowed, minimal):**
 
