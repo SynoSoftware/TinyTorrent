@@ -312,6 +312,14 @@ When working *in those areas*, align with them. If they conflict with existing c
 
 Feature code must consume shared semantic authorities for visual meaning and may use local utilities for layout mechanics.
 
+### **UI Surface Authority Rule (Hard; Tier 2 Contract)**
+
+- UI components must not define new surface semantics inline (surface background, blur, border, radius, elevation, layering).
+- Surface composition must originate from the declared surface authority or structural primitives. Feature modules may not assemble new composite surface recipes. (See §0.1 and Structural Layout Primitives.)
+- Repeated semantic composite patterns must be promoted into the surface authority; feature modules must not copy/paste near-identical surface recipes.
+- This does not apply to mechanical layout utilities (spacing/alignment/sizing) that do not create new visual semantics.
+- Small mechanical adjustments that sit on top of parent layout/surface tokens (for example `justify-end`, `items-end`, `text-right`, `ml-auto`) must remain local composition and must not trigger new token creation.
+
 **Semantic authority locations:**
 - `frontend/src/shared/ui/layout/glass-surface.ts`
 - `frontend/src/config/textRoles.ts`
@@ -1472,7 +1480,7 @@ Before landing/reviewing, resolve placement (amend this document if needed).
 
 # **17. Internationalization (Enforcement)**
 
-- Landing Gate: no hard-coded English in UI code.
+- CI must fail if user-visible strings exist in UI code without `TODO(i18n)` or `t("…")`.
 
 - All visible UI text must be referenced through `t("…")`.
 
