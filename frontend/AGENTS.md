@@ -7,6 +7,59 @@ Single authoritative reference for the architecture, UI/UX rules, design tokens,
 
 ---
 
+# **0. Quick Rules (Read This First)**
+
+If you’re unsure what to do, follow these rules first, then read the referenced section(s).
+
+- **One owner per decision/state.** Every non-trivial decision has exactly one owner (Component / Hook / ViewModel / Orchestrator / Config / Token authority). (§21)
+- **Authority-first.** If a concept has an authority, you must use it; bypassing named authorities is an architectural regression. (See **Authority Registry** below; see `frontend/TOKEN_CONTRACT.md` for surface tokens.)
+- **Owner-extension-first.** Before adding a new module/hook/service/constant set, attempt to extend the existing owner. If you still add a new surface, include an Owner Extension Statement in the change note when landing the change. (§0.2, §21)
+- **Typed outcomes for expected failures.** “Expected” failures (auth, unavailable, conflicts, validation) are outcomes, not exceptions. Do not create parallel “throw” and “outcome” APIs for the same operation. (§20.5)
+- **Gate capabilities twice.** UI hides/disables, but the decision owner (ViewModel/service/orchestrator) must still enforce and return a typed outcome. (§21)
+- **Diff-first for user-visible changes.** If behavior or UI output changes and the change is meant to land (or be reviewed), the change note must describe it explicitly and include the relevant diff artifact (screenshots/video for UI; surface-tree + guardrails for token/surface changes). (`frontend/TOKEN_CONTRACT.md`)
+- **Change note must list commands run (when landing/reviewing).** Include the exact `npm run ...` commands executed (lint/test/build + any relevant enforce/report scripts). If something cannot be run, state it explicitly and why.
+
+## **0.1 Authority Registry (Hard)**
+
+Adding a new authority (a new “source of truth” surface) is forbidden unless it is registered here first.
+
+- **Surface token contract:** `frontend/TOKEN_CONTRACT.md`, `frontend/src/shared/ui/layout/glass-surface.ts`
+- **Token pipeline + global knobs:** `frontend/src/config/constants.json`, `frontend/src/index.css`
+- **Semantic UI logic/utilities:** `frontend/src/config/logic.ts`
+- **Text roles / typography roles:** `frontend/src/config/textRoles.ts`
+- **RPC schema/validation authority:** `frontend/src/services/rpc/schemas.ts`
+- **RPC transport outcome semantics:** `frontend/src/services/transport.ts`
+- **Feature decision owner (primary):** `frontend/src/app/viewModels/`
+- **Orchestration owner (cross-feature coordination):** `frontend/src/app/orchestrators/`
+- **Shared UI primitives:** `frontend/src/shared/ui/`
+
+## **0.2 Owner Extension Statement (Landing/Review Gate)**
+
+If a change introduces a new module/hook/service/model/constant set that is intended to land (or be reviewed), the change note must include:
+
+- **Owner:** what existing owner was extended or why it could not be
+- **Lifecycle:** per render / per hook instance / per session / per application
+- **Why new surface:** why extending the existing owner would violate single-responsibility or authority/lifecycle rules (§21)
+- **Consumers:** at least one immediate consumer in the same change (no speculative surfaces)
+
+## **0.3 Landing Gates (DoD)**
+
+A change is not eligible to land (or be treated as done) if it introduces any of the following:
+
+- bypassing named authorities (tokens/primitives/text roles/interactive recipes/config)
+- feature-local styling authorities (inline styles, raw numbers, bracket classes) — see §5 pre-commit checklist
+- new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
+- duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
+- a new surface without an Owner Extension Statement (§0.2)
+- expected failures represented as exceptions instead of typed outcomes (§20.5)
+
+## **0.4 Solo Dev Workflow (Low Ceremony)**
+
+This repo is currently developed by a single person. Keep ceremony proportional:
+
+- **While iterating (WIP):** optimize for speed; keep the build green and obey Hard Rules, but you do not need to write change notes or produce diff artifacts.
+- **When landing a change (mainline/release/review):** provide a short change note, include any required artifacts, and list the commands you actually ran.
+
 # **1. Brand Identity**
 
 TinyTorrent is a fast, low-bloat desktop workbench for torrent control with deterministic behavior, native-grade interactions, and maintainable architecture.
@@ -165,57 +218,74 @@ When working *in those areas*, align with them. If they conflict with existing c
 
 ## **3.6 Feature Styling Ownership (Hard Rule)**
 
-Goal: Feature code must not own styling. All visual recipes must come from shared semantic tokens/primitives; if a shared token is missing, stop and ask before adding any feature-specific token.
+Goal: keep semantic visual language centralized while allowing local mechanical layout utilities.
+Feature code must not create competing semantic surface/typography authorities.
 
 Anti-goal: moving inline classes into feature-prefixed constants (like `PEERS_*` / `SETTINGS_*`).
 
-### **Hard Ban: No Raw Tailwind/HeroUI Classes in Feature/UI Code**
+### **Drift vs Repetition (Do Not Mix)**
 
-To eliminate drift from `className="..."` recipes, UI/feature components must
-not author TailwindCSS or HeroUI utility class strings directly.
+- **Problem A: Visual drift (hard rule).**
+  Prevent with semantic authorities (surface/elevation/border/radius/text roles/interactive recipes).
+- **Problem B: Repetition (optimization rule).**
+  Solve only when reuse is proven; do not pre-abstract local layout mechanics.
 
-**Rule:** Outside the theme/token layer, `className` / HeroUI `classNames` must
-be composed exclusively from shared token authorities.
+### **Three-Layer Styling Model (Authoritative)**
 
-**Theme/token layer (allowed to contain raw utility strings):**
+1. **Layer 1 - Semantic Surfaces and Meaning (Hard)**
+- Mandatory token authority for visual meaning (surface/elevation/foreground hierarchy/interactive state).
+- No ad-hoc semantic visual recipes in feature code.
+
+2. **Layer 2 - Mechanical Layout Utilities (Flexible)**
+- Local Tailwind/HeroUI utility usage is allowed for mechanics:
+  `flex`, `items-*`, `justify-*`, `gap-*`, `px-*`, `py-*`, `m*`, `w*`, `h*`, `text-sm|base|lg`.
+- Mechanical utility repetition is acceptable and not treated as drift by itself.
+
+3. **Layer 3 - Reusable Pattern Promotion (Threshold-Based)**
+- Promote to a shared semantic utility/primitive when a class combination appears
+  in `3+` different files or clearly represents a stable, named pattern.
+- Promotion is driven by reuse, not purity.
+
+### **Authority Boundaries**
+
+**Theme/token layer (semantic authority; allowed to contain raw utility strings):**
 - `frontend/src/shared/ui/layout/glass-surface.ts` (surface + chrome role tokens)
 - `frontend/src/config/textRoles.ts` (`TEXT_ROLE.*`)
 - `frontend/src/config/logic.ts` (`INTERACTIVE_RECIPE.*`, `TRANSITION.*`, `VISUAL_STATE.*`, etc.)
 
-**Forbidden in UI/feature components:**
-- Any inline `className="..."` Tailwind/HeroUI utility recipe (including “semantic” utilities like `bg-content1/10`)
-- Any inline HeroUI `classNames={{ ... }}` object
-- Any ad-hoc `hover:*`, `focus:*`, `active:*`, `rounded-*`, `shadow-*`, `backdrop-blur-*`, `bg-*`, `border-*` recipes
+**Forbidden in UI/feature components (semantic drift sources):**
+- ad-hoc surface recipes using `bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`
+- feature-local semantic styling authorities (feature-prefixed token maps/constants)
+- inline semantic visual systems that duplicate `TEXT_ROLE`, `INTERACTIVE_RECIPE`, `VISUAL_STATE`, or surface authorities
 
 **Allowed in UI/feature components:**
 - `className={TEXT_ROLE.body}`
 - `className={STANDARD_SURFACE_CLASS.semantic.settingsPanel}`
-- `className={cn(TEXT_ROLE.body, INTERACTIVE_RECIPE.buttonDefault)}` (composition is OK only when all inputs are tokens)
+- `className={cn(TEXT_ROLE.body, INTERACTIVE_RECIPE.buttonDefault)}`
+- `className="surface-card flex items-center gap-4 px-4 py-3"` (semantic + mechanical composition is allowed)
+- inline `classNames={{ ... }}` for third-party components when using existing authorities and local mechanics (no ad-hoc semantic surface recipes)
 
 **Exception policy (rare):**
 If a third-party component forces a one-off class, it must be wrapped into a
-shared token immediately, or explicitly flagged for follow-up (no silent
-exceptions).
+shared semantic token when it affects semantic visual meaning; mechanical layout-only classes can remain local.
 
 Enforcement:
-- Feature modules may compose shared semantic tokens only.
+- Feature modules must consume shared semantic authorities for meaning.
 - Introducing or expanding feature-prefixed styling namespaces is forbidden.
-- If shared semantic authority is missing, implementation must pause and request direction instead of inventing local style authorities.
+- If a semantic authority is missing, add/extend it instead of inventing a local semantic authority.
 
 # **Structural Layout Primitives (Authoritative)**
 
-UI layout and visual framing must be built exclusively from approved structural primitives.
-Ad-hoc container styling that duplicates spacing, surface framing, or grouping behavior is forbidden.
+Structural primitives own shared layout/surface patterns with clear intent.
+Use them where they add consistency and reuse value; do not force them for every local layout decision.
 
-This rule exists to ensure deterministic layout rhythm, eliminate class drift, and guarantee visual consistency across panels, modals, inspectors, and feature surfaces.
-Structural primitives are the only allowed layout ownership layer; feature components must not introduce alternative layout abstractions.
+This rule exists to ensure deterministic surface semantics and reduce repetition where it is real.
 
 **Layout Authority Rule (Hard)**
 
-Layout spacing, grouping, and alignment must be owned by structural primitives or semantic layout roles.
-Feature components must not construct layout containers using Tailwind spacing, gap, padding, or flex recipes except for trivial single-element wrappers.
-
-Repeated layout class strings or layout values appearing in feature components are architectural violations and must be centralized.
+Semantic visual framing must be owned by structural primitives or semantic roles.
+Mechanical layout spacing/grouping/alignment may be authored locally with utilities.
+Repeated layout recipes become candidates for extraction only when reuse threshold is met.
 
 ---
 
@@ -308,11 +378,11 @@ Must not:
 
 2. Any container responsible for page/workbench centering or stage padding **must use `Section`**.
 
-3. Vertical grouping must use `Stack`; horizontal grouping must use `Cluster`.
+3. `Stack`/`Cluster` are preferred for repeated grouping patterns and stable UI motifs. Local `flex`/`gap` utilities are acceptable for one-off or low-reuse layout mechanics.
 
 4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
 
-5. Repeated layout class recipes are considered architecture violations and must be replaced by primitives.
+5. Promotion rule: if the same layout class combination appears in `3+` different files (or represents a stable named pattern), extract it to a shared semantic utility/primitive.
 
 6. Surface/Section/Stack/Cluster primitives must live in shared UI primitives (single authority location) and be reused across the application.
    Feature modules must never define local variants.
@@ -327,7 +397,7 @@ During refactors:
 
 * If a container applies background + border + radius + blur -> replace with `Surface`.
 * If a container applies centering/max-width/stage padding -> replace with `Section`.
-* Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster`.
+* Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster` only when repetition threshold is met.
 
 Incremental migration is allowed; primitives must be used for all newly written UI.
 
@@ -437,26 +507,26 @@ If a change causes any of these, it is a failure:
 
 Before claiming UI work is done, verify:
 
-- Token-only styling: no raw Tailwind/HeroUI class recipes were authored in feature/UI code; all styling composes shared token authorities.
-- Token-only geometry: no numeric Tailwind utilities or bracket classes were added.
+- Semantic styling authority: surfaces/elevation/borders/radius/interactive/visual state use shared semantic authorities (no ad-hoc semantic recipes in feature code).
+- Mechanical layout flexibility: local spacing/alignment utilities are acceptable; they should be promoted only when repetition threshold is met.
 - No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
 - DRY: no repeated “glass recipe” strings; shared recipes are centralized.
 - Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
 - Typography scaling and layout scaling were not conflated.
-- **Typography authority (§3K.1):** no inline font-size + weight + tracking + color combinations; all use `TEXT_ROLE.*`.
+- **Typography authority (§3K.1):** semantic text roles use `TEXT_ROLE.*`; mechanical typography sizing (`text-sm|base|lg`) is allowed for local layout/readability when it does not define a new semantic role.
 - **Interactive-state authority (§3K.2):** no ad-hoc hover/focus/active recipes; all use `INTERACTIVE_RECIPE.*`.
 - **Visual-state authority (§3K.3):** disabled = `VISUAL_STATE.disabled`; no mixed `opacity-40`/`opacity-50`.
 - **Alert surfaces (§3K.4):** no inline `border-warning/30 bg-warning/10`; all use `<AlertPanel>`.
 - **Transition authority (§3K.5):** no ad-hoc `transition-* duration-*`; all use `TRANSITION.*`.
 - **Sticky headers (§3K.6):** no ad-hoc `sticky top-0 z-* bg-* backdrop-blur-*`; all use `STICKY_HEADER`.
 - **Z-index authority (§3J):** no raw `z-10`…`z-50`; all use `z-panel`…`z-popover`.
-- **Scrollbar strategy:** scrollable containers use `scrollbar-hide` (hidden) or `overlay-scrollbar` (visible on hover). No other scrollbar class.
+- **Scrollbar strategy (Landing Gate):** prefer `overlay-scrollbar` for panes. If a container intentionally uses native scrollbars, it must be explicit and must not cause layout shifts.
 
-Any PR containing forbidden numeric Tailwind/bracket classes or bypassed named authorities is invalid and must be rewritten.
+Any landed/reviewed change that bypasses semantic styling authorities or introduces conflicting local semantic systems is invalid and must be fixed before landing.
 
 ## **C. Agent Output Requirement**
 
-When an agent changes UI, it must include a short “Token Mapping” note in the PR message:
+When UI changes are intended to land (or be reviewed), include a short “Token Mapping” note in the change note:
 
 - Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
 - Whether any new token was required
@@ -603,7 +673,8 @@ To prevent "Slow Table / Fast CPU Burn":
 
 # **7. UI/UX Philosophy**
 
-Framer Motion is required for interactive state transitions and layout transitions.
+Framer Motion is required for structural transitions (layout, reorder, open/close, drag).
+Do not require Motion for every small visual state; use the shared `TRANSITION.*` authority for simple hover/focus/active fades.
 
 ### **The "Tool" Interaction Model**
 
@@ -619,7 +690,7 @@ Framer Motion is required for interactive state transitions and layout transitio
     - `body` and `#root` must be `h-screen w-screen overflow-hidden`.
     - The window **never** has a scrollbar.
     - Only specific panels (Table, Inspector, long lists) have internal scrollbars.
-    - **Overlay Scrollbars Only:** Default OS scrollbars are forbidden inside panes. All scrollable areas must use a custom, overlay-style scrollbar (thin, rounded, transparent track, semi-opaque thumb) that sits *on top* of the content layer to prevent layout shifts when content changes length.
+    - **Scrollbar Rule (Landing Gate):** Internal scroll areas must not cause layout shifts when content length changes. Prefer `overlay-scrollbar` for panes; native scrollbars are acceptable during iteration or when the overlay primitive is not suitable, but the final UX must be stable and consistent.
 
 3. **Selection vs Text**
 
@@ -869,7 +940,7 @@ The frontend runs on a **dual transport**:
 - No unused imports.
 - Strict TypeScript everywhere.
 - Minimal bundle size.
-- Clean build (`npm run build` must pass).
+- Clean build: `npm run build` must pass before landing/release.
 - Visually consistent, dark-mode-first UI with correct light mode.
 
 ### Rendering
@@ -1009,9 +1080,9 @@ If a value is:
 It must **not** be passed through components as props.
 
 If no suitable Context exists:
-- do **not** invent local state
-- do **not** thread props
-- stop and flag the missing authority
+- do **not** invent cross-feature local state
+- prop threading is allowed **within a single cohesive feature subtree**
+- for cross-cutting values, stop and define/register the missing authority (Context) before landing
 
 2. **Prop Budget**
 High prop counts are acceptable when the props belong to a single cohesive feature. Prop reduction must not be achieved by introducing artificial Contexts, wrappers, or forwarding layers.
@@ -1112,8 +1183,7 @@ src/
 
 ### **5. No Empty Folders**
 
-- Folders exist only if they contain meaningful code.
-- Delete any folder that becomes empty.
+- Avoid empty folders. Do not spend time on folder cleanup during WIP; keep the tree tidy when landing changes.
 
 ---
 
@@ -1263,7 +1333,7 @@ If any variable, function, hook, component, or file name is:
 
 the agent must **report it**, not silently rename it.
 
-**Mandatory output:**
+**Output (when landing/reviewing):**
 Include a short section titled **“Rename Candidates”** containing:
 
 - `currentName` → `recommendedName`
@@ -1273,7 +1343,7 @@ Include a short section titled **“Rename Candidates”** containing:
 
 - Do NOT perform renames unless explicitly instructed.
 - Reporting is mandatory; renaming is optional and user-controlled.
-- Missing obvious rename candidates is a spec violation.
+- Missing obvious rename candidates in a landed/reviewed change is a spec violation.
 
 This enables fast, safe batch renames by the user (VS Code / IDE).
 
@@ -1288,7 +1358,7 @@ consume existing authorities and must not invent its own competing rules.
 **Law of the land (single authority, single change):**
 
 - UI configuration and visual “dials” live in the declared authorities (theme/token layer + config). Modules/components must **consume** them, not create module-local “mini config”.
-- Modules/components may choose **semantic roles** (panel padding, modal body spacing, workbench surface), but may not choose new numbers/opacities/radii/shadows/blur recipes.
+- Modules/components may choose local mechanical layout values (spacing/alignment/sizing) while consuming semantic roles for visual meaning. They may not introduce competing semantic recipes for opacities/radii/shadows/blur/surface hierarchy.
 - Any shared dial change (e.g., glass transparency `/50` → `/60`) must be possible via **one edit** in an authority. If it isn’t, a semantic role/token is missing — add it to the authority, do not patch call sites.
 - Bugs are fixed at the owning authority. Maintaining parallel implementations “to keep them in sync” is a design failure.
 
@@ -1429,7 +1499,9 @@ When extracting code:
 | View state                    | UI component |
 | Cross-cutting decisions       | Orchestrator |
 
-If logic does not clearly fit one category, **the architecture is incomplete** and the change must stop.
+If logic does not clearly fit one category, **the architecture is incomplete**.
+During WIP, park the code in the nearest owner (usually ViewModel/Orchestrator) with a `TODO(arch)` note.
+Before landing/reviewing, resolve placement (amend this document if needed).
 
 ---
 
@@ -1448,7 +1520,7 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
 
 # **17. Internationalization (Enforcement)**
 
-- No hard-coded English anywhere in the codebase.
+- Landing Gate: no hard-coded English in UI code.
 
 - All visible UI text must be referenced through `t("…")`.
 
@@ -1459,9 +1531,9 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
   1. Add key/value to `en.json`.
   2. Use `t("key")` in the component.
 
-- Agents must never output inline English text in JSX/TSX.
+- During iteration, inline English is allowed only as a temporary placeholder and must be prefixed with `TODO(i18n)` so it is easy to find.
 
-- If a string appears inline, it must be moved to `en.json` automatically.
+- Before landing/reviewing, all inline placeholders must be moved to `en.json` and replaced with `t("…")`.
 
 ---
 
@@ -1469,7 +1541,7 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 
-2. Run `npm run build` and fix build errors if possible.
+2. Before landing/reviewing a change, run `npm run build` and fix build errors if possible.
 
 ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
 
@@ -1526,7 +1598,7 @@ These rules exist to prevent hidden coupling and accidental complexity.
 
 ### **21.1 Enforcement Clause (Hard)**
 
-Any PR that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
+Any landed/reviewed change that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
 
 If a rule blocks implementation, the rule must be amended first (in this document), not worked around.
 
