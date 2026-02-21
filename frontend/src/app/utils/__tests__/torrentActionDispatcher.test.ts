@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { dispatchTorrentAction } from "@/app/utils/torrentActionDispatcher";
+import {
+    dispatchTorrentAction,
+    dispatchTorrentSelectionAction,
+} from "@/app/utils/torrentActionDispatcher";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
@@ -138,5 +141,110 @@ describe("torrentActionDispatcher", () => {
         expect(firstCall).toBeDefined();
         const intent = (firstCall?.[0] ?? {}) as { type?: string };
         expect(intent.type).toBe("ENSURE_TORRENT_ACTIVE");
+    });
+
+    it("maps start-now action to ENSURE_TORRENT_ACTIVE_NOW", async () => {
+        const dispatch = vi.fn(
+            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
+                void intent;
+                return {
+                    status: "applied",
+                };
+            },
+        );
+        const resume = vi.fn(async () => ({ status: "applied" as const }));
+
+        const outcome = await dispatchTorrentAction({
+            action: "resume-now",
+            torrent: makeTorrent(),
+            dispatch,
+            resume,
+        });
+
+        expect(outcome).toEqual({ status: "success" });
+        expect(resume).not.toHaveBeenCalled();
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        const firstCall = dispatch.mock.calls[0];
+        const intent = (firstCall?.[0] ?? {}) as { type?: string };
+        expect(intent.type).toBe("ENSURE_TORRENT_ACTIVE_NOW");
+    });
+
+    it("does not short-circuit resume while checking", async () => {
+        const dispatch = vi.fn(
+            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
+                void intent;
+                return {
+                    status: "applied",
+                };
+            },
+        );
+        const resume = vi.fn(async () => ({ status: "applied" as const }));
+
+        const outcome = await dispatchTorrentAction({
+            action: "resume",
+            torrent: makeTorrent({ state: "checking" }),
+            dispatch,
+            resume,
+        });
+
+        expect(outcome).toEqual({ status: "success" });
+        expect(resume).toHaveBeenCalledTimes(1);
+        expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it("bulk resume keeps checking torrents in target set", async () => {
+        const dispatch = vi.fn(
+            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
+                void intent;
+                return {
+                    status: "applied",
+                };
+            },
+        );
+
+        const ids = ["torrent-a", "torrent-b"];
+        const outcome = await dispatchTorrentSelectionAction({
+            action: "resume",
+            ids,
+            dispatch,
+        });
+
+        expect(outcome).toEqual({ status: "success" });
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        const firstCall = dispatch.mock.calls[0];
+        const intent = (firstCall?.[0] ?? {}) as {
+            type?: string;
+            torrentIds?: string[];
+        };
+        expect(intent.type).toBe("ENSURE_SELECTION_ACTIVE");
+        expect(intent.torrentIds).toEqual(ids);
+    });
+
+    it("bulk start-now maps to ENSURE_SELECTION_ACTIVE_NOW", async () => {
+        const dispatch = vi.fn(
+            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
+                void intent;
+                return {
+                    status: "applied",
+                };
+            },
+        );
+
+        const ids = ["torrent-a", "torrent-b"];
+        const outcome = await dispatchTorrentSelectionAction({
+            action: "resume-now",
+            ids,
+            dispatch,
+        });
+
+        expect(outcome).toEqual({ status: "success" });
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        const firstCall = dispatch.mock.calls[0];
+        const intent = (firstCall?.[0] ?? {}) as {
+            type?: string;
+            torrentIds?: string[];
+        };
+        expect(intent.type).toBe("ENSURE_SELECTION_ACTIVE_NOW");
+        expect(intent.torrentIds).toEqual(ids);
     });
 });

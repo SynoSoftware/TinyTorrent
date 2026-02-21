@@ -1,32 +1,10 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import {
-    flexRender,
-    getCoreRowModel,
-    getSortedRowModel,
-    useReactTable,
-    type Column,
-    type ColumnSizingInfoState,
-    type Row,
-    type RowSelectionState,
-    type SortingState,
-} from "@tanstack/react-table";
+import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Column, type ColumnSizingInfoState, type Row, type RowSelectionState, type SortingState } from "@tanstack/react-table";
 import type { Virtualizer } from "@tanstack/react-virtual";
-import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import {
-    KEY_SCOPE,
-    KEYMAP,
-    ShortcutIntent,
-    TABLE_LAYOUT,
-} from "@/config/logic";
+import { KEY_SCOPE, KEYMAP, ShortcutIntent, TABLE_LAYOUT } from "@/config/logic";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
@@ -34,25 +12,16 @@ import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboa
 import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrentTablePersistence";
 import { useTorrentTableContextActions } from "@/modules/dashboard/hooks/useTorrentTableContextActions";
 import { useTorrentTableHeaderContext } from "@/modules/dashboard/hooks/useTorrentTableHeaderContext";
-import {
-    useTorrentTableInteractions,
-    type ColumnDragCommitOutcome,
-} from "@/modules/dashboard/hooks/useTorrentTableInteractions";
+import { useTorrentTableInteractions, type ColumnDragCommitOutcome } from "@/modules/dashboard/hooks/useTorrentTableInteractions";
 import { useDetailOpenContext } from "@/modules/dashboard/context/DetailOpenContext";
-import useTableAnimationGuard, {
-    ANIMATION_SUPPRESSION_KEYS,
-} from "@/modules/dashboard/hooks/useTableAnimationGuard";
+import useTableAnimationGuard, { ANIMATION_SUPPRESSION_KEYS } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 import { useColumnSizingController } from "@/modules/dashboard/hooks/useColumnSizingController";
 import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorrentTableVirtualization";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
-import {
-    TORRENTTABLE_COLUMN_DEFS,
-    DEFAULT_COLUMN_ORDER,
-    type ColumnId,
-} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
+import { TORRENTTABLE_COLUMN_DEFS, DEFAULT_COLUMN_ORDER, type ColumnId } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { DASHBOARD_FILTERS } from "@/modules/dashboard/types/dashboardFilter";
@@ -80,8 +49,7 @@ type InteractionSensors = ReturnType<typeof useTorrentTableInteractions>;
 const AUTO_FIT_TOLERANCE_PX = 8;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-dnd";
 
-const formatShortcutLabel = (value?: string | string[]) =>
-    Array.isArray(value) ? value.join(" / ") : (value ?? "");
+const formatShortcutLabel = (value?: string | string[]) => (Array.isArray(value) ? value.join(" / ") : (value ?? ""));
 
 const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
 
@@ -97,16 +65,11 @@ const CONTEXT_MENU_SHORTCUTS: Partial<Record<string, string | string[]>> = {
     "queue-move-bottom": "ctrl+end",
 };
 
-const getContextMenuShortcut = (action: string) =>
-    formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
+const getContextMenuShortcut = (action: string) => formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
 const renderVisibleCells = (row: Row<Torrent>) =>
     row.getVisibleCells().map((cell) => {
-        return React.createElement(
-            React.Fragment,
-            { key: cell.id },
-            flexRender(cell.column.columnDef.cell, cell.getContext()),
-        );
+        return React.createElement(React.Fragment, { key: cell.id }, flexRender(cell.column.columnDef.cell, cell.getContext()));
     });
 
 export interface TorrentTableParams {
@@ -127,9 +90,7 @@ export interface TorrentTableAPI {
     table: {
         instance: ReturnType<typeof useReactTable<Torrent>>;
         measurementRows: Row<Torrent>[];
-        measurementHeaders: ReturnType<
-            ReturnType<typeof useReactTable<Torrent>>["getFlatHeaders"]
-        >;
+        measurementHeaders: ReturnType<ReturnType<typeof useReactTable<Torrent>>["getFlatHeaders"]>;
     };
     interaction: {
         sensors: InteractionSensors["sensors"];
@@ -149,19 +110,11 @@ export interface TorrentTableAPI {
     surfaces: TorrentTableSurfaces;
 }
 
-export function useTorrentTableViewModel({
-    viewModel,
-}: TorrentTableParams): TorrentTableAPI {
+export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): TorrentTableAPI {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
     const { preferences } = usePreferences();
-    const overlayPortalHost = useMemo(
-        () =>
-            typeof document !== "undefined" && document.body
-                ? document.body
-                : null,
-        [],
-    );
+    const overlayPortalHost = useMemo(() => (typeof document !== "undefined" && document.body ? document.body : null), []);
     const renderOverlayPortal = useCallback(
         (overlay: ReactNode) => {
             if (!overlayPortalHost) return null;
@@ -169,58 +122,31 @@ export function useTorrentTableViewModel({
         },
         [overlayPortalHost],
     );
-    const {
-        torrents,
-        filter,
-        searchQuery,
-        optimisticStatuses = {},
-        ghostTorrents = [],
-        removedIds,
-    } = viewModel;
+    const { torrents, filter, searchQuery, optimisticStatuses = {}, ghostTorrents = [], removedIds } = viewModel;
 
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
-    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
-        null,
-    );
-    const [isColumnOrderChanging, setIsColumnOrderChanging] =
-        useState<boolean>(false);
+    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(null);
+    const [isColumnOrderChanging, setIsColumnOrderChanging] = useState<boolean>(false);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState<boolean>(false);
-    const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
-        null,
-    );
+    const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(null);
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
-    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
-        null,
-    );
-    const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(
-        null,
-    );
-    const [headerContextMenu, setHeaderContextMenu] =
-        useState<HeaderContextMenu | null>(null);
-    const [sorting, setSorting] = useState<SortingState>(
-        () => preferences.torrentTableState?.sorting ?? [],
-    );
-    const [columnOrder, setColumnOrder] = useState<string[]>(
-        () =>
-            preferences.torrentTableState?.columnOrder ?? DEFAULT_COLUMN_ORDER,
-    );
-    const [columnVisibility, setColumnVisibility] = useState<
-        Record<string, boolean>
-    >(() => preferences.torrentTableState?.columnVisibility ?? {});
-    const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
-        () => preferences.torrentTableState?.columnSizing ?? {},
-    );
-    const [columnSizingInfo, setColumnSizingInfo] =
-        useState<ColumnSizingInfoState>({
-            startOffset: null,
-            startSize: null,
-            deltaOffset: null,
-            deltaPercentage: null,
-            isResizingColumn: false,
-            columnSizingStart: [],
-        });
+    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+    const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
+    const [headerContextMenu, setHeaderContextMenu] = useState<HeaderContextMenu | null>(null);
+    const [sorting, setSorting] = useState<SortingState>(() => preferences.torrentTableState?.sorting ?? []);
+    const [columnOrder, setColumnOrder] = useState<string[]>(() => preferences.torrentTableState?.columnOrder ?? DEFAULT_COLUMN_ORDER);
+    const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => preferences.torrentTableState?.columnVisibility ?? {});
+    const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => preferences.torrentTableState?.columnSizing ?? {});
+    const [columnSizingInfo, setColumnSizingInfo] = useState<ColumnSizingInfoState>({
+        startOffset: null,
+        startSize: null,
+        deltaOffset: null,
+        deltaPercentage: null,
+        isResizingColumn: false,
+        columnSizingStart: [],
+    });
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
@@ -232,11 +158,7 @@ export function useTorrentTableViewModel({
     const selectionBridgeRef = useRef<{
         getSelectionSnapshot: () => RowSelectionState;
         previewSelection: (selection: RowSelectionState) => void;
-        commitSelection: (
-            selection: RowSelectionState,
-            focusIndex: number | null,
-            focusRowId: string | null,
-        ) => void;
+        commitSelection: (selection: RowSelectionState, focusIndex: number | null, focusRowId: string | null) => void;
         clearSelection: () => void;
     }>({
         getSelectionSnapshot: () => ({}),
@@ -248,59 +170,39 @@ export function useTorrentTableViewModel({
     const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
     const { copyToClipboard, buildMagnetLink } = useTorrentClipboard();
-    const {
-        isSuppressed: animationSuppressionActive,
-        begin: beginAnimationSuppression,
-        end: endAnimationSuppression,
-    } = useTableAnimationGuard();
+    const { isSuppressed: animationSuppressionActive, begin: beginAnimationSuppression, end: endAnimationSuppression } = useTableAnimationGuard();
     const { disableDetailOpen = false, openDetail } = useDetailOpenContext();
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
             const override = optimisticStatuses[torrent.id];
-            return override ? { ...torrent, state: override.state } : torrent;
+            return override?.state
+                ? { ...torrent, state: override.state }
+                : torrent;
         },
         [optimisticStatuses],
     );
 
-    const isRemoved = useCallback(
-        (id?: string | number | null) =>
-            Boolean(id && removedIds.has(String(id))),
-        [removedIds],
-    );
+    const isRemoved = useCallback((id?: string | number | null) => Boolean(id && removedIds.has(String(id))), [removedIds]);
 
-    const pooledTorrents = useMemo(
-        () =>
-            ghostTorrents.length > 0
-                ? [...ghostTorrents, ...torrents]
-                : torrents,
-        [ghostTorrents, torrents],
-    );
+    const pooledTorrents = useMemo(() => (ghostTorrents.length > 0 ? [...ghostTorrents, ...torrents] : torrents), [ghostTorrents, torrents]);
 
     const data = useMemo(() => {
-        const displayTorrents = pooledTorrents
-            .filter((torrent) => !isRemoved(torrent.id ?? torrent.hash))
-            .map(getDisplayTorrent);
+        const displayTorrents = pooledTorrents.filter((torrent) => !isRemoved(torrent.id ?? torrent.hash)).map(getDisplayTorrent);
 
         const filteredByState =
             filter === DASHBOARD_FILTERS.ALL
                 ? displayTorrents
                 : displayTorrents.filter(
                       (torrent) =>
-                          torrent.isGhost ||
-                          torrent.state === filter ||
-                          (torrent.state === STATUS.torrent.CHECKING &&
-                              (filter === STATUS.torrent.DOWNLOADING ||
-                                  filter === STATUS.torrent.SEEDING)),
+                          torrent.isGhost || torrent.state === filter || (torrent.state === STATUS.torrent.CHECKING && (filter === STATUS.torrent.DOWNLOADING || filter === STATUS.torrent.SEEDING)),
                   );
 
         const normalizedQuery = searchQuery.trim().toLowerCase();
         if (!normalizedQuery) return filteredByState;
 
         return filteredByState.filter((torrent) => {
-            const haystack = `${torrent.name} ${
-                torrent.ghostLabel ?? ""
-            }`.toLowerCase();
+            const haystack = `${torrent.name} ${torrent.ghostLabel ?? ""}`.toLowerCase();
             return haystack.includes(normalizedQuery);
         });
     }, [filter, getDisplayTorrent, isRemoved, pooledTorrents, searchQuery]);
@@ -311,20 +213,12 @@ export function useTorrentTableViewModel({
         optimisticStatuses,
     });
 
-    const serverOrder = useMemo(
-        () => data.map((torrent) => torrent.id),
-        [data],
-    );
-    const effectiveOrder = useMemo(
-        () => pendingQueueOrder ?? serverOrder,
-        [pendingQueueOrder, serverOrder],
-    );
+    const serverOrder = useMemo(() => data.map((torrent) => torrent.id), [data]);
+    const effectiveOrder = useMemo(() => pendingQueueOrder ?? serverOrder, [pendingQueueOrder, serverOrder]);
 
     const tableData = useMemo(() => {
         const byId = new Map(data.map((torrent) => [torrent.id, torrent]));
-        return effectiveOrder
-            .map((id) => byId.get(id))
-            .filter((torrent): torrent is Torrent => Boolean(torrent));
+        return effectiveOrder.map((id) => byId.get(id)).filter((torrent): torrent is Torrent => Boolean(torrent));
     }, [data, effectiveOrder]);
 
     // eslint-disable-next-line react-hooks/incompatible-library
@@ -411,14 +305,7 @@ export function useTorrentTableViewModel({
         defaultMargin: fileContextMenuMargin,
     });
 
-    const {
-        rowVirtualizer,
-        measurementRows,
-        measurementHeaders,
-        marqueeRect,
-        marqueeClickBlockRef,
-        isMarqueeDraggingRef,
-    } = useTorrentTableVirtualization({
+    const { rowVirtualizer, measurementRows, measurementHeaders, marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef } = useTorrentTableVirtualization({
         rows,
         parentRef,
         rowHeight,
@@ -435,16 +322,9 @@ export function useTorrentTableViewModel({
         normalizeColumnSizingState,
         AUTO_FIT_TOLERANCE_PX,
         rowsRef,
-        getSelectionSnapshot: () =>
-            selectionBridgeRef.current.getSelectionSnapshot(),
-        previewSelection: (selection) =>
-            selectionBridgeRef.current.previewSelection(selection),
-        commitSelection: (selection, nextFocusIndex, focusRowId) =>
-            selectionBridgeRef.current.commitSelection(
-                selection,
-                nextFocusIndex,
-                focusRowId,
-            ),
+        getSelectionSnapshot: () => selectionBridgeRef.current.getSelectionSnapshot(),
+        previewSelection: (selection) => selectionBridgeRef.current.previewSelection(selection),
+        commitSelection: (selection, nextFocusIndex, focusRowId) => selectionBridgeRef.current.commitSelection(selection, nextFocusIndex, focusRowId),
         clearSelection: () => selectionBridgeRef.current.clearSelection(),
     });
 
@@ -481,12 +361,7 @@ export function useTorrentTableViewModel({
 
     const { handleContextMenuAction } = useTorrentTableContextActions({
         contextMenu,
-        findRowElement: (id) =>
-            typeof document !== "undefined"
-                ? (document.querySelector(
-                      `[data-torrent-row="${id}"]`,
-                  ) as HTMLElement | null)
-                : null,
+        findRowElement: (id) => (typeof document !== "undefined" ? (document.querySelector(`[data-torrent-row="${id}"]`) as HTMLElement | null) : null),
         openColumnModal,
         copyToClipboard,
         buildMagnetLink,
@@ -494,8 +369,7 @@ export function useTorrentTableViewModel({
         selectedTorrents: selection.selectedTorrents,
     });
 
-    const { activate: activateScope, deactivate: deactivateScope } =
-        useKeyboardScope(KEY_SCOPE.Dashboard);
+    const { activate: activateScope, deactivate: deactivateScope } = useKeyboardScope(KEY_SCOPE.Dashboard);
 
     const {
         canReorderQueue,
@@ -516,10 +390,7 @@ export function useTorrentTableViewModel({
     });
 
     const commitColumnDragOrder = useCallback(
-        (
-            activeColumnId: string,
-            overColumnId: string,
-        ): ColumnDragCommitOutcome => {
+        (activeColumnId: string, overColumnId: string): ColumnDragCommitOutcome => {
             const oldIndex = columnOrder.indexOf(activeColumnId);
             const newIndex = columnOrder.indexOf(overColumnId);
             if (oldIndex < 0 || newIndex < 0) {
@@ -586,26 +457,14 @@ export function useTorrentTableViewModel({
             event.preventDefault();
             if (torrent.isGhost) return;
 
-            const virtualElement = createVirtualElement(
-                event.clientX,
-                event.clientY,
-                { margin: fileContextMenuMargin },
-            );
+            const virtualElement = createVirtualElement(event.clientX, event.clientY, { margin: fileContextMenuMargin });
             setContextMenu({ virtualElement, torrent });
 
-            const row = table
-                .getRowModel()
-                .rows.find((candidate) => candidate.original.id === torrent.id);
+            const row = table.getRowModel().rows.find((candidate) => candidate.original.id === torrent.id);
             if (!row) return;
             selection.ensureContextSelection(row.id, row.index, rowSelection);
         },
-        [
-            createVirtualElement,
-            fileContextMenuMargin,
-            rowSelection,
-            selection,
-            table,
-        ],
+        [createVirtualElement, fileContextMenuMargin, rowSelection, selection, table],
     );
 
     const getColumnLabel = useCallback(
@@ -616,30 +475,20 @@ export function useTorrentTableViewModel({
         [t],
     );
 
-    const {
-        handleHeaderContextMenu,
-        handleHeaderContainerContextMenu,
-        headerMenuActiveColumn,
-        handleHeaderMenuAction,
-        headerMenuHideLabel,
-        isHeaderMenuHideEnabled,
-        headerMenuItems,
-    } = useTorrentTableHeaderContext({
-        createVirtualElement,
-        fileContextMenuMargin,
-        table,
-        columnOrder,
-        getColumnLabel,
-        t,
-        setHeaderContextMenu,
-        headerContextMenu,
-        columnVisibility,
-    });
+    const { handleHeaderContextMenu, handleHeaderContainerContextMenu, headerMenuActiveColumn, handleHeaderMenuAction, headerMenuHideLabel, isHeaderMenuHideEnabled, headerMenuItems } =
+        useTorrentTableHeaderContext({
+            createVirtualElement,
+            fileContextMenuMargin,
+            table,
+            columnOrder,
+            getColumnLabel,
+            t,
+            setHeaderContextMenu,
+            headerContextMenu,
+            columnVisibility,
+        });
 
-    const headerSortableIds = useMemo(
-        () => table.getVisibleLeafColumns().map((column) => column.id),
-        [table, columnOrder, columnVisibility],
-    );
+    const headerSortableIds = useMemo(() => table.getVisibleLeafColumns().map((column) => column.id), [table]);
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
@@ -692,20 +541,15 @@ export function useTorrentTableViewModel({
 
     useEffect(() => {
         if (!contextMenu) return;
-        const exists = torrents.some(
-            (torrent) => torrent.id === contextMenu.torrent.id,
-        );
+        const exists = torrents.some((torrent) => torrent.id === contextMenu.torrent.id);
         if (!exists) {
             setContextMenu(null);
         }
     }, [contextMenu, torrents]);
 
-    const isAnimationSuppressed =
-        isAnyColumnResizing || animationSuppressionActive;
+    const isAnimationSuppressed = isAnyColumnResizing || animationSuppressionActive;
 
-    const headerMenuTriggerRect = headerContextMenu
-        ? headerContextMenu.virtualElement.getBoundingClientRect()
-        : null;
+    const headerMenuTriggerRect = headerContextMenu ? headerContextMenu.virtualElement.getBoundingClientRect() : null;
 
     const handleDropTargetChange = useCallback((id: string | null) => {
         setDropTargetRowId(id);
@@ -735,10 +579,7 @@ export function useTorrentTableViewModel({
         tableContainerRef.current?.focus();
     }, []);
     const headerContainerClass = TABLE.header;
-    const activeDragRow = useMemo(
-        () => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null),
-        [activeRowId, rowsById],
-    );
+    const activeDragRow = useMemo(() => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null), [activeRowId, rowsById]);
     const headersViewModel = useMemo<TorrentTableHeadersViewModel>(
         () => ({
             headerContainerClass,
@@ -868,12 +709,7 @@ export function useTorrentTableViewModel({
             queueMenuActions,
             getContextMenuShortcut,
         }),
-        [
-            contextMenu,
-            closeContextMenu,
-            handleContextMenuAction,
-            queueMenuActions,
-        ],
+        [contextMenu, closeContextMenu, handleContextMenuAction, queueMenuActions],
     );
     const headerMenuViewModel = useMemo<TorrentTableHeaderMenuViewModel>(
         () => ({
@@ -886,16 +722,7 @@ export function useTorrentTableViewModel({
             autoFitAllColumns,
             handleHeaderMenuAction,
         }),
-        [
-            headerMenuTriggerRect,
-            closeHeaderMenu,
-            headerMenuActiveColumn,
-            headerMenuItems,
-            headerMenuHideLabel,
-            isHeaderMenuHideEnabled,
-            autoFitAllColumns,
-            handleHeaderMenuAction,
-        ],
+        [headerMenuTriggerRect, closeHeaderMenu, headerMenuActiveColumn, headerMenuItems, headerMenuHideLabel, isHeaderMenuHideEnabled, autoFitAllColumns, handleHeaderMenuAction],
     );
 
     return {

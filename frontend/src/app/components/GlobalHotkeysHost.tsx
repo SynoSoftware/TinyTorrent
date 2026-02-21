@@ -5,16 +5,23 @@ import { useSelection } from "@/app/context/AppShellStateContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { createGlobalHotkeyBindings } from "@/app/commandRegistry";
 import { HOTKEY_COMMAND_ID } from "@/app/commandCatalog";
-import { useGlobalHotkeyContext } from "@/app/context/GlobalHotkeyContext";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 
-export function GlobalHotkeysHost() {
-    const {
-        torrents,
-        selectedTorrents,
-        detailData,
-        handleRequestDetails,
-        handleCloseDetail,
-    } = useGlobalHotkeyContext();
+export interface GlobalHotkeysHostProps {
+    torrents: Torrent[];
+    selectedTorrents: Torrent[];
+    detailData: TorrentDetail | null;
+    handleRequestDetails: (torrent: Torrent) => Promise<void>;
+    handleCloseDetail: () => void;
+}
+
+export function GlobalHotkeysHost({
+    torrents,
+    selectedTorrents,
+    detailData,
+    handleRequestDetails,
+    handleCloseDetail,
+}: GlobalHotkeysHostProps) {
     const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const { setActivePart } = useFocusState();
     const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
@@ -43,7 +50,7 @@ export function GlobalHotkeysHost() {
             selectedIds,
             selectedTorrents,
             torrents,
-        ]
+        ],
     );
 
     const hotkeys = useMemo(
@@ -54,65 +61,59 @@ export function GlobalHotkeysHost() {
                 setActiveId,
                 setActivePart,
             }),
-        [
-            hotkeyController,
-            setSelectedIds,
-            setActiveId,
-            setActivePart,
-        ]
+        [hotkeyController, setSelectedIds, setActiveId, setActivePart],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.SelectAll].keys,
         hotkeys[HOTKEY_COMMAND_ID.SelectAll].handler,
         hotkeys[HOTKEY_COMMAND_ID.SelectAll].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.Remove].keys,
         hotkeys[HOTKEY_COMMAND_ID.Remove].handler,
         hotkeys[HOTKEY_COMMAND_ID.Remove].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.ShowDetails].keys,
         hotkeys[HOTKEY_COMMAND_ID.ShowDetails].handler,
         hotkeys[HOTKEY_COMMAND_ID.ShowDetails].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].keys,
         hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].handler,
         hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.TogglePause].keys,
         hotkeys[HOTKEY_COMMAND_ID.TogglePause].handler,
         hotkeys[HOTKEY_COMMAND_ID.TogglePause].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.Recheck].keys,
         hotkeys[HOTKEY_COMMAND_ID.Recheck].handler,
         hotkeys[HOTKEY_COMMAND_ID.Recheck].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     useHotkeys(
         hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].keys,
         hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].handler,
         hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].options,
-        [hotkeys]
+        [hotkeys],
     );
 
     return null;
 }
 
 export default GlobalHotkeysHost;
-

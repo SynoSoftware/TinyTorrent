@@ -65,7 +65,7 @@ export function SwitchSliderRenderer({
                 </Switch>
                 <div
                     className={cn(FORM.sliderValueText, FORM.sliderValueBadge)}
-                    style={{ minWidth: "var(--tt-badge-min-width)" }}
+                    style={FORM.sliderValueBadgeStyle}
                 >
                     {block.valueSuffixKey
                         ? t(block.valueSuffixKey, { value: sliderValue })
@@ -329,7 +329,7 @@ export function DaySelectorRenderer({
             <div className={FORM.blockRowBetween}>
                 <span
                     className={TEXT_ROLE.labelDense}
-                    style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                    style={FORM.trackingWideStyle}
                 >
                     {t(block.labelKey)}
                 </span>
@@ -350,7 +350,7 @@ export function DaySelectorRenderer({
                                     ? FORM.daySelectorSelected
                                     : FORM.daySelectorUnselected,
                             )}
-                            style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                            style={FORM.trackingWideStyle}
                         >
                             {t(day.labelKey).substring(0, 3)}
                         </Button>

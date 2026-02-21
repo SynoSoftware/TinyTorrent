@@ -1,6 +1,7 @@
 export type TorrentTableAction =
     | "pause"
     | "resume"
+    | "resume-now"
     | "recheck"
     | "remove"
     | "remove-with-data"

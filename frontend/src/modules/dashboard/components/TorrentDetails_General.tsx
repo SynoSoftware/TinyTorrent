@@ -5,13 +5,12 @@ import React from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel";
+import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 
 interface GeneralTabProps {
@@ -21,12 +20,7 @@ interface GeneralTabProps {
     isRecoveryBlocked?: boolean;
 }
 
-export const GeneralTab = ({
-    torrent,
-    downloadDir,
-    activePeers,
-    isRecoveryBlocked,
-}: GeneralTabProps) => {
+export const GeneralTab = ({ torrent, downloadDir, activePeers, isRecoveryBlocked }: GeneralTabProps) => {
     const { t } = useTranslation();
     void activePeers;
     const general = useTorrentDetailsGeneralViewModel({
@@ -47,75 +41,33 @@ export const GeneralTab = ({
             <GlassPanel className={DETAILS.generalCard}>
                 <div className={DETAILS.generalHeaderRow}>
                     <div className={DETAILS.generalPrimaryCol}>
-                        <div className={TEXT_ROLE.caption}>
-                            {t("torrent_modal.labels.save_path")}
-                        </div>
-                        <code className={DETAILS.generalPathCode}>
-                            {downloadDir ??
-                                torrent.downloadDir ??
-                                torrent.savePath ??
-                                ""}
-                        </code>
+                        <div className={TEXT_ROLE.caption}>{t("torrent_modal.labels.save_path")}</div>
+                        <code className={DETAILS.generalPathCode}>{downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}</code>
                     </div>
                     <div className={DETAILS.generalVerifyCol}>
-                        <div className={TEXT_ROLE.caption}>
-                            {t("torrent_modal.controls.verify")}
-                        </div>
+                        <div className={TEXT_ROLE.caption}>{t("torrent_modal.controls.verify")}</div>
                         <div className={DETAILS.generalVerifyWrap}>
                             {(() => {
                                 const p = torrent.verificationProgress ?? 0;
                                 const percent = p > 1 ? p : p * 100;
-                                return (
-                                    <SmoothProgressBar
-                                        value={percent}
-                                        trackClassName={
-                                            DETAILS.generalVerificationTrack
-                                        }
-                                        indicatorClassName={
-                                            DETAILS.generalVerificationIndicator
-                                        }
-                                    />
-                                );
+                                return <SmoothProgressBar value={percent} trackClassName={DETAILS.generalVerificationTrack} indicatorClassName={DETAILS.generalVerificationIndicator} />;
                             })()}
                         </div>
                     </div>
                 </div>
             </GlassPanel>
-            {general.showLocationEditor && general.setLocationEditorState && (
-                <SetLocationEditor
-                    value={general.setLocationEditorState.inputPath}
-                    error={general.setLocationEditorState.error}
-                    isBusy={general.generalIsBusy}
-                    caption={general.generalCaption}
-                    statusMessage={general.generalStatusMessage}
-                    disableCancel={general.generalIsVerifying}
-                    onChange={general.onLocationChange}
-                    onSubmit={() => void general.onLocationSubmit()}
-                    onCancel={general.onLocationCancel}
-                />
-            )}
 
             {general.showMissingFilesError && (
                 <AlertPanel severity="warning">
                     <div className={DETAILS.generalWarningStack}>
-                        <span className={TEXT_ROLE.statusWarning}>
-                            {t("torrent_modal.errors.no_data_found_title")}
-                        </span>
+                        <span className={TEXT_ROLE.statusWarning}>{t("torrent_modal.errors.no_data_found_title")}</span>
                         <div className={DETAILS.generalProbeStack}>
                             {general.probeLines.map((line) => (
                                 <span key={line}>{line}</span>
                             ))}
                         </div>
-                        {general.classificationLabel && (
-                            <div className={TEXT_ROLE.bodySmall}>
-                                {general.classificationLabel}
-                            </div>
-                        )}
-                        {recoveryBlockedMessage && (
-                            <div className={DETAILS.generalRecoveryHint}>
-                                {recoveryBlockedMessage}
-                            </div>
-                        )}
+                        {general.classificationLabel && <div className={TEXT_ROLE.bodySmall}>{general.classificationLabel}</div>}
+                        {recoveryBlockedMessage && <div className={DETAILS.generalRecoveryHint}>{recoveryBlockedMessage}</div>}
                     </div>
                 </AlertPanel>
             )}
@@ -125,74 +77,37 @@ export const GeneralTab = ({
                     <GlassPanel className={DETAILS.generalCard}>
                         <div className={DETAILS.generalHeaderRow}>
                             <div>
-                                <div className={TEXT_ROLE.caption}>
-                                    {t("torrent_modal.controls.title")}
-                                </div>
-                                <div
-                                    className={
-                                        DETAILS.generalControlsDescription
-                                    }
-                                >
-                                    {t("torrent_modal.controls.description")}
-                                </div>
+                                <div className={TEXT_ROLE.caption}>{t("torrent_modal.controls.title")}</div>
+                                <div className={DETAILS.generalControlsDescription}>{t("torrent_modal.controls.description")}</div>
                             </div>
                             <div className={DETAILS.generalControlsMeta}>
                                 <div className={DETAILS.generalControlsActions}>
                                     {/* Force reannounce moved to Trackers tab per UX decision */}
-                                    <Button
-                                        size="md"
-                                        variant="flat"
-                                        color={isActive ? "default" : "primary"}
-                                        onPress={general.onToggleStartStop}
-                                        isDisabled={Boolean(isRecoveryBlocked)}
-                                    >
+                                    <Button size="md" variant="flat" color={isActive ? "default" : "primary"} onPress={general.onToggleStartStop} isDisabled={Boolean(isRecoveryBlocked)}>
                                         <>
-                                            <ToggleIcon
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className={
-                                                    DETAILS.generalButtonIcon
-                                                }
-                                            />
+                                            <ToggleIcon size={16} strokeWidth={ICON_STROKE_WIDTH} className={DETAILS.generalButtonIcon} />
                                             {mainActionLabel}
                                         </>
                                     </Button>
-                                    <Button
-                                        size="md"
-                                        variant="flat"
-                                        color="default"
-                                        onPress={general.onSetLocation}
-                                        isDisabled={!general.canSetLocation}
-                                    >
+                                    {!isActive && (
+                                        <Button size="md" variant="flat" color="primary" onPress={general.onStartNow} isDisabled={Boolean(isRecoveryBlocked)}>
+                                            <>
+                                                <Play size={16} strokeWidth={ICON_STROKE_WIDTH} className={DETAILS.generalButtonIcon} />
+                                                {t("table.actions.start_now")}
+                                            </>
+                                        </Button>
+                                    )}
+                                    <Button size="md" variant="flat" color="default" onPress={general.onSetLocation} isDisabled={!general.canSetLocation}>
                                         <>
-                                            <Folder
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className={
-                                                    DETAILS.generalButtonIcon
-                                                }
-                                            />
+                                            <Folder size={16} strokeWidth={ICON_STROKE_WIDTH} className={DETAILS.generalButtonIcon} />
                                             {t("directory_browser.select", {
-                                                name: t(
-                                                    "torrent_modal.labels.save_path",
-                                                ),
+                                                name: t("torrent_modal.labels.save_path"),
                                             })}
                                         </>
                                     </Button>
-                                    <Button
-                                        size="md"
-                                        variant="flat"
-                                        color="danger"
-                                        onPress={general.openRemoveModal}
-                                    >
+                                    <Button size="md" variant="flat" color="danger" onPress={general.openRemoveModal}>
                                         <>
-                                            <Trash2
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className={
-                                                    DETAILS.generalButtonIcon
-                                                }
-                                            />
+                                            <Trash2 size={16} strokeWidth={ICON_STROKE_WIDTH} className={DETAILS.generalButtonIcon} />
                                             {t("toolbar.remove")}
                                         </>
                                     </Button>
@@ -203,13 +118,7 @@ export const GeneralTab = ({
                 </div>
             </div>
             {general.showRemoveModal && (
-                <RemoveConfirmationModal
-                    isOpen={general.showRemoveModal}
-                    onClose={general.closeRemoveModal}
-                    onConfirm={general.onConfirmRemove}
-                    torrentCount={1}
-                    torrentIds={[torrent.id]}
-                />
+                <RemoveConfirmationModal isOpen={general.showRemoveModal} onClose={general.closeRemoveModal} onConfirm={general.onConfirmRemove} torrentCount={1} torrentIds={[torrent.id]} />
             )}
         </div>
     );

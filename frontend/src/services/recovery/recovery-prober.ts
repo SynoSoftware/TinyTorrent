@@ -162,7 +162,10 @@ export async function probeMissingFiles(
         let onDiskBytes: number | null = null;
         if (client.getTorrentDetails) {
             try {
-                const detail = await client.getTorrentDetails(torrent.id);
+                const detail = await client.getTorrentDetails(torrent.id, {
+                    profile: "standard",
+                    includeTrackerStats: false,
+                });
                 if (Array.isArray(detail.files)) {
                     onDiskBytes = detail.files.reduce((acc, file) => {
                         const bytes =

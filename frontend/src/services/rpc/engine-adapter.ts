@@ -30,6 +30,13 @@ export const DEFAULT_ENGINE_CAPABILITIES: EngineRuntimeCapabilities = {
     canCheckFreeSpace: false,
 };
 
+export type TorrentDetailProfile = "standard" | "pieces";
+
+export interface TorrentDetailsRequestOptions {
+    profile?: TorrentDetailProfile;
+    includeTrackerStats?: boolean;
+}
+
 export interface EngineAdapter {
     getServerClass?(): ServerClass;
     getCapabilities?(): EngineRuntimeCapabilities;
@@ -43,7 +50,10 @@ export interface EngineAdapter {
     testPort?(): Promise<boolean>;
     checkFreeSpace?(path: string): Promise<TransmissionFreeSpace>;
     getTorrents(): Promise<TorrentEntity[]>;
-    getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
+    getTorrentDetails(
+        id: string,
+        options?: TorrentDetailsRequestOptions,
+    ): Promise<TorrentDetailEntity>;
     fetchNetworkTelemetry?(): Promise<
         import("./entities").NetworkTelemetry | null
     >;
@@ -51,6 +61,7 @@ export interface EngineAdapter {
     addTorrent(payload: AddTorrentPayload): Promise<AddTorrentResult>;
     pause(ids: string[]): Promise<void>;
     resume(ids: string[]): Promise<void>;
+    startNow?(ids: string[]): Promise<void>;
     remove(ids: string[], deleteData: boolean): Promise<void>;
     verify(ids: string[]): Promise<void>;
     moveToTop(ids: string[]): Promise<void>;
@@ -69,6 +80,9 @@ export interface EngineAdapter {
     ): Promise<void>;
     setSequentialDownload?(id: string, enabled: boolean): Promise<void>;
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;
+    addTrackers?(ids: string[], trackers: string[]): Promise<void>;
+    removeTrackers?(ids: string[], trackerIds: number[]): Promise<void>;
+    replaceTrackers?(ids: string[], trackers: string[]): Promise<void>;
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
     updateRequestTimeout?(timeout: number): void;

@@ -1,13 +1,8 @@
 import { useCallback, useMemo } from "react";
-import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
-import {
-    useTorrentCommands,
-    type TorrentCommandOutcome,
-} from "@/app/context/AppCommandContext";
+import { useTorrentCommands, type TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
@@ -52,32 +47,16 @@ const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
     reason: "no_selection",
 };
 
-export const useTorrentTableContextActions = (
-    params: UseTorrentTableContextParams
-) => {
-    const {
-        contextMenu,
-        findRowElement,
-        openColumnModal,
-        copyToClipboard,
-        buildMagnetLink,
-        setContextMenu,
-        selectedTorrents = [],
-    } = params;
+export const useTorrentTableContextActions = (params: UseTorrentTableContextParams) => {
+    const { contextMenu, findRowElement, openColumnModal, copyToClipboard, buildMagnetLink, setContextMenu, selectedTorrents = [] } = params;
 
     const selectionTargets = useMemo(() => {
         if (!contextMenu) return [];
         const contextTorrent = contextMenu.torrent;
         if (!contextTorrent) return [];
-        const hasMultiSelection =
-            selectedTorrents.length > 1 &&
-            selectedTorrents.some(
-                (torrent) => torrent.id === contextTorrent.id
-            );
+        const hasMultiSelection = selectedTorrents.length > 1 && selectedTorrents.some((torrent) => torrent.id === contextTorrent.id);
         return hasMultiSelection ? selectedTorrents : [contextTorrent];
     }, [contextMenu, selectedTorrents]);
-
-    const { dispatch } = useRequiredTorrentActions();
 
     const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
     const executeTableAction = useCallback(
@@ -85,25 +64,15 @@ export const useTorrentTableContextActions = (
             if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
             const contextTorrent = contextMenu.torrent;
             if (!contextTorrent) return COMMAND_OUTCOME_NO_SELECTION;
-            const isQueueAction =
-                action === "queue-move-top" ||
-                action === "queue-move-bottom" ||
-                action === "queue-move-up" ||
-                action === "queue-move-down";
+            const isQueueAction = action === "queue-move-top" || action === "queue-move-bottom" || action === "queue-move-up" || action === "queue-move-down";
             if (!isQueueAction && selectionTargets.length > 1) {
                 return handleBulkAction(action);
             }
             return handleTorrentAction(action, contextTorrent);
         },
-        [
-            contextMenu,
-            handleBulkAction,
-            handleTorrentAction,
-            selectionTargets,
-        ]
+        [contextMenu, handleBulkAction, handleTorrentAction, selectionTargets],
     );
-    const { handleSetLocation, handleOpenFolder, canOpenFolder } =
-        useRecoveryContext();
+    const { handleSetLocation: handleDownloadPath, handleOpenFolder, canOpenFolder, handleDownloadMissing } = useRecoveryContext();
     const handleContextMenuAction = useCallback(
         async (key?: string): Promise<TorrentCommandOutcome> => {
             if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
@@ -134,43 +103,33 @@ export const useTorrentTableContextActions = (
                     if (isOpenFolderSuccess(outcome)) {
                         return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
                     }
-                    if (
-                        outcome.status === "unsupported" ||
-                        outcome.status === "missing_path"
-                    ) {
+                    if (outcome.status === "unsupported" || outcome.status === "missing_path") {
                         return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                     }
                     return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
                 if (key === "set-download-path") {
-                    // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
-                    const outcome = await handleSetLocation(torrent, {
+                    const outcome = await handleDownloadPath(torrent, {
                         surface: "context-menu",
-                        mode: "manual",
                     });
-                    if (
-                        outcome.status === "manual_opened" ||
-                        outcome.status === "picked" ||
-                        outcome.status === "cancelled"
-                    ) {
-                        return COMMAND_OUTCOME_QUEUED;
+                    if (outcome.status === "picked" || outcome.status === "cancelled") {
+                        return closeWithOutcome(COMMAND_OUTCOME_QUEUED);
+                    }
+                    if (outcome.status === "manual_opened") {
+                        return closeWithOutcome(COMMAND_OUTCOME_QUEUED);
                     }
                     if (outcome.status === "unsupported") {
-                        return COMMAND_OUTCOME_UNSUPPORTED;
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                     }
                     if (outcome.status === "conflict") {
-                        return COMMAND_OUTCOME_UNSUPPORTED;
+                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                     }
-                    return COMMAND_OUTCOME_FAILED;
+                    return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
                 if (key === "reDownload" || key === "reDownloadHere") {
-                    // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
-                    await dispatch(
-                        TorrentIntents.ensureDataPresent(
-                            torrent.id ?? torrent.hash
-                        )
-                    );
-                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
+                    setContextMenu(null);
+                    await handleDownloadMissing(torrent);
+                    return COMMAND_OUTCOME_SUCCESS;
                 }
                 if (key === "copy-hash") {
                     const outcome = await copyToClipboard(torrent.hash);
@@ -183,9 +142,7 @@ export const useTorrentTableContextActions = (
                     return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
                 if (key === "copy-magnet") {
-                    const outcome = await copyToClipboard(
-                        buildMagnetLink(torrent),
-                    );
+                    const outcome = await copyToClipboard(buildMagnetLink(torrent));
                     if (outcome.status === "copied") {
                         return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
                     }
@@ -201,32 +158,24 @@ export const useTorrentTableContextActions = (
                         return closeWithOutcome(await executeTableAction("pause"));
                     case "resume":
                         return closeWithOutcome(await executeTableAction("resume"));
-                    case "recheck":
+                    case "resume-now":
                         return closeWithOutcome(
-                            await executeTableAction("recheck")
+                            await executeTableAction("resume-now"),
                         );
+                    case "recheck":
+                        return closeWithOutcome(await executeTableAction("recheck"));
                     case "remove":
                         return closeWithOutcome(await executeTableAction("remove"));
                     case "remove-with-data":
-                        return closeWithOutcome(
-                            await executeTableAction("remove-with-data")
-                        );
+                        return closeWithOutcome(await executeTableAction("remove-with-data"));
                     case "queue-move-top":
-                        return closeWithOutcome(
-                            await executeTableAction("queue-move-top")
-                        );
+                        return closeWithOutcome(await executeTableAction("queue-move-top"));
                     case "queue-move-bottom":
-                        return closeWithOutcome(
-                            await executeTableAction("queue-move-bottom")
-                        );
+                        return closeWithOutcome(await executeTableAction("queue-move-bottom"));
                     case "queue-move-up":
-                        return closeWithOutcome(
-                            await executeTableAction("queue-move-up")
-                        );
+                        return closeWithOutcome(await executeTableAction("queue-move-up"));
                     case "queue-move-down":
-                        return closeWithOutcome(
-                            await executeTableAction("queue-move-down")
-                        );
+                        return closeWithOutcome(await executeTableAction("queue-move-down"));
                     default:
                         return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                 }
@@ -243,14 +192,13 @@ export const useTorrentTableContextActions = (
             setContextMenu,
             canOpenFolder,
             handleOpenFolder,
-            dispatch,
+            handleDownloadMissing,
             executeTableAction,
-            handleSetLocation,
-        ]
+            handleDownloadPath,
+        ],
     );
 
     return { handleContextMenuAction };
 };
 
 export default useTorrentTableContextActions;
-

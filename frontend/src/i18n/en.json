@@ -76,6 +76,7 @@
         "unknown": "Unknown"
     },
     "labels": {
+        "download_progress": "Download progress",
         "on": "On",
         "off": "Off",
         "unknown": "Unknown",
@@ -653,7 +654,8 @@
             "recheck": "Force Recheck",
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
-            "resume": "Resume"
+            "resume": "Resume",
+            "start_now": "Start Now"
         },
         "column_desc_added": "When the torrent was added",
         "column_desc_eta": "Estimated completion time",
@@ -698,6 +700,7 @@
         "status_checking": "Checking",
         "status_error": "Error",
         "status_missing_files": "Missing files",
+        "status_relocating": "Relocating...",
         "status_queued": "Queued",
         "status_seed": "Seeding",
         "status_stalled": "Stalled"
@@ -934,11 +937,22 @@
         },
         "title": "Torrent Details",
         "trackers": {
+            "title": "Trackers",
+            "hostname": "Host",
+            "next_announce": "Next Announce",
+            "status": "Status",
+            "status_pending": "Pending",
             "empty": "No tracker history available.",
             "empty_backend": "Backend returned no trackers for this torrent.",
             "last_announce": "Last Announce",
             "peer_summary": "{{seeded}} seeded / {{leeching}} leeching",
             "peers_label": "Peers",
+            "toggle_add": "Add or replace trackers",
+            "add": "Edit tracker list",
+            "add_placeholder": "https://tracker.example.com/announce",
+            "add_action": "Add",
+            "replace_action": "Replace List",
+            "remove_action": "Remove tracker",
             "status_online": "Online",
             "status_partial": "Partial",
             "tier": "Tier",
@@ -1174,7 +1188,8 @@
             "browse_unavailable_full": "Folder browsing requires the TinyTorrent host shell (Full mode); use manual entry instead.",
             "browse_unavailable_rpc": "Folder browsing requires TinyTorrent ShellExtensions, which Transmission (RPC-only) mode does not provide.",
             "manual_disabled": "Manual location editing is disabled for this server.",
-            "inline_conflict": "Finish the current location edit before starting another change."
+            "inline_conflict": "Finish the current location edit before starting another change.",
+            "absolute_path_required": "Enter a valid absolute path to continue."
         },
         "caption": {
             "context_menu": "Set download path (context menu)",

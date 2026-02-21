@@ -9,6 +9,7 @@ import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentContro
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import type { TorrentOperationState } from "@/shared/status";
 
 export interface UseTorrentOrchestratorParams {
     client: EngineAdapter;
@@ -20,6 +21,9 @@ export interface UseTorrentOrchestratorParams {
     detailData: TorrentDetail | null;
     settingsConfig: SettingsConfig;
     clearDetail: () => void;
+    updateOperationOverlays: (
+        updates: Array<{ id: string; operation?: TorrentOperationState }>,
+    ) => void;
 }
 
 export interface UseTorrentOrchestratorResult {
@@ -37,6 +41,7 @@ export function useTorrentOrchestrator({
     detailData,
     settingsConfig,
     clearDetail,
+    updateOperationOverlays,
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
@@ -63,6 +68,7 @@ export function useTorrentOrchestrator({
             pendingDeletionHashesRef,
         },
         dispatch,
+        updateOperationOverlays,
     });
 
     return {

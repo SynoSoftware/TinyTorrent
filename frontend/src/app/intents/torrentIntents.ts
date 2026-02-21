@@ -9,6 +9,11 @@ export type EnsureTorrentActive = {
     torrentId: string | number;
 };
 
+export type EnsureTorrentActiveNow = {
+    type: "ENSURE_TORRENT_ACTIVE_NOW";
+    torrentId: string | number;
+};
+
 export type EnsureTorrentPaused = {
     type: "ENSURE_TORRENT_PAUSED";
     torrentId: string | number;
@@ -34,6 +39,7 @@ export type EnsureTorrentAtLocation = {
     type: "ENSURE_TORRENT_AT_LOCATION";
     torrentId: string | number;
     path: string;
+    moveData?: boolean;
     recreate?: boolean;
 };
 
@@ -48,8 +54,31 @@ export type EnsureTorrentAnnounced = {
     torrentId: string | number;
 };
 
+export type TorrentAddTracker = {
+    type: "TORRENT_ADD_TRACKER";
+    torrentIds: Array<string | number>;
+    trackers: string[];
+};
+
+export type TorrentRemoveTracker = {
+    type: "TORRENT_REMOVE_TRACKER";
+    torrentIds: Array<string | number>;
+    trackerIds: number[];
+};
+
+export type TorrentReplaceTrackers = {
+    type: "TORRENT_REPLACE_TRACKERS";
+    torrentIds: Array<string | number>;
+    trackers: string[];
+};
+
 export type EnsureSelectionActive = {
     type: "ENSURE_SELECTION_ACTIVE";
+    torrentIds: Array<string | number>;
+};
+
+export type EnsureSelectionActiveNow = {
+    type: "ENSURE_SELECTION_ACTIVE_NOW";
     torrentIds: Array<string | number>;
 };
 
@@ -123,6 +152,7 @@ export type FinalizeExistingTorrent = {
 
 export type TorrentIntent =
     | EnsureTorrentActive
+    | EnsureTorrentActiveNow
     | EnsureTorrentPaused
     | EnsureTorrentRemoved
     | EnsureTorrentValid
@@ -130,7 +160,11 @@ export type TorrentIntent =
     | EnsureTorrentAtLocation
     | EnsureTorrentDataPresent
     | EnsureTorrentAnnounced
+    | TorrentAddTracker
+    | TorrentRemoveTracker
+    | TorrentReplaceTrackers
     | EnsureSelectionActive
+    | EnsureSelectionActiveNow
     | EnsureSelectionRemoved
     | EnsureSelectionPaused
     | EnsureSelectionValid
@@ -158,6 +192,10 @@ export const TorrentIntents = {
         type: "ENSURE_TORRENT_ACTIVE",
         torrentId,
     }),
+    ensureActiveNow: (torrentId: string | number): EnsureTorrentActiveNow => ({
+        type: "ENSURE_TORRENT_ACTIVE_NOW",
+        torrentId,
+    }),
     ensurePaused: (torrentId: string | number): EnsureTorrentPaused => ({
         type: "ENSURE_TORRENT_PAUSED",
         torrentId,
@@ -183,12 +221,16 @@ export const TorrentIntents = {
     ensureAtLocation: (
         torrentId: string | number,
         path: string,
-        recreate?: boolean
+        options?: {
+            moveData?: boolean;
+            recreate?: boolean;
+        },
     ): EnsureTorrentAtLocation => ({
         type: "ENSURE_TORRENT_AT_LOCATION",
         torrentId,
         path,
-        recreate,
+        moveData: options?.moveData,
+        recreate: options?.recreate,
     }),
     ensureDataPresent: (
         torrentId: string | number,
@@ -202,10 +244,40 @@ export const TorrentIntents = {
         type: "ENSURE_TORRENT_ANNOUNCED",
         torrentId,
     }),
+    torrentAddTracker: (
+        torrentIds: Array<string | number>,
+        trackers: string[],
+    ): TorrentAddTracker => ({
+        type: "TORRENT_ADD_TRACKER",
+        torrentIds,
+        trackers,
+    }),
+    torrentRemoveTracker: (
+        torrentIds: Array<string | number>,
+        trackerIds: number[],
+    ): TorrentRemoveTracker => ({
+        type: "TORRENT_REMOVE_TRACKER",
+        torrentIds,
+        trackerIds,
+    }),
+    torrentReplaceTrackers: (
+        torrentIds: Array<string | number>,
+        trackers: string[],
+    ): TorrentReplaceTrackers => ({
+        type: "TORRENT_REPLACE_TRACKERS",
+        torrentIds,
+        trackers,
+    }),
     ensureSelectionActive: (
         torrentIds: Array<string | number>
     ): EnsureSelectionActive => ({
         type: "ENSURE_SELECTION_ACTIVE",
+        torrentIds,
+    }),
+    ensureSelectionActiveNow: (
+        torrentIds: Array<string | number>
+    ): EnsureSelectionActiveNow => ({
+        type: "ENSURE_SELECTION_ACTIVE_NOW",
         torrentIds,
     }),
     ensureSelectionRemoved: (

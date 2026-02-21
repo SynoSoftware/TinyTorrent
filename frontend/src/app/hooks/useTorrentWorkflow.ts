@@ -7,12 +7,12 @@ import {
     useActionFeedback,
     type FeedbackAction,
 } from "@/app/hooks/useActionFeedback";
-import { useOptimisticStatuses } from "@/app/hooks/useOptimisticStatuses";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { TorrentStatus } from "@/services/rpc/entities";
-import STATUS from "@/shared/status";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import { buildOptimisticStatusUpdatesForAction } from "@/app/domain/torrentActionPolicy";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { TorrentStatus } from "@/services/rpc/entities";
 
 // removed unused `FeedbackTone` import
 import { useSelection } from "@/app/context/AppShellStateContext";
@@ -24,6 +24,10 @@ export type RecheckRefreshOutcome =
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
+    optimisticStatuses: OptimisticStatusMap;
+    updateOptimisticStatuses: (
+        updates: Array<{ id: string; state?: TorrentStatus }>,
+    ) => void;
     executeTorrentAction: (
         action: TorrentTableAction,
         torrent: Torrent,
@@ -78,6 +82,8 @@ const isSuccessfulOutcome = (
 
 export function useTorrentWorkflow({
     torrents,
+    optimisticStatuses,
+    updateOptimisticStatuses,
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,
@@ -89,8 +95,6 @@ export function useTorrentWorkflow({
     const internal = useActionFeedback();
     const announceAction = injectedAnnounce ?? internal.announceAction;
     const showFeedback = internal.showFeedback;
-    const { optimisticStatuses, updateOptimisticStatuses } =
-        useOptimisticStatuses(torrents);
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null,
     );
@@ -183,41 +187,15 @@ export function useTorrentWorkflow({
         setPendingDelete(null);
     }, []);
 
-    const getOptimisticStateForAction = useCallback(
-        (
-            action: TorrentTableAction,
-            torrent: Torrent,
-        ): TorrentStatus | undefined => {
-            if (action === "pause") {
-                return STATUS.torrent.PAUSED;
-            }
-            if (action === "resume") {
-                return torrent.state === STATUS.torrent.SEEDING
-                    ? STATUS.torrent.SEEDING
-                    : STATUS.torrent.DOWNLOADING;
-            }
-            if (action === "recheck") {
-                return STATUS.torrent.CHECKING;
-            }
-            return undefined;
-        },
-        [],
-    );
-
     const runActionsWithOptimism = useCallback(
         async (
             action: TorrentTableAction,
             torrentsToUpdate: Torrent[],
         ): Promise<TorrentCommandOutcome> => {
-            const optimisticTargets = torrentsToUpdate
-                .map((torrent) => {
-                    const state = getOptimisticStateForAction(action, torrent);
-                    return state ? ({ id: torrent.id, state } as const) : null;
-                })
-                .filter(
-                    (update): update is { id: string; state: TorrentStatus } =>
-                        Boolean(update),
-                );
+            const optimisticTargets = buildOptimisticStatusUpdatesForAction(
+                action,
+                torrentsToUpdate,
+            );
             if (optimisticTargets.length) {
                 updateOptimisticStatuses(optimisticTargets);
             }
@@ -243,7 +221,6 @@ export function useTorrentWorkflow({
         },
         [
             executeTorrentAction,
-            getOptimisticStateForAction,
             showFeedback,
             executeSelectionAction,
             t,

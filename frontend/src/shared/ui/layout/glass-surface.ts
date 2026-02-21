@@ -1,16 +1,5 @@
-import {
-    HEADER_BASE,
-    INTERACTIVE_RECIPE,
-    SURFACE_BORDER,
-    TRANSITION,
-    VISUAL_STATE,
-} from "@/config/logic";
-import {
-    TEXT_ROLE,
-    TEXT_ROLE_EXTENDED,
-    withColor,
-    withOpacity,
-} from "@/config/textRoles";
+import { HEADER_BASE, INTERACTIVE_RECIPE, SURFACE_BORDER, TRANSITION, VISUAL_STATE } from "@/config/logic";
+import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
 const GLASS_SURFACE_DIAL = {
     opacity: {
         panel: "bg-content1/10",
@@ -43,7 +32,7 @@ const GLASS_SURFACE_DIAL = {
 } as const;
 
 const GLASS_PANE_SURFACE = `flex flex-col min-h-0 overflow-hidden ${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.elevation.panel} ${GLASS_SURFACE_DIAL.opacity.pane}`;
-const GLASS_MENU_SURFACE = `glass-panel surface-layer-2 text-foreground ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal}`;
+const GLASS_MENU_SURFACE = `glass-panel surface-layer-2 text-foreground outline-none ring-0 ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal}`;
 const GLASS_MENU_FRAME = `overflow-hidden ${GLASS_SURFACE_DIAL.border.strong} p-tight`;
 const GLASS_OVERLAY_SURFACE = `${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.opacity.overlay} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.overlay}`;
 
@@ -58,8 +47,8 @@ const GLASS_ROLE_CORE = {
         overlay: GLASS_OVERLAY_SURFACE,
     },
     chrome: {
-        edgeTop: "border-t border-default/20",
-        edgeBottom: "border-b border-default/20",
+        edgeTop: "border-t border-default/50",
+        edgeBottom: "border-b border-default/50",
         sticky: `sticky top-0 z-sticky bg-background/80 ${GLASS_SURFACE_DIAL.blur.soft}`,
         divider: "border-default/20",
     },
@@ -81,9 +70,19 @@ const GLASS_ROLE_CORE = {
 
 const MODAL_SURFACE_HEADER = GLASS_ROLE_CORE.chrome.edgeBottom;
 const MODAL_SURFACE_FOOTER = GLASS_ROLE_CORE.chrome.edgeTop;
-const MENU_SURFACE_LIST = "overflow-hidden";
-const MENU_ITEM_SURFACE = `rounded-panel px-panel py-tight text-scaled font-medium ${INTERACTIVE_RECIPE.menuItem} hover:text-foreground active:bg-content2/80`;
-const MENU_LIST_CLASSNAMES = { list: MENU_SURFACE_LIST } as const;
+const MENU_SURFACE_LIST = "overflow-hidden outline-none ring-0";
+export const MENU_ITEM_SURFACE =
+    "rounded-panel px-panel py-tight text-scaled font-medium cursor-pointer " +
+    "outline-none focus:outline-none focus-visible:outline-none " +
+    "ring-0 focus:ring-0 focus-visible:ring-0 " +
+    "transition-all duration-150 ease-out " +
+    "hover:bg-content2 hover:text-foreground hover:translate-y-[-1px] " +
+    "focus-visible:bg-content2 focus-visible:text-foreground " +
+    "active:bg-content3 active:translate-y-0";
+const MENU_LIST_CLASSNAMES = {
+    base: "outline-none ring-0",
+    list: MENU_SURFACE_LIST,
+} as const;
 const MENU_ITEM_CLASSNAMES = { base: MENU_ITEM_SURFACE } as const;
 const MENU_SECTION_HEADING = GLASS_ROLE_CORE.text.label;
 const MENU_PANEL_HEADER = `px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools`;
@@ -94,8 +93,7 @@ const MENU_ACTION_BUTTON = `${MENU_ACTION_BUTTON_BASE} ${INTERACTIVE_RECIPE.menu
 const MENU_ACTION_BUTTON_DANGER = `${MENU_ACTION_BUTTON_BASE} ${withColor(TEXT_ROLE.buttonText, "danger")} ${INTERACTIVE_RECIPE.menuItemDanger} border-t border-content1/10 mt-tight`;
 const STATUS_CHIP_PATTERN = {
     base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-    content:
-        "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
+    content: "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
     container: "min-w-0 w-full flex items-center justify-center h-full",
     contentWrap: "flex items-center justify-center gap-tools",
     warningIcon: "toolbar-icon-size-md text-warning",
@@ -106,8 +104,7 @@ const TABLE_HEADER_PATTERN = {
     compactCell: "px-panel py-tight",
     sectionDividerCell: "border-b border-default/10 px-tight py-panel",
     iconCell: "border-b border-default/10 py-panel pl-panel pr-tight",
-    statusCell:
-        "border-b border-default/10 py-panel pl-tight pr-panel text-right",
+    statusCell: "border-b border-default/10 py-panel pl-tight pr-panel text-right",
 } as const;
 const PANEL_SURFACE_INSET_FRAME = `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.soft} overflow-hidden`;
 const MODAL_BASE_CLASSNAMES = {
@@ -237,8 +234,7 @@ export const MODAL = {
     sidebar: `${SURFACE.surface.sidebarPanel} ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
-    sidebarHeader:
-        "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
+    sidebarHeader: "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
     headingFont: "tt-navbar-tab-font",
     iconMd: MODAL_ICON_MD,
     iconSm: MODAL_ICON_SM,
@@ -246,8 +242,7 @@ export const MODAL = {
     footerEnd: SURFACE.chromeEx.footerEnd,
     footerActionsPadded: SURFACE.chromeEx.footerActionsPadded,
     sidebarCloseButton: "sm:hidden text-foreground/50",
-    sidebarBody:
-        "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
+    sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
     tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel rounded-panel ${TRANSITION.medium} group relative`,
     tabButtonActive: "bg-primary/10 text-primary font-semibold",
     tabButtonInactive: `text-foreground/60 font-medium ${INTERACTIVE_RECIPE.navItem}`,
@@ -300,8 +295,7 @@ export const MODAL = {
     dialogPrimaryAction: "font-bold",
     contentWrapper: "h-full flex flex-col",
     layout: "flex flex-row flex-1 min-h-0 overflow-hidden relative",
-    mainPane:
-        "flex-1 min-h-0 flex flex-col bg-content1/10 blur-glass relative w-full",
+    mainPane: "flex-1 min-h-0 flex flex-col bg-content1/10 blur-glass relative w-full",
     workflow: {
         gateRoot: "flex flex-col h-full",
         header: MODAL_HEADER_ROW_BASE,
@@ -337,24 +331,18 @@ export const MODAL = {
         paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel ${TRANSITION.fast} group focus:outline-none relative`,
         paneHandleEnabled: "cursor-col-resize",
         paneHandleDisabled: "cursor-default pointer-events-none",
-        resizeHandleBarWrap:
-            "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
+        resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
         filePanel: `${SURFACE.atom.glassPanel} ${SURFACE.role.pane}`,
-        filePanelContent:
-            "flex flex-col flex-1 min-h-0 outline-none border-default",
-        filePanelToolbar:
-            "p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass",
-        fileTableShell:
-            "h-full w-full min-h-0 rounded-xl overflow-hidden shadow-inner",
+        filePanelContent: "flex flex-col flex-1 min-h-0 outline-none border-default",
+        filePanelToolbar: "p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass",
+        fileTableShell: "h-full w-full min-h-0 rounded-xl overflow-hidden shadow-inner",
         filesTitle: `${TEXT_ROLE.labelDense} flex-1 pl-tight select-none text-foreground/40`,
         smartSelectButton: `${SURFACE.atom.iconButton} min-w-badge px-tight`,
         dropdownDangerItem: "text-danger",
         footerAlerts: "flex flex-col gap-tools",
         footerAlert: "flex items-center gap-tools max-w-modal-compact p-tight",
-        footerInfoAlert:
-            "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
-        footerActionsStack:
-            "flex flex-col gap-tools sm:items-end sm:justify-end",
+        footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
+        footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
         footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
         footer: `${SURFACE.chromeEx.footerBorder} flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between`,
         inlineBlock: "inline-block",
@@ -366,15 +354,9 @@ export const MODAL = {
     } as const,
     builder: {
         paneHandleClass: (isSettingsCollapsed: boolean) =>
-            `${MODAL.workflow.paneHandle} ${
-                isSettingsCollapsed
-                    ? MODAL.workflow.paneHandleDisabled
-                    : MODAL.workflow.paneHandleEnabled
-            }`,
+            `${MODAL.workflow.paneHandle} ${isSettingsCollapsed ? MODAL.workflow.paneHandleDisabled : MODAL.workflow.paneHandleEnabled}`,
         bodyPanelsClass: (isFullscreen: boolean) =>
-            isFullscreen
-                ? "flex flex-col flex-1 min-h-settings h-full min-h-0"
-                : "flex flex-col flex-1 min-h-settings",
+            isFullscreen ? "flex flex-col flex-1 min-h-settings h-full min-h-0" : "flex flex-col flex-1 min-h-settings",
         settingsPanelClass: (isSettingsCollapsed: boolean) =>
             [
                 SURFACE.atom.glassPanel,
@@ -386,48 +368,25 @@ export const MODAL = {
                 .join(" "),
         settingsModalClassNames: (isFullMode: boolean) =>
             ({
-                base: isFullMode
-                    ? MODAL.settingsModalBaseFull
-                    : MODAL.settingsModalBaseRpc,
+                base: isFullMode ? MODAL.settingsModalBaseFull : MODAL.settingsModalBaseRpc,
                 wrapper: MODAL.settingsModalWrapper,
             }) as const,
-        addTorrentModalClassNames: (params: {
-            showDestinationGate: boolean;
-            isFullscreen: boolean;
-        }) =>
+        addTorrentModalClassNames: (params: { showDestinationGate: boolean; isFullscreen: boolean }) =>
             ({
                 ...MODAL.addTorrentModalChromeClassNames,
-                base: `${MODAL.addTorrentModalBase} ${
-                    !params.showDestinationGate && params.isFullscreen
-                        ? MODAL.addTorrentModalHeightFull
-                        : MODAL.addTorrentModalHeightDefault
-                }`,
+                base: `${MODAL.addTorrentModalBase} ${!params.showDestinationGate && params.isFullscreen ? MODAL.addTorrentModalHeightFull : MODAL.addTorrentModalHeightDefault}`,
             }) as const,
-        resizeHandleBarClass: (params: {
-            isSettingsCollapsed: boolean;
-            isPanelResizeActive: boolean;
-        }) =>
+        resizeHandleBarClass: (params: { isSettingsCollapsed: boolean; isPanelResizeActive: boolean }) =>
             params.isSettingsCollapsed
                 ? `h-full w-divider ${TRANSITION.fast} bg-transparent`
-                : `h-full w-divider ${TRANSITION.fast} ${
-                      params.isPanelResizeActive
-                          ? "bg-primary/55"
-                          : "bg-default/30 group-hover:bg-primary/45"
-                  }`,
+                : `h-full w-divider ${TRANSITION.fast} ${params.isPanelResizeActive ? "bg-primary/55" : "bg-default/30 group-hover:bg-primary/45"}`,
     } as const,
 } as const;
 const FORM_STATUS_TONE_CLASS = (statusKind: string) =>
-    statusKind === "danger"
-        ? "text-danger"
-        : statusKind === "warning"
-          ? "text-warning"
-          : "text-foreground/60";
+    statusKind === "danger" ? "text-danger" : statusKind === "warning" ? "text-warning" : "text-foreground/60";
 // Justification: settings input semantics depend on state (`disabled`, `mono`);
 // this builder prevents repeated inline classNames objects in renderers.
-const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: {
-    disabled: boolean;
-    mono: boolean;
-}) => ({
+const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: { disabled: boolean; mono: boolean }) => ({
     inputWrapper: params.disabled
         ? `h-button ${TRANSITION.fast} ${VISUAL_STATE.disabled}`
         : `h-button ${TRANSITION.fast} group-hover:border-primary/50`,
@@ -436,13 +395,26 @@ const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: {
         : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
     label: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
 });
+const SETTINGS_TRACKING_STYLE = {
+    wide: {
+        letterSpacing: "var(--tt-tracking-wide)",
+    },
+    ultra: {
+        letterSpacing: "var(--tt-tracking-ultra)",
+    },
+} as const;
+const SETTINGS_SLIDER_VALUE_BADGE_STYLE = {
+    minWidth: "var(--tt-badge-min-width)",
+} as const;
 export const FORM = {
     sectionMarginTop: "mt-panel",
     sectionContentOffsetStack: "space-y-stage mt-panel",
     sectionCard: `${SURFACE.surface.panelRaised} p-panel`,
     sectionCardEmphasized: `${SURFACE.surface.panelWorkflow} p-panel`,
     sectionTitle: `${TEXT_ROLE.heading} text-foreground/40 mb-panel leading-tight`,
+    sectionTitleTrackingStyle: SETTINGS_TRACKING_STYLE.ultra,
     sectionDescription: `${TEXT_ROLE.body} mb-panel`,
+    sectionDescriptionTrackingStyle: SETTINGS_TRACKING_STYLE.wide,
     sectionContentStack: "space-y-stage",
     bodyStackPanel: "space-y-panel py-panel",
     stackTools: "flex flex-col gap-tools",
@@ -461,8 +433,9 @@ export const FORM = {
     switchRow: "flex justify-between items-center h-control-row",
     switchLabel: `${withOpacity(TEXT_ROLE.body, 80)} font-medium`,
     switchSliderLabel: `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
-    sliderValueBadge:
-        "font-medium bg-content2 px-tight py-tight rounded-md text-center",
+    trackingWideStyle: SETTINGS_TRACKING_STYLE.wide,
+    sliderValueBadge: "font-medium bg-content2 px-tight py-tight rounded-md text-center",
+    sliderValueBadgeStyle: SETTINGS_SLIDER_VALUE_BADGE_STYLE,
     sliderValueText: withOpacity(TEXT_ROLE.code, 80),
     slider: "opacity-90",
     inputGroup: "group flex flex-col gap-tight",
@@ -499,14 +472,13 @@ export const FORM = {
     sliderClassNames: { thumb: "shadow-small" } as const,
     rawConfigTextarea:
         "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-primary/40 focus:outline-none",
-    locationEditorRoot: `${SURFACE.surface.panelRaised} p-panel space-y-stage`,
-    locationEditorCaption: withOpacity(TEXT_ROLE.headingSection, 70),
-    locationEditorError: withColor(TEXT_ROLE.caption, "danger"),
+    locationEditorRoot: `${SURFACE.surface.panelInfo} p-panel space-y-stage`,
+    locationEditorCaption: withOpacity(SURFACE.text.headingSection, 70),
+    locationEditorError: withColor(SURFACE.text.caption, "danger"),
     locationEditorRow: "flex items-stretch gap-tools",
     locationEditorIconWrap: SURFACE.atom.insetRoundedFull,
     locationEditorIcon: "toolbar-icon-size-md text-foreground",
     locationEditorField: "flex-1 space-y-tight",
-    locationEditorActions: "flex flex-wrap items-center gap-tools",
     workflow: {
         settingsToggleButton: `mr-tight text-foreground/35 ${INTERACTIVE_RECIPE.textMutedReveal}`,
         root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
@@ -580,31 +552,17 @@ const TORRENT_HEADER = {
     resizeHandle: TORRENT_HEADER_RESIZE_HANDLE_CLASS,
     resizeBarStyle: TORRENT_HEADER_RESIZE_BAR_STYLE,
     builder: {
-        cellClass: (params: {
-            canSort: boolean;
-            isOverlay: boolean;
-            isDragging: boolean;
-        }) =>
+        cellClass: (params: { canSort: boolean; isOverlay: boolean; isDragging: boolean }) =>
             [
                 TORRENT_HEADER_CELL_BASE_CLASS,
-                params.canSort
-                    ? "cursor-pointer hover:bg-content1/10"
-                    : "cursor-default",
-                params.isOverlay
-                    ? "bg-content1/90 cursor-grabbing"
-                    : "bg-transparent",
+                params.canSort ? "cursor-pointer hover:bg-content1/10" : "cursor-default",
+                params.isOverlay ? "bg-content1/90 cursor-grabbing" : "bg-transparent",
                 params.isOverlay ? SURFACE.atom.shadowPanel : "",
-                params.isDragging && !params.isOverlay
-                    ? "opacity-30"
-                    : "opacity-100",
+                params.isDragging && !params.isOverlay ? "opacity-30" : "opacity-100",
             ]
                 .filter(Boolean)
                 .join(" "),
-        activatorClass: (params: {
-            isOverlay: boolean;
-            align: "start" | "center" | "end";
-            isSelection: boolean;
-        }) =>
+        activatorClass: (params: { isOverlay: boolean; align: "start" | "center" | "end"; isSelection: boolean }) =>
             [
                 TORRENT_HEADER_ACTIVATOR_BASE_CLASS,
                 params.isOverlay ? "text-foreground" : "",
@@ -629,9 +587,7 @@ const TORRENT_HEADER = {
 const TABLE_DETAILS_CONTENT_SCROLL_STYLE = (maxHeight: number) => ({
     maxHeight,
 });
-const TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS = (
-    isBusyWithOtherTorrent: boolean,
-) =>
+const TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS = (isBusyWithOtherTorrent: boolean) =>
     isBusyWithOtherTorrent
         ? `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer opacity-90 hover:opacity-90`
         : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
@@ -642,14 +598,12 @@ export const TABLE = {
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     columnHeader: TORRENT_HEADER,
-    hostRoot:
-        "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
+    hostRoot: "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
     hostBorderRadiusStyle: {
         borderRadius: "inherit",
     } as const,
     header: `flex w-full ${SURFACE.chrome.edgeBottom} ${SURFACE.chrome.sticky}`,
-    bodyScroll:
-        "relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar",
+    bodyScroll: "relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar",
     bodyScrollStyle: {
         scrollbarGutter: "stable",
     } as const,
@@ -657,14 +611,12 @@ export const TABLE = {
     noResults: `h-full flex items-center justify-center px-stage ${TEXT_ROLE.labelDense}`,
     dragOverlay: `pointer-events-none ${SURFACE.role.overlay} px-panel box-border`,
     dragOverlayContent: "flex h-full w-full items-center",
-    marquee:
-        "pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20",
+    marquee: "pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20",
     loadingRoot: "w-full",
     loadingRow: "flex items-center w-full border-b border-content1/5 px-panel",
     loadingSkeletonWrap: "w-full h-indicator",
     loadingSkeleton: "h-full w-full rounded-md bg-content1/10",
-    emptyRoot:
-        "h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60",
+    emptyRoot: "h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60",
     emptyHintRow: `flex items-center gap-tools ${TEXT_ROLE.label}`,
     emptyHintTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
@@ -676,22 +628,19 @@ export const TABLE = {
     emptyIcon: "text-primary",
     emptyPreview: "w-full max-w-3xl space-y-tight",
     emptyBar: "h-indicator w-full rounded-full bg-content1/20",
-    emptyPreviewRow:
-        "grid grid-cols-torrent gap-tools rounded-2xl bg-content1/10 px-panel py-panel",
+    emptyPreviewRow: "grid grid-cols-torrent gap-tools rounded-2xl bg-content1/10 px-panel py-panel",
     columnHeaderLabel: `flex items-center gap-tight ${TEXT_ROLE.labelDense}`,
     columnHeaderLabelTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
-    columnHeaderPulseIcon:
-        "text-foreground/50 animate-pulse toolbar-icon-size-md",
+    columnHeaderPulseIcon: "text-foreground/50 animate-pulse toolbar-icon-size-md",
     columnSettingsRow: "flex justify-between p-tight",
     columnDefs: {
         nameCell: "flex min-w-0 items-center h-full",
         nameLabel: `font-medium truncate max-w-full ${TRANSITION.fast} cap-height-text`,
         nameLabelPaused: "text-foreground/50",
         progressCell: "flex flex-col gap-tight w-full min-w-0 py-tight",
-        progressMetricsRow:
-            "flex justify-between items-end font-medium opacity-80",
+        progressMetricsRow: "flex justify-between items-end font-medium opacity-80",
         progressSecondary: "text-foreground/40",
         progressBar: "h-indicator",
         progressTrack: SURFACE.atom.progressTrack,
@@ -701,8 +650,7 @@ export const TABLE = {
         numericMuted: "text-foreground/60 min-w-0",
         numericSoft: "text-foreground/70 min-w-0",
         numericDim: "text-foreground/50 min-w-0",
-        peersRow:
-            "flex items-center justify-end gap-tight text-foreground/60 min-w-0",
+        peersRow: "flex items-center justify-end gap-tight text-foreground/60 min-w-0",
         peersIcon: "opacity-50 text-current",
         peersDivider: "opacity-30",
         peersSeedCount: "opacity-50",
@@ -710,8 +658,7 @@ export const TABLE = {
     speedCell: {
         root: "relative w-full h-full min-w-0 min-h-0",
         sparkline: "absolute inset-0 w-full h-full overflow-visible opacity-50",
-        valueRow:
-            "relative z-panel flex items-center h-full pointer-events-none",
+        valueRow: "relative z-panel flex items-center h-full pointer-events-none",
         valueText:
             "font-medium drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]",
     } as const,
@@ -725,8 +672,7 @@ export const TABLE = {
     detailsContentHeaderTitle: withOpacity(TEXT_ROLE.headingSection, 60),
     detailsContentSectionHeader: `border-b border-default/10 px-panel py-panel ${TEXT_ROLE.labelPrimary}`,
     detailsContentListHost: "flex-1 min-h-0 overflow-hidden",
-    detailsContentListScroll:
-        "h-full min-h-0 overflow-y-auto px-panel py-panel",
+    detailsContentListScroll: "h-full min-h-0 overflow-y-auto px-panel py-panel",
     builder: {
         detailsContentScrollStyle: TABLE_DETAILS_CONTENT_SCROLL_STYLE,
         missingFilesStatusTriggerClass: TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS,
@@ -760,8 +706,7 @@ export const DIAGNOSTIC = {
     statePill: "surface-layer-1 rounded-pill px-tight py-tight",
     statePillValue: "font-semibold text-foreground",
     smokeCard: "surface-layer-2 rounded-panel p-panel flex flex-col gap-stage",
-    smokeRows:
-        "surface-layer-1 rounded-panel p-tight flex flex-col divide-y divide-default/10",
+    smokeRows: "surface-layer-1 rounded-panel p-tight flex flex-col divide-y divide-default/10",
     smokeRow: "py-tight flex flex-wrap items-center justify-between gap-tools",
     verifyCard: "surface-layer-2 rounded-panel p-panel flex flex-col gap-stage",
     verifyTableWrap: "surface-layer-1 rounded-panel overflow-hidden",
@@ -774,8 +719,7 @@ export const DIAGNOSTIC = {
     verifyLabelWrap: "flex flex-col gap-tight",
     systemCard: "surface-layer-2 rounded-panel p-panel flex flex-col gap-stage",
     systemRows: "flex flex-col gap-tools",
-    systemRowCard:
-        "surface-layer-1 rounded-panel p-tight border-l border-default/20 pl-panel flex flex-col gap-tools",
+    systemRowCard: "surface-layer-1 rounded-panel p-tight border-l border-default/20 pl-panel flex flex-col gap-tools",
     systemRowHead: "flex flex-wrap items-center justify-between gap-tools",
     systemStatusRow: "flex flex-wrap items-center gap-stage",
     systemStatusPair: "flex items-center gap-tight",
@@ -789,8 +733,7 @@ export const DIAGNOSTIC = {
     footerSummary: "truncate flex-1 min-w-0",
     footerSummaryMuted: "text-foreground/50",
     footerRight: "flex items-center gap-tools",
-    footerExpected:
-        "whitespace-pre-wrap leading-relaxed border-t border-default/10 pt-tight mt-tight",
+    footerExpected: "whitespace-pre-wrap leading-relaxed border-t border-default/10 pt-tight mt-tight",
     footerExpectedTone: "text-foreground/80",
 } as const;
 const WORKBENCH_NAV = {
@@ -811,16 +754,14 @@ const WORKBENCH_NAV = {
         height: "var(--tt-brand-icon-size)",
     } as const,
     brandTextWrap: "hidden xl:flex flex-col justify-center ml-tight",
-    brandName:
-        "font-bold tracking-tight text-foreground text-base leading-none text-navbar",
+    brandName: "font-bold tracking-tight text-foreground text-base leading-none text-navbar",
     brandVersion: `${TEXT_ROLE.codeMuted} text-xs font-medium leading-none mt-0.5 text-default-400`,
-    primarySeparator:
-        "hidden min-[600px]:flex h-sep w-px bg-default-200/50 mx-tight",
-    tabsWrap: "hidden min-[1200px]:flex text-navbar min-w-0",
+    primarySeparator: "hidden sm:flex h-sep w-px bg-default-200/50 mx-tight",
+    tabsWrap: "hidden xl:flex text-navbar min-w-0",
     tabTitle: "flex items-center gap-tight",
-    tabLabel: "hidden min-[1600px]:inline",
+    tabLabel: "hidden 2xl:inline",
     tabIcon: "text-default-400",
-    searchWrap: "hidden min-[1400px]:flex",
+    searchWrap: "hidden 2xl:flex",
     searchStyle: {
         width: "var(--tt-search-width)",
         fontSize: "var(--tt-fz-navbar)",
@@ -833,20 +774,18 @@ const WORKBENCH_NAV = {
     selectionSeparatorStyle: {
         height: "calc(var(--tt-navbar-h) / 2)",
     } as const,
-    selectionExtraActions: "hidden min-[600px]:flex gap-tools",
+    selectionExtraActions: "hidden sm:flex gap-tools",
     selectionPauseEmphasis: "ring-1 ring-warning/30 shadow-sm",
     selectionRecheckEmphasis: "ring-1 ring-default/20 shadow-sm",
     ghostAction: `text-default-400 ${INTERACTIVE_RECIPE.buttonGhost}`,
     ghostActionOverflow: "overflow-visible",
-    themeMobileWrap: "flex max-[799px]:flex min-[800px]:hidden",
+    themeMobileWrap: "flex md:hidden",
     rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
     rehashTooltipWrap: "relative group cursor-help",
     rehashTrack: "h-track bg-transparent",
-    rehashIndicator:
-        "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
+    rehashIndicator: "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
     rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${INTERACTIVE_RECIPE.groupReveal}`,
-    windowControls:
-        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
+    windowControls: "hidden md:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
     windowControlsStyle: {
         paddingLeft: 0,
         paddingRight: 0,
@@ -895,8 +834,7 @@ const WORKBENCH_STATUS = {
     speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
     speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${TRANSITION.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
     speedModuleGraphCanvas: "absolute inset-0 h-full w-full",
-    speedModuleOverlay:
-        "absolute inset-0 flex items-center justify-start px-panel pointer-events-none",
+    speedModuleOverlay: "absolute inset-0 flex items-center justify-start px-panel pointer-events-none",
     speedModuleOverlayRow: "flex items-center gap-tools text-foreground",
     speedModuleIconWrap: `flex items-center justify-center rounded-modal ${TRANSITION.fast} toolbar-icon-size-xl`,
     speedModuleTextWrap: "flex flex-col gap-tight text-left",
@@ -904,22 +842,19 @@ const WORKBENCH_STATUS = {
     speedModuleValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
     speedSeparator: "w-px bg-content1/10",
     engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${TRANSITION.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
-    engineConnectedWrap:
-        "absolute inset-0 flex items-start justify-end p-tight",
+    engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
     footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_SURFACE_FAMILY.shell}`,
     main: "flex items-center justify-between gap-stage",
-    speedFull:
-        "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
+    speedFull: "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
     speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
     speedCompactGraphWrap: "relative flex-1 h-full min-h-0",
     speedCompactLayer: "absolute inset-0",
     speedCompactUpLayer: "absolute inset-0 z-panel",
     speedCompactDownGraph: "h-full w-full",
     speedCompactUpGraph: "h-full w-full opacity-60 mix-blend-screen",
-    speedCompactOverlay:
-        "relative z-overlay flex items-center justify-center h-full pointer-events-none",
+    speedCompactOverlay: "relative z-overlay flex items-center justify-center h-full pointer-events-none",
     speedCompactOverlayRow: "flex items-center gap-tight text-center",
     speedCompactColumn: "flex flex-col items-center",
     speedCompactDownIcon: "toolbar-icon-size-md text-success",
@@ -944,28 +879,23 @@ export const WORKBENCH = {
     sectionGapClassic: "gap-tools",
     immersiveBackgroundRoot: "pointer-events-none absolute inset-0 z-floor",
     immersiveBackgroundBase: "absolute inset-0 bg-background/95",
-    immersiveBackgroundPrimaryBlend:
-        "absolute inset-0 mix-blend-screen opacity-50 bg-primary/20",
-    immersiveBackgroundSecondaryBlend:
-        "absolute inset-0 mix-blend-screen opacity-40 bg-content1/15",
+    immersiveBackgroundPrimaryBlend: "absolute inset-0 mix-blend-screen opacity-50 bg-primary/20",
+    immersiveBackgroundSecondaryBlend: "absolute inset-0 mix-blend-screen opacity-40 bg-content1/15",
     immersiveBackgroundNoise: "absolute inset-0 bg-noise opacity-20",
     immersiveBackgroundAccentBottom:
         "absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40",
     immersiveBackgroundAccentTop:
         "absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35",
     immersiveNavbarWrap: "acrylic border shadow-hud",
-    immersiveMainWrap:
-        "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
-    immersiveMain:
-        "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
+    immersiveMainWrap: "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
+    immersiveMain: "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
     immersiveHudSection: "tt-shell-no-drag grid gap-panel",
     immersiveHudCard:
         "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-panel shadow-hud",
     immersiveHudDismissButton:
         "absolute rounded-pill bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground",
     immersiveHudCardContent: "flex items-start gap-workbench",
-    immersiveHudIconWrap:
-        "flex size-icon-btn-lg items-center justify-center rounded-panel",
+    immersiveHudIconWrap: "flex size-icon-btn-lg items-center justify-center rounded-panel",
     immersiveHudTextWrap: "flex-1",
     immersiveHudTextLabel: `mt-tight ${TEXT_ROLE.bodyStrong}`,
     immersiveHudTextDescription: `mt-panel ${TEXT_ROLE.caption}`,
@@ -977,8 +907,7 @@ export const WORKBENCH = {
 } as const;
 export const SPLIT = {
     emptyText: `${TEXT_ROLE.bodyStrong} text-foreground/30`,
-    emptyPanel:
-        "flex h-full items-center justify-center border-default/10 text-center",
+    emptyPanel: "flex h-full items-center justify-center border-default/10 text-center",
     panelGroup: "flex-1 min-h-0",
     panel: "min-h-0",
     root: "flex flex-col h-full min-h-0 overflow-hidden gap-tools",
@@ -1000,13 +929,11 @@ export const SPLIT = {
     mapFrame: `relative z-panel flex-1 min-h-0 ${SURFACE.surface.panelRaised} p-panel overflow-hidden`,
     mapFrameInner: "relative h-full w-full",
     mapCanvasLayer: "absolute inset-0 block h-full w-full rounded-2xl",
-    mapCanvasOverlayLayer:
-        "absolute inset-0 block h-full w-full rounded-2xl pointer-events-none",
+    mapCanvasOverlayLayer: "absolute inset-0 block h-full w-full rounded-2xl pointer-events-none",
     mapTooltip: `pointer-events-none absolute z-panel max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight shadow-large backdrop-blur-xl ${TEXT_ROLE.body} text-foreground/90`,
     mapTooltipPrimaryLine: "block whitespace-normal font-semibold",
     mapTooltipSecondaryLine: "block whitespace-normal text-foreground/70",
-    mapHintWrap:
-        "absolute inset-0 flex items-end justify-end p-tight pointer-events-none",
+    mapHintWrap: "absolute inset-0 flex items-end justify-end p-tight pointer-events-none",
     mapHintChip: `${TEXT_ROLE.codeCaption} text-foreground/60 bg-content1/40 backdrop-blur-xl border border-content1/25 rounded-full px-panel py-tight`,
     mapLegendRow: "mt-tight flex items-center gap-panel",
     mapLegendItem: "flex items-center gap-tight",
@@ -1023,8 +950,7 @@ export const SPLIT = {
     headerEndpointCol: "flex-1",
     headerClientCol: "w-col-client",
     headerSpeedCol: "w-col-speed text-right",
-    listScroll:
-        "flex-1 min-h-0 overflow-y-auto relative outline-none select-none",
+    listScroll: "flex-1 min-h-0 overflow-y-auto relative outline-none select-none",
     flagsCol: `w-col-id ${TEXT_ROLE.codeMuted}`,
     flagsWrap: "flex gap-tight",
     flagToken: `cursor-help hover:text-primary ${TRANSITION.fast}`,
@@ -1035,8 +961,7 @@ export const SPLIT = {
     downRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "success")}`,
     upRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "primary")}`,
     peerMapRoot: `flex flex-col flex-1 ${SURFACE.surface.panelMuted} p-panel gap-tools overflow-hidden relative`,
-    peerMapHud:
-        "flex items-center justify-between z-sticky pointer-events-none",
+    peerMapHud: "flex items-center justify-between z-sticky pointer-events-none",
     peerMapHudMeta: "flex flex-col",
     peerMapHudStats: "flex items-center gap-tools",
     peerMapNodeCount: `${TEXT_ROLE.codeMuted} text-foreground/40`,
@@ -1056,17 +981,11 @@ export const SPLIT = {
     peerMapNodeGlow: "drop-shadow-primary-small",
     builder: {
         addressClass: (isHostile: boolean) =>
-            isHostile
-                ? `${TEXT_ROLE.code} truncate text-danger`
-                : `${TEXT_ROLE.code} truncate text-foreground/90`,
+            isHostile ? `${TEXT_ROLE.code} truncate text-danger` : `${TEXT_ROLE.code} truncate text-foreground/90`,
         peerActivityClass: (isInstrument: boolean) =>
-            isInstrument
-                ? `${TRANSITION.reveal} opacity-100 text-primary`
-                : `${TRANSITION.reveal} opacity-0`,
+            isInstrument ? `${TRANSITION.reveal} opacity-100 text-primary` : `${TRANSITION.reveal} opacity-0`,
         peerNodeClass: (isUTP: boolean) =>
-            isUTP
-                ? `${TRANSITION.medium} drop-shadow-primary-small`
-                : TRANSITION.medium,
+            isUTP ? `${TRANSITION.medium} drop-shadow-primary-small` : TRANSITION.medium,
         rowClass: (params: { hovered: boolean; hostile: boolean }) =>
             params.hostile
                 ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-danger/5`
@@ -1089,16 +1008,14 @@ export const SPLIT = {
                 touchAction: "none",
                 pointerEvents: "auto",
             }) as const,
-        legendSwatchStyle: (params: {
-            background: string;
-            border?: string;
-            opacity?: number;
-        }) =>
+        legendSwatchStyle: (params: { background: string; borderColor?: string; opacity?: number }) =>
             ({
                 width: 14,
                 height: 14,
                 background: params.background,
-                border: params.border,
+                borderWidth: params.borderColor ? "var(--tt-divider-width)" : 0,
+                borderStyle: params.borderColor ? "solid" : "none",
+                borderColor: params.borderColor,
                 opacity: params.opacity,
                 display: "inline-block",
             }) as const,
@@ -1144,15 +1061,11 @@ const METRIC_CHART_WINDOW_BUTTON_CLASS = (active: boolean) =>
     active
         ? "rounded-pill px-tight min-w-0 font-medium bg-foreground text-background shadow-small"
         : "rounded-pill px-tight min-w-0 font-medium text-foreground/60";
-const METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS = (
-    isInsufficient: boolean,
-) =>
+const METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS = (isInsufficient: boolean) =>
     isInsufficient
         ? `${METRIC_CHART.capacityGauge.container} border-danger/40 bg-danger/5`
         : `${METRIC_CHART.capacityGauge.container} ${SURFACE_BORDER}`;
-const METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS = (
-    isInsufficient: boolean,
-) =>
+const METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS = (isInsufficient: boolean) =>
     isInsufficient
         ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
         : "h-full rounded-full bg-gradient-to-r from-success/50 to-success";
@@ -1216,17 +1129,14 @@ export const DASHBOARD = {
     root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${TRANSITION.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
     contentClassicSurface: "bg-background/40",
-    dropOverlay:
-        "pointer-events-none absolute inset-0 flex items-center justify-center z-popover",
+    dropOverlay: "pointer-events-none absolute inset-0 flex items-center justify-center z-popover",
     dropOverlayAccent: "absolute inset-2 border border-primary/60",
     dropOverlayIconWrap: "relative z-panel",
     dropOverlayIconTone: "text-primary",
-    panelGroup:
-        "flex-1 min-h-0 h-full w-full relative overflow-hidden rounded-2xl",
+    panelGroup: "flex-1 min-h-0 h-full w-full relative overflow-hidden rounded-2xl",
     mainPanel: "relative flex-1 min-h-0 shadow-medium",
     tableHost: "relative z-panel h-full min-h-0 overflow-hidden",
-    tableWatermark:
-        "torrent-table-watermark absolute inset-0 z-0 pointer-events-none",
+    tableWatermark: "torrent-table-watermark absolute inset-0 z-0 pointer-events-none",
     tableContent: "relative z-panel h-full min-h-0",
     resizeHandleInner: "absolute inset-0 flex items-center justify-center",
     resizeHandleBar: `${TRANSITION.fast} bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50`,
@@ -1234,8 +1144,7 @@ export const DASHBOARD = {
     section: "flex-1 min-h-0 h-full",
     fullscreenOverlay: "fixed inset-0 z-dnd",
     fullscreenSection: "relative h-full flex items-center justify-center",
-    fullscreenBackdrop:
-        "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
+    fullscreenBackdrop: "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
     fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${SURFACE_BORDER} shadow-medium`,
     builder: {
         resizeHandleClass: DASHBOARD_RESIZE_HANDLE_CLASS,
@@ -1265,10 +1174,8 @@ const DETAILS_TABLE = {
     tableBody: TEXT_ROLE.code,
     tableRow: "group hover:bg-primary/5",
     cellIcon: "border-b border-default/5 py-panel pl-panel pr-tight",
-    cellHost:
-        "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",
-    cellAnnounce:
-        "border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums",
+    cellHost: "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",
+    cellAnnounce: "border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums",
     cellPeers: "border-b border-default/5 px-tight py-panel text-foreground/70",
     cellStatus: `border-b border-default/5 py-panel pl-tight pr-panel text-right ${TEXT_ROLE.labelPrimary}`,
     statusTone: {
@@ -1278,14 +1185,11 @@ const DETAILS_TABLE = {
     } as const,
     announceRow: "flex items-center gap-tight",
     peerRow: "flex items-center gap-tools",
-    overlay:
-        "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
-    overlayHeader:
-        "flex items-center justify-between border-b border-default/10 px-panel py-panel",
+    overlay: "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
+    overlayHeader: "flex items-center justify-between border-b border-default/10 px-panel py-panel",
     overlayTitle: withColor(TEXT_ROLE.labelPrimary, "primary"),
     overlayBody: "flex-1 p-panel",
-    overlayFooter:
-        "flex justify-end gap-tools border-t border-default/10 p-panel",
+    overlayFooter: "flex justify-end gap-tools border-t border-default/10 p-panel",
     inputClassNames: {
         input: "font-mono",
         inputWrapper: "bg-background/40",
@@ -1337,14 +1241,11 @@ export const DETAILS = {
     generalControlsDescription: withOpacity(TEXT_ROLE.body, 50),
     generalButtonIcon: "mr-2",
     generalVerificationTrack: "h-3 bg-transparent",
-    generalVerificationIndicator:
-        "h-3 bg-gradient-to-r from-primary to-success",
+    generalVerificationIndicator: "h-3 bg-gradient-to-r from-primary to-success",
     table: DETAILS_TABLE,
     builder: {
         headerClass: (isStandalone: boolean) =>
-            isStandalone
-                ? DETAILS.headerRoot
-                : `${DETAILS.headerRoot} ${DETAILS.headerRootEmbedded}`,
+            isStandalone ? DETAILS.headerRoot : `${DETAILS.headerRoot} ${DETAILS.headerRootEmbedded}`,
         headerTabButtonClass: (isActive: boolean) =>
             isActive
                 ? `${DETAILS.headerTabBase} ${DETAILS.headerTabActive}`
@@ -1361,8 +1262,7 @@ export const COMMAND_PALETTE = {
     list: "max-h-command-palette overflow-y-auto px-panel py-panel",
     groupWrap: "pb-panel",
     item: "glass-panel mt-tight flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-panel px-panel text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none",
-    itemRow:
-        "flex items-center justify-between text-sm font-semibold text-foreground",
+    itemRow: "flex items-center justify-between text-sm font-semibold text-foreground",
     shortcutWrap: `flex gap-tools ${TEXT_ROLE.codeCaption} text-foreground/50`,
     shortcutKey: "rounded-full border border-foreground/30 px-tight py-tight",
     description: `${TEXT_ROLE.bodySmall} text-foreground/70`,
@@ -1394,8 +1294,7 @@ export const INPUT = {
         inputWrapper: `surface-layer-1 ${TRANSITION.fast} shadow-none group-hover:border-default/10`,
     } as const,
     monoEmphasized: {
-        inputWrapper:
-            "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
+        inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
         content: "",
         input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
     } as const,
@@ -1404,10 +1303,8 @@ export const INPUT = {
     } as const,
 } as const;
 export const FILE_BROWSER = {
-    container:
-        "flex flex-col h-full rounded-medium border border-default-200/50 shadow-small",
-    toolbar:
-        "flex flex-wrap items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30",
+    container: "flex flex-col h-full rounded-medium border border-default-200/50 shadow-small",
+    toolbar: "flex flex-wrap items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30",
     searchInputClassNames: {
         base: "min-w-0",
         inputWrapper: "h-button text-scaled",
@@ -1419,8 +1316,7 @@ export const FILE_BROWSER = {
     expandButton: "h-button toolbar-icon-hit",
     selectionActionsLabel: `${TEXT_ROLE.bodySmall} text-default-500 font-medium hidden sm:inline-block`,
     priorityButton: `h-button ${TEXT_ROLE.body}`,
-    headerRow:
-        "grid grid-cols-file-tree items-center px-panel py-tight border-b border-default-200/50 z-sticky",
+    headerRow: "grid grid-cols-file-tree items-center px-panel py-tight border-b border-default-200/50 z-sticky",
     headerCheckboxWrap: "flex items-center justify-center",
     headerPriority: "text-center",
     headerProgress: "text-center",
@@ -1428,8 +1324,7 @@ export const FILE_BROWSER = {
     scroll: "flex-1 overflow-auto min-h-0 relative scrollbar-hide",
     virtualCanvas: "relative w-full",
     virtualRow: "absolute top-0 left-0 w-full",
-    emptyOverlay:
-        "flex flex-col items-center justify-center h-full text-default-400 gap-tools absolute inset-0",
+    emptyOverlay: "flex flex-col items-center justify-center h-full text-default-400 gap-tools absolute inset-0",
     emptyIcon: "toolbar-icon-size-lg opacity-20",
     emptyText: `${TEXT_ROLE.body} opacity-50`,
     progressClassNames: {
@@ -1439,8 +1334,7 @@ export const FILE_BROWSER = {
     row: `grid grid-cols-file-tree items-center h-row px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 ${TRANSITION.fast}`,
     rowDimmed: "opacity-60 grayscale-[0.5]",
     rowCheckboxWrap: "flex items-center justify-center",
-    rowNameCell:
-        "flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent",
+    rowNameCell: "flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent",
     rowIndentSpacer: "w-file-tree-indent-spacer",
     rowIconWrap: "mr-tight text-default-500 shrink-0",
     rowFolderIcon: "toolbar-icon-size-sm fill-default-400/20",
@@ -1493,8 +1387,6 @@ export const HEATMAP = {
     } as const,
     builder: {
         canvasFrameClass: (isZooming: boolean) =>
-            isZooming
-                ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}`
-                : HEATMAP_CANVAS_FRAME_CLASS,
+            isZooming ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}` : HEATMAP_CANVAS_FRAME_CLASS,
     } as const,
 } as const;

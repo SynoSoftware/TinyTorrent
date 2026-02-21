@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useSession } from "@/app/context/SessionContext";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import { STATUS } from "@/shared/status";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
@@ -35,21 +36,27 @@ export function useTorrentDetail({
 }: UseTorrentDetailParams): UseTorrentDetailResult {
     const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
     const { reportReadError, rpcStatus } = useSession();
+    const {
+        preferences: { inspectorTab },
+    } = usePreferences();
     const sessionReady = rpcStatus === STATUS.connection.CONNECTED;
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
     const activeDetailIdRef = useRef<string | null>(null);
     const detailTimestampRef = useRef(0);
     const detailIdentityRef = useRef<{ id: string; hash: string } | null>(null);
     const detailRequestRef = useRef(0);
+    const detailProfile = inspectorTab === "pieces" ? "pieces" : "standard";
+    const includeTrackerStats = inspectorTab === "trackers";
 
     const commitDetailState = useCallback(
         (detail: TorrentDetail | null, timestamp = Date.now()) => {
             if (!isMountedRef.current) return;
             setDetailData(detail);
             detailTimestampRef.current = detail ? timestamp : 0;
-            detailIdentityRef.current = detail
-                ? { id: detail.id, hash: detail.hash }
-                : null;
+            detailIdentityRef.current =
+                detail && typeof detail.hash === "string" && detail.hash.length > 0
+                    ? { id: detail.id, hash: detail.hash }
+                    : null;
         },
         [isMountedRef],
     );
@@ -77,7 +84,7 @@ export function useTorrentDetail({
 
     const refreshDetailData = useCallback(async () => {
         if (!detailData) return;
-        await loadDetail(detailData.id);
+        await loadDetail(detailData.id, detailData);
     }, [detailData, loadDetail]);
 
     const mutateDetail = useCallback(
@@ -111,12 +118,20 @@ export function useTorrentDetail({
         const subscription = heartbeatDomain.subscribeNonTable({
             mode: "detail",
             detailId: detailData.id,
+            detailProfile,
+            includeTrackerStats,
             onUpdate: ({ detail, timestampMs }) => {
                 if (!isMountedRef.current) return;
                 if (!detail) return;
                 if (activeDetailIdRef.current !== detail.id) return;
                 const identity = detailIdentityRef.current;
-                if (identity && identity.hash !== detail.hash) return;
+                if (
+                    identity &&
+                    identity.hash &&
+                    identity.hash !== detail.hash
+                ) {
+                    return;
+                }
                 const heartbeatTimestamp = timestampMs ?? Date.now();
                 if (heartbeatTimestamp < detailTimestampRef.current) return;
                 commitDetailState(detail, heartbeatTimestamp);
@@ -132,6 +147,8 @@ export function useTorrentDetail({
     }, [
         sessionReady,
         detailData?.id,
+        detailProfile,
+        includeTrackerStats,
         heartbeatDomain,
         reportReadError,
         commitDetailState,

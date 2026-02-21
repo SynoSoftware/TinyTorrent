@@ -5,7 +5,7 @@ import {
     usePiecesMapViewModel,
     type PiecesMapProps,
     type PiecesMapViewModel,
-} from "@/modules/dashboard/hooks/usePiecesMapViewModel";
+} from "@/modules/dashboard/hooks";
 
 const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
     const { t } = useTranslation();
@@ -135,7 +135,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                         className={SPLIT.mapLegendSwatch}
                         style={SPLIT.builder.legendSwatchStyle({
                             background: palette.warning,
-                            border: `1px solid ${palette.primary}`,
+                            borderColor: palette.primary,
                         })}
                     />
                     <span className={TEXT_ROLE.bodyMuted}>
@@ -148,7 +148,7 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                         className={SPLIT.mapLegendSwatch}
                         style={SPLIT.builder.legendSwatchStyle({
                             background: palette.foreground,
-                            border: `1px solid ${palette.danger}`,
+                            borderColor: palette.danger,
                             opacity: 0.2,
                         })}
                     />

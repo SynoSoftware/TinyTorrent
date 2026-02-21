@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import {
-    useRecoveryContext,
-    type SetLocationConfirmOutcome,
-} from "@/app/context/RecoveryContext";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
@@ -13,8 +10,6 @@ import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
-import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
-import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
@@ -24,14 +19,6 @@ type UseTorrentDetailsGeneralViewModelParams = {
 };
 
 export type UseTorrentDetailsGeneralViewModelResult = {
-    showLocationEditor: boolean;
-    generalIsBusy: boolean;
-    generalIsVerifying: boolean;
-    generalCaption: string;
-    generalStatusMessage?: string;
-    setLocationEditorState: ReturnType<
-        typeof useRecoveryContext
-    >["setLocationState"];
     showMissingFilesError: boolean;
     probeLines: string[];
     classificationLabel: string | null;
@@ -46,42 +33,20 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     closeRemoveModal: () => void;
     onConfirmRemove: (deleteData: boolean) => Promise<TorrentCommandOutcome>;
     onToggleStartStop: () => void;
+    onStartNow: () => void;
     onSetLocation: () => void;
     onDownloadMissing: () => void;
     onOpenFolder: () => void;
-    onLocationChange: (value: string) => void;
-    onLocationSubmit: () => Promise<SetLocationConfirmOutcome>;
-    onLocationCancel: () => void;
 };
 
-export function useTorrentDetailsGeneralViewModel({
-    torrent,
-    downloadDir,
-    isRecoveryBlocked,
-    t,
-}: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
-    const {
-        handleSetLocation,
-        handleDownloadMissing,
-        setLocationState: setLocationEditorState,
-        cancelSetLocation: cancelSetLocationEditor,
-        releaseSetLocation: releaseSetLocationEditor,
-        confirmSetLocation,
-        handleLocationChange: handleSetLocationInputChange,
-        setLocationCapability,
-        canOpenFolder,
-        handleOpenFolder,
-    } = useRecoveryContext();
+export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isRecoveryBlocked, t }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
+    const { handleSetLocation: openDownloadPath, handleDownloadMissing, setLocationCapability: downloadPathCapability, canOpenFolder, handleOpenFolder } = useRecoveryContext();
     const { handleTorrentAction } = useTorrentCommands();
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
 
-    const currentTorrentKey = getRecoveryFingerprint(torrent);
     const probe = useMissingFilesProbe(torrent.id);
-    const probeLines = useMemo(
-        () => formatMissingFileDetails(t, probe),
-        [probe, t],
-    );
+    const probeLines = useMemo(() => formatMissingFileDetails(t, probe), [probe, t]);
 
     const classification = useResolvedRecoveryClassification(torrent);
     const classificationLabel = useMemo(() => {
@@ -92,17 +57,11 @@ export function useTorrentDetailsGeneralViewModel({
         switch (classification.kind) {
             case "pathLoss":
                 return t("recovery.status.folder_not_found", {
-                    path:
-                        classification.path ??
-                        downloadDir ??
-                        t("labels.unknown"),
+                    path: classification.path ?? downloadDir ?? t("labels.unknown"),
                 });
             case "volumeLoss":
                 return t("recovery.status.drive_disconnected", {
-                    drive:
-                        classification.root ??
-                        extractDriveLabel(classification.path ?? downloadDir) ??
-                        t("labels.unknown"),
+                    drive: classification.root ?? extractDriveLabel(classification.path ?? downloadDir) ?? t("labels.unknown"),
                 });
             case "accessDenied":
                 return t("recovery.status.access_denied");
@@ -111,48 +70,15 @@ export function useTorrentDetailsGeneralViewModel({
         }
     }, [classification, downloadDir, t]);
 
-    const effectiveState =
-        torrent.errorEnvelope?.recoveryState &&
-        torrent.errorEnvelope.recoveryState !== "ok"
-            ? torrent.errorEnvelope.recoveryState
-            : torrent.state;
-    const showMissingFilesError =
-        effectiveState === STATUS.torrent.MISSING_FILES;
+    const effectiveState = torrent.errorEnvelope?.recoveryState && torrent.errorEnvelope.recoveryState !== "ok" ? torrent.errorEnvelope.recoveryState : torrent.state;
+    const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
 
-    const currentPath =
-        downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
+    const canSetLocation = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
 
-    const setLocationEditorTorrentKey =
-        setLocationEditorState?.torrentKey ?? "";
-    const showLocationEditor =
-        setLocationEditorState?.surface === "general-tab" &&
-        setLocationEditorTorrentKey.length > 0 &&
-        setLocationEditorTorrentKey === currentTorrentKey;
-    const generalIsVerifying = setLocationEditorState?.status === "verifying";
-    const generalIsBusy = setLocationEditorState?.status !== "idle";
-    const generalCaption = t(getSurfaceCaptionKey("general-tab"));
-    const generalStatusMessage = generalIsVerifying
-        ? t("recovery.status.applying_location")
-        : classification?.confidence === "unknown"
-          ? t("recovery.inline_fallback")
-          : undefined;
+    const recoveryBlockedMessage = isRecoveryBlocked ? t("recovery.status.blocked") : null;
 
-    const recoveryBlockedMessage = isRecoveryBlocked
-        ? t("recovery.status.blocked")
-        : null;
-
-    useEffect(
-        () => () => {
-            releaseSetLocationEditor();
-        },
-        [releaseSetLocationEditor],
-    );
-
-    const isActive =
-        torrent.state === STATUS.torrent.DOWNLOADING ||
-        torrent.state === STATUS.torrent.SEEDING;
+    const isActive = torrent.state === STATUS.torrent.DOWNLOADING || torrent.state === STATUS.torrent.SEEDING;
     const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");
 
     const onToggleStartStop = useCallback(() => {
@@ -160,12 +86,15 @@ export function useTorrentDetailsGeneralViewModel({
         void handleTorrentAction(action, torrent);
     }, [handleTorrentAction, isActive, torrent]);
 
+    const onStartNow = useCallback(() => {
+        void handleTorrentAction("resume-now", torrent);
+    }, [handleTorrentAction, torrent]);
+
     const onSetLocation = useCallback(() => {
-        void handleSetLocation(torrent, {
+        void openDownloadPath(torrent, {
             surface: "general-tab",
-            mode: "manual",
         });
-    }, [handleSetLocation, torrent]);
+    }, [openDownloadPath, torrent]);
 
     const onDownloadMissing = useCallback(() => {
         void handleDownloadMissing(torrent);
@@ -177,11 +106,7 @@ export function useTorrentDetailsGeneralViewModel({
             if (isOpenFolderSuccess(outcome)) {
                 return;
             }
-            if (
-                outcome.status === "unsupported" ||
-                outcome.status === "missing_path" ||
-                outcome.status === "failed"
-            ) {
+            if (outcome.status === "unsupported" || outcome.status === "missing_path" || outcome.status === "failed") {
                 return;
             }
         });
@@ -208,12 +133,6 @@ export function useTorrentDetailsGeneralViewModel({
     }, []);
 
     return {
-        showLocationEditor,
-        generalIsBusy,
-        generalIsVerifying,
-        generalCaption,
-        generalStatusMessage,
-        setLocationEditorState,
         showMissingFilesError,
         probeLines,
         classificationLabel,
@@ -228,12 +147,9 @@ export function useTorrentDetailsGeneralViewModel({
         closeRemoveModal,
         onConfirmRemove,
         onToggleStartStop,
+        onStartNow,
         onSetLocation,
         onDownloadMissing,
         onOpenFolder,
-        onLocationChange: handleSetLocationInputChange,
-        onLocationSubmit: confirmSetLocation,
-        onLocationCancel: cancelSetLocationEditor,
     };
 }
-

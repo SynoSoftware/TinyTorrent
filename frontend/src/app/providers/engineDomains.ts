@@ -4,6 +4,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { EngineInfo, SessionStats } from "@/services/rpc/entities";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import type {
+    HeartbeatDetailProfile,
     HeartbeatErrorEvent,
     HeartbeatMode,
     HeartbeatPayload,
@@ -19,6 +20,8 @@ type TableSubscriptionParams = {
 type NonTableSubscriptionParams = {
     mode: Exclude<HeartbeatMode, "table">;
     detailId?: string | null;
+    detailProfile?: HeartbeatDetailProfile;
+    includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError: (event: HeartbeatErrorEvent) => void;
@@ -158,6 +161,8 @@ export function useEngineHeartbeatDomain(
             subscribeNonTable: ({
                 mode,
                 detailId,
+                detailProfile,
+                includeTrackerStats,
                 pollingIntervalMs,
                 onUpdate,
                 onError,
@@ -165,6 +170,8 @@ export function useEngineHeartbeatDomain(
                 client.subscribeToHeartbeat({
                     mode,
                     detailId: detailId ?? null,
+                    detailProfile,
+                    includeTrackerStats,
                     pollingIntervalMs,
                     onUpdate,
                     onError,

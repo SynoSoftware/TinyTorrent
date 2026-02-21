@@ -1,17 +1,8 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
-import {
-    Dropdown,
-    DropdownTrigger,
-    DropdownMenu,
-    DropdownItem,
-    cn,
-} from "@heroui/react";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
-import {
-    SURFACE,
-    CONTEXT_MENU,
-} from "@/shared/ui/layout/glass-surface";
+import { SURFACE, CONTEXT_MENU } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
     ContextMenuKey,
@@ -21,13 +12,10 @@ import type {
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { SetLocationEditor } from "@/modules/dashboard/components/SetLocationEditor";
-import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { useTranslation } from "react-i18next";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import type { RecoveryAction } from "@/services/rpc/entities";
 import type { RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
 
@@ -46,9 +34,7 @@ const RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION = {
     retry: "forceRecheck",
 } satisfies Record<RecoveryRecommendedAction, RecoveryAction>;
 
-const mapRecommendedActionToEmphasis = (
-    action?: RecoveryRecommendedAction,
-): RecoveryAction | undefined =>
+const mapRecommendedActionToEmphasis = (action?: RecoveryRecommendedAction): RecoveryAction | undefined =>
     action ? RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION[action] : undefined;
 
 interface RowMenuViewModel {
@@ -57,28 +43,14 @@ interface RowMenuViewModel {
     dataTitle: string;
     showOpenFolder: boolean;
     openFolderDisabled: boolean;
-    locationEditor: {
-        visible: boolean;
-        caption: string;
-        statusMessage?: string;
-        isBusy: boolean;
-    };
 }
 
 export interface TorrentTableRowMenuProps {
     viewModel: TorrentTableRowMenuViewModel;
 }
 
-export default function TorrentTable_RowMenu({
-    viewModel,
-}: TorrentTableRowMenuProps) {
-    const {
-        contextMenu,
-        onClose,
-        handleContextMenuAction,
-        queueMenuActions,
-        getContextMenuShortcut,
-    } = viewModel;
+export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuProps) {
+    const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
     return (
         <AnimatePresence>
             {contextMenu ? (
@@ -110,52 +82,15 @@ function TorrentTable_RowMenuInner({
     const { t } = useTranslation();
     const { clipboardWriteSupported } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
-    const {
-        setLocationState: setLocationEditorState,
-        releaseSetLocation: releaseSetLocationEditor,
-        confirmSetLocation,
-        handleLocationChange: handleSetLocationInputChange,
-        setLocationCapability,
-        canOpenFolder,
-    } = useRecoveryContext();
+    const { setLocationCapability: downloadPathCapability, canOpenFolder } = useRecoveryContext();
 
     const contextTorrent = contextMenu.torrent;
     const shouldShowOpenFolder = Boolean(canOpenFolder);
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    const canSetDownloadPath = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
     const classification = useResolvedRecoveryClassification(contextTorrent);
     const primaryEmphasisAction =
-        mapRecommendedActionToEmphasis(
-            classification?.recommendedActions?.[0],
-        ) ?? contextMenu.torrent.errorEnvelope?.primaryAction;
-    const showUnknownConfidence = classification?.confidence === "unknown";
-    const locationEditorStateKey = setLocationEditorState?.torrentKey ?? "";
-    const currentKey = getRecoveryFingerprint(contextTorrent);
-    const showLocationEditor = Boolean(
-        setLocationEditorState?.surface === "context-menu" &&
-        locationEditorStateKey &&
-        locationEditorStateKey === currentKey,
-    );
-    const locationEditorVerifying =
-        setLocationEditorState?.status === "verifying";
-    const locationEditorStatusMessage = locationEditorVerifying
-        ? t("recovery.status.applying_location")
-        : showUnknownConfidence
-          ? t("recovery.inline_fallback")
-          : undefined;
-    const locationEditorCaption = t(getSurfaceCaptionKey("context-menu"));
-    const locationEditorBusy =
-        setLocationEditorState?.status !== "idle" || locationEditorVerifying;
-
-    // If this menu unmounts (e.g. parent clears `contextMenu`) while a location edit is open,
-    // ensure we release the editor session so it doesn't leak across reopens.
-    useEffect(() => {
-        return () => {
-            if (setLocationEditorState?.surface === "context-menu") {
-                releaseSetLocationEditor();
-            }
-        };
-    }, [setLocationEditorState?.surface, releaseSetLocationEditor]);
+        mapRecommendedActionToEmphasis(classification?.recommendedActions?.[0]) ??
+        contextMenu.torrent.errorEnvelope?.primaryAction;
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
@@ -170,6 +105,10 @@ function TorrentTable_RowMenuInner({
                 shortcut: getContextMenuShortcut("resume"),
             },
             {
+                key: "resume-now",
+                label: t("table.actions.start_now"),
+            },
+            {
                 key: "recheck",
                 label: t("table.actions.recheck"),
                 shortcut: getContextMenuShortcut("recheck"),
@@ -181,54 +120,18 @@ function TorrentTable_RowMenuInner({
             queueActions: queueMenuActions,
             dataTitle: t("table.data.title"),
             showOpenFolder: shouldShowOpenFolder,
-            openFolderDisabled: !(
-                contextTorrent.savePath || contextTorrent.downloadDir
-            ),
-            locationEditor: {
-                visible: showLocationEditor,
-                caption: locationEditorCaption,
-                statusMessage: locationEditorStatusMessage,
-                isBusy: locationEditorBusy,
-            },
+            openFolderDisabled: !(contextTorrent.savePath || contextTorrent.downloadDir),
         };
-    }, [
-        t,
-        queueMenuActions,
-        getContextMenuShortcut,
-        shouldShowOpenFolder,
-        contextTorrent,
-        locationEditorCaption,
-        locationEditorStatusMessage,
-        locationEditorBusy,
-        showLocationEditor,
-    ]);
+    }, [t, queueMenuActions, getContextMenuShortcut, shouldShowOpenFolder, contextTorrent]);
 
-    const handleLocationSubmit = useCallback(() => {
-        void confirmSetLocation().then((outcome) => {
-            if (
-                outcome.status === "submitted" ||
-                outcome.status === "verifying"
-            ) {
-                onClose();
-            }
-        });
-    }, [confirmSetLocation, onClose]);
-    const handleLocationCancel = useCallback(() => {
-        releaseSetLocationEditor();
-        onClose();
-    }, [onClose, releaseSetLocationEditor]);
     const handleMenuClose = () => {
-        releaseSetLocationEditor();
         onClose();
     };
     const handleMenuActionPress = useCallback(
         async (key?: string) => {
             const outcome = await handleContextMenuAction(key);
             if (outcome.status === "unsupported") {
-                showFeedback(
-                    t("torrent_modal.controls.not_supported"),
-                    "warning",
-                );
+                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
             } else if (outcome.status === "failed") {
                 showFeedback(t("toolbar.feedback.failed"), "danger");
             }
@@ -236,9 +139,9 @@ function TorrentTable_RowMenuInner({
         [handleContextMenuAction, showFeedback, t],
     );
     const handleSetDownloadPath = useCallback(() => {
-        if (!canSetLocation) return;
+        if (!canSetDownloadPath) return;
         void handleMenuActionPress("set-download-path");
-    }, [canSetLocation, handleMenuActionPress]);
+    }, [canSetDownloadPath, handleMenuActionPress]);
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
@@ -260,10 +163,7 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="queue-heading"
                 isDisabled
-                className={cn(
-                    CONTEXT_MENU.sectionHeading,
-                    SURFACE.menu.sectionHeading,
-                )}
+                className={cn(CONTEXT_MENU.sectionHeading, SURFACE.menu.sectionHeading)}
             >
                 {rowMenuViewModel.dataTitle}
             </DropdownItem>,
@@ -286,10 +186,7 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="data-title"
                 isDisabled
-                className={cn(
-                    CONTEXT_MENU.sectionHeadingStrong,
-                    SURFACE.menu.sectionHeading,
-                )}
+                className={cn(CONTEXT_MENU.sectionHeadingStrong, SURFACE.menu.sectionHeading)}
                 style={CONTEXT_MENU.sectionHeadingTrackingStyle}
             >
                 {t("table.data.title")}
@@ -302,9 +199,7 @@ function TorrentTable_RowMenuInner({
                     key="open-folder"
                     isDisabled={rowMenuViewModel.openFolderDisabled}
                     className={cn(
-                        primaryEmphasisAction === "openFolder"
-                            ? getEmphasisClassForAction(primaryEmphasisAction)
-                            : "",
+                        primaryEmphasisAction === "openFolder" ? getEmphasisClassForAction(primaryEmphasisAction) : "",
                     )}
                     onPress={() => void handleMenuActionPress("open-folder")}
                 >
@@ -317,11 +212,9 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="set-download-path"
                 className={cn(
-                    primaryEmphasisAction === "setLocation"
-                        ? getEmphasisClassForAction(primaryEmphasisAction)
-                        : "",
+                    primaryEmphasisAction === "setLocation" ? getEmphasisClassForAction(primaryEmphasisAction) : "",
                 )}
-                isDisabled={!canSetLocation}
+                isDisabled={!canSetDownloadPath}
                 onPress={handleSetDownloadPath}
                 textValue={t("table.actions.set_download_path")}
             >
@@ -373,47 +266,14 @@ function TorrentTable_RowMenuInner({
             </DropdownItem>,
         );
 
-        if (rowMenuViewModel.locationEditor.visible && setLocationEditorState) {
-            items.push(
-                <DropdownItem
-                    key="set-location-editor"
-                    className={CONTEXT_MENU.editorItem}
-                    role="presentation"
-                    textValue={t("table.actions.set_download_path")}
-                >
-                    <div className={CONTEXT_MENU.editorWrap}>
-                        <SetLocationEditor
-                            value={setLocationEditorState.inputPath}
-                            error={setLocationEditorState.error}
-                            isBusy={rowMenuViewModel.locationEditor.isBusy}
-                            caption={rowMenuViewModel.locationEditor.caption}
-                            statusMessage={
-                                rowMenuViewModel.locationEditor.statusMessage
-                            }
-                            disableCancel={
-                                rowMenuViewModel.locationEditor.isBusy
-                            }
-                            onChange={handleSetLocationInputChange}
-                            onSubmit={handleLocationSubmit}
-                            onCancel={handleLocationCancel}
-                        />
-                    </div>
-                </DropdownItem>,
-            );
-        }
-
         return items as CollectionChildren<object>;
     }, [
         rowMenuViewModel,
         primaryEmphasisAction,
-        canSetLocation,
+        canSetDownloadPath,
         clipboardWriteSupported,
-        setLocationEditorState,
         getContextMenuShortcut,
         handleMenuActionPress,
-        handleLocationCancel,
-        handleSetLocationInputChange,
-        handleLocationSubmit,
         handleSetDownloadPath,
         t,
     ]);
@@ -428,6 +288,7 @@ function TorrentTable_RowMenuInner({
             shouldBlockScroll={false}
             shouldFlip
             closeOnSelect={false}
+            disableAnimation
         >
             <DropdownTrigger>
                 <div

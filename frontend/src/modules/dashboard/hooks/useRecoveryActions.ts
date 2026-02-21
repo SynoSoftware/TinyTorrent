@@ -3,54 +3,26 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import type { RecoveryRequestCompletionOutcome } from "@/app/context/RecoveryContext";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import type {
-    RecoverySequenceOptions,
-    MissingFilesClassification,
-    RecoveryOutcome,
-} from "@/services/recovery/recovery-controller";
+import type { RecoverySequenceOptions, MissingFilesClassification, RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { RecoveryGateCallback } from "@/app/types/recoveryGate";
-import type {
-    ResumeRecoveryCommandOutcome,
-    RetryRecoveryCommandOutcome,
-} from "@/modules/dashboard/hooks/useRecoveryController.types";
+import type { ResumeRecoveryCommandOutcome, RetryRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
 import type { UseRecoveryStateResult } from "@/modules/dashboard/hooks/useRecoveryState";
 import { scheduler } from "@/app/services/scheduler";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { STATUS } from "@/shared/status";
+import { STATUS, type TorrentOperationState } from "@/shared/status";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import {
-    classifyMissingFilesState,
-    clearVerifyGuardEntry,
-    probeMissingFiles,
-    recoverMissingFiles,
-} from "@/services/recovery/recovery-controller";
-import {
-    clearProbe as clearCachedProbe,
-    getProbe as getCachedProbe,
-    setProbe as setCachedProbe,
-    setClassificationOverride,
-} from "@/services/recovery/missingFilesStore";
+import { classifyMissingFilesState, clearVerifyGuardEntry, probeMissingFiles, recoverMissingFiles } from "@/services/recovery/recovery-controller";
+import { clearProbe as clearCachedProbe, getProbe as getCachedProbe, setProbe as setCachedProbe, setClassificationOverride } from "@/services/recovery/missingFilesStore";
 import { derivePathReason, getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import { infraLogger } from "@/shared/utils/infraLogger";
-import {
-    BACKGROUND_REFRESH_INTERVAL_MS,
-    RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS,
-    RECOVERY_POLL_INTERVAL_MS,
-    RECOVERY_RETRY_COOLDOWN_MS,
-} from "@/config/logic";
-import {
-    clearClassificationOverrideIfPresent,
-    delay,
-    isRecoveryActiveState,
-} from "@/modules/dashboard/hooks/useRecoveryController.shared";
-import {
-    isActionableRecoveryErrorClass,
-    shouldUseRecoveryGateForResume,
-} from "@/services/recovery/errorClassificationGuards";
+import { BACKGROUND_REFRESH_INTERVAL_MS, RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS, RECOVERY_POLL_INTERVAL_MS, RECOVERY_RETRY_COOLDOWN_MS } from "@/config/logic";
+import { clearClassificationOverrideIfPresent, delay, isRecoveryActiveState } from "@/modules/dashboard/hooks/useRecoveryController.shared";
+import { isActionableRecoveryErrorClass, shouldUseRecoveryGateForResume } from "@/services/recovery/errorClassificationGuards";
 
 const PROBE_TTL_MS = BACKGROUND_REFRESH_INTERVAL_MS;
 
@@ -58,13 +30,14 @@ interface UseRecoveryActionsParams {
     client: EngineAdapter;
     torrents: Array<Torrent | TorrentDetail>;
     detailData: TorrentDetail | null;
-    dispatch: (
-        intent: TorrentIntentExtended,
-    ) => Promise<TorrentDispatchOutcome>;
+    dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
     refreshTorrents: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     recoveryState: UseRecoveryStateResult;
+    updateOperationOverlays: (
+        updates: Array<{ id: string; operation?: TorrentOperationState }>,
+    ) => void;
 }
 
 export function useRecoveryActions({
@@ -76,10 +49,12 @@ export function useRecoveryActions({
     refreshSessionStatsData,
     refreshDetailData,
     recoveryState,
+    updateOperationOverlays,
 }: UseRecoveryActionsParams) {
     const { t } = useTranslation();
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
+    const relocateOverlayClearRef = useRef<Map<string, () => void>>(new Map());
 
     const {
         recoverySession,
@@ -97,11 +72,7 @@ export function useRecoveryActions({
     } = recoveryState;
 
     const runMissingFilesFlow = useCallback(
-        async (
-            torrent: Torrent | TorrentDetail,
-            options?: RecoverySequenceOptions,
-            signal?: AbortSignal,
-        ) => {
+        async (torrent: Torrent | TorrentDetail, options?: RecoverySequenceOptions, signal?: AbortSignal) => {
             const activeClient = client;
             const envelope = torrent.errorEnvelope;
             if (!activeClient || !envelope) return null;
@@ -111,40 +82,26 @@ export function useRecoveryActions({
                 return null;
             }
 
-            const classification = classifyMissingFilesState(
-                envelope,
-                torrent.savePath ?? torrent.downloadDir ?? "",
-                {
-                    torrentId: torrent.id ?? torrent.hash,
-                    engineCapabilities,
-                },
-            );
+            const classification = classifyMissingFilesState(envelope, torrent.savePath ?? torrent.downloadDir ?? "", {
+                torrentId: torrent.id ?? torrent.hash,
+                engineCapabilities,
+            });
             const classificationKey = torrent.id ?? torrent.hash;
             if (classificationKey) {
                 setClassificationOverride(classificationKey, classification);
             }
 
             try {
-                const missingBytes =
-                    typeof torrent.leftUntilDone === "number"
-                        ? torrent.leftUntilDone
-                        : null;
+                const missingBytes = typeof torrent.leftUntilDone === "number" ? torrent.leftUntilDone : null;
                 const id = torrent.id ?? torrent.hash;
                 const cachedProbe = id ? getCachedProbe(id) : undefined;
-                const isLocalExecution =
-                    engineCapabilities.executionModel === "local";
-                const isLocalEmpty =
-                    isLocalExecution &&
-                    cachedProbe?.kind === "data_missing" &&
-                    cachedProbe.expectedBytes > 0 &&
-                    cachedProbe.onDiskBytes === 0;
+                const isLocalExecution = engineCapabilities.executionModel === "local";
+                const isLocalEmpty = isLocalExecution && cachedProbe?.kind === "data_missing" && cachedProbe.expectedBytes > 0 && cachedProbe.onDiskBytes === 0;
                 const sequenceOptions: RecoverySequenceOptions = {
                     ...options,
                     missingBytes,
-                    skipVerifyIfEmpty:
-                        options?.skipVerifyIfEmpty ?? isLocalEmpty,
-                    autoCreateMissingFolder:
-                        options?.autoCreateMissingFolder ?? isLocalExecution,
+                    skipVerifyIfEmpty: options?.skipVerifyIfEmpty ?? isLocalEmpty,
+                    autoCreateMissingFolder: options?.autoCreateMissingFolder ?? isLocalExecution,
                 };
                 if (signal) {
                     sequenceOptions.signal = signal;
@@ -152,12 +109,7 @@ export function useRecoveryActions({
 
                 // Local-only: if the torrent path disappeared, try to recreate it silently
                 // so downloads don't "stumble" on transient folder loss.
-                if (
-                    isLocalExecution &&
-                    shellAgent.isAvailable &&
-                    classification.kind === "pathLoss" &&
-                    sequenceOptions.autoCreateMissingFolder
-                ) {
+                if (isLocalExecution && shellAgent.isAvailable && classification.kind === "pathLoss" && sequenceOptions.autoCreateMissingFolder) {
                     const downloadDir = resolveTorrentPath(torrent);
                     if (downloadDir) {
                         try {
@@ -167,8 +119,7 @@ export function useRecoveryActions({
                                 {
                                     scope: "recovery_controller",
                                     event: "auto_create_folder_failed",
-                                    message:
-                                        "Failed to auto-create missing folder before recovery flow",
+                                    message: "Failed to auto-create missing folder before recovery flow",
                                     details: {
                                         downloadDir,
                                         torrentId: torrent.id ?? torrent.hash,
@@ -176,6 +127,11 @@ export function useRecoveryActions({
                                 },
                                 err,
                             );
+                            // Creation failed — clear the flag so that
+                            // ensurePathReady reports "path_check_failed"
+                            // instead of the misleading
+                            // "directory_creation_not_supported".
+                            sequenceOptions.autoCreateMissingFolder = false;
                         }
                     }
                 }
@@ -206,15 +162,31 @@ export function useRecoveryActions({
         [client, engineCapabilities],
     );
 
+    const scheduleRelocateOverlayClear = useCallback(
+        (id: string, delayMs: number) => {
+            const pendingCancel = relocateOverlayClearRef.current.get(id);
+            pendingCancel?.();
+            const cancel = scheduler.scheduleTimeout(() => {
+                updateOperationOverlays([{ id }]);
+                relocateOverlayClearRef.current.delete(id);
+            }, Math.max(0, delayMs));
+            relocateOverlayClearRef.current.set(id, cancel);
+        },
+        [updateOperationOverlays],
+    );
+
+    useEffect(() => {
+        return () => {
+            relocateOverlayClearRef.current.forEach((cancel) => cancel());
+            relocateOverlayClearRef.current.clear();
+        };
+    }, []);
+
     const probeMissingFilesIfStale = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
             const activeClient = client;
             if (!activeClient) return;
-            if (
-                !isActionableRecoveryErrorClass(
-                    torrent.errorEnvelope?.errorClass,
-                )
-            ) {
+            if (!isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass)) {
                 return;
             }
             const id = torrent.id ?? torrent.hash;
@@ -226,11 +198,7 @@ export function useRecoveryActions({
             }
 
             try {
-                const probe = await probeMissingFiles(
-                    torrent,
-                    activeClient,
-                    engineCapabilities,
-                );
+                const probe = await probeMissingFiles(torrent, activeClient, engineCapabilities);
                 setCachedProbe(id, probe);
             } catch (err) {
                 infraLogger.error(
@@ -249,20 +217,13 @@ export function useRecoveryActions({
 
     useEffect(() => {
         const runProbe = () => {
-            const errored = torrentsRef.current.filter((torrent) =>
-                isActionableRecoveryErrorClass(
-                    torrent.errorEnvelope?.errorClass,
-                ),
-            );
+            const errored = torrentsRef.current.filter((torrent) => isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass));
             errored.forEach((torrent) => {
                 void probeMissingFilesIfStale(torrent);
             });
         };
         runProbe();
-        const probeTask = scheduler.scheduleRecurringTask(
-            runProbe,
-            RECOVERY_POLL_INTERVAL_MS,
-        );
+        const probeTask = scheduler.scheduleRecurringTask(runProbe, RECOVERY_POLL_INTERVAL_MS);
         return () => probeTask.cancel();
     }, [probeMissingFilesIfStale, torrentsRef]);
     const requestRecovery: RecoveryGateCallback = useCallback(
@@ -281,24 +242,15 @@ export function useRecoveryActions({
             }
 
             const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
-            const fallbackClassification = classifyMissingFilesState(
-                envelope,
-                downloadDir,
-                {
-                    torrentId: torrent.id ?? torrent.hash,
-                    engineCapabilities,
-                },
-            );
-            let flowClassification: MissingFilesClassification =
-                fallbackClassification;
+            const fallbackClassification = classifyMissingFilesState(envelope, downloadDir, {
+                torrentId: torrent.id ?? torrent.hash,
+                engineCapabilities,
+            });
+            let flowClassification: MissingFilesClassification = fallbackClassification;
 
             let blockingOutcome: RecoveryOutcome | null = null;
             try {
-                const flowResult = await runMissingFilesFlow(
-                    torrent,
-                    options,
-                    getActiveRecoverySignal(),
-                );
+                const flowResult = await runMissingFilesFlow(torrent, options, getActiveRecoverySignal());
                 if (flowResult?.classification) {
                     flowClassification = flowResult.classification;
                 }
@@ -333,28 +285,14 @@ export function useRecoveryActions({
             }
 
             const fingerprint = getRecoveryFingerprint(torrent);
-            const activeRecoveryPromise =
-                getActiveRecoveryPromiseForFingerprint(fingerprint);
+            const activeRecoveryPromise = getActiveRecoveryPromiseForFingerprint(fingerprint);
             if (activeRecoveryPromise) {
                 return activeRecoveryPromise;
             }
-            const entry = createRecoveryQueueEntry(
-                torrent,
-                action,
-                blockingOutcome,
-                flowClassification,
-                fingerprint,
-            );
+            const entry = createRecoveryQueueEntry(torrent, action, blockingOutcome, flowClassification, fingerprint);
             return enqueueRecoveryEntry(entry);
         },
-        [
-            runMissingFilesFlow,
-            createRecoveryQueueEntry,
-            enqueueRecoveryEntry,
-            engineCapabilities,
-            getActiveRecoverySignal,
-            getActiveRecoveryPromiseForFingerprint,
-        ],
+        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry, engineCapabilities, getActiveRecoverySignal, getActiveRecoveryPromiseForFingerprint],
     );
 
     const refreshAfterRecovery = useCallback(
@@ -365,11 +303,88 @@ export function useRecoveryActions({
                 await refreshDetailData();
             }
         },
+        [refreshDetailData, refreshSessionStatsData, refreshTorrents, detailData],
+    );
+
+    const applyTorrentLocation = useCallback(
+        async (
+            torrent: Torrent | TorrentDetail,
+            path: string,
+            moveData: boolean,
+        ): Promise<RecoveryRequestCompletionOutcome> => {
+            const targetId = torrent.id ?? torrent.hash;
+            if (!targetId) {
+                return {
+                    status: "failed",
+                    reason: "invalid_target",
+                };
+            }
+            const relocateTargetId = moveData ? String(targetId) : null;
+            if (relocateTargetId) {
+                const pendingCancel =
+                    relocateOverlayClearRef.current.get(relocateTargetId);
+                pendingCancel?.();
+                relocateOverlayClearRef.current.delete(relocateTargetId);
+                updateOperationOverlays([
+                    {
+                        id: relocateTargetId,
+                        operation: STATUS.torrentOperation.RELOCATING,
+                    },
+                ]);
+            }
+            try {
+                const outcome = await dispatch(
+                    TorrentIntents.ensureAtLocation(targetId, path, {
+                        moveData,
+                    }),
+                );
+                if (outcome.status === "applied") {
+                    try {
+                        await refreshAfterRecovery({
+                            ...torrent,
+                            downloadDir: path,
+                            savePath: path,
+                        });
+                    } catch {
+                        // Keep location updates resilient; command was applied.
+                    }
+                    showFeedback(t("recovery.toast_location_updated"), "success");
+                    return {
+                        status: "applied",
+                        awaitingRecovery: false,
+                    };
+                }
+                if (
+                    outcome.status === "unsupported" &&
+                    outcome.reason === "method_missing"
+                ) {
+                    return {
+                        status: "failed",
+                        reason: "method_missing",
+                    };
+                }
+                return {
+                    status: "failed",
+                    reason: "dispatch_not_applied",
+                };
+            } catch {
+                return {
+                    status: "failed",
+                    reason: "execution_failed",
+                };
+            } finally {
+                if (relocateTargetId) {
+                    scheduleRelocateOverlayClear(relocateTargetId, 0);
+                }
+            }
+        },
         [
-            refreshDetailData,
-            refreshSessionStatsData,
-            refreshTorrents,
-            detailData,
+            dispatch,
+            refreshAfterRecovery,
+            scheduleRelocateOverlayClear,
+            showFeedback,
+            t,
+            updateOperationOverlays,
         ],
     );
 
@@ -383,22 +398,12 @@ export function useRecoveryActions({
             },
         ) => {
             try {
-                const {
-                    delayAfterSuccessMs,
-                    notifyDriveDetected,
-                    deferFinalizeMs,
-                    ...sequenceOptions
-                } = options ?? {};
-                const flowResult = await runMissingFilesFlow(
-                    torrent,
-                    sequenceOptions,
-                    getActiveRecoverySignal(),
-                );
+                const { delayAfterSuccessMs, notifyDriveDetected, deferFinalizeMs, ...sequenceOptions } = options ?? {};
+                const flowResult = await runMissingFilesFlow(torrent, sequenceOptions, getActiveRecoverySignal());
                 if (!flowResult) return false;
                 if (flowResult.status === "resolved") {
                     const targetKey = torrent.id ?? torrent.hash ?? "";
-                    const pausedAfterVerify =
-                        flowResult.log === "verify_completed_paused";
+                    const pausedAfterVerify = flowResult.log === "verify_completed_paused";
                     clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
                     if (targetKey) {
                         clearCachedProbe(targetKey);
@@ -410,8 +415,7 @@ export function useRecoveryActions({
                             {
                                 scope: "recovery_controller",
                                 event: "refresh_after_recovery_failed",
-                                message:
-                                    "Failed to refresh data after recovery resolution",
+                                message: "Failed to refresh data after recovery resolution",
                                 details: {
                                     torrentId: torrent.id ?? torrent.hash,
                                 },
@@ -420,16 +424,10 @@ export function useRecoveryActions({
                         );
                     }
                     if (notifyDriveDetected) {
-                        showFeedback(
-                            t("recovery.toast_drive_detected"),
-                            "info",
-                        );
+                        showFeedback(t("recovery.toast_drive_detected"), "info");
                     }
                     if (!pausedAfterVerify) {
-                        const feedbackKey =
-                            flowResult.log === "all_verified_resuming"
-                                ? "recovery.feedback.all_verified_resuming"
-                                : "recovery.feedback.download_resumed";
+                        const feedbackKey = flowResult.log === "all_verified_resuming" ? "recovery.feedback.all_verified_resuming" : "recovery.feedback.download_resumed";
                         showFeedback(t(feedbackKey), "info");
                     }
                     if (delayAfterSuccessMs && delayAfterSuccessMs > 0) {
@@ -467,35 +465,21 @@ export function useRecoveryActions({
                     {
                         scope: "recovery_controller",
                         event: "resolve_recreate_or_pick_path_failed",
-                        message:
-                            "Recovery resolution failed for recreate/pick-path flow",
+                        message: "Recovery resolution failed for recreate/pick-path flow",
                     },
                     err,
                 );
                 return false;
             }
         },
-        [
-            runMissingFilesFlow,
-            refreshAfterRecovery,
-            showFeedback,
-            t,
-            getActiveRecoverySignal,
-            setRecoverySessionOutcome,
-            scheduleRecoveryFinalize,
-            finalizeRecovery,
-        ],
+        [runMissingFilesFlow, refreshAfterRecovery, showFeedback, t, getActiveRecoverySignal, setRecoverySessionOutcome, scheduleRecoveryFinalize, finalizeRecovery],
     );
 
     useEffect(() => {
         torrents.forEach((torrent) => {
             const id = torrent.id ?? torrent.hash;
             if (!id) return;
-            if (
-                isActionableRecoveryErrorClass(
-                    torrent.errorEnvelope?.errorClass,
-                )
-            ) {
+            if (isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass)) {
                 return;
             }
             clearClassificationOverrideIfPresent(id);
@@ -510,7 +494,10 @@ export function useRecoveryActions({
             const deadline = Date.now() + timeoutMs;
             while (Date.now() < deadline) {
                 try {
-                    const detail = await client.getTorrentDetails(torrentId);
+                    const detail = await client.getTorrentDetails(torrentId, {
+                        profile: "standard",
+                        includeTrackerStats: false,
+                    });
                     if (detail && isRecoveryActiveState(detail.state)) {
                         return true;
                     }
@@ -527,10 +514,7 @@ export function useRecoveryActions({
     const trySilentVolumeLossRecovery = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
             if (recoverySession) return;
-            if (
-                torrent.state !== STATUS.torrent.MISSING_FILES &&
-                torrent.state !== STATUS.torrent.ERROR
-            ) {
+            if (torrent.state !== STATUS.torrent.MISSING_FILES && torrent.state !== STATUS.torrent.ERROR) {
                 return;
             }
             const envelope = torrent.errorEnvelope;
@@ -545,28 +529,17 @@ export function useRecoveryActions({
             if (silentVolumeRecoveryInFlightRef.current.has(fingerprint)) {
                 return;
             }
-            const nextRetryAt =
-                silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ??
-                0;
+            const nextRetryAt = silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ?? 0;
             if (Date.now() < nextRetryAt) {
                 return;
             }
 
-            const classification = classifyMissingFilesState(
-                envelope,
-                torrent.savePath ?? torrent.downloadDir ?? "",
-                {
-                    torrentId: torrent.id ?? torrent.hash,
-                    engineCapabilities,
-                },
-            );
-            const canSilentResolveVolumeLoss =
-                classification.kind === "volumeLoss" &&
-                classification.confidence !== "unknown";
-            const canSilentResolvePathLoss =
-                classification.kind === "pathLoss" &&
-                classification.confidence === "certain" &&
-                shellAgent.isAvailable;
+            const classification = classifyMissingFilesState(envelope, torrent.savePath ?? torrent.downloadDir ?? "", {
+                torrentId: torrent.id ?? torrent.hash,
+                engineCapabilities,
+            });
+            const canSilentResolveVolumeLoss = classification.kind === "volumeLoss" && classification.confidence !== "unknown";
+            const canSilentResolvePathLoss = classification.kind === "pathLoss" && classification.confidence === "certain" && shellAgent.isAvailable;
             if (!canSilentResolveVolumeLoss && !canSilentResolvePathLoss) {
                 return;
             }
@@ -580,28 +553,18 @@ export function useRecoveryActions({
                     if (targetKey) {
                         clearCachedProbe(targetKey);
                     }
-                    silentVolumeRecoveryNextRetryAtRef.current.delete(
-                        fingerprint,
-                    );
+                    silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
                     await refreshAfterRecovery(torrent);
                     const targetId = torrent.id ?? torrent.hash;
                     if (targetId && canSilentResolveVolumeLoss) {
-                        const resumed = await waitForActiveState(
-                            String(targetId),
-                        );
+                        const resumed = await waitForActiveState(String(targetId));
                         if (resumed) {
-                            showFeedback(
-                                t("recovery.toast_drive_detected"),
-                                "info",
-                            );
+                            showFeedback(t("recovery.toast_drive_detected"), "info");
                         }
                     }
                     return;
                 }
-                silentVolumeRecoveryNextRetryAtRef.current.set(
-                    fingerprint,
-                    Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
-                );
+                silentVolumeRecoveryNextRetryAtRef.current.set(fingerprint, Date.now() + RECOVERY_RETRY_COOLDOWN_MS);
             } catch (err) {
                 infraLogger.error(
                     {
@@ -612,10 +575,7 @@ export function useRecoveryActions({
                     },
                     err,
                 );
-                silentVolumeRecoveryNextRetryAtRef.current.set(
-                    fingerprint,
-                    Date.now() + RECOVERY_RETRY_COOLDOWN_MS,
-                );
+                silentVolumeRecoveryNextRetryAtRef.current.set(fingerprint, Date.now() + RECOVERY_RETRY_COOLDOWN_MS);
             } finally {
                 silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
             }
@@ -643,10 +603,7 @@ export function useRecoveryActions({
         };
 
         runSilentRecoveryPass();
-        const task = scheduler.scheduleRecurringTask(
-            runSilentRecoveryPass,
-            RECOVERY_POLL_INTERVAL_MS,
-        );
+        const task = scheduler.scheduleRecurringTask(runSilentRecoveryPass, RECOVERY_POLL_INTERVAL_MS);
         return () => {
             task.cancel();
         };
@@ -675,8 +632,7 @@ export function useRecoveryActions({
                                 {
                                     scope: "recovery_controller",
                                     event: "refresh_after_recovery_failed",
-                                    message:
-                                        "Failed to refresh data after recovery resolution",
+                                    message: "Failed to refresh data after recovery resolution",
                                     details: {
                                         torrentId: torrent.id ?? torrent.hash,
                                     },
@@ -688,25 +644,14 @@ export function useRecoveryActions({
                             return { status: "applied" };
                         }
                         const resumed = await waitForActiveState(id);
-                        const isAllVerified =
-                            gateResult.log === "all_verified_resuming";
-                        const toastKey = isAllVerified
-                            ? "recovery.feedback.all_verified_resuming"
-                            : resumed
-                              ? "recovery.feedback.download_resumed"
-                              : "recovery.feedback.resume_queued";
-                        const tone =
-                            isAllVerified || resumed ? "info" : "warning";
+                        const isAllVerified = gateResult.log === "all_verified_resuming";
+                        const toastKey = isAllVerified ? "recovery.feedback.all_verified_resuming" : resumed ? "recovery.feedback.download_resumed" : "recovery.feedback.resume_queued";
+                        const tone = isAllVerified || resumed ? "info" : "warning";
                         showFeedback(t(toastKey), tone);
                         return { status: "applied" };
                     }
-                    if (
-                        gateResult.status === "continue" ||
-                        gateResult.status === "not_required"
-                    ) {
-                        const outcome = await dispatch(
-                            TorrentIntents.ensureActive(id),
-                        );
+                    if (gateResult.status === "continue" || gateResult.status === "not_required") {
+                        const outcome = await dispatch(TorrentIntents.ensureActive(id));
                         if (outcome.status !== "applied") {
                             return {
                                 status: "failed",
@@ -738,23 +683,13 @@ export function useRecoveryActions({
                 };
             }
         },
-        [
-            dispatch,
-            requestRecovery,
-            refreshAfterRecovery,
-            showFeedback,
-            t,
-            waitForActiveState,
-        ],
+        [dispatch, requestRecovery, refreshAfterRecovery, showFeedback, t, waitForActiveState],
     );
 
     const redownloadInFlight = useRef<Set<string>>(new Set());
 
     const executeRedownload = useCallback(
-        async (
-            target: Torrent | TorrentDetail,
-            options?: { recreateFolder?: boolean },
-        ) => {
+        async (target: Torrent | TorrentDetail, options?: { recreateFolder?: boolean }) => {
             const key = getRecoveryFingerprint(target);
             if (redownloadInFlight.current.has(key)) return;
 
@@ -770,10 +705,7 @@ export function useRecoveryActions({
                         clearCachedProbe(target.id ?? target.hash ?? "");
                         await refreshAfterRecovery(target);
                         if (gateResult.log !== "verify_completed_paused") {
-                            showFeedback(
-                                t("recovery.feedback.download_resumed"),
-                                "info",
-                            );
+                            showFeedback(t("recovery.feedback.download_resumed"), "info");
                         }
                     }
                     return;
@@ -784,13 +716,7 @@ export function useRecoveryActions({
                 redownloadInFlight.current.delete(key);
             }
         },
-        [
-            requestRecovery,
-            refreshAfterRecovery,
-            showFeedback,
-            t,
-            reportCommandError,
-        ],
+        [requestRecovery, refreshAfterRecovery, showFeedback, t, reportCommandError],
     );
 
     const executeRetryFetch = useCallback(
@@ -828,10 +754,7 @@ export function useRecoveryActions({
                 );
             }
 
-            if (
-                gateResult.status === "handled" &&
-                Boolean(gateResult.blockingOutcome)
-            ) {
+            if (gateResult.status === "handled" && Boolean(gateResult.blockingOutcome)) {
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
                 return {
                     status: "not_applied",
@@ -839,16 +762,10 @@ export function useRecoveryActions({
                     reason: "blocked",
                 };
             }
-            if (
-                gateResult.status === "handled" &&
-                !gateResult.blockingOutcome
-            ) {
+            if (gateResult.status === "handled" && !gateResult.blockingOutcome) {
                 return { status: "applied", shouldCloseModal: true };
             }
-            if (
-                gateResult.status === "not_required" &&
-                gateResult.reason !== "no_blocking_outcome"
-            ) {
+            if (gateResult.status === "not_required" && gateResult.reason !== "no_blocking_outcome") {
                 return { status: "applied", shouldCloseModal: true };
             }
             return {
@@ -863,6 +780,7 @@ export function useRecoveryActions({
         requestRecovery,
         runMissingFilesFlow,
         refreshAfterRecovery,
+        applyTorrentLocation,
         resolveRecoverySession,
         waitForActiveState,
         resumeTorrentWithRecovery,

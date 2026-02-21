@@ -124,6 +124,8 @@ export interface TorrentDetailTabSurfaces {
         pieceAvailability?: number[];
     } | null;
     trackers: {
+        torrentId: string | number;
+        torrentIds?: Array<string | number>;
         trackers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["trackers"]
         >;
@@ -211,6 +213,7 @@ export const useTorrentDetailTabCoordinator = ({
                 pieceAvailability: torrent.pieceAvailability,
             },
             trackers: {
+                torrentId: torrent.id ?? torrent.hash,
                 trackers: torrent.trackers ?? [],
                 emptyMessage: t("torrent_modal.trackers.empty_backend"),
                 isStandalone,

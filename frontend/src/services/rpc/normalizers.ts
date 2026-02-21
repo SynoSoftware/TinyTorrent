@@ -339,7 +339,9 @@ const zipFileEntities = (
 const normalizeTracker = (
     tracker: TransmissionTorrentTracker
 ): TorrentTrackerEntity => ({
-    id: tracker.tier,
+    id: Number.isFinite(Number(tracker.id))
+        ? Number(tracker.id)
+        : tracker.tier,
     announce: tracker.announce,
     tier: tracker.tier,
     announceState: tracker.announceState,
@@ -349,8 +351,7 @@ const normalizeTracker = (
     lastScrapeTime: tracker.lastScrapeTime,
     lastScrapeResult: tracker.lastScrapeResult,
     lastScrapeSucceeded: tracker.lastScrapeSucceeded,
-    // Preserve missing data as NaN instead of fabricating 0 so the UI
-    // can differentiate "missing" vs "zero".
+    // Preserve missing data as NaN so the UI can render "unknown".
     seederCount: Number.isFinite(Number(tracker.seederCount))
         ? Number(tracker.seederCount)
         : NaN,
@@ -528,12 +529,20 @@ export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
         [STATUS.torrent.ERROR]: [
             STATUS.torrent.ERROR,
             STATUS.torrent.PAUSED,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.CHECKING,
             STATUS.torrent.DOWNLOADING,
             STATUS.torrent.SEEDING,
+            STATUS.torrent.MISSING_FILES,
         ],
         [STATUS.torrent.MISSING_FILES]: [
             STATUS.torrent.MISSING_FILES,
             STATUS.torrent.PAUSED,
+            STATUS.torrent.CHECKING,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.ERROR,
         ],
     };
 

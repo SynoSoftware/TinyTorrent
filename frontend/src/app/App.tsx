@@ -6,13 +6,13 @@ import { CommandPalette } from "@/app/components/CommandPalette";
 import { WorkspaceShell } from "@/app/components/WorkspaceShell";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
+import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
 import { RecoveryProvider } from "@/app/context/RecoveryContext";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
 import { useAppViewModel } from "@/app/viewModels/useAppViewModel";
 import { AppCommandProvider } from "@/app/context/AppCommandContext";
-import { GlobalHotkeyProvider } from "@/app/context/GlobalHotkeyContext";
 
 function AppContent() {
     const controller = useWorkspaceShellViewModel();
@@ -31,52 +31,32 @@ function AppContent() {
 
     return (
         <AppCommandProvider value={appCommandValue}>
-            <GlobalHotkeyProvider value={controller.commands.globalHotkeys}>
-                <GlobalHotkeysHost />
-            </GlobalHotkeyProvider>
+            <GlobalHotkeysHost {...controller.commands.globalHotkeys} />
             <RecoveryProvider value={controller.recovery.recoveryContext}>
-                <WorkspaceShell
-                    workspaceViewModel={viewModel.workspace}
-                    statusBarViewModel={viewModel.statusBar}
-                />
-                <TorrentRecoveryModal
-                    {...controller.recovery.recoveryModalProps}
-                />
+                <WorkspaceShell workspaceViewModel={viewModel.workspace} statusBarViewModel={viewModel.statusBar} />
+                <TorrentRecoveryModal {...controller.recovery.recoveryModalProps} />
+                <SetDownloadPathModal />
             </RecoveryProvider>
             <CommandPalette
                 isOpen={controller.commands.commandPaletteState.isOpen}
                 onOpenChange={controller.commands.commandPaletteState.setIsOpen}
                 actions={viewModel.workspace.commandPalette.actions}
-                getContextActions={
-                    viewModel.workspace.commandPalette.getContextActions
-                }
+                getContextActions={viewModel.workspace.commandPalette.getContextActions}
             />
             <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
             {controller.addTorrent.addTorrentModalProps && (
-                <AddTorrentModal
-                    {...controller.addTorrent.addTorrentModalProps}
-                />
+                <AddTorrentModal {...controller.addTorrent.addTorrentModalProps} />
             )}
         </AppCommandProvider>
     );
 }
 
 export default function App() {
-    const {
-        increaseWorkbenchScale,
-        decreaseWorkbenchScale,
-        resetWorkbenchScale,
-    } = usePreferences();
+    const { increaseWorkbenchScale, decreaseWorkbenchScale, resetWorkbenchScale } = usePreferences();
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (
-                e.altKey &&
-                !e.ctrlKey &&
-                !e.metaKey &&
-                !e.shiftKey &&
-                (e.code === "Equal" || e.code === "NumpadAdd")
-            ) {
+            if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === "Equal" || e.code === "NumpadAdd")) {
                 e.preventDefault();
                 increaseWorkbenchScale();
                 return;
@@ -94,11 +74,7 @@ export default function App() {
             }
             if (
                 ((e.ctrlKey || e.metaKey) && e.code === "Digit0") ||
-                (e.altKey &&
-                    !e.ctrlKey &&
-                    !e.metaKey &&
-                    !e.shiftKey &&
-                    e.code === "NumpadMultiply")
+                (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === "NumpadMultiply")
             ) {
                 if (Runtime.suppressBrowserZoomDefaults()) {
                     e.preventDefault();
@@ -109,11 +85,7 @@ export default function App() {
 
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [
-        increaseWorkbenchScale,
-        decreaseWorkbenchScale,
-        resetWorkbenchScale,
-    ]);
+    }, [increaseWorkbenchScale, decreaseWorkbenchScale, resetWorkbenchScale]);
 
     return <AppContent />;
 }

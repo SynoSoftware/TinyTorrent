@@ -35,7 +35,7 @@ const APP_TOAST_PROPS = {
     },
 } as const;
 const APP_TOAST_REGION_PROPS = {
-    className: "z-top p-panel",
+    className: "z-top p-panel overflow-hidden",
 } as const;
 
 const rootPathname =
@@ -54,6 +54,7 @@ createRoot(document.getElementById("root")!).render(
                                 <AppEntry />
                                 <ToastProvider
                                     placement="bottom-right"
+                                    maxVisibleToasts={2}
                                     toastProps={APP_TOAST_PROPS}
                                     regionProps={APP_TOAST_REGION_PROPS}
                                 />

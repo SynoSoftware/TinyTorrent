@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { addToast } from "@heroui/toast";
+import { addToast, closeToast } from "@heroui/toast";
 
 import type { FeedbackTone } from "@/shared/types/feedback";
 import {
@@ -69,10 +69,10 @@ const TOAST_DURATION_MS = TOAST_DISPLAY_DURATION_MS;
 
 const TONE_TO_TOAST: Record<
     FeedbackTone,
-    (message: string, timeout?: number) => void
+    (message: string, timeout?: number) => string | null
 > = {
     info: (message, timeout) => {
-        addToast({
+        return addToast({
             title: message,
             color: "primary",
             severity: "primary",
@@ -81,7 +81,7 @@ const TONE_TO_TOAST: Record<
         });
     },
     success: (message, timeout) => {
-        addToast({
+        return addToast({
             title: message,
             color: "success",
             severity: "success",
@@ -90,7 +90,7 @@ const TONE_TO_TOAST: Record<
         });
     },
     warning: (message, timeout) => {
-        addToast({
+        return addToast({
             title: message,
             color: "warning",
             severity: "warning",
@@ -99,7 +99,7 @@ const TONE_TO_TOAST: Record<
         });
     },
     danger: (message, timeout) => {
-        addToast({
+        return addToast({
             title: message,
             color: "danger",
             severity: "danger",
@@ -116,12 +116,13 @@ export function useActionFeedback() {
     const { t } = useTranslation();
     const showFeedback = useCallback(
         (message: string, tone: FeedbackTone, timeout?: number) => {
-            TONE_TO_TOAST[tone](message, timeout);
+            return TONE_TO_TOAST[tone](message, timeout);
         },
         []
     );
 
     const pendingStarts = useRef<Set<string>>(new Set());
+    const startToastKeys = useRef<Map<string, string>>(new Map());
     const announceAction = useCallback(
         (
             action: FeedbackAction,
@@ -143,12 +144,21 @@ export function useActionFeedback() {
             if (stage === "done" && actionId) {
                 const key = makeKey(actionId);
                 pendingStarts.current.delete(key);
+                const startToastKey = startToastKeys.current.get(key);
+                if (startToastKey) {
+                    closeToast(startToastKey);
+                    startToastKeys.current.delete(key);
+                }
             }
-            showFeedback(
+            const toastKey = showFeedback(
                 t(descriptor.key, { count }),
                 descriptor.tone as FeedbackTone,
                 descriptor.timeout
             );
+            if (stage === "start" && actionId && toastKey) {
+                const key = makeKey(actionId);
+                startToastKeys.current.set(key, toastKey);
+            }
         },
         [showFeedback, t]
     );

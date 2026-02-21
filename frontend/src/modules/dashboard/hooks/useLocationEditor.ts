@@ -1,9 +1,4 @@
-import {
-    useCallback,
-    useEffect,
-    useReducer,
-    useRef,
-} from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
@@ -11,6 +6,7 @@ import type {
     LocationEditorState,
     RecoverySessionInfo,
     SetLocationConfirmOutcome,
+    SetLocationExecutionMode,
     SetLocationOptions,
     SetLocationOutcome,
     SetLocationSurface,
@@ -18,17 +14,15 @@ import type {
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import type { ResumeRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
+import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
 
 type SetLocationAndRecoverFn = (
     torrent: Torrent | TorrentDetail,
     path: string,
+    mode: SetLocationExecutionMode,
 ) => Promise<ResumeRecoveryCommandOutcome>;
 
-type BrowseResult =
-    | { status: "picked"; path: string }
-    | { status: "cancelled" }
-    | { status: "failed" }
-    | null;
+type BrowseResult = { status: "picked"; path: string } | { status: "cancelled" } | { status: "failed" } | null;
 
 interface UseLocationEditorParams {
     torrents: Array<Torrent | TorrentDetail>;
@@ -44,18 +38,17 @@ interface UseLocationEditorResult {
     releaseSetLocationEditor: () => void;
     confirmSetLocation: () => Promise<SetLocationConfirmOutcome>;
     handleSetLocationInputChange: (value: string) => void;
-    handleSetLocation: (
-        torrent: Torrent | TorrentDetail,
-        options?: SetLocationOptions,
-    ) => Promise<SetLocationOutcome>;
+    handleSetLocation: (torrent: Torrent | TorrentDetail, options?: SetLocationOptions) => Promise<SetLocationOutcome>;
 }
 
 type ManualEditorState = LocationEditorState;
+type DestinationPathPolicy = "windows_abs_only" | "any_abs";
 type ManualEditorAction =
     | {
           type: "open";
           payload: {
               surface: SetLocationSurface;
+              executionMode: SetLocationExecutionMode;
               torrentKey: string;
               draft: string;
               intentId: number;
@@ -68,17 +61,15 @@ type ManualEditorAction =
     | { type: "close" }
     | { type: "set"; payload: ManualEditorState | null };
 
-const manualEditorReducer = (
-    state: ManualEditorState | null,
-    action: ManualEditorAction,
-): ManualEditorState | null => {
-    if (!state && action.type !== "open") {
+const manualEditorReducer = (state: ManualEditorState | null, action: ManualEditorAction): ManualEditorState | null => {
+    if (!state && action.type !== "open" && action.type !== "set") {
         return state;
     }
     switch (action.type) {
         case "open":
             return {
                 surface: action.payload.surface,
+                executionMode: action.payload.executionMode,
                 torrentKey: action.payload.torrentKey,
                 initialPath: action.payload.draft,
                 inputPath: action.payload.draft,
@@ -122,15 +113,32 @@ const manualEditorReducer = (
     }
 };
 
-export function useLocationEditor({
-    torrents,
-    detailData,
-    recoverySession,
-    recoveryRequestBrowse,
-    setLocationAndRecover,
-}: UseLocationEditorParams): UseLocationEditorResult {
+const hasControlChars = (value: string) => /[\r\n\t]/.test(value);
+
+const isValidLocationPathForPolicy = (
+    path: string,
+    policy: DestinationPathPolicy,
+): boolean => {
+    const trimmed = path.trim();
+    if (!trimmed) return false;
+    if (hasControlChars(trimmed)) return false;
+
+    const isWindowsAbs =
+        /^[a-zA-Z]:[\\/]/.test(trimmed) || /^\\\\/.test(trimmed);
+    const isPosixAbs = trimmed.startsWith("/");
+
+    if (policy === "windows_abs_only") {
+        return isWindowsAbs;
+    }
+    return isWindowsAbs || isPosixAbs;
+};
+
+export function useLocationEditor({ torrents, detailData, recoverySession, recoveryRequestBrowse, setLocationAndRecover }: UseLocationEditorParams): UseLocationEditorResult {
     const { t } = useTranslation();
-    const { canBrowse, supportsManual } = useUiModeCapabilities();
+    const uiCapabilities = useUiModeCapabilities();
+    const { canBrowse, supportsManual } = uiCapabilities;
+    const destinationPathPolicy: DestinationPathPolicy =
+        uiCapabilities.destinationPathPolicy ?? "any_abs";
     const locationEditorOwnerRef = useRef<{
         surface: SetLocationSurface;
         torrentKey: string;
@@ -138,10 +146,7 @@ export function useLocationEditor({
     const setLocationEditorStateRef = useRef<ManualEditorState | null>(null);
     const setLocationDraftsRef = useRef(new Map<string, string>());
     const setLocationIntentCounterRef = useRef(0);
-    const [setLocationEditorState, dispatchSetLocationEditor] = useReducer(
-        manualEditorReducer,
-        null,
-    );
+    const [setLocationEditorState, dispatchSetLocationEditor] = useReducer(manualEditorReducer, null);
 
     const setEditorState = useCallback((value: ManualEditorState | null) => {
         dispatchSetLocationEditor({
@@ -154,21 +159,15 @@ export function useLocationEditor({
         setLocationEditorStateRef.current = setLocationEditorState;
     }, [setLocationEditorState]);
 
-    const getDraftPathForTorrent = useCallback(
-        (key: string | null, fallback: string): string => {
-            if (!key) return fallback;
-            return setLocationDraftsRef.current.get(key) ?? fallback;
-        },
-        [],
-    );
+    const getDraftPathForTorrent = useCallback((key: string | null, fallback: string): string => {
+        if (!key) return fallback;
+        return setLocationDraftsRef.current.get(key) ?? fallback;
+    }, []);
 
-    const saveDraftForTorrent = useCallback(
-        (key: string | null, path: string) => {
-            if (!key) return;
-            setLocationDraftsRef.current.set(key, path);
-        },
-        [],
-    );
+    const saveDraftForTorrent = useCallback((key: string | null, path: string) => {
+        if (!key) return;
+        setLocationDraftsRef.current.set(key, path);
+    }, []);
 
     const clearDraftForTorrent = useCallback((key: string | null) => {
         if (!key) return;
@@ -178,10 +177,7 @@ export function useLocationEditor({
     const getTorrentByKey = useCallback(
         (key: string | null) => {
             if (!key) return null;
-            const found =
-                torrents.find(
-                    (torrent) => getRecoveryFingerprint(torrent) === key,
-                ) ?? null;
+            const found = torrents.find((torrent) => getRecoveryFingerprint(torrent) === key) ?? null;
             if (found) return found;
             if (detailData && getRecoveryFingerprint(detailData) === key) {
                 return detailData;
@@ -211,10 +207,7 @@ export function useLocationEditor({
     const openSetLocationEditor = useCallback(
         (state: Omit<LocationEditorState, "intentId">) => {
             const torrentKey = state.torrentKey || null;
-            const resolvedPath = getDraftPathForTorrent(
-                torrentKey,
-                state.inputPath,
-            );
+            const resolvedPath = getDraftPathForTorrent(torrentKey, state.inputPath);
             setLocationIntentCounterRef.current += 1;
             const next: LocationEditorState = {
                 ...state,
@@ -262,6 +255,12 @@ export function useLocationEditor({
             });
             return { status: "validation_error" };
         }
+        if (!isValidLocationPathForPolicy(trimmed, destinationPathPolicy)) {
+            patchEditorState({
+                error: t("set_location.reason.absolute_path_required"),
+            });
+            return { status: "validation_error" };
+        }
         const torrentKey = current.torrentKey || null;
         const targetTorrent = getTorrentByKey(torrentKey);
         if (!targetTorrent) {
@@ -283,6 +282,7 @@ export function useLocationEditor({
             const recoverOutcome = await setLocationAndRecover(
                 targetTorrent,
                 trimmed,
+                current.executionMode,
             );
             if (recoverOutcome.status === "cancelled") {
                 if (setLocationEditorStateRef.current?.intentId === intentId) {
@@ -295,7 +295,10 @@ export function useLocationEditor({
                 return { status: "canceled" };
             }
             if (recoverOutcome.status !== "applied") {
-                const message = t("toolbar.feedback.failed");
+                const message =
+                    recoverOutcome.reason === "method_missing"
+                        ? t("recovery.errors.set_torrent_location_failed_default")
+                        : t("toolbar.feedback.failed");
                 if (setLocationEditorStateRef.current?.intentId === intentId) {
                     patchEditorState({
                         status: "idle",
@@ -306,6 +309,12 @@ export function useLocationEditor({
                 return { status: "failed" };
             }
             clearDraftForTorrent(torrentKey);
+            if (recoverOutcome.awaitingRecovery !== true) {
+                if (setLocationEditorStateRef.current?.intentId === intentId) {
+                    cancelSetLocationEditor();
+                }
+                return { status: "submitted" };
+            }
             if (setLocationEditorStateRef.current?.intentId !== intentId) {
                 return { status: "submitted" };
             }
@@ -317,8 +326,7 @@ export function useLocationEditor({
             });
             return { status: "verifying" };
         } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             if (setLocationEditorStateRef.current?.intentId === intentId) {
                 patchEditorState({
                     status: "idle",
@@ -329,10 +337,12 @@ export function useLocationEditor({
             return { status: "failed" };
         }
     }, [
+        cancelSetLocationEditor,
         patchEditorState,
         saveDraftForTorrent,
         setLocationAndRecover,
         t,
+        destinationPathPolicy,
         getTorrentByKey,
         clearDraftForTorrent,
     ]);
@@ -361,14 +371,11 @@ export function useLocationEditor({
         }
     }, [clearDraftForTorrent, setEditorState]);
 
-    const isLocationEditorOwner = useCallback(
-        (surface: SetLocationSurface, torrentKey: string) => {
-            const owner = locationEditorOwnerRef.current;
-            if (!owner) return false;
-            return owner.surface === surface && owner.torrentKey === torrentKey;
-        },
-        [],
-    );
+    const isLocationEditorOwner = useCallback((surface: SetLocationSurface, torrentKey: string) => {
+        const owner = locationEditorOwnerRef.current;
+        if (!owner) return false;
+        return owner.surface === surface && owner.torrentKey === torrentKey;
+    }, []);
 
     const tryAcquireLocationEditorOwner = useCallback(
         (surface: SetLocationSurface, torrentKey: string) => {
@@ -390,14 +397,12 @@ export function useLocationEditor({
             surface: SetLocationSurface,
             torrentKey: string,
             basePath: string,
+            executionMode: SetLocationExecutionMode,
         ): SetLocationOutcome => {
             if (!torrentKey) {
                 return { status: "failed", reason: "invalid_target" };
             }
-            const acquisition = tryAcquireLocationEditorOwner(
-                surface,
-                torrentKey,
-            );
+            const acquisition = tryAcquireLocationEditorOwner(surface, torrentKey);
             if (acquisition.status === "conflict") {
                 return { status: "conflict", reason: "owned_elsewhere" };
             }
@@ -406,6 +411,7 @@ export function useLocationEditor({
             }
             openSetLocationEditor({
                 surface,
+                executionMode,
                 torrentKey,
                 initialPath: basePath,
                 inputPath: basePath,
@@ -416,46 +422,60 @@ export function useLocationEditor({
         [openSetLocationEditor, tryAcquireLocationEditorOwner],
     );
 
+    const resolveSetLocationExecutionMode = useCallback(
+        (
+            torrent: Torrent | TorrentDetail,
+            surface: SetLocationSurface,
+        ): SetLocationExecutionMode => {
+            if (surface === "recovery-modal") {
+                return "recover_existing";
+            }
+            return isActionableRecoveryErrorClass(
+                torrent.errorEnvelope?.errorClass,
+            )
+                ? "recover_existing"
+                : "move_data";
+        },
+        [],
+    );
+
     useEffect(() => {
         const current = setLocationEditorStateRef.current;
         if (!current) return;
         clearDraftForTorrent(current.torrentKey);
         releaseSetLocationEditor();
-    }, [
-        canBrowse,
-        supportsManual,
-        clearDraftForTorrent,
-        releaseSetLocationEditor,
-    ]);
+    }, [canBrowse, supportsManual, clearDraftForTorrent, releaseSetLocationEditor]);
 
     const handleSetLocation = useCallback(
-        async (
-            torrent: Torrent | TorrentDetail,
-            options?: SetLocationOptions,
-        ): Promise<SetLocationOutcome> => {
+        async (torrent: Torrent | TorrentDetail, options?: SetLocationOptions): Promise<SetLocationOutcome> => {
             const surface = options?.surface ?? "general-tab";
             const basePath = resolveTorrentPath(torrent);
             const torrentKey = getRecoveryFingerprint(torrent);
+            const executionMode = resolveSetLocationExecutionMode(
+                torrent,
+                surface,
+            );
             const requestedManual = options?.mode === "manual";
-            if (
-                !requestedManual &&
-                canBrowse &&
-                recoveryRequestBrowse
-            ) {
-                const browseOutcome = await recoveryRequestBrowse(
-                    basePath || undefined,
-                );
+            if (!requestedManual && canBrowse && recoveryRequestBrowse) {
+                const browseOutcome = await recoveryRequestBrowse(basePath || undefined);
                 if (browseOutcome?.status === "picked") {
                     try {
                         const recoverOutcome = await setLocationAndRecover(
                             torrent,
                             browseOutcome.path,
+                            executionMode,
                         );
                         if (recoverOutcome.status === "applied") {
                             return { status: "picked" };
                         }
                         if (recoverOutcome.status === "cancelled") {
                             return { status: "cancelled" };
+                        }
+                        if (recoverOutcome.reason === "method_missing") {
+                            return {
+                                status: "unsupported",
+                                reason: "command_unsupported",
+                            };
                         }
                         return {
                             status: "failed",
@@ -471,6 +491,15 @@ export function useLocationEditor({
                 if (browseOutcome?.status === "failed") {
                     return { status: "failed", reason: "browse_failed" };
                 }
+                // Browse was cancelled (or returned null).
+                // If the calling surface has already been torn down
+                // (e.g. context menu closed before opening browse),
+                // falling through to the inline manual editor would
+                // open an editor with no visible container. Return
+                // "cancelled" instead so the caller gets a clean signal.
+                if (surface === "context-menu") {
+                    return { status: "cancelled" };
+                }
                 if (!supportsManual) {
                     return { status: "cancelled" };
                 }
@@ -478,16 +507,20 @@ export function useLocationEditor({
             if (!supportsManual) {
                 return {
                     status: "unsupported",
-                    reason: requestedManual
-                        ? "manual_unavailable"
-                        : "browse_unavailable",
+                    reason: requestedManual ? "manual_unavailable" : "browse_unavailable",
                 };
             }
-            return openManualEditorForTorrent(surface, torrentKey, basePath);
+            return openManualEditorForTorrent(
+                surface,
+                torrentKey,
+                basePath,
+                executionMode,
+            );
         },
         [
             canBrowse,
             recoveryRequestBrowse,
+            resolveSetLocationExecutionMode,
             setLocationAndRecover,
             supportsManual,
             openManualEditorForTorrent,
@@ -507,12 +540,7 @@ export function useLocationEditor({
         if (sessionKey !== torrentKey) {
             return;
         }
-    }, [
-        cancelSetLocationEditor,
-        clearDraftForTorrent,
-        setLocationEditorState,
-        recoverySession,
-    ]);
+    }, [cancelSetLocationEditor, clearDraftForTorrent, setLocationEditorState, recoverySession]);
 
     return {
         setLocationEditorState,

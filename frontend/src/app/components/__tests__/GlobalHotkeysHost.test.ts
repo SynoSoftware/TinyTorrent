@@ -3,13 +3,34 @@ import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HOTKEY_COMMAND_ID } from "@/app/commandCatalog";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
+import { STATUS } from "@/shared/status";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
 
 const useHotkeysMock = vi.fn();
 const useSelectionMock = vi.fn();
 const useFocusStateMock = vi.fn();
 const useTorrentCommandsMock = vi.fn();
-const useGlobalHotkeyContextMock = vi.fn();
 const createGlobalHotkeyBindingsMock = vi.fn();
+
+const TEST_TORRENT: Torrent = {
+    id: "torrent-a",
+    hash: "hash-a",
+    name: "A",
+    state: STATUS.torrent.DOWNLOADING,
+    speed: {
+        down: 0,
+        up: 0,
+    },
+    peerSummary: {
+        connected: 0,
+    },
+    totalSize: 0,
+    eta: 0,
+    ratio: 0,
+    uploaded: 0,
+    downloaded: 0,
+    added: 0,
+};
 
 vi.mock("react-hotkeys-hook", () => ({
     useHotkeys: (...args: unknown[]) => useHotkeysMock(...args),
@@ -24,18 +45,9 @@ vi.mock("@/app/context/AppCommandContext", () => ({
     useTorrentCommands: () => useTorrentCommandsMock(),
 }));
 
-vi.mock("@/app/context/GlobalHotkeyContext", () => ({
-    useGlobalHotkeyContext: () => useGlobalHotkeyContextMock(),
-}));
-
 vi.mock("@/app/commandRegistry", () => ({
-    createGlobalHotkeyBindings: (...args: unknown[]) =>
-        createGlobalHotkeyBindingsMock(...args),
+    createGlobalHotkeyBindings: (...args: unknown[]) => createGlobalHotkeyBindingsMock(...args),
 }));
-
-const renderHost = () => {
-    renderToString(React.createElement(GlobalHotkeysHost));
-};
 
 describe("GlobalHotkeysHost", () => {
     beforeEach(() => {
@@ -43,7 +55,6 @@ describe("GlobalHotkeysHost", () => {
         useSelectionMock.mockReset();
         useFocusStateMock.mockReset();
         useTorrentCommandsMock.mockReset();
-        useGlobalHotkeyContextMock.mockReset();
         createGlobalHotkeyBindingsMock.mockReset();
     });
 
@@ -66,13 +77,6 @@ describe("GlobalHotkeysHost", () => {
         useTorrentCommandsMock.mockReturnValue({
             handleBulkAction,
             handleTorrentAction,
-        });
-        useGlobalHotkeyContextMock.mockReturnValue({
-            torrents: [{ id: "torrent-a", name: "A" }],
-            selectedTorrents: [{ id: "torrent-a", name: "A" }],
-            detailData: null,
-            handleRequestDetails,
-            handleCloseDetail,
         });
 
         const bindings = {
@@ -114,7 +118,15 @@ describe("GlobalHotkeysHost", () => {
         };
         createGlobalHotkeyBindingsMock.mockReturnValue(bindings);
 
-        renderHost();
+        renderToString(
+            React.createElement(GlobalHotkeysHost, {
+                torrents: [TEST_TORRENT],
+                selectedTorrents: [TEST_TORRENT],
+                detailData: null,
+                handleRequestDetails,
+                handleCloseDetail,
+            }),
+        );
 
         expect(createGlobalHotkeyBindingsMock).toHaveBeenCalledTimes(1);
         const call = createGlobalHotkeyBindingsMock.mock.calls[0]?.[0] as {

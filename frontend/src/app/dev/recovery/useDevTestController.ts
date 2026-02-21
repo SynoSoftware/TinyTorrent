@@ -12,7 +12,7 @@ import type {
 } from "@/app/context/RecoveryContext";
 import { STATUS } from "@/shared/status";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
-import { useRecoveryModalViewModel } from "@/app/viewModels/workspaceShellModels";
+import { useRecoveryModalViewModel } from "@/app/viewModels/workspaceShell/recoveryViewModels";
 import { DevTestAdapter } from "@/app/dev/recovery/adapter";
 import {
     cloneDevTorrentDetail,
@@ -155,7 +155,7 @@ export function useDevTestController({
                     await adapter.setTorrentLocation(
                         String(intent.torrentId),
                         intent.path,
-                        false,
+                        intent.moveData ?? false,
                     );
                     await refreshTorrents();
                     await refreshDetailData();
@@ -186,6 +186,7 @@ export function useDevTestController({
             pendingDeletionHashesRef,
         },
         dispatch,
+        updateOperationOverlays: () => {},
     });
 
     const handleDownloadMissing = useCallback(

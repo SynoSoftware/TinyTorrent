@@ -20,6 +20,7 @@ import { z } from "zod";
 import {
     parseRpcResponse,
     zTransmissionTorrentArray,
+    zTransmissionTorrentDetailArray,
     zTransmissionTorrentDetailSingle,
     zSessionStats,
     zTransmissionSessionSettings,
@@ -33,6 +34,7 @@ import { READ_RPC_CACHE_TTL_MS } from "@/config/logic";
 import type {
     EngineAdapter,
     EngineRuntimeCapabilities,
+    TorrentDetailsRequestOptions,
 } from "@/services/rpc/engine-adapter";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import type {
@@ -109,7 +111,7 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "downloadDir",
 ];
 
-const DETAIL_FIELDS = [
+const DETAIL_BASE_FIELDS = [
     ...SUMMARY_FIELDS,
     "files",
     "fileStats",
@@ -117,9 +119,31 @@ const DETAIL_FIELDS = [
     "peers",
     "pieceCount",
     "pieceSize",
-    "pieceStates",
-    "pieceAvailability",
 ];
+
+const DETAIL_TRACKER_FIELDS = [
+    "trackerStats",
+];
+
+const DETAIL_PIECE_FIELDS = [
+    "pieces",
+    "availability",
+];
+
+const buildDetailFields = (
+    options?: TorrentDetailsRequestOptions
+): string[] => {
+    const profile = options?.profile ?? "standard";
+    const includeTrackerStats = options?.includeTrackerStats ?? true;
+    const fields = [...DETAIL_BASE_FIELDS];
+    if (includeTrackerStats) {
+        fields.push(...DETAIL_TRACKER_FIELDS);
+    }
+    if (profile === "pieces") {
+        fields.push(...DETAIL_PIECE_FIELDS);
+    }
+    return fields;
+};
 
 export class TransmissionAdapter implements EngineAdapter {
     private endpoint: string;
@@ -1137,12 +1161,13 @@ export class TransmissionAdapter implements EngineAdapter {
 
     private async fetchTransmissionTorrentDetails(
         id: number,
+        options?: TorrentDetailsRequestOptions,
     ): Promise<TransmissionTorrentDetail> {
         const detail = await this.send(
             {
                 method: "torrent-get",
                 arguments: {
-                    fields: DETAIL_FIELDS,
+                    fields: buildDetailFields(options),
                     ids: [id],
                 },
             },
@@ -1160,9 +1185,12 @@ export class TransmissionAdapter implements EngineAdapter {
         return torrents.map(normalizeTorrent);
     }
 
-    public async getTorrentDetails(id: string): Promise<TorrentDetailEntity> {
+    public async getTorrentDetails(
+        id: string,
+        options?: TorrentDetailsRequestOptions,
+    ): Promise<TorrentDetailEntity> {
         const rpcId = await this.resolveRpcId(id);
-        const detail = await this.fetchTransmissionTorrentDetails(rpcId);
+        const detail = await this.fetchTransmissionTorrentDetails(rpcId, options);
         this.idMap.set(detail.hashString, detail.id);
         return normalizeTorrentDetail(detail);
     }
@@ -1173,6 +1201,7 @@ export class TransmissionAdapter implements EngineAdapter {
      */
     public async getTorrentDetailsBulk(
         ids: string[],
+        options?: TorrentDetailsRequestOptions,
     ): Promise<TorrentDetailEntity[]> {
         const rpcIds = await this.resolveIds(ids);
         if (rpcIds.length === 0) return [];
@@ -1181,16 +1210,15 @@ export class TransmissionAdapter implements EngineAdapter {
             {
                 method: "torrent-get",
                 arguments: {
-                    fields: DETAIL_FIELDS,
+                    fields: buildDetailFields(options),
                     ids: rpcIds,
                 },
             },
-            zTransmissionTorrentArray,
+            zTransmissionTorrentDetailArray,
         );
 
         const results: TorrentDetailEntity[] = [];
-        for (const item of response as unknown[]) {
-            const detail = item as TransmissionTorrentDetail;
+        for (const detail of response as TransmissionTorrentDetail[]) {
             if (detail.hashString && typeof detail.id === "number") {
                 try {
                     this.idMap.set(detail.hashString, detail.id);
@@ -1278,6 +1306,11 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.startTorrents(rpcIds);
     }
 
+    public async startNow(ids: string[]): Promise<void> {
+        const rpcIds = await this.resolveIds(ids);
+        await this.startTorrents(rpcIds, true);
+    }
+
     public async verify(ids: string[]): Promise<void> {
         const rpcIds = await this.resolveIds(ids);
         await this.verifyTorrents(rpcIds);
@@ -1357,6 +1390,39 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate("torrent-set", {
             ids: [rpcId],
             superSeeding: enabled,
+        });
+    }
+
+    public async addTrackers(ids: string[], trackers: string[]): Promise<void> {
+        if (!ids.length) return;
+        const trackerAdd = trackers.map((tracker) => tracker.trim()).filter((tracker) => tracker.length > 0);
+        if (!trackerAdd.length) return;
+        const rpcIds = await this.resolveIds(ids);
+        await this.mutate("torrent-set", {
+            ids: rpcIds,
+            trackerAdd,
+        });
+    }
+
+    public async removeTrackers(ids: string[], trackerIds: number[]): Promise<void> {
+        if (!ids.length) return;
+        const trackerRemove = trackerIds.filter((trackerId) => Number.isFinite(trackerId));
+        if (!trackerRemove.length) return;
+        const rpcIds = await this.resolveIds(ids);
+        await this.mutate("torrent-set", {
+            ids: rpcIds,
+            trackerRemove,
+        });
+    }
+
+    public async replaceTrackers(ids: string[], trackers: string[]): Promise<void> {
+        if (!ids.length) return;
+        const trackerList = trackers.map((tracker) => tracker.trim()).filter((tracker) => tracker.length > 0).join("\n");
+        if (!trackerList.length) return;
+        const rpcIds = await this.resolveIds(ids);
+        await this.mutate("torrent-set", {
+            ids: rpcIds,
+            trackerList,
         });
     }
 

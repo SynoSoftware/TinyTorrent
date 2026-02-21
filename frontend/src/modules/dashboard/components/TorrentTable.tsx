@@ -13,7 +13,7 @@ import TorrentTable_Body from "@/modules/dashboard/components/TorrentTable_Body"
 import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "@/modules/dashboard/components/TorrentTable_HeaderMenu";
 import TorrentTable_ColumnSettingsModal from "@/modules/dashboard/components/TorrentTable_ColumnSettingsModal";
-import { useTorrentTableViewModel } from "@/modules/dashboard/viewModels/useTorrentTableViewModel";
+import { useTorrentTableViewModel } from "@/modules/dashboard/hooks";
 
 interface TorrentTableProps {
     viewModel: TorrentTableViewModel;

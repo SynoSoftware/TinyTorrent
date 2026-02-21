@@ -44,6 +44,7 @@ export default function TorrentTable_HeaderMenu({
                 placement="bottom-start"
                 shouldFlip
                 closeOnSelect={false}
+                disableAnimation
             >
                 <DropdownTrigger>
                     <div

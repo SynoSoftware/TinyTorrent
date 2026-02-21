@@ -10,6 +10,7 @@ import {
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { OptimisticStatusEntry } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
@@ -126,16 +127,55 @@ const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
     },
 };
 
+const RELOCATING_STATUS_META: StatusMeta = {
+    color: "secondary",
+    icon: Hourglass,
+    labelKey: "table.status_relocating",
+};
+
 interface TorrentTableStatusColumnCellProps {
     torrent: Torrent;
     t: TFunction;
+    optimisticStatus?: OptimisticStatusEntry;
 }
 
 export function TorrentTable_StatusCell({
     torrent,
     t,
+    optimisticStatus,
 }: TorrentTableStatusColumnCellProps) {
     const classification = useResolvedRecoveryClassification(torrent);
+
+    if (optimisticStatus?.operation === STATUS.torrentOperation.RELOCATING) {
+        const Icon = RELOCATING_STATUS_META.icon;
+        const tooltip = t(RELOCATING_STATUS_META.labelKey);
+        return (
+            <div className={FORM_CONTROL.statusChipContainer}>
+                <Chip
+                    size="md"
+                    variant="flat"
+                    color={RELOCATING_STATUS_META.color}
+                    style={STATUS_CHIP_STYLE}
+                    classNames={FORM_CONTROL.statusChipClassNames}
+                >
+                    <div className={FORM_CONTROL.statusChipContent}>
+                        <StatusIcon
+                            Icon={Icon}
+                            size="md"
+                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                            className={FORM_CONTROL.statusChipCurrentIcon}
+                        />
+                        <span
+                            className={FORM_CONTROL.statusChipLabel}
+                            title={tooltip}
+                        >
+                            {tooltip}
+                        </span>
+                    </div>
+                </Chip>
+            </div>
+        );
+    }
 
     const effectiveState =
         torrent.errorEnvelope &&

@@ -7,14 +7,16 @@ import type {
     OptimisticStatusMap,
 } from "@/modules/dashboard/types/optimistic";
 import { OPTIMISTIC_CHECKING_GRACE_MS } from "@/config/logic";
-import { STATUS } from "@/shared/status";
+import { STATUS, type TorrentOperationState } from "@/shared/status";
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
+    state: TorrentStatus;
     sawCheckingState: boolean;
     pendingCheckingUntilMs?: number;
 };
 
 type InternalOptimisticStatusMap = Record<string, InternalOptimisticStatusEntry>;
+type OperationOverlayMap = Record<string, TorrentOperationState>;
 
 const reconcileOptimisticStatuses = (
     storedStatuses: InternalOptimisticStatusMap,
@@ -91,6 +93,13 @@ const reconcileOptimisticStatuses = (
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [storedOptimisticStatuses, setOptimisticStatuses] =
         useState<InternalOptimisticStatusMap>({});
+    const [operationOverlays, setOperationOverlays] = useState<OperationOverlayMap>(
+        {},
+    );
+    const activeTorrentIds = useMemo(
+        () => new Set(torrents.map((torrent) => torrent.id).filter(Boolean)),
+        [torrents],
+    );
 
     // Optimistic statuses are a UI-only projection and are cleared by:
     // 1) engine-confirmed reconciliation, 2) explicit command failure,
@@ -120,6 +129,37 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
         []
     );
 
+    const updateOperationOverlays = useCallback(
+        (updates: Array<{ id: string; operation?: TorrentOperationState }>) => {
+            setOperationOverlays((prev) => {
+                const next = { ...prev };
+                let hasChanges = false;
+                updates.forEach(({ id, operation }) => {
+                    if (operation) {
+                        if (next[id] !== operation) {
+                            hasChanges = true;
+                        }
+                        next[id] = operation;
+                        return;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(next, id)) {
+                        delete next[id];
+                        hasChanges = true;
+                    }
+                });
+                Object.keys(next).forEach((id) => {
+                    if (activeTorrentIds.has(id)) {
+                        return;
+                    }
+                    delete next[id];
+                    hasChanges = true;
+                });
+                return hasChanges ? next : prev;
+            });
+        },
+        [activeTorrentIds],
+    );
+
     const optimisticStatuses = useMemo(() => {
         const reconciledStatuses = reconcileOptimisticStatuses(
             storedOptimisticStatuses,
@@ -129,8 +169,17 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
         Object.keys(reconciledStatuses).forEach((id) => {
             projectedStatuses[id] = { state: reconciledStatuses[id].state };
         });
+        Object.entries(operationOverlays).forEach(([id, operation]) => {
+            if (!activeTorrentIds.has(id)) {
+                return;
+            }
+            projectedStatuses[id] = {
+                ...(projectedStatuses[id] ?? {}),
+                operation,
+            };
+        });
         return projectedStatuses;
-    }, [storedOptimisticStatuses, torrents]);
+    }, [activeTorrentIds, operationOverlays, storedOptimisticStatuses, torrents]);
 
     useEffect(() => {
         const runReconcile = () => {
@@ -178,5 +227,6 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
     return {
         optimisticStatuses,
         updateOptimisticStatuses,
+        updateOperationOverlays,
     };
 }

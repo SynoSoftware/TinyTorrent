@@ -60,12 +60,16 @@ export function useTorrentTableColumns({
                 meta: { align: def.align },
                 cell: ({ row, table }) => {
                     const CellRenderer = def.render;
+                    const optimisticStatus = (
+                        table.options.meta as DashboardTableMeta | undefined
+                    )?.optimisticStatuses[row.original.id];
                     return (
                         <CellRenderer
                             torrent={row.original}
                             t={t}
                             isSelected={row.getIsSelected()}
                             table={table}
+                            optimisticStatus={optimisticStatus}
                         />
                     );
                 },

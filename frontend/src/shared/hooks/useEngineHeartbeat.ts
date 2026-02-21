@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type {
+    HeartbeatDetailProfile,
     HeartbeatErrorEvent,
     HeartbeatMode,
     HeartbeatPayload,
@@ -12,6 +13,8 @@ import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 export const useEngineHeartbeat = (params?: {
     mode?: HeartbeatMode;
     detailId?: string | null;
+    detailProfile?: HeartbeatDetailProfile;
+    includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
     onError?: (event: HeartbeatErrorEvent) => void;
 }) => {
@@ -21,6 +24,8 @@ export const useEngineHeartbeat = (params?: {
         useState<HeartbeatPayload | null>(null);
     const mode = params?.mode ?? "table";
     const detailId = params?.detailId ?? null;
+    const detailProfile = params?.detailProfile;
+    const includeTrackerStats = params?.includeTrackerStats;
     const pollingIntervalMs = params?.pollingIntervalMs;
     const onError = params?.onError;
 
@@ -47,6 +52,8 @@ export const useEngineHeartbeat = (params?: {
         const subscription = heartbeatDomain.subscribeNonTable({
             mode,
             detailId,
+            detailProfile,
+            includeTrackerStats,
             pollingIntervalMs,
             onUpdate: handleUpdate,
             onError: handleError,
@@ -55,6 +62,8 @@ export const useEngineHeartbeat = (params?: {
     }, [
         heartbeatDomain,
         detailId,
+        detailProfile,
+        includeTrackerStats,
         mode,
         onError,
         pollingIntervalMs,

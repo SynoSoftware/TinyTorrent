@@ -41,6 +41,7 @@ export interface TransmissionTorrentFileStat {
 }
 
 export interface TransmissionTorrentTracker {
+    id?: number;
     announce: string;
     tier: number;
     announceState?: number;

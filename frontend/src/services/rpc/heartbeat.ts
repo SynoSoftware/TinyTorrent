@@ -19,6 +19,7 @@ import STATUS from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
 export type HeartbeatMode = "background" | "table" | "detail";
+export type HeartbeatDetailProfile = "standard" | "pieces";
 
 export type HeartbeatSource = "polling";
 
@@ -44,6 +45,8 @@ export interface HeartbeatPayload {
 export interface HeartbeatSubscriberParams {
     mode: HeartbeatMode;
     detailId?: string | null;
+    detailProfile?: HeartbeatDetailProfile;
+    includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError?: (event: HeartbeatErrorEvent) => void;
@@ -56,9 +59,21 @@ export interface HeartbeatSubscription {
 type HeartbeatClient = {
     getTorrents(): Promise<TorrentEntity[]>;
     getSessionStats(): Promise<SessionStats>;
-    getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
+    getTorrentDetails(
+        id: string,
+        options?: {
+            profile?: HeartbeatDetailProfile;
+            includeTrackerStats?: boolean;
+        }
+    ): Promise<TorrentDetailEntity>;
     // Optional bulk fetch to retrieve many details in a single RPC call.
-    getTorrentDetailsBulk?(ids: string[]): Promise<TorrentDetailEntity[]>;
+    getTorrentDetailsBulk?(
+        ids: string[],
+        options?: {
+            profile?: HeartbeatDetailProfile;
+            includeTrackerStats?: boolean;
+        }
+    ): Promise<TorrentDetailEntity[]>;
 };
 
 // Extend HeartbeatClient with optional network telemetry fetch support.
@@ -90,6 +105,12 @@ type DetailFetchResult = {
     detailId: string;
     detail?: TorrentDetailEntity;
     error?: unknown;
+};
+
+type DetailFetchRequest = {
+    detailId: string;
+    profile: HeartbeatDetailProfile;
+    includeTrackerStats: boolean;
 };
 
 const RECENT_REMOVED_TTL_MS = GHOST_TIMEOUT_MS;
@@ -277,11 +298,30 @@ export class HeartbeatManager {
     }
 
     private async fetchDetailResponses(
-        detailIds: string[]
+        detailRequests: DetailFetchRequest[]
     ): Promise<DetailFetchResult[]> {
-        if (detailIds.length === 0) {
+        if (detailRequests.length === 0) {
             return [];
         }
+
+        const requestById = new Map<string, DetailFetchRequest>();
+        for (const request of detailRequests) {
+            const existing = requestById.get(request.detailId);
+            if (!existing) {
+                requestById.set(request.detailId, request);
+                continue;
+            }
+            requestById.set(request.detailId, {
+                detailId: request.detailId,
+                profile:
+                    existing.profile === "pieces" || request.profile === "pieces"
+                        ? "pieces"
+                        : "standard",
+                includeTrackerStats:
+                    existing.includeTrackerStats || request.includeTrackerStats,
+            });
+        }
+        const normalizedRequests = Array.from(requestById.values());
 
         // OPTIMIZATION: Use bulk fetch if available to prevent N+1 request storms
         const clientAny = this.client as HeartbeatClientWithTelemetry & {
@@ -289,48 +329,87 @@ export class HeartbeatManager {
         };
         if (typeof clientAny.getTorrentDetailsBulk === "function") {
             try {
-                const details = await (
-                    clientAny.getTorrentDetailsBulk as (
-                        ids: string[]
-                    ) => Promise<TorrentDetailEntity[]>
-                )(detailIds);
-
                 const resultMap = new Map<string, TorrentDetailEntity>();
-                for (const d of details || []) {
-                    if (d && d.id) resultMap.set(d.id, d);
+                const idsByProfile = new Map<
+                    string,
+                    {
+                        profile: HeartbeatDetailProfile;
+                        includeTrackerStats: boolean;
+                        ids: string[];
+                    }
+                >();
+                for (const request of normalizedRequests) {
+                    const key = `${request.profile}:${request.includeTrackerStats ? "1" : "0"}`;
+                    const bucket = idsByProfile.get(key);
+                    if (bucket) {
+                        bucket.ids.push(request.detailId);
+                        continue;
+                    }
+                    idsByProfile.set(key, {
+                        profile: request.profile,
+                        includeTrackerStats: request.includeTrackerStats,
+                        ids: [request.detailId],
+                    });
                 }
 
-                return detailIds.map((id) => ({
-                    detailId: id,
-                    detail: resultMap.get(id),
-                    error: resultMap.has(id)
+                for (const { profile, includeTrackerStats, ids } of idsByProfile.values()) {
+                    if (ids.length === 0) {
+                        continue;
+                    }
+                    const details = await (
+                        clientAny.getTorrentDetailsBulk as (
+                            ids: string[],
+                            options?: {
+                                profile?: HeartbeatDetailProfile;
+                                includeTrackerStats?: boolean;
+                            }
+                        ) => Promise<TorrentDetailEntity[]>
+                    )(ids, {
+                        profile,
+                        includeTrackerStats,
+                    });
+                    for (const detail of details || []) {
+                        if (detail && detail.id) {
+                            resultMap.set(detail.id, detail);
+                        }
+                    }
+                }
+
+                return normalizedRequests.map(({ detailId }) => ({
+                    detailId,
+                    detail: resultMap.get(detailId),
+                    error: resultMap.has(detailId)
                         ? undefined
                         : new Error("Detail not returned in bulk fetch"),
                 }));
             } catch (error) {
-                return detailIds.map((id) => ({ detailId: id, error }));
+                return normalizedRequests.map(({ detailId }) => ({ detailId, error }));
             }
         }
 
         // Fallback to original queued/parallel fetching strategy
-        const queue = detailIds.slice();
+        const queue = normalizedRequests.slice();
         const results: DetailFetchResult[] = [];
         const worker = async () => {
             while (true) {
-                const detailId = queue.shift();
-                if (!detailId) return;
+                const request = queue.shift();
+                if (!request) return;
                 try {
                     const detail = await this.client.getTorrentDetails(
-                        detailId
+                        request.detailId,
+                        {
+                            profile: request.profile,
+                            includeTrackerStats: request.includeTrackerStats,
+                        }
                     );
-                    results.push({ detailId, detail });
+                    results.push({ detailId: request.detailId, detail });
                 } catch (error) {
-                    results.push({ detailId, error });
+                    results.push({ detailId: request.detailId, error });
                 }
             }
         };
         const concurrency = Math.min(
-            detailIds.length,
+            normalizedRequests.length,
             DETAIL_FETCH_CONCURRENCY
         );
         const workers = new Array(concurrency).fill(null).map(() => worker());
@@ -553,14 +632,35 @@ export class HeartbeatManager {
 
         if (this.subscribers.size === 0) return;
         const snapshot = Array.from(this.subscribers.values());
-        const detailIds = Array.from(
-            new Set(
-                snapshot
-                    .map((entry) => entry.params.detailId)
-                    .filter((id): id is string => Boolean(id))
-            )
-        );
-        const hasDetailSubscribers = detailIds.length > 0;
+        const detailRequestMap = new Map<string, DetailFetchRequest>();
+        for (const { params } of snapshot) {
+            const detailId = params.detailId;
+            if (!detailId) {
+                continue;
+            }
+            const profile = params.detailProfile ?? "standard";
+            const includeTrackerStats = params.includeTrackerStats ?? true;
+            const existing = detailRequestMap.get(detailId);
+            if (!existing) {
+                detailRequestMap.set(detailId, {
+                    detailId,
+                    profile,
+                    includeTrackerStats,
+                });
+                continue;
+            }
+            detailRequestMap.set(detailId, {
+                detailId,
+                profile:
+                    existing.profile === "pieces" || profile === "pieces"
+                        ? "pieces"
+                        : "standard",
+                includeTrackerStats:
+                    existing.includeTrackerStats || includeTrackerStats,
+            });
+        }
+        const detailRequests = Array.from(detailRequestMap.values());
+        const hasDetailSubscribers = detailRequests.length > 0;
         const shouldFetchSummary =
             this.pollingEnabled || !this.hasInitialData();
         if (!shouldFetchSummary && !hasDetailSubscribers) {
@@ -928,7 +1028,7 @@ export class HeartbeatManager {
 
             if (hasDetailSubscribers) {
                 const detailResponses = await this.fetchDetailResponses(
-                    detailIds
+                    detailRequests
                 );
 
                 for (const response of detailResponses) {

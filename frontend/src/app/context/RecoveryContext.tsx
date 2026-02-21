@@ -14,6 +14,8 @@ export type SetLocationSurface =
     | "general-tab"
     | "recovery-modal";
 
+export type SetLocationExecutionMode = "recover_existing" | "move_data";
+
 export interface SetLocationCapability {
     canBrowse: boolean;
     supportsManual: boolean;
@@ -30,7 +32,10 @@ export type SetLocationOutcome =
     | { status: "cancelled" }
     | {
           status: "unsupported";
-          reason: "browse_unavailable" | "manual_unavailable";
+          reason:
+              | "browse_unavailable"
+              | "manual_unavailable"
+              | "command_unsupported";
       }
     | {
           status: "conflict";
@@ -50,12 +55,13 @@ export type SetLocationConfirmOutcome =
     | { status: "canceled" };
 
 export type RecoveryRequestCompletionOutcome =
-    | { status: "applied" }
+    | { status: "applied"; awaitingRecovery?: boolean }
     | { status: "cancelled" }
     | {
           status: "failed";
           reason:
               | "invalid_target"
+              | "method_missing"
               | "dispatch_not_applied"
               | "execution_failed";
       };
@@ -70,6 +76,7 @@ export type OpenRecoveryModalOutcome =
 
 export interface LocationEditorState {
     surface: SetLocationSurface;
+    executionMode: SetLocationExecutionMode;
     torrentKey: string;
     initialPath: string;
     inputPath: string;

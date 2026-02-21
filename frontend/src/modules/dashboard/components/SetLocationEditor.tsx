@@ -2,7 +2,7 @@ import { Button, Input } from "@heroui/react";
 import { HardDrive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { FORM, MODAL } from "@/shared/ui/layout/glass-surface";
 
 interface SetLocationEditorProps {
     value: string;
@@ -15,6 +15,7 @@ interface SetLocationEditorProps {
     caption?: string;
     statusMessage?: string;
     disableCancel?: boolean;
+    showActions?: boolean;
 }
 export function SetLocationEditor({
     value,
@@ -27,6 +28,7 @@ export function SetLocationEditor({
     caption,
     statusMessage,
     disableCancel,
+    showActions = true,
 }: SetLocationEditorProps) {
     const { t } = useTranslation();
     const trimmedValue = value.trim();
@@ -57,26 +59,30 @@ export function SetLocationEditor({
             {statusMessage && (
                 <div className={TEXT_ROLE.bodySmall}>{statusMessage}</div>
             )}
-            <div className={FORM.locationEditorActions}>
-                <Button
-                    variant="shadow"
-                    size="md"
-                    color="primary"
-                    onPress={onSubmit}
-                    isDisabled={!trimmedValue || isBusy}
+            {showActions && (
+                <div
+                    className={`${MODAL.dialogFooter} -mx-panel -mb-panel mt-panel justify-end bg-content1/20`}
                 >
-                    {t("recovery.action.change_location")}
-                </Button>
-                <Button
-                    variant="light"
-                    size="md"
-                    color="default"
-                    onPress={onCancel}
-                    isDisabled={isBusy || disableCancel}
-                >
-                    {t("modals.cancel")}
-                </Button>
-            </div>
+                    <Button
+                        variant="light"
+                        size="md"
+                        color="default"
+                        onPress={onCancel}
+                        isDisabled={isBusy || disableCancel}
+                    >
+                        {t("modals.cancel")}
+                    </Button>
+                    <Button
+                        variant="shadow"
+                        size="md"
+                        color="primary"
+                        onPress={onSubmit}
+                        isDisabled={!trimmedValue || isBusy}
+                    >
+                        {t("recovery.action.change_location")}
+                    </Button>
+                </div>
+            )}
             {error && <div className={FORM.locationEditorError}>{error}</div>}
         </div>
     );

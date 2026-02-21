@@ -10,9 +10,11 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
+import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks";
 
 interface TrackersTabProps {
+    torrentId: string | number;
+    torrentIds?: Array<string | number>;
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     serverTime?: number;
@@ -20,12 +22,16 @@ interface TrackersTabProps {
 }
 
 export const TrackersTab: React.FC<TrackersTabProps> = ({
+    torrentId,
+    torrentIds,
     trackers,
     emptyMessage,
     serverTime,
     isStandalone = false,
 }) => {
     const viewModel = useTorrentDetailsTrackersViewModel({
+        torrentId,
+        torrentIds,
         trackers,
         emptyMessage,
         serverTime,
@@ -70,6 +76,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     <th className={DETAILS.table.tableHeadCellStatus}>
                         {viewModel.labels.statusHeader}
                     </th>
+                    <th className={DETAILS.table.tableHeadCellIcon} />
                 </tr>
             </thead>
 
@@ -124,6 +131,18 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                     {row.statusLabel}
                                 </span>
                             )}
+                        </td>
+                        <td className={DETAILS.table.cellIcon}>
+                            <ToolbarIconButton
+                                Icon={X}
+                                ariaLabel={viewModel.labels.removeLabel}
+                                onPress={() => viewModel.actions.removeTracker(row)}
+                                isDisabled={
+                                    viewModel.state.isMutating ||
+                                    row.trackerId == null ||
+                                    row.trackerId < 0
+                                }
+                            />
                         </td>
                     </tr>
                 ))}
@@ -189,6 +208,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                             <Button
                                 variant="shadow"
                                 onPress={viewModel.actions.closeAdd}
+                                isDisabled={viewModel.state.isMutating}
                             >
                                 {viewModel.labels.cancelLabel}
                             </Button>
@@ -196,8 +216,18 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 color="primary"
                                 startContent={<Check />}
                                 onPress={viewModel.actions.submitAdd}
+                                isLoading={viewModel.state.isMutating}
+                                isDisabled={viewModel.state.isMutating}
                             >
                                 {viewModel.labels.addLabel}
+                            </Button>
+                            <Button
+                                color="secondary"
+                                onPress={viewModel.actions.submitReplace}
+                                isLoading={viewModel.state.isMutating}
+                                isDisabled={viewModel.state.isMutating}
+                            >
+                                {viewModel.labels.replaceLabel}
                             </Button>
                         </div>
                     </GlassPanel>

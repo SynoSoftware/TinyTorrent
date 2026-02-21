@@ -14,7 +14,7 @@ import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
+import { useFileExplorerViewModel } from "@/modules/dashboard/hooks";
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;

@@ -15,6 +15,7 @@ import type {
 import type {
     EngineAdapter,
     EngineRuntimeCapabilities,
+    TorrentDetailsRequestOptions,
 } from "@/services/rpc/engine-adapter";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import {
@@ -103,7 +104,11 @@ export class DevTestAdapter implements EngineAdapter {
         return [this.resolveDetail()];
     }
 
-    async getTorrentDetails(id: string): Promise<TorrentDetailEntity> {
+    async getTorrentDetails(
+        id: string,
+        options?: TorrentDetailsRequestOptions,
+    ): Promise<TorrentDetailEntity> {
+        void options;
         if (id !== this.detail.id) {
             throw new Error("torrent_not_found");
         }

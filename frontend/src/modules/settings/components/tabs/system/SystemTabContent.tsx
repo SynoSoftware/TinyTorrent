@@ -40,7 +40,7 @@ function SystemSectionCard({
             {title && (
                 <h3
                     className={FORM.sectionTitle}
-                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                    style={FORM.sectionTitleTrackingStyle}
                 >
                     {title}
                 </h3>
@@ -48,7 +48,7 @@ function SystemSectionCard({
             {description && (
                 <p
                     className={FORM.sectionDescription}
-                    style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                    style={FORM.sectionDescriptionTrackingStyle}
                 >
                     {description}
                 </p>

@@ -13,7 +13,7 @@ import { ICON_STROKE_WIDTH } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
-import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
+import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks";
 
 interface PeersTabProps {
     peers: TorrentPeerEntity[];

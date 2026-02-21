@@ -21,6 +21,7 @@ import {
 } from "@/app/dev/recovery/scenarios";
 import type { TorrentDetailEntity } from "@/services/rpc/entities";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
+import type { TorrentOperationState } from "@/shared/status";
 
 const reportCommandErrorMock = vi.fn();
 const showFeedbackMock = vi.fn();
@@ -60,12 +61,16 @@ type ControllerHarnessProps = {
     controllerRef: RecoveryControllerRef;
     initialDetail: TorrentDetailEntity;
     initialFaultMode: DevTestFaultMode;
+    updateOperationOverlays: (
+        updates: Array<{ id: string; operation?: TorrentOperationState }>,
+    ) => void;
 };
 
 function RecoveryControllerHarness({
     controllerRef,
     initialDetail,
     initialFaultMode,
+    updateOperationOverlays,
 }: ControllerHarnessProps) {
     const adapter = useMemo(() => {
         const instance = new DevTestAdapter(initialDetail, initialFaultMode);
@@ -128,7 +133,7 @@ function RecoveryControllerHarness({
                     await adapter.setTorrentLocation(
                         String(intent.torrentId),
                         intent.path,
-                        false,
+                        intent.moveData ?? false,
                     );
                     await refreshTorrents();
                     await refreshDetailData();
@@ -159,6 +164,7 @@ function RecoveryControllerHarness({
             pendingDeletionHashesRef,
         },
         dispatch,
+        updateOperationOverlays,
     });
 
     useEffect(() => {
@@ -171,6 +177,7 @@ function RecoveryControllerHarness({
 type MountedHarness = {
     controllerRef: RecoveryControllerRef;
     torrent: TorrentDetailEntity;
+    updateOperationOverlaysMock: ReturnType<typeof vi.fn>;
     cleanup: () => Promise<void>;
 };
 
@@ -214,6 +221,7 @@ const mountHarness = async ({
     const baseTorrent = createDevScenarioTorrent(scenario, "certain");
     const torrent = mutateTorrent ? mutateTorrent(baseTorrent) : baseTorrent;
     const controllerRef: RecoveryControllerRef = { current: null };
+    const updateOperationOverlaysMock = vi.fn();
 
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -223,6 +231,7 @@ const mountHarness = async ({
             controllerRef,
             initialDetail: torrent,
             initialFaultMode: faultMode ?? scenario.faultMode,
+            updateOperationOverlays: updateOperationOverlaysMock,
         }),
     );
     await waitForCondition(() => controllerRef.current !== null, 1_500);
@@ -230,6 +239,7 @@ const mountHarness = async ({
     return {
         controllerRef,
         torrent,
+        updateOperationOverlaysMock,
         cleanup: async () => {
             root.unmount();
             container.remove();
@@ -345,6 +355,155 @@ describe("useRecoveryController request contract", () => {
             await expect(outcome.completion).resolves.toEqual({
                 status: "cancelled",
             });
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("manual set-location outside recovery submits immediately", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "data_gap",
+            faultMode: "ok",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const nonRecoveryTorrent = {
+                ...mounted.torrent,
+                errorEnvelope: mounted.torrent.errorEnvelope
+                    ? {
+                          ...mounted.torrent.errorEnvelope,
+                          errorClass: "none" as const,
+                          recoveryState: "ok" as const,
+                      }
+                    : undefined,
+            };
+
+            const openOutcome = await controller.setLocation.handler(
+                nonRecoveryTorrent,
+                {
+                    surface: "general-tab",
+                    mode: "manual",
+                },
+            );
+            expect(openOutcome).toEqual({ status: "manual_opened" });
+
+            controller.locationEditor.change("D:\\NewDownloadPath");
+            const confirmOutcome = await controller.locationEditor.confirm();
+            expect(confirmOutcome).toEqual({ status: "submitted" });
+
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).locationEditor.state ===
+                    null,
+                1_500,
+            );
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+            expect(mounted.updateOperationOverlaysMock).toHaveBeenNthCalledWith(
+                1,
+                [
+                    {
+                        id: "dev-recovery-torrent",
+                        operation: "relocating",
+                    },
+                ],
+            );
+            await waitForCondition(
+                () => mounted.updateOperationOverlaysMock.mock.calls.length >= 2,
+                1_500,
+            );
+            expect(
+                mounted.updateOperationOverlaysMock.mock.calls,
+            ).toEqual(
+                expect.arrayContaining([
+                    [
+                        [
+                            {
+                                id: "dev-recovery-torrent",
+                            },
+                        ],
+                    ],
+                ]),
+            );
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("manual set-location on recoverable torrents enters verifying flow", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "data_gap",
+            faultMode: "ok",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const openOutcome = await controller.setLocation.handler(
+                mounted.torrent,
+                {
+                    surface: "general-tab",
+                    mode: "manual",
+                },
+            );
+            expect(openOutcome).toEqual({ status: "manual_opened" });
+
+            controller.locationEditor.change("D:\\RecoveredDataPath");
+            const confirmOutcome = await controller.locationEditor.confirm();
+            expect(confirmOutcome).toEqual({ status: "verifying" });
+
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).locationEditor.state ===
+                    null,
+                1_500,
+            );
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("manual set-location rejects non-absolute paths", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "data_gap",
+            faultMode: "ok",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const nonRecoveryTorrent = {
+                ...mounted.torrent,
+                errorEnvelope: mounted.torrent.errorEnvelope
+                    ? {
+                          ...mounted.torrent.errorEnvelope,
+                          errorClass: "none" as const,
+                          recoveryState: "ok" as const,
+                      }
+                    : undefined,
+            };
+
+            const openOutcome = await controller.setLocation.handler(
+                nonRecoveryTorrent,
+                {
+                    surface: "general-tab",
+                    mode: "manual",
+                },
+            );
+            expect(openOutcome).toEqual({ status: "manual_opened" });
+
+            controller.locationEditor.change("relative\\path");
+            const confirmOutcome = await controller.locationEditor.confirm();
+            expect(confirmOutcome).toEqual({ status: "validation_error" });
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).locationEditor
+                            .state?.error,
+                    ),
+                1_500,
+            );
+            expect(
+                readController(mounted.controllerRef).locationEditor.state
+                    ?.error,
+            ).toBe(
+                "set_location.reason.absolute_path_required",
+            );
         } finally {
             await mounted.cleanup();
         }

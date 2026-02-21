@@ -96,7 +96,7 @@ export default function useLayoutMetrics(): LayoutMetrics {
                 probe.style.position = "fixed";
                 probe.style.visibility = "hidden";
                 probe.style.pointerEvents = "none";
-                probe.style.width = "1px";
+                probe.style.width = "var(--tt-divider-width)";
                 probe.style.overflow = "hidden";
                 document.body.appendChild(probe);
                 return probe;

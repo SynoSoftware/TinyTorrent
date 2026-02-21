@@ -1,14 +1,9 @@
-import type {
-    TorrentDetailEntity,
-} from "@/services/rpc/entities";
+import type { TorrentDetailEntity } from "@/services/rpc/entities";
 import { interpretFsError } from "@/shared/utils/fsErrors";
 import { setClassificationOverride } from "@/services/recovery/missingFilesStore";
 import { resolveRecoveryFingerprint } from "@/services/recovery/recoveryFingerprint";
 import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
-import {
-    classifyMissingFilesState,
-    deriveRecommendedActions,
-} from "@/services/recovery/recovery-classifier";
+import { classifyMissingFilesState, deriveRecommendedActions } from "@/services/recovery/recovery-classifier";
 import {
     deriveReasonFromFsError,
     ensurePathReady,
@@ -22,6 +17,7 @@ import {
     resetVerifyGuard,
     runMinimalRecoverySequence,
     shouldSkipVerify,
+    watchVerifyCompletion,
 } from "@/services/recovery/recovery-verifier";
 import type {
     RecoveryControllerDeps,
@@ -52,6 +48,7 @@ export {
     recordVerifyAttempt,
     resetVerifyGuard,
     shouldSkipVerify,
+    watchVerifyCompletion,
 };
 
 const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
@@ -61,20 +58,29 @@ export function resetRecoveryControllerState() {
     IN_FLIGHT_RECOVERY.clear();
 }
 
-function normalizePathForComparison(path?: string): string {
-    if (!path) return "";
-    return path.replace(/[\\/]+$/, "").toLowerCase();
-}
-
 function appendTrailingSlashForForce(path: string): string {
     if (!path) return path;
     if (path.endsWith("\\") || path.endsWith("/")) return path;
-    return `${path}\\`;
+
+    const lastForwardSlash = path.lastIndexOf("/");
+    const lastBackSlash = path.lastIndexOf("\\");
+
+    // Preserve the dominant separator style already present in the path.
+    if (lastForwardSlash >= 0 || lastBackSlash >= 0) {
+        return `${path}${lastForwardSlash > lastBackSlash ? "/" : "\\"}`;
+    }
+
+    // No separator in the path string:
+    // - Windows drive/UNC shapes should remain backslash-based.
+    // - Everything else defaults to POSIX slash for remote daemons.
+    if (/^[a-zA-Z]:/.test(path) || path.startsWith("\\\\")) {
+        return `${path}\\`;
+    }
+
+    return `${path}/`;
 }
 
-export async function recoverMissingFiles(
-    params: RecoverySequenceParams,
-): Promise<RecoverySequenceResult> {
+export async function recoverMissingFiles(params: RecoverySequenceParams): Promise<RecoverySequenceResult> {
     const { client, torrent, envelope, options } = params;
     let classification = params.classification;
     if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
@@ -97,37 +103,23 @@ export async function recoverMissingFiles(
         reject: () => {},
     };
 
-    const deferredPromise = new Promise<RecoverySequenceResult>(
-        (resolve, reject) => {
-            deferredHandlers.resolve = resolve;
-            deferredHandlers.reject = reject;
-        },
-    );
+    const deferredPromise = new Promise<RecoverySequenceResult>((resolve, reject) => {
+        deferredHandlers.resolve = resolve;
+        deferredHandlers.reject = reject;
+    });
 
     IN_FLIGHT_RECOVERY.set(fingerprint, deferredPromise);
 
     (async () => {
         try {
             const downloadDir =
-                (torrent as TorrentDetailEntity).downloadDir ??
-                torrent.savePath ??
-                torrent.downloadDir ??
-                "";
-            const compareCurrent = normalizePathForComparison(
-                (torrent as TorrentDetailEntity).downloadDir ??
-                    torrent.savePath ??
-                    torrent.downloadDir,
-            );
-            const compareRequested = normalizePathForComparison(downloadDir);
-            const requestLocation =
-                compareCurrent && compareCurrent === compareRequested
-                    ? appendTrailingSlashForForce(downloadDir)
-                    : downloadDir;
+                (torrent as TorrentDetailEntity).downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
+            // Always force-refresh: append a trailing slash so
+            // Transmission re-evaluates the path even when the
+            // stored location string hasn't changed.
+            const requestLocation = appendTrailingSlashForForce(downloadDir);
 
-            const missingBytes =
-                typeof torrent.leftUntilDone === "number"
-                    ? torrent.leftUntilDone
-                    : null;
+            const missingBytes = typeof torrent.leftUntilDone === "number" ? torrent.leftUntilDone : null;
             const sequenceOptions = {
                 ...options,
                 missingBytes,
@@ -159,11 +151,7 @@ export async function recoverMissingFiles(
                     });
                     return;
                 }
-                const probe = await pollPathAvailability(
-                    client,
-                    downloadDir,
-                    options?.signal,
-                );
+                const probe = await pollPathAvailability(client, downloadDir, options?.signal);
                 if (!probe.success) {
                     const reason = deriveReasonFromFsError(probe.errorKind);
                     deferredHandlers.resolve({
@@ -227,15 +215,9 @@ export async function recoverMissingFiles(
 
             if (client.setTorrentLocation) {
                 try {
-                    await client.setTorrentLocation(
-                        torrent.id,
-                        requestLocation,
-                        false,
-                    );
+                    await client.setTorrentLocation(torrent.id, requestLocation, false);
                 } catch (err) {
-                    const reason = deriveReasonFromFsError(
-                        interpretFsError(err),
-                    );
+                    const reason = deriveReasonFromFsError(interpretFsError(err));
                     deferredHandlers.resolve({
                         status: "needsModal",
                         classification,
@@ -269,9 +251,7 @@ export async function recoverMissingFiles(
     return deferredPromise;
 }
 
-export async function runPartialFilesRecovery(
-    deps: RecoveryControllerDeps,
-): Promise<RecoveryOutcome> {
+export async function runPartialFilesRecovery(deps: RecoveryControllerDeps): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.verify) {
         return { kind: "error", message: "verify_not_supported" };
@@ -287,12 +267,9 @@ export async function runPartialFilesRecovery(
     }
 }
 
-export async function runReannounce(
-    deps: RecoveryControllerDeps,
-): Promise<RecoveryOutcome> {
+export async function runReannounce(deps: RecoveryControllerDeps): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
-    if (!client.forceTrackerReannounce)
-        return { kind: "error", message: "reannounce_not_supported" };
+    if (!client.forceTrackerReannounce) return { kind: "error", message: "reannounce_not_supported" };
     try {
         await client.forceTrackerReannounce(detail.id);
         return { kind: "reannounce-started", message: "reannounce_started" };

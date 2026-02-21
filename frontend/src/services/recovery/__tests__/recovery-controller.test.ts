@@ -275,6 +275,54 @@ describe("recovery-controller helpers", () => {
         );
     });
 
+    it("forces setTorrentLocation using POSIX separators for POSIX paths", async () => {
+        const setLocation = vi.fn(async () => {});
+        const client: Partial<EngineAdapter> = {
+            checkFreeSpace: vi.fn(async () =>
+                makeFreeSpace("/mnt/downloads", 200000, 400000),
+            ),
+            resume: vi.fn(async () => {}),
+            verify: vi.fn(async () => {}),
+            setTorrentLocation: setLocation,
+            getTorrentDetails: vi.fn(async () =>
+                makeTorrent({
+                    id: "torrent-1",
+                    hash: "hash-1",
+                    state: "downloading",
+                    leftUntilDone: 0,
+                    downloadDir: "/mnt/downloads",
+                    savePath: "/mnt/downloads",
+                }),
+            ),
+        };
+        const envelope = makeEnvelope();
+        const classification: MissingFilesClassification = {
+            kind: "pathLoss",
+            confidence: "likely",
+            path: "/mnt/downloads",
+            root: "/",
+            recommendedActions: deriveRecommendedActions("pathLoss"),
+        };
+        await recoverMissingFiles({
+            client: client as EngineAdapter,
+            torrent: makeTorrent({
+                id: "torrent-1",
+                hash: "hash-1",
+                downloadDir: "/mnt/downloads",
+                savePath: "/mnt/downloads",
+                leftUntilDone: 1000,
+            }),
+            envelope,
+            classification,
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
+        expect(setLocation).toHaveBeenCalledWith(
+            "torrent-1",
+            "/mnt/downloads/",
+            false,
+        );
+    });
+
     it("returns blocking outcome when free-space probing is unsupported", async () => {
         const client: Partial<EngineAdapter> = {
             resume: vi.fn(async () => {}),

@@ -1,20 +1,10 @@
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type {
-    TorrentDetailEntity,
-    TorrentEntity,
-} from "@/services/rpc/entities";
+import type { TorrentDetailEntity, TorrentEntity } from "@/services/rpc/entities";
 import { scheduler } from "@/app/services/scheduler";
 import { STATUS } from "@/shared/status";
 import { setClassificationOverride } from "@/services/recovery/missingFilesStore";
-import {
-    GHOST_TIMEOUT_MS,
-    RECOVERY_VERIFY_WATCH_INTERVAL_MS,
-} from "@/config/logic";
-import type {
-    MissingFilesClassification,
-    RecoverySequenceOptions,
-    RecoverySequenceResult,
-} from "@/services/recovery/recovery-contracts";
+import { GHOST_TIMEOUT_MS, RECOVERY_VERIFY_WATCH_INTERVAL_MS } from "@/config/logic";
+import type { MissingFilesClassification, RecoverySequenceOptions, RecoverySequenceResult } from "@/services/recovery/recovery-contracts";
 
 const VERIFY_WATCH_TIMEOUT_MS = GHOST_TIMEOUT_MS;
 
@@ -26,19 +16,13 @@ export function resetVerifyGuard() {
     VERIFY_GUARD.clear();
 }
 
-export function shouldSkipVerify(
-    fingerprint?: string | null,
-    left?: number | null,
-) {
+export function shouldSkipVerify(fingerprint?: string | null, left?: number | null) {
     if (!fingerprint || left === null) return false;
     const entry = VERIFY_GUARD.get(fingerprint);
     return entry !== undefined && entry === left;
 }
 
-export function recordVerifyAttempt(
-    fingerprint: string | null,
-    left: number | null,
-) {
+export function recordVerifyAttempt(fingerprint: string | null, left: number | null) {
     if (!fingerprint) return;
     VERIFY_GUARD.set(fingerprint, left);
 }
@@ -55,11 +39,7 @@ interface VerifyWatchResult {
     aborted?: boolean;
 }
 
-async function watchVerifyCompletion(
-    client: EngineAdapter,
-    torrentId: string,
-    signal?: AbortSignal,
-): Promise<VerifyWatchResult> {
+export async function watchVerifyCompletion(client: EngineAdapter, torrentId: string, signal?: AbortSignal): Promise<VerifyWatchResult> {
     if (!client.getTorrentDetails) {
         return { success: true, leftUntilDone: null };
     }
@@ -76,12 +56,12 @@ async function watchVerifyCompletion(
             };
         }
         try {
-            const detail = await client.getTorrentDetails(torrentId);
+            const detail = await client.getTorrentDetails(torrentId, {
+                profile: "standard",
+                includeTrackerStats: false,
+            });
             const state = detail.state;
-            const left =
-                typeof detail.leftUntilDone === "number"
-                    ? detail.leftUntilDone
-                    : null;
+            const left = typeof detail.leftUntilDone === "number" ? detail.leftUntilDone : null;
             lastLeft = left;
             lastState = state;
             if (!isCheckingState(state)) {
@@ -115,10 +95,7 @@ export async function runMinimalRecoverySequence(
 ): Promise<RecoverySequenceResult> {
     const { client, torrent, fingerprint } = params;
     let { classification } = params;
-    const left =
-        typeof torrent.leftUntilDone === "number"
-            ? torrent.leftUntilDone
-            : null;
+    const left = typeof torrent.leftUntilDone === "number" ? torrent.leftUntilDone : null;
     let leftAfterVerify: number | null = left;
     const skipVerifyForEmpty = Boolean(options?.skipVerifyIfEmpty);
     const shouldVerify = determineShouldVerify(torrent) && !skipVerifyForEmpty;
@@ -129,9 +106,7 @@ export async function runMinimalRecoverySequence(
 
     if (shouldVerify) {
         if (skipVerify) {
-            const isErrorState =
-                torrent.state === STATUS.torrent.ERROR ||
-                torrent.state === STATUS.torrent.MISSING_FILES;
+            const isErrorState = torrent.state === STATUS.torrent.ERROR || torrent.state === STATUS.torrent.MISSING_FILES;
             if (isErrorState) {
                 return {
                     status: "needsModal",
@@ -157,11 +132,7 @@ export async function runMinimalRecoverySequence(
             try {
                 await client.verify([torrent.id]);
                 didRunVerify = true;
-                const watchResult = await watchVerifyCompletion(
-                    client,
-                    torrent.id,
-                    signal,
-                );
+                const watchResult = await watchVerifyCompletion(client, torrent.id, signal);
                 if (!watchResult.success) {
                     if (watchResult.aborted) {
                         return {
@@ -169,10 +140,7 @@ export async function runMinimalRecoverySequence(
                             classification,
                         };
                     }
-                    if (
-                        watchResult.state &&
-                        isTerminalErrorState(watchResult.state)
-                    ) {
+                    if (watchResult.state && isTerminalErrorState(watchResult.state)) {
                         return {
                             status: "needsModal",
                             classification,
@@ -262,31 +230,14 @@ export async function runMinimalRecoverySequence(
     };
 }
 
-function determineShouldVerify(
-    torrent: TorrentEntity | TorrentDetailEntity,
-): boolean {
+function determineShouldVerify(torrent: TorrentEntity | TorrentDetailEntity): boolean {
     if (isCheckingState(torrent.state)) {
         return false;
     }
-    const isActive =
-        torrent.state === STATUS.torrent.DOWNLOADING ||
-        torrent.state === STATUS.torrent.SEEDING;
-    const left =
-        typeof torrent.leftUntilDone === "number"
-            ? torrent.leftUntilDone
-            : null;
-    const expected =
-        typeof torrent.sizeWhenDone === "number"
-            ? torrent.sizeWhenDone
-            : typeof torrent.totalSize === "number"
-              ? torrent.totalSize
-              : null;
-    if (
-        left !== null &&
-        expected !== null &&
-        typeof expected === "number" &&
-        left === expected
-    ) {
+    const isActive = torrent.state === STATUS.torrent.DOWNLOADING || torrent.state === STATUS.torrent.SEEDING;
+    const left = typeof torrent.leftUntilDone === "number" ? torrent.leftUntilDone : null;
+    const expected = typeof torrent.sizeWhenDone === "number" ? torrent.sizeWhenDone : typeof torrent.totalSize === "number" ? torrent.totalSize : null;
+    if (left !== null && expected !== null && typeof expected === "number" && left === expected) {
         return false;
     }
     if (left === null || left <= 0) {
@@ -298,17 +249,11 @@ function determineShouldVerify(
 function isCheckingState(state?: string) {
     if (!state) return false;
     const normalized = state.toLowerCase();
-    return (
-        normalized === STATUS.torrent.CHECKING ||
-        normalized === "check_wait" ||
-        normalized === "check_waiting"
-    );
+    return normalized === STATUS.torrent.CHECKING || normalized === "check_wait" || normalized === "check_waiting";
 }
 
 function isTerminalErrorState(state?: string) {
-    return (
-        state === STATUS.torrent.ERROR || state === STATUS.torrent.MISSING_FILES
-    );
+    return state === STATUS.torrent.ERROR || state === STATUS.torrent.MISSING_FILES;
 }
 
 function delay(ms: number) {

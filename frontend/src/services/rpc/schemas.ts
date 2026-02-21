@@ -18,6 +18,34 @@ export const zRpcSuccess = z.object({}).passthrough();
 // Relaxed: allow any integer but fallback to 0 (Paused) on invalid/unexpected values.
 const zRpcTorrentStatus = z.number().int().catch(0);
 
+const toFiniteNumberOrUndefined = (value: unknown): number | undefined => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return undefined;
+        }
+        const parsed = Number(trimmed);
+        if (Number.isFinite(parsed)) {
+            return parsed;
+        }
+    }
+    return undefined;
+};
+
+const zRpcOptionalNumberLike = z.preprocess(
+    (value) => toFiniteNumberOrUndefined(value),
+    z.number().optional()
+);
+
+const zRpcNumberLikeWithDefault = (fallback: number) =>
+    z.preprocess(
+        (value) => toFiniteNumberOrUndefined(value),
+        z.number().catch(fallback)
+    );
+
 const logValidationIssue = (
     context: string,
     payload: unknown,
@@ -100,6 +128,17 @@ const decodePieceStates = (encoded: unknown, pieceCount?: number) => {
 };
 
 const decodePieceAvailability = (encoded: unknown, pieceCount?: number) => {
+    if (Array.isArray(encoded)) {
+        const values = encoded.filter(
+            (value): value is number =>
+                typeof value === "number" && Number.isFinite(value)
+        );
+        if (typeof pieceCount !== "number" || pieceCount <= 0) {
+            return values;
+        }
+        return values.slice(0, pieceCount);
+    }
+
     if (typeof encoded !== "string") return undefined;
     let bytes: Uint8Array;
     try {
@@ -142,39 +181,42 @@ const zTransmissionTorrentFile = z
 
 const zTransmissionTorrentFileStat = z
     .object({
-        wanted: z.boolean(),
+        wanted: z
+            .union([z.boolean(), z.literal(0), z.literal(1)])
+            .transform((value) =>
+                typeof value === "boolean" ? value : value === 1
+            ),
         priority: z.number(),
     })
     .passthrough();
 
 const zTransmissionTorrentTracker = z
     .object({
+        id: zRpcOptionalNumberLike,
         announce: z.string(),
-        tier: z.number(),
+        tier: zRpcNumberLikeWithDefault(0),
+        scrape: z.string().optional(),
+        sitename: z.string().optional(),
+    })
+    .passthrough();
+
+const zTransmissionTorrentTrackerStat = z
+    .object({
+        id: zRpcOptionalNumberLike,
+        announce: z.string(),
+        tier: zRpcOptionalNumberLike,
         announceState: z.number().optional(),
-        lastAnnounceTime: z.number(),
-        lastAnnounceResult: z.string(),
-        lastAnnounceSucceeded: z.boolean(),
-        lastScrapeTime: z.number(),
-        lastScrapeResult: z.string(),
-        lastScrapeSucceeded: z.boolean(),
-        seederCount: z.number(),
-        leecherCount: z.number(),
+        lastAnnounceTime: z.number().optional(),
+        lastAnnounceResult: z.string().optional(),
+        lastAnnounceSucceeded: z.boolean().optional(),
+        lastScrapeTime: z.number().optional(),
+        lastScrapeResult: z.string().optional(),
+        lastScrapeSucceeded: z.boolean().optional(),
+        seederCount: zRpcOptionalNumberLike,
+        leecherCount: zRpcOptionalNumberLike,
         scrapeState: z.number().optional(),
     })
-    .passthrough()
-    .catch({
-        announce: "",
-        tier: 0,
-        lastAnnounceTime: 0,
-        lastAnnounceResult: "",
-        lastAnnounceSucceeded: false,
-        lastScrapeTime: 0,
-        lastScrapeResult: "",
-        lastScrapeSucceeded: false,
-        seederCount: 0,
-        leecherCount: 0,
-    });
+    .passthrough();
 
 const zTransmissionTorrentPeer = z
     .object({
@@ -235,6 +277,173 @@ const zTransmissionTorrent = z
     })
     .passthrough();
 
+const mergeTrackerRuntimeFields = (
+    trackers: z.infer<typeof zTransmissionTorrentTracker>[],
+    trackerStats: z.infer<typeof zTransmissionTorrentTrackerStat>[]
+) => {
+    const statsById = new Map<number, z.infer<typeof zTransmissionTorrentTrackerStat>>();
+    const statsByAnnounceAndTier = new Map<
+        string,
+        z.infer<typeof zTransmissionTorrentTrackerStat>
+    >();
+
+    for (const trackerStat of trackerStats) {
+        if (
+            typeof trackerStat.id === "number" &&
+            Number.isFinite(trackerStat.id)
+        ) {
+            statsById.set(trackerStat.id, trackerStat);
+        }
+        const key = `${trackerStat.announce}|${String(trackerStat.tier ?? "")}`;
+        statsByAnnounceAndTier.set(key, trackerStat);
+    }
+
+    const toTracker = (
+        tracker: z.infer<typeof zTransmissionTorrentTracker>,
+        trackerStat?: z.infer<typeof zTransmissionTorrentTrackerStat>
+    ) => ({
+        id: tracker.id ?? trackerStat?.id,
+        announce: tracker.announce ?? trackerStat?.announce ?? "",
+        tier: tracker.tier ?? trackerStat?.tier ?? 0,
+        announceState: trackerStat?.announceState,
+        lastAnnounceTime: trackerStat?.lastAnnounceTime ?? 0,
+        lastAnnounceResult: trackerStat?.lastAnnounceResult ?? "",
+        lastAnnounceSucceeded: trackerStat?.lastAnnounceSucceeded ?? false,
+        lastScrapeTime: trackerStat?.lastScrapeTime ?? 0,
+        lastScrapeResult: trackerStat?.lastScrapeResult ?? "",
+        lastScrapeSucceeded: trackerStat?.lastScrapeSucceeded ?? false,
+        seederCount: trackerStat?.seederCount ?? NaN,
+        leecherCount: trackerStat?.leecherCount ?? NaN,
+        scrapeState: trackerStat?.scrapeState,
+    });
+
+    if (trackers.length > 0) {
+        return trackers.map((tracker) => {
+            const byId =
+                typeof tracker.id === "number" && Number.isFinite(tracker.id)
+                    ? statsById.get(tracker.id)
+                    : undefined;
+            const byAnnounceAndTier = statsByAnnounceAndTier.get(
+                `${tracker.announce}|${String(tracker.tier)}`
+            );
+            return toTracker(tracker, byId ?? byAnnounceAndTier);
+        });
+    }
+
+    return trackerStats.map((trackerStat) =>
+        toTracker(
+            {
+                id: trackerStat.id,
+                announce: trackerStat.announce,
+                tier: trackerStat.tier ?? 0,
+            },
+            trackerStat
+        )
+    );
+};
+
+const zTransmissionTorrentTrackerStatsArray = z.preprocess(
+    (value) => {
+        if (!Array.isArray(value)) {
+            return value;
+        }
+        return value.map((item) => {
+            if (!item || typeof item !== "object") {
+                return item;
+            }
+            const raw = item as Record<string, unknown>;
+            return {
+                ...raw,
+                announceState: raw.announceState ?? raw.announce_state,
+                lastAnnounceTime:
+                    raw.lastAnnounceTime ?? raw.last_announce_time,
+                lastAnnounceResult:
+                    raw.lastAnnounceResult ?? raw.last_announce_result,
+                lastAnnounceSucceeded:
+                    raw.lastAnnounceSucceeded ?? raw.last_announce_succeeded,
+                lastScrapeTime: raw.lastScrapeTime ?? raw.last_scrape_time,
+                lastScrapeResult:
+                    raw.lastScrapeResult ?? raw.last_scrape_result,
+                lastScrapeSucceeded:
+                    raw.lastScrapeSucceeded ?? raw.last_scrape_succeeded,
+                seederCount: raw.seederCount ?? raw.seeder_count,
+                leecherCount: raw.leecherCount ?? raw.leecher_count,
+                scrapeState: raw.scrapeState ?? raw.scrape_state,
+            };
+        });
+    },
+    z.array(zTransmissionTorrentTrackerStat)
+);
+
+const zTransmissionTorrentTrackersArray = z.preprocess(
+    (value) => {
+        if (!Array.isArray(value)) {
+            return value;
+        }
+        return value.map((item) => {
+            if (!item || typeof item !== "object") {
+                return item;
+            }
+            const raw = item as Record<string, unknown>;
+            return {
+                ...raw,
+                sitename: raw.sitename,
+            };
+        });
+    },
+    z.array(zTransmissionTorrentTracker)
+);
+
+const zTransmissionTorrentDetailBase = z.object({
+    files: z.array(zTransmissionTorrentFile).default([]),
+    fileStats: z.array(zTransmissionTorrentFileStat).default([]),
+    trackers: zTransmissionTorrentTrackersArray.default([]),
+    trackerStats: zTransmissionTorrentTrackerStatsArray.default([]),
+    tracker_stats: zTransmissionTorrentTrackerStatsArray.optional(),
+    peers: z.array(zTransmissionTorrentPeer).default([]),
+    pieceCount: z.number().optional(),
+    pieceSize: z.number().optional(),
+    pieceStates: z.unknown().optional(),
+    pieceAvailability: z.unknown().optional(),
+    pieces: z.unknown().optional(),
+    availability: z.unknown().optional(),
+    labels: z.array(z.string()).default([]),
+    isPrivate: z.boolean().default(false),
+});
+
+const zTransmissionTorrentDetail = zTransmissionTorrent
+    .merge(zTransmissionTorrentDetailBase)
+    .passthrough()
+    .transform((raw) => ({
+        ...raw,
+        trackers: mergeTrackerRuntimeFields(
+            raw.trackers,
+            raw.trackerStats.length > 0 ? raw.trackerStats : raw.tracker_stats ?? []
+        ),
+    }));
+
+const zTransmissionTorrentDetailWithPieces =
+    zTransmissionTorrentDetail.transform((raw) => {
+        const detail = { ...raw } as unknown as TransmissionTorrentDetail & {
+            pieces?: unknown;
+            availability?: unknown;
+        };
+        const rawPieceStates = detail.pieceStates ?? detail.pieces;
+        const decodedStates = decodePieceStates(rawPieceStates, detail.pieceCount);
+        detail.pieceStates =
+            decodedStates !== undefined ? decodedStates : undefined;
+
+        const rawPieceAvailability =
+            detail.pieceAvailability ?? detail.availability;
+        const decodedAvailability = decodePieceAvailability(
+            rawPieceAvailability,
+            detail.pieceCount
+        );
+        detail.pieceAvailability =
+            decodedAvailability !== undefined ? decodedAvailability : undefined;
+        return detail;
+    });
+
 const zTransmissionTorrentAddResponseEntry = z
     .object({
         // Transmission guarantees these three fields in torrent-add responses.
@@ -253,39 +462,6 @@ export const zTransmissionAddTorrentResponse = z
     })
     .passthrough();
 
-const zTransmissionTorrentDetailBase = z.object({
-    files: z.array(zTransmissionTorrentFile).default([]),
-    fileStats: z.array(zTransmissionTorrentFileStat).default([]),
-    trackers: z.array(zTransmissionTorrentTracker).default([]),
-    peers: z.array(zTransmissionTorrentPeer).default([]),
-    pieceCount: z.number().optional(),
-    pieceSize: z.number().optional(),
-    pieceStates: z.string().optional(),
-    pieceAvailability: z.string().optional(),
-    labels: z.array(z.string()).default([]),
-    isPrivate: z.boolean().default(false),
-});
-const zTransmissionTorrentDetail = zTransmissionTorrent
-    .merge(zTransmissionTorrentDetailBase)
-    .passthrough();
-
-const zTransmissionTorrentDetailWithPieces =
-    zTransmissionTorrentDetail.transform((raw) => {
-        const detail = { ...raw } as TransmissionTorrentDetail;
-        const decodedStates = decodePieceStates(
-            detail.pieceStates,
-            detail.pieceCount
-        );
-        detail.pieceStates =
-            decodedStates !== undefined ? decodedStates : undefined;
-        const decodedAvailability = decodePieceAvailability(
-            detail.pieceAvailability,
-            detail.pieceCount
-        );
-        detail.pieceAvailability =
-            decodedAvailability !== undefined ? decodedAvailability : undefined;
-        return detail;
-    });
 
 const zTorrentListResponse = z
     .object({
@@ -495,7 +671,7 @@ export const getTorrentDetail = (
             );
             return null;
         }
-        return torrent as TransmissionTorrentDetail;
+        return torrent as unknown as TransmissionTorrentDetail;
     } catch (error) {
         logValidationIssue("getTorrentDetail", payload, error);
         // Always return null on error for UI stability
@@ -556,6 +732,13 @@ export const zTransmissionTorrentDetailSingle =
         }
         return zTransmissionTorrentDetailWithPieces.parse(torrent);
     });
+
+export const zTransmissionTorrentDetailArray = zTorrentDetailResponse.transform(
+    (v) =>
+        v.torrents.map((torrent) =>
+            zTransmissionTorrentDetailWithPieces.parse(torrent)
+        )
+);
 
 export const zSessionStats = zSessionStatsRaw.transform((raw) =>
     normalizeSessionStats(raw)

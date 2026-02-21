@@ -235,7 +235,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     value={progress}
                     color={progress === 100 ? "success" : "primary"}
                     classNames={FILE_BROWSER.progressClassNames}
-                    aria-label="Download progress"
+                    aria-label={t("labels.download_progress")}
                 />
             </div>
 

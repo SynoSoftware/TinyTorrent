@@ -19,8 +19,8 @@ import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
 import { TEXT_ROLE } from "@/config/textRoles";
-import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
-import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
+import type { SettingsModalController } from "@/modules/settings/hooks";
+import { useSettingsModalController } from "@/modules/settings/hooks";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
 
 interface SettingsModalViewProps {

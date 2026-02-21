@@ -29,10 +29,15 @@ export const STATUS = {
         ERROR: "error",
         MISSING_FILES: "missing_files",
     },
+    torrentOperation: {
+        RELOCATING: "relocating",
+    },
 } as const;
 
 export type TorrentStatus =
     (typeof STATUS.torrent)[keyof typeof STATUS.torrent];
+export type TorrentOperationState =
+    (typeof STATUS.torrentOperation)[keyof typeof STATUS.torrentOperation];
 export type DiskStatus = (typeof STATUS.disk)[keyof typeof STATUS.disk];
 export type ConnectionStatus =
     (typeof STATUS.connection)[keyof typeof STATUS.connection];
