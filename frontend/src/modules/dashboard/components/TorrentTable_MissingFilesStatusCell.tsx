@@ -46,22 +46,46 @@ export function TorrentTable_MissingFilesStatusCell({
     const isBusyWithOtherTorrent = Boolean(
         activeRecoveryKey && activeRecoveryKey !== currentTorrentKey,
     );
+    const handleOpenRecovery = () => {
+        const outcome = openRecoveryModal(torrent);
+        if (
+            outcome.status === "requested" ||
+            outcome.status === "already_open"
+        ) {
+            return;
+        }
+        showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
+    };
 
     if (!classification) {
+        const fallbackTooltip = [t("recovery.generic_header"), ...probeLines]
+            .filter(Boolean)
+            .join("\n");
         return (
             <div className={FORM_CONTROL.statusChipContainer}>
-                <Chip
-                    size="md"
-                    variant="flat"
-                    color="warning"
-                    style={STATUS_CHIP_STYLE}
-                    classNames={FORM_CONTROL.statusChipClassNames}
+                <button
+                    type="button"
+                    onClick={handleOpenRecovery}
+                    title={fallbackTooltip}
+                    className={TABLE.builder.missingFilesStatusTriggerClass(
+                        isBusyWithOtherTorrent,
+                    )}
                 >
-                    <div className={FORM_CONTROL.statusChipContent}>
-                        <AlertTriangle className={FORM_CONTROL.statusChipWarningIcon} />
-                        <span>{t("recovery.generic_header")}</span>
-                    </div>
-                </Chip>
+                    <Chip
+                        size="md"
+                        variant="flat"
+                        color="warning"
+                        style={STATUS_CHIP_STYLE}
+                        classNames={FORM_CONTROL.statusChipClassNames}
+                    >
+                        <div className={FORM_CONTROL.statusChipContent}>
+                            <AlertTriangle className={FORM_CONTROL.statusChipWarningIcon} />
+                            <span className={FORM_CONTROL.statusChipLabel}>
+                                {t("recovery.generic_header")}
+                            </span>
+                        </div>
+                    </Chip>
+                </button>
             </div>
         );
     }
@@ -77,17 +101,6 @@ export function TorrentTable_MissingFilesStatusCell({
     const tooltip = [statusText, primaryHint, ...probeLines]
         .filter(Boolean)
         .join("\n");
-
-    const handleOpenRecovery = () => {
-        const outcome = openRecoveryModal(torrent);
-        if (
-            outcome.status === "requested" ||
-            outcome.status === "already_open"
-        ) {
-            return;
-        }
-        showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
-    };
 
     return (
         <div className={FORM_CONTROL.statusChipContainer}>

@@ -28,7 +28,6 @@ interface UseRecoveryModalParams {
     ) => Promise<boolean>;
     hasActiveRecoveryRequest: () => boolean;
     abortActiveRecoveryRequest: () => void;
-    cancelPendingRecoveryQueue: (result?: RecoveryGateOutcome) => void;
     finalizeRecovery: (result: RecoveryGateOutcome) => void;
     resumeTorrentWithRecovery: (torrent: Torrent | TorrentDetail) => Promise<ResumeRecoveryCommandOutcome>;
 }
@@ -55,7 +54,6 @@ export function useRecoveryModal({
     resolveRecoverySession,
     hasActiveRecoveryRequest,
     abortActiveRecoveryRequest,
-    cancelPendingRecoveryQueue,
     finalizeRecovery,
     resumeTorrentWithRecovery,
 }: UseRecoveryModalParams): UseRecoveryModalResult {
@@ -64,9 +62,8 @@ export function useRecoveryModal({
     const handleRecoveryClose = useCallback(() => {
         if (!hasActiveRecoveryRequest()) return;
         abortActiveRecoveryRequest();
-        cancelPendingRecoveryQueue({ status: "cancelled" });
         finalizeRecovery({ status: "cancelled" });
-    }, [abortActiveRecoveryRequest, cancelPendingRecoveryQueue, finalizeRecovery, hasActiveRecoveryRequest]);
+    }, [abortActiveRecoveryRequest, finalizeRecovery, hasActiveRecoveryRequest]);
 
     const handleRecoveryRetry = useCallback(async () => {
         if (!recoverySession?.torrent) return;

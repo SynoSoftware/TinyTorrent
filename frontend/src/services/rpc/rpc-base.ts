@@ -241,7 +241,15 @@ export class TransmissionAdapter implements EngineAdapter {
         this.password = options.password ?? "";
         this.requestTimeout = options.requestTimeout;
         // Transport encapsulates Transmission session id handling and probing
-        this.transport = new TransmissionRpcTransport(this.endpoint);
+        this.transport = new TransmissionRpcTransport(
+            this.endpoint,
+            this.username || this.password
+                ? {
+                      user: this.username,
+                      pass: this.password,
+                  }
+                : undefined,
+        );
     }
 
     private extractEndpointHost(): string {

@@ -4,7 +4,7 @@ import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 export type RecoveryGateAction =
     | "resume"
     | "recheck"
-    | "redownload"
+    | "downloadMissing"
     | "setLocation";
 
 export type RecoveryGateOutcome =
@@ -21,6 +21,7 @@ export type RecoveryGateOutcome =
               | "no_error_envelope"
               | "not_actionable"
               | "no_blocking_outcome"
+              | "blocked"
               | "set_location";
       };
 

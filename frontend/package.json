@@ -5,9 +5,10 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "tsc -b && vite build",
+        "build": "tsc -b && vite build && npm run verify:prod:no-dev-recovery",
         "test": "tsc -b && vitest run",
         "test:unit": "vitest run",
+        "verify:prod:no-dev-recovery": "node ./scripts/verify-prod-no-dev-recovery.cjs",
         "lint": "eslint .",
         "enforce:geometry": "node ./scripts/enforce-geometry.cjs",
         "enforce:surface-foundation": "node ./scripts/enforce-surface-foundation.cjs",

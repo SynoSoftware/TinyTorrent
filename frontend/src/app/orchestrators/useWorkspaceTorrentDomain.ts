@@ -24,6 +24,7 @@ import type { DeleteIntent } from "@/app/types/workspace";
 import { createTorrentDispatch, type TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
+import type { DownloadMissingOutcome } from "@/app/context/RecoveryContext";
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -60,7 +61,10 @@ export interface WorkspaceTorrentDomain {
     handlers: {
         handleRequestDetails: (torrent: Torrent) => Promise<void>;
         handleCloseDetail: () => void;
-        handleDownloadMissing: (torrent: Torrent, options?: { recreateFolder?: boolean }) => Promise<void>;
+        handleDownloadMissing: (
+            torrent: Torrent,
+            options?: { recreateFolder?: boolean },
+        ) => Promise<DownloadMissingOutcome>;
         handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
         handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
         handleSequentialToggle: (enabled: boolean) => Promise<void>;
@@ -135,7 +139,7 @@ export function useWorkspaceTorrentDomain({
 
     const { addTorrent, recovery } = orchestrator;
     const { state: recoveryState, actions: recoveryActions } = recovery;
-    const { executeRedownload, resumeTorrentWithRecovery, handlePrepareDelete } = recoveryActions;
+    const { executeDownloadMissing, resumeTorrentWithRecovery, handlePrepareDelete } = recoveryActions;
 
     const { selectedIds, activeId, setActiveId } = useSelection();
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -193,10 +197,13 @@ export function useWorkspaceTorrentDomain({
     }, [detailData, torrents, handleCloseDetail]);
 
     const handleDownloadMissing = useCallback(
-        async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
-            await executeRedownload(torrent, options);
+        async (
+            torrent: Torrent,
+            options?: { recreateFolder?: boolean },
+        ): Promise<DownloadMissingOutcome> => {
+            return executeDownloadMissing(torrent, options);
         },
-        [executeRedownload],
+        [executeDownloadMissing],
     );
 
     const handleOpenFolder = useOpenTorrentFolder();
@@ -249,6 +256,18 @@ export function useWorkspaceTorrentDomain({
         onPrepareDelete: handlePrepareDelete,
         onRecheckComplete: refreshAfterRecheck,
         executeSelectionAction: async (action, targets) => {
+            if (action === "resume") {
+                const resumeOutcomes = await Promise.all(
+                    targets.map((torrent) => resumeTorrentWithRecovery(torrent)),
+                );
+                if (resumeOutcomes.some((outcome) => outcome.status === "failed")) {
+                    return { status: "failed", reason: "execution_failed" };
+                }
+                if (resumeOutcomes.some((outcome) => outcome.status === "applied")) {
+                    return { status: "success" };
+                }
+                return { status: "canceled", reason: "operation_cancelled" };
+            }
             const ids = targets.map((torrent) => torrent.id ?? torrent.hash).filter((id): id is string => Boolean(id));
             return dispatchTorrentSelectionAction({
                 action,

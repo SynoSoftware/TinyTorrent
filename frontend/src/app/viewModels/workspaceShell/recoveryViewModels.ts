@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
-import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
+import type {
+    DownloadMissingOutcome,
+    SetLocationOutcome,
+} from "@/app/context/RecoveryContext";
 import { scheduler } from "@/app/services/scheduler";
 import {
     RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS,
@@ -101,7 +104,7 @@ export interface RecoveryModalPropsDeps {
     handleDownloadMissing: (
         torrent: Torrent,
         options?: { recreateFolder?: boolean },
-    ) => Promise<void>;
+    ) => Promise<DownloadMissingOutcome>;
     queuedCount: RecoveryControllerResult["state"]["queuedCount"];
     queuedItems: RecoveryControllerResult["state"]["queuedItems"];
 }

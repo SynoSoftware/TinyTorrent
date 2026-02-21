@@ -101,7 +101,7 @@ export class TransmissionRpcTransport {
         credentials?: { user: string; pass: string }
     ) {
         this.endpoint = endpoint;
-        if (credentials?.user) {
+        if (credentials && (credentials.user || credentials.pass)) {
             try {
                 // btoa is not UTF-8 safe; ensure proper UTF-8 encoding for credentials
                 const raw = `${credentials.user}:${credentials.pass}`;

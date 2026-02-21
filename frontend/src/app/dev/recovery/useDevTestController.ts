@@ -7,6 +7,7 @@ import type {
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type {
+    DownloadMissingOutcome,
     OpenRecoveryModalOutcome,
     RecoverySessionInfo,
 } from "@/app/context/RecoveryContext";
@@ -190,10 +191,17 @@ export function useDevTestController({
     });
 
     const handleDownloadMissing = useCallback(
-        async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
-            await recovery.actions.executeRedownload(torrent, options);
+        async (
+            torrent: Torrent,
+            options?: { recreateFolder?: boolean },
+        ): Promise<DownloadMissingOutcome> => {
+            const outcome = await recovery.actions.executeDownloadMissing(
+                torrent,
+                options,
+            );
             await refreshTorrents();
             await refreshDetailData();
+            return outcome;
         },
         [recovery.actions, refreshDetailData, refreshTorrents],
     );

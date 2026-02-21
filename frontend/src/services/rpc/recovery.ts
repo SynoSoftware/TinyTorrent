@@ -125,13 +125,13 @@ export const buildErrorEnvelope = (
     } else if (errorClass === "missingFiles") {
         recoveryState = "needsUserAction";
         // Engine-driven recovery actions: Resume is primary; verification,
-        // location change, or re-download may be offered. No UI-only
+        // location change, or download-missing may be offered. No UI-only
         // dismissal/suppression actions are emitted here.
         recoveryActions.push(
             "resume",
             "forceRecheck",
             "setLocation",
-            "reDownload"
+            "downloadMissing"
         );
     } else if (errorClass === "permissionDenied") {
         recoveryState = "needsUserAction";
@@ -166,12 +166,12 @@ export const buildErrorEnvelope = (
 
     // Priority lists by error class for deterministic selection.
     const preferred: Record<string, RecoveryAction[]> = {
-        missingFiles: ["resume", "forceRecheck", "setLocation", "reDownload"],
+        missingFiles: ["resume", "forceRecheck", "setLocation", "downloadMissing"],
         permissionDenied: ["openFolder", "changeLocation"],
         trackerWarning: ["reannounce"],
         trackerError: ["reannounce"],
         diskFull: ["resume", "pause"],
-        localError: ["forceRecheck", "removeReadd", "pause"],
+        localError: ["forceRecheck", "pause"],
         unknown: recoveryActions,
     };
 

@@ -26,9 +26,7 @@ const RECOVERY_HINT_KEY: Record<RecoveryHintAction, string> = {
     openFolder: "recovery.hint.openFolder",
     pause: "recovery.hint.pause",
     reannounce: "recovery.hint.reannounce",
-    reDownload: "recovery.hint.downloadMissing",
     resume: "recovery.hint.resume",
-    removeReadd: "recovery.hint.removeReadd",
     retry: "recovery.hint.retry",
     setLocation: "recovery.hint.chooseLocation",
     dismiss: "recovery.hint.unknown",
@@ -108,8 +106,7 @@ const RECOVERY_EMPHASIS_CLASS_BY_ACTION: Partial<
     reannounce: "ring-1 ring-primary/30 shadow-sm",
     pause: "ring-1 ring-warning/30 shadow-sm",
     forceRecheck: "ring-1 ring-default/20 shadow-sm",
-    removeReadd: "ring-1 ring-default/20 shadow-sm",
-    reDownload: "ring-1 ring-primary/30 shadow-sm",
+    downloadMissing: "ring-1 ring-primary/30 shadow-sm",
     setLocation: "ring-1 ring-primary/30 shadow-sm",
 };
 
@@ -155,10 +152,8 @@ export const formatRecoveryTooltip = (
     }
     if (envelope.automationHint?.recommendedAction) {
         const action = envelope.automationHint.recommendedAction;
-        if (!(envelope.errorClass === "missingFiles" && action === "removeReadd")) {
-            const hint = translateRecoveryHint(action, t);
-            parts.push(hint);
-        }
+        const hint = translateRecoveryHint(action, t);
+        parts.push(hint);
     }
 
     return uniqueJoin(parts);

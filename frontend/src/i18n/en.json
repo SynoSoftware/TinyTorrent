@@ -775,7 +775,6 @@
     "tooltip": {
         "verify": "Re-scan and verify the torrent's files on the server.",
         "set_location": "Choose a server directory that already contains this torrent's files.",
-        "redownload": "Download missing pieces for this torrent.",
         "resume": "Resume downloading this torrent.",
         "retry": "Retry fetching the torrent's metadata or reverify its files.",
         "reannounce": "Force the tracker to re-announce the torrent.",
@@ -1037,8 +1036,6 @@
             "no_path_available": "No folder available",
             "in_progress": "Working…",
             "primary_desc": {
-                "redownload_here": "Download missing pieces into the current folder.",
-                "create_and_redownload": "Create the folder if needed, then download missing pieces.",
                 "pick_path": "Choose a different folder, then resume.",
                 "verify": "Verify existing data without downloading missing pieces.",
                 "resume": "Try resuming with the current settings.",
@@ -1128,15 +1125,12 @@
             "forceRecheck": "Suggested: force recheck",
             "openFolder": "Open folder to adjust permissions",
             "pause": "Paused: disk full",
-            "removeReadd": "Remove and re-add torrent",
             "unknown": "See details"
         },
         "action": {
             "resume": "Resume",
             "verify": "Verify",
             "reannounce": "Reannounce",
-            "redownload_here": "Download missing",
-            "create_and_redownload_here": "Create folder & download missing",
             "recreate_folder": "Re-create folder",
             "choose_location": "Choose new location…",
             "change_location": "Change location",
@@ -1311,7 +1305,7 @@
                 "failed": "Failed to copy context"
             },
             "expected_behavior": {
-                "data_gap": "- Gate: needsModal\n- User action: Download Missing triggers Verify -> Resume\n- Anti-loop: Verify runs once per session unless successful\n- Intent: Verify integrity and re-download missing pieces",
+                "data_gap": "- Gate: needsModal\n- User action: Download Missing triggers Verify -> Resume\n- Anti-loop: Verify runs once per session unless successful\n- Intent: Verify integrity and download missing pieces",
                 "path_loss": "- Gate: needsModal\n- Self-healing: If folder is created externally, state clears automatically\n- User action: Locate updates path and re-probes\n- Optimization: Skip verify when target folder is authoritative and empty",
                 "volume_loss": "- Gate: needsModal\n- Self-healing: If volume remounts, state clears automatically\n- Visual: Distinct Drive Missing warning\n- Retry: Probe volume presence",
                 "access_denied": "- Gate: needsModal\n- Self-healing: If permissions are fixed, state clears automatically\n- User action: Retry probes again, Locate moves to accessible folder\n- Error: Distinct permission error messaging",

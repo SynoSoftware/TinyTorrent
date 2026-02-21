@@ -66,6 +66,23 @@ export type RecoveryRequestCompletionOutcome =
               | "execution_failed";
       };
 
+export type DownloadMissingOutcome =
+    | { status: "applied" }
+    | {
+          status: "not_required";
+          reason:
+              | "operation_cancelled"
+              | "no_error_envelope"
+              | "not_actionable"
+              | "no_blocking_outcome"
+              | "blocked"
+              | "set_location";
+      }
+    | {
+          status: "failed";
+          reason: "execution_failed";
+      };
+
 export type OpenRecoveryModalOutcome =
     | {
           status: "requested";
@@ -102,7 +119,10 @@ export interface RecoveryContextValue {
     handleDownloadMissing: (
         torrent: Torrent,
         options?: { recreateFolder?: boolean },
-    ) => Promise<void>;
+    ) => Promise<DownloadMissingOutcome>;
+    isDownloadMissingInFlight: (
+        torrent: Torrent | TorrentDetail,
+    ) => boolean;
     handleSetLocation: (
         torrent: Torrent | TorrentDetail,
         options?: SetLocationOptions,

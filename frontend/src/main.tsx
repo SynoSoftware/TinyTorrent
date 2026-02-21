@@ -1,12 +1,10 @@
-import { StrictMode } from "react";
+import { StrictMode, type ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import { ToastProvider } from "@heroui/toast";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import "@/index.css";
 import "@/i18n/index";
 import App from "@/app/App";
-import DevTest from "@/app/components/DevTest";
-import { DEV_TEST_PATH } from "@/app/dev/recovery/scenarios";
 import { ClientProvider } from "@/app/providers/TorrentClientProvider";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import {
@@ -38,31 +36,43 @@ const APP_TOAST_REGION_PROPS = {
     className: "z-top p-panel overflow-hidden",
 } as const;
 
-const rootPathname =
-    typeof window === "undefined" ? "" : window.location.pathname;
-const AppEntry =
-    import.meta.env.DEV && rootPathname === DEV_TEST_PATH ? DevTest : App;
+const DEV_RECOVERY_PATH = "/__dev/recovery";
 
-createRoot(document.getElementById("root")!).render(
-    <StrictMode>
-        <HotkeysProvider initiallyActiveScopes={APP_INITIAL_HOTKEY_SCOPES}>
-            <PreferencesProvider>
-                <ConnectionConfigProvider>
-                    <ClientProvider>
-                        <SessionProvider>
-                            <AppShellStateProvider>
-                                <AppEntry />
-                                <ToastProvider
-                                    placement="bottom-right"
-                                    maxVisibleToasts={2}
-                                    toastProps={APP_TOAST_PROPS}
-                                    regionProps={APP_TOAST_REGION_PROPS}
-                                />
-                            </AppShellStateProvider>
-                        </SessionProvider>
-                    </ClientProvider>
-                </ConnectionConfigProvider>
-            </PreferencesProvider>
-        </HotkeysProvider>
-    </StrictMode>,
-);
+const resolveAppEntry = async (): Promise<ComponentType> => {
+    const rootPathname =
+        typeof window === "undefined" ? "" : window.location.pathname;
+    if (import.meta.env.DEV && rootPathname === DEV_RECOVERY_PATH) {
+        const module = await import("@/app/components/DevTest");
+        return module.default;
+    }
+    return App;
+};
+
+const mount = async () => {
+    const AppEntry = await resolveAppEntry();
+    createRoot(document.getElementById("root")!).render(
+        <StrictMode>
+            <HotkeysProvider initiallyActiveScopes={APP_INITIAL_HOTKEY_SCOPES}>
+                <PreferencesProvider>
+                    <ConnectionConfigProvider>
+                        <ClientProvider>
+                            <SessionProvider>
+                                <AppShellStateProvider>
+                                    <AppEntry />
+                                    <ToastProvider
+                                        placement="bottom-right"
+                                        maxVisibleToasts={2}
+                                        toastProps={APP_TOAST_PROPS}
+                                        regionProps={APP_TOAST_REGION_PROPS}
+                                    />
+                                </AppShellStateProvider>
+                            </SessionProvider>
+                        </ClientProvider>
+                    </ConnectionConfigProvider>
+                </PreferencesProvider>
+            </HotkeysProvider>
+        </StrictMode>,
+    );
+};
+
+void mount();

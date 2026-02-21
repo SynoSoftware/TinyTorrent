@@ -284,6 +284,7 @@
         "recovery": {
             "poll_interval_ms": 4000,
             "retry_cooldown_ms": 15000,
+            "escalation_grace_ms": 500,
             "modal_resolved_auto_close_delay_ms": 3000,
             "modal_resolved_countdown_tick_ms": 250,
             "pick_path_success_delay_ms": 600,

@@ -114,6 +114,7 @@ const DEFAULT_TIMERS = {
     recovery: {
         poll_interval_ms: 4000,
         retry_cooldown_ms: 15000,
+        escalation_grace_ms: 500,
         modal_resolved_auto_close_delay_ms: 3000,
         modal_resolved_countdown_tick_ms: 250,
         pick_path_success_delay_ms: 600,
@@ -779,6 +780,11 @@ export const RECOVERY_POLL_INTERVAL_MS =
 export const RECOVERY_RETRY_COOLDOWN_MS = readNumber(
     recoveryTimerConfig.retry_cooldown_ms,
     DEFAULT_TIMERS.recovery.retry_cooldown_ms,
+);
+
+export const RECOVERY_ESCALATION_GRACE_MS = readNumber(
+    recoveryTimerConfig.escalation_grace_ms,
+    DEFAULT_TIMERS.recovery.escalation_grace_ms,
 );
 
 export const RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS = readNumber(

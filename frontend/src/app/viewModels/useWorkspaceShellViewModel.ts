@@ -245,7 +245,11 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
 
     const { capability: setLocationCapability, handler: handleSetLocation } =
         setLocation;
-    const { getRecoverySessionForKey, openRecoveryModal } = recoveryActions;
+    const {
+        getRecoverySessionForKey,
+        openRecoveryModal,
+        isDownloadMissingInFlight,
+    } = recoveryActions;
 
     const {
         optimisticStatuses,
@@ -571,6 +575,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleOpenFolder,
             handleRetry: handleRecoveryRetry,
             handleDownloadMissing,
+            isDownloadMissingInFlight,
             handleSetLocation,
             openRecoveryModal,
         }),
@@ -579,6 +584,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleOpenFolder,
             handleRecoveryRetry,
             handleDownloadMissing,
+            isDownloadMissingInFlight,
             handleSetLocation,
             openRecoveryModal,
         ],

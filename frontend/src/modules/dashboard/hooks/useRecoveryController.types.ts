@@ -1,4 +1,5 @@
 import type {
+    DownloadMissingOutcome,
     RecoveryRequestCompletionOutcome,
     RecoverySessionInfo,
 } from "@/app/context/RecoveryContext";
@@ -36,6 +37,8 @@ export type RetryRecoveryCommandOutcome =
           shouldCloseModal: boolean;
           reason: "missing_client" | "blocked" | "no_change";
       };
+
+export type DownloadMissingCommandOutcome = DownloadMissingOutcome;
 
 export interface RecoverySessionViewState {
     session: RecoverySessionInfo | null;

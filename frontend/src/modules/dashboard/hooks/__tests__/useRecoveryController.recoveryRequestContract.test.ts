@@ -11,6 +11,7 @@ import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
+import * as recoveryController from "@/services/recovery/recovery-controller";
 import { DevTestAdapter } from "@/app/dev/recovery/adapter";
 import {
     cloneDevTorrentDetail,
@@ -22,6 +23,7 @@ import {
 import type { TorrentDetailEntity } from "@/services/rpc/entities";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { TorrentOperationState } from "@/shared/status";
+import { resetMissingFilesStore } from "@/services/recovery/missingFilesStore";
 
 const reportCommandErrorMock = vi.fn();
 const showFeedbackMock = vi.fn();
@@ -249,6 +251,8 @@ const mountHarness = async ({
 
 describe("useRecoveryController request contract", () => {
     afterEach(() => {
+        recoveryController.resetRecoveryControllerState();
+        resetMissingFilesStore();
         reportCommandErrorMock.mockReset();
         showFeedbackMock.mockReset();
     });
@@ -304,6 +308,440 @@ describe("useRecoveryController request contract", () => {
                 status: "cancelled",
             });
         } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("queues distinct recovery sessions and promotes the next one after close", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    confidence: "likely",
+                    escalationSignal: "none",
+                },
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const controller = readController(mounted.controllerRef);
+            const secondTorrent: TorrentDetail = {
+                ...mounted.torrent,
+                id: "dev-recovery-torrent-2",
+                hash: "dev-recovery-hash-2",
+                name: "Recovery Sample 2",
+                errorEnvelope: mounted.torrent.errorEnvelope
+                    ? {
+                          ...mounted.torrent.errorEnvelope,
+                          fingerprint: "dev-recovery-fingerprint-2",
+                      }
+                    : undefined,
+            };
+
+            const first = controller.actions.openRecoveryModal(mounted.torrent);
+            const second = controller.actions.openRecoveryModal(secondTorrent);
+            expect(first.status).toBe("requested");
+            expect(second.status).toBe("requested");
+
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).state.session?.torrent
+                        .id === mounted.torrent.id,
+                1_500,
+            );
+            await waitForCondition(
+                () => readController(mounted.controllerRef).state.queuedCount === 1,
+                1_500,
+            );
+            expect(
+                readController(mounted.controllerRef).state.queuedItems[0]
+                    ?.torrentName,
+            ).toBe("Recovery Sample 2");
+
+            readController(mounted.controllerRef).modal.close();
+            if (first.status === "requested") {
+                await expect(first.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).state.session?.torrent
+                        .id === "dev-recovery-torrent-2",
+                1_500,
+            );
+            expect(readController(mounted.controllerRef).state.queuedCount).toBe(
+                0,
+            );
+
+            readController(mounted.controllerRef).modal.close();
+            if (second.status === "requested") {
+                await expect(second.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("applies escalation grace before opening decision modal for non-certain resume recovery", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    confidence: "likely",
+                    escalationSignal: "none",
+                    recommendedActions: ["downloadMissing"],
+                },
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 150);
+            });
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                1_500,
+            );
+            readController(mounted.controllerRef).modal.close();
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("opens decision modal immediately when certainty requires explicit location choice", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    confidence: "certain",
+                    recommendedActions: ["chooseLocation"],
+                },
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                350,
+            );
+
+            readController(mounted.controllerRef).modal.close();
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("opens decision modal immediately when certainty has conflicting recovery actions", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    escalationSignal: "conflict",
+                    recommendedActions: ["locate", "downloadMissing"],
+                },
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                350,
+            );
+
+            readController(mounted.controllerRef).modal.close();
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("applies escalation grace when conflicting actions are present without explicit certainty", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    confidence: "likely",
+                    escalationSignal: "none",
+                    recommendedActions: ["locate", "downloadMissing"],
+                },
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 150);
+            });
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                1_500,
+            );
+
+            readController(mounted.controllerRef).modal.close();
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("does not open modal when recovery resolves before grace window", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "resolved",
+                classification: params.classification,
+                log: "all_verified_resuming",
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 150);
+            });
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "applied",
+                });
+            }
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("returns blocked without opening modal when grace expires and no decision exists", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+            mutateTorrent: (torrent) => ({
+                ...torrent,
+                errorEnvelope: torrent.errorEnvelope
+                    ? {
+                          ...torrent.errorEnvelope,
+                          recoveryConfidence: "likely",
+                      }
+                    : undefined,
+            }),
+        });
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "noop",
+                classification: params.classification,
+            }));
+        try {
+            const outcome = readController(
+                mounted.controllerRef,
+            ).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 150);
+            });
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "failed",
+                    reason: "dispatch_not_applied",
+                });
+            }
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.status.blocked",
+                "warning",
+            );
+            expect(readController(mounted.controllerRef).state.session).toBeNull();
+        } finally {
+            recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
         }
     });
@@ -533,6 +971,169 @@ describe("useRecoveryController request contract", () => {
                 reason: "invalid_target",
             });
         } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("reuses the same in-flight recovery for deduped download-missing calls", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const first = controller.actions.executeDownloadMissing(
+                mounted.torrent,
+            );
+            const deduped = controller.actions.executeDownloadMissing(
+                mounted.torrent,
+            );
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.modal.in_progress",
+                "info",
+                500,
+            );
+
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                1_500,
+            );
+            readController(mounted.controllerRef).modal.close();
+
+            await expect(first).resolves.toEqual({
+                status: "not_required",
+                reason: "operation_cancelled",
+            });
+            await expect(deduped).resolves.toEqual({
+                status: "not_required",
+                reason: "operation_cancelled",
+            });
+            expect(showFeedbackMock).not.toHaveBeenCalledWith(
+                "recovery.feedback.recovery_busy",
+                "info",
+            );
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("reuses active recovery promise when download-missing is pressed during set-location recovery", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const updatedTorrent: TorrentDetail = {
+                ...mounted.torrent,
+                downloadDir: "D:\\RecoveredDataPath",
+                savePath: "D:\\RecoveredDataPath",
+            };
+            const activeRecovery = controller.actions.resumeTorrentWithRecovery(
+                updatedTorrent,
+            );
+            await waitForCondition(
+                () =>
+                    Boolean(
+                        readController(mounted.controllerRef).state.session,
+                    ),
+                1_500,
+            );
+            showFeedbackMock.mockReset();
+
+            const deduped = controller.actions.executeDownloadMissing(
+                mounted.torrent,
+            );
+            expect(readController(mounted.controllerRef).state.queuedCount).toBe(
+                0,
+            );
+
+            readController(mounted.controllerRef).modal.close();
+            await expect(deduped).resolves.toEqual({
+                status: "not_required",
+                reason: "operation_cancelled",
+            });
+            await expect(activeRecovery).resolves.toEqual({
+                status: "cancelled",
+            });
+            expect(showFeedbackMock).not.toHaveBeenCalledWith(
+                "recovery.feedback.recovery_busy",
+                "info",
+            );
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("updates the active recovery session when retry/recheck computes needsModal", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        let recoverMissingFilesSpy: ReturnType<typeof vi.spyOn> | null = null;
+        try {
+            const initialController = readController(mounted.controllerRef);
+            const openOutcome = initialController.actions.openRecoveryModal(
+                mounted.torrent,
+            );
+            expect(openOutcome.status).toBe("requested");
+
+            await waitForCondition(
+                () => Boolean(readController(mounted.controllerRef).state.session),
+                1_500,
+            );
+            const sessionBeforeRetry = readController(
+                mounted.controllerRef,
+            ).state.session;
+            expect(sessionBeforeRetry?.outcome.kind).toBe("path-needed");
+
+            recoverMissingFilesSpy = vi
+                .spyOn(recoveryController, "recoverMissingFiles")
+                .mockImplementation(async (params) => ({
+                    status: "needsModal",
+                    classification: params.classification,
+                    blockingOutcome: {
+                        kind: "path-needed",
+                        reason: "unwritable",
+                        message: "path_access_denied",
+                    },
+                }));
+
+            showFeedbackMock.mockReset();
+            await readController(mounted.controllerRef).modal.retry();
+            await waitForCondition(
+                () =>
+                    (recoverMissingFilesSpy?.mock.calls.length ?? 0) > 0,
+                1_500,
+            );
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).state.session?.outcome !==
+                    sessionBeforeRetry?.outcome,
+                1_500,
+            );
+
+            const sessionAfterRetry = readController(
+                mounted.controllerRef,
+            ).state.session;
+            expect(sessionAfterRetry).not.toBeNull();
+            expect(sessionAfterRetry?.outcome).toMatchObject({
+                kind: "path-needed",
+            });
+            expect(sessionAfterRetry?.outcome).not.toBe(
+                sessionBeforeRetry?.outcome,
+            );
+            expect(showFeedbackMock).toHaveBeenCalledWith(
+                "recovery.feedback.retry_failed",
+                "warning",
+            );
+
+            readController(mounted.controllerRef).modal.close();
+        } finally {
+            recoverMissingFilesSpy?.mockRestore();
             await mounted.cleanup();
         }
     });

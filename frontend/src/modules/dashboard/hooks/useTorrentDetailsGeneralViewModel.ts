@@ -10,6 +10,7 @@ import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
+import { canTriggerDownloadMissingAction } from "@/modules/dashboard/utils/recoveryEligibility";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
@@ -20,6 +21,8 @@ type UseTorrentDetailsGeneralViewModelParams = {
 
 export type UseTorrentDetailsGeneralViewModelResult = {
     showMissingFilesError: boolean;
+    canDownloadMissing: boolean;
+    isDownloadMissingInFlight: boolean;
     probeLines: string[];
     classificationLabel: string | null;
     recoveryBlockedMessage: string | null;
@@ -40,7 +43,7 @@ export type UseTorrentDetailsGeneralViewModelResult = {
 };
 
 export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isRecoveryBlocked, t }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
-    const { handleSetLocation: openDownloadPath, handleDownloadMissing, setLocationCapability: downloadPathCapability, canOpenFolder, handleOpenFolder } = useRecoveryContext();
+    const { handleSetLocation: openDownloadPath, handleDownloadMissing, isDownloadMissingInFlight, setLocationCapability: downloadPathCapability, canOpenFolder, handleOpenFolder } = useRecoveryContext();
     const { handleTorrentAction } = useTorrentCommands();
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -72,6 +75,11 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
 
     const effectiveState = torrent.errorEnvelope?.recoveryState && torrent.errorEnvelope.recoveryState !== "ok" ? torrent.errorEnvelope.recoveryState : torrent.state;
     const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
+    const canDownloadMissing = canTriggerDownloadMissingAction(
+        torrent,
+        classification,
+    );
+    const downloadMissingBusy = isDownloadMissingInFlight(torrent);
 
     const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
     const canSetLocation = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
@@ -97,8 +105,11 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
     }, [openDownloadPath, torrent]);
 
     const onDownloadMissing = useCallback(() => {
+        if (downloadMissingBusy) {
+            return;
+        }
         void handleDownloadMissing(torrent);
-    }, [handleDownloadMissing, torrent]);
+    }, [downloadMissingBusy, handleDownloadMissing, torrent]);
 
     const onOpenFolder = useCallback(() => {
         if (!currentPath) return;
@@ -134,6 +145,8 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
 
     return {
         showMissingFilesError,
+        canDownloadMissing,
+        isDownloadMissingInFlight: downloadMissingBusy,
         probeLines,
         classificationLabel,
         recoveryBlockedMessage,

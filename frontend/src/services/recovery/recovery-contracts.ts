@@ -36,12 +36,18 @@ export type RecoveryRecommendedAction =
     | "openFolder"
     | "chooseLocation";
 
+export type RecoveryEscalationSignal =
+    | "none"
+    | "conflict"
+    | "multipleCandidates";
+
 export interface MissingFilesClassification {
     kind: MissingFilesClassificationKind;
     confidence: RecoveryConfidence;
     path?: string;
     root?: string;
     recommendedActions: readonly RecoveryRecommendedAction[];
+    escalationSignal?: RecoveryEscalationSignal;
 }
 
 export type MissingFilesProbeResult =

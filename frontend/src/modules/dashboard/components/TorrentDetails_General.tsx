@@ -1,6 +1,6 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
 import { Button } from "@heroui/react";
-import { Folder, Play, Pause, Trash2 } from "lucide-react";
+import { Folder, Play, Pause, Trash2, Download } from "lucide-react";
 import React from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { useTranslation } from "react-i18next";
@@ -103,6 +103,23 @@ export const GeneralTab = ({ torrent, downloadDir, activePeers, isRecoveryBlocke
                                             {t("directory_browser.select", {
                                                 name: t("torrent_modal.labels.save_path"),
                                             })}
+                                        </>
+                                    </Button>
+                                    <Button
+                                        size="md"
+                                        variant="flat"
+                                        color="warning"
+                                        onPress={general.onDownloadMissing}
+                                        isLoading={general.isDownloadMissingInFlight}
+                                        isDisabled={
+                                            Boolean(isRecoveryBlocked) ||
+                                            general.isDownloadMissingInFlight ||
+                                            !general.canDownloadMissing
+                                        }
+                                    >
+                                        <>
+                                            <Download size={16} strokeWidth={ICON_STROKE_WIDTH} className={DETAILS.generalButtonIcon} />
+                                            {t("recovery.action_download")}
                                         </>
                                     </Button>
                                     <Button size="md" variant="flat" color="danger" onPress={general.openRemoveModal}>

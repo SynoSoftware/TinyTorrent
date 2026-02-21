@@ -22,10 +22,19 @@ import { useLocationEditor } from "@/modules/dashboard/hooks/useLocationEditor";
 import { useRecoveryActions } from "@/modules/dashboard/hooks/useRecoveryActions";
 import { useRecoveryState } from "@/modules/dashboard/hooks/useRecoveryState";
 import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
-import type { RecoverySessionViewState, ResumeRecoveryCommandOutcome, RetryRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
+import type {
+    DownloadMissingCommandOutcome,
+    RecoverySessionViewState,
+    ResumeRecoveryCommandOutcome,
+    RetryRecoveryCommandOutcome,
+} from "@/modules/dashboard/hooks/useRecoveryController.types";
 import type { TorrentOperationState } from "@/shared/status";
 
-export type { ResumeRecoveryCommandOutcome, RetryRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
+export type {
+    DownloadMissingCommandOutcome,
+    ResumeRecoveryCommandOutcome,
+    RetryRecoveryCommandOutcome,
+} from "@/modules/dashboard/hooks/useRecoveryController.types";
 
 interface RecoveryControllerServices {
     client: EngineAdapter;
@@ -71,7 +80,10 @@ interface LocationEditorControls {
 }
 
 interface RecoveryActions {
-    executeRedownload: (target: Torrent | TorrentDetail, options?: { recreateFolder?: boolean }) => Promise<void>;
+    executeDownloadMissing: (
+        target: Torrent | TorrentDetail,
+        options?: { recreateFolder?: boolean },
+    ) => Promise<DownloadMissingCommandOutcome>;
     executeRetryFetch: (target: Torrent | TorrentDetail) => Promise<RetryRecoveryCommandOutcome>;
     resumeTorrentWithRecovery: (torrent: Torrent | TorrentDetail) => Promise<ResumeRecoveryCommandOutcome>;
     applyTorrentLocation: (
@@ -80,6 +92,7 @@ interface RecoveryActions {
         moveData: boolean,
     ) => Promise<ResumeRecoveryCommandOutcome>;
     handlePrepareDelete: (torrent: Torrent, deleteData?: boolean) => void;
+    isDownloadMissingInFlight: (torrent: Torrent | TorrentDetail) => boolean;
     getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
     openRecoveryModal: (torrent: Torrent | TorrentDetail) => OpenRecoveryModalOutcome;
 }
@@ -118,14 +131,20 @@ export function useRecoveryController({
         recoverySession,
         withRecoveryBusy,
         finalizeRecovery,
-        cancelPendingRecoveryQueue,
         cancelRecoveryForFingerprint,
         isRecoverySessionActive,
         hasActiveRecoveryRequest,
         abortActiveRecoveryRequest,
     } = recoveryStateController;
 
-    const { resolveRecoverySession, resumeTorrentWithRecovery, applyTorrentLocation, executeRedownload, executeRetryFetch } = useRecoveryActions({
+    const {
+        resolveRecoverySession,
+        resumeTorrentWithRecovery,
+        applyTorrentLocation,
+        executeDownloadMissing,
+        isDownloadMissingInFlight,
+        executeRetryFetch,
+    } = useRecoveryActions({
         client,
         torrents,
         detailData,
@@ -145,7 +164,6 @@ export function useRecoveryController({
         applyTorrentLocation,
         hasActiveRecoveryRequest,
         abortActiveRecoveryRequest,
-        cancelPendingRecoveryQueue,
         finalizeRecovery,
         resumeTorrentWithRecovery,
     });
@@ -230,11 +248,12 @@ export function useRecoveryController({
             handler: handleSetLocation,
         },
         actions: {
-            executeRedownload,
+            executeDownloadMissing,
             executeRetryFetch,
             resumeTorrentWithRecovery,
             applyTorrentLocation,
             handlePrepareDelete,
+            isDownloadMissingInFlight,
             getRecoverySessionForKey,
             openRecoveryModal,
         },

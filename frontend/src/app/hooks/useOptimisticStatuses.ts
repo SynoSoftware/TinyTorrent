@@ -90,16 +90,38 @@ const reconcileOptimisticStatuses = (
     return nextStatuses ?? storedStatuses;
 };
 
+const pruneOperationOverlays = (
+    overlays: OperationOverlayMap,
+    activeTorrentIds: Set<string>,
+): OperationOverlayMap => {
+    let hasChanges = false;
+    const next: OperationOverlayMap = { ...overlays };
+    Object.keys(overlays).forEach((id) => {
+        if (activeTorrentIds.has(id)) {
+            return;
+        }
+        delete next[id];
+        hasChanges = true;
+    });
+    return hasChanges ? next : overlays;
+};
+
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [storedOptimisticStatuses, setOptimisticStatuses] =
         useState<InternalOptimisticStatusMap>({});
     const [operationOverlays, setOperationOverlays] = useState<OperationOverlayMap>(
         {},
     );
-    const activeTorrentIds = useMemo(
-        () => new Set(torrents.map((torrent) => torrent.id).filter(Boolean)),
+    const activeTorrentIdsSignature = useMemo(
+        () => torrents.map((torrent) => torrent.id).filter(Boolean).join("\u001f"),
         [torrents],
     );
+    const activeTorrentIds = useMemo(() => {
+        if (!activeTorrentIdsSignature) {
+            return new Set<string>();
+        }
+        return new Set(activeTorrentIdsSignature.split("\u001f"));
+    }, [activeTorrentIdsSignature]);
 
     // Optimistic statuses are a UI-only projection and are cleared by:
     // 1) engine-confirmed reconciliation, 2) explicit command failure,
@@ -147,14 +169,11 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                         hasChanges = true;
                     }
                 });
-                Object.keys(next).forEach((id) => {
-                    if (activeTorrentIds.has(id)) {
-                        return;
-                    }
-                    delete next[id];
-                    hasChanges = true;
-                });
-                return hasChanges ? next : prev;
+                const nextOrPruned = pruneOperationOverlays(
+                    next,
+                    activeTorrentIds,
+                );
+                return hasChanges || nextOrPruned !== next ? nextOrPruned : prev;
             });
         },
         [activeTorrentIds],
@@ -192,6 +211,12 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                     ? currentStatuses
                     : nextStatuses;
             });
+            setOperationOverlays((currentOverlays) =>
+                pruneOperationOverlays(
+                    currentOverlays,
+                    activeTorrentIds,
+                ),
+            );
         };
 
         let nextGraceExpiryDelayMs: number | null = null;
@@ -222,7 +247,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
             cancelImmediateTimer();
             cancelGraceExpiryTimer?.();
         };
-    }, [torrents, storedOptimisticStatuses]);
+    }, [activeTorrentIds, torrents, storedOptimisticStatuses]);
 
     return {
         optimisticStatuses,

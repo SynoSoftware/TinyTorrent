@@ -45,6 +45,7 @@ export function classifyMissingFilesState(
         path: override?.path ?? downloadDir,
         root: override?.root ?? root,
         recommendedActions: deriveRecommendedActions(kind),
+        escalationSignal: "none",
     };
 }
 

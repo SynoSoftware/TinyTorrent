@@ -22,6 +22,12 @@ export type QueueMenuAction = {
 };
 
 export type ContextMenuKey = TorrentTableAction | "copy-hash" | "copy-magnet";
+export type RowContextMenuKey =
+    | ContextMenuKey
+    | "cols"
+    | "open-folder"
+    | "set-download-path"
+    | "download-missing";
 
 export type HeaderMenuActionOptions = {
     keepOpen?: boolean;
@@ -150,7 +156,9 @@ export interface TorrentTableBodyViewModel {
 export interface TorrentTableRowMenuViewModel {
     contextMenu: TableContextMenu | null;
     onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<TorrentCommandOutcome>;
+    handleContextMenuAction: (
+        key?: RowContextMenuKey,
+    ) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
 }

@@ -7,6 +7,7 @@ import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
     ContextMenuKey,
     QueueMenuAction,
+    RowContextMenuKey,
     TableContextMenu,
     TorrentTableRowMenuViewModel,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
@@ -18,9 +19,10 @@ import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import type { RecoveryAction } from "@/services/rpc/entities";
 import type { RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
+import { canTriggerDownloadMissingAction } from "@/modules/dashboard/utils/recoveryEligibility";
 
 type RowMenuAction = {
-    key: string;
+    key: RowContextMenuKey;
     label: string;
     shortcut?: string;
     disabled?: boolean;
@@ -30,7 +32,7 @@ const RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION = {
     locate: "setLocation",
     chooseLocation: "setLocation",
     openFolder: "openFolder",
-    downloadMissing: "reDownload",
+    downloadMissing: "downloadMissing",
     retry: "forceRecheck",
 } satisfies Record<RecoveryRecommendedAction, RecoveryAction>;
 
@@ -75,19 +77,30 @@ function TorrentTable_RowMenuInner({
 }: {
     contextMenu: TableContextMenu;
     onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<TorrentCommandOutcome>;
+    handleContextMenuAction: (
+        key?: RowContextMenuKey,
+    ) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
 }) {
     const { t } = useTranslation();
     const { clipboardWriteSupported } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
-    const { setLocationCapability: downloadPathCapability, canOpenFolder } = useRecoveryContext();
+    const {
+        setLocationCapability: downloadPathCapability,
+        canOpenFolder,
+        isDownloadMissingInFlight,
+    } = useRecoveryContext();
 
     const contextTorrent = contextMenu.torrent;
     const shouldShowOpenFolder = Boolean(canOpenFolder);
     const canSetDownloadPath = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
     const classification = useResolvedRecoveryClassification(contextTorrent);
+    const canDownloadMissing = canTriggerDownloadMissingAction(
+        contextTorrent,
+        classification,
+    );
+    const downloadMissingBusy = isDownloadMissingInFlight(contextTorrent);
     const primaryEmphasisAction =
         mapRecommendedActionToEmphasis(classification?.recommendedActions?.[0]) ??
         contextMenu.torrent.errorEnvelope?.primaryAction;
@@ -128,12 +141,16 @@ function TorrentTable_RowMenuInner({
         onClose();
     };
     const handleMenuActionPress = useCallback(
-        async (key?: string) => {
+        async (key?: RowContextMenuKey) => {
             const outcome = await handleContextMenuAction(key);
             if (outcome.status === "unsupported") {
                 showFeedback(t("torrent_modal.controls.not_supported"), "warning");
             } else if (outcome.status === "failed") {
-                showFeedback(t("toolbar.feedback.failed"), "danger");
+                if (outcome.reason === "blocked") {
+                    showFeedback(t("recovery.status.blocked"), "warning");
+                } else {
+                    showFeedback(t("toolbar.feedback.failed"), "danger");
+                }
             }
         },
         [handleContextMenuAction, showFeedback, t],
@@ -224,6 +241,21 @@ function TorrentTable_RowMenuInner({
 
         items.push(
             <DropdownItem
+                key="download-missing"
+                className={cn(
+                    primaryEmphasisAction === "downloadMissing"
+                        ? getEmphasisClassForAction(primaryEmphasisAction)
+                        : "",
+                )}
+                isDisabled={!canDownloadMissing || downloadMissingBusy}
+                onPress={() => void handleMenuActionPress("download-missing")}
+            >
+                {t("recovery.action_download")}
+            </DropdownItem>,
+        );
+
+        items.push(
+            <DropdownItem
                 key="copy-hash"
                 isDisabled={!clipboardWriteSupported}
                 shortcut={getContextMenuShortcut("copy-hash")}
@@ -271,6 +303,8 @@ function TorrentTable_RowMenuInner({
         rowMenuViewModel,
         primaryEmphasisAction,
         canSetDownloadPath,
+        canDownloadMissing,
+        downloadMissingBusy,
         clipboardWriteSupported,
         getContextMenuShortcut,
         handleMenuActionPress,

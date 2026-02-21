@@ -43,8 +43,7 @@ export type RecoveryAction =
     | "pause"
     | "changeLocation"
     | "openFolder"
-    | "removeReadd"
-    | "reDownload"
+    | "downloadMissing"
     | "setLocation"
     | "dismiss";
 
