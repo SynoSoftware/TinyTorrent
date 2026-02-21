@@ -113,6 +113,76 @@ Ask the user **only** when no deterministic safe action exists.
 
 ---
 
+## 5a. Persistent Recovery & Non-Silent Progress (Hard Contract)
+
+This contract applies to **all recovery-relevant errors**, including but not limited to:
+
+* missing files
+* path/volume loss
+* permission denied / access denied
+* disk full
+* unknown/unclassified recovery states
+
+If any item below is false, the implementation is incorrect.
+
+### Deterministic-first (before any modal)
+
+* System attempts the best safe deterministic recovery action automatically before requesting user input.
+* Deterministic actions are minimal and correctness-preserving.
+* No recovery modal opens before deterministic attempts are evaluated unless certainty indicates a user decision is immediately required.
+
+### Persistent retry (no silent stall)
+
+When progress may become possible later:
+
+* System continues retrying automatically using bounded backoff.
+* Retry cadence is bounded and jittered (non-CPU-spiky):
+  * Uses `timers.recovery.retry_cooldown_ms` as the minimum per-fingerprint delay between attempts.
+  * Applies bounded backoff up to a max (for example, `5–10×` cooldown) with small jitter (±`10–20%`) to avoid synchronized retry spikes.
+  * No tight loops: a retry attempt never immediately schedules another attempt without awaiting cooldown.
+* Only one retry loop per torrent fingerprint is active.
+* Retry never blocks the UI thread.
+
+Retry work is cheap:
+
+* A retry attempt is availability probe + reclassification only (no verify storms).
+* Verify/recheck is guarded and rate-limited by the anti-loop verify guard.
+
+While retrying:
+
+* UI displays a persistent, truthful status state (for example: “Waiting…”, “Retrying…”, “Recovering…”).
+* UI remains interactive.
+* Recovery never enters a silent inactive state.
+
+### Automatic continuation (no extra user steps)
+
+If conditions become valid again (drive remounted, space freed, permissions corrected):
+
+* System automatically resumes deterministic recovery.
+* UI shows an observable transition (for example: “Detected…”, “Resuming…”).
+* No additional user interaction is required unless a real decision exists.
+
+The system cannot reliably determine “permanent failure” vs “temporarily unresolved.”
+If recovery remains unsuccessful after bounded deterministic attempts, the system may transition to `BLOCKED` but must still allow periodic low-frequency re-evaluation.
+
+### Modal escalation boundary
+
+* Transient retrying must not cause modal escalation.
+* Modal may open only when a meaningful user decision exists AND either:
+  * no safe deterministic default exists, or
+  * certainty makes waiting pointless.
+
+### Modal auto-close (non-negotiable)
+
+If a recovery modal is open and the underlying issue resolves automatically:
+
+* Modal shows a brief resolved state, then
+* Modal auto-closes.
+
+A recovery modal is a decision UI, not a status monitor.
+
+---
+
 ## 6. Outcome → UI Mapping (Single Location Only)
 
 | Gate Outcome | UI Effect |
@@ -124,6 +194,8 @@ Ask the user **only** when no deterministic safe action exists.
 | `CANCELLED` | No-op / explicit cancellation state |
 
 No other code path may trigger recovery UI.
+
+“Recovery UI” here includes the decision modal and any persistent recovery indicators; toasts are allowed as feedback but must be emitted by the same centralized outcome→UI interpreter (single source still holds).
 
 ---
 
@@ -140,7 +212,7 @@ No other code path may trigger recovery UI.
 * If same torrent produces another `NEEDS_USER_DECISION`:
   * same root cause → update current modal content
   * different root cause → queue
-* If issue self-resolves, show resolved countdown and auto-close.
+* If issue self-resolves, show resolved countdown and **must** auto-close (non-negotiable).
 
 ---
 
@@ -185,6 +257,10 @@ After `AUTO_RECOVERED`:
 * Any path where `NEEDS_USER_DECISION` can be suppressed by wrapper early exit.
 * Modal spam or action-cell expansion regressions.
 * Silent no-op after user recovery action.
+* Any recoverable error that enters invisible inactivity (no persistent waiting/retrying state).
+* Multiple retry loops concurrently running for the same torrent fingerprint.
+* Any path where retry blocks UI interaction.
+* Any recovery modal remaining open after automatic recovery completes.
 
 ---
 
@@ -201,5 +277,7 @@ After `AUTO_RECOVERED`:
 * [ ] `BLOCKED` never opens decision modal.
 * [ ] Same-torrent modal concurrency behavior (update vs queue) follows root-cause rule.
 * [ ] Unknown confidence copy remains truthful (“Location unavailable”).
+* [ ] Persistent retry + non-silent progress contract holds for all recovery-relevant errors (including disk full / unknown states).
+* [ ] If a modal is open and auto-recovery succeeds, modal shows resolved briefly and auto-closes (non-negotiable).
 
 **Anything less is incomplete.**

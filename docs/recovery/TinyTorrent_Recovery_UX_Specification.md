@@ -55,6 +55,8 @@ Classification remains:
 * `volumeLoss`
 * `accessDenied`
 
+Other recovery-relevant errors (for example, disk-full or unknown/unclassified filesystem states) must still follow the hard contract in **§4a** (deterministic-first, persistent retry with non-silent progress, and correct modal escalation/auto-close) even when they cannot be mapped to a more specific classification.
+
 Confidence remains:
 
 * `certain`
@@ -95,6 +97,92 @@ Escalate only if:
 * Cases where automatic recovery succeeds after reprobe/retry.
 
 Rule: background failures should not interrupt the user with a modal unless user input is truly required.
+
+---
+
+## 4a. Persistent Recovery & Non-Silent Progress (Hard Contract)
+
+This contract applies to **all recovery-relevant errors**, not just path/volume loss.
+
+Recovery-relevant errors include (but are not limited to):
+
+* missing files
+* path loss / volume loss
+* permission denied / access denied
+* disk full / out of space
+* unknown or unclassified recovery states
+
+### 1. Deterministic-First Recovery
+
+For any recovery-relevant error:
+
+* The system **must attempt the best safe deterministic recovery action automatically** before requesting user input.
+* Deterministic actions must be minimal and correctness-preserving.
+* No modal may open before deterministic attempts are evaluated unless certainty indicates a user decision is immediately required.
+
+### 2. Persistent Retry (No Silent Stall)
+
+If progress may become possible later:
+
+* The system **must continue retrying automatically** using bounded backoff.
+* Retry cadence must be bounded and jittered (non-CPU-spiky).
+	* Use `timers.recovery.retry_cooldown_ms` as the **minimum** delay between retry attempts per torrent fingerprint.
+	* Apply bounded backoff up to a max (for example, `5–10×` cooldown) with small jitter (±`10–20%`) to avoid thundering herds.
+	* No tight loops: a retry attempt must never immediately schedule another attempt without awaiting the cooldown.
+* Retry work must be cheap:
+	* A retry attempt is an availability probe + reclassification only (no verify storms).
+	* Verify/recheck must be guarded and rate-limited by the anti-loop verify guard.
+* Only one retry loop per torrent fingerprint may be active; additional triggers subscribe to the same loop.
+* Retry must never block the UI thread.
+
+The system cannot know whether a condition is permanently impossible or just temporarily unresolved.
+Persistent retry continues while progress remains plausibly possible.
+If recovery remains unsuccessful after bounded deterministic attempts, the system must transition to `BLOCKED` while still allowing periodic low-frequency re-evaluation.
+
+While retrying:
+
+* UI **must display a persistent, truthful state** (for example: “Waiting…”, “Retrying…”, “Recovering…”).
+* UI must remain interactive.
+* Recovery may not enter a silent inactive state.
+
+No recovery path may result in invisible inactivity.
+
+### 3. Automatic Continuation
+
+If conditions become valid again (for example, disk space freed, drive remounted, permissions corrected):
+
+* The system **must automatically resume deterministic recovery**.
+* UI must show an observable transition (for example: “Detected…”, “Resuming…”).
+* No additional user interaction may be required unless a real decision exists.
+
+### 4. Modal Escalation Boundary
+
+A recovery modal may open only when:
+
+* A meaningful user decision exists, and
+* No safe deterministic default exists, or
+* Certainty makes waiting pointless.
+
+Transient retrying must not cause modal escalation.
+
+### 5. Modal Auto-Close (Hard)
+
+If a recovery modal is open and the underlying issue resolves automatically:
+
+* The modal **must show a brief resolved state**, then
+* The modal **must auto-close**.
+
+A recovery modal is a decision UI, not a status monitor.
+
+### 6. Acceptance Criteria
+
+Implementation is incorrect if:
+
+* A recoverable error results in silent inactivity.
+* The UI shows no persistent state while retrying.
+* A modal remains open after automatic recovery completes.
+* A retry loop blocks UI interaction.
+* Multiple retry loops run concurrently for the same torrent.
 
 ---
 
@@ -148,8 +236,8 @@ Modal is a hard-stop decision UI, not a status spam channel.
 	* same root cause → update modal content
 	* different root cause → queue
 * If issue self-resolves while modal is open:
-	* show resolved message with countdown (`3s` default)
-	* auto-close modal after countdown
+	* show a brief resolved state with countdown (`3s` default)
+	* **must** auto-close modal after countdown (non-negotiable; modal is not a status monitor)
 * No auto-open modal on app startup/background polling without user intent.
 
 ### BLOCKED vs NEEDS_USER_DECISION
@@ -175,6 +263,8 @@ If you cannot present a real choice, you must not open a modal.
 * `CANCELLED` → no further action
 
 No other code path may trigger recovery UI.
+
+“Recovery UI” here includes the decision modal and any persistent recovery indicators; toasts are allowed as feedback but must be emitted by the same centralized outcome→UI interpreter (single source still holds).
 
 ---
 
@@ -213,7 +303,7 @@ After successful location update, recovery sequence must continue (location upda
 
 * `Retry` means reprobe/re-evaluate availability. It is not a blind multi-step rewrite.
 * Use minimal engine sequence required for correctness.
-* Keep anti-loop verify guard active; do not re-verify forever when no progress is made.
+* Keep anti-loop verify guard active; verify/recheck must be rate-limited and must not repeat unboundedly when no progress is made.
 * Refresh authoritative data after `AUTO_RECOVERED` before claiming success.
 
 ---
@@ -227,6 +317,21 @@ Expose only high-value recovery timing knobs in configuration:
 * `timers.recovery.modal_resolved_auto_close_delay_ms`
 
 Micro-timings remain internal implementation constants to avoid user-facing configuration entropy.
+
+### Retry timing semantics (Hard)
+
+* `timers.recovery.retry_cooldown_ms` is the **minimum per-fingerprint delay** between retry attempts.
+* Backoff and jitter are mandatory but remain internal constants:
+	* bounded backoff up to a max multiplier (for example, `5–10×` cooldown)
+	* small jitter (±`10–20%`) to avoid synchronized retry spikes
+* No tight loops: retry attempts must not schedule immediate follow-up attempts without awaiting cooldown.
+* A retry attempt is cheap (probe + reclassification only); verify/recheck is guarded by the anti-loop verify guard.
+
+### `BLOCKED` does not mean “stop observing”
+
+* If the gate transitions to `BLOCKED` after bounded deterministic attempts, the system must still perform periodic low-frequency re-evaluation.
+* Low-frequency re-evaluation should be tied to `timers.recovery.poll_interval_ms` (or a slower internal cadence), and must remain non-CPU-spiky.
+* Low-frequency re-evaluation must be at or slower than `timers.recovery.poll_interval_ms`, and must not schedule more frequently than `timers.recovery.retry_cooldown_ms`.
 
 ---
 
