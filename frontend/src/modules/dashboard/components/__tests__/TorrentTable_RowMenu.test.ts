@@ -1,5 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -8,6 +9,8 @@ import STATUS from "@/shared/status";
 
 const useResolvedRecoveryClassificationMock = vi.fn();
 const showFeedbackMock = vi.fn();
+const handleContextMenuActionMock = vi.fn();
+const onCloseMock = vi.fn();
 
 vi.mock("framer-motion", () => ({
     AnimatePresence: ({ children }: { children?: React.ReactNode }) =>
@@ -28,10 +31,15 @@ vi.mock("@heroui/react", () => {
         React.createElement("div", null, children);
     const DropdownMenu = ({ children }: BaseProps) =>
         React.createElement("ul", null, children);
-    const DropdownItem = ({ children, isDisabled }: BaseProps) =>
+    const DropdownItem = ({ children, isDisabled, onPress }: BaseProps) =>
         React.createElement(
-            "li",
-            { "data-disabled": String(Boolean(isDisabled)) },
+            "button",
+            {
+                type: "button",
+                disabled: isDisabled,
+                "data-disabled": String(Boolean(isDisabled)),
+                onClick: () => onPress?.(),
+            },
             children,
         );
     const cn = (...classNames: Array<string | false | null | undefined>) =>
@@ -118,17 +126,36 @@ const makeViewModel = (torrent: Torrent): TorrentTableRowMenuViewModel => ({
         },
         torrent,
     },
-    onClose: vi.fn(),
-    handleContextMenuAction: async () => ({ status: "success" }),
+    onClose: onCloseMock,
+    handleContextMenuAction: handleContextMenuActionMock,
     queueMenuActions: [],
     getContextMenuShortcut: () => "",
 });
+
+const waitForCondition = async (
+    predicate: () => boolean,
+    timeoutMs = 1000,
+): Promise<void> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (predicate()) {
+            return;
+        }
+        await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 20);
+        });
+    }
+    throw new Error("wait_for_condition_timeout");
+};
 
 describe("TorrentTable_RowMenu", () => {
     beforeEach(() => {
         useResolvedRecoveryClassificationMock.mockReset();
         showFeedbackMock.mockReset();
+        handleContextMenuActionMock.mockReset();
+        onCloseMock.mockReset();
         useResolvedRecoveryClassificationMock.mockReturnValue(null);
+        handleContextMenuActionMock.mockResolvedValue({ status: "success" });
     });
 
     it("shows enabled 'Download missing' for missing-files torrents even without classification", () => {
@@ -144,5 +171,45 @@ describe("TorrentTable_RowMenu", () => {
             /data-disabled="(true|false)">recovery\.action_download</,
         );
         expect(match?.[1]).toBe("false");
+    });
+
+    it("does not emit error feedback when download-missing resolves to canceled", async () => {
+        handleContextMenuActionMock.mockResolvedValue({
+            status: "canceled",
+            reason: "operation_cancelled",
+        });
+        const viewModel = makeViewModel(makeTorrent(STATUS.torrent.MISSING_FILES));
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+        root.render(
+            React.createElement(TorrentTable_RowMenu, {
+                viewModel,
+            }),
+        );
+        try {
+            await waitForCondition(() =>
+                container.textContent?.includes("recovery.action_download") ??
+                false,
+            );
+            const buttons = Array.from(container.querySelectorAll("button"));
+            const downloadMissingButton =
+                buttons.find(
+                    (button) =>
+                        button.textContent?.trim() ===
+                        "recovery.action_download",
+                ) ?? null;
+            if (!downloadMissingButton) {
+                throw new Error("download_missing_button_not_found");
+            }
+            downloadMissingButton.click();
+            await waitForCondition(
+                () => handleContextMenuActionMock.mock.calls.length > 0,
+            );
+            expect(showFeedbackMock).not.toHaveBeenCalled();
+        } finally {
+            root.unmount();
+            container.remove();
+        }
     });
 });

@@ -26,9 +26,10 @@ import { classifyMissingFilesState, clearVerifyGuardEntry, probeMissingFiles, re
 import { clearProbe as clearCachedProbe, getProbe as getCachedProbe, setProbe as setCachedProbe, setClassificationOverride } from "@/services/recovery/missingFilesStore";
 import { derivePathReason, getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import { infraLogger } from "@/shared/utils/infraLogger";
-import { BACKGROUND_REFRESH_INTERVAL_MS, RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS, RECOVERY_ESCALATION_GRACE_MS, RECOVERY_POLL_INTERVAL_MS, RECOVERY_RETRY_COOLDOWN_MS } from "@/config/logic";
+import { BACKGROUND_REFRESH_INTERVAL_MS, RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS, RECOVERY_ESCALATION_GRACE_MS, RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS, RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
 import { clearClassificationOverrideIfPresent, delay, isRecoveryActiveState } from "@/modules/dashboard/hooks/useRecoveryController.shared";
 import { isActionableRecoveryErrorClass, shouldUseRecoveryGateForResume } from "@/services/recovery/errorClassificationGuards";
+import { computeBackgroundRecoveryDelayMs } from "@/modules/dashboard/hooks/recoveryRetryDelay";
 
 const PROBE_TTL_MS = BACKGROUND_REFRESH_INTERVAL_MS;
 const isUserInitiatedRecoveryAction = (
@@ -36,8 +37,27 @@ const isUserInitiatedRecoveryAction = (
 ): action is "resume" | "downloadMissing" =>
     action === "resume" || action === "downloadMissing";
 
-const hasMeaningfulRecoveryDecision = (outcome: RecoveryOutcome | null): boolean =>
-    outcome?.kind === "path-needed";
+const hasMeaningfulRecoveryDecision = (
+    classification: MissingFilesClassification,
+    outcome: RecoveryOutcome | null,
+): boolean => {
+    if (outcome?.kind !== "path-needed") {
+        return false;
+    }
+    const nonDecisionReason = outcome.reason === "disk-full";
+    const nonDecisionMessage =
+        outcome.message === "insufficient_free_space" ||
+        outcome.message === "free_space_check_not_supported" ||
+        outcome.message === "disk_full";
+    if (nonDecisionReason || nonDecisionMessage) {
+        return false;
+    }
+    const certaintyRequiresDecision =
+        classification.confidence === "certain" ||
+        classification.escalationSignal === "conflict" ||
+        classification.escalationSignal === "multipleCandidates";
+    return certaintyRequiresDecision;
+};
 
 const hasImmediateEscalationCertainty = (
     classification: MissingFilesClassification,
@@ -53,6 +73,10 @@ const hasImmediateEscalationCertainty = (
         classification.escalationSignal === "conflict" ||
         classification.escalationSignal === "multipleCandidates"
     );
+};
+
+type ResumeRecoveryUiOptions = {
+    suppressFeedback?: boolean;
 };
 
 interface UseRecoveryActionsParams {
@@ -84,6 +108,7 @@ export function useRecoveryActions({
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
     const relocateOverlayClearRef = useRef<Map<string, () => void>>(new Map());
+    const recoveryOverlayKeysRef = useRef<Set<string>>(new Set());
 
     const {
         recoverySession,
@@ -95,9 +120,15 @@ export function useRecoveryActions({
         enqueueRecoveryEntry,
         finalizeRecovery,
         torrentsRef,
-        activeRecoveryEligibleRef,
+        markRecoveryPausedBySystem,
+        markRecoveryPausedByUser,
+        markRecoveryCancelled,
+        markRecoveryResumed,
+        isRecoveryCancelled,
+        isBackgroundRecoveryEligible,
         silentVolumeRecoveryInFlightRef,
         silentVolumeRecoveryNextRetryAtRef,
+        silentVolumeRecoveryAttemptCountRef,
     } = recoveryState;
 
     const runMissingFilesFlow = useCallback(
@@ -204,6 +235,36 @@ export function useRecoveryActions({
         [updateOperationOverlays],
     );
 
+    const setRecoveryOverlayState = useCallback(
+        (torrent: Torrent | TorrentDetail, isRecovering: boolean) => {
+            const targetId = torrent.id ?? torrent.hash;
+            if (!targetId) {
+                return;
+            }
+            const overlayKey = String(targetId);
+            if (isRecovering) {
+                if (recoveryOverlayKeysRef.current.has(overlayKey)) {
+                    return;
+                }
+                recoveryOverlayKeysRef.current.add(overlayKey);
+            } else {
+                if (!recoveryOverlayKeysRef.current.has(overlayKey)) {
+                    return;
+                }
+                recoveryOverlayKeysRef.current.delete(overlayKey);
+            }
+            updateOperationOverlays([
+                {
+                    id: overlayKey,
+                    operation: isRecovering
+                        ? STATUS.torrentOperation.RECOVERING
+                        : undefined,
+                },
+            ]);
+        },
+        [updateOperationOverlays],
+    );
+
     useEffect(() => {
         const overlayClearMap = relocateOverlayClearRef.current;
         return () => {
@@ -259,7 +320,7 @@ export function useRecoveryActions({
     const activeRecoveryGateRequestsRef = useRef<Map<string, Promise<RecoveryGateOutcome>>>(new Map());
 
     const requestRecovery: RecoveryGateCallback = useCallback(
-        async ({ torrent, action, options }) => {
+        async ({ torrent, action, options, ui }) => {
             const fingerprint = getRecoveryFingerprint(torrent);
             const activeRecoveryPromise =
                 getActiveRecoveryPromiseForFingerprint(fingerprint);
@@ -271,20 +332,25 @@ export function useRecoveryActions({
             if (activeRecoveryPromise && action !== "recheck") {
                 return activeRecoveryPromise;
             }
+            markRecoveryResumed(fingerprint);
             const startedAtMs = Date.now();
             const shouldUseEscalationGrace =
                 isUserInitiatedRecoveryAction(action);
+            const suppressFeedback = Boolean(ui?.suppressFeedback);
             if (shouldUseEscalationGrace && action === "resume") {
-                showFeedback(
-                    t("recovery.modal.in_progress"),
-                    "info",
-                    RECOVERY_ESCALATION_GRACE_MS,
-                );
+                if (!suppressFeedback) {
+                    showFeedback(
+                        t("recovery.modal.in_progress"),
+                        "info",
+                        RECOVERY_ESCALATION_GRACE_MS,
+                    );
+                }
             }
             const requestPromise: Promise<RecoveryGateOutcome> = (async () => {
                 const envelope = torrent.errorEnvelope;
                 let needsModalComputed = false;
                 let needsModalSurfaced = false;
+                let needsModalRequiresDecision = false;
                 let needsModalOutcome: RecoveryOutcome | null = null;
                 if (!envelope) {
                     return { status: "not_required", reason: "no_error_envelope" };
@@ -313,6 +379,11 @@ export function useRecoveryActions({
                             flowClassification = flowResult.classification;
                         }
                         if (flowResult?.status === "resolved") {
+                            if (flowResult.log === "verify_completed_paused") {
+                                markRecoveryPausedBySystem(fingerprint);
+                            } else {
+                                markRecoveryResumed(fingerprint);
+                            }
                             clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
                             if (torrent.id ?? torrent.hash) {
                                 clearCachedProbe(torrent.id ?? torrent.hash);
@@ -330,6 +401,14 @@ export function useRecoveryActions({
                             reason: derivePathReason(envelope.errorClass),
                         };
                     }
+                    const hasDecision = hasMeaningfulRecoveryDecision(
+                        flowClassification,
+                        blockingOutcome,
+                    );
+                    needsModalRequiresDecision =
+                        needsModalComputed && hasDecision;
+                    const activeRecoveryDuringResolution =
+                        getActiveRecoveryPromiseForFingerprint(fingerprint);
 
                     if (!blockingOutcome) {
                         if (shouldUseEscalationGrace) {
@@ -339,7 +418,21 @@ export function useRecoveryActions({
                             if (remainingMs > 0) {
                                 await delay(remainingMs);
                             }
-                            showFeedback(t("recovery.status.blocked"), "warning");
+                            const fallbackBlockedOutcome: RecoveryOutcome = {
+                                kind: "path-needed",
+                                reason: derivePathReason(envelope.errorClass),
+                                message: "path_check_failed",
+                            };
+                            if (activeRecoveryDuringResolution) {
+                                setRecoverySessionOutcome(
+                                    fallbackBlockedOutcome,
+                                    undefined,
+                                    false,
+                                );
+                            }
+                            if (!suppressFeedback) {
+                                showFeedback(t("recovery.status.blocked"), "warning");
+                            }
                             return {
                                 status: "not_required",
                                 reason: "blocked",
@@ -350,27 +443,35 @@ export function useRecoveryActions({
                             reason: "no_blocking_outcome",
                         };
                     }
-                    const activeRecoveryDuringResolution = getActiveRecoveryPromiseForFingerprint(fingerprint);
                     if (action === "recheck") {
                         if (activeRecoveryDuringResolution) {
-                            setRecoverySessionOutcome(blockingOutcome);
+                            setRecoverySessionOutcome(
+                                blockingOutcome,
+                                undefined,
+                                hasDecision,
+                            );
                             needsModalSurfaced = true;
                             return {
-                                status: "handled",
-                                blockingOutcome,
+                                status: "not_required",
+                                reason: "blocked",
                             };
                         }
-                        const entry = createRecoveryQueueEntry(torrent, action, blockingOutcome, flowClassification, fingerprint);
+                        const entry = createRecoveryQueueEntry(
+                            torrent,
+                            action,
+                            blockingOutcome,
+                            flowClassification,
+                            fingerprint,
+                            hasDecision,
+                        );
                         needsModalSurfaced = true;
                         void enqueueRecoveryEntry(entry);
                         return {
-                            status: "handled",
-                            blockingOutcome,
+                            status: "not_required",
+                            reason: "blocked",
                         };
                     }
 
-                    const hasDecision =
-                        hasMeaningfulRecoveryDecision(blockingOutcome);
                     const isCertainBlockingOutcome =
                         hasImmediateEscalationCertainty(
                             flowClassification,
@@ -389,27 +490,44 @@ export function useRecoveryActions({
                     }
                     if (!hasDecision) {
                         if (activeRecoveryDuringResolution) {
-                            setRecoverySessionOutcome(blockingOutcome);
+                            setRecoverySessionOutcome(
+                                blockingOutcome,
+                                undefined,
+                                false,
+                            );
                             needsModalSurfaced = true;
                         }
-                        showFeedback(t("recovery.status.blocked"), "warning");
+                        if (!suppressFeedback) {
+                            showFeedback(t("recovery.status.blocked"), "warning");
+                        }
                         return {
                             status: "not_required",
                             reason: "blocked",
                         };
                     }
                     if (activeRecoveryDuringResolution) {
-                        setRecoverySessionOutcome(blockingOutcome);
+                        setRecoverySessionOutcome(
+                            blockingOutcome,
+                            undefined,
+                            true,
+                        );
                         needsModalSurfaced = true;
                         return activeRecoveryDuringResolution;
                     }
-                    const entry = createRecoveryQueueEntry(torrent, action, blockingOutcome, flowClassification, fingerprint);
+                    const entry = createRecoveryQueueEntry(
+                        torrent,
+                        action,
+                        blockingOutcome,
+                        flowClassification,
+                        fingerprint,
+                        true,
+                    );
                     needsModalSurfaced = true;
                     return enqueueRecoveryEntry(entry);
                 } finally {
                     if (
                         import.meta.env.DEV &&
-                        needsModalComputed &&
+                        needsModalRequiresDecision &&
                         !needsModalSurfaced
                     ) {
                         infraLogger.error({
@@ -443,7 +561,19 @@ export function useRecoveryActions({
                 }
             }
         },
-        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry, engineCapabilities, getActiveRecoverySignal, getActiveRecoveryPromiseForFingerprint, setRecoverySessionOutcome, showFeedback, t],
+        [
+            createRecoveryQueueEntry,
+            enqueueRecoveryEntry,
+            engineCapabilities,
+            getActiveRecoveryPromiseForFingerprint,
+            getActiveRecoverySignal,
+            markRecoveryPausedBySystem,
+            markRecoveryResumed,
+            runMissingFilesFlow,
+            setRecoverySessionOutcome,
+            showFeedback,
+            t,
+        ],
     );
 
     const refreshAfterRecovery = useCallback(
@@ -554,10 +684,16 @@ export function useRecoveryActions({
                 if (!flowResult) return false;
                 if (flowResult.status === "resolved") {
                     const targetKey = torrent.id ?? torrent.hash ?? "";
+                    const fingerprint = getRecoveryFingerprint(torrent);
                     const pausedAfterVerify = flowResult.log === "verify_completed_paused";
                     clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
                     if (targetKey) {
                         clearCachedProbe(targetKey);
+                    }
+                    if (pausedAfterVerify) {
+                        markRecoveryPausedBySystem(fingerprint);
+                    } else {
+                        markRecoveryResumed(fingerprint);
                     }
                     try {
                         await refreshAfterRecovery(torrent);
@@ -607,7 +743,14 @@ export function useRecoveryActions({
                 if (flowResult.status === "needsModal") {
                     const outcome = flowResult.blockingOutcome;
                     if (outcome) {
-                        setRecoverySessionOutcome(outcome);
+                        setRecoverySessionOutcome(
+                            outcome,
+                            undefined,
+                            hasMeaningfulRecoveryDecision(
+                                flowResult.classification,
+                                outcome,
+                            ),
+                        );
                     }
                 }
                 return false;
@@ -623,7 +766,18 @@ export function useRecoveryActions({
                 return false;
             }
         },
-        [runMissingFilesFlow, refreshAfterRecovery, showFeedback, t, getActiveRecoverySignal, setRecoverySessionOutcome, scheduleRecoveryFinalize, finalizeRecovery],
+        [
+            finalizeRecovery,
+            getActiveRecoverySignal,
+            markRecoveryPausedBySystem,
+            markRecoveryResumed,
+            refreshAfterRecovery,
+            runMissingFilesFlow,
+            scheduleRecoveryFinalize,
+            setRecoverySessionOutcome,
+            showFeedback,
+            t,
+        ],
     );
 
     useEffect(() => {
@@ -662,94 +816,215 @@ export function useRecoveryActions({
         [client],
     );
 
-    const trySilentVolumeLossRecovery = useCallback(
+    const tryBeginCooldownGatedRecoveryAttempt = useCallback(
+        (fingerprint: string): "started" | "cooldown" | "in_flight" => {
+            if (silentVolumeRecoveryInFlightRef.current.has(fingerprint)) {
+                return "in_flight";
+            }
+            const nextRetryAt =
+                silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ?? 0;
+            if (Date.now() < nextRetryAt) {
+                return "cooldown";
+            }
+            silentVolumeRecoveryInFlightRef.current.add(fingerprint);
+            return "started";
+        },
+        [silentVolumeRecoveryInFlightRef, silentVolumeRecoveryNextRetryAtRef],
+    );
+
+    const clearCooldownGatedRecoverySchedule = useCallback(
+        (fingerprint: string) => {
+            silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
+            silentVolumeRecoveryAttemptCountRef.current.delete(fingerprint);
+        },
+        [silentVolumeRecoveryAttemptCountRef, silentVolumeRecoveryNextRetryAtRef],
+    );
+
+    const scheduleCooldownGatedRecoveryRetry = useCallback(
+        (fingerprint: string) => {
+            const attempt =
+                (silentVolumeRecoveryAttemptCountRef.current.get(fingerprint) ?? 0) +
+                1;
+            silentVolumeRecoveryAttemptCountRef.current.set(
+                fingerprint,
+                attempt,
+            );
+            const retryDelayMs = computeBackgroundRecoveryDelayMs(
+                fingerprint,
+                attempt,
+            );
+            silentVolumeRecoveryNextRetryAtRef.current.set(
+                fingerprint,
+                Date.now() + retryDelayMs,
+            );
+        },
+        [silentVolumeRecoveryAttemptCountRef, silentVolumeRecoveryNextRetryAtRef],
+    );
+
+    const finishCooldownGatedRecoveryAttempt = useCallback(
+        (fingerprint: string) => {
+            silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
+        },
+        [silentVolumeRecoveryInFlightRef],
+    );
+
+    const tryBackgroundRecovery = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
-            if (recoverySession) return;
-            if (torrent.state !== STATUS.torrent.MISSING_FILES && torrent.state !== STATUS.torrent.ERROR) {
+            const targetId = torrent.id ?? torrent.hash;
+            const isPausedState = torrent.state === STATUS.torrent.PAUSED;
+            if (
+                !isPausedState &&
+                torrent.state !== STATUS.torrent.MISSING_FILES &&
+                torrent.state !== STATUS.torrent.ERROR
+            ) {
+                setRecoveryOverlayState(torrent, false);
                 return;
             }
             const envelope = torrent.errorEnvelope;
-            if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
+            if (
+                !envelope ||
+                !isActionableRecoveryErrorClass(envelope.errorClass)
+            ) {
+                setRecoveryOverlayState(torrent, false);
                 return;
             }
             const fingerprint = getRecoveryFingerprint(torrent);
-            if (!fingerprint) return;
-            if (!activeRecoveryEligibleRef.current.has(fingerprint)) {
+            if (!fingerprint) {
+                setRecoveryOverlayState(torrent, false);
                 return;
             }
-            if (silentVolumeRecoveryInFlightRef.current.has(fingerprint)) {
+            if (isRecoveryCancelled(fingerprint)) {
+                clearCooldownGatedRecoverySchedule(fingerprint);
+                setRecoveryOverlayState(torrent, false);
                 return;
             }
-            const nextRetryAt = silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ?? 0;
-            if (Date.now() < nextRetryAt) {
+            if (isPausedState && !isBackgroundRecoveryEligible(fingerprint)) {
+                clearCooldownGatedRecoverySchedule(fingerprint);
+                setRecoveryOverlayState(torrent, false);
+                return;
+            }
+            const attemptState = tryBeginCooldownGatedRecoveryAttempt(fingerprint);
+            if (attemptState !== "started") {
+                setRecoveryOverlayState(torrent, true);
                 return;
             }
 
-            const classification = classifyMissingFilesState(envelope, torrent.savePath ?? torrent.downloadDir ?? "", {
-                torrentId: torrent.id ?? torrent.hash,
-                engineCapabilities,
-            });
-            const canSilentResolveVolumeLoss = classification.kind === "volumeLoss" && classification.confidence !== "unknown";
-            const canSilentResolvePathLoss = classification.kind === "pathLoss" && classification.confidence === "certain" && shellAgent.isAvailable;
-            if (!canSilentResolveVolumeLoss && !canSilentResolvePathLoss) {
-                return;
-            }
+            const classification = classifyMissingFilesState(
+                envelope,
+                torrent.savePath ?? torrent.downloadDir ?? "",
+                {
+                    torrentId: torrent.id ?? torrent.hash,
+                    engineCapabilities,
+                },
+            );
+            const shouldNotifyDriveDetected =
+                classification.kind === "volumeLoss" &&
+                classification.confidence !== "unknown";
 
-            silentVolumeRecoveryInFlightRef.current.add(fingerprint);
+            setRecoveryOverlayState(torrent, true);
             try {
                 const flowResult = await runMissingFilesFlow(torrent);
                 if (flowResult?.status === "resolved") {
                     clearVerifyGuardEntry(fingerprint);
-                    const targetKey = torrent.id ?? torrent.hash ?? "";
-                    if (targetKey) {
-                        clearCachedProbe(targetKey);
+                    if (targetId) {
+                        clearCachedProbe(String(targetId));
                     }
-                    silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
+                    clearCooldownGatedRecoverySchedule(fingerprint);
                     await refreshAfterRecovery(torrent);
-                    const targetId = torrent.id ?? torrent.hash;
-                    if (targetId && canSilentResolveVolumeLoss) {
+                    if (targetId && shouldNotifyDriveDetected) {
                         const resumed = await waitForActiveState(String(targetId));
                         if (resumed) {
                             showFeedback(t("recovery.toast_drive_detected"), "info");
                         }
                     }
+                    setRecoveryOverlayState(torrent, false);
                     return;
                 }
-                silentVolumeRecoveryNextRetryAtRef.current.set(fingerprint, Date.now() + RECOVERY_RETRY_COOLDOWN_MS);
+                scheduleCooldownGatedRecoveryRetry(fingerprint);
+                setRecoveryOverlayState(torrent, true);
             } catch (err) {
                 infraLogger.error(
                     {
                         scope: "recovery_controller",
                         event: "silent_volume_recovery_failed",
-                        message: "Silent volume-loss recovery failed",
+                        message: "Background recovery retry failed",
                         details: { fingerprint },
                     },
                     err,
                 );
-                silentVolumeRecoveryNextRetryAtRef.current.set(fingerprint, Date.now() + RECOVERY_RETRY_COOLDOWN_MS);
+                scheduleCooldownGatedRecoveryRetry(fingerprint);
+                setRecoveryOverlayState(torrent, true);
             } finally {
-                silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
+                finishCooldownGatedRecoveryAttempt(fingerprint);
             }
         },
         [
+            clearCooldownGatedRecoverySchedule,
             engineCapabilities,
+            finishCooldownGatedRecoveryAttempt,
+            isBackgroundRecoveryEligible,
+            isRecoveryCancelled,
             recoverySession,
-            activeRecoveryEligibleRef,
-            silentVolumeRecoveryInFlightRef,
-            silentVolumeRecoveryNextRetryAtRef,
             refreshAfterRecovery,
             runMissingFilesFlow,
+            scheduleCooldownGatedRecoveryRetry,
+            setRecoveryOverlayState,
             showFeedback,
             t,
+            tryBeginCooldownGatedRecoveryAttempt,
             waitForActiveState,
+        ],
+    );
+
+    const executeCooldownGatedAutoRetry = useCallback(
+        async (torrent: Torrent | TorrentDetail) => {
+            const fingerprint = getRecoveryFingerprint(torrent);
+            if (!fingerprint) {
+                return;
+            }
+            const attemptState =
+                tryBeginCooldownGatedRecoveryAttempt(fingerprint);
+            if (attemptState !== "started") {
+                return;
+            }
+            try {
+                const resolved = await resolveRecoverySession(torrent, {
+                    notifyDriveDetected: true,
+                    deferFinalizeMs: RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
+                });
+                if (resolved) {
+                    clearCooldownGatedRecoverySchedule(fingerprint);
+                    return;
+                }
+                scheduleCooldownGatedRecoveryRetry(fingerprint);
+            } finally {
+                finishCooldownGatedRecoveryAttempt(fingerprint);
+            }
+        },
+        [
+            clearCooldownGatedRecoverySchedule,
+            finishCooldownGatedRecoveryAttempt,
+            resolveRecoverySession,
+            scheduleCooldownGatedRecoveryRetry,
+            tryBeginCooldownGatedRecoveryAttempt,
         ],
     );
 
     useEffect(() => {
         const runSilentRecoveryPass = () => {
-            if (recoverySession) return;
+            const activeSessionFingerprint = recoverySession
+                ? getRecoveryFingerprint(recoverySession.torrent)
+                : "";
             torrentsRef.current.forEach((torrent) => {
-                void trySilentVolumeLossRecovery(torrent);
+                const fingerprint = getRecoveryFingerprint(torrent);
+                if (
+                    activeSessionFingerprint &&
+                    fingerprint === activeSessionFingerprint
+                ) {
+                    void executeCooldownGatedAutoRetry(torrent);
+                    return;
+                }
+                void tryBackgroundRecovery(torrent);
             });
         };
 
@@ -758,12 +1033,22 @@ export function useRecoveryActions({
         return () => {
             task.cancel();
         };
-    }, [recoverySession, trySilentVolumeLossRecovery, torrentsRef]);
+    }, [
+        executeCooldownGatedAutoRetry,
+        recoverySession,
+        torrentsRef,
+        tryBackgroundRecovery,
+    ]);
 
     const resumeTorrentWithRecovery = useCallback(
-        async (torrent: Torrent | TorrentDetail): Promise<ResumeRecoveryCommandOutcome> => {
+        async (
+            torrent: Torrent | TorrentDetail,
+            uiOptions?: ResumeRecoveryUiOptions,
+        ): Promise<ResumeRecoveryCommandOutcome> => {
             try {
                 const id = torrent.id ?? torrent.hash;
+                const fingerprint = getRecoveryFingerprint(torrent);
+                const suppressFeedback = Boolean(uiOptions?.suppressFeedback);
                 if (!id) {
                     return {
                         status: "failed",
@@ -774,6 +1059,7 @@ export function useRecoveryActions({
                     const gateResult = await requestRecovery({
                         torrent,
                         action: "resume",
+                        ui: { suppressFeedback },
                     });
                     if (gateResult.status === "handled") {
                         try {
@@ -794,18 +1080,23 @@ export function useRecoveryActions({
                         if (gateResult.log === "verify_completed_paused") {
                             return { status: "applied" };
                         }
+                        markRecoveryResumed(fingerprint);
                         const resumed = await waitForActiveState(id);
                         const isAllVerified = gateResult.log === "all_verified_resuming";
                         const toastKey = isAllVerified ? "recovery.feedback.all_verified_resuming" : resumed ? "recovery.feedback.download_resumed" : "recovery.feedback.resume_queued";
                         const tone = isAllVerified || resumed ? "info" : "warning";
-                        showFeedback(t(toastKey), tone);
+                        if (!suppressFeedback) {
+                            showFeedback(t(toastKey), tone);
+                        }
                         return { status: "applied" };
                     }
                     if (
                         gateResult.status === "not_required" &&
                         gateResult.reason === "blocked"
                     ) {
-                        showFeedback(t("recovery.status.blocked"), "warning");
+                        if (!suppressFeedback) {
+                            showFeedback(t("recovery.status.blocked"), "warning");
+                        }
                         return {
                             status: "failed",
                             reason: "dispatch_not_applied",
@@ -819,9 +1110,11 @@ export function useRecoveryActions({
                                 reason: "dispatch_not_applied",
                             };
                         }
+                        markRecoveryResumed(fingerprint);
                         return { status: "applied" };
                     }
                     if (gateResult.status === "cancelled") {
+                        markRecoveryCancelled(fingerprint);
                         return { status: "cancelled" };
                     }
                     return {
@@ -836,6 +1129,7 @@ export function useRecoveryActions({
                         reason: "dispatch_not_applied",
                     };
                 }
+                markRecoveryResumed(fingerprint);
                 return { status: "applied" };
             } catch {
                 return {
@@ -844,7 +1138,16 @@ export function useRecoveryActions({
                 };
             }
         },
-        [dispatch, requestRecovery, refreshAfterRecovery, showFeedback, t, waitForActiveState],
+        [
+            dispatch,
+            markRecoveryCancelled,
+            markRecoveryResumed,
+            requestRecovery,
+            refreshAfterRecovery,
+            showFeedback,
+            t,
+            waitForActiveState,
+        ],
     );
 
     const downloadMissingInFlight =
@@ -883,6 +1186,7 @@ export function useRecoveryActions({
             options?: { recreateFolder?: boolean },
         ): Promise<DownloadMissingOutcome> => {
             const key = getRecoveryFingerprint(target);
+            setRecoveryOverlayState(target, true);
             const inFlight = downloadMissingInFlight.current.get(key);
             if (inFlight) {
                 return inFlight;
@@ -954,9 +1258,11 @@ export function useRecoveryActions({
                     downloadMissingInFlight.current.delete(key);
                 }
                 clearDownloadMissingInFlight(key);
+                setRecoveryOverlayState(target, false);
             }
         },
         [
+            setRecoveryOverlayState,
             requestRecovery,
             refreshAfterRecovery,
             showFeedback,
@@ -1002,21 +1308,14 @@ export function useRecoveryActions({
                 );
             }
 
-            if (gateResult.status === "handled" && Boolean(gateResult.blockingOutcome)) {
-                showFeedback(t("recovery.feedback.retry_failed"), "warning");
-                return {
-                    status: "not_applied",
-                    shouldCloseModal: false,
-                    reason: "blocked",
-                };
-            }
-            if (gateResult.status === "handled" && !gateResult.blockingOutcome) {
+            if (gateResult.status === "handled") {
                 return { status: "applied", shouldCloseModal: true };
             }
             if (
                 gateResult.status === "not_required" &&
                 gateResult.reason === "blocked"
             ) {
+                showFeedback(t("recovery.feedback.retry_failed"), "warning");
                 return {
                     status: "not_applied",
                     shouldCloseModal: false,
@@ -1034,6 +1333,19 @@ export function useRecoveryActions({
         },
         [client, requestRecovery, refreshAfterRecovery, showFeedback, t],
     );
+
+    const markTorrentPausedByUser = useCallback(
+        (torrent: Torrent | TorrentDetail) => {
+            const fingerprint = getRecoveryFingerprint(torrent);
+            if (!fingerprint) {
+                return;
+            }
+            markRecoveryPausedByUser(fingerprint);
+            setRecoveryOverlayState(torrent, false);
+        },
+        [markRecoveryPausedByUser, setRecoveryOverlayState],
+    );
+
     return {
         requestRecovery,
         runMissingFilesFlow,
@@ -1045,5 +1357,7 @@ export function useRecoveryActions({
         executeDownloadMissing,
         isDownloadMissingInFlight,
         executeRetryFetch,
+        executeCooldownGatedAutoRetry,
+        markTorrentPausedByUser,
     };
 }

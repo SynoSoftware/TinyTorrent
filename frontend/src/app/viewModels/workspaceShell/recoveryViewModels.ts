@@ -166,6 +166,7 @@ export function useRecoveryModalViewModel({
     const classification = recoverySession?.classification ?? null;
     const outcome = recoverySession?.outcome ?? null;
     const autoCloseAtMs = recoverySession?.autoCloseAtMs ?? null;
+    const requiresDecision = recoverySession?.requiresDecision ?? true;
     const busy = Boolean(isBusy);
     const isOpen = Boolean(recoverySession);
     const currentTorrentKey = getRecoveryFingerprint(torrent);
@@ -402,20 +403,29 @@ export function useRecoveryModalViewModel({
             return null;
         };
         const recommendedActions = classification?.recommendedActions ?? [];
-        const resolvedPrimaryAction = (() => {
-            for (const action of recommendedActions) {
-                const candidate = buildRecoveryAction(action);
-                if (candidate) {
-                    return candidate;
-                }
-            }
-            return null;
-        })();
-        const primaryAction = resolvedPrimaryAction ?? {
-            label: t("recovery.action_locate"),
-            onPress: () => {},
-            isDisabled: true,
-        };
+        const resolvedPrimaryAction = requiresDecision
+            ? (() => {
+                  for (const action of recommendedActions) {
+                      const candidate = buildRecoveryAction(action);
+                      if (candidate) {
+                          return candidate;
+                      }
+                  }
+                  return null;
+              })()
+            : null;
+        const primaryAction = resolvedPrimaryAction ??
+            (requiresDecision
+                ? {
+                      label: t("recovery.action_locate"),
+                      onPress: () => {},
+                      isDisabled: true,
+                  }
+                : {
+                      label: t("recovery.action_acknowledge"),
+                      onPress: handleClose,
+                      isDisabled: busy || locationEditorVisible || isAutoClosePending,
+                  });
         return {
             isOpen,
             busy,
@@ -449,6 +459,7 @@ export function useRecoveryModalViewModel({
             showRecreate:
                 isPathLoss &&
                 classification?.confidence === "certain" &&
+                requiresDecision &&
                 Boolean(onRecreate),
             onRecreate: onRecreate ? () => void onRecreate() : undefined,
             onClose: handleClose,
@@ -477,6 +488,7 @@ export function useRecoveryModalViewModel({
         outcome,
         queuedCount,
         queuedItems,
+        requiresDecision,
         resolvedCountdownSeconds,
         t,
         torrent,

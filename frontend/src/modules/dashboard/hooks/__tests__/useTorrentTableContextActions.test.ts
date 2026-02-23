@@ -212,4 +212,28 @@ describe("useTorrentTableContextActions download-missing mapping", () => {
             mounted.cleanup();
         }
     });
+
+    it("returns unsupported for non-cancel not_required reasons", async () => {
+        const reasons = [
+            "no_error_envelope",
+            "no_blocking_outcome",
+            "set_location",
+        ] as const;
+        for (const reason of reasons) {
+            handleDownloadMissingMock.mockResolvedValue({
+                status: "not_required",
+                reason,
+            });
+            const mounted = await mount();
+            try {
+                const outcome = await mounted.ref.current!.run("download-missing");
+                expect(outcome).toEqual({
+                    status: "unsupported",
+                    reason: "action_not_supported",
+                });
+            } finally {
+                mounted.cleanup();
+            }
+        }
+    });
 });

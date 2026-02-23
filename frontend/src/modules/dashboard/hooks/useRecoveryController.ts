@@ -85,7 +85,10 @@ interface RecoveryActions {
         options?: { recreateFolder?: boolean },
     ) => Promise<DownloadMissingCommandOutcome>;
     executeRetryFetch: (target: Torrent | TorrentDetail) => Promise<RetryRecoveryCommandOutcome>;
-    resumeTorrentWithRecovery: (torrent: Torrent | TorrentDetail) => Promise<ResumeRecoveryCommandOutcome>;
+    resumeTorrentWithRecovery: (
+        torrent: Torrent | TorrentDetail,
+        uiOptions?: { suppressFeedback?: boolean },
+    ) => Promise<ResumeRecoveryCommandOutcome>;
     applyTorrentLocation: (
         torrent: Torrent | TorrentDetail,
         path: string,
@@ -93,6 +96,7 @@ interface RecoveryActions {
     ) => Promise<ResumeRecoveryCommandOutcome>;
     handlePrepareDelete: (torrent: Torrent, deleteData?: boolean) => void;
     isDownloadMissingInFlight: (torrent: Torrent | TorrentDetail) => boolean;
+    markTorrentPausedByUser: (torrent: Torrent | TorrentDetail) => void;
     getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
     openRecoveryModal: (torrent: Torrent | TorrentDetail) => OpenRecoveryModalOutcome;
 }
@@ -144,6 +148,8 @@ export function useRecoveryController({
         executeDownloadMissing,
         isDownloadMissingInFlight,
         executeRetryFetch,
+        executeCooldownGatedAutoRetry,
+        markTorrentPausedByUser,
     } = useRecoveryActions({
         client,
         torrents,
@@ -160,6 +166,7 @@ export function useRecoveryController({
         recoverySession,
         withRecoveryBusy,
         executeRetryFetch,
+        executeCooldownGatedAutoRetry,
         resolveRecoverySession,
         applyTorrentLocation,
         hasActiveRecoveryRequest,
@@ -254,6 +261,7 @@ export function useRecoveryController({
             applyTorrentLocation,
             handlePrepareDelete,
             isDownloadMissingInFlight,
+            markTorrentPausedByUser,
             getRecoverySessionForKey,
             openRecoveryModal,
         },

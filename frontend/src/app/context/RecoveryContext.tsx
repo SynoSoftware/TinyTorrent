@@ -108,6 +108,7 @@ export interface RecoverySessionInfo {
     action: RecoveryGateAction;
     outcome: RecoveryOutcome;
     classification: MissingFilesClassification;
+    requiresDecision: boolean;
     autoCloseAtMs?: number;
 }
 

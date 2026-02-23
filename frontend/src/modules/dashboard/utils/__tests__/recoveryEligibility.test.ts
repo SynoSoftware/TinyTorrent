@@ -4,8 +4,8 @@ import type { MissingFilesClassification } from "@/services/recovery/recovery-co
 import STATUS from "@/shared/status";
 import {
     canTriggerDownloadMissingAction,
-    resolveEffectiveRecoveryState,
 } from "@/modules/dashboard/utils/recoveryEligibility";
+import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
 
 const makeTorrent = (overrides?: Partial<Torrent>): Torrent => ({
     id: "torrent-a",
@@ -47,7 +47,7 @@ describe("recoveryEligibility", () => {
                 recoveryActions: [],
             },
         });
-        expect(resolveEffectiveRecoveryState(torrent)).toBe("needsUserAction");
+        expect(getEffectiveRecoveryState(torrent)).toBe("needsUserAction");
     });
 
     it("allows download-missing when classification recommends it", () => {

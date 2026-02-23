@@ -87,6 +87,7 @@ const DEFAULT_PERFORMANCE = {
     min_immediate_tick_ms: 1000,
     read_rpc_cache_ms: 0,
     transport_cache_ttl_ms: 500,
+    bulk_resume_concurrency: 6,
 } as const;
 
 const DEFAULT_UI = {
@@ -165,6 +166,16 @@ export const READ_RPC_CACHE_TTL_MS = readNumber(
 export const TRANSPORT_CACHE_TTL_MS = readNumber(
     performanceConfig.transport_cache_ttl_ms,
     DEFAULT_PERFORMANCE.transport_cache_ttl_ms,
+);
+
+export const BULK_RESUME_CONCURRENCY = Math.max(
+    1,
+    Math.floor(
+        readNumber(
+            performanceConfig.bulk_resume_concurrency,
+            DEFAULT_PERFORMANCE.bulk_resume_concurrency,
+        ),
+    ),
 );
 
 // --- SHELL (Classic / Immersive) ---

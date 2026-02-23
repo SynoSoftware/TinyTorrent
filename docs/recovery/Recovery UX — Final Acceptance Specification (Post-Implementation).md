@@ -76,6 +76,11 @@ If gate certainty exists from the start (for example, arbitration conflict or mu
 
 Escalation timing is mandatory to avoid both modal spam and frozen-feeling UI.
 
+Low-friction acceptance rule:
+
+* `BLOCKED` without meaningful decision must not open a decision modal.
+* It must surface lightweight guidance (toast + persistent inline status).
+
 ---
 
 ## 4. Recovery Outcome Emission Rules
@@ -88,6 +93,7 @@ Escalation timing is mandatory to avoid both modal spam and frozen-feeling UI.
   * `NEEDS_USER_DECISION`
   * `BLOCKED`
   * `CANCELLED`
+* `CANCELLED` produces at most one cancellation feedback emission, then no further recovery noise.
 * Wrapper reinterpretation or override of gate outcomes is forbidden.
 * UI mapping occurs in exactly one place.
 
@@ -148,6 +154,24 @@ Retry work is cheap:
 * A retry attempt is availability probe + reclassification only (no verify storms).
 * Verify/recheck is guarded and rate-limited by the anti-loop verify guard.
 
+### Pause ownership + cancellation gating (hard)
+
+Paused retry eligibility is derived from explicit ownership state, not from raw paused status:
+
+* `pauseOrigin: "user" | "recovery" | null`
+* `cancelled: boolean`
+
+Paused retry eligibility must satisfy:
+
+* `actionableError && pauseOrigin === "recovery" && !cancelled`
+
+Reset semantics are required:
+
+* successful resume clears recovery pause ownership
+* explicit user pause clears/overrides recovery pause ownership
+* recovery cancellation clears recovery pause ownership and marks cancelled
+* non-error running state clears stale recovery pause ownership
+
 While retrying:
 
 * UI displays a persistent, truthful status state (for example: “Waiting…”, “Retrying…”, “Recovering…”).
@@ -190,8 +214,8 @@ A recovery modal is a decision UI, not a status monitor.
 | `AUTO_RECOVERED` | Reconcile data, then success/progress messaging |
 | `AUTO_IN_PROGRESS` | Show recovering state immediately |
 | `NEEDS_USER_DECISION` | Open (or update) recovery decision modal |
-| `BLOCKED` | Show actionable blocked error surface (toast/panel), no decision modal |
-| `CANCELLED` | No-op / explicit cancellation state |
+| `BLOCKED` | Show actionable blocked error surface (default non-modal toast + inline status), no decision modal |
+| `CANCELLED` | At-most-once cancellation feedback, then no-op |
 
 No other code path may trigger recovery UI.
 
@@ -222,6 +246,16 @@ No other code path may trigger recovery UI.
 * `BLOCKED` → no meaningful choice exists; show actionable error UI, not a decision modal.
 
 If no real choice can be presented, do not open a modal.
+
+---
+
+## 8a. Bulk Feedback Noise Guard
+
+For bulk resume/recovery intents:
+
+* success/in-progress feedback is aggregated at bulk scope
+* per-torrent success toasts from internal recovery paths are suppressed
+* per-torrent blocked/error visibility remains on row/details surfaces
 
 ---
 

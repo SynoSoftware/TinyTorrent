@@ -6,12 +6,15 @@ import type { RecoveryGateOutcome } from "@/app/types/recoveryGate";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import type { ResumeRecoveryCommandOutcome, RetryRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
 import { shellAgent } from "@/app/agents/shell-agent";
-import { RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS, RECOVERY_PICK_PATH_SUCCESS_DELAY_MS } from "@/config/logic";
+import { RECOVERY_PICK_PATH_SUCCESS_DELAY_MS } from "@/config/logic";
 
 interface UseRecoveryModalParams {
     recoverySession: RecoverySessionInfo | null;
     withRecoveryBusy: <T>(action: () => Promise<T>) => Promise<T>;
     executeRetryFetch: (target: Torrent | TorrentDetail) => Promise<RetryRecoveryCommandOutcome>;
+    executeCooldownGatedAutoRetry: (
+        target: Torrent | TorrentDetail,
+    ) => Promise<void>;
     applyTorrentLocation: (
         torrent: Torrent | TorrentDetail,
         path: string,
@@ -29,7 +32,10 @@ interface UseRecoveryModalParams {
     hasActiveRecoveryRequest: () => boolean;
     abortActiveRecoveryRequest: () => void;
     finalizeRecovery: (result: RecoveryGateOutcome) => void;
-    resumeTorrentWithRecovery: (torrent: Torrent | TorrentDetail) => Promise<ResumeRecoveryCommandOutcome>;
+    resumeTorrentWithRecovery: (
+        torrent: Torrent | TorrentDetail,
+        uiOptions?: { suppressFeedback?: boolean },
+    ) => Promise<ResumeRecoveryCommandOutcome>;
 }
 
 interface UseRecoveryModalResult {
@@ -50,6 +56,7 @@ export function useRecoveryModal({
     recoverySession,
     withRecoveryBusy,
     executeRetryFetch,
+    executeCooldownGatedAutoRetry,
     applyTorrentLocation,
     resolveRecoverySession,
     hasActiveRecoveryRequest,
@@ -77,13 +84,8 @@ export function useRecoveryModal({
 
     const handleRecoveryAutoRetry = useCallback(async () => {
         if (!recoverySession?.torrent) return;
-        await withRecoveryBusy(async () => {
-            await resolveRecoverySession(recoverySession.torrent, {
-                notifyDriveDetected: recoverySession.classification.kind === "volumeLoss",
-                deferFinalizeMs: RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
-            });
-        });
-    }, [recoverySession, resolveRecoverySession, withRecoveryBusy]);
+        await executeCooldownGatedAutoRetry(recoverySession.torrent);
+    }, [executeCooldownGatedAutoRetry, recoverySession]);
 
     const handleRecoveryRecreateFolder = useCallback(async () => {
         if (!recoverySession?.torrent) return;

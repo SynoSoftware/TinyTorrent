@@ -1,28 +1,10 @@
 import STATUS from "@/shared/status";
-import type {
-    ErrorClass,
-    RecoveryState,
-    TorrentStatus,
-} from "@/services/rpc/entities";
+import type { ErrorClass } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
 
-type DownloadMissingEligibilityCandidate = {
-    state: TorrentStatus;
-    errorEnvelope?: {
-        recoveryState?: RecoveryState | null;
-        errorClass?: ErrorClass | null;
-    } | null;
-};
-
-export function resolveEffectiveRecoveryState(
-    candidate: DownloadMissingEligibilityCandidate,
-): TorrentStatus | RecoveryState {
-    const recoveryState = candidate.errorEnvelope?.recoveryState;
-    if (recoveryState && recoveryState !== "ok") {
-        return recoveryState;
-    }
-    return candidate.state;
-}
+type DownloadMissingEligibilityCandidate = Pick<Torrent, "state" | "errorEnvelope">;
 
 export function canTriggerDownloadMissingAction(
     candidate: DownloadMissingEligibilityCandidate,
@@ -31,9 +13,9 @@ export function canTriggerDownloadMissingAction(
     if (classification?.recommendedActions.includes("downloadMissing")) {
         return true;
     }
-    const effectiveState = resolveEffectiveRecoveryState(candidate);
+    const effectiveState = getEffectiveRecoveryState(candidate);
     if (effectiveState === STATUS.torrent.MISSING_FILES) {
         return true;
     }
-    return candidate.errorEnvelope?.errorClass === "missingFiles";
+    return (candidate.errorEnvelope?.errorClass as ErrorClass | undefined) === "missingFiles";
 }

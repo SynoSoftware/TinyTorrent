@@ -3,7 +3,7 @@ import { STATUS } from "@/shared/status";
 
 export type ActionableRecoveryErrorClass = Extract<
     ErrorClass,
-    "missingFiles" | "permissionDenied" | "diskFull"
+    "missingFiles" | "permissionDenied" | "diskFull" | "localError" | "unknown"
 >;
 
 interface RecoveryGateResumeCandidate {
@@ -19,7 +19,9 @@ export function isActionableRecoveryErrorClass(
     return (
         errorClass === "missingFiles" ||
         errorClass === "permissionDenied" ||
-        errorClass === "diskFull"
+        errorClass === "diskFull" ||
+        errorClass === "localError" ||
+        errorClass === "unknown"
     );
 }
 

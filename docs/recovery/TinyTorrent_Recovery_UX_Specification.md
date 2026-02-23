@@ -135,6 +135,27 @@ If progress may become possible later:
 * Only one retry loop per torrent fingerprint may be active; additional triggers subscribe to the same loop.
 * Retry must never block the UI thread.
 
+### Pause Ownership Contract (Hard)
+
+Paused-state retry eligibility must not be inferred from torrent state alone.
+Recovery must track explicit ownership:
+
+* `pauseOrigin`: `user | recovery | null`
+* `cancelled`: `boolean`
+
+Paused retry eligibility is derived as:
+
+* `actionableError && pauseOrigin === "recovery" && !cancelled`
+
+This prevents unintended auto-resume after explicit user pause while still allowing recovery-owned paused sessions to continue safely.
+
+Reset semantics are mandatory:
+
+* clear recovery pause ownership when torrent successfully resumes
+* clear recovery pause ownership when user explicitly pauses
+* clear recovery pause ownership when user cancels recovery
+* clear recovery pause ownership when torrent transitions to non-error running state
+
 The system cannot know whether a condition is permanently impossible or just temporarily unresolved.
 Persistent retry continues while progress remains plausibly possible.
 If recovery remains unsuccessful after bounded deterministic attempts, the system must transition to `BLOCKED` while still allowing periodic low-frequency re-evaluation.
@@ -208,6 +229,11 @@ This removes:
 * fake “ask user” cases
 * ambiguity between BLOCKED and NEEDS_USER_DECISION
 
+Low-friction rule:
+
+* `BLOCKED` without a meaningful decision must not open a recovery decision modal.
+* Surface blocked guidance via lightweight feedback (toast + persistent inline state).
+
 ---
 
 ## 6. Recovery Outcome Emission Rules
@@ -220,6 +246,7 @@ This removes:
   * `NEEDS_USER_DECISION`
   * `BLOCKED`
   * `CANCELLED`
+* `CANCELLED` emits at most one user-visible cancellation feedback, then remains silent.
 * No wrapper may reinterpret or override a gate outcome.
 * UI mapping must occur in exactly one place.
 
@@ -244,6 +271,7 @@ Modal is a hard-stop decision UI, not a status spam channel.
 
 * `NEEDS_USER_DECISION` → at least one meaningful user choice exists.
 * `BLOCKED` → no meaningful choice exists; show actionable error UI, not a decision modal.
+  Default surface is non-modal (toast + persistent inline status).
 
 If you cannot present a real choice, you must not open a modal.
 
@@ -362,6 +390,16 @@ Core strings:
 * `Location unavailable`
 * `Drive detected`
 * `Recovery completed. Closing in {{seconds}}s...`
+
+---
+
+## 14a. Bulk Feedback Noise Guard
+
+For bulk recovery actions:
+
+* show one aggregated progress feedback surface (for example, “Resuming {{count}} torrents…”)
+* suppress per-torrent success toasts from recovery internals
+* do not suppress per-torrent blocked/error visibility in row/detail status
 
 ---
 

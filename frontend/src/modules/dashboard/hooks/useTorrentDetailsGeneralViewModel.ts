@@ -11,6 +11,7 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
 import { canTriggerDownloadMissingAction } from "@/modules/dashboard/utils/recoveryEligibility";
+import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
@@ -73,7 +74,7 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
         }
     }, [classification, downloadDir, t]);
 
-    const effectiveState = torrent.errorEnvelope?.recoveryState && torrent.errorEnvelope.recoveryState !== "ok" ? torrent.errorEnvelope.recoveryState : torrent.state;
+    const effectiveState = getEffectiveRecoveryState(torrent);
     const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
     const canDownloadMissing = canTriggerDownloadMissingAction(
         torrent,
@@ -84,7 +85,10 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
     const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
     const canSetLocation = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
 
-    const recoveryBlockedMessage = isRecoveryBlocked ? t("recovery.status.blocked") : null;
+    const recoveryBlockedMessage =
+        isRecoveryBlocked || effectiveState === "blocked"
+            ? t("recovery.status.blocked")
+            : null;
 
     const isActive = torrent.state === STATUS.torrent.DOWNLOADING || torrent.state === STATUS.torrent.SEEDING;
     const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");

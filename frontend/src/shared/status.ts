@@ -31,6 +31,7 @@ export const STATUS = {
     },
     torrentOperation: {
         RELOCATING: "relocating",
+        RECOVERING: "recovering",
     },
 } as const;
 

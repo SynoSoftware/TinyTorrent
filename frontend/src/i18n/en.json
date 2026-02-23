@@ -999,6 +999,7 @@
         "generic_header": "Missing files",
         "action_download": "Download missing",
         "action_locate": "Locate...",
+        "action_acknowledge": "OK",
         "action_retry": "Retry",
         "action_open_folder": "Open folder",
         "action_recreate": "Re-create folder",

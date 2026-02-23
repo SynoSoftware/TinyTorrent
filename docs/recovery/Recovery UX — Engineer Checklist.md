@@ -47,6 +47,8 @@ For `Resume`, `Download missing`, `Set location`:
   * meaningful choice exists → `NEEDS_USER_DECISION`
   * no actionable choice → `BLOCKED`
 * [ ] Immediate certainty exception works (known decision-required can emit `NEEDS_USER_DECISION` before timer expiry).
+* [ ] `BLOCKED` without meaningful decision does not open a decision modal.
+* [ ] `BLOCKED` uses lightweight guidance (toast + persistent inline status).
 
 ---
 
@@ -59,6 +61,7 @@ For `Resume`, `Download missing`, `Set location`:
   * `NEEDS_USER_DECISION`
   * `BLOCKED`
   * `CANCELLED`
+* [ ] `CANCELLED` emits at most one cancellation feedback, then remains silent.
 * [ ] Wrapper cannot reinterpret gate outcome.
 * [ ] UI mapping is centralized in exactly one location.
 
@@ -80,6 +83,7 @@ For `Resume`, `Download missing`, `Set location`:
 
 * [ ] Decision modal opens only for `NEEDS_USER_DECISION`.
 * [ ] `BLOCKED` does not open a decision modal.
+* [ ] `BLOCKED` default surface is non-modal (toast + inline status).
 * [ ] If no real user choice is present, modal is not shown.
 * [ ] Modal does not auto-open from passive startup/background polling.
 * [ ] While modal is open, reprobe continues.
@@ -110,6 +114,12 @@ If progress may become possible later:
   * [ ] No tight loops: a retry attempt never immediately schedules another attempt without awaiting cooldown.
 * [ ] Only one retry loop per torrent fingerprint is active.
 * [ ] Retry loop never blocks the UI thread.
+* [ ] Paused retry eligibility uses explicit ownership state (`pauseOrigin` + `cancelled`), not paused state inference.
+* [ ] Paused retry eligibility is `actionableError && pauseOrigin === "recovery" && !cancelled`.
+* [ ] Recovery pause ownership resets on successful resume.
+* [ ] Recovery pause ownership resets on explicit user pause.
+* [ ] Recovery pause ownership resets on recovery cancellation.
+* [ ] Recovery pause ownership resets when torrent enters non-error running state.
 * [ ] UI shows a persistent, truthful state while retrying (“Waiting…”, “Retrying…”, “Recovering…”).
 * [ ] UI remains interactive while retrying.
 * [ ] No recovery path can enter invisible inactivity.
@@ -158,6 +168,14 @@ Retry work is cheap:
 * [ ] `CANCELLED` → no further action.
 * [ ] No alternate code path triggers recovery UI.
 * [ ] “Recovery UI” includes the decision modal + persistent recovery indicators; toasts are allowed as feedback but must still be emitted by the same centralized outcome→UI interpreter.
+
+---
+
+## 6b. Bulk Feedback Noise Guard
+
+* [ ] Bulk recovery actions use aggregated feedback for success/in-progress.
+* [ ] Per-torrent success toasts are suppressed for bulk recovery actions.
+* [ ] Per-torrent blocked/error visibility remains available on row/details surfaces.
 
 ---
 

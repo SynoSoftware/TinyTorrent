@@ -16,6 +16,7 @@ export type RecoveryQueueEntry = {
     action: RecoveryGateAction;
     outcome: RecoveryOutcome;
     classification: MissingFilesClassification;
+    requiresDecision: boolean;
     fingerprint: string;
     promise: Promise<RecoveryGateOutcome>;
     resolve: (result: RecoveryGateOutcome) => void;

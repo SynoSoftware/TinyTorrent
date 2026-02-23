@@ -15,6 +15,7 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
 import {
     ArrowDown,
     ArrowUp,
@@ -133,6 +134,17 @@ const RELOCATING_STATUS_META: StatusMeta = {
     labelKey: "table.status_relocating",
 };
 
+const RECOVERING_STATUS_META: StatusMeta = {
+    color: "secondary",
+    icon: Hourglass,
+    labelKey: "recovery.status.transientWaiting",
+};
+
+const OPERATION_STATUS_META: Partial<Record<string, StatusMeta>> = {
+    [STATUS.torrentOperation.RELOCATING]: RELOCATING_STATUS_META,
+    [STATUS.torrentOperation.RECOVERING]: RECOVERING_STATUS_META,
+};
+
 interface TorrentTableStatusColumnCellProps {
     torrent: Torrent;
     t: TFunction;
@@ -146,15 +158,18 @@ export function TorrentTable_StatusCell({
 }: TorrentTableStatusColumnCellProps) {
     const classification = useResolvedRecoveryClassification(torrent);
 
-    if (optimisticStatus?.operation === STATUS.torrentOperation.RELOCATING) {
-        const Icon = RELOCATING_STATUS_META.icon;
-        const tooltip = t(RELOCATING_STATUS_META.labelKey);
+    const operationMeta = optimisticStatus?.operation
+        ? OPERATION_STATUS_META[optimisticStatus.operation]
+        : undefined;
+    if (operationMeta) {
+        const Icon = operationMeta.icon;
+        const tooltip = t(operationMeta.labelKey);
         return (
             <div className={FORM_CONTROL.statusChipContainer}>
                 <Chip
                     size="md"
                     variant="flat"
-                    color={RELOCATING_STATUS_META.color}
+                    color={operationMeta.color}
                     style={STATUS_CHIP_STYLE}
                     classNames={FORM_CONTROL.statusChipClassNames}
                 >
@@ -177,18 +192,9 @@ export function TorrentTable_StatusCell({
         );
     }
 
-    const effectiveState =
-        torrent.errorEnvelope &&
-        torrent.errorEnvelope.recoveryState &&
-        torrent.errorEnvelope.recoveryState !== "ok"
-            ? torrent.errorEnvelope.recoveryState
-            : torrent.state;
+    const effectiveState = getEffectiveRecoveryState(torrent);
 
-    const isMissingFilesCell =
-        effectiveState === STATUS.torrent.MISSING_FILES ||
-        classification?.kind === "pathLoss" ||
-        classification?.kind === "volumeLoss" ||
-        classification?.kind === "accessDenied";
+    const isMissingFilesCell = effectiveState === STATUS.torrent.MISSING_FILES;
     const conf = statusMap[effectiveState] ?? statusMap[STATUS.torrent.PAUSED];
     const Icon = conf.icon;
 

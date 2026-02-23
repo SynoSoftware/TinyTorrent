@@ -1,5 +1,4 @@
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 
 export type RecoveryGateAction =
     | "resume"
@@ -9,11 +8,7 @@ export type RecoveryGateAction =
 
 export type RecoveryGateOutcome =
     | { status: "continue"; log?: string }
-    | {
-          status: "handled";
-          log?: string;
-          blockingOutcome?: RecoveryOutcome;
-      }
+    | { status: "handled"; log?: string }
     | { status: "cancelled"; log?: string }
     | {
           status: "not_required";
@@ -31,8 +26,13 @@ export type RecoveryGateOptions = {
     missingBytes?: number | null;
 };
 
+export type RecoveryGateUiOptions = {
+    suppressFeedback?: boolean;
+};
+
 export type RecoveryGateCallback = (params: {
     torrent: Torrent | TorrentDetail;
     action: RecoveryGateAction;
     options?: RecoveryGateOptions;
+    ui?: RecoveryGateUiOptions;
 }) => Promise<RecoveryGateOutcome>;

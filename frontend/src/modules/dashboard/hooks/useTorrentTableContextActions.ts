@@ -157,7 +157,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
                     if (outcome.reason === "operation_cancelled") {
                         return closeWithOutcome(COMMAND_OUTCOME_OPERATION_CANCELLED);
                     }
-                    return closeWithOutcome(COMMAND_OUTCOME_OPERATION_CANCELLED);
+                    return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
                 }
                 if (key === "copy-hash") {
                     const outcome = await copyToClipboard(torrent.hash);

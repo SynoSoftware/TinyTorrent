@@ -6,10 +6,12 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import STATUS from "@/shared/status";
+import { BULK_RESUME_CONCURRENCY } from "@/config/logic";
 
 const resumeTorrentWithRecoveryMock = vi.fn();
 const executeDownloadMissingMock = vi.fn();
 const handlePrepareDeleteMock = vi.fn();
+const markTorrentPausedByUserMock = vi.fn();
 const dispatchTorrentSelectionActionMock = vi.fn();
 
 type ExecuteSelectionAction = (
@@ -117,6 +119,7 @@ vi.mock("@/app/orchestrators/useTorrentOrchestrator", () => ({
                 executeDownloadMissing: executeDownloadMissingMock,
                 resumeTorrentWithRecovery: resumeTorrentWithRecoveryMock,
                 handlePrepareDelete: handlePrepareDeleteMock,
+                markTorrentPausedByUser: markTorrentPausedByUserMock,
             },
         },
     }),
@@ -182,6 +185,7 @@ describe("useWorkspaceTorrentDomain bulk resume recovery routing", () => {
         resumeTorrentWithRecoveryMock.mockReset();
         executeDownloadMissingMock.mockReset();
         handlePrepareDeleteMock.mockReset();
+        markTorrentPausedByUserMock.mockReset();
         dispatchTorrentSelectionActionMock.mockReset();
     });
 
@@ -218,15 +222,124 @@ describe("useWorkspaceTorrentDomain bulk resume recovery routing", () => {
             expect(resumeTorrentWithRecoveryMock).toHaveBeenNthCalledWith(
                 1,
                 TORRENT_A,
+                { suppressFeedback: true },
             );
             expect(resumeTorrentWithRecoveryMock).toHaveBeenNthCalledWith(
                 2,
                 TORRENT_B,
+                { suppressFeedback: true },
             );
             expect(dispatchTorrentSelectionActionMock).not.toHaveBeenCalled();
         } finally {
             mounted.cleanup();
         }
     });
-});
 
+    it("caps bulk resume concurrency to configured limit", async () => {
+        let inFlight = 0;
+        let maxInFlight = 0;
+        resumeTorrentWithRecoveryMock.mockImplementation(async () => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 20);
+            });
+            inFlight -= 1;
+            return { status: "applied" as const };
+        });
+        const mounted = await mountHarness();
+        try {
+            const targets = Array.from({ length: 12 }, (_, index) => ({
+                ...TORRENT_A,
+                id: `bulk-${index}`,
+                hash: `bulk-hash-${index}`,
+                name: `Bulk ${index}`,
+            }));
+            const outcome = await capturedExecuteSelectionAction!(
+                "resume",
+                targets,
+            );
+            expect(outcome).toEqual({ status: "success" });
+            expect(resumeTorrentWithRecoveryMock).toHaveBeenCalledTimes(
+                targets.length,
+            );
+            expect(maxInFlight).toBeLessThanOrEqual(BULK_RESUME_CONCURRENCY);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("keeps bounded concurrency under high-cardinality bulk resume batches", async () => {
+        let inFlight = 0;
+        let maxInFlight = 0;
+        const unhandledRejections: unknown[] = [];
+        const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+            unhandledRejections.push(event.reason);
+            event.preventDefault();
+        };
+        window.addEventListener("unhandledrejection", onUnhandledRejection);
+        resumeTorrentWithRecoveryMock.mockImplementation(async () => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 10);
+            });
+            inFlight -= 1;
+            return { status: "applied" as const };
+        });
+        const mounted = await mountHarness();
+        try {
+            const targets = Array.from({ length: 100 }, (_, index) => ({
+                ...TORRENT_A,
+                id: `bulk-high-${index}`,
+                hash: `bulk-high-hash-${index}`,
+                name: `Bulk High ${index}`,
+            }));
+            const outcome = await capturedExecuteSelectionAction!(
+                "resume",
+                targets,
+            );
+            expect(outcome).toEqual({ status: "success" });
+            expect(resumeTorrentWithRecoveryMock).toHaveBeenCalledTimes(
+                targets.length,
+            );
+            expect(maxInFlight).toBeLessThanOrEqual(BULK_RESUME_CONCURRENCY);
+            expect(unhandledRejections).toHaveLength(0);
+        } finally {
+            window.removeEventListener("unhandledrejection", onUnhandledRejection);
+            mounted.cleanup();
+        }
+    });
+
+    it("preserves blocked/error surfacing even when per-torrent feedback is suppressed", async () => {
+        resumeTorrentWithRecoveryMock
+            .mockResolvedValueOnce({ status: "applied" })
+            .mockResolvedValueOnce({
+                status: "failed",
+                reason: "dispatch_not_applied",
+            });
+        const mounted = await mountHarness();
+        try {
+            const outcome = await capturedExecuteSelectionAction!("resume", [
+                TORRENT_A,
+                TORRENT_B,
+            ]);
+            expect(outcome).toEqual({
+                status: "failed",
+                reason: "execution_failed",
+            });
+            expect(resumeTorrentWithRecoveryMock).toHaveBeenNthCalledWith(
+                1,
+                TORRENT_A,
+                { suppressFeedback: true },
+            );
+            expect(resumeTorrentWithRecoveryMock).toHaveBeenNthCalledWith(
+                2,
+                TORRENT_B,
+                { suppressFeedback: true },
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+});

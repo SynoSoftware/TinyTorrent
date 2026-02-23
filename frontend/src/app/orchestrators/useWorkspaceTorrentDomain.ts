@@ -25,6 +25,34 @@ import { createTorrentDispatch, type TorrentDispatchOutcome } from "@/app/action
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
 import type { DownloadMissingOutcome } from "@/app/context/RecoveryContext";
+import { BULK_RESUME_CONCURRENCY } from "@/config/logic";
+
+const mapWithConcurrency = async <T, R>(
+    items: T[],
+    concurrency: number,
+    worker: (item: T) => Promise<R>,
+): Promise<R[]> => {
+    if (items.length === 0) {
+        return [];
+    }
+    const boundedConcurrency = Math.max(1, Math.min(concurrency, items.length));
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+    const runWorker = async () => {
+        while (true) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= items.length) {
+                return;
+            }
+            results[index] = await worker(items[index]);
+        }
+    };
+    await Promise.all(
+        Array.from({ length: boundedConcurrency }, () => runWorker()),
+    );
+    return results;
+};
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -139,7 +167,12 @@ export function useWorkspaceTorrentDomain({
 
     const { addTorrent, recovery } = orchestrator;
     const { state: recoveryState, actions: recoveryActions } = recovery;
-    const { executeDownloadMissing, resumeTorrentWithRecovery, handlePrepareDelete } = recoveryActions;
+    const {
+        executeDownloadMissing,
+        resumeTorrentWithRecovery,
+        handlePrepareDelete,
+        markTorrentPausedByUser,
+    } = recoveryActions;
 
     const { selectedIds, activeId, setActiveId } = useSelection();
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -208,14 +241,22 @@ export function useWorkspaceTorrentDomain({
 
     const handleOpenFolder = useOpenTorrentFolder();
 
-    const executeTorrentActionViaDispatch = (action: TorrentTableAction, torrent: Torrent, options?: { deleteData?: boolean }) =>
-        dispatchTorrentAction({
+    const executeTorrentActionViaDispatch = (
+        action: TorrentTableAction,
+        torrent: Torrent,
+        options?: { deleteData?: boolean },
+    ) => {
+        if (action === "pause") {
+            markTorrentPausedByUser(torrent);
+        }
+        return dispatchTorrentAction({
             action,
             torrent,
             options,
             dispatch,
             resume: async (target) => resumeTorrentWithRecovery(target),
         });
+    };
 
     const executeBulkRemoveViaDispatch = async (ids: string[], deleteData: boolean): Promise<TorrentCommandOutcome> => {
         const outcome = await dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
@@ -256,9 +297,19 @@ export function useWorkspaceTorrentDomain({
         onPrepareDelete: handlePrepareDelete,
         onRecheckComplete: refreshAfterRecheck,
         executeSelectionAction: async (action, targets) => {
+            if (action === "pause") {
+                targets.forEach((torrent) => {
+                    markTorrentPausedByUser(torrent);
+                });
+            }
             if (action === "resume") {
-                const resumeOutcomes = await Promise.all(
-                    targets.map((torrent) => resumeTorrentWithRecovery(torrent)),
+                const resumeOutcomes = await mapWithConcurrency(
+                    targets,
+                    BULK_RESUME_CONCURRENCY,
+                    (torrent) =>
+                        resumeTorrentWithRecovery(torrent, {
+                            suppressFeedback: true,
+                        }),
                 );
                 if (resumeOutcomes.some((outcome) => outcome.status === "failed")) {
                     return { status: "failed", reason: "execution_failed" };

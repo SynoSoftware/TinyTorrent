@@ -5,7 +5,6 @@ import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import { scheduler } from "@/app/services/scheduler";
-import { STATUS } from "@/shared/status";
 import type { RecoveryGateAction, RecoveryGateOutcome } from "@/app/types/recoveryGate";
 import type {
     MissingFilesClassification,
@@ -26,6 +25,8 @@ interface UseRecoveryStateParams {
     detailData: TorrentDetail | null;
 }
 
+export type RecoveryPauseOrigin = "user" | "recovery";
+
 export interface UseRecoveryStateResult {
     state: RecoverySessionViewState;
     recoverySession: RecoverySessionInfo | null;
@@ -39,6 +40,7 @@ export interface UseRecoveryStateResult {
     setRecoverySessionOutcome: (
         outcome: RecoveryOutcome,
         autoCloseAtMs?: number,
+        requiresDecision?: boolean,
     ) => void;
     scheduleRecoveryFinalize: (
         delayMs: number,
@@ -51,6 +53,7 @@ export interface UseRecoveryStateResult {
         outcome: RecoveryOutcome,
         classification: MissingFilesClassification,
         fingerprint: string,
+        requiresDecision?: boolean,
     ) => RecoveryQueueEntry;
     enqueueRecoveryEntry: (
         entry: RecoveryQueueEntry,
@@ -62,10 +65,17 @@ export interface UseRecoveryStateResult {
         result?: RecoveryGateOutcome,
     ) => void;
     isRecoverySessionActive: (fingerprint: string) => boolean;
+    markRecoveryPausedBySystem: (fingerprint: string) => void;
+    markRecoveryPausedByUser: (fingerprint: string) => void;
+    markRecoveryCancelled: (fingerprint: string) => void;
+    markRecoveryResumed: (fingerprint: string) => void;
+    getRecoveryPauseOrigin: (fingerprint: string) => RecoveryPauseOrigin | null;
+    isRecoveryCancelled: (fingerprint: string) => boolean;
+    isBackgroundRecoveryEligible: (fingerprint: string) => boolean;
     torrentsRef: MutableRefObject<Array<Torrent | TorrentDetail>>;
-    activeRecoveryEligibleRef: MutableRefObject<Set<string>>;
     silentVolumeRecoveryInFlightRef: MutableRefObject<Set<string>>;
     silentVolumeRecoveryNextRetryAtRef: MutableRefObject<Map<string, number>>;
+    silentVolumeRecoveryAttemptCountRef: MutableRefObject<Map<string, number>>;
 }
 
 export function useRecoveryState({
@@ -88,9 +98,15 @@ export function useRecoveryState({
     const pendingRecoveryQueueRef = useRef<Array<RecoveryQueueEntry>>([]);
     const [queuedItems, setQueuedItems] = useState<RecoveryQueueSummary[]>([]);
     const torrentsRef = useRef(torrents);
-    const activeRecoveryEligibleRef = useRef<Set<string>>(new Set());
+    const recoveryPauseOriginByFingerprintRef = useRef<
+        Map<string, RecoveryPauseOrigin>
+    >(new Map());
+    const recoveryCancelledFingerprintsRef = useRef<Set<string>>(new Set());
     const silentVolumeRecoveryInFlightRef = useRef<Set<string>>(new Set());
     const silentVolumeRecoveryNextRetryAtRef = useRef<Map<string, number>>(
+        new Map(),
+    );
+    const silentVolumeRecoveryAttemptCountRef = useRef<Map<string, number>>(
         new Map(),
     );
 
@@ -129,6 +145,100 @@ export function useRecoveryState({
         torrentsRef.current = torrents;
     }, [torrents]);
 
+    const clearCooldownTrackingForFingerprint = useCallback(
+        (fingerprint: string) => {
+            if (!fingerprint) {
+                return;
+            }
+            silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
+            silentVolumeRecoveryAttemptCountRef.current.delete(fingerprint);
+            silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
+        },
+        [
+            silentVolumeRecoveryAttemptCountRef,
+            silentVolumeRecoveryInFlightRef,
+            silentVolumeRecoveryNextRetryAtRef,
+        ],
+    );
+
+    const markRecoveryPausedBySystem = useCallback((fingerprint: string) => {
+        if (!fingerprint) {
+            return;
+        }
+        recoveryPauseOriginByFingerprintRef.current.set(fingerprint, "recovery");
+        recoveryCancelledFingerprintsRef.current.delete(fingerprint);
+    }, []);
+
+    const markRecoveryPausedByUser = useCallback(
+        (fingerprint: string) => {
+            if (!fingerprint) {
+                return;
+            }
+            recoveryPauseOriginByFingerprintRef.current.set(fingerprint, "user");
+            recoveryCancelledFingerprintsRef.current.add(fingerprint);
+            clearCooldownTrackingForFingerprint(fingerprint);
+        },
+        [clearCooldownTrackingForFingerprint],
+    );
+
+    const markRecoveryCancelled = useCallback(
+        (fingerprint: string) => {
+            if (!fingerprint) {
+                return;
+            }
+            recoveryPauseOriginByFingerprintRef.current.delete(fingerprint);
+            recoveryCancelledFingerprintsRef.current.add(fingerprint);
+            clearCooldownTrackingForFingerprint(fingerprint);
+        },
+        [clearCooldownTrackingForFingerprint],
+    );
+
+    const markRecoveryResumed = useCallback(
+        (fingerprint: string) => {
+            if (!fingerprint) {
+                return;
+            }
+            recoveryPauseOriginByFingerprintRef.current.delete(fingerprint);
+            recoveryCancelledFingerprintsRef.current.delete(fingerprint);
+            clearCooldownTrackingForFingerprint(fingerprint);
+        },
+        [clearCooldownTrackingForFingerprint],
+    );
+
+    const getRecoveryPauseOrigin = useCallback(
+        (fingerprint: string): RecoveryPauseOrigin | null => {
+            if (!fingerprint) {
+                return null;
+            }
+            return (
+                recoveryPauseOriginByFingerprintRef.current.get(fingerprint) ??
+                null
+            );
+        },
+        [],
+    );
+
+    const isRecoveryCancelled = useCallback((fingerprint: string): boolean => {
+        if (!fingerprint) {
+            return false;
+        }
+        return recoveryCancelledFingerprintsRef.current.has(fingerprint);
+    }, []);
+
+    const isBackgroundRecoveryEligible = useCallback(
+        (fingerprint: string): boolean => {
+            if (!fingerprint) {
+                return false;
+            }
+            return (
+                recoveryPauseOriginByFingerprintRef.current.get(fingerprint) ===
+                    "recovery" &&
+                !recoveryCancelledFingerprintsRef.current.has(fingerprint)
+            );
+        },
+        [],
+    );
+
     const withRecoveryBusy = useCallback(
         async <T,>(action: () => Promise<T>) => {
             busyCountRef.current += 1;
@@ -160,37 +270,33 @@ export function useRecoveryState({
 
     useEffect(() => {
         const presentFingerprints = new Set<string>();
-
-        torrents.forEach((torrent) => {
+        const reconcileRecoveryOwnership = (torrent: Torrent | TorrentDetail) => {
             const fingerprint = getRecoveryFingerprint(torrent);
             if (!fingerprint) return;
             presentFingerprints.add(fingerprint);
+            // Active engine states take precedence over stale recovery metadata.
+            // Once active, recovery pause ownership must be cleared.
             if (isRecoveryActiveState(torrent.state)) {
-                activeRecoveryEligibleRef.current.add(fingerprint);
-                silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
-            } else if (torrent.state === STATUS.torrent.PAUSED) {
-                activeRecoveryEligibleRef.current.delete(fingerprint);
+                markRecoveryResumed(fingerprint);
             }
+        };
+
+        torrents.forEach((torrent) => {
+            reconcileRecoveryOwnership(torrent);
         });
 
         if (detailData) {
-            const detailFingerprint = getRecoveryFingerprint(detailData);
-            if (detailFingerprint) {
-                presentFingerprints.add(detailFingerprint);
-                if (isRecoveryActiveState(detailData.state)) {
-                    activeRecoveryEligibleRef.current.add(detailFingerprint);
-                    silentVolumeRecoveryNextRetryAtRef.current.delete(
-                        detailFingerprint,
-                    );
-                } else if (detailData.state === STATUS.torrent.PAUSED) {
-                    activeRecoveryEligibleRef.current.delete(detailFingerprint);
-                }
-            }
+            reconcileRecoveryOwnership(detailData);
         }
 
-        activeRecoveryEligibleRef.current.forEach((fingerprint) => {
+        recoveryPauseOriginByFingerprintRef.current.forEach((_, fingerprint) => {
             if (!presentFingerprints.has(fingerprint)) {
-                activeRecoveryEligibleRef.current.delete(fingerprint);
+                recoveryPauseOriginByFingerprintRef.current.delete(fingerprint);
+            }
+        });
+        recoveryCancelledFingerprintsRef.current.forEach((fingerprint) => {
+            if (!presentFingerprints.has(fingerprint)) {
+                recoveryCancelledFingerprintsRef.current.delete(fingerprint);
             }
         });
         silentVolumeRecoveryNextRetryAtRef.current.forEach((_, fingerprint) => {
@@ -198,12 +304,21 @@ export function useRecoveryState({
                 silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
             }
         });
+        silentVolumeRecoveryAttemptCountRef.current.forEach((_, fingerprint) => {
+            if (!presentFingerprints.has(fingerprint)) {
+                silentVolumeRecoveryAttemptCountRef.current.delete(fingerprint);
+            }
+        });
         silentVolumeRecoveryInFlightRef.current.forEach((fingerprint) => {
             if (!presentFingerprints.has(fingerprint)) {
                 silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
             }
         });
-    }, [detailData, torrents]);
+    }, [
+        detailData,
+        markRecoveryResumed,
+        torrents,
+    ]);
 
     useEffect(() => {
         const activeIds: Array<string | number> = [];
@@ -240,6 +355,7 @@ export function useRecoveryState({
                 action: entry.action,
                 outcome: entry.outcome,
                 classification: entry.classification,
+                requiresDecision: entry.requiresDecision,
             });
             recoveryResolverRef.current = entry.resolve;
             recoveryFingerprintRef.current = entry.fingerprint;
@@ -263,6 +379,7 @@ export function useRecoveryState({
             outcome: RecoveryOutcome,
             classification: MissingFilesClassification,
             fingerprint: string,
+            requiresDecision = true,
         ): RecoveryQueueEntry => {
             let resolver: (result: RecoveryGateOutcome) => void = () => {};
             const promise = new Promise<RecoveryGateOutcome>((resolve) => {
@@ -273,6 +390,7 @@ export function useRecoveryState({
                 action,
                 outcome,
                 classification,
+                requiresDecision,
                 fingerprint,
                 promise,
                 resolve: resolver,
@@ -307,6 +425,7 @@ export function useRecoveryState({
 
     const finalizeRecovery = useCallback(
         (result: RecoveryGateOutcome) => {
+            const finalizedFingerprint = recoveryFingerprintRef.current;
             clearRecoveryAutoCloseTimer();
             recoveryAbortControllerRef.current?.abort();
             recoveryAbortControllerRef.current = null;
@@ -316,9 +435,19 @@ export function useRecoveryState({
             recoveryPromiseRef.current = null;
             setRecoverySession(null);
             resolver?.(result);
+            if (
+                finalizedFingerprint &&
+                result.status === "cancelled"
+            ) {
+                markRecoveryCancelled(finalizedFingerprint);
+            }
             processNextRecoveryQueueEntry();
         },
-        [clearRecoveryAutoCloseTimer, processNextRecoveryQueueEntry],
+        [
+            clearRecoveryAutoCloseTimer,
+            markRecoveryCancelled,
+            processNextRecoveryQueueEntry,
+        ],
     );
 
     const cancelPendingRecoveryQueue = useCallback(
@@ -328,10 +457,13 @@ export function useRecoveryState({
             pendingRecoveryQueueRef.current = [];
             queued.forEach((entry) => {
                 entry.resolve(result);
+                if (result.status === "cancelled") {
+                    markRecoveryCancelled(entry.fingerprint);
+                }
             });
             syncQueuedItems();
         },
-        [syncQueuedItems],
+        [markRecoveryCancelled, syncQueuedItems],
     );
 
     const isRecoverySessionActive = useCallback((fingerprint: string) => {
@@ -363,7 +495,11 @@ export function useRecoveryState({
     );
 
     const setRecoverySessionOutcome = useCallback(
-        (outcome: RecoveryOutcome, autoCloseAtMs?: number) => {
+        (
+            outcome: RecoveryOutcome,
+            autoCloseAtMs?: number,
+            requiresDecision?: boolean,
+        ) => {
             setRecoverySession((previous) => {
                 if (!previous) {
                     return previous;
@@ -371,6 +507,8 @@ export function useRecoveryState({
                 return {
                     ...previous,
                     outcome,
+                    requiresDecision:
+                        requiresDecision ?? previous.requiresDecision,
                     autoCloseAtMs,
                 };
             });
@@ -427,9 +565,16 @@ export function useRecoveryState({
                 getRecoveryFingerprint(recoverySession.torrent) === fingerprint
             ) {
                 finalizeRecovery(result);
+            } else if (result.status === "cancelled") {
+                markRecoveryCancelled(fingerprint);
             }
         },
-        [finalizeRecovery, recoverySession, syncQueuedItems],
+        [
+            finalizeRecovery,
+            markRecoveryCancelled,
+            recoverySession,
+            syncQueuedItems,
+        ],
     );
 
     const isDetailRecoveryBlocked = useMemo(() => {
@@ -467,9 +612,16 @@ export function useRecoveryState({
         cancelPendingRecoveryQueue,
         cancelRecoveryForFingerprint,
         isRecoverySessionActive,
+        markRecoveryPausedBySystem,
+        markRecoveryPausedByUser,
+        markRecoveryCancelled,
+        markRecoveryResumed,
+        getRecoveryPauseOrigin,
+        isRecoveryCancelled,
+        isBackgroundRecoveryEligible,
         torrentsRef,
-        activeRecoveryEligibleRef,
         silentVolumeRecoveryInFlightRef,
         silentVolumeRecoveryNextRetryAtRef,
+        silentVolumeRecoveryAttemptCountRef,
     };
 }
