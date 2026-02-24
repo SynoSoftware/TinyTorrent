@@ -22,6 +22,8 @@ TinyTorrent must prioritize download continuity:
 * Exactly one recovery gate owns recovery decisions and sequencing.
 * All recovery entry points converge into that gate.
 * UI does not infer causes or run engine sequences directly.
+* Recovery state transitions are derived from daemon/RPC truth only.
+* Shell integration may assist user input (for example folder picker), but must not drive recovery state transitions.
 * Recovery outcomes are closed and mutually exclusive:
 
 	* `AUTO_RECOVERED`
@@ -80,7 +82,7 @@ Must ask only when no deterministic safe action exists.
 
 * `dataGap` + same path → auto reprobe
 * `volumeLoss` likely transient → auto wait + retry
-* `pathLoss` and directory recreation safe → auto recreate
+* `pathLoss` + same path → daemon probe/reclassify/retry (no host-side directory mutation)
 * `accessDenied` → auto retry once before escalate
 
 Escalate only if:
@@ -93,7 +95,6 @@ Escalate only if:
 ### Must not ask user
 
 * Transient volume/path disruptions that can self-heal via reprobe.
-* Local path-loss where directory recreation is safe and supported.
 * Cases where automatic recovery succeeds after reprobe/retry.
 
 Rule: background failures should not interrupt the user with a modal unless user input is truly required.
@@ -118,6 +119,7 @@ For any recovery-relevant error:
 
 * The system **must attempt the best safe deterministic recovery action automatically** before requesting user input.
 * Deterministic actions must be minimal and correctness-preserving.
+* Deterministic actions must be derived from daemon-visible truth; host shell state may not influence recovery transitions.
 * No modal may open before deterministic attempts are evaluated unless certainty indicates a user decision is immediately required.
 
 ### 2. Persistent Retry (No Silent Stall)
@@ -316,6 +318,7 @@ Set-location must support both browse and manual workflows.
 
 * Browse is preferred when available.
 * Manual entry is required fallback when browse is unavailable or user requests manual mode.
+* Browse is input convenience only; recovery classification/outcomes still come from daemon truth.
 * Arbitration is explicit:
 	* `acquired`
 	* `already_owned`

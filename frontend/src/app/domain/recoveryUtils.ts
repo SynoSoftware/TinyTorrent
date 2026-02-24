@@ -6,9 +6,7 @@ export interface RecoveryFingerprintSource {
     errorEnvelope?: { fingerprint?: string | null } | null;
 }
 
-export const getRecoveryFingerprint = (
-    torrent?: RecoveryFingerprintSource | null,
-): string => {
+export const getRecoveryFingerprint = (torrent?: RecoveryFingerprintSource | null): string => {
     return resolveRecoveryFingerprint({
         fingerprint: torrent?.errorEnvelope?.fingerprint ?? null,
         hash: torrent?.hash ?? null,
@@ -16,12 +14,9 @@ export const getRecoveryFingerprint = (
     });
 };
 
-export type PathNeededReason = Extract<
-    RecoveryOutcome,
-    { kind: "path-needed" }
->["reason"];
+export type BlockedReason = NonNullable<Extract<RecoveryOutcome, { kind: "blocked" }>["reason"]>;
 
-export const derivePathReason = (errorClass?: string | null): PathNeededReason => {
+export const derivePathReason = (errorClass?: string | null): BlockedReason => {
     switch (errorClass) {
         case "permissionDenied":
             return "unwritable";

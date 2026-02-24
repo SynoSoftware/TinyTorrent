@@ -71,6 +71,16 @@ export const GeneralTab = ({ torrent, downloadDir, activePeers, isRecoveryBlocke
                     </div>
                 </AlertPanel>
             )}
+            {general.transmissionError && (
+                <AlertPanel severity="danger">
+                    <div className={DETAILS.generalWarningStack}>
+                        <span className={TEXT_ROLE.statusWarning}>{t("torrent_modal.errors.transmission_error_title")}</span>
+                        <div className={`${TEXT_ROLE.bodySmall} whitespace-pre-wrap`}>
+                            {general.transmissionError}
+                        </div>
+                    </div>
+                </AlertPanel>
+            )}
 
             <div className={DETAILS.generalControlsGrid}>
                 <div className={DETAILS.generalControlsSpan}>

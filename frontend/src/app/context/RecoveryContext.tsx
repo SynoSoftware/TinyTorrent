@@ -2,17 +2,11 @@
 import { createContext, type ReactNode, useContext } from "react";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type {
-    MissingFilesClassification,
-    RecoveryOutcome,
-} from "@/services/recovery/recovery-controller";
+import type { MissingFilesClassification, RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { RecoveryGateAction } from "@/app/types/recoveryGate";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
 
-export type SetLocationSurface =
-    | "context-menu"
-    | "general-tab"
-    | "recovery-modal";
+export type SetLocationSurface = "context-menu" | "general-tab" | "recovery-modal";
 
 export type SetLocationExecutionMode = "recover_existing" | "move_data";
 
@@ -32,16 +26,13 @@ export type SetLocationOutcome =
     | { status: "cancelled" }
     | {
           status: "unsupported";
-          reason:
-              | "browse_unavailable"
-              | "manual_unavailable"
-              | "command_unsupported";
+          reason: "browse_unavailable" | "manual_unavailable" | "command_unsupported";
       }
     | {
           status: "conflict";
           reason: "owned_elsewhere";
       }
-      | {
+    | {
           status: "failed";
           reason: "dispatch_failed" | "browse_failed" | "invalid_target";
       };
@@ -59,11 +50,7 @@ export type RecoveryRequestCompletionOutcome =
     | { status: "cancelled" }
     | {
           status: "failed";
-          reason:
-              | "invalid_target"
-              | "method_missing"
-              | "dispatch_not_applied"
-              | "execution_failed";
+          reason: "invalid_target" | "method_missing" | "dispatch_not_applied" | "execution_failed";
       };
 
 export type DownloadMissingOutcome =
@@ -91,6 +78,10 @@ export type OpenRecoveryModalOutcome =
     | { status: "already_open" }
     | { status: "not_actionable" };
 
+export interface OpenRecoveryModalOptions {
+    forceWorkbench?: boolean;
+}
+
 export interface LocationEditorState {
     surface: SetLocationSurface;
     executionMode: SetLocationExecutionMode;
@@ -108,7 +99,6 @@ export interface RecoverySessionInfo {
     action: RecoveryGateAction;
     outcome: RecoveryOutcome;
     classification: MissingFilesClassification;
-    requiresDecision: boolean;
     autoCloseAtMs?: number;
 }
 
@@ -117,17 +107,9 @@ export interface RecoveryContextValue {
     canOpenFolder: boolean;
     handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
     handleRetry: () => Promise<void>;
-    handleDownloadMissing: (
-        torrent: Torrent,
-        options?: { recreateFolder?: boolean },
-    ) => Promise<DownloadMissingOutcome>;
-    isDownloadMissingInFlight: (
-        torrent: Torrent | TorrentDetail,
-    ) => boolean;
-    handleSetLocation: (
-        torrent: Torrent | TorrentDetail,
-        options?: SetLocationOptions,
-    ) => Promise<SetLocationOutcome>;
+    handleDownloadMissing: (torrent: Torrent) => Promise<DownloadMissingOutcome>;
+    isDownloadMissingInFlight: (torrent: Torrent | TorrentDetail) => boolean;
+    handleSetLocation: (torrent: Torrent | TorrentDetail, options?: SetLocationOptions) => Promise<SetLocationOutcome>;
     setLocationCapability: SetLocationCapability;
     setLocationState: LocationEditorState | null;
     cancelSetLocation: () => void;
@@ -136,11 +118,10 @@ export interface RecoveryContextValue {
     handleLocationChange: (value: string) => void;
     openRecoveryModal: (
         torrent: Torrent | TorrentDetail,
+        options?: OpenRecoveryModalOptions,
     ) => OpenRecoveryModalOutcome;
     recoverySession: RecoverySessionInfo | null;
-    getRecoverySessionForKey: (
-        torrentKey: string | null,
-    ) => RecoverySessionInfo | null;
+    getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
 }
 // TODO: Clarify RecoveryContext contract: expose only minimal recovery/set-location API, keep internal orchestration (queues, drafts, state machine) hidden behind a view-model/provider; align contract with Recovery UX acceptance specs.
 // TODO: Deprecate `serverClass` + `connectionMode` from this context. Replace with:
@@ -149,26 +130,14 @@ export interface RecoveryContextValue {
 
 const RecoveryContext = createContext<RecoveryContextValue | null>(null);
 
-export function RecoveryProvider({
-    value,
-    children,
-}: {
-    value: RecoveryContextValue;
-    children: ReactNode;
-}) {
-    return (
-        <RecoveryContext.Provider value={value}>
-            {children}
-        </RecoveryContext.Provider>
-    );
+export function RecoveryProvider({ value, children }: { value: RecoveryContextValue; children: ReactNode }) {
+    return <RecoveryContext.Provider value={value}>{children}</RecoveryContext.Provider>;
 }
 
 export function useRecoveryContext(): RecoveryContextValue {
     const context = useContext(RecoveryContext);
     if (!context) {
-        throw new Error(
-            "useRecoveryContext must be used within RecoveryProvider",
-        );
+        throw new Error("useRecoveryContext must be used within RecoveryProvider");
     }
     return context;
 }

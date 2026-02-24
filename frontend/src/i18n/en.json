@@ -881,6 +881,7 @@
             "no_data_found_title": "Missing files",
             "no_data_found_desc": "Missing files detected. Use Download missing to recover.",
             "missing_files_desc": "Missing files detected. Use Download missing to recover.",
+            "transmission_error_title": "Transmission error",
             "files": {
                 "summary_label": "Files",
                 "expected": "Expected: {{value}}",
@@ -1157,10 +1158,6 @@
             "insufficient_free_space": "Insufficient free space on disk",
             "path_ready": "Path is ready for download",
             "path_check_unknown": "Path check returned unknown result",
-            "directory_created": "Directory created successfully",
-            "directory_creation_denied": "Directory creation denied",
-            "directory_creation_failed": "Directory creation failed",
-            "directory_creation_not_supported": "Directory creation not supported",
             "path_access_denied": "Path access denied",
             "disk_full": "Disk is full",
             "path_check_failed": "Path check failed",

@@ -4,7 +4,11 @@ import { scheduler } from "@/app/services/scheduler";
 import { STATUS } from "@/shared/status";
 import { setClassificationOverride } from "@/services/recovery/missingFilesStore";
 import { GHOST_TIMEOUT_MS, RECOVERY_VERIFY_WATCH_INTERVAL_MS } from "@/config/logic";
-import type { MissingFilesClassification, RecoverySequenceOptions, RecoverySequenceResult } from "@/services/recovery/recovery-contracts";
+import type {
+    MissingFilesClassification,
+    RecoverySequenceOptions,
+    RecoverySequenceResult,
+} from "@/services/recovery/recovery-contracts";
 
 const VERIFY_WATCH_TIMEOUT_MS = GHOST_TIMEOUT_MS;
 
@@ -39,7 +43,11 @@ interface VerifyWatchResult {
     aborted?: boolean;
 }
 
-export async function watchVerifyCompletion(client: EngineAdapter, torrentId: string, signal?: AbortSignal): Promise<VerifyWatchResult> {
+export async function watchVerifyCompletion(
+    client: EngineAdapter,
+    torrentId: string,
+    signal?: AbortSignal,
+): Promise<VerifyWatchResult> {
     if (!client.getTorrentDetails) {
         return { success: true, leftUntilDone: null };
     }
@@ -106,13 +114,15 @@ export async function runMinimalRecoverySequence(
 
     if (shouldVerify) {
         if (skipVerify) {
-            const isErrorState = torrent.state === STATUS.torrent.ERROR || torrent.state === STATUS.torrent.MISSING_FILES;
+            const isErrorState =
+                torrent.state === STATUS.torrent.ERROR || torrent.state === STATUS.torrent.MISSING_FILES;
             if (isErrorState) {
                 return {
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
-                        kind: "error",
+                        kind: "blocked",
+                        reason: "error",
                         message: "verify_required",
                     },
                 };
@@ -145,7 +155,8 @@ export async function runMinimalRecoverySequence(
                             status: "needsModal",
                             classification,
                             blockingOutcome: {
-                                kind: "error",
+                                kind: "blocked",
+                                reason: "error",
                                 message: "verify_failed",
                             },
                         };
@@ -173,7 +184,8 @@ export async function runMinimalRecoverySequence(
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
-                        kind: "error",
+                        kind: "blocked",
+                        reason: "error",
                         message: "verify_failed",
                     },
                 };
@@ -206,7 +218,7 @@ export async function runMinimalRecoverySequence(
             status: "needsModal",
             classification,
             blockingOutcome: {
-                kind: "path-needed",
+                kind: "blocked",
                 reason: "missing",
                 message: "path_check_failed",
             },
@@ -236,7 +248,12 @@ function determineShouldVerify(torrent: TorrentEntity | TorrentDetailEntity): bo
     }
     const isActive = torrent.state === STATUS.torrent.DOWNLOADING || torrent.state === STATUS.torrent.SEEDING;
     const left = typeof torrent.leftUntilDone === "number" ? torrent.leftUntilDone : null;
-    const expected = typeof torrent.sizeWhenDone === "number" ? torrent.sizeWhenDone : typeof torrent.totalSize === "number" ? torrent.totalSize : null;
+    const expected =
+        typeof torrent.sizeWhenDone === "number"
+            ? torrent.sizeWhenDone
+            : typeof torrent.totalSize === "number"
+              ? torrent.totalSize
+              : null;
     if (left !== null && expected !== null && typeof expected === "number" && left === expected) {
         return false;
     }

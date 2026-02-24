@@ -15,6 +15,7 @@ import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import type { ResumeRecoveryCommandOutcome } from "@/modules/dashboard/hooks/useRecoveryController.types";
 import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
+import { shellAgent } from "@/app/agents/shell-agent";
 
 type SetLocationAndRecoverFn = (
     torrent: Torrent | TorrentDetail,
@@ -28,7 +29,6 @@ interface UseLocationEditorParams {
     torrents: Array<Torrent | TorrentDetail>;
     detailData: TorrentDetail | null;
     recoverySession: RecoverySessionInfo | null;
-    recoveryRequestBrowse: (currentPath?: string | null) => Promise<BrowseResult>;
     setLocationAndRecover: SetLocationAndRecoverFn;
 }
 
@@ -133,7 +133,7 @@ const isValidLocationPathForPolicy = (
     return isWindowsAbs || isPosixAbs;
 };
 
-export function useLocationEditor({ torrents, detailData, recoverySession, recoveryRequestBrowse, setLocationAndRecover }: UseLocationEditorParams): UseLocationEditorResult {
+export function useLocationEditor({ torrents, detailData, recoverySession, setLocationAndRecover }: UseLocationEditorParams): UseLocationEditorResult {
     const { t } = useTranslation();
     const uiCapabilities = useUiModeCapabilities();
     const { canBrowse, supportsManual } = uiCapabilities;
@@ -404,6 +404,15 @@ export function useLocationEditor({ torrents, detailData, recoverySession, recov
             }
             const acquisition = tryAcquireLocationEditorOwner(surface, torrentKey);
             if (acquisition.status === "conflict") {
+                const currentState = setLocationEditorStateRef.current;
+                if (currentState?.torrentKey === torrentKey) {
+                    locationEditorOwnerRef.current = { surface, torrentKey };
+                    patchEditorState({
+                        surface,
+                        executionMode,
+                    });
+                    return { status: "manual_opened" };
+                }
                 return { status: "conflict", reason: "owned_elsewhere" };
             }
             if (acquisition.status === "already_owned") {
@@ -419,7 +428,7 @@ export function useLocationEditor({ torrents, detailData, recoverySession, recov
             });
             return { status: "manual_opened" };
         },
-        [openSetLocationEditor, tryAcquireLocationEditorOwner],
+        [openSetLocationEditor, patchEditorState, tryAcquireLocationEditorOwner],
     );
 
     const resolveSetLocationExecutionMode = useCallback(
@@ -456,8 +465,18 @@ export function useLocationEditor({ torrents, detailData, recoverySession, recov
                 surface,
             );
             const requestedManual = options?.mode === "manual";
-            if (!requestedManual && canBrowse && recoveryRequestBrowse) {
-                const browseOutcome = await recoveryRequestBrowse(basePath || undefined);
+            if (!requestedManual && canBrowse) {
+                let browseOutcome: BrowseResult;
+                try {
+                    const next = await shellAgent.browseDirectory(
+                        basePath || undefined,
+                    );
+                    browseOutcome = next
+                        ? { status: "picked", path: next }
+                        : { status: "cancelled" };
+                } catch {
+                    browseOutcome = { status: "failed" };
+                }
                 if (browseOutcome?.status === "picked") {
                     try {
                         const recoverOutcome = await setLocationAndRecover(
@@ -519,7 +538,6 @@ export function useLocationEditor({ torrents, detailData, recoverySession, recov
         },
         [
             canBrowse,
-            recoveryRequestBrowse,
             resolveSetLocationExecutionMode,
             setLocationAndRecover,
             supportsManual,

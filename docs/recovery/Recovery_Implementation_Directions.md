@@ -43,6 +43,8 @@ For authoritative product behavior, use:
 
 ## Transmission-Specific Direction
 
+- Recovery transitions must be derived from daemon/RPC truth only.
+- Shell integration is input convenience only (browse/manual entry support), never a recovery-state authority.
 - Treat missing-files cases as decision-capable only when real actions exist.
 - Use blocked/error UI for no-choice states.
 - Keep path/volume transient handling optimized for auto-recovery before escalation.

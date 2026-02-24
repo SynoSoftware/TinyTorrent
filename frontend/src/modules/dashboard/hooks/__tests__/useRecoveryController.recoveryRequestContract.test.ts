@@ -1,10 +1,4 @@
-import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
@@ -12,6 +6,7 @@ import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import * as recoveryController from "@/services/recovery/recovery-controller";
+import * as recoveryGateInterpreter from "@/modules/dashboard/hooks/recoveryGateInterpreter";
 import { DevTestAdapter } from "@/app/dev/recovery/adapter";
 import {
     cloneDevTorrentDetail,
@@ -66,9 +61,7 @@ type ControllerHarnessProps = {
     initialDetail: TorrentDetailEntity;
     initialTorrents: TorrentDetailEntity[];
     initialFaultMode: DevTestFaultMode;
-    updateOperationOverlays: (
-        updates: Array<{ id: string; operation?: TorrentOperationState }>,
-    ) => void;
+    updateOperationOverlays: (updates: Array<{ id: string; operation?: TorrentOperationState }>) => void;
 };
 
 function RecoveryControllerHarness({
@@ -91,9 +84,7 @@ function RecoveryControllerHarness({
     const [torrents, setTorrents] = useState<Array<Torrent | TorrentDetail>>([
         ...initialTorrents.map((torrent) => cloneDevTorrentDetail(torrent)),
     ]);
-    const [detailData, setDetailData] = useState<TorrentDetail | null>(
-        cloneDevTorrentDetail(initialDetail),
-    );
+    const [detailData, setDetailData] = useState<TorrentDetail | null>(cloneDevTorrentDetail(initialDetail));
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
     const refreshTorrents = useCallback(async () => {
@@ -119,9 +110,7 @@ function RecoveryControllerHarness({
     }, []);
 
     const dispatch = useCallback(
-        async (
-            intent: TorrentIntentExtended,
-        ): Promise<TorrentDispatchOutcome> => {
+        async (intent: TorrentIntentExtended): Promise<TorrentDispatchOutcome> => {
             try {
                 if (intent.type === "ENSURE_TORRENT_ACTIVE") {
                     await adapter.resume([String(intent.torrentId)]);
@@ -136,11 +125,7 @@ function RecoveryControllerHarness({
                             reason: "method_missing",
                         };
                     }
-                    await adapter.setTorrentLocation(
-                        String(intent.torrentId),
-                        intent.path,
-                        intent.moveData ?? false,
-                    );
+                    await adapter.setTorrentLocation(String(intent.torrentId), intent.path, intent.moveData ?? false);
                     await refreshTorrents();
                     await refreshDetailData();
                     return { status: "applied" };
@@ -194,10 +179,7 @@ type MountOptions = {
     additionalTorrents?: TorrentDetailEntity[];
 };
 
-const waitForCondition = async (
-    predicate: () => boolean,
-    timeoutMs: number,
-): Promise<void> => {
+const waitForCondition = async (predicate: () => boolean, timeoutMs: number): Promise<void> => {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
         if (predicate()) return;
@@ -208,9 +190,7 @@ const waitForCondition = async (
     throw new Error("wait_for_condition_timeout");
 };
 
-const readController = (
-    controllerRef: RecoveryControllerRef,
-): RecoveryControllerResult => {
+const readController = (controllerRef: RecoveryControllerRef): RecoveryControllerResult => {
     if (!controllerRef.current) {
         throw new Error("controller_not_ready");
     }
@@ -223,9 +203,7 @@ const mountHarness = async ({
     mutateTorrent,
     additionalTorrents,
 }: MountOptions): Promise<MountedHarness> => {
-    const scenario =
-        DEV_TEST_SCENARIOS.find((item) => item.id === scenarioId) ??
-        DEV_TEST_SCENARIOS[0];
+    const scenario = DEV_TEST_SCENARIOS.find((item) => item.id === scenarioId) ?? DEV_TEST_SCENARIOS[0];
     const baseTorrent = createDevScenarioTorrent(scenario, "certain");
     const torrent = mutateTorrent ? mutateTorrent(baseTorrent) : baseTorrent;
     const initialTorrents = [torrent, ...(additionalTorrents ?? [])];
@@ -280,10 +258,79 @@ describe("useRecoveryController request contract", () => {
                 ...mounted.torrent,
                 errorEnvelope: undefined,
             };
-            const outcome =
-                controller.actions.openRecoveryModal(notActionableTorrent);
+            const outcome = controller.actions.openRecoveryModal(notActionableTorrent);
             expect(outcome).toEqual({ status: "not_actionable" });
         } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("opens the manual location editor when force-workbench recovery is requested", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const outcome = controller.actions.openRecoveryModal(mounted.torrent, {
+                forceWorkbench: true,
+            });
+            expect(outcome.status).toBe("requested");
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
+            await waitForCondition(
+                () => Boolean(readController(mounted.controllerRef).locationEditor.state),
+                1_500,
+            );
+            const editorState = readController(mounted.controllerRef).locationEditor.state;
+            expect(editorState?.surface).toBe("recovery-modal");
+            expect(editorState?.status).toBe("idle");
+            if (outcome.status === "requested") {
+                readController(mounted.controllerRef).modal.close();
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("routes request disposition through the recovery gate interpreter", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        const determineDispositionSpy = vi.spyOn(recoveryGateInterpreter, "determineDisposition");
+        const recoverMissingFilesSpy = vi
+            .spyOn(recoveryController, "recoverMissingFiles")
+            .mockImplementation(async (params) => ({
+                status: "needsModal",
+                classification: {
+                    ...params.classification,
+                    confidence: "certain",
+                    escalationSignal: "none",
+                },
+                blockingOutcome: {
+                    kind: "blocked",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
+            }));
+        try {
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
+            expect(outcome.status).toBe("requested");
+            await waitForCondition(() => determineDispositionSpy.mock.calls.length > 0, 1_500);
+            expect(determineDispositionSpy).toHaveBeenCalled();
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
+            readController(mounted.controllerRef).modal.close();
+            if (outcome.status === "requested") {
+                await expect(outcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
+        } finally {
+            determineDispositionSpy.mockRestore();
+            recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
         }
     });
@@ -294,25 +341,15 @@ describe("useRecoveryController request contract", () => {
             faultMode: "missing",
         });
         try {
-            const first = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const first = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(first.status).toBe("requested");
             if (first.status !== "requested") {
                 throw new Error("expected_requested");
             }
 
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                3_000,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 3_000);
 
-            const second = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const second = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(second).toEqual({ status: "already_open" });
 
             readController(mounted.controllerRef).modal.close();
@@ -339,7 +376,7 @@ describe("useRecoveryController request contract", () => {
                     escalationSignal: "none",
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -365,19 +402,11 @@ describe("useRecoveryController request contract", () => {
             expect(second.status).toBe("requested");
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === mounted.torrent.id,
+                () => readController(mounted.controllerRef).state.session?.torrent.id === mounted.torrent.id,
                 1_500,
             );
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.queuedCount === 1,
-                1_500,
-            );
-            expect(
-                readController(mounted.controllerRef).state.queuedItems[0]
-                    ?.torrentName,
-            ).toBe("Recovery Sample 2");
+            await waitForCondition(() => readController(mounted.controllerRef).state.queuedCount === 1, 1_500);
+            expect(readController(mounted.controllerRef).state.queuedItems[0]?.torrentName).toBe("Recovery Sample 2");
 
             readController(mounted.controllerRef).modal.close();
             if (first.status === "requested") {
@@ -387,14 +416,10 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "dev-recovery-torrent-2",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "dev-recovery-torrent-2",
                 1_500,
             );
-            expect(readController(mounted.controllerRef).state.queuedCount).toBe(
-                0,
-            );
+            expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
 
             readController(mounted.controllerRef).modal.close();
             if (second.status === "requested") {
@@ -423,7 +448,7 @@ describe("useRecoveryController request contract", () => {
                     escalationSignal: "none",
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -465,9 +490,7 @@ describe("useRecoveryController request contract", () => {
             expect(third.status).toBe("requested");
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === mounted.torrent.id,
+                () => readController(mounted.controllerRef).state.session?.torrent.id === mounted.torrent.id,
                 1_500,
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(2);
@@ -480,9 +503,7 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "dev-recovery-torrent-2",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "dev-recovery-torrent-2",
                 1_500,
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(1);
@@ -495,9 +516,7 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "dev-recovery-torrent-3",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "dev-recovery-torrent-3",
                 1_500,
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
@@ -508,10 +527,7 @@ describe("useRecoveryController request contract", () => {
                     status: "cancelled",
                 });
             }
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.session === null,
-                1_500,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.session === null, 1_500);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -543,21 +559,15 @@ describe("useRecoveryController request contract", () => {
                     recommendedActions: ["downloadMissing"],
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
             });
@@ -568,10 +578,11 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
+            const blockedFeedbackCalls = showFeedbackMock.mock.calls.filter(
+                (call) => call[0] === "recovery.status.blocked" && call[1] === "warning",
             );
+            expect(blockedFeedbackCalls).toHaveLength(1);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -602,29 +613,17 @@ describe("useRecoveryController request contract", () => {
                     recommendedActions: ["chooseLocation"],
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                350,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 350);
 
             readController(mounted.controllerRef).modal.close();
             if (outcome.status === "requested") {
@@ -662,29 +661,17 @@ describe("useRecoveryController request contract", () => {
                     recommendedActions: ["locate", "downloadMissing"],
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                350,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 350);
 
             readController(mounted.controllerRef).modal.close();
             if (outcome.status === "requested") {
@@ -723,21 +710,15 @@ describe("useRecoveryController request contract", () => {
                     recommendedActions: ["locate", "downloadMissing"],
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
@@ -749,10 +730,7 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -781,15 +759,9 @@ describe("useRecoveryController request contract", () => {
                 log: "all_verified_resuming",
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
@@ -829,15 +801,9 @@ describe("useRecoveryController request contract", () => {
                 classification: params.classification,
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
@@ -850,10 +816,7 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -880,21 +843,15 @@ describe("useRecoveryController request contract", () => {
                 status: "needsModal",
                 classification: params.classification,
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "disk-full",
                     message: "insufficient_free_space",
                 },
             }));
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
@@ -907,10 +864,7 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
         } finally {
             recoverMissingFilesSpy.mockRestore();
@@ -924,9 +878,7 @@ describe("useRecoveryController request contract", () => {
             faultMode: "ok",
         });
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
             if (outcome.status !== "requested") {
                 throw new Error("expected_requested");
@@ -947,25 +899,16 @@ describe("useRecoveryController request contract", () => {
         });
         try {
             showFeedbackMock.mockReset();
-            const outcome = await readController(
-                mounted.controllerRef,
-            ).actions.resumeTorrentWithRecovery(mounted.torrent, {
-                suppressFeedback: true,
-            });
+            const outcome = await readController(mounted.controllerRef).actions.resumeTorrentWithRecovery(
+                mounted.torrent,
+                {
+                    suppressFeedback: true,
+                },
+            );
             expect(outcome.status).toBe("applied");
-            expect(showFeedbackMock).not.toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
-            expect(showFeedbackMock).not.toHaveBeenCalledWith(
-                "recovery.feedback.download_resumed",
-                "info",
-            );
-            expect(showFeedbackMock).not.toHaveBeenCalledWith(
-                "recovery.feedback.all_verified_resuming",
-                "info",
-            );
+            expect(showFeedbackMock).not.toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
+            expect(showFeedbackMock).not.toHaveBeenCalledWith("recovery.feedback.download_resumed", "info");
+            expect(showFeedbackMock).not.toHaveBeenCalledWith("recovery.feedback.all_verified_resuming", "info");
         } finally {
             await mounted.cleanup();
         }
@@ -977,21 +920,13 @@ describe("useRecoveryController request contract", () => {
             faultMode: "missing",
         });
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
             if (outcome.status !== "requested") {
                 throw new Error("expected_requested");
             }
 
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                3_000,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 3_000);
             readController(mounted.controllerRef).modal.close();
             await expect(outcome.completion).resolves.toEqual({
                 status: "cancelled",
@@ -1019,25 +954,17 @@ describe("useRecoveryController request contract", () => {
                     : undefined,
             };
 
-            const openOutcome = await controller.setLocation.handler(
-                nonRecoveryTorrent,
-                {
-                    surface: "general-tab",
-                    mode: "manual",
-                },
-            );
+            const openOutcome = await controller.setLocation.handler(nonRecoveryTorrent, {
+                surface: "general-tab",
+                mode: "manual",
+            });
             expect(openOutcome).toEqual({ status: "manual_opened" });
 
             controller.locationEditor.change("D:\\NewDownloadPath");
             const confirmOutcome = await controller.locationEditor.confirm();
             expect(confirmOutcome).toEqual({ status: "submitted" });
 
-            await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).locationEditor.state ===
-                    null,
-                1_500,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).locationEditor.state === null, 1_500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
             expect(mounted.updateOperationOverlaysMock.mock.calls).toEqual(
                 expect.arrayContaining([
@@ -1051,13 +978,8 @@ describe("useRecoveryController request contract", () => {
                     ],
                 ]),
             );
-            await waitForCondition(
-                () => mounted.updateOperationOverlaysMock.mock.calls.length >= 2,
-                1_500,
-            );
-            expect(
-                mounted.updateOperationOverlaysMock.mock.calls,
-            ).toEqual(
+            await waitForCondition(() => mounted.updateOperationOverlaysMock.mock.calls.length >= 2, 1_500);
+            expect(mounted.updateOperationOverlaysMock.mock.calls).toEqual(
                 expect.arrayContaining([
                     [
                         [
@@ -1080,25 +1002,59 @@ describe("useRecoveryController request contract", () => {
         });
         try {
             const controller = readController(mounted.controllerRef);
-            const openOutcome = await controller.setLocation.handler(
-                mounted.torrent,
-                {
-                    surface: "general-tab",
-                    mode: "manual",
-                },
-            );
+            const openOutcome = await controller.setLocation.handler(mounted.torrent, {
+                surface: "general-tab",
+                mode: "manual",
+            });
             expect(openOutcome).toEqual({ status: "manual_opened" });
 
             controller.locationEditor.change("D:\\RecoveredDataPath");
             const confirmOutcome = await controller.locationEditor.confirm();
             expect(confirmOutcome).toEqual({ status: "verifying" });
 
+            await waitForCondition(() => readController(mounted.controllerRef).locationEditor.state === null, 1_500);
+        } finally {
+            await mounted.cleanup();
+        }
+    });
+
+    it("moves the manual editor to recovery-modal surface when force-workbench is requested for the same torrent", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        try {
+            const controller = readController(mounted.controllerRef);
+            const manualOutcome = await controller.setLocation.handler(mounted.torrent, {
+                surface: "general-tab",
+                mode: "manual",
+            });
+            expect(manualOutcome).toEqual({ status: "manual_opened" });
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).locationEditor.state ===
-                    null,
+                () => Boolean(readController(mounted.controllerRef).locationEditor.state),
                 1_500,
             );
+            expect(readController(mounted.controllerRef).locationEditor.state?.surface).toBe(
+                "general-tab",
+            );
+
+            const recoveryOutcome = controller.actions.openRecoveryModal(mounted.torrent, {
+                forceWorkbench: true,
+            });
+            expect(recoveryOutcome.status).toBe("requested");
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
+            await waitForCondition(
+                () =>
+                    readController(mounted.controllerRef).locationEditor.state
+                        ?.surface === "recovery-modal",
+                1_500,
+            );
+            if (recoveryOutcome.status === "requested") {
+                readController(mounted.controllerRef).modal.close();
+                await expect(recoveryOutcome.completion).resolves.toEqual({
+                    status: "cancelled",
+                });
+            }
         } finally {
             await mounted.cleanup();
         }
@@ -1122,30 +1078,20 @@ describe("useRecoveryController request contract", () => {
                     : undefined,
             };
 
-            const openOutcome = await controller.setLocation.handler(
-                nonRecoveryTorrent,
-                {
-                    surface: "general-tab",
-                    mode: "manual",
-                },
-            );
+            const openOutcome = await controller.setLocation.handler(nonRecoveryTorrent, {
+                surface: "general-tab",
+                mode: "manual",
+            });
             expect(openOutcome).toEqual({ status: "manual_opened" });
 
             controller.locationEditor.change("relative\\path");
             const confirmOutcome = await controller.locationEditor.confirm();
             expect(confirmOutcome).toEqual({ status: "validation_error" });
             await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).locationEditor
-                            .state?.error,
-                    ),
+                () => Boolean(readController(mounted.controllerRef).locationEditor.state?.error),
                 1_500,
             );
-            expect(
-                readController(mounted.controllerRef).locationEditor.state
-                    ?.error,
-            ).toBe(
+            expect(readController(mounted.controllerRef).locationEditor.state?.error).toBe(
                 "set_location.reason.absolute_path_required",
             );
         } finally {
@@ -1164,9 +1110,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
             if (outcome.status !== "requested") {
                 throw new Error("expected_requested");
@@ -1188,17 +1132,9 @@ describe("useRecoveryController request contract", () => {
         });
         try {
             const controller = readController(mounted.controllerRef);
-            const first = controller.actions.executeDownloadMissing(
-                mounted.torrent,
-            );
-            const deduped = controller.actions.executeDownloadMissing(
-                mounted.torrent,
-            );
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            const first = controller.actions.executeDownloadMissing(mounted.torrent);
+            const deduped = controller.actions.executeDownloadMissing(mounted.torrent);
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
             expect(mounted.updateOperationOverlaysMock).toHaveBeenCalledWith([
                 {
                     id: "dev-recovery-torrent",
@@ -1206,13 +1142,7 @@ describe("useRecoveryController request contract", () => {
                 },
             ]);
 
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                1_500,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
             readController(mounted.controllerRef).modal.close();
 
             await expect(first).resolves.toEqual({
@@ -1224,14 +1154,9 @@ describe("useRecoveryController request contract", () => {
                 reason: "operation_cancelled",
             });
             expect(mounted.updateOperationOverlaysMock.mock.calls).toEqual(
-                expect.arrayContaining([
-                    [[{ id: "dev-recovery-torrent" }]],
-                ]),
+                expect.arrayContaining([[[{ id: "dev-recovery-torrent" }]]]),
             );
-            expect(showFeedbackMock).not.toHaveBeenCalledWith(
-                "recovery.feedback.recovery_busy",
-                "info",
-            );
+            expect(showFeedbackMock).not.toHaveBeenCalledWith("recovery.feedback.recovery_busy", "info");
         } finally {
             await mounted.cleanup();
         }
@@ -1249,24 +1174,12 @@ describe("useRecoveryController request contract", () => {
                 downloadDir: "D:\\RecoveredDataPath",
                 savePath: "D:\\RecoveredDataPath",
             };
-            const activeRecovery = controller.actions.resumeTorrentWithRecovery(
-                updatedTorrent,
-            );
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session,
-                    ),
-                1_500,
-            );
+            const activeRecovery = controller.actions.resumeTorrentWithRecovery(updatedTorrent);
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
             showFeedbackMock.mockReset();
 
-            const deduped = controller.actions.executeDownloadMissing(
-                mounted.torrent,
-            );
-            expect(readController(mounted.controllerRef).state.queuedCount).toBe(
-                0,
-            );
+            const deduped = controller.actions.executeDownloadMissing(mounted.torrent);
+            expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
 
             readController(mounted.controllerRef).modal.close();
             await expect(deduped).resolves.toEqual({
@@ -1276,10 +1189,7 @@ describe("useRecoveryController request contract", () => {
             await expect(activeRecovery).resolves.toEqual({
                 status: "cancelled",
             });
-            expect(showFeedbackMock).not.toHaveBeenCalledWith(
-                "recovery.feedback.recovery_busy",
-                "info",
-            );
+            expect(showFeedbackMock).not.toHaveBeenCalledWith("recovery.feedback.recovery_busy", "info");
         } finally {
             await mounted.cleanup();
         }
@@ -1300,36 +1210,28 @@ describe("useRecoveryController request contract", () => {
                     escalationSignal: "none",
                 },
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
             }));
         try {
-            const openOutcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const openOutcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(openOutcome.status).toBe("requested");
 
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-                1_500,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
             await readController(mounted.controllerRef).modal.autoRetry();
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 75);
             });
-            const callCountAfterFirstAutoRetry =
-                recoverMissingFilesSpy.mock.calls.length;
+            const callCountAfterFirstAutoRetry = recoverMissingFilesSpy.mock.calls.length;
             expect(callCountAfterFirstAutoRetry).toBeGreaterThan(0);
 
             await readController(mounted.controllerRef).modal.autoRetry();
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 75);
             });
-            expect(recoverMissingFilesSpy.mock.calls.length).toBe(
-                callCountAfterFirstAutoRetry,
-            );
+            expect(recoverMissingFilesSpy.mock.calls.length).toBe(callCountAfterFirstAutoRetry);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -1344,19 +1246,12 @@ describe("useRecoveryController request contract", () => {
         let recoverMissingFilesSpy: ReturnType<typeof vi.spyOn> | null = null;
         try {
             const initialController = readController(mounted.controllerRef);
-            const openOutcome = initialController.actions.openRecoveryModal(
-                mounted.torrent,
-            );
+            const openOutcome = initialController.actions.openRecoveryModal(mounted.torrent);
             expect(openOutcome.status).toBe("requested");
 
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-                1_500,
-            );
-            const sessionBeforeRetry = readController(
-                mounted.controllerRef,
-            ).state.session;
-            expect(sessionBeforeRetry?.outcome.kind).toBe("path-needed");
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
+            const sessionBeforeRetry = readController(mounted.controllerRef).state.session;
+            expect(sessionBeforeRetry?.outcome.kind).toBe("needs-user-decision");
 
             recoverMissingFilesSpy = vi
                 .spyOn(recoveryController, "recoverMissingFiles")
@@ -1364,7 +1259,7 @@ describe("useRecoveryController request contract", () => {
                     status: "needsModal",
                     classification: params.classification,
                     blockingOutcome: {
-                        kind: "path-needed",
+                        kind: "blocked",
                         reason: "unwritable",
                         message: "path_access_denied",
                     },
@@ -1372,34 +1267,51 @@ describe("useRecoveryController request contract", () => {
 
             showFeedbackMock.mockReset();
             await readController(mounted.controllerRef).modal.retry();
+            await waitForCondition(() => (recoverMissingFilesSpy?.mock.calls.length ?? 0) > 0, 1_500);
             await waitForCondition(
-                () =>
-                    (recoverMissingFilesSpy?.mock.calls.length ?? 0) > 0,
-                1_500,
-            );
-            await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.outcome !==
-                    sessionBeforeRetry?.outcome,
+                () => readController(mounted.controllerRef).state.session?.outcome !== sessionBeforeRetry?.outcome,
                 1_500,
             );
 
-            const sessionAfterRetry = readController(
-                mounted.controllerRef,
-            ).state.session;
+            const sessionAfterRetry = readController(mounted.controllerRef).state.session;
             expect(sessionAfterRetry).not.toBeNull();
             expect(sessionAfterRetry?.outcome).toMatchObject({
-                kind: "path-needed",
+                kind: "needs-user-decision",
             });
-            expect(sessionAfterRetry?.outcome).not.toBe(
-                sessionBeforeRetry?.outcome,
-            );
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.feedback.retry_failed",
-                "warning",
-            );
+            expect(sessionAfterRetry?.outcome).not.toBe(sessionBeforeRetry?.outcome);
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.feedback.retry_failed", "warning");
 
             readController(mounted.controllerRef).modal.close();
+        } finally {
+            recoverMissingFilesSpy?.mockRestore();
+            await mounted.cleanup();
+        }
+    });
+
+    it("surfaces retry feedback when retry probe returns no blocking outcome", async () => {
+        const mounted = await mountHarness({
+            scenarioId: "path_loss",
+            faultMode: "missing",
+        });
+        let recoverMissingFilesSpy: ReturnType<typeof vi.spyOn> | null = null;
+        try {
+            const initialController = readController(mounted.controllerRef);
+            const openOutcome = initialController.actions.openRecoveryModal(mounted.torrent);
+            expect(openOutcome.status).toBe("requested");
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
+
+            recoverMissingFilesSpy = vi
+                .spyOn(recoveryController, "recoverMissingFiles")
+                .mockImplementation(async (params) => ({
+                    status: "noop",
+                    classification: params.classification,
+                }));
+
+            showFeedbackMock.mockReset();
+            await readController(mounted.controllerRef).modal.retry();
+
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.feedback.retry_failed", "warning");
+            expect(readController(mounted.controllerRef).state.session).not.toBeNull();
         } finally {
             recoverMissingFilesSpy?.mockRestore();
             await mounted.cleanup();
@@ -1412,19 +1324,10 @@ describe("useRecoveryController request contract", () => {
             faultMode: "missing",
         });
         try {
-            const outcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const outcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(outcome.status).toBe("requested");
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-                1_500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
 
             showFeedbackMock.mockReset();
             readController(mounted.controllerRef).modal.close();
@@ -1445,18 +1348,9 @@ describe("useRecoveryController request contract", () => {
             faultMode: "missing",
         });
         try {
-            const completion = readController(
-                mounted.controllerRef,
-            ).actions.executeDownloadMissing(mounted.torrent);
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-                1_500,
-            );
+            const completion = readController(mounted.controllerRef).actions.executeDownloadMissing(mounted.torrent);
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session), 1_500);
             showFeedbackMock.mockReset();
 
             readController(mounted.controllerRef).modal.close();
@@ -1485,14 +1379,7 @@ describe("useRecoveryController request contract", () => {
             const elapsedMs = Date.now() - start;
 
             expect(outcome).toEqual({ status: "manual_opened" });
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).locationEditor
-                            .state,
-                    ),
-                1_500,
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).locationEditor.state), 1_500);
             expect(elapsedMs).toBeLessThanOrEqual(RECOVERY_ESCALATION_GRACE_MS);
         } finally {
             await mounted.cleanup();
@@ -1522,10 +1409,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length > 0,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length > 0, 1_500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
         } finally {
             recoverMissingFilesSpy.mockRestore();
@@ -1556,10 +1440,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length > 0,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length > 0, 1_500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
         } finally {
             recoverMissingFilesSpy.mockRestore();
@@ -1587,9 +1468,7 @@ describe("useRecoveryController request contract", () => {
             });
         const realNow = Date.now.bind(Date);
         let nowOffsetMs = 0;
-        const dateNowSpy = vi
-            .spyOn(Date, "now")
-            .mockImplementation(() => realNow() + nowOffsetMs);
+        const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + nowOffsetMs);
         const mounted = await mountHarness({
             scenarioId: "path_loss",
             faultMode: "missing",
@@ -1606,10 +1485,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 1,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 1, 1_500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
             expect(mounted.updateOperationOverlaysMock).toHaveBeenCalledWith([
                 {
@@ -1619,18 +1495,13 @@ describe("useRecoveryController request contract", () => {
             ]);
 
             nowOffsetMs = 30_000;
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 2,
-                6_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 2, 6_500);
             await waitForCondition(() => {
                 return mounted.updateOperationOverlaysMock.mock.calls.some(
                     (entry) =>
                         Array.isArray(entry[0]) &&
                         entry[0].some(
-                            (update) =>
-                                update?.id === "dev-recovery-torrent" &&
-                                update.operation === undefined,
+                            (update) => update?.id === "dev-recovery-torrent" && update.operation === undefined,
                         ),
                 );
             }, 1_500);
@@ -1665,10 +1536,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 1,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 1, 1_500);
             expect(mounted.updateOperationOverlaysMock).toHaveBeenCalledWith([
                 {
                     id: "dev-recovery-torrent",
@@ -1676,16 +1544,12 @@ describe("useRecoveryController request contract", () => {
                 },
             ]);
 
-            readController(mounted.controllerRef).actions.markTorrentPausedByUser(
-                mounted.torrent,
-            );
+            readController(mounted.controllerRef).actions.markTorrentPausedByUser(mounted.torrent);
             const callCountAfterPause = recoverMissingFilesSpy.mock.calls.length;
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 4_500);
             });
-            expect(recoverMissingFilesSpy.mock.calls.length).toBe(
-                callCountAfterPause,
-            );
+            expect(recoverMissingFilesSpy.mock.calls.length).toBe(callCountAfterPause);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -1694,8 +1558,7 @@ describe("useRecoveryController request contract", () => {
 
     it("handles mixed actionable classes with disk-full blocked guidance and background auto-continuation", async () => {
         const pathLossScenario =
-            DEV_TEST_SCENARIOS.find((scenario) => scenario.id === "path_loss") ??
-            DEV_TEST_SCENARIOS[0];
+            DEV_TEST_SCENARIOS.find((scenario) => scenario.id === "path_loss") ?? DEV_TEST_SCENARIOS[0];
         const template = createDevScenarioTorrent(pathLossScenario, "certain");
         const permissionTorrent: TorrentDetailEntity = {
             ...template,
@@ -1731,10 +1594,7 @@ describe("useRecoveryController request contract", () => {
             .spyOn(recoveryController, "recoverMissingFiles")
             .mockImplementation(async (params) => {
                 const torrentId = String(params.torrent.id ?? params.torrent.hash ?? "");
-                callCountsById.set(
-                    torrentId,
-                    (callCountsById.get(torrentId) ?? 0) + 1,
-                );
+                callCountsById.set(torrentId, (callCountsById.get(torrentId) ?? 0) + 1);
                 if (torrentId === "dev-recovery-torrent") {
                     if (allowDiskFullResolve) {
                         return {
@@ -1751,7 +1611,7 @@ describe("useRecoveryController request contract", () => {
                             escalationSignal: "none",
                         },
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason: "disk-full",
                             message: "disk_full",
                         },
@@ -1764,9 +1624,7 @@ describe("useRecoveryController request contract", () => {
             });
         const realNow = Date.now.bind(Date);
         let nowOffsetMs = 0;
-        const dateNowSpy = vi
-            .spyOn(Date, "now")
-            .mockImplementation(() => realNow() + nowOffsetMs);
+        const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + nowOffsetMs);
         const mounted = await mountHarness({
             scenarioId: "path_loss",
             faultMode: "missing",
@@ -1784,9 +1642,7 @@ describe("useRecoveryController request contract", () => {
             additionalTorrents: [permissionTorrent, unknownTorrent],
         });
         try {
-            const openOutcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const openOutcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(openOutcome.status).toBe("requested");
             if (openOutcome.status === "requested") {
                 await expect(openOutcome.completion).resolves.toEqual({
@@ -1796,31 +1652,21 @@ describe("useRecoveryController request contract", () => {
             }
 
             await waitForCondition(
-                () =>
-                    callCountsById.has("permission-torrent") &&
-                    callCountsById.has("unknown-torrent"),
+                () => callCountsById.has("permission-torrent") && callCountsById.has("unknown-torrent"),
                 1_500,
             );
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
             expect(readController(mounted.controllerRef).state.session).toBeNull();
 
             allowDiskFullResolve = true;
             nowOffsetMs = 30_000;
-            await waitForCondition(
-                () => (callCountsById.get("dev-recovery-torrent") ?? 0) >= 2,
-                6_500,
-            );
+            await waitForCondition(() => (callCountsById.get("dev-recovery-torrent") ?? 0) >= 2, 6_500);
             await waitForCondition(() => {
                 return mounted.updateOperationOverlaysMock.mock.calls.some(
                     (entry) =>
                         Array.isArray(entry[0]) &&
                         entry[0].some(
-                            (update) =>
-                                update?.id === "dev-recovery-torrent" &&
-                                update.operation === undefined,
+                            (update) => update?.id === "dev-recovery-torrent" && update.operation === undefined,
                         ),
                 );
             }, 1_500);
@@ -1834,8 +1680,7 @@ describe("useRecoveryController request contract", () => {
 
     it("keeps disk-full background re-eval active while another decision modal is open and auto-continues on resolve", async () => {
         const pathLossScenario =
-            DEV_TEST_SCENARIOS.find((scenario) => scenario.id === "path_loss") ??
-            DEV_TEST_SCENARIOS[0];
+            DEV_TEST_SCENARIOS.find((scenario) => scenario.id === "path_loss") ?? DEV_TEST_SCENARIOS[0];
         const template = createDevScenarioTorrent(pathLossScenario, "certain");
         const diskTorrent: TorrentDetailEntity = {
             ...template,
@@ -1870,13 +1715,8 @@ describe("useRecoveryController request contract", () => {
         const recoverMissingFilesSpy = vi
             .spyOn(recoveryController, "recoverMissingFiles")
             .mockImplementation(async (params) => {
-                const torrentId = String(
-                    params.torrent.id ?? params.torrent.hash ?? "",
-                );
-                callCountsById.set(
-                    torrentId,
-                    (callCountsById.get(torrentId) ?? 0) + 1,
-                );
+                const torrentId = String(params.torrent.id ?? params.torrent.hash ?? "");
+                callCountsById.set(torrentId, (callCountsById.get(torrentId) ?? 0) + 1);
                 if (torrentId === "permission-torrent") {
                     return {
                         status: "needsModal",
@@ -1886,7 +1726,7 @@ describe("useRecoveryController request contract", () => {
                             escalationSignal: "none",
                         },
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason: "unwritable",
                             message: "path_access_denied",
                         },
@@ -1908,7 +1748,7 @@ describe("useRecoveryController request contract", () => {
                             escalationSignal: "none",
                         },
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason: "disk-full",
                             message: "disk_full",
                         },
@@ -1921,9 +1761,7 @@ describe("useRecoveryController request contract", () => {
             });
         const realNow = Date.now.bind(Date);
         let nowOffsetMs = 0;
-        const dateNowSpy = vi
-            .spyOn(Date, "now")
-            .mockImplementation(() => realNow() + nowOffsetMs);
+        const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + nowOffsetMs);
         const mounted = await mountHarness({
             scenarioId: "path_loss",
             faultMode: "missing",
@@ -1945,9 +1783,7 @@ describe("useRecoveryController request contract", () => {
             additionalTorrents: [diskTorrent, unknownTorrent],
         });
         try {
-            const diskBlockedOutcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(diskTorrent);
+            const diskBlockedOutcome = readController(mounted.controllerRef).actions.openRecoveryModal(diskTorrent);
             expect(diskBlockedOutcome.status).toBe("requested");
             if (diskBlockedOutcome.status === "requested") {
                 await expect(diskBlockedOutcome.completion).resolves.toEqual({
@@ -1955,52 +1791,33 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
             expect(readController(mounted.controllerRef).state.session).toBeNull();
 
             showFeedbackMock.mockReset();
-            const permissionOutcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const permissionOutcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(permissionOutcome.status).toBe("requested");
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "permission-torrent",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "permission-torrent",
                 1_500,
             );
-            await waitForCondition(
-                () => callCountsById.has("unknown-torrent-modal-open"),
-                1_500,
-            );
+            await waitForCondition(() => callCountsById.has("unknown-torrent-modal-open"), 1_500);
 
-            const diskCallCountBeforeModalPass =
-                callCountsById.get("disk-torrent") ?? 0;
+            const diskCallCountBeforeModalPass = callCountsById.get("disk-torrent") ?? 0;
             allowDiskResolve = true;
             nowOffsetMs = 30_000;
             await waitForCondition(
-                () =>
-                    (callCountsById.get("disk-torrent") ?? 0) >
-                    diskCallCountBeforeModalPass,
+                () => (callCountsById.get("disk-torrent") ?? 0) > diskCallCountBeforeModalPass,
                 6_500,
             );
             await waitForCondition(() => {
                 return mounted.updateOperationOverlaysMock.mock.calls.some(
                     (entry) =>
                         Array.isArray(entry[0]) &&
-                        entry[0].some(
-                            (update) =>
-                                update?.id === "disk-torrent" &&
-                                update.operation === undefined,
-                        ),
+                        entry[0].some((update) => update?.id === "disk-torrent" && update.operation === undefined),
                 );
             }, 1_500);
-            expect(readController(mounted.controllerRef).state.session?.torrent.id).toBe(
-                "permission-torrent",
-            );
+            expect(readController(mounted.controllerRef).state.session?.torrent.id).toBe("permission-torrent");
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
 
             readController(mounted.controllerRef).modal.close();
@@ -2049,9 +1866,7 @@ describe("useRecoveryController request contract", () => {
             });
         const realNow = Date.now.bind(Date);
         let nowOffsetMs = 0;
-        const dateNowSpy = vi
-            .spyOn(Date, "now")
-            .mockImplementation(() => realNow() + nowOffsetMs);
+        const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + nowOffsetMs);
         const mounted = await mountHarness({
             scenarioId: "path_loss",
             faultMode: "missing",
@@ -2097,9 +1912,7 @@ describe("useRecoveryController request contract", () => {
 
     it("deduplicates repeated resume requests for the same fingerprint during in-flight recovery", async () => {
         let releaseRecovery: () => void = () => {};
-        let sharedPending: Promise<
-            Awaited<ReturnType<typeof recoveryController.recoverMissingFiles>>
-        > | null = null;
+        let sharedPending: Promise<Awaited<ReturnType<typeof recoveryController.recoverMissingFiles>>> | null = null;
         const recoverMissingFilesSpy = vi
             .spyOn(recoveryController, "recoverMissingFiles")
             .mockImplementation(async (params) => {
@@ -2126,22 +1939,10 @@ describe("useRecoveryController request contract", () => {
         });
         try {
             const controller = readController(mounted.controllerRef);
-            const first = controller.actions.resumeTorrentWithRecovery(
-                mounted.torrent,
-                { suppressFeedback: true },
-            );
-            const second = controller.actions.resumeTorrentWithRecovery(
-                mounted.torrent,
-                { suppressFeedback: true },
-            );
-            const third = controller.actions.resumeTorrentWithRecovery(
-                mounted.torrent,
-                { suppressFeedback: true },
-            );
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 1,
-                1_500,
-            );
+            const first = controller.actions.resumeTorrentWithRecovery(mounted.torrent, { suppressFeedback: true });
+            const second = controller.actions.resumeTorrentWithRecovery(mounted.torrent, { suppressFeedback: true });
+            const third = controller.actions.resumeTorrentWithRecovery(mounted.torrent, { suppressFeedback: true });
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 1, 1_500);
             releaseRecovery();
             await expect(first).resolves.toEqual({ status: "applied" });
             await expect(second).resolves.toEqual({ status: "applied" });
@@ -2155,9 +1956,7 @@ describe("useRecoveryController request contract", () => {
 
     it("deduplicates resume spam during an active retry cycle without duplicate modal opens", async () => {
         let resolveRetryCycle: () => void = () => {};
-        let sharedPending: Promise<
-            Awaited<ReturnType<typeof recoveryController.recoverMissingFiles>>
-        > | null = null;
+        let sharedPending: Promise<Awaited<ReturnType<typeof recoveryController.recoverMissingFiles>>> | null = null;
         const recoverMissingFilesSpy = vi
             .spyOn(recoveryController, "recoverMissingFiles")
             .mockImplementation(async (params) => {
@@ -2190,10 +1989,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 1,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 1, 1_500);
             const controller = readController(mounted.controllerRef);
             const spammedPromises = Array.from({ length: 6 }, () =>
                 controller.actions.resumeTorrentWithRecovery(mounted.torrent, {
@@ -2203,18 +1999,12 @@ describe("useRecoveryController request contract", () => {
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 150);
             });
-            expect(recoverMissingFilesSpy.mock.calls.length).toBeLessThanOrEqual(
-                2,
-            );
+            expect(recoverMissingFilesSpy.mock.calls.length).toBeLessThanOrEqual(2);
             resolveRetryCycle();
             const spammed = await Promise.all(spammedPromises);
-            expect(
-                spammed.every((outcome) => outcome.status === "applied"),
-            ).toBe(true);
+            expect(spammed.every((outcome) => outcome.status === "applied")).toBe(true);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
-            expect(readController(mounted.controllerRef).state.queuedCount).toBe(
-                0,
-            );
+            expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -2242,9 +2032,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            const first = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const first = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(first.status).toBe("requested");
             if (first.status === "requested") {
                 await expect(first.completion).resolves.toEqual({
@@ -2252,21 +2040,12 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.status.blocked",
-                "warning",
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.status.blocked", "warning");
             expect(readController(mounted.controllerRef).state.session).toBeNull();
 
             const callsAfterFirstAction = recoverMissingFilesSpy.mock.calls.length;
-            const second = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const second = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(second.status).toBe("requested");
             if (second.status === "requested") {
                 await expect(second.completion).resolves.toEqual({
@@ -2274,9 +2053,7 @@ describe("useRecoveryController request contract", () => {
                     reason: "dispatch_not_applied",
                 });
             }
-            expect(recoverMissingFilesSpy.mock.calls.length).toBeGreaterThan(
-                callsAfterFirstAction,
-            );
+            expect(recoverMissingFilesSpy.mock.calls.length).toBeGreaterThan(callsAfterFirstAction);
         } finally {
             recoverMissingFilesSpy.mockRestore();
             await mounted.cleanup();
@@ -2320,9 +2097,7 @@ describe("useRecoveryController request contract", () => {
         try {
             await waitForCondition(() => callCount >= 1, 1_500);
 
-            const userOutcome = readController(
-                mounted.controllerRef,
-            ).actions.openRecoveryModal(mounted.torrent);
+            const userOutcome = readController(mounted.controllerRef).actions.openRecoveryModal(mounted.torrent);
             expect(userOutcome.status).toBe("requested");
             await waitForCondition(() => callCount >= 2, 1_500);
             if (userOutcome.status === "requested") {
@@ -2330,11 +2105,7 @@ describe("useRecoveryController request contract", () => {
                     status: "applied",
                 });
             }
-            expect(showFeedbackMock).toHaveBeenCalledWith(
-                "recovery.modal.in_progress",
-                "info",
-                500,
-            );
+            expect(showFeedbackMock).toHaveBeenCalledWith("recovery.modal.in_progress", "info", 500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
         } finally {
             recoverMissingFilesSpy.mockRestore();
@@ -2359,9 +2130,7 @@ describe("useRecoveryController request contract", () => {
             });
         const realNow = Date.now.bind(Date);
         let nowOffsetMs = 0;
-        const dateNowSpy = vi
-            .spyOn(Date, "now")
-            .mockImplementation(() => realNow() + nowOffsetMs);
+        const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + nowOffsetMs);
         const mounted = await mountHarness({
             scenarioId: "path_loss",
             faultMode: "missing",
@@ -2378,10 +2147,7 @@ describe("useRecoveryController request contract", () => {
             }),
         });
         try {
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 1,
-                1_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 1, 1_500);
             expect(readController(mounted.controllerRef).state.session).toBeNull();
             expect(mounted.updateOperationOverlaysMock).toHaveBeenCalledWith([
                 {
@@ -2391,18 +2157,13 @@ describe("useRecoveryController request contract", () => {
             ]);
 
             nowOffsetMs = 30_000;
-            await waitForCondition(
-                () => recoverMissingFilesSpy.mock.calls.length >= 2,
-                6_500,
-            );
+            await waitForCondition(() => recoverMissingFilesSpy.mock.calls.length >= 2, 6_500);
             await waitForCondition(() => {
                 return mounted.updateOperationOverlaysMock.mock.calls.some(
                     (entry) =>
                         Array.isArray(entry[0]) &&
                         entry[0].some(
-                            (update) =>
-                                update?.id === "dev-recovery-torrent" &&
-                                update.operation === undefined,
+                            (update) => update?.id === "dev-recovery-torrent" && update.operation === undefined,
                         ),
                 );
             }, 1_500);

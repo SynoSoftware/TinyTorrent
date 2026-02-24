@@ -191,14 +191,8 @@ export function useDevTestController({
     });
 
     const handleDownloadMissing = useCallback(
-        async (
-            torrent: Torrent,
-            options?: { recreateFolder?: boolean },
-        ): Promise<DownloadMissingOutcome> => {
-            const outcome = await recovery.actions.executeDownloadMissing(
-                torrent,
-                options,
-            );
+        async (torrent: Torrent): Promise<DownloadMissingOutcome> => {
+            const outcome = await recovery.actions.executeDownloadMissing(torrent);
             await refreshTorrents();
             await refreshDetailData();
             return outcome;
@@ -211,7 +205,6 @@ export function useDevTestController({
         recoverySession: recovery.state.session,
         isBusy: recovery.state.isBusy,
         onClose: recovery.modal.close,
-        onRecreate: recovery.modal.recreateFolder,
         onAutoRetry: recovery.modal.autoRetry,
         locationEditor: recovery.locationEditor,
         setLocationCapability: recovery.setLocation.capability,

@@ -51,13 +51,7 @@ const DEFAULT_TORRENTS: Torrent[] = [
     },
 ];
 
-function RecoveryStateHarness({
-    controllerRef,
-    torrents,
-}: {
-    controllerRef: RecoveryStateRef;
-    torrents: Torrent[];
-}) {
+function RecoveryStateHarness({ controllerRef, torrents }: { controllerRef: RecoveryStateRef; torrents: Torrent[] }) {
     const recoveryState = useRecoveryState({
         torrents,
         detailData: null,
@@ -68,10 +62,7 @@ function RecoveryStateHarness({
     return null;
 }
 
-const waitForCondition = async (
-    predicate: () => boolean,
-    timeoutMs = 1500,
-): Promise<void> => {
+const waitForCondition = async (predicate: () => boolean, timeoutMs = 1500): Promise<void> => {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
         if (predicate()) {
@@ -135,22 +126,18 @@ describe("useRecoveryState queue ownership", () => {
         const mounted = await mountHarness();
         try {
             const controller = readController(mounted.controllerRef);
-            const activeEntry = readController(
-                mounted.controllerRef,
-            ).createRecoveryQueueEntry(
+            const activeEntry = readController(mounted.controllerRef).createRecoveryQueueEntry(
                 BASE_TORRENT,
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
                 CLASSIFICATION,
                 "fp-a",
             );
-            const queuedEntry = readController(
-                mounted.controllerRef,
-            ).createRecoveryQueueEntry(
+            const queuedEntry = readController(mounted.controllerRef).createRecoveryQueueEntry(
                 {
                     ...BASE_TORRENT,
                     id: "torrent-b",
@@ -159,7 +146,7 @@ describe("useRecoveryState queue ownership", () => {
                 },
                 "downloadMissing",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -175,7 +162,7 @@ describe("useRecoveryState queue ownership", () => {
                 },
                 "downloadMissing",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -185,19 +172,14 @@ describe("useRecoveryState queue ownership", () => {
 
             controller.enqueueRecoveryEntry(activeEntry);
             const queuedPromise = controller.enqueueRecoveryEntry(queuedEntry);
-            const duplicatePromise =
-                controller.enqueueRecoveryEntry(queuedDuplicate);
+            const duplicatePromise = controller.enqueueRecoveryEntry(queuedDuplicate);
 
             expect(duplicatePromise).toBe(queuedPromise);
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.queuedCount === 1,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.queuedCount === 1);
 
             controller.finalizeRecovery({ status: "cancelled" });
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "torrent-b",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "torrent-b",
             );
 
             controller.finalizeRecovery({ status: "handled" });
@@ -216,7 +198,7 @@ describe("useRecoveryState queue ownership", () => {
                 BASE_TORRENT,
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -232,7 +214,7 @@ describe("useRecoveryState queue ownership", () => {
                 },
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -248,7 +230,7 @@ describe("useRecoveryState queue ownership", () => {
                 },
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -260,30 +242,22 @@ describe("useRecoveryState queue ownership", () => {
             controller.enqueueRecoveryEntry(entryB);
             controller.enqueueRecoveryEntry(entryC);
 
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.queuedCount === 2,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.queuedCount === 2);
 
             controller.finalizeRecovery({ status: "cancelled" });
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "torrent-b",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "torrent-b",
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(1);
 
             controller.finalizeRecovery({ status: "cancelled" });
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent
-                        .id === "torrent-c",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "torrent-c",
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
 
             controller.finalizeRecovery({ status: "cancelled" });
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.session === null,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.session === null);
         } finally {
             mounted.cleanup();
         }
@@ -292,50 +266,33 @@ describe("useRecoveryState queue ownership", () => {
     it("cancels an active recovery during auto-close window without allowing stale finalize", async () => {
         const mounted = await mountHarness();
         try {
-            const entry = readController(
-                mounted.controllerRef,
-            ).createRecoveryQueueEntry(
+            const entry = readController(mounted.controllerRef).createRecoveryQueueEntry(
                 BASE_TORRENT,
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
                 CLASSIFICATION,
                 "fp-autoclose-cancel",
             );
-            const completion = readController(
-                mounted.controllerRef,
-            ).enqueueRecoveryEntry(entry);
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-            );
-            const scheduled = readController(
-                mounted.controllerRef,
-            ).scheduleRecoveryFinalize(
+            const completion = readController(mounted.controllerRef).enqueueRecoveryEntry(entry);
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session));
+            const scheduled = readController(mounted.controllerRef).scheduleRecoveryFinalize(
                 2_000,
                 { status: "handled" },
                 {
-                    kind: "resolved",
+                    kind: "auto-recovered",
                     message: "path_ready",
                 },
             );
             expect(scheduled).toBe(true);
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session
-                            ?.autoCloseAtMs,
-                    ),
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session?.autoCloseAtMs));
 
-            readController(mounted.controllerRef).cancelRecoveryForFingerprint(
-                getRecoveryFingerprint(BASE_TORRENT),
-                {
-                    status: "cancelled",
-                },
-            );
+            readController(mounted.controllerRef).cancelRecoveryForFingerprint(getRecoveryFingerprint(BASE_TORRENT), {
+                status: "cancelled",
+            });
             await expect(completion).resolves.toEqual({ status: "cancelled" });
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 2_100);
@@ -354,7 +311,7 @@ describe("useRecoveryState queue ownership", () => {
                 BASE_TORRENT,
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -362,31 +319,21 @@ describe("useRecoveryState queue ownership", () => {
                 "fp-autoclose-positive",
             );
             const completion = controller.enqueueRecoveryEntry(entry);
-            await waitForCondition(
-                () => Boolean(readController(mounted.controllerRef).state.session),
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session));
 
             const scheduled = controller.scheduleRecoveryFinalize(
                 150,
                 { status: "handled" },
                 {
-                    kind: "resolved",
+                    kind: "auto-recovered",
                     message: "path_ready",
                 },
             );
             expect(scheduled).toBe(true);
-            await waitForCondition(
-                () =>
-                    Boolean(
-                        readController(mounted.controllerRef).state.session
-                            ?.autoCloseAtMs,
-                    ),
-            );
+            await waitForCondition(() => Boolean(readController(mounted.controllerRef).state.session?.autoCloseAtMs));
 
             await expect(completion).resolves.toEqual({ status: "handled" });
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.session === null,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.session === null);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 250);
@@ -406,7 +353,7 @@ describe("useRecoveryState queue ownership", () => {
                 BASE_TORRENT,
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -422,7 +369,7 @@ describe("useRecoveryState queue ownership", () => {
                 },
                 "resume",
                 {
-                    kind: "path-needed",
+                    kind: "needs-user-decision",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -430,60 +377,43 @@ describe("useRecoveryState queue ownership", () => {
                 "fp-queued-overlap",
             );
 
-            const activeCompletion = readController(
-                mounted.controllerRef,
-            ).enqueueRecoveryEntry(activeEntry);
-            const queuedCompletion = readController(
-                mounted.controllerRef,
-            ).enqueueRecoveryEntry(queuedEntry);
+            const activeCompletion = readController(mounted.controllerRef).enqueueRecoveryEntry(activeEntry);
+            const queuedCompletion = readController(mounted.controllerRef).enqueueRecoveryEntry(queuedEntry);
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent.id ===
-                    "torrent-a",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "torrent-a",
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(1);
 
-            const scheduled = readController(
-                mounted.controllerRef,
-            ).scheduleRecoveryFinalize(
+            const scheduled = readController(mounted.controllerRef).scheduleRecoveryFinalize(
                 2_000,
                 { status: "handled" },
                 {
-                    kind: "resolved",
+                    kind: "auto-recovered",
                     message: "path_ready",
                 },
             );
             expect(scheduled).toBe(true);
 
-            readController(mounted.controllerRef).cancelRecoveryForFingerprint(
-                getRecoveryFingerprint(BASE_TORRENT),
-                {
-                    status: "cancelled",
-                },
-            );
+            readController(mounted.controllerRef).cancelRecoveryForFingerprint(getRecoveryFingerprint(BASE_TORRENT), {
+                status: "cancelled",
+            });
             await expect(activeCompletion).resolves.toEqual({ status: "cancelled" });
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).state.session?.torrent.id ===
-                    "torrent-b",
+                () => readController(mounted.controllerRef).state.session?.torrent.id === "torrent-b",
             );
             expect(readController(mounted.controllerRef).state.queuedCount).toBe(0);
 
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 2_100);
             });
-            expect(readController(mounted.controllerRef).state.session?.torrent.id).toBe(
-                "torrent-b",
-            );
+            expect(readController(mounted.controllerRef).state.session?.torrent.id).toBe("torrent-b");
 
             readController(mounted.controllerRef).finalizeRecovery({
                 status: "cancelled",
             });
             await expect(queuedCompletion).resolves.toEqual({ status: "cancelled" });
-            await waitForCondition(
-                () => readController(mounted.controllerRef).state.session === null,
-            );
+            await waitForCondition(() => readController(mounted.controllerRef).state.session === null);
         } finally {
             mounted.cleanup();
         }
@@ -496,20 +426,14 @@ describe("useRecoveryState queue ownership", () => {
             const fingerprint = "fp-resume-clear";
 
             controller.markRecoveryPausedBySystem(fingerprint);
-            expect(controller.getRecoveryPauseOrigin(fingerprint)).toBe(
-                "recovery",
-            );
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                true,
-            );
+            expect(controller.getRecoveryPauseOrigin(fingerprint)).toBe("recovery");
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(true);
 
             controller.markRecoveryResumed(fingerprint);
 
             expect(controller.getRecoveryPauseOrigin(fingerprint)).toBeNull();
             expect(controller.isRecoveryCancelled(fingerprint)).toBe(false);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                false,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(false);
         } finally {
             mounted.cleanup();
         }
@@ -522,17 +446,13 @@ describe("useRecoveryState queue ownership", () => {
             const fingerprint = "fp-pause-origin";
 
             controller.markRecoveryPausedBySystem(fingerprint);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                true,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(true);
 
             controller.markRecoveryPausedByUser(fingerprint);
 
             expect(controller.getRecoveryPauseOrigin(fingerprint)).toBe("user");
             expect(controller.isRecoveryCancelled(fingerprint)).toBe(true);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                false,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(false);
         } finally {
             mounted.cleanup();
         }
@@ -545,16 +465,12 @@ describe("useRecoveryState queue ownership", () => {
             const fingerprint = "fp-cancelled";
 
             controller.markRecoveryPausedBySystem(fingerprint);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                true,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(true);
 
             controller.markRecoveryCancelled(fingerprint);
             expect(controller.getRecoveryPauseOrigin(fingerprint)).toBeNull();
             expect(controller.isRecoveryCancelled(fingerprint)).toBe(true);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                false,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(false);
 
             controller.markRecoveryResumed(fingerprint);
             expect(controller.isRecoveryCancelled(fingerprint)).toBe(false);
@@ -571,9 +487,7 @@ describe("useRecoveryState queue ownership", () => {
 
             expect(controller.getRecoveryPauseOrigin(fingerprint)).toBeNull();
             expect(controller.isRecoveryCancelled(fingerprint)).toBe(false);
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                false,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(false);
         } finally {
             mounted.cleanup();
         }
@@ -597,12 +511,8 @@ describe("useRecoveryState queue ownership", () => {
             const controller = readController(mounted.controllerRef);
             const fingerprint = "hash-a";
             controller.markRecoveryPausedBySystem(fingerprint);
-            expect(controller.getRecoveryPauseOrigin(fingerprint)).toBe(
-                "recovery",
-            );
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                true,
-            );
+            expect(controller.getRecoveryPauseOrigin(fingerprint)).toBe("recovery");
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(true);
 
             mounted.rerender([
                 {
@@ -619,14 +529,9 @@ describe("useRecoveryState queue ownership", () => {
             ]);
 
             await waitForCondition(
-                () =>
-                    readController(mounted.controllerRef).getRecoveryPauseOrigin(
-                        fingerprint,
-                    ) === null,
+                () => readController(mounted.controllerRef).getRecoveryPauseOrigin(fingerprint) === null,
             );
-            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(
-                false,
-            );
+            expect(controller.isBackgroundRecoveryEligible(fingerprint)).toBe(false);
         } finally {
             mounted.cleanup();
         }

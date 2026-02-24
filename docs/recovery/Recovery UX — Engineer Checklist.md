@@ -11,6 +11,8 @@ Companion docs:
 * [ ] Exactly one Recovery Gate exists.
 * [ ] Row actions, context menu, navbar resume/start, and details actions all call the same gate.
 * [ ] UI does not sequence recovery engine operations directly.
+* [ ] Recovery state transitions are derived from daemon/RPC truth only.
+* [ ] Shell integration (for example browse dialog) is input-only and cannot influence recovery transitions.
 
 ---
 
@@ -73,7 +75,7 @@ For `Resume`, `Download missing`, `Set location`:
 * [ ] Deterministic actions are attempted first:
   * `dataGap` + same path → reprobe
   * likely `volumeLoss` → wait/retry
-  * safe `pathLoss` recreation → auto recreate
+  * `pathLoss` + same path → daemon probe/reclassify/retry
   * `accessDenied` → one retry before escalation
 * [ ] Escalation triggers are explicit (ambiguity, unsafe default, repeated deterministic failure).
 
@@ -101,6 +103,7 @@ Applies to missing files, path/volume loss, permission denied, disk full, and un
 ### Deterministic-first (before any modal)
 
 * [ ] For any recovery-relevant error, best safe deterministic recovery is attempted automatically before requesting user input.
+* [ ] Deterministic recovery transitions are derived from daemon-visible truth only.
 * [ ] No modal opens before deterministic attempts are evaluated unless certainty indicates a user decision is immediately required.
 
 ### Persistent retry (no silent stall)

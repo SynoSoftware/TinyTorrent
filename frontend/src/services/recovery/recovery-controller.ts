@@ -38,6 +38,8 @@ export type {
     RecoverySequenceResult,
 } from "@/services/recovery/recovery-contracts";
 
+export { assertRecoveryOutcomeExhaustive } from "@/services/recovery/recovery-contracts";
+
 export {
     classifyMissingFilesState,
     clearVerifyGuardEntry,
@@ -130,7 +132,7 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
-                        kind: "path-needed",
+                        kind: "blocked",
                         reason: "missing",
                         message: "no_download_path_known",
                     },
@@ -144,7 +146,7 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason: "missing",
                             message: FREE_SPACE_UNSUPPORTED_MESSAGE,
                         },
@@ -158,7 +160,7 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason,
                             message:
                                 probe.errorKind === "enospc"
@@ -205,7 +207,7 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
-                        kind: "path-needed",
+                        kind: "blocked",
                         reason: "missing",
                         message: "path_check_failed",
                     },
@@ -222,7 +224,7 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason,
                             message: "set_torrent_location_failed",
                         },
@@ -254,14 +256,15 @@ export async function recoverMissingFiles(params: RecoverySequenceParams): Promi
 export async function runPartialFilesRecovery(deps: RecoveryControllerDeps): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.verify) {
-        return { kind: "error", message: "verify_not_supported" };
+        return { kind: "blocked", reason: "error", message: "verify_not_supported" };
     }
     try {
         await client.verify([detail.id]);
-        return { kind: "verify-started", message: "verify_started" };
+        return { kind: "auto-in-progress", detail: "verify", message: "verify_started" };
     } catch {
         return {
-            kind: "error",
+            kind: "blocked",
+            reason: "error",
             message: "verify_failed",
         };
     }
@@ -269,13 +272,15 @@ export async function runPartialFilesRecovery(deps: RecoveryControllerDeps): Pro
 
 export async function runReannounce(deps: RecoveryControllerDeps): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
-    if (!client.forceTrackerReannounce) return { kind: "error", message: "reannounce_not_supported" };
+    if (!client.forceTrackerReannounce)
+        return { kind: "blocked", reason: "error", message: "reannounce_not_supported" };
     try {
         await client.forceTrackerReannounce(detail.id);
-        return { kind: "reannounce-started", message: "reannounce_started" };
+        return { kind: "auto-in-progress", detail: "reannounce", message: "reannounce_started" };
     } catch {
         return {
-            kind: "error",
+            kind: "blocked",
+            reason: "error",
             message: "reannounce_failed",
         };
     }

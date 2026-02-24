@@ -3,10 +3,7 @@ import type {
     RecoveryRequestCompletionOutcome,
     RecoverySessionInfo,
 } from "@/app/context/RecoveryContext";
-import type {
-    RecoveryGateAction,
-    RecoveryGateOutcome,
-} from "@/app/types/recoveryGate";
+import type { RecoveryGateAction, RecoveryGateOutcome } from "@/app/types/recoveryGate";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -16,7 +13,6 @@ export type RecoveryQueueEntry = {
     action: RecoveryGateAction;
     outcome: RecoveryOutcome;
     classification: MissingFilesClassification;
-    requiresDecision: boolean;
     fingerprint: string;
     promise: Promise<RecoveryGateOutcome>;
     resolve: (result: RecoveryGateOutcome) => void;

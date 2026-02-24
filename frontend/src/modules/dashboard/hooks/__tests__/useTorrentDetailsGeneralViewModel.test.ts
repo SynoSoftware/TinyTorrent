@@ -190,4 +190,42 @@ describe("useTorrentDetailsGeneralViewModel", () => {
             mounted.cleanup();
         }
     });
+
+    it("surfaces the raw Transmission error string in the general tab view model", async () => {
+        const erroredTorrent: TorrentDetail = {
+            ...BASE_TORRENT,
+            errorString: "  cannot move data to destination  ",
+        };
+        const mounted = await mountHarness(erroredTorrent, false);
+        try {
+            expect(readVm(mounted.vmRef).transmissionError).toBe(
+                "  cannot move data to destination  ",
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("treats checking torrents as active so toggle pauses during hashing", async () => {
+        const checkingTorrent: TorrentDetail = {
+            ...BASE_TORRENT,
+            state: STATUS.torrent.CHECKING,
+            verificationProgress: 0.42,
+        };
+        const mounted = await mountHarness(checkingTorrent, false);
+        try {
+            const vm = readVm(mounted.vmRef);
+            expect(vm.mainActionLabel).toBe("toolbar.pause");
+            vm.onToggleStartStop();
+            await waitForCondition(
+                () => handleTorrentActionMock.mock.calls.length === 1,
+            );
+            expect(handleTorrentActionMock).toHaveBeenCalledWith(
+                "pause",
+                checkingTorrent,
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
 });

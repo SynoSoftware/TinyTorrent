@@ -22,6 +22,7 @@ type UseTorrentDetailsGeneralViewModelParams = {
 
 export type UseTorrentDetailsGeneralViewModelResult = {
     showMissingFilesError: boolean;
+    transmissionError: string | null;
     canDownloadMissing: boolean;
     isDownloadMissingInFlight: boolean;
     probeLines: string[];
@@ -76,6 +77,11 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
 
     const effectiveState = getEffectiveRecoveryState(torrent);
     const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
+    const transmissionError =
+        typeof torrent.errorString === "string" &&
+        torrent.errorString.trim().length > 0
+            ? torrent.errorString
+            : null;
     const canDownloadMissing = canTriggerDownloadMissingAction(
         torrent,
         classification,
@@ -90,7 +96,10 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
             ? t("recovery.status.blocked")
             : null;
 
-    const isActive = torrent.state === STATUS.torrent.DOWNLOADING || torrent.state === STATUS.torrent.SEEDING;
+    const isActive =
+        torrent.state === STATUS.torrent.DOWNLOADING ||
+        torrent.state === STATUS.torrent.SEEDING ||
+        torrent.state === STATUS.torrent.CHECKING;
     const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");
 
     const onToggleStartStop = useCallback(() => {
@@ -149,6 +158,7 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
 
     return {
         showMissingFilesError,
+        transmissionError,
         canDownloadMissing,
         isDownloadMissingInFlight: downloadMissingBusy,
         probeLines,

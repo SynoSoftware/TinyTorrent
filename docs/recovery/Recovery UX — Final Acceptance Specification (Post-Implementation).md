@@ -17,6 +17,8 @@ If any item below is false, the implementation is incorrect.
   * All recovery entry points funnel through it.
   * No UI component sequences recovery logic.
   * UI only reacts to gate outcomes.
+  * Recovery transitions are derived from daemon/RPC truth only.
+  * Shell integration may assist user input only; it must not influence recovery state transitions.
 
 * **Recovery outcomes are closed and mutually exclusive**
   * `AUTO_RECOVERED`
@@ -107,7 +109,7 @@ Ask the user **only** when no deterministic safe action exists.
 
 * `dataGap` + same path → auto reprobe
 * `volumeLoss` likely transient → auto wait/retry
-* `pathLoss` + safe directory recreate supported → auto recreate
+* `pathLoss` + same path → daemon probe/reclassify/retry (no host-side directory mutation)
 * `accessDenied` → single automatic retry before escalation
 
 ### Escalate to `NEEDS_USER_DECISION` only if
@@ -135,6 +137,7 @@ If any item below is false, the implementation is incorrect.
 
 * System attempts the best safe deterministic recovery action automatically before requesting user input.
 * Deterministic actions are minimal and correctness-preserving.
+* Deterministic transitions are based on daemon-visible truth; shell availability is not a recovery-state signal.
 * No recovery modal opens before deterministic attempts are evaluated unless certainty indicates a user decision is immediately required.
 
 ### Persistent retry (no silent stall)

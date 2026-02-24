@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
-import type {
-    ErrorEnvelope,
-    TorrentDetailEntity,
-} from "@/services/rpc/entities";
+import type { ErrorEnvelope, TorrentDetailEntity } from "@/services/rpc/entities";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import {
@@ -32,9 +29,7 @@ function makeEnvelope(overrides: Partial<ErrorEnvelope> = {}): ErrorEnvelope {
     };
 }
 
-function makeTorrent(
-    overrides: Partial<TorrentDetailEntity> = {},
-): TorrentDetailEntity {
+function makeTorrent(overrides: Partial<TorrentDetailEntity> = {}): TorrentDetailEntity {
     return {
         id: "torrent-1",
         hash: "hash-1",
@@ -55,11 +50,7 @@ function makeTorrent(
     };
 }
 
-function makeFreeSpace(
-    path: string,
-    sizeBytes: number,
-    totalSize: number,
-): TransmissionFreeSpace {
+function makeFreeSpace(path: string, sizeBytes: number, totalSize: number): TransmissionFreeSpace {
     return { path, sizeBytes, totalSize };
 }
 
@@ -83,13 +74,9 @@ describe("recovery-controller helpers", () => {
             errorClass: "permissionDenied",
             errorMessage: "Access is denied by the operating system",
         });
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Downloads",
-            {
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            },
-        );
+        const classification = classifyMissingFilesState(envelope, "C:\\Downloads", {
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
         expect(classification.kind).toBe("accessDenied");
         expect(classification.confidence).toBe("likely");
         expect(classification.path).toBe("C:\\Downloads");
@@ -100,13 +87,9 @@ describe("recovery-controller helpers", () => {
             errorClass: "missingFiles",
             errorMessage: "No such file or directory",
         });
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Movies\\Avatar",
-            {
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            },
-        );
+        const classification = classifyMissingFilesState(envelope, "C:\\Movies\\Avatar", {
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
         expect(classification.kind).toBe("pathLoss");
         expect(classification.confidence).toBe("likely");
     });
@@ -125,14 +108,10 @@ describe("recovery-controller helpers", () => {
             downloadDir: "C:\\Missing",
             savePath: "C:\\Missing",
         });
-        const classification = classifyMissingFilesState(
-            envelope,
-            "C:\\Missing",
-            {
-                torrentId: "torrent-1",
-                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
-            },
-        );
+        const classification = classifyMissingFilesState(envelope, "C:\\Missing", {
+            torrentId: "torrent-1",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+        });
         const client = {
             checkFreeSpace: async () => {
                 const err = new Error("no such file") as Error & {
@@ -150,7 +129,10 @@ describe("recovery-controller helpers", () => {
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("needsModal");
-        expect(result.blockingOutcome?.kind).toBe("path-needed");
+        if (result.status !== "needsModal") {
+            throw new Error("expected_needs_modal");
+        }
+        expect(result.blockingOutcome.kind).toBe("blocked");
     });
 
     const baseTorrent = makeTorrent({
@@ -214,9 +196,7 @@ describe("recovery-controller helpers", () => {
 
     it("retry-only runs availability reprobe without touching verify/resume/location", async () => {
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("D:\\Drive", 512, 1024),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("D:\\Drive", 512, 1024)),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
             setTorrentLocation: vi.fn(async () => {}),
@@ -246,9 +226,7 @@ describe("recovery-controller helpers", () => {
     it("forces setTorrentLocation even when the path is unchanged", async () => {
         const setLocation = vi.fn(async () => {});
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("D:\\Drive", 200000, 400000),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("D:\\Drive", 200000, 400000)),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
             setTorrentLocation: setLocation,
@@ -268,19 +246,13 @@ describe("recovery-controller helpers", () => {
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
-        expect(setLocation).toHaveBeenCalledWith(
-            "torrent-1",
-            "D:\\Drive\\",
-            false,
-        );
+        expect(setLocation).toHaveBeenCalledWith("torrent-1", "D:\\Drive\\", false);
     });
 
     it("forces setTorrentLocation using POSIX separators for POSIX paths", async () => {
         const setLocation = vi.fn(async () => {});
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("/mnt/downloads", 200000, 400000),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("/mnt/downloads", 200000, 400000)),
             resume: vi.fn(async () => {}),
             verify: vi.fn(async () => {}),
             setTorrentLocation: setLocation,
@@ -316,11 +288,7 @@ describe("recovery-controller helpers", () => {
             classification,
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
-        expect(setLocation).toHaveBeenCalledWith(
-            "torrent-1",
-            "/mnt/downloads/",
-            false,
-        );
+        expect(setLocation).toHaveBeenCalledWith("torrent-1", "/mnt/downloads/", false);
     });
 
     it("returns blocking outcome when free-space probing is unsupported", async () => {
@@ -343,9 +311,10 @@ describe("recovery-controller helpers", () => {
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("needsModal");
-        expect(result.blockingOutcome?.message).toBe(
-            "free_space_check_not_supported",
-        );
+        if (result.status !== "needsModal") {
+            throw new Error("expected_needs_modal");
+        }
+        expect(result.blockingOutcome.message).toBe("free_space_check_not_supported");
     });
 
     it("re-uses minimal sequence after setTorrentLocation", async () => {
@@ -363,9 +332,7 @@ describe("recovery-controller helpers", () => {
             }),
         );
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("C:\\Missing", 2048, 4096),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("C:\\Missing", 2048, 4096)),
             resume,
             verify,
             setTorrentLocation: setLocation,
@@ -411,9 +378,7 @@ describe("recovery-controller helpers", () => {
             }),
         );
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("C:\\Missing", 2048, 4096),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("C:\\Missing", 2048, 4096)),
             resume,
             verify,
             getTorrentDetails,
@@ -439,6 +404,9 @@ describe("recovery-controller helpers", () => {
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("resolved");
+        if (result.status !== "resolved") {
+            throw new Error("expected_resolved");
+        }
         expect(result.log).toBe("all_verified_resuming");
         expect(verify).toHaveBeenCalled();
         expect(resume).toHaveBeenCalled();
@@ -458,9 +426,7 @@ describe("recovery-controller helpers", () => {
             }),
         );
         const client: Partial<EngineAdapter> = {
-            checkFreeSpace: vi.fn(async () =>
-                makeFreeSpace("C:\\Missing", 2048, 4096),
-            ),
+            checkFreeSpace: vi.fn(async () => makeFreeSpace("C:\\Missing", 2048, 4096)),
             resume,
             verify,
             getTorrentDetails,
@@ -486,6 +452,9 @@ describe("recovery-controller helpers", () => {
             engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("resolved");
+        if (result.status !== "resolved") {
+            throw new Error("expected_resolved");
+        }
         expect(result.log).toBe("verify_completed_paused");
         expect(verify).toHaveBeenCalled();
         expect(resume).not.toHaveBeenCalled();

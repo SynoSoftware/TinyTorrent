@@ -7,6 +7,8 @@ import type { MissingFilesClassification } from "@/services/recovery/recovery-co
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 
 const useResolvedRecoveryClassificationMock = vi.fn();
+const openRecoveryModalMock = vi.fn();
+const showFeedbackMock = vi.fn();
 
 vi.mock("@heroui/react", () => ({
     Chip: ({ children }: { children?: React.ReactNode }) =>
@@ -31,6 +33,18 @@ vi.mock("@/modules/dashboard/hooks/useResolvedRecoveryClassification", () => ({
 vi.mock("@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell", () => ({
     TorrentTable_MissingFilesStatusCell: () =>
         React.createElement("div", { "data-testid": "missing-cell" }, "missing"),
+}));
+
+vi.mock("@/app/context/RecoveryContext", () => ({
+    useRecoveryContext: () => ({
+        openRecoveryModal: openRecoveryModalMock,
+    }),
+}));
+
+vi.mock("@/app/hooks/useActionFeedback", () => ({
+    useActionFeedback: () => ({
+        showFeedback: showFeedbackMock,
+    }),
 }));
 
 const BASE_TORRENT: Torrent = {
@@ -66,6 +80,8 @@ const buildClassification = (
 describe("TorrentTable_StatusCell", () => {
     beforeEach(() => {
         useResolvedRecoveryClassificationMock.mockReset();
+        openRecoveryModalMock.mockReset();
+        showFeedbackMock.mockReset();
     });
 
     it("keeps passive recovery rendering identical across classification kinds", () => {
@@ -93,4 +109,3 @@ describe("TorrentTable_StatusCell", () => {
         expect(dataGapHtml).not.toContain("data-testid=\"missing-cell\"");
     });
 });
-

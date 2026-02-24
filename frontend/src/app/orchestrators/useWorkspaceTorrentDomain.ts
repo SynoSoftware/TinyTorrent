@@ -89,10 +89,7 @@ export interface WorkspaceTorrentDomain {
     handlers: {
         handleRequestDetails: (torrent: Torrent) => Promise<void>;
         handleCloseDetail: () => void;
-        handleDownloadMissing: (
-            torrent: Torrent,
-            options?: { recreateFolder?: boolean },
-        ) => Promise<DownloadMissingOutcome>;
+        handleDownloadMissing: (torrent: Torrent) => Promise<DownloadMissingOutcome>;
         handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
         handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
         handleSequentialToggle: (enabled: boolean) => Promise<void>;
@@ -230,11 +227,8 @@ export function useWorkspaceTorrentDomain({
     }, [detailData, torrents, handleCloseDetail]);
 
     const handleDownloadMissing = useCallback(
-        async (
-            torrent: Torrent,
-            options?: { recreateFolder?: boolean },
-        ): Promise<DownloadMissingOutcome> => {
-            return executeDownloadMissing(torrent, options);
+        async (torrent: Torrent): Promise<DownloadMissingOutcome> => {
+            return executeDownloadMissing(torrent);
         },
         [executeDownloadMissing],
     );

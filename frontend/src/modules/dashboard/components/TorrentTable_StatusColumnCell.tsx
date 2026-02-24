@@ -14,8 +14,11 @@ import type { OptimisticStatusEntry } from "@/modules/dashboard/types/optimistic
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
-import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { FORM_CONTROL, TABLE } from "@/shared/ui/layout/glass-surface";
 import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import {
     ArrowDown,
     ArrowUp,
@@ -156,39 +159,80 @@ export function TorrentTable_StatusCell({
     t,
     optimisticStatus,
 }: TorrentTableStatusColumnCellProps) {
+    const { openRecoveryModal } = useRecoveryContext();
+    const { showFeedback } = useActionFeedback();
     const classification = useResolvedRecoveryClassification(torrent);
+    const hasActionableRecoveryIssue = isActionableRecoveryErrorClass(
+        torrent.errorEnvelope?.errorClass,
+    );
+
+    const handleOpenRecoveryWorkbench = () => {
+        const outcome = openRecoveryModal(torrent, { forceWorkbench: true });
+        if (outcome.status === "requested" || outcome.status === "already_open") {
+            return;
+        }
+        showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
+    };
+
+    const renderChip = (
+        icon: LucideIcon,
+        color: StatusColor,
+        label: string,
+        tooltip: string,
+        clickable: boolean,
+    ) => {
+        const chip = (
+            <Chip
+                size="md"
+                variant="flat"
+                color={color}
+                style={STATUS_CHIP_STYLE}
+                classNames={FORM_CONTROL.statusChipClassNames}
+            >
+                <div className={FORM_CONTROL.statusChipContent}>
+                    <StatusIcon
+                        Icon={icon}
+                        size="md"
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className={FORM_CONTROL.statusChipCurrentIcon}
+                    />
+                    <span className={FORM_CONTROL.statusChipLabel} title={tooltip}>
+                        {label}
+                    </span>
+                </div>
+            </Chip>
+        );
+        if (!clickable) {
+            return <div className={FORM_CONTROL.statusChipContainer}>{chip}</div>;
+        }
+        return (
+            <div className={FORM_CONTROL.statusChipContainer}>
+                <button
+                    type="button"
+                    onClick={handleOpenRecoveryWorkbench}
+                    title={tooltip}
+                    className={TABLE.builder.missingFilesStatusTriggerClass(false)}
+                >
+                    {chip}
+                </button>
+            </div>
+        );
+    };
 
     const operationMeta = optimisticStatus?.operation
         ? OPERATION_STATUS_META[optimisticStatus.operation]
         : undefined;
     if (operationMeta) {
         const Icon = operationMeta.icon;
-        const tooltip = t(operationMeta.labelKey);
-        return (
-            <div className={FORM_CONTROL.statusChipContainer}>
-                <Chip
-                    size="md"
-                    variant="flat"
-                    color={operationMeta.color}
-                    style={STATUS_CHIP_STYLE}
-                    classNames={FORM_CONTROL.statusChipClassNames}
-                >
-                    <div className={FORM_CONTROL.statusChipContent}>
-                        <StatusIcon
-                            Icon={Icon}
-                            size="md"
-                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                            className={FORM_CONTROL.statusChipCurrentIcon}
-                        />
-                        <span
-                            className={FORM_CONTROL.statusChipLabel}
-                            title={tooltip}
-                        >
-                            {tooltip}
-                        </span>
-                    </div>
-                </Chip>
-            </div>
+        const label = t(operationMeta.labelKey);
+        const isRecoveringOverlay =
+            optimisticStatus?.operation === STATUS.torrentOperation.RECOVERING;
+        return renderChip(
+            Icon,
+            operationMeta.color,
+            label,
+            label,
+            hasActionableRecoveryIssue && isRecoveringOverlay,
         );
     }
 
@@ -220,28 +264,17 @@ export function TorrentTable_StatusCell({
     if (isMissingFilesCell) {
         return <TorrentTable_MissingFilesStatusCell torrent={torrent} t={t} />;
     }
-
-    return (
-        <div className={FORM_CONTROL.statusChipContainer}>
-            <Chip
-                size="md"
-                variant="flat"
-                color={conf.color}
-                style={STATUS_CHIP_STYLE}
-                classNames={FORM_CONTROL.statusChipClassNames}
-            >
-                <div className={FORM_CONTROL.statusChipContent}>
-                    <StatusIcon
-                        Icon={Icon}
-                        size="md"
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className={FORM_CONTROL.statusChipCurrentIcon}
-                    />
-                    <span className={FORM_CONTROL.statusChipLabel} title={tooltip}>
-                        {statusLabel}
-                    </span>
-                </div>
-            </Chip>
-        </div>
+    const isRecoveryWorkbenchStatus =
+        effectiveState === "transientWaiting" ||
+        effectiveState === "needsUserAction" ||
+        effectiveState === "needsUserConfirmation" ||
+        effectiveState === "blocked" ||
+        effectiveState === "verifying";
+    return renderChip(
+        Icon,
+        conf.color,
+        statusLabel,
+        tooltip,
+        hasActionableRecoveryIssue && isRecoveryWorkbenchStatus,
     );
 }

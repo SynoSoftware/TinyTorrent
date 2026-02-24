@@ -7,11 +7,7 @@ import "@/i18n/index";
 import App from "@/app/App";
 import { ClientProvider } from "@/app/providers/TorrentClientProvider";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
-import {
-    KEY_SCOPE,
-    TOAST_DISPLAY_DURATION_MS,
-    applyCssTokenBases,
-} from "@/config/logic";
+import { KEY_SCOPE, TOAST_DISPLAY_DURATION_MS, applyCssTokenBases } from "@/config/logic";
 import { ConnectionConfigProvider } from "@/app/context/ConnectionConfigContext";
 import { SessionProvider } from "@/app/context/SessionContext";
 import { PreferencesProvider } from "@/app/context/PreferencesContext";
@@ -33,14 +29,14 @@ const APP_TOAST_PROPS = {
     },
 } as const;
 const APP_TOAST_REGION_PROPS = {
-    className: "z-top p-panel overflow-hidden",
+    className:
+        "fixed inset-0 z-top p-panel pointer-events-none overflow-x-hidden overflow-y-auto flex flex-col items-end justify-end gap-tools",
 } as const;
 
 const DEV_RECOVERY_PATH = "/__dev/recovery";
 
 const resolveAppEntry = async (): Promise<ComponentType> => {
-    const rootPathname =
-        typeof window === "undefined" ? "" : window.location.pathname;
+    const rootPathname = typeof window === "undefined" ? "" : window.location.pathname;
     if (import.meta.env.DEV && rootPathname === DEV_RECOVERY_PATH) {
         const module = await import("@/app/components/DevTest");
         return module.default;
@@ -61,7 +57,7 @@ const mount = async () => {
                                     <AppEntry />
                                     <ToastProvider
                                         placement="bottom-right"
-                                        maxVisibleToasts={2}
+                                        maxVisibleToasts={6}
                                         toastProps={APP_TOAST_PROPS}
                                         regionProps={APP_TOAST_REGION_PROPS}
                                     />

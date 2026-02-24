@@ -47,7 +47,7 @@ export function TorrentTable_MissingFilesStatusCell({
         activeRecoveryKey && activeRecoveryKey !== currentTorrentKey,
     );
     const handleOpenRecovery = () => {
-        const outcome = openRecoveryModal(torrent);
+        const outcome = openRecoveryModal(torrent, { forceWorkbench: true });
         if (
             outcome.status === "requested" ||
             outcome.status === "already_open"

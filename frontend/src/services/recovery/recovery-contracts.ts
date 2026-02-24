@@ -1,7 +1,4 @@
-import type {
-    EngineAdapter,
-    EngineRuntimeCapabilities,
-} from "@/services/rpc/engine-adapter";
+import type { EngineAdapter, EngineRuntimeCapabilities } from "@/services/rpc/engine-adapter";
 import type {
     ErrorEnvelope,
     MissingFilesClassificationKind,
@@ -10,18 +7,37 @@ import type {
     TorrentEntity,
 } from "@/services/rpc/entities";
 
+/**
+ * Strict, closed discriminated union for recovery session outcomes.
+ *
+ * Exactly five semantic states — no mixed or contradictory representations.
+ *
+ * - **auto-in-progress** — automated recovery is executing (verify, reannounce, …)
+ * - **auto-recovered**   — recovery completed without user input
+ * - **needs-user-decision** — user must choose an action (locate, download, …)
+ * - **blocked**           — recovery cannot proceed; no actionable user choice
+ * - **cancelled**         — recovery was cancelled by user or system
+ */
 export type RecoveryOutcome =
-    | { kind: "resolved"; message?: string }
+    | { kind: "auto-in-progress"; detail?: "verify" | "reannounce"; message?: string }
+    | { kind: "auto-recovered"; message?: string }
     | {
-          kind: "path-needed";
+          kind: "needs-user-decision";
           reason: "missing" | "unwritable" | "disk-full";
           hintPath?: string;
           message?: string;
       }
-    | { kind: "verify-started"; message?: string }
-    | { kind: "reannounce-started"; message?: string }
-    | { kind: "noop"; message?: string }
-    | { kind: "error"; message: string };
+    | {
+          kind: "blocked";
+          reason?: "missing" | "unwritable" | "disk-full" | "error";
+          message?: string;
+      }
+    | { kind: "cancelled"; message?: string };
+
+/** Compile-time exhaustiveness guard for `RecoveryOutcome` switches. */
+export function assertRecoveryOutcomeExhaustive(outcome: never): never {
+    throw new Error(`Unhandled RecoveryOutcome: ${JSON.stringify(outcome)}`);
+}
 
 export interface RecoveryControllerDeps {
     client: EngineAdapter;
@@ -29,17 +45,9 @@ export interface RecoveryControllerDeps {
     envelope?: ErrorEnvelope | null | undefined;
 }
 
-export type RecoveryRecommendedAction =
-    | "downloadMissing"
-    | "locate"
-    | "retry"
-    | "openFolder"
-    | "chooseLocation";
+export type RecoveryRecommendedAction = "downloadMissing" | "locate" | "retry" | "openFolder" | "chooseLocation";
 
-export type RecoveryEscalationSignal =
-    | "none"
-    | "conflict"
-    | "multipleCandidates";
+export type RecoveryEscalationSignal = "none" | "conflict" | "multipleCandidates";
 
 export interface MissingFilesClassification {
     kind: MissingFilesClassificationKind;
@@ -96,12 +104,10 @@ export type MissingFilesProbeResult =
       };
 
 export interface RecoverySequenceOptions {
-    recreateFolder?: boolean;
     retryOnly?: boolean;
     missingBytes?: number | null;
     signal?: AbortSignal;
     skipVerifyIfEmpty?: boolean;
-    autoCreateMissingFolder?: boolean;
 }
 
 export interface RecoverySequenceParams {
@@ -115,9 +121,25 @@ export interface RecoverySequenceParams {
 
 export type RecoverySequenceStatus = "resolved" | "needsModal" | "noop";
 
-export interface RecoverySequenceResult {
-    status: RecoverySequenceStatus;
-    classification: MissingFilesClassification;
-    blockingOutcome?: RecoveryOutcome;
-    log?: string;
-}
+/**
+ * Strict discriminated union for recovery sequence results.
+ *
+ * `blockingOutcome` is **required** when status is `"needsModal"` and
+ * **absent** otherwise. This makes contradictory states unrepresentable.
+ */
+export type RecoverySequenceResult =
+    | {
+          status: "resolved";
+          classification: MissingFilesClassification;
+          log?: string;
+      }
+    | {
+          status: "needsModal";
+          classification: MissingFilesClassification;
+          blockingOutcome: RecoveryOutcome;
+      }
+    | {
+          status: "noop";
+          classification: MissingFilesClassification;
+          log?: string;
+      };

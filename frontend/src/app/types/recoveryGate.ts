@@ -21,13 +21,13 @@ export type RecoveryGateOutcome =
       };
 
 export type RecoveryGateOptions = {
-    recreateFolder?: boolean;
     retryOnly?: boolean;
     missingBytes?: number | null;
 };
 
 export type RecoveryGateUiOptions = {
     suppressFeedback?: boolean;
+    bypassActiveRequestDedup?: boolean;
 };
 
 export type RecoveryGateCallback = (params: {

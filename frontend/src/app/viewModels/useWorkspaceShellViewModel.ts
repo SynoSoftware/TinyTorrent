@@ -240,7 +240,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         close: handleRecoveryClose,
         retry: handleRecoveryRetry,
         autoRetry: handleRecoveryAutoRetry,
-        recreateFolder: handleRecoveryRecreateFolder,
     } = recoveryModal;
 
     const { capability: setLocationCapability, handler: handleSetLocation } =
@@ -595,7 +594,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         recoverySession,
         isBusy: isRecoveryBusy,
         onClose: handleRecoveryClose,
-        onRecreate: handleRecoveryRecreateFolder,
         onAutoRetry: handleRecoveryAutoRetry,
         locationEditor,
         setLocationCapability,

@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
-import type {
-    DownloadMissingOutcome,
-    RecoveryRequestCompletionOutcome,
-} from "@/app/context/RecoveryContext";
+import type { DownloadMissingOutcome, RecoveryRequestCompletionOutcome } from "@/app/context/RecoveryContext";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import type { RecoverySequenceOptions, MissingFilesClassification, RecoveryOutcome } from "@/services/recovery/recovery-controller";
+import type {
+    RecoverySequenceOptions,
+    MissingFilesClassification,
+    RecoveryOutcome,
+} from "@/services/recovery/recovery-controller";
 import type { RecoveryGateAction, RecoveryGateCallback, RecoveryGateOutcome } from "@/app/types/recoveryGate";
 import type {
     ResumeRecoveryCommandOutcome,
@@ -18,38 +19,72 @@ import type {
 } from "@/modules/dashboard/hooks/useRecoveryController.types";
 import type { UseRecoveryStateResult } from "@/modules/dashboard/hooks/useRecoveryState";
 import { scheduler } from "@/app/services/scheduler";
-import { shellAgent } from "@/app/agents/shell-agent";
-import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import { STATUS, type TorrentOperationState } from "@/shared/status";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import { classifyMissingFilesState, clearVerifyGuardEntry, probeMissingFiles, recoverMissingFiles } from "@/services/recovery/recovery-controller";
-import { clearProbe as clearCachedProbe, getProbe as getCachedProbe, setProbe as setCachedProbe, setClassificationOverride } from "@/services/recovery/missingFilesStore";
+import {
+    classifyMissingFilesState,
+    clearVerifyGuardEntry,
+    probeMissingFiles,
+    recoverMissingFiles,
+} from "@/services/recovery/recovery-controller";
+import {
+    determineDisposition,
+    type RecoveryFlowOutcome,
+} from "@/modules/dashboard/hooks/recoveryGateInterpreter";
+import {
+    clearProbe as clearCachedProbe,
+    getProbe as getCachedProbe,
+    setProbe as setCachedProbe,
+    setClassificationOverride,
+} from "@/services/recovery/missingFilesStore";
 import { derivePathReason, getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import { infraLogger } from "@/shared/utils/infraLogger";
-import { BACKGROUND_REFRESH_INTERVAL_MS, RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS, RECOVERY_ESCALATION_GRACE_MS, RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS, RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
-import { clearClassificationOverrideIfPresent, delay, isRecoveryActiveState } from "@/modules/dashboard/hooks/useRecoveryController.shared";
-import { isActionableRecoveryErrorClass, shouldUseRecoveryGateForResume } from "@/services/recovery/errorClassificationGuards";
-import { computeBackgroundRecoveryDelayMs } from "@/modules/dashboard/hooks/recoveryRetryDelay";
+import {
+    BACKGROUND_REFRESH_INTERVAL_MS,
+    RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS,
+    RECOVERY_ESCALATION_GRACE_MS,
+    RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS,
+    RECOVERY_POLL_INTERVAL_MS,
+} from "@/config/logic";
+import {
+    clearClassificationOverrideIfPresent,
+    delay,
+    isRecoveryActiveState,
+} from "@/modules/dashboard/hooks/useRecoveryController.shared";
+import {
+    isActionableRecoveryErrorClass,
+    shouldUseRecoveryGateForResume,
+} from "@/services/recovery/errorClassificationGuards";
+import * as retryScheduler from "@/modules/dashboard/hooks/recoveryRetryScheduler";
 
 const PROBE_TTL_MS = BACKGROUND_REFRESH_INTERVAL_MS;
-const isUserInitiatedRecoveryAction = (
-    action: RecoveryGateAction,
-): action is "resume" | "downloadMissing" =>
+const isUserInitiatedRecoveryAction = (action: RecoveryGateAction): action is "resume" | "downloadMissing" =>
     action === "resume" || action === "downloadMissing";
 
-const hasMeaningfulRecoveryDecision = (
+/**
+ * Determines whether a blocked outcome can be upgraded to a user decision.
+ *
+ * This is the **single mapping boundary** from service-level "blocked" outcomes
+ * to the session-level "needs-user-decision" kind.  All other layers consume
+ * the already-mapped `RecoveryOutcome` — no wrapper or UI layer may re-interpret
+ * or flatten outcomes.
+ */
+const canUpgradeToUserDecision = (
     classification: MissingFilesClassification,
     outcome: RecoveryOutcome | null,
 ): boolean => {
-    if (outcome?.kind !== "path-needed") {
+    if (!outcome || outcome.kind !== "blocked") {
         return false;
     }
-    const nonDecisionReason = outcome.reason === "disk-full";
+    const reason = outcome.reason;
+    if (reason === "disk-full" || reason === "error") {
+        return false;
+    }
     const nonDecisionMessage =
         outcome.message === "insufficient_free_space" ||
         outcome.message === "free_space_check_not_supported" ||
         outcome.message === "disk_full";
-    if (nonDecisionReason || nonDecisionMessage) {
+    if (nonDecisionMessage) {
         return false;
     }
     const certaintyRequiresDecision =
@@ -59,24 +94,47 @@ const hasMeaningfulRecoveryDecision = (
     return certaintyRequiresDecision;
 };
 
+/**
+ * Upgrades a `blocked` outcome to `needs-user-decision` when classification
+ * indicates the user can take meaningful action.  Returns the outcome unchanged
+ * if upgrade is not applicable.
+ *
+ * This is the single canonical transform — called exactly once per session entry.
+ */
+const upgradeOutcomeForSession = (
+    outcome: RecoveryOutcome,
+    classification: MissingFilesClassification,
+): RecoveryOutcome => {
+    if (outcome.kind !== "blocked" || !canUpgradeToUserDecision(classification, outcome)) {
+        return outcome;
+    }
+    const decisionReason =
+        outcome.reason === "missing" || outcome.reason === "unwritable" || outcome.reason === "disk-full"
+            ? outcome.reason
+            : "missing";
+    return {
+        kind: "needs-user-decision",
+        reason: decisionReason,
+        message: outcome.message,
+    };
+};
+
 const hasImmediateEscalationCertainty = (
     classification: MissingFilesClassification,
     outcome: RecoveryOutcome,
 ): boolean => {
-    if (outcome.kind !== "path-needed") {
+    if (outcome.kind !== "blocked" && outcome.kind !== "needs-user-decision") {
         return false;
     }
     if (classification.confidence === "certain") {
         return true;
     }
-    return (
-        classification.escalationSignal === "conflict" ||
-        classification.escalationSignal === "multipleCandidates"
-    );
+    return classification.escalationSignal === "conflict" || classification.escalationSignal === "multipleCandidates";
 };
 
 type ResumeRecoveryUiOptions = {
     suppressFeedback?: boolean;
+    bypassActiveRequestDedup?: boolean;
 };
 
 interface UseRecoveryActionsParams {
@@ -88,9 +146,7 @@ interface UseRecoveryActionsParams {
     refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     recoveryState: UseRecoveryStateResult;
-    updateOperationOverlays: (
-        updates: Array<{ id: string; operation?: TorrentOperationState }>,
-    ) => void;
+    updateOperationOverlays: (updates: Array<{ id: string; operation?: TorrentOperationState }>) => void;
 }
 
 export function useRecoveryActions({
@@ -107,8 +163,9 @@ export function useRecoveryActions({
     const { t } = useTranslation();
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
-    const relocateOverlayClearRef = useRef<Map<string, () => void>>(new Map());
     const recoveryOverlayKeysRef = useRef<Set<string>>(new Set());
+    const activeRelocationOverlayIdsRef = useRef<Set<string>>(new Set());
+    const pendingRelocationOverlayClearRef = useRef<Set<string>>(new Set());
 
     const {
         recoverySession,
@@ -126,9 +183,9 @@ export function useRecoveryActions({
         markRecoveryResumed,
         isRecoveryCancelled,
         isBackgroundRecoveryEligible,
-        silentVolumeRecoveryInFlightRef,
-        silentVolumeRecoveryNextRetryAtRef,
-        silentVolumeRecoveryAttemptCountRef,
+        backgroundRecoveryInFlightRef,
+        backgroundRecoveryNextRetryAtRef,
+        backgroundRecoveryAttemptCountRef: backgroundRecoveryAttemptCountRef,
     } = recoveryState;
 
     const runMissingFilesFlow = useCallback(
@@ -156,44 +213,18 @@ export function useRecoveryActions({
                 const id = torrent.id ?? torrent.hash;
                 const cachedProbe = id ? getCachedProbe(id) : undefined;
                 const isLocalExecution = engineCapabilities.executionModel === "local";
-                const isLocalEmpty = isLocalExecution && cachedProbe?.kind === "data_missing" && cachedProbe.expectedBytes > 0 && cachedProbe.onDiskBytes === 0;
+                const isLocalEmpty =
+                    isLocalExecution &&
+                    cachedProbe?.kind === "data_missing" &&
+                    cachedProbe.expectedBytes > 0 &&
+                    cachedProbe.onDiskBytes === 0;
                 const sequenceOptions: RecoverySequenceOptions = {
                     ...options,
                     missingBytes,
                     skipVerifyIfEmpty: options?.skipVerifyIfEmpty ?? isLocalEmpty,
-                    autoCreateMissingFolder: options?.autoCreateMissingFolder ?? isLocalExecution,
                 };
                 if (signal) {
                     sequenceOptions.signal = signal;
-                }
-
-                // Local-only: if the torrent path disappeared, try to recreate it silently
-                // so downloads don't "stumble" on transient folder loss.
-                if (isLocalExecution && shellAgent.isAvailable && classification.kind === "pathLoss" && sequenceOptions.autoCreateMissingFolder) {
-                    const downloadDir = resolveTorrentPath(torrent);
-                    if (downloadDir) {
-                        try {
-                            await shellAgent.createDirectory(downloadDir);
-                        } catch (err) {
-                            infraLogger.warn(
-                                {
-                                    scope: "recovery_controller",
-                                    event: "auto_create_folder_failed",
-                                    message: "Failed to auto-create missing folder before recovery flow",
-                                    details: {
-                                        downloadDir,
-                                        torrentId: torrent.id ?? torrent.hash,
-                                    },
-                                },
-                                err,
-                            );
-                            // Creation failed — clear the flag so that
-                            // ensurePathReady reports "path_check_failed"
-                            // instead of the misleading
-                            // "directory_creation_not_supported".
-                            sequenceOptions.autoCreateMissingFolder = false;
-                        }
-                    }
                 }
                 return await recoverMissingFiles({
                     client: activeClient,
@@ -222,18 +253,71 @@ export function useRecoveryActions({
         [client, engineCapabilities],
     );
 
-    const scheduleRelocateOverlayClear = useCallback(
-        (id: string, delayMs: number) => {
-            const pendingCancel = relocateOverlayClearRef.current.get(id);
-            pendingCancel?.();
-            const cancel = scheduler.scheduleTimeout(() => {
-                updateOperationOverlays([{ id }]);
-                relocateOverlayClearRef.current.delete(id);
-            }, Math.max(0, delayMs));
-            relocateOverlayClearRef.current.set(id, cancel);
+    const setRelocationOverlayState = useCallback(
+        (id: string, isRelocating: boolean) => {
+            updateOperationOverlays([
+                {
+                    id,
+                    operation: isRelocating ? STATUS.torrentOperation.RELOCATING : undefined,
+                },
+            ]);
         },
         [updateOperationOverlays],
     );
+
+    const beginRelocationOverlay = useCallback(
+        (id: string) => {
+            if (!id) {
+                return;
+            }
+            activeRelocationOverlayIdsRef.current.add(id);
+            pendingRelocationOverlayClearRef.current.delete(id);
+            setRelocationOverlayState(id, true);
+        },
+        [setRelocationOverlayState],
+    );
+
+    const queueRelocationOverlayClearOnHeartbeat = useCallback((id: string) => {
+        if (!id || !activeRelocationOverlayIdsRef.current.has(id)) {
+            return;
+        }
+        pendingRelocationOverlayClearRef.current.add(id);
+    }, []);
+
+    const clearRelocationOverlayImmediately = useCallback(
+        (id: string) => {
+            if (!id) {
+                return;
+            }
+            const wasTracking =
+                activeRelocationOverlayIdsRef.current.delete(id) ||
+                pendingRelocationOverlayClearRef.current.delete(id);
+            if (!wasTracking) {
+                return;
+            }
+            setRelocationOverlayState(id, false);
+        },
+        [setRelocationOverlayState],
+    );
+
+    useEffect(() => {
+        const pendingIds = pendingRelocationOverlayClearRef.current;
+        if (pendingIds.size === 0) {
+            return;
+        }
+        const clearUpdates: Array<{ id: string; operation?: TorrentOperationState }> = [];
+        pendingIds.forEach((id) => {
+            pendingIds.delete(id);
+            activeRelocationOverlayIdsRef.current.delete(id);
+            clearUpdates.push({
+                id,
+                operation: undefined,
+            });
+        });
+        if (clearUpdates.length > 0) {
+            updateOperationOverlays(clearUpdates);
+        }
+    }, [detailData, torrents, updateOperationOverlays]);
 
     const setRecoveryOverlayState = useCallback(
         (torrent: Torrent | TorrentDetail, isRecovering: boolean) => {
@@ -256,22 +340,12 @@ export function useRecoveryActions({
             updateOperationOverlays([
                 {
                     id: overlayKey,
-                    operation: isRecovering
-                        ? STATUS.torrentOperation.RECOVERING
-                        : undefined,
+                    operation: isRecovering ? STATUS.torrentOperation.RECOVERING : undefined,
                 },
             ]);
         },
         [updateOperationOverlays],
     );
-
-    useEffect(() => {
-        const overlayClearMap = relocateOverlayClearRef.current;
-        return () => {
-            overlayClearMap.forEach((cancel) => cancel());
-            overlayClearMap.clear();
-        };
-    }, []);
 
     const probeMissingFilesIfStale = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
@@ -308,7 +382,9 @@ export function useRecoveryActions({
 
     useEffect(() => {
         const runProbe = () => {
-            const errored = torrentsRef.current.filter((torrent) => isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass));
+            const errored = torrentsRef.current.filter((torrent) =>
+                isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass),
+            );
             errored.forEach((torrent) => {
                 void probeMissingFilesIfStale(torrent);
             });
@@ -322,33 +398,26 @@ export function useRecoveryActions({
     const requestRecovery: RecoveryGateCallback = useCallback(
         async ({ torrent, action, options, ui }) => {
             const fingerprint = getRecoveryFingerprint(torrent);
-            const activeRecoveryPromise =
-                getActiveRecoveryPromiseForFingerprint(fingerprint);
-            const activeGateRequest =
-                activeRecoveryGateRequestsRef.current.get(fingerprint);
-            if (activeGateRequest && action !== "recheck") {
+            const activeRecoveryPromise = getActiveRecoveryPromiseForFingerprint(fingerprint);
+            const activeGateRequest = activeRecoveryGateRequestsRef.current.get(fingerprint);
+            const bypassActiveRequestDedup = Boolean(ui?.bypassActiveRequestDedup);
+            if (!bypassActiveRequestDedup && activeGateRequest && action !== "recheck") {
                 return activeGateRequest;
             }
-            if (activeRecoveryPromise && action !== "recheck") {
+            if (!bypassActiveRequestDedup && activeRecoveryPromise && action !== "recheck") {
                 return activeRecoveryPromise;
             }
             markRecoveryResumed(fingerprint);
             const startedAtMs = Date.now();
-            const shouldUseEscalationGrace =
-                isUserInitiatedRecoveryAction(action);
+            const shouldUseEscalationGrace = isUserInitiatedRecoveryAction(action);
             const suppressFeedback = Boolean(ui?.suppressFeedback);
             if (shouldUseEscalationGrace && action === "resume") {
                 if (!suppressFeedback) {
-                    showFeedback(
-                        t("recovery.modal.in_progress"),
-                        "info",
-                        RECOVERY_ESCALATION_GRACE_MS,
-                    );
+                    showFeedback(t("recovery.modal.in_progress"), "info", RECOVERY_ESCALATION_GRACE_MS);
                 }
             }
             const requestPromise: Promise<RecoveryGateOutcome> = (async () => {
                 const envelope = torrent.errorEnvelope;
-                let needsModalComputed = false;
                 let needsModalSurfaced = false;
                 let needsModalRequiresDecision = false;
                 let needsModalOutcome: RecoveryOutcome | null = null;
@@ -391,46 +460,76 @@ export function useRecoveryActions({
                             return { status: "handled", log: flowResult.log };
                         }
                         if (flowResult?.status === "needsModal") {
-                            needsModalComputed = true;
-                            blockingOutcome = flowResult.blockingOutcome ?? null;
+                            blockingOutcome = flowResult.blockingOutcome;
                             needsModalOutcome = blockingOutcome;
                         }
                     } catch {
                         blockingOutcome = {
-                            kind: "path-needed",
+                            kind: "blocked",
                             reason: derivePathReason(envelope.errorClass),
                         };
                     }
-                    const hasDecision = hasMeaningfulRecoveryDecision(
-                        flowClassification,
-                        blockingOutcome,
-                    );
-                    needsModalRequiresDecision =
-                        needsModalComputed && hasDecision;
-                    const activeRecoveryDuringResolution =
-                        getActiveRecoveryPromiseForFingerprint(fingerprint);
 
-                    if (!blockingOutcome) {
-                        if (shouldUseEscalationGrace) {
-                            const remainingMs =
-                                RECOVERY_ESCALATION_GRACE_MS -
-                                (Date.now() - startedAtMs);
-                            if (remainingMs > 0) {
-                                await delay(remainingMs);
+                    // Apply the single mapping boundary: upgrade blocked → needs-user-decision
+                    // when classification indicates an actionable user choice.
+                    const sessionOutcome: RecoveryOutcome | null = blockingOutcome
+                        ? upgradeOutcomeForSession(blockingOutcome, flowClassification)
+                        : null;
+                    const activeRecoveryDuringResolution = getActiveRecoveryPromiseForFingerprint(fingerprint);
+                    const hasActiveSession = Boolean(activeRecoveryDuringResolution);
+                    if (needsModalOutcome && sessionOutcome?.kind === "needs-user-decision") {
+                        needsModalRequiresDecision = true;
+                    }
+
+                    const flowOutcome: RecoveryFlowOutcome = sessionOutcome
+                        ? {
+                              type: "needs-disposition",
+                              sessionOutcome,
+                              classification: flowClassification,
+                          }
+                        : { type: "no-outcome" };
+
+                    const waitForEscalationGraceIfNeeded = async (outcome: RecoveryFlowOutcome) => {
+                        if (!shouldUseEscalationGrace) {
+                            return;
+                        }
+                        if (outcome.type === "needs-disposition") {
+                            const isCertainBlockingOutcome = hasImmediateEscalationCertainty(
+                                outcome.classification,
+                                outcome.sessionOutcome,
+                            );
+                            if (isCertainBlockingOutcome) {
+                                return;
                             }
+                        }
+                        const remainingMs = RECOVERY_ESCALATION_GRACE_MS - (Date.now() - startedAtMs);
+                        if (remainingMs > 0) {
+                            await delay(remainingMs);
+                        }
+                    };
+
+                    await waitForEscalationGraceIfNeeded(flowOutcome);
+                    const disposition = determineDisposition(flowOutcome, {
+                        action,
+                        hasActiveSession,
+                        shouldUseEscalationGrace,
+                        suppressFeedback,
+                    });
+
+                    switch (disposition.type) {
+                        case "fallback-blocked": {
                             const fallbackBlockedOutcome: RecoveryOutcome = {
-                                kind: "path-needed",
+                                kind: "blocked",
                                 reason: derivePathReason(envelope.errorClass),
                                 message: "path_check_failed",
                             };
-                            if (activeRecoveryDuringResolution) {
-                                setRecoverySessionOutcome(
-                                    fallbackBlockedOutcome,
-                                    undefined,
-                                    false,
-                                );
+                            if (hasActiveSession) {
+                                setRecoverySessionOutcome(fallbackBlockedOutcome, {
+                                    classification: flowClassification,
+                                    torrent,
+                                });
                             }
-                            if (!suppressFeedback) {
+                            if (disposition.showFeedback) {
                                 showFeedback(t("recovery.status.blocked"), "warning");
                             }
                             return {
@@ -438,98 +537,75 @@ export function useRecoveryActions({
                                 reason: "blocked",
                             };
                         }
-                        return {
-                            status: "not_required",
-                            reason: "no_blocking_outcome",
-                        };
-                    }
-                    if (action === "recheck") {
-                        if (activeRecoveryDuringResolution) {
-                            setRecoverySessionOutcome(
-                                blockingOutcome,
-                                undefined,
-                                hasDecision,
-                            );
+                        case "recheck-update": {
+                            setRecoverySessionOutcome(disposition.outcome, {
+                                classification: flowClassification,
+                                torrent,
+                            });
                             needsModalSurfaced = true;
                             return {
                                 status: "not_required",
                                 reason: "blocked",
                             };
                         }
-                        const entry = createRecoveryQueueEntry(
-                            torrent,
-                            action,
-                            blockingOutcome,
-                            flowClassification,
-                            fingerprint,
-                            hasDecision,
-                        );
-                        needsModalSurfaced = true;
-                        void enqueueRecoveryEntry(entry);
-                        return {
-                            status: "not_required",
-                            reason: "blocked",
-                        };
-                    }
-
-                    const isCertainBlockingOutcome =
-                        hasImmediateEscalationCertainty(
-                            flowClassification,
-                            blockingOutcome,
-                        );
-                    if (
-                        shouldUseEscalationGrace &&
-                        !isCertainBlockingOutcome
-                    ) {
-                        const remainingMs =
-                            RECOVERY_ESCALATION_GRACE_MS -
-                            (Date.now() - startedAtMs);
-                        if (remainingMs > 0) {
-                            await delay(remainingMs);
-                        }
-                    }
-                    if (!hasDecision) {
-                        if (activeRecoveryDuringResolution) {
-                            setRecoverySessionOutcome(
-                                blockingOutcome,
-                                undefined,
-                                false,
+                        case "recheck-enqueue": {
+                            const entry = createRecoveryQueueEntry(
+                                torrent,
+                                action,
+                                disposition.outcome,
+                                disposition.classification,
+                                fingerprint,
                             );
                             needsModalSurfaced = true;
+                            void enqueueRecoveryEntry(entry);
+                            return {
+                                status: "not_required",
+                                reason: "blocked",
+                            };
                         }
-                        if (!suppressFeedback) {
-                            showFeedback(t("recovery.status.blocked"), "warning");
+                        case "show-modal": {
+                            if (disposition.joinExisting && activeRecoveryDuringResolution) {
+                                setRecoverySessionOutcome(disposition.outcome, {
+                                    classification: disposition.classification,
+                                    torrent,
+                                });
+                                needsModalSurfaced = true;
+                                return activeRecoveryDuringResolution;
+                            }
+                            const entry = createRecoveryQueueEntry(
+                                torrent,
+                                action,
+                                disposition.outcome,
+                                disposition.classification,
+                                fingerprint,
+                            );
+                            needsModalSurfaced = true;
+                            return enqueueRecoveryEntry(entry);
                         }
-                        return {
-                            status: "not_required",
-                            reason: "blocked",
-                        };
+                        case "blocked": {
+                            if (disposition.updateSession && hasActiveSession) {
+                                setRecoverySessionOutcome(disposition.outcome, {
+                                    classification: flowClassification,
+                                    torrent,
+                                });
+                                needsModalSurfaced = true;
+                            }
+                            if (disposition.showFeedback) {
+                                showFeedback(t("recovery.status.blocked"), "warning");
+                            }
+                            return {
+                                status: "not_required",
+                                reason: "blocked",
+                            };
+                        }
+                        case "no-action":
+                            return {
+                                status: "not_required",
+                                reason: "no_blocking_outcome",
+                            };
                     }
-                    if (activeRecoveryDuringResolution) {
-                        setRecoverySessionOutcome(
-                            blockingOutcome,
-                            undefined,
-                            true,
-                        );
-                        needsModalSurfaced = true;
-                        return activeRecoveryDuringResolution;
-                    }
-                    const entry = createRecoveryQueueEntry(
-                        torrent,
-                        action,
-                        blockingOutcome,
-                        flowClassification,
-                        fingerprint,
-                        true,
-                    );
-                    needsModalSurfaced = true;
-                    return enqueueRecoveryEntry(entry);
                 } finally {
-                    if (
-                        import.meta.env.DEV &&
-                        needsModalRequiresDecision &&
-                        !needsModalSurfaced
-                    ) {
+                    if (import.meta.env.DEV && needsModalRequiresDecision && !needsModalSurfaced) {
                         infraLogger.error({
                             scope: "recovery_controller",
                             event: "needs_modal_not_surfaced",
@@ -542,8 +618,7 @@ export function useRecoveryActions({
                                 recoveryState: envelope.recoveryState,
                                 outcomeKind: needsModalOutcome?.kind ?? null,
                                 outcomeReason:
-                                    needsModalOutcome &&
-                                    "reason" in needsModalOutcome
+                                    needsModalOutcome && "reason" in needsModalOutcome
                                         ? needsModalOutcome.reason
                                         : null,
                             },
@@ -602,16 +677,7 @@ export function useRecoveryActions({
             }
             const relocateTargetId = moveData ? String(targetId) : null;
             if (relocateTargetId) {
-                const pendingCancel =
-                    relocateOverlayClearRef.current.get(relocateTargetId);
-                pendingCancel?.();
-                relocateOverlayClearRef.current.delete(relocateTargetId);
-                updateOperationOverlays([
-                    {
-                        id: relocateTargetId,
-                        operation: STATUS.torrentOperation.RELOCATING,
-                    },
-                ]);
+                beginRelocationOverlay(relocateTargetId);
             }
             try {
                 const outcome = await dispatch(
@@ -620,6 +686,9 @@ export function useRecoveryActions({
                     }),
                 );
                 if (outcome.status === "applied") {
+                    if (relocateTargetId) {
+                        queueRelocationOverlayClearOnHeartbeat(relocateTargetId);
+                    }
                     try {
                         await refreshAfterRecovery({
                             ...torrent,
@@ -635,10 +704,10 @@ export function useRecoveryActions({
                         awaitingRecovery: false,
                     };
                 }
-                if (
-                    outcome.status === "unsupported" &&
-                    outcome.reason === "method_missing"
-                ) {
+                if (relocateTargetId) {
+                    clearRelocationOverlayImmediately(relocateTargetId);
+                }
+                if (outcome.status === "unsupported" && outcome.reason === "method_missing") {
                     return {
                         status: "failed",
                         reason: "method_missing",
@@ -649,23 +718,23 @@ export function useRecoveryActions({
                     reason: "dispatch_not_applied",
                 };
             } catch {
+                if (relocateTargetId) {
+                    clearRelocationOverlayImmediately(relocateTargetId);
+                }
                 return {
                     status: "failed",
                     reason: "execution_failed",
                 };
-            } finally {
-                if (relocateTargetId) {
-                    scheduleRelocateOverlayClear(relocateTargetId, 0);
-                }
             }
         },
         [
+            beginRelocationOverlay,
+            clearRelocationOverlayImmediately,
             dispatch,
+            queueRelocationOverlayClearOnHeartbeat,
             refreshAfterRecovery,
-            scheduleRelocateOverlayClear,
             showFeedback,
             t,
-            updateOperationOverlays,
         ],
     );
 
@@ -714,7 +783,10 @@ export function useRecoveryActions({
                         showFeedback(t("recovery.toast_drive_detected"), "info");
                     }
                     if (!pausedAfterVerify) {
-                        const feedbackKey = flowResult.log === "all_verified_resuming" ? "recovery.feedback.all_verified_resuming" : "recovery.feedback.download_resumed";
+                        const feedbackKey =
+                            flowResult.log === "all_verified_resuming"
+                                ? "recovery.feedback.all_verified_resuming"
+                                : "recovery.feedback.download_resumed";
                         showFeedback(t(feedbackKey), "info");
                     }
                     if (delayAfterSuccessMs && delayAfterSuccessMs > 0) {
@@ -730,7 +802,7 @@ export function useRecoveryActions({
                                 log: flowResult.log,
                             },
                             {
-                                kind: "resolved",
+                                kind: "auto-recovered",
                                 message: "path_ready",
                             },
                         )
@@ -744,12 +816,11 @@ export function useRecoveryActions({
                     const outcome = flowResult.blockingOutcome;
                     if (outcome) {
                         setRecoverySessionOutcome(
-                            outcome,
-                            undefined,
-                            hasMeaningfulRecoveryDecision(
-                                flowResult.classification,
-                                outcome,
-                            ),
+                            upgradeOutcomeForSession(outcome, flowResult.classification),
+                            {
+                                classification: flowResult.classification,
+                                torrent,
+                            },
                         );
                     }
                 }
@@ -816,56 +887,35 @@ export function useRecoveryActions({
         [client],
     );
 
+    // Centralized retry scheduler — all cooldown/in-flight/backoff logic
+    // lives in recoveryRetryScheduler.  No duplicate mini state machines.
+    const cooldownRefs = useMemo(
+        () => ({
+            inFlightRef: backgroundRecoveryInFlightRef,
+            nextRetryAtRef: backgroundRecoveryNextRetryAtRef,
+            attemptCountRef: backgroundRecoveryAttemptCountRef,
+        }),
+        [backgroundRecoveryInFlightRef, backgroundRecoveryNextRetryAtRef, backgroundRecoveryAttemptCountRef],
+    );
+
     const tryBeginCooldownGatedRecoveryAttempt = useCallback(
-        (fingerprint: string): "started" | "cooldown" | "in_flight" => {
-            if (silentVolumeRecoveryInFlightRef.current.has(fingerprint)) {
-                return "in_flight";
-            }
-            const nextRetryAt =
-                silentVolumeRecoveryNextRetryAtRef.current.get(fingerprint) ?? 0;
-            if (Date.now() < nextRetryAt) {
-                return "cooldown";
-            }
-            silentVolumeRecoveryInFlightRef.current.add(fingerprint);
-            return "started";
-        },
-        [silentVolumeRecoveryInFlightRef, silentVolumeRecoveryNextRetryAtRef],
+        (fingerprint: string) => retryScheduler.tryBeginAttempt(fingerprint, cooldownRefs),
+        [cooldownRefs],
     );
 
     const clearCooldownGatedRecoverySchedule = useCallback(
-        (fingerprint: string) => {
-            silentVolumeRecoveryNextRetryAtRef.current.delete(fingerprint);
-            silentVolumeRecoveryAttemptCountRef.current.delete(fingerprint);
-        },
-        [silentVolumeRecoveryAttemptCountRef, silentVolumeRecoveryNextRetryAtRef],
+        (fingerprint: string) => retryScheduler.clearSchedule(fingerprint, cooldownRefs),
+        [cooldownRefs],
     );
 
     const scheduleCooldownGatedRecoveryRetry = useCallback(
-        (fingerprint: string) => {
-            const attempt =
-                (silentVolumeRecoveryAttemptCountRef.current.get(fingerprint) ?? 0) +
-                1;
-            silentVolumeRecoveryAttemptCountRef.current.set(
-                fingerprint,
-                attempt,
-            );
-            const retryDelayMs = computeBackgroundRecoveryDelayMs(
-                fingerprint,
-                attempt,
-            );
-            silentVolumeRecoveryNextRetryAtRef.current.set(
-                fingerprint,
-                Date.now() + retryDelayMs,
-            );
-        },
-        [silentVolumeRecoveryAttemptCountRef, silentVolumeRecoveryNextRetryAtRef],
+        (fingerprint: string) => retryScheduler.scheduleRetry(fingerprint, cooldownRefs),
+        [cooldownRefs],
     );
 
     const finishCooldownGatedRecoveryAttempt = useCallback(
-        (fingerprint: string) => {
-            silentVolumeRecoveryInFlightRef.current.delete(fingerprint);
-        },
-        [silentVolumeRecoveryInFlightRef],
+        (fingerprint: string) => retryScheduler.finishAttempt(fingerprint, cooldownRefs),
+        [cooldownRefs],
     );
 
     const tryBackgroundRecovery = useCallback(
@@ -881,10 +931,7 @@ export function useRecoveryActions({
                 return;
             }
             const envelope = torrent.errorEnvelope;
-            if (
-                !envelope ||
-                !isActionableRecoveryErrorClass(envelope.errorClass)
-            ) {
+            if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
                 setRecoveryOverlayState(torrent, false);
                 return;
             }
@@ -909,17 +956,12 @@ export function useRecoveryActions({
                 return;
             }
 
-            const classification = classifyMissingFilesState(
-                envelope,
-                torrent.savePath ?? torrent.downloadDir ?? "",
-                {
-                    torrentId: torrent.id ?? torrent.hash,
-                    engineCapabilities,
-                },
-            );
+            const classification = classifyMissingFilesState(envelope, torrent.savePath ?? torrent.downloadDir ?? "", {
+                torrentId: torrent.id ?? torrent.hash,
+                engineCapabilities,
+            });
             const shouldNotifyDriveDetected =
-                classification.kind === "volumeLoss" &&
-                classification.confidence !== "unknown";
+                classification.kind === "volumeLoss" && classification.confidence !== "unknown";
 
             setRecoveryOverlayState(torrent, true);
             try {
@@ -946,7 +988,7 @@ export function useRecoveryActions({
                 infraLogger.error(
                     {
                         scope: "recovery_controller",
-                        event: "silent_volume_recovery_failed",
+                        event: "background_recovery_failed",
                         message: "Background recovery retry failed",
                         details: { fingerprint },
                     },
@@ -964,7 +1006,6 @@ export function useRecoveryActions({
             finishCooldownGatedRecoveryAttempt,
             isBackgroundRecoveryEligible,
             isRecoveryCancelled,
-            recoverySession,
             refreshAfterRecovery,
             runMissingFilesFlow,
             scheduleCooldownGatedRecoveryRetry,
@@ -982,8 +1023,7 @@ export function useRecoveryActions({
             if (!fingerprint) {
                 return;
             }
-            const attemptState =
-                tryBeginCooldownGatedRecoveryAttempt(fingerprint);
+            const attemptState = tryBeginCooldownGatedRecoveryAttempt(fingerprint);
             if (attemptState !== "started") {
                 return;
             }
@@ -1012,15 +1052,10 @@ export function useRecoveryActions({
 
     useEffect(() => {
         const runSilentRecoveryPass = () => {
-            const activeSessionFingerprint = recoverySession
-                ? getRecoveryFingerprint(recoverySession.torrent)
-                : "";
+            const activeSessionFingerprint = recoverySession ? getRecoveryFingerprint(recoverySession.torrent) : "";
             torrentsRef.current.forEach((torrent) => {
                 const fingerprint = getRecoveryFingerprint(torrent);
-                if (
-                    activeSessionFingerprint &&
-                    fingerprint === activeSessionFingerprint
-                ) {
+                if (activeSessionFingerprint && fingerprint === activeSessionFingerprint) {
                     void executeCooldownGatedAutoRetry(torrent);
                     return;
                 }
@@ -1033,12 +1068,7 @@ export function useRecoveryActions({
         return () => {
             task.cancel();
         };
-    }, [
-        executeCooldownGatedAutoRetry,
-        recoverySession,
-        torrentsRef,
-        tryBackgroundRecovery,
-    ]);
+    }, [executeCooldownGatedAutoRetry, recoverySession, torrentsRef, tryBackgroundRecovery]);
 
     const resumeTorrentWithRecovery = useCallback(
         async (
@@ -1083,20 +1113,18 @@ export function useRecoveryActions({
                         markRecoveryResumed(fingerprint);
                         const resumed = await waitForActiveState(id);
                         const isAllVerified = gateResult.log === "all_verified_resuming";
-                        const toastKey = isAllVerified ? "recovery.feedback.all_verified_resuming" : resumed ? "recovery.feedback.download_resumed" : "recovery.feedback.resume_queued";
+                        const toastKey = isAllVerified
+                            ? "recovery.feedback.all_verified_resuming"
+                            : resumed
+                              ? "recovery.feedback.download_resumed"
+                              : "recovery.feedback.resume_queued";
                         const tone = isAllVerified || resumed ? "info" : "warning";
                         if (!suppressFeedback) {
                             showFeedback(t(toastKey), tone);
                         }
                         return { status: "applied" };
                     }
-                    if (
-                        gateResult.status === "not_required" &&
-                        gateResult.reason === "blocked"
-                    ) {
-                        if (!suppressFeedback) {
-                            showFeedback(t("recovery.status.blocked"), "warning");
-                        }
+                    if (gateResult.status === "not_required" && gateResult.reason === "blocked") {
                         return {
                             status: "failed",
                             reason: "dispatch_not_applied",
@@ -1150,10 +1178,8 @@ export function useRecoveryActions({
         ],
     );
 
-    const downloadMissingInFlight =
-        useRef<Map<string, Promise<DownloadMissingOutcome>>>(new Map());
-    const [downloadMissingInFlightKeys, setDownloadMissingInFlightKeys] =
-        useState<Set<string>>(() => new Set());
+    const downloadMissingInFlight = useRef<Map<string, Promise<DownloadMissingOutcome>>>(new Map());
+    const [downloadMissingInFlightKeys, setDownloadMissingInFlightKeys] = useState<Set<string>>(() => new Set());
     const markDownloadMissingInFlight = useCallback((fingerprint: string) => {
         setDownloadMissingInFlightKeys((previous) => {
             if (previous.has(fingerprint)) {
@@ -1175,33 +1201,24 @@ export function useRecoveryActions({
         });
     }, []);
     const isDownloadMissingInFlight = useCallback(
-        (torrent: Torrent | TorrentDetail) =>
-            downloadMissingInFlightKeys.has(getRecoveryFingerprint(torrent)),
+        (torrent: Torrent | TorrentDetail) => downloadMissingInFlightKeys.has(getRecoveryFingerprint(torrent)),
         [downloadMissingInFlightKeys],
     );
 
     const executeDownloadMissing = useCallback(
-        async (
-            target: Torrent | TorrentDetail,
-            options?: { recreateFolder?: boolean },
-        ): Promise<DownloadMissingOutcome> => {
+        async (target: Torrent | TorrentDetail): Promise<DownloadMissingOutcome> => {
             const key = getRecoveryFingerprint(target);
             setRecoveryOverlayState(target, true);
             const inFlight = downloadMissingInFlight.current.get(key);
             if (inFlight) {
                 return inFlight;
             }
-            showFeedback(
-                t("recovery.modal.in_progress"),
-                "info",
-                RECOVERY_ESCALATION_GRACE_MS,
-            );
+            showFeedback(t("recovery.modal.in_progress"), "info", RECOVERY_ESCALATION_GRACE_MS);
             const requestPromise: Promise<DownloadMissingOutcome> = (async () => {
                 try {
                     const gateResult = await requestRecovery({
                         torrent: target,
                         action: "downloadMissing",
-                        options,
                     });
                     if (gateResult.status === "handled") {
                         clearCachedProbe(target.id ?? target.hash ?? "");
@@ -1288,7 +1305,7 @@ export function useRecoveryActions({
             const gateResult = await requestRecovery({
                 torrent: target,
                 action: "recheck",
-                options: { recreateFolder: false, retryOnly: true },
+                options: { retryOnly: true },
             });
             clearCachedProbe(target.id ?? target.hash ?? "");
 
@@ -1311,10 +1328,7 @@ export function useRecoveryActions({
             if (gateResult.status === "handled") {
                 return { status: "applied", shouldCloseModal: true };
             }
-            if (
-                gateResult.status === "not_required" &&
-                gateResult.reason === "blocked"
-            ) {
+            if (gateResult.status === "not_required" && gateResult.reason === "blocked") {
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
                 return {
                     status: "not_applied",
@@ -1325,6 +1339,7 @@ export function useRecoveryActions({
             if (gateResult.status === "not_required" && gateResult.reason !== "no_blocking_outcome") {
                 return { status: "applied", shouldCloseModal: true };
             }
+            showFeedback(t("recovery.feedback.retry_failed"), "warning");
             return {
                 status: "not_applied",
                 shouldCloseModal: false,

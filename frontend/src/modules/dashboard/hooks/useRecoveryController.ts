@@ -7,13 +7,14 @@ import { clearProbe as clearCachedProbe } from "@/services/recovery/missingFiles
 import type {
     LocationEditorState,
     OpenRecoveryModalOutcome,
+    OpenRecoveryModalOptions,
     RecoverySessionInfo,
     SetLocationConfirmOutcome,
     SetLocationCapability,
     SetLocationOptions,
     SetLocationOutcome,
 } from "@/app/context/RecoveryContext";
-import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useSession, useUiModeCapabilities } from "@/app/context/SessionContext";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
@@ -22,6 +23,11 @@ import { useLocationEditor } from "@/modules/dashboard/hooks/useLocationEditor";
 import { useRecoveryActions } from "@/modules/dashboard/hooks/useRecoveryActions";
 import { useRecoveryState } from "@/modules/dashboard/hooks/useRecoveryState";
 import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
+import {
+    classifyMissingFilesState,
+    type RecoveryOutcome,
+    type RecoveryRecommendedAction,
+} from "@/services/recovery/recovery-controller";
 import type {
     DownloadMissingCommandOutcome,
     RecoverySessionViewState,
@@ -67,8 +73,6 @@ interface RecoveryModalActions {
     close: () => void;
     retry: () => Promise<void>;
     autoRetry: () => Promise<void>;
-    recreateFolder: () => Promise<void>;
-    pickPath: (path: string) => Promise<void>;
 }
 
 interface LocationEditorControls {
@@ -80,14 +84,11 @@ interface LocationEditorControls {
 }
 
 interface RecoveryActions {
-    executeDownloadMissing: (
-        target: Torrent | TorrentDetail,
-        options?: { recreateFolder?: boolean },
-    ) => Promise<DownloadMissingCommandOutcome>;
+    executeDownloadMissing: (target: Torrent | TorrentDetail) => Promise<DownloadMissingCommandOutcome>;
     executeRetryFetch: (target: Torrent | TorrentDetail) => Promise<RetryRecoveryCommandOutcome>;
     resumeTorrentWithRecovery: (
         torrent: Torrent | TorrentDetail,
-        uiOptions?: { suppressFeedback?: boolean },
+        uiOptions?: { suppressFeedback?: boolean; bypassActiveRequestDedup?: boolean },
     ) => Promise<ResumeRecoveryCommandOutcome>;
     applyTorrentLocation: (
         torrent: Torrent | TorrentDetail,
@@ -98,7 +99,10 @@ interface RecoveryActions {
     isDownloadMissingInFlight: (torrent: Torrent | TorrentDetail) => boolean;
     markTorrentPausedByUser: (torrent: Torrent | TorrentDetail) => void;
     getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
-    openRecoveryModal: (torrent: Torrent | TorrentDetail) => OpenRecoveryModalOutcome;
+    openRecoveryModal: (
+        torrent: Torrent | TorrentDetail,
+        options?: OpenRecoveryModalOptions,
+    ) => OpenRecoveryModalOutcome;
 }
 
 export interface RecoveryControllerResult {
@@ -121,6 +125,7 @@ export function useRecoveryController({
 }: UseRecoveryControllerParams): RecoveryControllerResult {
     const { client } = services;
 
+    const { engineCapabilities } = useSession();
     const { canBrowse, supportsManual } = useUiModeCapabilities();
     const setLocationCapability = useMemo(() => ({ canBrowse, supportsManual }), [canBrowse, supportsManual]);
     const { torrents, detailData } = data;
@@ -135,14 +140,16 @@ export function useRecoveryController({
         recoverySession,
         withRecoveryBusy,
         finalizeRecovery,
+        setRecoverySessionOutcome,
         cancelRecoveryForFingerprint,
+        createRecoveryQueueEntry,
+        enqueueRecoveryEntry,
         isRecoverySessionActive,
         hasActiveRecoveryRequest,
         abortActiveRecoveryRequest,
     } = recoveryStateController;
 
     const {
-        resolveRecoverySession,
         resumeTorrentWithRecovery,
         applyTorrentLocation,
         executeDownloadMissing,
@@ -162,12 +169,11 @@ export function useRecoveryController({
         updateOperationOverlays,
     });
 
-    const { handleRecoveryClose, handleRecoveryRetry, handleRecoveryAutoRetry, handleRecoveryRecreateFolder, handleRecoveryPickPath, recoveryRequestBrowse, setLocationAndRecover } = useRecoveryModal({
+    const { handleRecoveryClose, handleRecoveryRetry, handleRecoveryAutoRetry, setLocationAndRecover } = useRecoveryModal({
         recoverySession,
         withRecoveryBusy,
         executeRetryFetch,
         executeCooldownGatedAutoRetry,
-        resolveRecoverySession,
         applyTorrentLocation,
         hasActiveRecoveryRequest,
         abortActiveRecoveryRequest,
@@ -179,7 +185,6 @@ export function useRecoveryController({
         torrents,
         detailData,
         recoverySession,
-        recoveryRequestBrowse,
         setLocationAndRecover,
     });
     const handlePrepareDelete = useCallback(
@@ -213,13 +218,88 @@ export function useRecoveryController({
     );
 
     const openRecoveryModal = useCallback(
-        (torrent: Torrent | TorrentDetail): OpenRecoveryModalOutcome => {
+        (
+            torrent: Torrent | TorrentDetail,
+            options?: OpenRecoveryModalOptions,
+        ): OpenRecoveryModalOutcome => {
             const envelope = torrent.errorEnvelope;
             if (!envelope || !isActionableRecoveryErrorClass(envelope.errorClass)) {
                 return { status: "not_actionable" };
             }
 
             const fingerprint = getRecoveryFingerprint(torrent);
+            if (options?.forceWorkbench) {
+                const classification = classifyMissingFilesState(
+                    envelope,
+                    torrent.savePath ?? torrent.downloadDir ?? "",
+                    {
+                        torrentId: torrent.id ?? torrent.hash,
+                        engineCapabilities,
+                    },
+                );
+                const recommendedActions = Array.from(
+                    new Set<RecoveryRecommendedAction>([
+                        "chooseLocation",
+                        "locate",
+                        ...classification.recommendedActions,
+                    ]),
+                );
+                const workbenchClassification = {
+                    ...classification,
+                    recommendedActions,
+                };
+                const outcomeReason: "missing" | "unwritable" | "disk-full" =
+                    envelope.errorClass === "diskFull"
+                        ? "disk-full"
+                        : envelope.errorClass === "permissionDenied" ||
+                            workbenchClassification.kind === "accessDenied"
+                          ? "unwritable"
+                          : "missing";
+                const sessionOutcome: RecoveryOutcome = {
+                    kind: "needs-user-decision",
+                    reason: outcomeReason,
+                    hintPath: workbenchClassification.path,
+                };
+                const shouldOpenLocationEditor =
+                    outcomeReason !== "disk-full" && supportsManual;
+                const openForcedWorkbenchEditor = () => {
+                    if (!shouldOpenLocationEditor) return;
+                    void handleSetLocation(torrent, {
+                        surface: "recovery-modal",
+                        mode: "manual",
+                    });
+                };
+                if (isRecoverySessionActive(fingerprint)) {
+                    setRecoverySessionOutcome(sessionOutcome, {
+                        classification: workbenchClassification,
+                        torrent,
+                    });
+                    openForcedWorkbenchEditor();
+                    return { status: "already_open" };
+                }
+                const entry = createRecoveryQueueEntry(
+                    torrent,
+                    "resume",
+                    sessionOutcome,
+                    workbenchClassification,
+                    fingerprint,
+                );
+                const completion = enqueueRecoveryEntry(entry).then((result) =>
+                    result.status === "cancelled"
+                        ? { status: "cancelled" as const }
+                        : result.status === "handled"
+                          ? { status: "applied" as const, awaitingRecovery: true }
+                        : {
+                                status: "failed" as const,
+                                reason: "dispatch_not_applied" as const,
+                            },
+                );
+                openForcedWorkbenchEditor();
+                return {
+                    status: "requested",
+                    completion,
+                };
+            }
             if (isRecoverySessionActive(fingerprint)) {
                 return { status: "already_open" };
             }
@@ -231,7 +311,16 @@ export function useRecoveryController({
                 completion,
             };
         },
-        [isRecoverySessionActive, resumeTorrentWithRecovery],
+        [
+            createRecoveryQueueEntry,
+            engineCapabilities,
+            enqueueRecoveryEntry,
+            isRecoverySessionActive,
+            resumeTorrentWithRecovery,
+            setRecoverySessionOutcome,
+            handleSetLocation,
+            supportsManual,
+        ],
     );
 
     return {
@@ -240,8 +329,6 @@ export function useRecoveryController({
             close: handleRecoveryClose,
             retry: handleRecoveryRetry,
             autoRetry: handleRecoveryAutoRetry,
-            recreateFolder: handleRecoveryRecreateFolder,
-            pickPath: handleRecoveryPickPath,
         },
         locationEditor: {
             state: setLocationEditorState,

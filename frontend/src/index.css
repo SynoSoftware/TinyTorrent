@@ -13,12 +13,8 @@
     /* --- 2. Logical Roles (The Consistency Authority) --- */
     /* --- Panel spacing tiers (Tiered-Panel system) --- */
     --tt-p-tight: calc(var(--tt-uz) * 2); /* p-tight (old p-1/p-2) */
-    --tt-p-panel: calc(
-        var(--tt-uz) * 4
-    ); /* p-panel (standard card/tab padding) */
-    --tt-p-stage: calc(
-        var(--tt-uz) * 6
-    ); /* p-stage (headers, modals, major sections) */
+    --tt-p-panel: calc(var(--tt-uz) * 4); /* p-panel (standard card/tab padding) */
+    --tt-p-stage: calc(var(--tt-uz) * 6); /* p-stage (headers, modals, major sections) */
     --tt-gap-stage: calc(var(--tt-uz) * 4); /* Gaps between panels */
     --tt-gap-tools: calc(var(--tt-uz) * 2); /* Gaps between controls */
 
@@ -41,9 +37,7 @@
     /* --- Column width tokens (Contextual Semantic Restoration) --- */
     --tt-w-col-id: calc(var(--tt-uz) * 12); /* w-12 -> id column */
     --tt-w-col-speed: calc(var(--tt-uz) * 24); /* w-24 -> speed column */
-    --tt-w-col-client: calc(
-        var(--tt-uz) * 28
-    ); /* w-28 -> client identification column */
+    --tt-w-col-client: calc(var(--tt-uz) * 28); /* w-28 -> client identification column */
 
     /* --- Torrent table column topology (semantic, zoom-aware) --- */
     --tt-col-icon: calc(var(--tt-uz) * 12); /* icon / checkbox column */
@@ -56,17 +50,11 @@
     --w-col-client: var(--tt-w-col-client);
     /* (removed duplicate spacing-tight; authoritative value is --tt-p-tight above) */
     /* --- Forensic-mapped tokens (flagged items) --- */
-    --tt-col-sparkline: calc(
-        var(--tt-uz) * 24
-    ); /* The w-16 found in ColumnDefinitions */
-    --tt-h-indicator: calc(
-        var(--tt-uz) * 2
-    ); /* The h-3/h-4 for progress/skeletons */
+    --tt-col-sparkline: calc(var(--tt-uz) * 24); /* The w-16 found in ColumnDefinitions */
+    --tt-h-indicator: calc(var(--tt-uz) * 2); /* The h-3/h-4 for progress/skeletons */
     /* Modal structural elements */
     --tt-h-modal-header: var(--tt-h-nav); /* unify h-16 with h-nav */
-    --tt-h-control-row: calc(
-        var(--tt-uz) * 10
-    ); /* The h-10 found in Settings */
+    --tt-h-control-row: calc(var(--tt-uz) * 10); /* The h-10 found in Settings */
 
     /* Visualization typography */
     --tt-fz-label: calc(var(--fz) * 1); /* ~10px equivalent relative to base */
@@ -192,9 +180,7 @@
     --tt-priority-badge-padding-y: var(--p-1);
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
-    --tt-add-file-col-select-min-w: calc(
-        var(--tt-size-btn) + var(--spacing-tools)
-    );
+    --tt-add-file-col-select-min-w: calc(var(--tt-size-btn) + var(--spacing-tools));
     --tt-add-file-col-select-w: calc(12 * var(--u) * var(--z));
     --tt-add-file-col-name-min-w: calc(28 * var(--u) * var(--z));
     --tt-add-file-col-size-min-w: calc(14 * var(--u) * var(--z));
@@ -202,25 +188,17 @@
     --tt-add-file-col-priority-min-w: calc(20 * var(--u) * var(--z));
     --tt-add-file-col-priority-w: calc(24 * var(--u) * var(--z));
     --tt-add-file-table-min-w: calc(
-        var(--tt-add-file-col-select-min-w) +
-            var(--tt-add-file-col-name-min-w) +
-            var(--tt-add-file-col-size-min-w) +
+        var(--tt-add-file-col-select-min-w) + var(--tt-add-file-col-name-min-w) + var(--tt-add-file-col-size-min-w) +
             var(--tt-add-file-col-priority-min-w)
     );
 
     /* Responsive file table topology.
        Keep non-name columns compact and allow the name column to absorb free space.
        This prevents non-fullscreen overflow while preserving readability. */
-    --tt-file-grid-template: minmax(
-            var(--tt-add-file-col-select-min-w),
-            var(--tt-add-file-col-select-w)
-        )
+    --tt-file-grid-template: minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w))
         minmax(var(--tt-add-file-col-name-min-w), 1fr)
         minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))
-        minmax(
-            var(--tt-add-file-col-priority-min-w),
-            var(--tt-add-file-col-priority-w)
-        );
+        minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w));
     --tt-modal-max-width: calc(300 * var(--u) * var(--z));
     --tt-modal-max-width-compact: calc(var(--tt-modal-max-width) / 2);
     --tt-modal-body-max-height: calc(400 * var(--u) * var(--z));
@@ -269,7 +247,9 @@
 
 @layer components {
     button:not(:disabled) {
-        transition: transform 0.16s ease, filter 0.16s ease;
+        transition:
+            transform 0.16s ease,
+            filter 0.16s ease;
     }
 
     /* Semantic z-role classes */
@@ -295,16 +275,16 @@
 @layer utilities {
     .pressable-row {
         cursor: pointer;
-        transition: transform 0.15s ease, filter 0.15s ease;
+        transition:
+            transform 0.15s ease,
+            filter 0.15s ease;
         transform-origin: center center;
         will-change: transform, filter;
     }
 
     /* Torrent table grid topology bridge (single class) */
     .grid-cols-torrent {
-        grid-template-columns: var(--tt-col-icon) var(--tt-col-main) var(
-                --tt-col-meta
-            );
+        grid-template-columns: var(--tt-col-icon) var(--tt-col-main) var(--tt-col-meta);
     }
 
     /* Semantic helpers for token-driven sizes (avoid arbitrary Tailwind brackets) */
@@ -327,10 +307,7 @@
         grid-template-columns: var(--tt-file-grid-template);
     }
     .pl-file-tree-indent {
-        padding-left: calc(
-            var(--tt-file-row-padding-left) +
-                (var(--tt-file-depth, 0) * var(--tt-file-depth-indent))
-        );
+        padding-left: calc(var(--tt-file-row-padding-left) + (var(--tt-file-depth, 0) * var(--tt-file-depth-indent)));
     }
     .file-tree-chevron-hit {
         padding: var(--tt-file-checkbox-padding);
@@ -379,7 +356,9 @@
     }
 
     .pressable-tab {
-        transition: transform 0.12s ease, filter 0.12s ease;
+        transition:
+            transform 0.12s ease,
+            filter 0.12s ease;
         transform-origin: center center;
         will-change: transform, filter;
     }
@@ -504,8 +483,7 @@
         justify-content: center;
         text-align: center;
         gap: var(--tt-navbar-gap);
-        padding: var(--tt-drop-overlay-padding-y)
-            var(--tt-drop-overlay-padding-x);
+        padding: var(--tt-drop-overlay-padding-y) var(--tt-drop-overlay-padding-x);
         border-radius: var(--tt-drop-overlay-radius);
         border: var(--bw) solid rgba(var(--heroui-primary-500), 0.3);
         background-color: hsl(var(--heroui-background) / 0.9);
@@ -527,17 +505,10 @@
         background-color: hsl(var(--heroui-background)) !important;
 
         background-image:
-      /* soft emerald glow top-left */ radial-gradient(
-                circle at 0% 0%,
-                rgba(0, 159, 107, 0.65) 0,
-                transparent 52%
-            ),
+      /* soft emerald glow top-left */
+            radial-gradient(circle at 0% 0%, rgba(0, 159, 107, 0.65) 0, transparent 52%),
             /* softer emerald glow bottom-right */
-                radial-gradient(
-                    circle at 100% 100%,
-                    rgba(0, 159, 107, 0.8) 0,
-                    transparent 58%
-                ),
+                radial-gradient(circle at 100% 100%, rgba(0, 159, 107, 0.8) 0, transparent 58%),
             /* gentle vertical depth – much less white now */
                 linear-gradient(
                     180deg,
@@ -545,22 +516,16 @@
                     rgba(255, 255, 255, 0.18) 40%,
                     rgba(0, 0, 0, 0.02) 100%
                 ),
-            /* very faint diagonal grid */
-                linear-gradient(
-                    135deg,
-                    rgba(255, 255, 255, 0.04) 1px,
-                    transparent 1px
-                ),
-            linear-gradient(
-                45deg,
-                rgba(255, 255, 255, 0.03) 1px,
-                transparent 1px
-            );
+            /* very faint diagonal grid */ linear-gradient(135deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+            linear-gradient(45deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 
         background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat;
 
-        background-size: 135% 135%, /* radial 1 */ 135% 135%,
-            /* radial 2 */ 100% 100%, /* vignette */ 72px 72px,
+        background-size:
+            135% 135%,
+            /* radial 1 */ 135% 135%,
+            /* radial 2 */ 100% 100%,
+            /* vignette */ 72px 72px,
             /* grid 1 */ 72px 72px;
         /* grid 2 */
 
@@ -572,34 +537,23 @@
         background-color: hsl(var(--heroui-background)) !important;
 
         background-image:
-      /* emerald glow top-left */ radial-gradient(
-                circle at 0% 0%,
-                rgba(0, 223, 162, 0.3) 0,
-                transparent 45%
-            ),
+      /* emerald glow top-left */
+            radial-gradient(circle at 0% 0%, rgba(0, 223, 162, 0.3) 0, transparent 45%),
             /* emerald glow bottom-right */
-                radial-gradient(
-                    circle at 100% 100%,
-                    rgba(0, 223, 162, 0.15) 0,
-                    transparent 50%
-                ),
+                radial-gradient(circle at 100% 100%, rgba(0, 223, 162, 0.15) 0, transparent 50%),
             /* darker vignette than before – less “foggy” */
-                linear-gradient(
-                    180deg,
-                    rgba(255, 255, 255, 0.015) 0,
-                    rgba(0, 0, 0, 0.85) 100%
-                ),
-            /* subtle graphite grid */
-                linear-gradient(
-                    135deg,
-                    rgba(255, 255, 255, 0.035) 1px,
-                    transparent 1px
-                ),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0, rgba(0, 0, 0, 0.85) 100%),
+            /* subtle graphite grid */ linear-gradient(135deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
             linear-gradient(45deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px);
 
         background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat;
 
-        background-size: 140% 140%, 140% 140%, 100% 100%, 72px 72px, 72px 72px;
+        background-size:
+            140% 140%,
+            140% 140%,
+            100% 100%,
+            72px 72px,
+            72px 72px;
 
         background-attachment: fixed;
     }
@@ -694,54 +648,49 @@
 
     .surface-layer-0 {
         background-color: var(--heroui-background);
-        border: 1px solid
-            color-mix(in srgb, var(--heroui-default) 20%, transparent 80%);
-        background-image: radial-gradient(
+        border: 1px solid color-mix(in srgb, var(--heroui-default) 20%, transparent 80%);
+        background-image:
+            radial-gradient(
                 circle at 18% 25%,
                 color-mix(in srgb, var(--heroui-content1) 25%, transparent 75%),
                 transparent 50%
             ),
             radial-gradient(
                 circle at 80% 10%,
-                color-mix(
-                    in srgb,
-                    var(--heroui-foreground) 15%,
-                    transparent 85%
-                ),
+                color-mix(in srgb, var(--heroui-foreground) 15%, transparent 85%),
                 transparent 60%
             ),
             repeating-linear-gradient(
                 135deg,
                 transparent 0,
                 transparent 8px,
-                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%)
-                    8px,
-                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%)
-                    9px
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 8px,
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 9px
             );
         background-blend-mode: screen;
     }
 
     .surface-layer-1 {
-        @apply border border-default/10 bg-background/60 backdrop-blur-md;
+        @apply border border-default/15 bg-content1/55 backdrop-blur-md;
     }
 
     .surface-layer-2 {
-        @apply border border-default/20 bg-content1/80 backdrop-blur-2xl;
+        @apply border border-default/25 bg-content2/65 backdrop-blur-xl shadow-small;
+    }
+
+    .surface-layer-3 {
+        @apply border border-default/30 bg-content3/70 backdrop-blur-2xl shadow-medium;
     }
 
     .inspector-shell {
         border-radius: 20px;
-        border: 1px solid
-            color-mix(in srgb, var(--heroui-default), transparent 60%);
-        background-color: color-mix(
-            in srgb,
-            var(--heroui-content1) 90%,
-            transparent 10%
-        );
+        border: 1px solid color-mix(in srgb, var(--heroui-default), transparent 60%);
+        background-color: color-mix(in srgb, var(--heroui-content1) 90%, transparent 10%);
         backdrop-filter: blur(24px);
         box-shadow: 0 35px 60px rgba(0, 0, 0, 0.45);
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        transition:
+            border-color 0.2s ease,
+            box-shadow 0.2s ease;
         background-clip: padding-box;
     }
 }
@@ -867,7 +816,10 @@
         border: 1px solid transparent;
         min-height: 24px;
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-        transition: background 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+        transition:
+            background 0.2s ease,
+            transform 0.2s ease,
+            opacity 0.2s ease;
         transform-origin: center;
         opacity: 0;
         transform: scaleY(0.6);

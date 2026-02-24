@@ -1,18 +1,8 @@
-import type {
-    EngineAdapter,
-    EngineRuntimeCapabilities,
-} from "@/services/rpc/engine-adapter";
+import type { EngineAdapter, EngineRuntimeCapabilities } from "@/services/rpc/engine-adapter";
 import { scheduler } from "@/app/services/scheduler";
-import type {
-    MissingFilesClassificationKind,
-    TorrentDetailEntity,
-    TorrentEntity,
-} from "@/services/rpc/entities";
+import type { MissingFilesClassificationKind, TorrentDetailEntity, TorrentEntity } from "@/services/rpc/entities";
 import { interpretFsError, type FsErrorKind } from "@/shared/utils/fsErrors";
-import {
-    RECOVERY_PROBE_POLL_INTERVAL_MS,
-    RECOVERY_PROBE_TIMEOUT_MS,
-} from "@/config/logic";
+import { RECOVERY_PROBE_POLL_INTERVAL_MS, RECOVERY_PROBE_TIMEOUT_MS } from "@/config/logic";
 import type {
     MissingFilesProbeResult,
     RecoveryOutcome,
@@ -28,11 +18,7 @@ interface EnsurePathParams {
     options?: RecoverySequenceOptions;
 }
 
-export async function ensurePathReady({
-    client,
-    path,
-    options,
-}: EnsurePathParams): Promise<{
+export async function ensurePathReady({ client, path, options }: EnsurePathParams): Promise<{
     ready: boolean;
     blockingOutcome?: RecoveryOutcome;
 }> {
@@ -40,7 +26,7 @@ export async function ensurePathReady({
         return {
             ready: false,
             blockingOutcome: {
-                kind: "path-needed",
+                kind: "blocked",
                 reason: "missing",
                 message: FREE_SPACE_UNSUPPORTED_MESSAGE,
             },
@@ -53,7 +39,7 @@ export async function ensurePathReady({
             return {
                 ready: false,
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "disk-full",
                     message: "insufficient_free_space",
                 },
@@ -63,23 +49,10 @@ export async function ensurePathReady({
     } catch (err) {
         const kind = interpretFsError(err);
         if (kind === "enoent") {
-            const shouldCreateFolder =
-                Boolean(options?.recreateFolder) ||
-                Boolean(options?.autoCreateMissingFolder);
-            if (shouldCreateFolder) {
-                return {
-                    ready: false,
-                    blockingOutcome: {
-                        kind: "path-needed",
-                        reason: "missing",
-                        message: "directory_creation_not_supported",
-                    },
-                };
-            }
             return {
                 ready: false,
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "missing",
                     message: "path_check_failed",
                 },
@@ -89,7 +62,7 @@ export async function ensurePathReady({
             return {
                 ready: false,
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "unwritable",
                     message: "path_access_denied",
                 },
@@ -99,7 +72,7 @@ export async function ensurePathReady({
             return {
                 ready: false,
                 blockingOutcome: {
-                    kind: "path-needed",
+                    kind: "blocked",
                     reason: "disk-full",
                     message: "insufficient_free_space",
                 },
@@ -108,7 +81,7 @@ export async function ensurePathReady({
         return {
             ready: false,
             blockingOutcome: {
-                kind: "path-needed",
+                kind: "blocked",
                 reason: "missing",
                 message: "path_check_failed",
             },
@@ -116,9 +89,7 @@ export async function ensurePathReady({
     }
 }
 
-export type PathProbeResult =
-    | { success: true }
-    | { success: false; errorKind: FsErrorKind };
+export type PathProbeResult = { success: true } | { success: false; errorKind: FsErrorKind };
 
 export async function pollPathAvailability(
     client: EngineAdapter,
@@ -152,11 +123,7 @@ export async function probeMissingFiles(
 ): Promise<MissingFilesProbeResult> {
     const ts = Date.now();
     const expectedBytes = getExpectedBytes(torrent);
-    const path =
-        (torrent as TorrentDetailEntity).downloadDir ??
-        torrent.savePath ??
-        torrent.downloadDir ??
-        "";
+    const path = (torrent as TorrentDetailEntity).downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
 
     if (engineCapabilities.executionModel === "local") {
         let onDiskBytes: number | null = null;
@@ -168,10 +135,7 @@ export async function probeMissingFiles(
                 });
                 if (Array.isArray(detail.files)) {
                     onDiskBytes = detail.files.reduce((acc, file) => {
-                        const bytes =
-                            typeof file.bytesCompleted === "number"
-                                ? file.bytesCompleted
-                                : 0;
+                        const bytes = typeof file.bytesCompleted === "number" ? file.bytesCompleted : 0;
                         return acc + Math.max(0, bytes);
                     }, 0);
                 }
@@ -182,18 +146,11 @@ export async function probeMissingFiles(
         if (onDiskBytes === null && typeof torrent.downloaded === "number") {
             onDiskBytes = Math.max(0, torrent.downloaded);
         }
-        const missingBytes =
-            onDiskBytes !== null
-                ? Math.max(0, expectedBytes - onDiskBytes)
-                : null;
+        const missingBytes = onDiskBytes !== null ? Math.max(0, expectedBytes - onDiskBytes) : null;
         const toDownloadBytes = missingBytes;
 
         let pathExists: boolean | null = null;
-        if (
-            engineCapabilities.canCheckFreeSpace &&
-            client.checkFreeSpace &&
-            path
-        ) {
+        if (engineCapabilities.canCheckFreeSpace && client.checkFreeSpace && path) {
             try {
                 await client.checkFreeSpace(path);
                 pathExists = true;
@@ -260,18 +217,11 @@ export async function probeMissingFiles(
         };
     }
 
-    const classification = classifyMissingFilesState(
-        torrent.errorEnvelope ?? null,
-        path,
-        {
-            torrentId: torrent.id ?? torrent.hash,
-            engineCapabilities,
-        },
-    );
-    const kindMap: Record<
-        MissingFilesClassificationKind,
-        MissingFilesProbeResult["kind"]
-    > = {
+    const classification = classifyMissingFilesState(torrent.errorEnvelope ?? null, path, {
+        torrentId: torrent.id ?? torrent.hash,
+        engineCapabilities,
+    });
+    const kindMap: Record<MissingFilesClassificationKind, MissingFilesProbeResult["kind"]> = {
         dataGap: "unknown",
         pathLoss: "path_missing",
         volumeLoss: "path_missing",
@@ -321,9 +271,7 @@ export function deriveReasonFromFsError(kind: FsErrorKind | null) {
     return "missing";
 }
 
-function getExpectedBytes(
-    torrent: TorrentEntity | TorrentDetailEntity,
-): number {
+function getExpectedBytes(torrent: TorrentEntity | TorrentDetailEntity): number {
     if (typeof torrent.totalSize === "number") {
         return torrent.totalSize;
     }

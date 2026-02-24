@@ -2,20 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
-import type {
-    DownloadMissingOutcome,
-    SetLocationOutcome,
-} from "@/app/context/RecoveryContext";
+import type { DownloadMissingOutcome, SetLocationOutcome } from "@/app/context/RecoveryContext";
 import { scheduler } from "@/app/services/scheduler";
-import {
-    RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS,
-    RECOVERY_POLL_INTERVAL_MS,
-} from "@/config/logic";
+import { RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS, RECOVERY_POLL_INTERVAL_MS } from "@/config/logic";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
-import type {
-    RecoveryOutcome,
-    RecoveryRecommendedAction,
-} from "@/services/recovery/recovery-controller";
+import type { RecoveryOutcome, RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
 import { getRecoveryFingerprint } from "@/app/domain/recoveryUtils";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 
@@ -90,7 +81,6 @@ export interface RecoveryModalPropsDeps {
     recoverySession: RecoveryControllerResult["state"]["session"];
     isBusy: boolean;
     onClose: RecoveryControllerResult["modal"]["close"];
-    onRecreate: RecoveryControllerResult["modal"]["recreateFolder"];
     onAutoRetry: RecoveryControllerResult["modal"]["autoRetry"];
     locationEditor: SetLocationEditorControls;
     setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
@@ -101,10 +91,7 @@ export interface RecoveryModalPropsDeps {
             surface?: "recovery-modal" | "general-tab" | "context-menu";
         },
     ) => Promise<SetLocationOutcome>;
-    handleDownloadMissing: (
-        torrent: Torrent,
-        options?: { recreateFolder?: boolean },
-    ) => Promise<DownloadMissingOutcome>;
+    handleDownloadMissing: (torrent: Torrent) => Promise<DownloadMissingOutcome>;
     queuedCount: RecoveryControllerResult["state"]["queuedCount"];
     queuedItems: RecoveryControllerResult["state"]["queuedItems"];
 }
@@ -113,18 +100,12 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     insufficient_free_space: "recovery.message.insufficient_free_space",
     path_ready: "recovery.message.path_ready",
     path_check_unknown: "recovery.message.path_check_unknown",
-    directory_created: "recovery.message.directory_created",
-    directory_creation_denied: "recovery.message.directory_creation_denied",
-    directory_creation_failed: "recovery.message.directory_creation_failed",
-    directory_creation_not_supported:
-        "recovery.message.directory_creation_not_supported",
     path_access_denied: "recovery.message.path_access_denied",
     disk_full: "recovery.message.disk_full",
     path_check_failed: "recovery.message.path_check_failed",
     permission_denied: "recovery.message.permission_denied",
     no_download_path_known: "recovery.message.no_download_path_known",
-    free_space_check_not_supported:
-        "recovery.message.free_space_check_not_supported",
+    free_space_check_not_supported: "recovery.message.free_space_check_not_supported",
     free_space_check_failed: "recovery.message.free_space_check_failed",
     verify_not_supported: "recovery.message.verify_not_supported",
     verify_started: "recovery.message.verify_started",
@@ -133,8 +114,7 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     reannounce_started: "recovery.message.reannounce_started",
     reannounce_failed: "recovery.message.reannounce_failed",
     location_updated: "recovery.message.location_updated",
-    filesystem_probing_not_supported:
-        "recovery.message.filesystem_probing_not_supported",
+    filesystem_probing_not_supported: "recovery.message.filesystem_probing_not_supported",
 };
 
 const resolveOutcomeMessage = (
@@ -151,7 +131,6 @@ export function useRecoveryModalViewModel({
     recoverySession,
     isBusy,
     onClose,
-    onRecreate,
     onAutoRetry,
     locationEditor,
     setLocationCapability,
@@ -166,12 +145,11 @@ export function useRecoveryModalViewModel({
     const classification = recoverySession?.classification ?? null;
     const outcome = recoverySession?.outcome ?? null;
     const autoCloseAtMs = recoverySession?.autoCloseAtMs ?? null;
-    const requiresDecision = recoverySession?.requiresDecision ?? true;
+    const requiresDecision = outcome?.kind === "needs-user-decision";
     const busy = Boolean(isBusy);
     const isOpen = Boolean(recoverySession);
     const currentTorrentKey = getRecoveryFingerprint(torrent);
-    const downloadDir =
-        torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
+    const downloadDir = torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
     const locationEditorState = locationEditor.state;
     const locationEditorStateKey = locationEditorState?.torrentKey ?? "";
     const isUnknownConfidence = classification?.confidence === "unknown";
@@ -180,18 +158,14 @@ export function useRecoveryModalViewModel({
     const isAccessDenied = classification?.kind === "accessDenied";
     const locationEditorVisible = Boolean(
         locationEditorState?.surface === "recovery-modal" &&
-            locationEditorStateKey &&
-            locationEditorStateKey === currentTorrentKey,
+        locationEditorStateKey &&
+        locationEditorStateKey === currentTorrentKey,
     );
-    const isAutoClosePending = Boolean(autoCloseAtMs && outcome?.kind === "resolved");
+    const isAutoClosePending = Boolean(autoCloseAtMs && outcome?.kind === "auto-recovered");
     const resolvedCountdownSeconds = isAutoClosePending
-        ? Math.max(
-              1,
-              Math.ceil(((autoCloseAtMs ?? countdownNowMs) - countdownNowMs) / 1000),
-          )
+        ? Math.max(1, Math.ceil(((autoCloseAtMs ?? countdownNowMs) - countdownNowMs) / 1000))
         : null;
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    const canSetLocation = setLocationCapability.canBrowse || setLocationCapability.supportsManual;
 
     const handleClose = useCallback(() => {
         locationEditor.release();
@@ -202,23 +176,14 @@ export function useRecoveryModalViewModel({
         if (!isAutoClosePending || !autoCloseAtMs) return;
         const tick = () => setCountdownNowMs(Date.now());
         tick();
-        const task = scheduler.scheduleRecurringTask(
-            tick,
-            RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS,
-        );
+        const task = scheduler.scheduleRecurringTask(tick, RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS);
         return () => {
             task.cancel();
         };
     }, [isAutoClosePending, autoCloseAtMs]);
 
     useEffect(() => {
-        if (
-            !isOpen ||
-            !onAutoRetry ||
-            busy ||
-            locationEditorVisible ||
-            isAutoClosePending
-        ) {
+        if (!isOpen || !onAutoRetry || busy || locationEditorVisible || isAutoClosePending) {
             return;
         }
         const task = scheduler.scheduleRecurringTask(async () => {
@@ -232,13 +197,7 @@ export function useRecoveryModalViewModel({
             task.cancel();
             autoRetryRef.current = false;
         };
-    }, [
-        busy,
-        isAutoClosePending,
-        isOpen,
-        locationEditorVisible,
-        onAutoRetry,
-    ]);
+    }, [busy, isAutoClosePending, isOpen, locationEditorVisible, onAutoRetry]);
 
     return useMemo(() => {
         const title = (() => {
@@ -271,9 +230,7 @@ export function useRecoveryModalViewModel({
             return t("recovery.generic_header");
         })();
         const locationLabel =
-            ((isVolumeLoss ? classification?.root : classification?.path) ??
-                downloadDir) ||
-            t("labels.unknown");
+            ((isVolumeLoss ? classification?.root : classification?.path) ?? downloadDir) || t("labels.unknown");
         const locationEditorBusy = locationEditorState?.status !== "idle";
         const locationEditorVerifying = locationEditorState?.status === "verifying";
         const locationEditorStatusMessage = locationEditorVerifying
@@ -345,9 +302,7 @@ export function useRecoveryModalViewModel({
                 };
             });
         const inboxVisible = queuedCount > 0;
-        const cancelLabel = inboxVisible
-            ? t("recovery.inbox.dismiss_all")
-            : t("modals.cancel");
+        const cancelLabel = inboxVisible ? t("recovery.inbox.dismiss_all") : t("modals.cancel");
         const buildRecoveryAction = (
             action?: RecoveryRecommendedAction,
         ): { label: string; onPress: () => void; isDisabled: boolean } | null => {
@@ -403,8 +358,51 @@ export function useRecoveryModalViewModel({
             return null;
         };
         const recommendedActions = classification?.recommendedActions ?? [];
+        const locationFirstRecoveryAction = (() => {
+            if (
+                !requiresDecision ||
+                !canSetLocation ||
+                outcome?.kind !== "needs-user-decision"
+            ) {
+                return null;
+            }
+            if (
+                outcome.reason !== "missing" &&
+                outcome.reason !== "unwritable"
+            ) {
+                return null;
+            }
+            return buildRecoveryAction(
+                setLocationCapability.supportsManual
+                    ? "chooseLocation"
+                    : "locate",
+            );
+        })();
+        const locationWorkbenchAction = (() => {
+            if (!canSetLocation || !torrent || locationEditorVisible || isAutoClosePending) {
+                return null;
+            }
+            const canFixLocation =
+                isPathLoss ||
+                isVolumeLoss ||
+                isAccessDenied ||
+                (outcome?.kind === "needs-user-decision" &&
+                    (outcome.reason === "missing" ||
+                        outcome.reason === "unwritable"));
+            if (!canFixLocation) {
+                return null;
+            }
+            return buildRecoveryAction(
+                setLocationCapability.supportsManual
+                    ? "chooseLocation"
+                    : "locate",
+            );
+        })();
         const resolvedPrimaryAction = requiresDecision
             ? (() => {
+                  if (locationFirstRecoveryAction) {
+                      return locationFirstRecoveryAction;
+                  }
                   for (const action of recommendedActions) {
                       const candidate = buildRecoveryAction(action);
                       if (candidate) {
@@ -414,7 +412,8 @@ export function useRecoveryModalViewModel({
                   return null;
               })()
             : null;
-        const primaryAction = resolvedPrimaryAction ??
+        const fallbackPrimaryAction =
+            resolvedPrimaryAction ??
             (requiresDecision
                 ? {
                       label: t("recovery.action_locate"),
@@ -426,6 +425,7 @@ export function useRecoveryModalViewModel({
                       onPress: handleClose,
                       isDisabled: busy || locationEditorVisible || isAutoClosePending,
                   });
+        const primaryAction = locationWorkbenchAction ?? fallbackPrimaryAction;
         return {
             isOpen,
             busy,
@@ -456,12 +456,6 @@ export function useRecoveryModalViewModel({
                 items: inboxItems,
                 moreCount: Math.max(0, queuedCount - inboxItems.length),
             },
-            showRecreate:
-                isPathLoss &&
-                classification?.confidence === "certain" &&
-                requiresDecision &&
-                Boolean(onRecreate),
-            onRecreate: onRecreate ? () => void onRecreate() : undefined,
             onClose: handleClose,
             cancelLabel,
             primaryAction,
@@ -484,12 +478,12 @@ export function useRecoveryModalViewModel({
         isUnknownConfidence,
         isVolumeLoss,
         onAutoRetry,
-        onRecreate,
         outcome,
         queuedCount,
         queuedItems,
         requiresDecision,
         resolvedCountdownSeconds,
+        setLocationCapability.supportsManual,
         t,
         torrent,
     ]);

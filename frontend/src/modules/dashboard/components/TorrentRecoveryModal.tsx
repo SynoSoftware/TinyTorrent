@@ -46,8 +46,6 @@ export interface RecoveryModalViewModel {
         }>;
         moreCount: number;
     };
-    showRecreate: boolean;
-    onRecreate?: () => void;
     onClose: () => void;
     cancelLabel: string;
     primaryAction: {
@@ -65,6 +63,24 @@ export default function TorrentRecoveryModal({
     viewModel,
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
+    const isLocationEditorMode = viewModel.locationEditor.visible;
+    const locationEditorValue = viewModel.locationEditor.value.trim();
+    const cancelAction = viewModel.onClose;
+    const cancelLabel = isLocationEditorMode
+        ? t("modals.cancel")
+        : viewModel.cancelLabel;
+    const cancelDisabled = isLocationEditorMode
+        ? viewModel.locationEditor.disableCancel || viewModel.busy
+        : viewModel.busy;
+    const primaryAction = isLocationEditorMode
+        ? viewModel.locationEditor.onSubmit
+        : viewModel.primaryAction.onPress;
+    const primaryLabel = isLocationEditorMode
+        ? t("recovery.action.change_location")
+        : viewModel.primaryAction.label;
+    const primaryDisabled = isLocationEditorMode
+        ? viewModel.locationEditor.isBusy || !locationEditorValue
+        : viewModel.primaryAction.isDisabled;
 
     return (
         <Modal
@@ -115,17 +131,19 @@ export default function TorrentRecoveryModal({
                                     {viewModel.bodyText}
                                 </p>
                             </div>
-                            <div className={MODAL.dialogLocationRow}>
-                                <HardDrive
-                                    className={MODAL.dialogLocationIcon}
-                                />
-                                <span
-                                    className={MODAL.dialogLocationLabel}
-                                    title={viewModel.locationLabel}
-                                >
-                                    {viewModel.locationLabel}
-                                </span>
-                            </div>
+                            {!viewModel.locationEditor.visible && (
+                                <div className={MODAL.dialogLocationRow}>
+                                    <HardDrive
+                                        className={MODAL.dialogLocationIcon}
+                                    />
+                                    <span
+                                        className={MODAL.dialogLocationLabel}
+                                        title={viewModel.locationLabel}
+                                    >
+                                        {viewModel.locationLabel}
+                                    </span>
+                                </div>
+                            )}
                             {viewModel.locationEditor.visible && (
                                 <SetLocationEditor
                                     value={viewModel.locationEditor.value}
@@ -138,6 +156,7 @@ export default function TorrentRecoveryModal({
                                     disableCancel={
                                         viewModel.locationEditor.disableCancel
                                     }
+                                    showActions={false}
                                     onChange={viewModel.locationEditor.onChange}
                                     onSubmit={viewModel.locationEditor.onSubmit}
                                     onCancel={viewModel.locationEditor.onCancel}
@@ -204,39 +223,24 @@ export default function TorrentRecoveryModal({
 
                         <ModalFooter className={MODAL.dialogFooter}>
                             <div className={MODAL.dialogFooterGroup}>
-                                {viewModel.showRecreate && (
-                                    <Button
-                                        variant="light"
-                                        size="md"
-                                        onPress={viewModel.onRecreate}
-                                        isDisabled={viewModel.busy}
-                                        className={MODAL.dialogSecondaryAction}
-                                    >
-                                        {t("recovery.action_recreate")}
-                                    </Button>
-                                )}
-                            </div>
-                            <div className={MODAL.dialogFooterGroup}>
                                 <Button
                                     variant="light"
                                     size="md"
-                                    onPress={viewModel.onClose}
-                                    isDisabled={viewModel.busy}
+                                    onPress={cancelAction}
+                                    isDisabled={cancelDisabled}
                                     className={MODAL.dialogSecondaryAction}
                                 >
-                                    {viewModel.cancelLabel}
+                                    {cancelLabel}
                                 </Button>
                                 <Button
                                     variant="shadow"
                                     color="primary"
                                     size="lg"
-                                    onPress={viewModel.primaryAction.onPress}
-                                    isDisabled={
-                                        viewModel.primaryAction.isDisabled
-                                    }
+                                    onPress={primaryAction}
+                                    isDisabled={primaryDisabled}
                                     className={MODAL.dialogPrimaryAction}
                                 >
-                                    {viewModel.primaryAction.label}
+                                    {primaryLabel}
                                 </Button>
                             </div>
                         </ModalFooter>

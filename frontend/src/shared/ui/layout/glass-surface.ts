@@ -3,7 +3,7 @@ import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/
 const GLASS_SURFACE_DIAL = {
     opacity: {
         panel: "bg-content1/10",
-        workbench: "bg-content1/30",
+        workbench: "bg-transparent",
         pane: "bg-content1/55",
         modal: "bg-content1/80",
         overlay: "bg-background/90",
@@ -220,6 +220,8 @@ const WORKBENCH_SURFACE_FAMILY = {
     topEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeTop}`,
     bottomEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeBottom}`,
 } as const;
+const WORKBENCH_ISLAND_BORDER = "border-default/35";
+const WORKBENCH_ISLAND_SURFACE = `${WORKBENCH_SURFACE_FAMILY.shell} surface-layer-2 border ${WORKBENCH_ISLAND_BORDER}`;
 
 export const MODAL = {
     baseClassNames: SURFACE.modal.baseClassNames,
@@ -593,8 +595,9 @@ const TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS = (isBusyWithOtherTorrent: boolea
         : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
+    shellPanel: `relative flex-1 h-full min-h-0 flex flex-col m-px ${WORKBENCH_ISLAND_SURFACE} overflow-hidden`,
     workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
-    workbenchShell: WORKBENCH_SURFACE_FAMILY.shell,
+    workbenchShell: WORKBENCH_ISLAND_SURFACE,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     columnHeader: TORRENT_HEADER,
@@ -738,8 +741,8 @@ export const DIAGNOSTIC = {
 } as const;
 const WORKBENCH_NAV = {
     root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
-    workbenchSurface: WORKBENCH_SURFACE_FAMILY.bottomEdge,
-    workbenchShell: WORKBENCH_SURFACE_FAMILY.shell,
+    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
+    workbenchShell: WORKBENCH_ISLAND_SURFACE,
     titlebar: "app-titlebar flex w-full items-stretch",
     titlebarBaseStyle: {
         height: "var(--tt-navbar-h)",
@@ -818,7 +821,7 @@ const WORKBENCH_NAV = {
     } as const,
 } as const;
 const WORKBENCH_STATUS = {
-    workbenchSurface: WORKBENCH_SURFACE_FAMILY.topEdge,
+    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
     iconCurrent: "text-current",
     iconMuted: "opacity-50",
     srOnly: "sr-only",
@@ -845,7 +848,7 @@ const WORKBENCH_STATUS = {
     engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
-    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_SURFACE_FAMILY.shell}`,
+    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_ISLAND_SURFACE}`,
     main: "flex items-center justify-between gap-stage",
     speedFull: "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
     speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
@@ -886,8 +889,8 @@ export const WORKBENCH = {
         "absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40",
     immersiveBackgroundAccentTop:
         "absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35",
-    immersiveNavbarWrap: "acrylic border shadow-hud",
-    immersiveMainWrap: "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
+    immersiveNavbarWrap: `${WORKBENCH_ISLAND_SURFACE} shadow-hud`,
+    immersiveMainWrap: `tt-shell-no-drag ${WORKBENCH_ISLAND_SURFACE} flex-1 min-h-0 h-full shadow-hud`,
     immersiveMain: "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
     immersiveHudSection: "tt-shell-no-drag grid gap-panel",
     immersiveHudCard:
@@ -899,8 +902,7 @@ export const WORKBENCH = {
     immersiveHudTextWrap: "flex-1",
     immersiveHudTextLabel: `mt-tight ${TEXT_ROLE.bodyStrong}`,
     immersiveHudTextDescription: `mt-panel ${TEXT_ROLE.caption}`,
-    immersiveStatusWrap:
-        "tt-shell-no-drag glass-panel border border-content1/10 bg-background/75 shadow-hud blur-glass",
+    immersiveStatusWrap: `tt-shell-no-drag ${WORKBENCH_ISLAND_SURFACE} bg-background/75 shadow-hud blur-glass`,
     classicStack: "flex-1 min-h-0 h-full flex flex-col gap-tools",
     classicMainWrap: "tt-shell-no-drag flex-1 min-h-0 h-full",
     classicStatusWrap: "tt-shell-no-drag",

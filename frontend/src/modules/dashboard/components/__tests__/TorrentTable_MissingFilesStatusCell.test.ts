@@ -112,7 +112,9 @@ describe("TorrentTable_MissingFilesStatusCell", () => {
         trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
         expect(openRecoveryModalMock).toHaveBeenCalledTimes(1);
-        expect(openRecoveryModalMock).toHaveBeenCalledWith(TEST_TORRENT);
+        expect(openRecoveryModalMock).toHaveBeenCalledWith(TEST_TORRENT, {
+            forceWorkbench: true,
+        });
         expect(showFeedbackMock).not.toHaveBeenCalled();
 
         root.unmount();
