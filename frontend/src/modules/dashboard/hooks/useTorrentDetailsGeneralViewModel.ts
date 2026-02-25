@@ -15,6 +15,7 @@ import {
 } from "@/modules/dashboard/utils/applySetDownloadLocation";
 import {
     getSetDownloadLocationUiTextKeys,
+    shouldMoveDataOnSetLocation,
 } from "@/modules/dashboard/domain/torrentRelocation";
 
 type UseTorrentDetailsGeneralViewModelParams = {
@@ -31,6 +32,7 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     currentPath: string;
     setDownloadLocationActionLabelKey: "table.actions.set_download_path" | "table.actions.locate_files";
     setDownloadLocationModalTitleKey: "modals.set_download_location.title" | "modals.locate_files.title";
+    allowInvalidSetLocationPathApply: boolean;
     isActive: boolean;
     mainActionLabel: string;
     showSetDownloadPathModal: boolean;
@@ -67,6 +69,7 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
     const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
     const canSetLocation = typeof torrentClient.setTorrentLocation === "function";
     const setDownloadLocationUiTextKeys = getSetDownloadLocationUiTextKeys(torrent);
+    const allowInvalidSetLocationPathApply = shouldMoveDataOnSetLocation(torrent);
 
     const isActive =
         torrent.state === STATUS.torrent.DOWNLOADING ||
@@ -166,6 +169,7 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
         currentPath,
         setDownloadLocationActionLabelKey: setDownloadLocationUiTextKeys.actionLabelKey,
         setDownloadLocationModalTitleKey: setDownloadLocationUiTextKeys.modalTitleKey,
+        allowInvalidSetLocationPathApply,
         isActive,
         mainActionLabel,
         showSetDownloadPathModal,

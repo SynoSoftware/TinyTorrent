@@ -26,6 +26,7 @@ import {
 } from "@/modules/dashboard/utils/applySetDownloadLocation";
 import {
     getSetDownloadLocationUiTextKeys,
+    shouldMoveDataOnSetLocation,
 } from "@/modules/dashboard/domain/torrentRelocation";
 
 type RowMenuAction = {
@@ -60,6 +61,10 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
             getSetDownloadLocationUiTextKeys(
                 setLocationTorrent ?? {},
             ).modalTitleKey,
+        [setLocationTorrent],
+    );
+    const allowInvalidSetLocationPathApply = useMemo(
+        () => shouldMoveDataOnSetLocation(setLocationTorrent ?? {}),
         [setLocationTorrent],
     );
 
@@ -131,6 +136,7 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
                 titleKey={setLocationModalTitleKey}
                 initialPath={resolveSetDownloadLocationPath(setLocationTorrent)}
                 canPickDirectory={canPickDirectory}
+                allowInvalidPathApply={allowInvalidSetLocationPathApply}
                 onClose={closeSetLocationModal}
                 onPickDirectory={browseSetLocationPath}
                 onApply={applySetLocation}

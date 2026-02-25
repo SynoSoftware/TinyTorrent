@@ -282,7 +282,7 @@
         },
         "ghost_timeout_ms": 30000,
         "table_persist_debounce_ms": 250,
-        "set_location_validation_debounce_ms": 200,
+        "set_location_validation_debounce_ms": 20,
         "verify_watch_interval_ms": 500,
         "set_location_move_timeout_ms": 600000
     }

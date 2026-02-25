@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS } from "@/shared/status";
+import {
+    DETAIL_REFRESH_INTERVAL_MS,
+    OPTIMISTIC_CHECKING_GRACE_MS,
+} from "@/config/logic";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
@@ -78,6 +82,11 @@ export function useWorkspaceTorrentDomain({
     capabilities,
 }: UseWorkspaceTorrentDomainParams): WorkspaceTorrentDomain {
     const isMountedRef = useRef(false);
+    const [isRecheckPollingBoostActive, setIsRecheckPollingBoostActive] =
+        useState(false);
+    const [isVerificationPollingBoostActive, setIsVerificationPollingBoostActive] =
+        useState(false);
+    const recheckPollingBoostTimerRef = useRef<number | undefined>(undefined);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -85,6 +94,29 @@ export function useWorkspaceTorrentDomain({
             isMountedRef.current = false;
         };
     }, []);
+
+    const clearRecheckPollingBoostTimer = useCallback(() => {
+        if (recheckPollingBoostTimerRef.current !== undefined) {
+            window.clearTimeout(recheckPollingBoostTimerRef.current);
+            recheckPollingBoostTimerRef.current = undefined;
+        }
+    }, []);
+
+    useEffect(() => clearRecheckPollingBoostTimer, [clearRecheckPollingBoostTimer]);
+
+    const triggerRecheckPollingBoost = useCallback(() => {
+        setIsRecheckPollingBoostActive(true);
+        clearRecheckPollingBoostTimer();
+        recheckPollingBoostTimerRef.current = window.setTimeout(() => {
+            setIsRecheckPollingBoostActive(false);
+            recheckPollingBoostTimerRef.current = undefined;
+        }, OPTIMISTIC_CHECKING_GRACE_MS);
+    }, [clearRecheckPollingBoostTimer]);
+
+    const effectiveTablePollingIntervalMs =
+        isRecheckPollingBoostActive || isVerificationPollingBoostActive
+            ? Math.min(pollingIntervalMs, DETAIL_REFRESH_INTERVAL_MS)
+            : pollingIntervalMs;
 
     const {
         torrents,
@@ -95,9 +127,16 @@ export function useWorkspaceTorrentDomain({
     } = useTorrentData({
         client: torrentClient,
         sessionReady: rpcStatus === STATUS.connection.CONNECTED,
-        pollingIntervalMs,
+        pollingIntervalMs: effectiveTablePollingIntervalMs,
         markTransportConnected,
     });
+
+    useEffect(() => {
+        const hasVerificationInProgress = runtimeSummary.verifyingCount > 0;
+        setIsVerificationPollingBoostActive((prev) =>
+            prev === hasVerificationInProgress ? prev : hasVerificationInProgress,
+        );
+    }, [runtimeSummary.verifyingCount]);
 
     const { detailData, loadDetail, refreshDetailData, clearDetail, mutateDetail } = useTorrentDetail({
         torrentClient,
@@ -234,6 +273,7 @@ export function useWorkspaceTorrentDomain({
     };
 
     const refreshAfterRecheck = useCallback(async (): Promise<RecheckRefreshOutcome> => {
+        triggerRecheckPollingBoost();
         if (rpcStatus !== STATUS.connection.CONNECTED) {
             return "refresh_skipped";
         }
@@ -243,7 +283,7 @@ export function useWorkspaceTorrentDomain({
         } catch {
             return "refresh_failed";
         }
-    }, [refreshTorrents, rpcStatus]);
+    }, [refreshTorrents, rpcStatus, triggerRecheckPollingBoost]);
 
     const { pendingDelete, confirmDelete, clearPendingDelete, handleTorrentAction, handleBulkAction, handleSetDownloadLocation, removedIds } =
         useTorrentWorkflow({

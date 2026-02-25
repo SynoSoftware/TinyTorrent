@@ -116,6 +116,7 @@ export const GeneralTab = ({ torrent, downloadDir, activePeers }: GeneralTabProp
                 titleKey={general.setDownloadLocationModalTitleKey}
                 initialPath={general.currentPath}
                 canPickDirectory={general.canPickDirectory}
+                allowInvalidPathApply={general.allowInvalidSetLocationPathApply}
                 onClose={general.closeSetDownloadPathModal}
                 onPickDirectory={general.pickDirectoryForSetDownloadPath}
                 onApply={general.applySetDownloadPath}

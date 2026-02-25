@@ -204,11 +204,8 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
             );
             return { status: "applied" };
         },
-        refresh: {
-            refreshTorrents: true,
-            refreshDetail: true,
-            refreshStats: true,
-        },
+        // Keep set-location command path responsive; UI convergence is owned by heartbeat.
+        refresh: {},
     },
     ENSURE_TORRENT_VALID: {
         run: async (intent, context) => {

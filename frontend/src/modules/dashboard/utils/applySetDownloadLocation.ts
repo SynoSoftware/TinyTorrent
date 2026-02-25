@@ -8,6 +8,7 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import { shouldMoveDataOnSetLocation } from "@/modules/dashboard/domain/torrentRelocation";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 type DispatchIntent = (intent: ReturnType<typeof TorrentIntents.ensureActive>) => Promise<TorrentDispatchOutcome>;
 type SetDownloadLocationCommand = (params: {
@@ -82,15 +83,35 @@ export async function applySetDownloadLocation({
         throw new Error(t("toolbar.feedback.failed"));
     }
 
-    if (!moveData) {
-        await client.verify([String(targetId)]);
-        await watchVerifyCompletion(client, String(targetId));
-    }
-
-    if (shouldRestoreRunningState) {
-        const resumeOutcome = await dispatchEnsureActive(TorrentIntents.ensureActive(targetId));
-        if (resumeOutcome.status !== "applied") {
-            throw new Error(t("toolbar.feedback.failed"));
+    const targetKey = String(targetId);
+    const runPostSetLocationFlow = async (): Promise<void> => {
+        if (!moveData) {
+            await client.verify([targetKey]);
+            await watchVerifyCompletion(client, targetKey);
         }
-    }
+
+        if (shouldRestoreRunningState) {
+            const resumeOutcome = await dispatchEnsureActive(TorrentIntents.ensureActive(targetId));
+            if (resumeOutcome.status !== "applied") {
+                throw new Error(t("toolbar.feedback.failed"));
+            }
+        }
+    };
+
+    // Keep modal flow responsive: post-set-location follow-up is async and can take minutes.
+    void runPostSetLocationFlow().catch((error) => {
+        infraLogger.warn(
+            {
+                scope: "set_location",
+                event: "post_set_location_flow_failed",
+                message: "Post set-location flow failed",
+                details: {
+                    torrentId: targetKey,
+                    moveData,
+                    shouldRestoreRunningState,
+                },
+            },
+            error,
+        );
+    });
 }

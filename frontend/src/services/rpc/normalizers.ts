@@ -132,17 +132,29 @@ const isWithinStallGraceWindow = (torrent: ActivityInfo) => {
 };
 
 export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTorrent): TorrentStatus => {
-    // 1) Error classification (authoritative)
+    const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
+    const statusIndicatesChecking = isCheckingStatusNum(statusNum);
+    const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
+    const currentlyVerifying = isVerifying || statusIndicatesChecking;
+
+    // 1) Active verify is authoritative over stale/local error flags.
+    // Transmission may keep error=3 while a manual recheck is in progress.
+    // If we keep returning ERROR here, UI never shows checking/progress.
+    if (currentlyVerifying) {
+        return STATUS.torrent.CHECKING;
+    }
+
+    // 2) Error classification (authoritative outside active verify)
     if (hasRpcError(torrent)) {
         return STATUS.torrent.ERROR;
     }
 
-    // 2) Base states that must never be overridden
+    // 3) Base states that must never be overridden
     if (base === STATUS.torrent.PAUSED || base === STATUS.torrent.CHECKING || base === STATUS.torrent.QUEUED) {
         return base;
     }
 
-    // 🔒 3) Completed torrents are NEVER stalled
+    // 🔒 4) Completed torrents are NEVER stalled
     if (torrent.percentDone === 1) {
         return STATUS.torrent.SEEDING;
     }
@@ -150,10 +162,6 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
     const down = numOr(torrent.rateDownload, 0);
     const sendingToUs = numOr(torrent.peersSendingToUs, 0);
 
-    const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
-    const statusIndicatesChecking = isCheckingStatusNum(statusNum);
-    const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
-    const currentlyVerifying = isVerifying || statusIndicatesChecking;
     const idKey = torrent.hashString ?? String(torrent.id ?? "");
     const nowSeconds = Math.floor(Date.now() / 1000);
     updateVerifyState(idKey || null, currentlyVerifying, nowSeconds);
