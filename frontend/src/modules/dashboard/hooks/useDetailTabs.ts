@@ -26,6 +26,23 @@ export const DETAIL_TABS: DetailTab[] = [
     "speed",
 ];
 
+const isEditableKeyTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    const tagName = target.tagName;
+    if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+    ) {
+        return true;
+    }
+
+    return target.isContentEditable || target.closest("[contenteditable='true']") !== null;
+};
+
 interface UseDetailTabsParams {
     inspectorTabCommand?: DetailTab | null;
     onInspectorTabCommandHandled?: () => void;
@@ -65,6 +82,18 @@ export const useDetailTabs = ({
 
     const handleKeyDown = useCallback(
         (event: KeyboardEvent) => {
+            const currentTarget = event.currentTarget;
+            const target = event.target;
+            if (
+                event.defaultPrevented ||
+                !(currentTarget instanceof HTMLElement) ||
+                !(target instanceof Node) ||
+                !currentTarget.contains(target) ||
+                isEditableKeyTarget(target)
+            ) {
+                return;
+            }
+
             const { key } = event;
             if (key === "ArrowRight") {
                 const idx = DETAIL_TABS.indexOf(active);
