@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
@@ -12,14 +12,21 @@ import type {
     TorrentTableRowMenuViewModel,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
+import { useRequiredTorrentActions, useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
-import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import type { RecoveryAction } from "@/services/rpc/entities";
-import type { RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
-import { canTriggerDownloadMissingAction } from "@/modules/dashboard/utils/recoveryEligibility";
+import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
+import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
+import {
+    applySetDownloadLocation,
+    pickSetDownloadLocationDirectory,
+    resolveSetDownloadLocationPath,
+} from "@/modules/dashboard/utils/applySetDownloadLocation";
+import {
+    getSetDownloadLocationUiTextKeys,
+} from "@/modules/dashboard/domain/torrentRelocation";
 
 type RowMenuAction = {
     key: RowContextMenuKey;
@@ -27,17 +34,6 @@ type RowMenuAction = {
     shortcut?: string;
     disabled?: boolean;
 };
-
-const RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION = {
-    locate: "setLocation",
-    chooseLocation: "setLocation",
-    openFolder: "openFolder",
-    downloadMissing: "downloadMissing",
-    retry: "forceRecheck",
-} satisfies Record<RecoveryRecommendedAction, RecoveryAction>;
-
-const mapRecommendedActionToEmphasis = (action?: RecoveryRecommendedAction): RecoveryAction | undefined =>
-    action ? RECOVERY_RECOMMENDED_TO_EMPHASIS_ACTION[action] : undefined;
 
 interface RowMenuViewModel {
     actions: RowMenuAction[];
@@ -53,18 +49,93 @@ export interface TorrentTableRowMenuProps {
 
 export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuProps) {
     const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
+    const { dispatch } = useRequiredTorrentActions();
+    const { setDownloadLocation } = useTorrentCommands();
+    const torrentClient = useTorrentClient();
+    const { canPickDirectory, pickDirectory } = useDirectoryPicker();
+    const { t } = useTranslation();
+    const [setLocationTorrent, setSetLocationTorrent] = useState<Torrent | null>(null);
+    const setLocationModalTitleKey = useMemo(
+        () =>
+            getSetDownloadLocationUiTextKeys(
+                setLocationTorrent ?? {},
+            ).modalTitleKey,
+        [setLocationTorrent],
+    );
+
+    const closeSetLocationModal = useCallback(() => {
+        setSetLocationTorrent(null);
+    }, []);
+
+    const browseSetLocationPath = useCallback(
+        async (currentPath: string): Promise<string | null> => {
+            return pickSetDownloadLocationDirectory({
+                currentPath,
+                torrent: setLocationTorrent,
+                canPickDirectory,
+                pickDirectory,
+            });
+        },
+        [canPickDirectory, pickDirectory, setLocationTorrent],
+    );
+
+    const applySetLocation = useCallback(
+        async ({ path }: { path: string }) => {
+            const target = setLocationTorrent;
+            if (!target) {
+                throw new Error(t("toolbar.feedback.failed"));
+            }
+            await applySetDownloadLocation({
+                torrent: target,
+                path,
+                client: torrentClient,
+                setDownloadLocation,
+                dispatchEnsureActive: dispatch,
+                t,
+            });
+        },
+        [
+            dispatch,
+            setDownloadLocation,
+            setLocationTorrent,
+            t,
+            torrentClient,
+        ],
+    );
+
+    const openSetLocationModalFromContext = useCallback(
+        (torrent: Torrent) => {
+            setSetLocationTorrent(torrent);
+            onClose();
+        },
+        [onClose],
+    );
+
     return (
-        <AnimatePresence>
-            {contextMenu ? (
-                <TorrentTable_RowMenuInner
-                    contextMenu={contextMenu}
-                    onClose={onClose}
-                    handleContextMenuAction={handleContextMenuAction}
-                    queueMenuActions={queueMenuActions}
-                    getContextMenuShortcut={getContextMenuShortcut}
-                />
-            ) : null}
-        </AnimatePresence>
+        <>
+            <AnimatePresence>
+                {contextMenu ? (
+                    <TorrentTable_RowMenuInner
+                        contextMenu={contextMenu}
+                        onClose={onClose}
+                        handleContextMenuAction={handleContextMenuAction}
+                        queueMenuActions={queueMenuActions}
+                        getContextMenuShortcut={getContextMenuShortcut}
+                        onRequestSetDownloadLocation={openSetLocationModalFromContext}
+                    />
+                ) : null}
+            </AnimatePresence>
+
+            <SetDownloadPathModal
+                isOpen={Boolean(setLocationTorrent)}
+                titleKey={setLocationModalTitleKey}
+                initialPath={resolveSetDownloadLocationPath(setLocationTorrent)}
+                canPickDirectory={canPickDirectory}
+                onClose={closeSetLocationModal}
+                onPickDirectory={browseSetLocationPath}
+                onApply={applySetLocation}
+            />
+        </>
     );
 }
 
@@ -74,6 +145,7 @@ function TorrentTable_RowMenuInner({
     handleContextMenuAction,
     queueMenuActions,
     getContextMenuShortcut,
+    onRequestSetDownloadLocation,
 }: {
     contextMenu: TableContextMenu;
     onClose: () => void;
@@ -82,28 +154,18 @@ function TorrentTable_RowMenuInner({
     ) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
+    onRequestSetDownloadLocation: (torrent: Torrent) => void;
 }) {
     const { t } = useTranslation();
-    const { clipboardWriteSupported } = useUiModeCapabilities();
+    const { clipboardWriteSupported, canOpenFolder } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
-    const {
-        setLocationCapability: downloadPathCapability,
-        canOpenFolder,
-        isDownloadMissingInFlight,
-    } = useRecoveryContext();
 
     const contextTorrent = contextMenu.torrent;
-    const shouldShowOpenFolder = Boolean(canOpenFolder);
-    const canSetDownloadPath = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
-    const classification = useResolvedRecoveryClassification(contextTorrent);
-    const canDownloadMissing = canTriggerDownloadMissingAction(
-        contextTorrent,
-        classification,
+    const shouldShowOpenFolder = canOpenFolder;
+    const setLocationUiTextKeys = useMemo(
+        () => getSetDownloadLocationUiTextKeys(contextTorrent),
+        [contextTorrent],
     );
-    const downloadMissingBusy = isDownloadMissingInFlight(contextTorrent);
-    const primaryEmphasisAction =
-        mapRecommendedActionToEmphasis(classification?.recommendedActions?.[0]) ??
-        contextMenu.torrent.errorEnvelope?.primaryAction;
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
@@ -140,25 +202,22 @@ function TorrentTable_RowMenuInner({
     const handleMenuClose = () => {
         onClose();
     };
+
     const handleMenuActionPress = useCallback(
         async (key?: RowContextMenuKey) => {
+            if (key === "set-download-location") {
+                onRequestSetDownloadLocation(contextTorrent);
+                return;
+            }
             const outcome = await handleContextMenuAction(key);
             if (outcome.status === "unsupported") {
                 showFeedback(t("torrent_modal.controls.not_supported"), "warning");
             } else if (outcome.status === "failed") {
-                if (outcome.reason === "blocked") {
-                    showFeedback(t("recovery.status.blocked"), "warning");
-                } else {
-                    showFeedback(t("toolbar.feedback.failed"), "danger");
-                }
+                showFeedback(t("toolbar.feedback.failed"), "danger");
             }
         },
-        [handleContextMenuAction, showFeedback, t],
+        [contextTorrent, handleContextMenuAction, onRequestSetDownloadLocation, showFeedback, t],
     );
-    const handleSetDownloadPath = useCallback(() => {
-        if (!canSetDownloadPath) return;
-        void handleMenuActionPress("set-download-path");
-    }, [canSetDownloadPath, handleMenuActionPress]);
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
@@ -215,9 +274,6 @@ function TorrentTable_RowMenuInner({
                 <DropdownItem
                     key="open-folder"
                     isDisabled={rowMenuViewModel.openFolderDisabled}
-                    className={cn(
-                        primaryEmphasisAction === "openFolder" ? getEmphasisClassForAction(primaryEmphasisAction) : "",
-                    )}
                     onPress={() => void handleMenuActionPress("open-folder")}
                 >
                     {t("table.actions.open_folder")}
@@ -227,30 +283,11 @@ function TorrentTable_RowMenuInner({
 
         items.push(
             <DropdownItem
-                key="set-download-path"
-                className={cn(
-                    primaryEmphasisAction === "setLocation" ? getEmphasisClassForAction(primaryEmphasisAction) : "",
-                )}
-                isDisabled={!canSetDownloadPath}
-                onPress={handleSetDownloadPath}
-                textValue={t("table.actions.set_download_path")}
+                key="set-download-location"
+                onPress={() => void handleMenuActionPress("set-download-location")}
+                textValue={t(setLocationUiTextKeys.actionLabelKey)}
             >
-                {t("table.actions.set_download_path")}
-            </DropdownItem>,
-        );
-
-        items.push(
-            <DropdownItem
-                key="download-missing"
-                className={cn(
-                    primaryEmphasisAction === "downloadMissing"
-                        ? getEmphasisClassForAction(primaryEmphasisAction)
-                        : "",
-                )}
-                isDisabled={!canDownloadMissing || downloadMissingBusy}
-                onPress={() => void handleMenuActionPress("download-missing")}
-            >
-                {t("recovery.action_download")}
+                {t(setLocationUiTextKeys.actionLabelKey)}
             </DropdownItem>,
         );
 
@@ -301,14 +338,10 @@ function TorrentTable_RowMenuInner({
         return items as CollectionChildren<object>;
     }, [
         rowMenuViewModel,
-        primaryEmphasisAction,
-        canSetDownloadPath,
-        canDownloadMissing,
-        downloadMissingBusy,
         clipboardWriteSupported,
         getContextMenuShortcut,
         handleMenuActionPress,
-        handleSetDownloadPath,
+        setLocationUiTextKeys.actionLabelKey,
         t,
     ]);
 

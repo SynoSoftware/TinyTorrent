@@ -25,7 +25,10 @@ export function TorrentTable({ viewModel, embedded = false }: TorrentTableProps)
     const { refs, state, table, interaction, menus, lifecycle, surfaces } = tableViewModel;
     const { setTableContainerRef, setMeasureLayerRef } = refs;
 
-    const tableShellClass = useMemo(() => TABLE.shellPanel, []);
+    const tableShellClass = useMemo(
+        () => cn(TABLE.shellPanel, !embedded && TABLE.shell),
+        [embedded],
+    );
 
     const activeHeader = table.instance.getFlatHeaders().find((header) => header.id === state.activeDragHeaderId);
 
@@ -40,7 +43,7 @@ export function TorrentTable({ viewModel, embedded = false }: TorrentTableProps)
                 data-tt-column-resizing={state.isAnyColumnResizing ? "true" : undefined}
                 data-tt-layout-suppressed={state.isAnimationSuppressed ? "true" : undefined}
                 style={TABLE.hostBorderRadiusStyle}
-                className={cn(TABLE.hostRoot, !embedded && TABLE.workbenchSurface)}
+                className={cn(TABLE.hostRoot, !embedded && TABLE.surface)}
                 onClick={menus.closeContextMenu}
             >
                 <ColumnMeasurementLayer

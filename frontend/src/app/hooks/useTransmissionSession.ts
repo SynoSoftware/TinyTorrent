@@ -97,6 +97,16 @@ export function useTransmissionSession(
         }
         void runEngineDetection();
     }, [rpcStatus, runEngineDetection, sessionDomain.canDetectEngine]);
+
+    useEffect(() => {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
+            return;
+        }
+        void refreshSessionSettings().catch(() => {
+            // Keep session platform optional for consumers; failures are
+            // handled through existing connection/read error channels.
+        });
+    }, [refreshSessionSettings, rpcStatus]);
     // TODO: Pull session detection/rpcStatus/engineInfo into the planned Session provider so AppContent reads from one source of truth instead of hook chaining.
 
     return {

@@ -264,6 +264,11 @@ const zTransmissionTorrent = z
         uploadRatio: z.number(),
         uploadedEver: z.number(),
         downloadedEver: z.number(),
+        haveValid: z.number().optional(),
+        haveUnchecked: z.number().optional(),
+        doneDate: z.number().optional(),
+        secondsDownloading: z.number().optional(),
+        secondsSeeding: z.number().optional(),
         downloadDir: z.string().optional(),
         leftUntilDone: z.number().optional(),
         sizeWhenDone: z.number().optional(),
@@ -607,6 +612,7 @@ export const zTransmissionSessionSettings = z.object({
     "idle-seeding-limit": z.number().optional(),
     "idle-seeding-limit-enabled": z.boolean().optional(),
     version: z.string().optional(),
+    platform: z.string().optional(),
     "rpc-version": z.number().optional(),
     ui: z
         .object({

@@ -26,8 +26,7 @@ export type RowContextMenuKey =
     | ContextMenuKey
     | "cols"
     | "open-folder"
-    | "set-download-path"
-    | "download-missing";
+    | "set-download-location";
 
 export type HeaderMenuActionOptions = {
     keepOpen?: boolean;

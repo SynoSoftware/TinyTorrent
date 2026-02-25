@@ -92,7 +92,7 @@ export const ContentTab = ({
                         {t("torrent_modal.files_empty")}
                     </div>
                     <div className={TABLE.detailsContentRecoveryNote}>
-                        {t("torrent_modal.files_recovery_desc")}
+                        {t("torrent_modal.files_missing_desc")}
                     </div>
                 </AlertPanel>
             </div>

@@ -8,26 +8,19 @@ import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-import {
-    DETAILS_TOOLTIP_OPACITY_ANIMATION,
-    STATUS_VISUAL_KEYS,
-    STATUS_VISUALS,
-} from "@/config/logic";
+import { DETAILS_TOOLTIP_OPACITY_ANIMATION, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
 import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
 
 export type CommandActionOutcome =
     | { status: "success" }
-    | { status: "canceled"; reason: "no_selection" | "operation_cancelled" }
+    | { status: "canceled"; reason: "no_selection" }
     | { status: "unsupported"; reason: "action_not_supported" }
     | {
           status: "failed";
           reason: "execution_failed" | "refresh_failed" | "exception";
       };
 
-type NonSuccessCommandActionOutcome = Exclude<
-    CommandActionOutcome,
-    { status: "success" }
->;
+type NonSuccessCommandActionOutcome = Exclude<CommandActionOutcome, { status: "success" }>;
 
 export interface CommandAction {
     id: CommandId;
@@ -85,14 +78,10 @@ interface CommandPaletteOverlayProps {
     onClose: () => void;
 }
 
-function CommandPaletteOverlay({
-    groupedActions,
-    onClose,
-}: CommandPaletteOverlayProps) {
+function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverlayProps) {
     const { t } = useTranslation();
     const [query, setQuery] = useState("");
-    const [lastOutcome, setLastOutcome] =
-        useState<NonSuccessCommandActionOutcome | null>(null);
+    const [lastOutcome, setLastOutcome] = useState<NonSuccessCommandActionOutcome | null>(null);
 
     const handleSelect = async (action: CommandAction) => {
         setLastOutcome(null);
@@ -128,31 +117,15 @@ function CommandPaletteOverlay({
     const outcomeToneClass = useMemo(() => {
         if (!lastOutcome) return "";
         const toneKey =
-            lastOutcome.status === "failed"
-                ? STATUS_VISUAL_KEYS.tone.DANGER
-                : STATUS_VISUAL_KEYS.tone.WARNING;
-        return (
-            STATUS_VISUALS[toneKey]?.text ??
-            STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.text ??
-            "text-warning"
-        );
+            lastOutcome.status === "failed" ? STATUS_VISUAL_KEYS.tone.DANGER : STATUS_VISUAL_KEYS.tone.WARNING;
+        return STATUS_VISUALS[toneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.text ?? "text-warning";
     }, [lastOutcome]);
 
     return (
-        <motion.div
-            {...OVERLAY_FADE_ANIMATION}
-            className={COMMAND_PALETTE.overlay}
-        >
-            <motion.div
-                {...BACKDROP_FADE_ANIMATION}
-                className={COMMAND_PALETTE.backdrop}
-                onPointerDown={onClose}
-            />
+        <motion.div {...OVERLAY_FADE_ANIMATION} className={COMMAND_PALETTE.overlay}>
+            <motion.div {...BACKDROP_FADE_ANIMATION} className={COMMAND_PALETTE.backdrop} onPointerDown={onClose} />
             <Section padding="overlay" className={COMMAND_PALETTE.section}>
-                <motion.div
-                    {...PANEL_ANIMATION}
-                    className={COMMAND_PALETTE.panel}
-                >
+                <motion.div {...PANEL_ANIMATION} className={COMMAND_PALETTE.panel}>
                     <Command
                         value={query}
                         onValueChange={setQuery}
@@ -169,64 +142,30 @@ function CommandPaletteOverlay({
                         />
                         <Command.List className={COMMAND_PALETTE.list}>
                             {groupedActions.map(({ group, entries }) => (
-                                <div
-                                    key={group}
-                                    className={COMMAND_PALETTE.groupWrap}
-                                >
-                                    <div
-                                        className={
-                                            TEXT_ROLE_EXTENDED.commandSection
-                                        }
-                                    >
-                                        {group}
-                                    </div>
+                                <div key={group} className={COMMAND_PALETTE.groupWrap}>
+                                    <div className={TEXT_ROLE_EXTENDED.commandSection}>{group}</div>
                                     <Command.Group>
                                         {entries.map((action) => (
                                             <Command.Item
                                                 key={action.id}
                                                 value={action.id}
-                                                onSelect={() =>
-                                                    void handleSelect(action)
-                                                }
+                                                onSelect={() => void handleSelect(action)}
                                                 className={COMMAND_PALETTE.item}
                                             >
-                                                <div
-                                                    className={
-                                                        COMMAND_PALETTE.itemRow
-                                                    }
-                                                >
+                                                <div className={COMMAND_PALETTE.itemRow}>
                                                     <span>{action.title}</span>
                                                     {action.shortcut && (
-                                                        <div
-                                                            className={
-                                                                COMMAND_PALETTE.shortcutWrap
-                                                            }
-                                                        >
-                                                            {action.shortcut.map(
-                                                                (key) => (
-                                                                    <span
-                                                                        key={
-                                                                            key
-                                                                        }
-                                                                        className={
-                                                                            COMMAND_PALETTE.shortcutKey
-                                                                        }
-                                                                    >
-                                                                        {key}
-                                                                    </span>
-                                                                ),
-                                                            )}
+                                                        <div className={COMMAND_PALETTE.shortcutWrap}>
+                                                            {action.shortcut.map((key) => (
+                                                                <span key={key} className={COMMAND_PALETTE.shortcutKey}>
+                                                                    {key}
+                                                                </span>
+                                                            ))}
                                                         </div>
                                                     )}
                                                 </div>
                                                 {action.description && (
-                                                    <p
-                                                        className={
-                                                            COMMAND_PALETTE.description
-                                                        }
-                                                    >
-                                                        {action.description}
-                                                    </p>
+                                                    <p className={COMMAND_PALETTE.description}>{action.description}</p>
                                                 )}
                                             </Command.Item>
                                         ))}
@@ -238,14 +177,7 @@ function CommandPaletteOverlay({
                             </Command.Empty>
                         </Command.List>
                         {outcomeMessage ? (
-                            <div
-                                className={cn(
-                                    COMMAND_PALETTE.outcome,
-                                    outcomeToneClass,
-                                )}
-                            >
-                                {outcomeMessage}
-                            </div>
+                            <div className={cn(COMMAND_PALETTE.outcome, outcomeToneClass)}>{outcomeMessage}</div>
                         ) : null}
                     </Command>
                 </motion.div>
@@ -254,24 +186,13 @@ function CommandPaletteOverlay({
     );
 }
 
-export function CommandPalette({
-    isOpen,
-    onOpenChange,
-    actions,
-    getContextActions,
-}: CommandPaletteProps) {
+export function CommandPalette({ isOpen, onOpenChange, actions, getContextActions }: CommandPaletteProps) {
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
     const previousPartRef = useRef<FocusPart>("table");
     const previousOpenRef = useRef(isOpen);
-    const contextActions = useMemo(
-        () => getContextActions?.({ activePart }) ?? [],
-        [getContextActions, activePart],
-    );
-    const allActions = useMemo(
-        () => [...actions, ...contextActions],
-        [actions, contextActions],
-    );
+    const contextActions = useMemo(() => getContextActions?.({ activePart }) ?? [], [getContextActions, activePart]);
+    const allActions = useMemo(() => [...actions, ...contextActions], [actions, contextActions]);
     const groupedActions = useMemo(() => {
         const result = new Map<string, CommandAction[]>();
         allActions.forEach((action) => {
@@ -302,12 +223,7 @@ export function CommandPalette({
 
     return (
         <AnimatePresence>
-            {isOpen && (
-                <CommandPaletteOverlay
-                    groupedActions={groupedActions}
-                    onClose={handleClose}
-                />
-            )}
+            {isOpen && <CommandPaletteOverlay groupedActions={groupedActions} onClose={handleClose} />}
         </AnimatePresence>
     );
 }

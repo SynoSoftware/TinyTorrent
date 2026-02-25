@@ -12,8 +12,6 @@ import {
     buildContextCommandActions,
 } from "@/app/commandRegistry";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { RecoveryContextValue } from "@/app/context/RecoveryContext";
-import type { RecoveryModalViewModel } from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { AddTorrentModalProps } from "@/modules/torrent-add/components/AddTorrentModal";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import {
@@ -29,10 +27,6 @@ import {
     useStatusBarViewModel,
     useWorkspaceShellModel,
 } from "@/app/viewModels/workspaceShell/shellViewModelBuilders";
-import {
-    useRecoveryContextModel,
-    useRecoveryModalViewModel,
-} from "@/app/viewModels/workspaceShell/recoveryViewModels";
 import {
     DASHBOARD_FILTERS,
     type DashboardFilter,
@@ -76,6 +70,7 @@ export interface WorkspaceShellController {
             handleBulkAction: (
                 action: TorrentTableAction,
             ) => Promise<TorrentCommandOutcome>;
+            setDownloadLocation: (params: { torrent: Torrent; path: string; moveData: boolean }) => Promise<TorrentCommandOutcome>;
             openAddMagnet: (
                 magnetLink?: string,
             ) => Promise<TorrentCommandOutcome>;
@@ -92,13 +87,6 @@ export interface WorkspaceShellController {
             handleRequestDetails: (torrent: Torrent) => Promise<void>;
             handleCloseDetail: () => void;
         };
-    };
-    recovery: {
-        recoveryContext: RecoveryContextValue;
-        recoveryModalProps: Pick<
-            { viewModel: RecoveryModalViewModel },
-            "viewModel"
-        >;
     };
     addTorrent: {
         addMagnetModalProps: AddMagnetModalProps;
@@ -199,7 +187,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         selectedIds,
         selectedTorrents,
         addTorrent,
-        recovery,
         workflow,
         handlers,
     } = torrentDomain;
@@ -221,50 +208,19 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     } = addTorrent;
 
     const {
-        state: recoveryState,
-        modal: recoveryModal,
-        locationEditor,
-        setLocation,
-        actions: recoveryActions,
-    } = recovery;
-
-    const {
-        session: recoverySession,
-        isBusy: isRecoveryBusy,
-        isDetailRecoveryBlocked,
-        queuedCount: recoveryQueuedCount,
-        queuedItems: recoveryQueuedItems,
-    } = recoveryState;
-
-    const {
-        close: handleRecoveryClose,
-        retry: handleRecoveryRetry,
-        autoRetry: handleRecoveryAutoRetry,
-    } = recoveryModal;
-
-    const { capability: setLocationCapability, handler: handleSetLocation } =
-        setLocation;
-    const {
-        getRecoverySessionForKey,
-        openRecoveryModal,
-        isDownloadMissingInFlight,
-    } = recoveryActions;
-
-    const {
         optimisticStatuses,
         pendingDelete,
         confirmDelete,
         clearPendingDelete,
         handleTorrentAction,
         handleBulkAction,
+        handleSetDownloadLocation,
         removedIds,
     } = workflow;
 
     const {
         handleRequestDetails,
         handleCloseDetail,
-        handleDownloadMissing,
-        handleOpenFolder,
         handleFileSelectionChange,
         handleSequentialToggle,
         handleSuperSeedingToggle,
@@ -276,6 +232,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         () => ({
             handleTorrentAction,
             handleBulkAction,
+            setDownloadLocation: handleSetDownloadLocation,
             openAddMagnet: async (magnetLink?: string) => {
                 openAddMagnet(magnetLink);
                 return { status: "success" } as const;
@@ -288,6 +245,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [
             handleTorrentAction,
             handleBulkAction,
+            handleSetDownloadLocation,
             openAddMagnet,
             openAddTorrentPicker,
         ],
@@ -368,19 +326,16 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             ? liveTransportStatus
             : STATUS.connection.OFFLINE;
 
-    const emphasizeActions = useMemo(() => {
-        const matches = (action: string) =>
-            selectedTorrents.some(
-                (torrent) => torrent.errorEnvelope?.primaryAction === action,
-            );
-        return {
-            pause: matches("pause"),
-            reannounce: matches("reannounce"),
-            changeLocation: matches("changeLocation"),
-            openFolder: matches("openFolder"),
-            forceRecheck: matches("forceRecheck"),
-        };
-    }, [selectedTorrents]);
+    const emphasizeActions = useMemo(
+        () => ({
+            pause: false,
+            reannounce: false,
+            changeLocation: false,
+            openFolder: false,
+            forceRecheck: false,
+        }),
+        [],
+    );
 
     const [filter, setFilter] = useState<DashboardFilter>(DASHBOARD_FILTERS.ALL);
     const [searchQuery, setSearchQuery] = useState("");
@@ -403,7 +358,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         detailData,
         peerSortStrategy,
         inspectorTabCommand,
-        isDetailRecoveryBlocked,
         handleRequestDetails,
         closeDetail: handleCloseDetail,
         handleFileSelectionChange,
@@ -559,50 +513,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         commandPalette: commandPaletteModel,
     });
 
-    const recoveryContextSnapshot = useRecoveryContextModel({
-        uiMode: uiCapabilities.uiMode,
-        canOpenFolder: uiCapabilities.canOpenFolder,
-        locationEditor,
-        recoverySession,
-        setLocationCapability,
-        getRecoverySessionForKey,
-    });
-
-    const recoveryContext = useMemo(
-        () => ({
-            ...recoveryContextSnapshot,
-            handleOpenFolder,
-            handleRetry: handleRecoveryRetry,
-            handleDownloadMissing,
-            isDownloadMissingInFlight,
-            handleSetLocation,
-            openRecoveryModal,
-        }),
-        [
-            recoveryContextSnapshot,
-            handleOpenFolder,
-            handleRecoveryRetry,
-            handleDownloadMissing,
-            isDownloadMissingInFlight,
-            handleSetLocation,
-            openRecoveryModal,
-        ],
-    );
-
-    const recoveryModalViewModel = useRecoveryModalViewModel({
-        t,
-        recoverySession,
-        isBusy: isRecoveryBusy,
-        onClose: handleRecoveryClose,
-        onAutoRetry: handleRecoveryAutoRetry,
-        locationEditor,
-        setLocationCapability,
-        handleSetLocation,
-        handleDownloadMissing,
-        queuedCount: recoveryQueuedCount,
-        queuedItems: recoveryQueuedItems,
-    });
-
     const addMagnetModalProps = useAddMagnetModalProps({
         isOpen: isMagnetModalOpen,
         initialValue: magnetModalInitialValue,
@@ -641,10 +551,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
                 handleRequestDetails,
                 handleCloseDetail,
             },
-        },
-        recovery: {
-            recoveryContext,
-            recoveryModalProps: { viewModel: recoveryModalViewModel },
         },
         addTorrent: {
             addMagnetModalProps,

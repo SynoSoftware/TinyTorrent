@@ -2,21 +2,36 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { scheduler } from "@/app/services/scheduler";
-import type {
-    OptimisticStatusEntry,
-    OptimisticStatusMap,
-} from "@/modules/dashboard/types/optimistic";
+import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import { OPTIMISTIC_CHECKING_GRACE_MS } from "@/config/logic";
-import { STATUS, type TorrentOperationState } from "@/shared/status";
+import { STATUS } from "@/shared/status";
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
-    state: TorrentStatus;
+    state?: TorrentStatus;
     sawCheckingState: boolean;
     pendingCheckingUntilMs?: number;
+    pendingStateUntilMs?: number;
 };
 
 type InternalOptimisticStatusMap = Record<string, InternalOptimisticStatusEntry>;
-type OperationOverlayMap = Record<string, TorrentOperationState>;
+type OptimisticStatusUpdate = {
+    id: string;
+    state?: TorrentStatus;
+    operation?: OptimisticStatusEntry["operation"] | null;
+};
+
+const removeStateFromEntry = (
+    entry: InternalOptimisticStatusEntry,
+): InternalOptimisticStatusEntry | null => {
+    const nextEntry: InternalOptimisticStatusEntry = {
+        ...entry,
+        state: undefined,
+        sawCheckingState: false,
+        pendingCheckingUntilMs: undefined,
+        pendingStateUntilMs: undefined,
+    };
+    return nextEntry.operation ? nextEntry : null;
+};
 
 const reconcileOptimisticStatuses = (
     storedStatuses: InternalOptimisticStatusMap,
@@ -45,15 +60,36 @@ const reconcileOptimisticStatuses = (
             return;
         }
 
+        if (!entry.state) {
+            return;
+        }
+
         const isChecking = torrent.state === STATUS.torrent.CHECKING;
         const verificationProgress = torrent.verificationProgress;
-        const isVerifying =
-            typeof verificationProgress === "number" && verificationProgress < 1;
+        const isVerifying = typeof verificationProgress === "number" && verificationProgress < 1;
 
         if (entry.state !== STATUS.torrent.CHECKING) {
-            if (!isChecking && !isVerifying) {
+            if (torrent.state === entry.state) {
                 const mutableStatuses = ensureMutableStatuses();
-                delete mutableStatuses[id];
+                const nextEntry = removeStateFromEntry(entry);
+                if (nextEntry) {
+                    mutableStatuses[id] = nextEntry;
+                } else {
+                    delete mutableStatuses[id];
+                }
+                return;
+            }
+            const shouldKeepPendingState =
+                typeof entry.pendingStateUntilMs === "number" &&
+                entry.pendingStateUntilMs > nowMs;
+            if (!shouldKeepPendingState) {
+                const mutableStatuses = ensureMutableStatuses();
+                const nextEntry = removeStateFromEntry(entry);
+                if (nextEntry) {
+                    mutableStatuses[id] = nextEntry;
+                } else {
+                    delete mutableStatuses[id];
+                }
             }
             return;
         }
@@ -78,159 +114,129 @@ const reconcileOptimisticStatuses = (
             return;
         }
 
-        if (
-            entry.sawCheckingState ||
-            typeof entry.pendingCheckingUntilMs === "number"
-        ) {
+        if (entry.sawCheckingState || typeof entry.pendingCheckingUntilMs === "number") {
             const mutableStatuses = ensureMutableStatuses();
-            delete mutableStatuses[id];
+            const nextEntry = removeStateFromEntry(entry);
+            if (nextEntry) {
+                mutableStatuses[id] = nextEntry;
+            } else {
+                delete mutableStatuses[id];
+            }
         }
     });
 
     return nextStatuses ?? storedStatuses;
 };
 
-const pruneOperationOverlays = (
-    overlays: OperationOverlayMap,
-    activeTorrentIds: Set<string>,
-): OperationOverlayMap => {
-    let hasChanges = false;
-    const next: OperationOverlayMap = { ...overlays };
-    Object.keys(overlays).forEach((id) => {
-        if (activeTorrentIds.has(id)) {
-            return;
-        }
-        delete next[id];
-        hasChanges = true;
-    });
-    return hasChanges ? next : overlays;
-};
-
 export function useOptimisticStatuses(torrents: Torrent[]) {
-    const [storedOptimisticStatuses, setOptimisticStatuses] =
-        useState<InternalOptimisticStatusMap>({});
-    const [operationOverlays, setOperationOverlays] = useState<OperationOverlayMap>(
-        {},
-    );
-    const activeTorrentIdsSignature = useMemo(
-        () => torrents.map((torrent) => torrent.id).filter(Boolean).join("\u001f"),
-        [torrents],
-    );
-    const activeTorrentIds = useMemo(() => {
-        if (!activeTorrentIdsSignature) {
-            return new Set<string>();
-        }
-        return new Set(activeTorrentIdsSignature.split("\u001f"));
-    }, [activeTorrentIdsSignature]);
+    const [storedOptimisticStatuses, setOptimisticStatuses] = useState<InternalOptimisticStatusMap>({});
 
     // Optimistic statuses are a UI-only projection and are cleared by:
     // 1) engine-confirmed reconciliation, 2) explicit command failure,
     // 3) a short recheck grace timeout to bridge RPC->heartbeat lag.
-    const updateOptimisticStatuses = useCallback(
-        (updates: Array<{ id: string; state?: TorrentStatus }>) => {
-            setOptimisticStatuses((prev) => {
-                const next = { ...prev };
-                updates.forEach(({ id, state }) => {
-                    if (state) {
-                        const isCheckingState =
-                            state === STATUS.torrent.CHECKING;
-                        next[id] = {
-                            state,
-                            sawCheckingState: !isCheckingState,
-                            pendingCheckingUntilMs: isCheckingState
-                                ? Date.now() + OPTIMISTIC_CHECKING_GRACE_MS
-                                : undefined,
-                        };
-                    } else {
-                        delete next[id];
-                    }
-                });
-                return next;
-            });
-        },
-        []
-    );
+    const updateOptimisticStatuses = useCallback((updates: OptimisticStatusUpdate[]) => {
+        setOptimisticStatuses((prev) => {
+            const next = { ...prev };
+            updates.forEach(({ id, state, operation }) => {
+                const previous = next[id];
+                const nextOperation =
+                    operation === undefined
+                        ? previous?.operation
+                        : operation === null
+                          ? undefined
+                          : operation;
 
-    const updateOperationOverlays = useCallback(
-        (updates: Array<{ id: string; operation?: TorrentOperationState }>) => {
-            setOperationOverlays((prev) => {
-                const next = { ...prev };
-                let hasChanges = false;
-                updates.forEach(({ id, operation }) => {
-                    if (operation) {
-                        if (next[id] !== operation) {
-                            hasChanges = true;
-                        }
-                        next[id] = operation;
-                        return;
+                if (state) {
+                    const isCheckingState = state === STATUS.torrent.CHECKING;
+                    next[id] = {
+                        ...(previous ?? {
+                            sawCheckingState: false,
+                        }),
+                        operation: nextOperation,
+                        state,
+                        sawCheckingState: !isCheckingState,
+                        pendingCheckingUntilMs: isCheckingState ? Date.now() + OPTIMISTIC_CHECKING_GRACE_MS : undefined,
+                        pendingStateUntilMs: isCheckingState ? undefined : Date.now() + OPTIMISTIC_CHECKING_GRACE_MS,
+                    };
+                    return;
+                }
+
+                if (previous?.state) {
+                    if (operation === null) {
+                        next[id] = {
+                            ...previous,
+                            operation: undefined,
+                        };
+                    } else if (operation !== undefined && nextOperation) {
+                        next[id] = {
+                            ...previous,
+                            operation: nextOperation,
+                        };
                     }
-                    if (Object.prototype.hasOwnProperty.call(next, id)) {
-                        delete next[id];
-                        hasChanges = true;
-                    }
-                });
-                const nextOrPruned = pruneOperationOverlays(
-                    next,
-                    activeTorrentIds,
-                );
-                return hasChanges || nextOrPruned !== next ? nextOrPruned : prev;
+                    return;
+                }
+
+                if (!nextOperation) {
+                    delete next[id];
+                    return;
+                }
+
+                next[id] = {
+                    ...(previous ?? {
+                        sawCheckingState: false,
+                    }),
+                    operation: nextOperation,
+                    state: undefined,
+                    pendingCheckingUntilMs: undefined,
+                    pendingStateUntilMs: undefined,
+                    sawCheckingState: false,
+                };
             });
-        },
-        [activeTorrentIds],
-    );
+            return next;
+        });
+    }, []);
 
     const optimisticStatuses = useMemo(() => {
-        const reconciledStatuses = reconcileOptimisticStatuses(
-            storedOptimisticStatuses,
-            torrents,
-        );
+        const reconciledStatuses = reconcileOptimisticStatuses(storedOptimisticStatuses, torrents);
         const projectedStatuses: OptimisticStatusMap = {};
         Object.keys(reconciledStatuses).forEach((id) => {
-            projectedStatuses[id] = { state: reconciledStatuses[id].state };
-        });
-        Object.entries(operationOverlays).forEach(([id, operation]) => {
-            if (!activeTorrentIds.has(id)) {
-                return;
-            }
+            const entry = reconciledStatuses[id];
             projectedStatuses[id] = {
-                ...(projectedStatuses[id] ?? {}),
-                operation,
+                state: entry.state,
+                operation: entry.operation,
             };
         });
         return projectedStatuses;
-    }, [activeTorrentIds, operationOverlays, storedOptimisticStatuses, torrents]);
+    }, [storedOptimisticStatuses, torrents]);
 
     useEffect(() => {
         const runReconcile = () => {
             setOptimisticStatuses((currentStatuses) => {
-                const nextStatuses = reconcileOptimisticStatuses(
-                    currentStatuses,
-                    torrents,
-                );
-                return nextStatuses === currentStatuses
-                    ? currentStatuses
-                    : nextStatuses;
+                const nextStatuses = reconcileOptimisticStatuses(currentStatuses, torrents);
+                return nextStatuses === currentStatuses ? currentStatuses : nextStatuses;
             });
-            setOperationOverlays((currentOverlays) =>
-                pruneOperationOverlays(
-                    currentOverlays,
-                    activeTorrentIds,
-                ),
-            );
         };
 
         let nextGraceExpiryDelayMs: number | null = null;
         Object.values(storedOptimisticStatuses).forEach((entry) => {
-            if (
-                entry.state !== STATUS.torrent.CHECKING ||
-                entry.sawCheckingState ||
-                typeof entry.pendingCheckingUntilMs !== "number"
-            ) {
+            if (!entry.state) {
                 return;
             }
-            const delay = Math.max(0, entry.pendingCheckingUntilMs - Date.now());
-            if (nextGraceExpiryDelayMs === null || delay < nextGraceExpiryDelayMs) {
-                nextGraceExpiryDelayMs = delay;
+            if (
+                entry.state === STATUS.torrent.CHECKING &&
+                !entry.sawCheckingState &&
+                typeof entry.pendingCheckingUntilMs === "number"
+            ) {
+                const delay = Math.max(0, entry.pendingCheckingUntilMs - Date.now());
+                if (nextGraceExpiryDelayMs === null || delay < nextGraceExpiryDelayMs) {
+                    nextGraceExpiryDelayMs = delay;
+                }
+            }
+            if (entry.state !== STATUS.torrent.CHECKING && typeof entry.pendingStateUntilMs === "number") {
+                const delay = Math.max(0, entry.pendingStateUntilMs - Date.now());
+                if (nextGraceExpiryDelayMs === null || delay < nextGraceExpiryDelayMs) {
+                    nextGraceExpiryDelayMs = delay;
+                }
             }
         });
 
@@ -238,20 +244,16 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
         const cancelGraceExpiryTimer =
             nextGraceExpiryDelayMs === null
                 ? null
-                : scheduler.scheduleTimeout(
-                      runReconcile,
-                      nextGraceExpiryDelayMs + 1,
-                  );
+                : scheduler.scheduleTimeout(runReconcile, nextGraceExpiryDelayMs + 1);
 
         return () => {
             cancelImmediateTimer();
             cancelGraceExpiryTimer?.();
         };
-    }, [activeTorrentIds, torrents, storedOptimisticStatuses]);
+    }, [torrents, storedOptimisticStatuses]);
 
     return {
         optimisticStatuses,
         updateOptimisticStatuses,
-        updateOperationOverlays,
     };
 }

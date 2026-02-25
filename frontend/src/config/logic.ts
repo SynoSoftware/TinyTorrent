@@ -74,7 +74,6 @@ const uiConfig = asRecord(constants.ui);
 const heartbeatConfig = asRecord(constants.heartbeats);
 const timerConfig = asRecord(constants.timers);
 const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
-const recoveryTimerConfig = asRecord(timerConfig.recovery);
 
 const DEFAULT_DEFAULTS = {
     rpc_endpoint: "/transmission/rpc",
@@ -112,18 +111,9 @@ const DEFAULT_TIMERS = {
     },
     ghost_timeout_ms: 30000,
     table_persist_debounce_ms: 250,
-    recovery: {
-        poll_interval_ms: 4000,
-        retry_cooldown_ms: 15000,
-        escalation_grace_ms: 500,
-        modal_resolved_auto_close_delay_ms: 3000,
-        modal_resolved_countdown_tick_ms: 250,
-        pick_path_success_delay_ms: 600,
-        active_state_poll_interval_ms: 200,
-        probe_poll_interval_ms: 500,
-        probe_timeout_ms: 2000,
-        verify_watch_interval_ms: 500,
-    },
+    set_location_validation_debounce_ms: 200,
+    verify_watch_interval_ms: 500,
+    set_location_move_timeout_ms: 600000,
 } as const;
 
 export const TOAST_DISPLAY_DURATION_MS = readNumber(
@@ -780,57 +770,19 @@ export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
     DEFAULT_TIMERS.table_persist_debounce_ms,
 );
 
-const configuredRecoveryPollInterval =
-    readOptionalNumber(recoveryTimerConfig.poll_interval_ms) ??
-    readOptionalNumber(recoveryTimerConfig.auto_recovery_interval_ms) ??
-    readOptionalNumber(recoveryTimerConfig.probe_interval_ms);
-
-export const RECOVERY_POLL_INTERVAL_MS =
-    configuredRecoveryPollInterval ?? DEFAULT_TIMERS.recovery.poll_interval_ms;
-
-export const RECOVERY_RETRY_COOLDOWN_MS = readNumber(
-    recoveryTimerConfig.retry_cooldown_ms,
-    DEFAULT_TIMERS.recovery.retry_cooldown_ms,
-);
-
-export const RECOVERY_ESCALATION_GRACE_MS = readNumber(
-    recoveryTimerConfig.escalation_grace_ms,
-    DEFAULT_TIMERS.recovery.escalation_grace_ms,
-);
-
-export const RECOVERY_MODAL_RESOLVED_AUTO_CLOSE_DELAY_MS = readNumber(
-    recoveryTimerConfig.modal_resolved_auto_close_delay_ms,
-    DEFAULT_TIMERS.recovery.modal_resolved_auto_close_delay_ms,
-);
-
-export const RECOVERY_MODAL_RESOLVED_COUNTDOWN_TICK_MS = readNumber(
-    recoveryTimerConfig.modal_resolved_countdown_tick_ms,
-    DEFAULT_TIMERS.recovery.modal_resolved_countdown_tick_ms,
-);
-
-export const RECOVERY_PICK_PATH_SUCCESS_DELAY_MS = readNumber(
-    recoveryTimerConfig.pick_path_success_delay_ms,
-    DEFAULT_TIMERS.recovery.pick_path_success_delay_ms,
-);
-
-export const RECOVERY_ACTIVE_STATE_POLL_INTERVAL_MS = readNumber(
-    recoveryTimerConfig.active_state_poll_interval_ms,
-    DEFAULT_TIMERS.recovery.active_state_poll_interval_ms,
-);
-
-export const RECOVERY_PROBE_POLL_INTERVAL_MS = readNumber(
-    recoveryTimerConfig.probe_poll_interval_ms,
-    DEFAULT_TIMERS.recovery.probe_poll_interval_ms,
-);
-
-export const RECOVERY_PROBE_TIMEOUT_MS = readNumber(
-    recoveryTimerConfig.probe_timeout_ms,
-    DEFAULT_TIMERS.recovery.probe_timeout_ms,
+export const SET_LOCATION_VALIDATION_DEBOUNCE_MS = readNumber(
+    timerConfig.set_location_validation_debounce_ms,
+    DEFAULT_TIMERS.set_location_validation_debounce_ms,
 );
 
 export const RECOVERY_VERIFY_WATCH_INTERVAL_MS = readNumber(
-    recoveryTimerConfig.verify_watch_interval_ms,
-    DEFAULT_TIMERS.recovery.verify_watch_interval_ms,
+    timerConfig.verify_watch_interval_ms,
+    DEFAULT_TIMERS.verify_watch_interval_ms,
+);
+
+export const SET_LOCATION_MOVE_TIMEOUT_MS = readNumber(
+    timerConfig.set_location_move_timeout_ms,
+    DEFAULT_TIMERS.set_location_move_timeout_ms,
 );
 
 export interface DragOverlayRootConfig {

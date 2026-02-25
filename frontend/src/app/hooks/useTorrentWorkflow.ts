@@ -13,6 +13,9 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { buildOptimisticStatusUpdatesForAction } from "@/app/domain/torrentActionPolicy";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentStatus } from "@/services/rpc/entities";
+import { SET_LOCATION_MOVE_TIMEOUT_MS } from "@/config/logic";
+import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import { evaluateRelocationMoveVerification } from "@/modules/dashboard/domain/torrentRelocation";
 
 // removed unused `FeedbackTone` import
 import { useSelection } from "@/app/context/AppShellStateContext";
@@ -26,7 +29,11 @@ interface UseTorrentWorkflowParams {
     torrents: Torrent[];
     optimisticStatuses: OptimisticStatusMap;
     updateOptimisticStatuses: (
-        updates: Array<{ id: string; state?: TorrentStatus }>,
+        updates: Array<{
+            id: string;
+            state?: TorrentStatus;
+            operation?: "moving" | null;
+        }>,
     ) => void;
     executeTorrentAction: (
         action: TorrentTableAction,
@@ -36,6 +43,11 @@ interface UseTorrentWorkflowParams {
     executeBulkRemove: (
         ids: string[],
         deleteData: boolean,
+    ) => Promise<TorrentCommandOutcome>;
+    executeSetDownloadLocation: (
+        torrentId: string,
+        path: string,
+        moveData: boolean,
     ) => Promise<TorrentCommandOutcome>;
     executeSelectionAction: (
         action: TorrentTableAction,
@@ -75,6 +87,12 @@ const COMMAND_OUTCOME_REFRESH_FAILED: TorrentCommandOutcome = {
     reason: "refresh_failed",
 };
 
+type PendingMoveOperation = {
+    torrentId: string;
+    requestedPath: string;
+    timeoutAtMs: number;
+};
+
 const isSuccessfulOutcome = (
     outcome: TorrentCommandOutcome,
 ): outcome is { status: "success"; reason?: "queued" | "refresh_skipped" } =>
@@ -86,6 +104,7 @@ export function useTorrentWorkflow({
     updateOptimisticStatuses,
     executeTorrentAction,
     executeBulkRemove,
+    executeSetDownloadLocation,
     executeSelectionAction,
     onRecheckComplete,
     onPrepareDelete,
@@ -98,6 +117,9 @@ export function useTorrentWorkflow({
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null,
     );
+    const [pendingMoveOperations, setPendingMoveOperations] = useState<
+        Record<string, PendingMoveOperation>
+    >({});
     const { selectedIds, setSelectedIds, setActiveId } = useSelection();
     const selectedTorrentIdsSet = useMemo(
         () => new Set(selectedIds),
@@ -186,6 +208,113 @@ export function useTorrentWorkflow({
     const clearPendingDelete = useCallback(() => {
         setPendingDelete(null);
     }, []);
+
+    const startMoveOperation = useCallback(
+        (torrentId: string, requestedPath: string) => {
+            const startedAtMs = Date.now();
+            setPendingMoveOperations((prev) => ({
+                ...prev,
+                [torrentId]: {
+                    torrentId,
+                    requestedPath,
+                    timeoutAtMs: startedAtMs + SET_LOCATION_MOVE_TIMEOUT_MS,
+                },
+            }));
+            updateOptimisticStatuses([
+                { id: torrentId, operation: "moving" },
+            ]);
+        },
+        [updateOptimisticStatuses],
+    );
+
+    const clearMoveOperations = useCallback(
+        (ids: string[]) => {
+            if (!ids.length) {
+                return;
+            }
+            setPendingMoveOperations((prev) => {
+                let changed = false;
+                const next = { ...prev };
+                ids.forEach((id) => {
+                    if (next[id]) {
+                        changed = true;
+                        delete next[id];
+                    }
+                });
+                return changed ? next : prev;
+            });
+            updateOptimisticStatuses(
+                ids.map((id) => ({ id, operation: null })),
+            );
+        },
+        [updateOptimisticStatuses],
+    );
+
+    useEffect(() => {
+        const pendingIds = Object.keys(pendingMoveOperations);
+        if (!pendingIds.length) {
+            return;
+        }
+
+        const torrentById = new Map(torrents.map((torrent) => [torrent.id, torrent]));
+        const resolvedIds: string[] = [];
+        const nowMs = Date.now();
+
+        pendingIds.forEach((id) => {
+            const pendingMove = pendingMoveOperations[id];
+            if (!pendingMove) {
+                return;
+            }
+            const torrent = torrentById.get(id);
+            if (!torrent) {
+                resolvedIds.push(id);
+                return;
+            }
+
+            const verification = evaluateRelocationMoveVerification({
+                requestedPath: pendingMove.requestedPath,
+                reportedPath: resolveTorrentPath(torrent),
+                torrentError: torrent.error,
+                nowMs,
+                timeoutAtMs: pendingMove.timeoutAtMs,
+            });
+
+            if (!verification.settled) {
+                return;
+            }
+
+            if (verification.outcome === "failed_error") {
+                showFeedback(
+                    torrent.errorString?.trim().length
+                        ? torrent.errorString
+                        : t("set_location.reason.move_failed"),
+                    "danger",
+                );
+                resolvedIds.push(id);
+                return;
+            }
+
+            if (verification.outcome === "succeeded") {
+                resolvedIds.push(id);
+                return;
+            }
+
+            if (verification.outcome === "failed_timeout") {
+                showFeedback(t("set_location.reason.move_timeout"), "danger");
+                resolvedIds.push(id);
+            }
+        });
+
+        if (resolvedIds.length) {
+            clearMoveOperations(resolvedIds);
+        }
+    }, [
+        clearMoveOperations,
+        pendingMoveOperations,
+        showFeedback,
+        t,
+        torrents,
+    ]);
 
     const runActionsWithOptimism = useCallback(
         async (
@@ -336,6 +465,43 @@ export function useTorrentWorkflow({
         ],
     );
 
+    const handleSetDownloadLocation = useCallback(
+        async ({
+            torrent,
+            path,
+            moveData,
+        }: {
+            torrent: Torrent;
+            path: string;
+            moveData: boolean;
+        }): Promise<TorrentCommandOutcome> => {
+            const outcome = await executeSetDownloadLocation(
+                torrent.id,
+                path,
+                moveData,
+            );
+
+            if (!isSuccessfulOutcome(outcome)) {
+                if (outcome.status === "failed") {
+                    showFeedback(t("toolbar.feedback.failed"), "danger");
+                }
+                return outcome;
+            }
+
+            if (moveData) {
+                startMoveOperation(torrent.id, path);
+            }
+
+            return outcome;
+        },
+        [
+            executeSetDownloadLocation,
+            showFeedback,
+            startMoveOperation,
+            t,
+        ],
+    );
+
     const revertRemovedKeys = useCallback(
         (targets: Torrent[]) => {
             targets.forEach((torrent) => {
@@ -435,6 +601,7 @@ export function useTorrentWorkflow({
         clearPendingDelete,
         handleTorrentAction,
         handleBulkAction,
+        handleSetDownloadLocation,
         removedIds: removedKeys,
         performUIActionDelete,
     };

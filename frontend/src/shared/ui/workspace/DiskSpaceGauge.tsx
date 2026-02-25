@@ -19,7 +19,7 @@ export interface DiskSpaceGaugeProps {
 // TODO: - `freeBytes/totalBytes` must come from Transmission RPC `free-space` (daemon-side disk).
 // TODO: - For remote connections, this reports *remote* disk space; UI copy must reflect that (no “your disk” language).
 // TODO: - Do not probe local disk via ShellExtensions for this gauge; that would break the “daemon is king” architecture and confuse users in remote/browser mode.
-// TODO: Align with todo.md task 8a (remove check-free-space bridge) and task 10 (Recovery UX spec compliance).
+// TODO: Align with todo.md task 8a (remove check-free-space bridge).
 
 export function DiskSpaceGauge({
     freeBytes,
@@ -31,92 +31,61 @@ export function DiskSpaceGauge({
     hint,
     isInsufficient,
 }: DiskSpaceGaugeProps) {
-    const usedBytes =
-        typeof totalBytes === "number" && typeof freeBytes === "number"
-            ? Math.max(totalBytes - freeBytes, 0)
-            : undefined;
-    const displayTotal =
-        totalBytes ??
-        Math.max(usedBytes ?? 0, freeBytes ?? 0, torrentSize ?? 0, 1);
-    const usedPercent = usedBytes
-        ? Math.min((usedBytes / displayTotal) * 100, 100)
-        : 0;
-    const torrentPercent = torrentSize
-        ? Math.min((torrentSize / displayTotal) * 100, 100)
-        : 0;
     const { t } = useTranslation();
 
-    const indicatorClasses = METRIC_CHART.capacityGauge.builder.indicatorClass(
-        Boolean(isInsufficient),
-    );
-    const containerClasses = METRIC_CHART.capacityGauge.builder.containerClass(
-        Boolean(isInsufficient),
-    );
+    const hasValidTotal = typeof totalBytes === "number" && Number.isFinite(totalBytes) && totalBytes > 0;
+    const hasValidFree = typeof freeBytes === "number" && Number.isFinite(freeBytes) && freeBytes >= 0;
+    const safeTotal = hasValidTotal ? totalBytes : undefined;
+
+    const usedBytes = safeTotal !== undefined && hasValidFree ? Math.max(safeTotal - freeBytes, 0) : undefined;
+    const usedPercent =
+        usedBytes !== undefined && safeTotal !== undefined ? Math.min((usedBytes / safeTotal) * 100, 100) : 0;
+    const gaugeValue = hasValidTotal && usedBytes !== undefined ? usedPercent : 0;
+
+    const statusMessage = error ? error : isLoading ? t("modals.disk_gauge.updating") : hint;
+
+    const indicatorClasses = METRIC_CHART.capacityGauge.builder.indicatorClass(Boolean(isInsufficient));
+    const containerClasses = METRIC_CHART.capacityGauge.builder.containerClass(Boolean(isInsufficient));
 
     return (
         <div className={containerClasses}>
-            <div
-                className={METRIC_CHART.capacityGauge.header}
-                style={METRIC_CHART.capacityGauge.headerStyle}
-            >
+            <div className={METRIC_CHART.capacityGauge.header} style={METRIC_CHART.capacityGauge.headerStyle}>
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span
                     style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART.capacityGauge.path}
+                    className={`${METRIC_CHART.capacityGauge.path} min-w-0 flex-1 text-right truncate`}
                 >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
             <div className={METRIC_CHART.capacityGauge.progressWrap}>
                 <SmoothProgressBar
-                    value={Math.min(usedPercent + torrentPercent, 100)}
+                    value={gaugeValue}
                     trackClassName={METRIC_CHART.capacityGauge.progressTrack}
                     indicatorClassName={indicatorClasses}
                 />
             </div>
-            <div
-                className={METRIC_CHART.capacityGauge.stats}
-                style={METRIC_CHART.capacityGauge.baseTextStyle}
-            >
+            <div className={METRIC_CHART.capacityGauge.stats} style={METRIC_CHART.capacityGauge.baseTextStyle}>
                 <span>
-                    {t("modals.disk_gauge.used")}{" "}
-                    {usedBytes !== undefined ? formatBytes(usedBytes) : "-"}
+                    {t("modals.disk_gauge.used")} {usedBytes !== undefined ? formatBytes(usedBytes) : "-"}
                 </span>
                 <span>
                     {t("modals.disk_gauge.torrent")}{" "}
-                    {torrentSize ? formatBytes(torrentSize) : "-"}
+                    {typeof torrentSize === "number" ? formatBytes(Math.max(torrentSize, 0)) : "-"}
                 </span>
                 <span>
-                    {t("modals.disk_gauge.free")}{" "}
-                    {freeBytes !== undefined ? formatBytes(freeBytes) : "-"}
+                    {t("modals.disk_gauge.free")} {freeBytes !== undefined ? formatBytes(freeBytes) : "-"}
                 </span>
             </div>
-            {isLoading && (
+            <div className={METRIC_CHART.capacityGauge.errorRow}>
                 <p
                     style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART.capacityGauge.hint}
+                    className={error ? TEXT_ROLE.statusError : METRIC_CHART.capacityGauge.hint}
+                    aria-live={error ? "assertive" : "polite"}
                 >
-                    {t("modals.disk_gauge.updating")}
+                    {statusMessage ?? "\u00A0"}
                 </p>
-            )}
-            {hint && !error && (
-                <p
-                    style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={METRIC_CHART.capacityGauge.hint}
-                >
-                    {hint}
-                </p>
-            )}
-            {error && (
-                <div className={METRIC_CHART.capacityGauge.errorRow}>
-                    <p
-                        style={METRIC_CHART.capacityGauge.baseTextStyle}
-                        className={TEXT_ROLE.statusError}
-                    >
-                        {error}
-                    </p>
-                </div>
-            )}
+            </div>
         </div>
     );
 }

@@ -120,7 +120,7 @@ export const TEXT_ROLE_EXTENDED = {
         "text-label text-foreground/40 font-semibold uppercase tracking-wider",
     pill: "text-label text-foreground/70",
 
-    // --- Recovery / Error States ---
+    // --- Error States ---
     errorContext:
         "text-label font-mono text-foreground/40 text-center max-w-modal",
 } as const;

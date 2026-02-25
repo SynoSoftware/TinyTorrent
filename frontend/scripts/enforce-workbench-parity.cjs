@@ -13,35 +13,28 @@ const target = path.join(
 );
 const source = fs.readFileSync(target, "utf8");
 
-const familyChecks = [
+const scalarChecks = [
     {
-        entryKey: "surface",
-        mustInclude: ["SURFACE.role.workbench"],
-    },
-    {
-        entryKey: "shell",
-        mustInclude: ["SURFACE.surface.workbenchShell"],
-    },
-    {
-        entryKey: "topEdge",
-        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeTop"],
-    },
-    {
-        entryKey: "bottomEdge",
-        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeBottom"],
+        constName: "WORKBENCH_SHELL",
+        mustInclude: [
+            "SURFACE.surface.workbenchShell",
+            "surface-layer-2",
+            "border",
+            "border-default/35",
+        ],
     },
 ];
 
 const checks = [
     {
         objectName: "TABLE",
-        entryKey: "workbenchSurface",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.surface"],
+        entryKey: "surface",
+        mustInclude: ["SURFACE.role.workbench"],
     },
     {
         objectName: "TABLE",
-        entryKey: "workbenchShell",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
+        entryKey: "shell",
+        mustInclude: ["WORKBENCH_SHELL"],
     },
     {
         objectName: "WORKBENCH",
@@ -57,23 +50,23 @@ const checks = [
 const constChecks = [
     {
         constName: "WORKBENCH_NAV",
-        entryKey: "workbenchSurface",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.bottomEdge"],
+        entryKey: "surface",
+        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeBottom"],
     },
     {
         constName: "WORKBENCH_NAV",
-        entryKey: "workbenchShell",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
+        entryKey: "shell",
+        mustInclude: ["WORKBENCH_SHELL"],
     },
     {
         constName: "WORKBENCH_STATUS",
-        entryKey: "workbenchSurface",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.topEdge"],
+        entryKey: "surface",
+        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeTop"],
     },
     {
         constName: "WORKBENCH_STATUS",
         entryKey: "footer",
-        mustInclude: ["WORKBENCH_SURFACE_FAMILY.shell"],
+        mustInclude: ["WORKBENCH_SHELL"],
     },
 ];
 
@@ -94,6 +87,16 @@ function extractObjectBody(objectName) {
 function extractConstObjectBody(constName) {
     const pattern = new RegExp(
         `const ${escapeRegex(constName)} = \\{([\\s\\S]*?)\\} as const;`,
+        "m",
+    );
+    const match = source.match(pattern);
+    if (!match) return null;
+    return match[1];
+}
+
+function extractConstInitializer(constName) {
+    const pattern = new RegExp(
+        `const ${escapeRegex(constName)} = ([\\s\\S]*?);`,
         "m",
     );
     const match = source.match(pattern);
@@ -127,18 +130,16 @@ function extractConstEntryBody(constName, entryKey) {
 
 const failures = [];
 
-for (const check of familyChecks) {
-    const body = extractConstEntryBody("WORKBENCH_SURFACE_FAMILY", check.entryKey);
+for (const check of scalarChecks) {
+    const body = extractConstInitializer(check.constName);
     if (!body) {
-        failures.push(
-            `WORKBENCH_SURFACE_FAMILY.${check.entryKey}: missing entry`,
-        );
+        failures.push(`${check.constName}: missing declaration`);
         continue;
     }
     for (const token of check.mustInclude) {
         if (!body.includes(token)) {
             failures.push(
-                `WORKBENCH_SURFACE_FAMILY.${check.entryKey}: missing token '${token}'`,
+                `${check.constName}: missing token '${token}'`,
             );
         }
     }

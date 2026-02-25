@@ -1,4 +1,4 @@
-import { StrictMode, type ComponentType } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ToastProvider } from "@heroui/toast";
 import { HotkeysProvider } from "react-hotkeys-hook";
@@ -33,19 +33,7 @@ const APP_TOAST_REGION_PROPS = {
         "fixed inset-0 z-top p-panel pointer-events-none overflow-x-hidden overflow-y-auto flex flex-col items-end justify-end gap-tools",
 } as const;
 
-const DEV_RECOVERY_PATH = "/__dev/recovery";
-
-const resolveAppEntry = async (): Promise<ComponentType> => {
-    const rootPathname = typeof window === "undefined" ? "" : window.location.pathname;
-    if (import.meta.env.DEV && rootPathname === DEV_RECOVERY_PATH) {
-        const module = await import("@/app/components/DevTest");
-        return module.default;
-    }
-    return App;
-};
-
 const mount = async () => {
-    const AppEntry = await resolveAppEntry();
     createRoot(document.getElementById("root")!).render(
         <StrictMode>
             <HotkeysProvider initiallyActiveScopes={APP_INITIAL_HOTKEY_SCOPES}>
@@ -54,7 +42,7 @@ const mount = async () => {
                         <ClientProvider>
                             <SessionProvider>
                                 <AppShellStateProvider>
-                                    <AppEntry />
+                                    <App />
                                     <ToastProvider
                                         placement="bottom-right"
                                         maxVisibleToasts={6}

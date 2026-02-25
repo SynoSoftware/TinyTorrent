@@ -1,19 +1,16 @@
 import { useCallback, useMemo } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type {
-    ContextMenuVirtualElement,
-} from "@/shared/hooks/ui/useContextMenuPosition";
+import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useTorrentCommands, type TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import type { ClipboardWriteOutcome } from "@/shared/utils/clipboard";
 import type { RowContextMenuKey } from "@/modules/dashboard/types/torrentTableSurfaces";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 
 // Hook: context-menu action handler for the torrent table.
-// Extracted from `TorrentTable.tsx` and accepts a params object to keep
-// the handler decoupled from outer-scope state.
 type UseTorrentTableContextParams = {
     contextMenu: {
         virtualElement: ContextMenuVirtualElement;
@@ -33,10 +30,6 @@ type UseTorrentTableContextParams = {
 };
 
 const COMMAND_OUTCOME_SUCCESS: TorrentCommandOutcome = { status: "success" };
-const COMMAND_OUTCOME_QUEUED: TorrentCommandOutcome = {
-    status: "success",
-    reason: "queued",
-};
 const COMMAND_OUTCOME_UNSUPPORTED: TorrentCommandOutcome = {
     status: "unsupported",
     reason: "action_not_supported",
@@ -45,17 +38,9 @@ const COMMAND_OUTCOME_FAILED: TorrentCommandOutcome = {
     status: "failed",
     reason: "execution_failed",
 };
-const COMMAND_OUTCOME_BLOCKED: TorrentCommandOutcome = {
-    status: "failed",
-    reason: "blocked",
-};
 const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
     status: "canceled",
     reason: "no_selection",
-};
-const COMMAND_OUTCOME_OPERATION_CANCELLED: TorrentCommandOutcome = {
-    status: "canceled",
-    reason: "operation_cancelled",
 };
 
 export const useTorrentTableContextActions = (params: UseTorrentTableContextParams) => {
@@ -70,6 +55,9 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
     }, [contextMenu, selectedTorrents]);
 
     const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
+    const { canOpenFolder } = useUiModeCapabilities();
+    const handleOpenFolder = useOpenTorrentFolder();
+
     const executeTableAction = useCallback(
         async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
             if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
@@ -83,7 +71,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
         },
         [contextMenu, handleBulkAction, handleTorrentAction, selectionTargets],
     );
-    const { handleSetLocation: handleDownloadPath, handleOpenFolder, canOpenFolder, handleDownloadMissing } = useRecoveryContext();
+
     const handleContextMenuAction = useCallback(
         async (key?: RowContextMenuKey): Promise<TorrentCommandOutcome> => {
             if (!contextMenu) return COMMAND_OUTCOME_NO_SELECTION;
@@ -119,46 +107,6 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
                     }
                     return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
-                if (key === "set-download-path") {
-                    const outcome = await handleDownloadPath(torrent, {
-                        surface: "context-menu",
-                    });
-                    if (outcome.status === "picked" || outcome.status === "cancelled") {
-                        return closeWithOutcome(COMMAND_OUTCOME_QUEUED);
-                    }
-                    if (outcome.status === "manual_opened") {
-                        return closeWithOutcome(COMMAND_OUTCOME_QUEUED);
-                    }
-                    if (outcome.status === "unsupported") {
-                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
-                    }
-                    if (outcome.status === "conflict") {
-                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
-                    }
-                    return closeWithOutcome(COMMAND_OUTCOME_FAILED);
-                }
-                if (key === "download-missing") {
-                    const outcome = await handleDownloadMissing(torrent);
-                    if (outcome.status === "applied") {
-                        return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
-                    }
-                    if (outcome.status === "failed") {
-                        return closeWithOutcome(COMMAND_OUTCOME_FAILED);
-                    }
-                    if (
-                        outcome.reason === "not_actionable" ||
-                        outcome.reason === "set_location"
-                    ) {
-                        return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
-                    }
-                    if (outcome.reason === "blocked") {
-                        return closeWithOutcome(COMMAND_OUTCOME_BLOCKED);
-                    }
-                    if (outcome.reason === "operation_cancelled") {
-                        return closeWithOutcome(COMMAND_OUTCOME_OPERATION_CANCELLED);
-                    }
-                    return closeWithOutcome(COMMAND_OUTCOME_UNSUPPORTED);
-                }
                 if (key === "copy-hash") {
                     const outcome = await copyToClipboard(torrent.hash);
                     if (outcome.status === "copied") {
@@ -180,7 +128,6 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
                     return closeWithOutcome(COMMAND_OUTCOME_FAILED);
                 }
 
-                // Map common table actions to intents when possible
                 switch (key) {
                     case "pause":
                         return closeWithOutcome(await executeTableAction("pause"));
@@ -220,9 +167,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             setContextMenu,
             canOpenFolder,
             handleOpenFolder,
-            handleDownloadMissing,
             executeTableAction,
-            handleDownloadPath,
         ],
     );
 

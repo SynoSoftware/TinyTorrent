@@ -1,4 +1,17 @@
-import { ArrowDown, ArrowUp, Network, ArrowUpDown, Component, Files, Activity, HardDrive, Cog as TransmissionIcon, RefreshCw, AlertCircle, type LucideIcon } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    Network,
+    ArrowUpDown,
+    Component,
+    Files,
+    Activity,
+    HardDrive,
+    Cog as TransmissionIcon,
+    RefreshCw,
+    AlertCircle,
+    type LucideIcon,
+} from "lucide-react";
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -59,9 +72,27 @@ type StatusBarIconComponent = StatusIconProps["Icon"];
 /* SMALL PRIMITIVES */
 /* ------------------------------------------------------------------ */
 
-function StatGroup({ label, value, Icon, className, align = "end" }: { label: string; value: string; Icon?: StatusBarIconComponent; className?: string; align?: "start" | "end" }) {
+function StatGroup({
+    label,
+    value,
+    Icon,
+    className,
+    align = "end",
+}: {
+    label: string;
+    value: string;
+    Icon?: StatusBarIconComponent;
+    className?: string;
+    align?: "start" | "end";
+}) {
     return (
-        <div className={cn(WORKBENCH.status.statGroup, align === "end" ? WORKBENCH.status.statGroupEnd : WORKBENCH.status.statGroupStart, className)}>
+        <div
+            className={cn(
+                WORKBENCH.status.statGroup,
+                align === "end" ? WORKBENCH.status.statGroupEnd : WORKBENCH.status.statGroupStart,
+                className,
+            )}
+        >
             <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>{label}</span>
             <div className={WORKBENCH.status.statValueRow}>
                 <span className={cn(WORKBENCH.status.statValueText)} title={value}>
@@ -73,9 +104,25 @@ function StatGroup({ label, value, Icon, className, align = "end" }: { label: st
     );
 }
 
-function TelemetryIcon({ Icon, tone, title }: { Icon: LucideIcon; tone: "ok" | "warn" | "bad" | "muted"; title: string }) {
-    const toneKey = tone === "ok" ? APP_STATUS.connection.CONNECTED : tone === "warn" ? STATUS_VISUAL_KEYS.tone.WARNING : tone === "bad" ? APP_STATUS.connection.ERROR : STATUS_VISUAL_KEYS.tone.MUTED;
-    const toneClass = STATUS_VISUALS[toneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.MUTED]?.text ?? "text-foreground/30";
+function TelemetryIcon({
+    Icon,
+    tone,
+    title,
+}: {
+    Icon: LucideIcon;
+    tone: "ok" | "warn" | "bad" | "muted";
+    title: string;
+}) {
+    const toneKey =
+        tone === "ok"
+            ? APP_STATUS.connection.CONNECTED
+            : tone === "warn"
+              ? STATUS_VISUAL_KEYS.tone.WARNING
+              : tone === "bad"
+                ? APP_STATUS.connection.ERROR
+                : STATUS_VISUAL_KEYS.tone.MUTED;
+    const toneClass =
+        STATUS_VISUALS[toneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.MUTED]?.text ?? "text-foreground/30";
 
     return (
         <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)} title={title}>
@@ -88,10 +135,25 @@ function TelemetryIcon({ Icon, tone, title }: { Icon: LucideIcon; tone: "ok" | "
 /* LEFT: SPEED MODULES */
 /* ------------------------------------------------------------------ */
 
-function SpeedModule({ labelKey, value, Icon, tone, history, separator }: { labelKey: string; value: number; Icon: LucideIcon; tone: "success" | "primary"; history: number[]; separator?: boolean }) {
+function SpeedModule({
+    labelKey,
+    value,
+    Icon,
+    tone,
+    history,
+    separator,
+}: {
+    labelKey: string;
+    value: number;
+    Icon: LucideIcon;
+    tone: "success" | "primary";
+    history: number[];
+    separator?: boolean;
+}) {
     const { t } = useTranslation();
     const iconToneKey = tone === "success" ? STATUS_VISUAL_KEYS.tone.SUCCESS : STATUS_VISUAL_KEYS.tone.PRIMARY;
-    const iconToneClass = STATUS_VISUALS[iconToneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.text ?? "text-primary";
+    const iconToneClass =
+        STATUS_VISUALS[iconToneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.text ?? "text-primary";
 
     return (
         <>
@@ -138,7 +200,12 @@ function StatusTelemetryGrid({
     const { t } = useTranslation();
 
     // ENGINE (combined: state + transport)
-    const engineIcon = rpcStatus === APP_STATUS.connection.ERROR ? AlertCircle : transportStatus === APP_STATUS.connection.POLLING ? ArrowUpDown : Activity;
+    const engineIcon =
+        rpcStatus === APP_STATUS.connection.ERROR
+            ? AlertCircle
+            : transportStatus === APP_STATUS.connection.POLLING
+              ? ArrowUpDown
+              : Activity;
 
     const engineTone =
         rpcStatus === APP_STATUS.connection.ERROR
@@ -157,7 +224,14 @@ function StatusTelemetryGrid({
     // Only show discovery as active when the RPC transport is connected.
     // If we're not connected, render discovery as muted to avoid showing
     // stale/passive telemetry while disconnected.
-    const discoveryTone = rpcStatus !== APP_STATUS.connection.CONNECTED ? "muted" : telemetry == null ? "muted" : discoveryEnabled ? "ok" : "warn";
+    const discoveryTone =
+        rpcStatus !== APP_STATUS.connection.CONNECTED
+            ? "muted"
+            : telemetry == null
+              ? "muted"
+              : discoveryEnabled
+                ? "ok"
+                : "warn";
 
     return (
         <div
@@ -183,9 +257,12 @@ function StatusTelemetryGrid({
                 tone={diskState === "ok" ? "ok" : diskState === "warn" ? "warn" : diskState === "bad" ? "bad" : "muted"}
                 title={
                     freeBytes != null
-                        ? `${t(DISK_LABELS[diskState] ?? `status_bar.disk_${diskState}`)}\n\n${t("status_bar.disk_free", {
-                              size: formatBytes(freeBytes),
-                          })}`
+                        ? `${t(DISK_LABELS[diskState] ?? `status_bar.disk_${diskState}`)}\n\n${t(
+                              "status_bar.disk_free",
+                              {
+                                  size: formatBytes(freeBytes),
+                              },
+                          )}`
                         : t(DISK_LABELS[diskState] ?? `status_bar.disk_${diskState}`)
                 }
             />
@@ -210,11 +287,24 @@ function StatusTelemetryGrid({
 /* RIGHT: ENGINE CHIP (ACTIVE CONTROL ONLY) */
 /* ------------------------------------------------------------------ */
 
-function EngineControlChip({ rpcStatus, uiMode, onClick, tooltip }: { rpcStatus: ConnectionStatus; uiMode: UiMode; onClick?: () => Promise<unknown>; tooltip: string }) {
+function EngineControlChip({
+    rpcStatus,
+    uiMode,
+    onClick,
+    tooltip,
+}: {
+    rpcStatus: ConnectionStatus;
+    uiMode: UiMode;
+    onClick?: () => Promise<unknown>;
+    tooltip: string;
+}) {
     // Defensive: STATUS_VISUALS may not contain every possible rpcStatus string
     // (e.g. legacy/experimental status values). Fall back to a sensible
     // connected visual when possible so the HUD remains informative.
-    const statusVisual = STATUS_VISUALS[rpcStatus] ?? STATUS_VISUALS[APP_STATUS.connection.CONNECTED] ?? Object.values(STATUS_VISUALS)[0];
+    const statusVisual =
+        STATUS_VISUALS[rpcStatus] ??
+        STATUS_VISUALS[APP_STATUS.connection.CONNECTED] ??
+        Object.values(STATUS_VISUALS)[0];
     const EngineIcon = uiMode === "Full" ? TinyTorrentIcon : TransmissionIcon;
 
     const renderEngineLogo = () => {
@@ -235,7 +325,13 @@ function EngineControlChip({ rpcStatus, uiMode, onClick, tooltip }: { rpcStatus:
                     void onClick();
                 }
             }}
-            className={cn(WORKBENCH.status.engineButton, statusVisual.bg, statusVisual.border, statusVisual.text, statusVisual.shadow)}
+            className={cn(
+                WORKBENCH.status.engineButton,
+                statusVisual.bg,
+                statusVisual.border,
+                statusVisual.text,
+                statusVisual.shadow,
+            )}
             title={tooltip}
             style={{
                 height: UI_BASES.statusbar.buttonH,
@@ -279,12 +375,25 @@ function EngineControlChip({ rpcStatus, uiMode, onClick, tooltip }: { rpcStatus:
 /* ------------------------------------------------------------------ */
 
 export function StatusBar({ viewModel }: StatusBarProps) {
-    const { workspaceStyle, sessionStats, transportStatus, telemetry, rpcStatus, uiMode, handleReconnect, selectedCount = 0, activeDownloadCount, activeDownloadRequiredBytes } = viewModel;
+    const {
+        workspaceStyle,
+        sessionStats,
+        transportStatus,
+        telemetry,
+        rpcStatus,
+        uiMode,
+        handleReconnect,
+        selectedCount = 0,
+        activeDownloadCount,
+        activeDownloadRequiredBytes,
+    } = viewModel;
     const { t } = useTranslation();
     const shell = getShellTokens(workspaceStyle);
 
     // Disk safety calculation (canonical logic)
-    const freeBytes = telemetry?.downloadDirFreeSpace ?? (sessionStats as unknown as { downloadDirFreeSpace?: number })?.downloadDirFreeSpace;
+    const freeBytes =
+        telemetry?.downloadDirFreeSpace ??
+        (sessionStats as unknown as { downloadDirFreeSpace?: number })?.downloadDirFreeSpace;
 
     let diskState: DiskState = "unknown";
 
@@ -323,11 +432,15 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     const torrentStatLabel = isSelection ? t("status_bar.selected_count") : t("status_bar.active_torrents");
 
-    const torrentStatValue = sessionStats ? (isSelection ? `${selectedCount} / ${sessionStats.torrentCount}` : `${sessionStats.activeTorrentCount} / ${sessionStats.torrentCount}`) : "--";
+    const torrentStatValue = sessionStats
+        ? isSelection
+            ? `${selectedCount} / ${sessionStats.torrentCount}`
+            : `${sessionStats.activeTorrentCount} / ${sessionStats.torrentCount}`
+        : "--";
 
     return (
         <footer
-            className={cn(WORKBENCH.status.footer, WORKBENCH.status.workbenchSurface)}
+            className={cn(WORKBENCH.status.footer, WORKBENCH.status.surface)}
             style={{
                 ...shell.outerStyle,
             }}
@@ -339,12 +452,31 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                     height: "var(--tt-statusbar-h)",
                 }}
             >
-                <StatGroup label={torrentStatLabel} value={torrentStatValue} Icon={isSelection ? Files : Activity} className={WORKBENCH.status.statGroupDesktop} align="end" />
+                <StatGroup
+                    label={torrentStatLabel}
+                    value={torrentStatValue}
+                    Icon={isSelection ? Files : Activity}
+                    className={WORKBENCH.status.statGroupDesktop}
+                    align="end"
+                />
 
                 {/* LEFT: SPEEDS - full (shown at sm+) */}
                 <div className={WORKBENCH.status.speedFull}>
-                    <SpeedModule labelKey="status_bar.down" value={downSpeed} Icon={ArrowDown} tone="success" history={downloadHistory} separator />
-                    <SpeedModule labelKey="status_bar.up" value={upSpeed} Icon={ArrowUp} tone="primary" history={uploadHistory} />
+                    <SpeedModule
+                        labelKey="status_bar.down"
+                        value={downSpeed}
+                        Icon={ArrowDown}
+                        tone="success"
+                        history={downloadHistory}
+                        separator
+                    />
+                    <SpeedModule
+                        labelKey="status_bar.up"
+                        value={upSpeed}
+                        Icon={ArrowUp}
+                        tone="primary"
+                        history={uploadHistory}
+                    />
                 </div>
 
                 {/* LEFT: SPEEDS - compact (xs) */}
@@ -352,10 +484,18 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                     <div className={WORKBENCH.status.speedCompactGraphWrap}>
                         <div className={WORKBENCH.status.speedCompactLayer}>
                             <div className={WORKBENCH.status.speedCompactLayer}>
-                                <NetworkGraph data={downloadHistory} color="success" className={WORKBENCH.status.speedCompactDownGraph} />
+                                <NetworkGraph
+                                    data={downloadHistory}
+                                    color="success"
+                                    className={WORKBENCH.status.speedCompactDownGraph}
+                                />
                             </div>
                             <div className={WORKBENCH.status.speedCompactUpLayer}>
-                                <NetworkGraph data={uploadHistory} color="primary" className={WORKBENCH.status.speedCompactUpGraph} />
+                                <NetworkGraph
+                                    data={uploadHistory}
+                                    color="primary"
+                                    className={WORKBENCH.status.speedCompactUpGraph}
+                                />
                             </div>
                         </div>
 
@@ -384,9 +524,20 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                         height: "var(--tt-statusbar-h)",
                     }}
                 >
-                    <StatusTelemetryGrid telemetry={telemetry} transportStatus={transportStatus} rpcStatus={rpcStatus} diskState={diskState} freeBytes={freeBytes} />
+                    <StatusTelemetryGrid
+                        telemetry={telemetry}
+                        transportStatus={transportStatus}
+                        rpcStatus={rpcStatus}
+                        diskState={diskState}
+                        freeBytes={freeBytes}
+                    />
 
-                    <EngineControlChip rpcStatus={rpcStatus} uiMode={uiMode} onClick={handleReconnect} tooltip={engineControlTooltip} />
+                    <EngineControlChip
+                        rpcStatus={rpcStatus}
+                        uiMode={uiMode}
+                        onClick={handleReconnect}
+                        tooltip={engineControlTooltip}
+                    />
                 </div>
             </div>
         </footer>

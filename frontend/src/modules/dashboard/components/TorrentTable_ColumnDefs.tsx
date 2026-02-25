@@ -25,17 +25,24 @@ import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { formatBytes, formatDate, formatEtaAbsolute, formatRelativeTime, formatTime } from "@/shared/utils/format";
 import type { Table } from "@tanstack/react-table";
-import type {
-    OptimisticStatusEntry,
-    OptimisticStatusMap,
-} from "@/modules/dashboard/types/optimistic";
+import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 
 // --- TYPES ---
-export type ColumnId = "name" | "progress" | "status" | "queue" | "eta" | "speed" | "peers" | "size" | "ratio" | "added";
+export type ColumnId =
+    | "name"
+    | "progress"
+    | "status"
+    | "queue"
+    | "eta"
+    | "speed"
+    | "peers"
+    | "size"
+    | "ratio"
+    | "added";
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
@@ -77,10 +84,6 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 const getEffectiveProgress = (torrent: Torrent) => {
     const normalizedProgress = clamp01(torrent.progress ?? torrent.verificationProgress ?? 0);
-    if (torrent.state === STATUS.torrent.MISSING_FILES) {
-        return 0;
-    }
-
     if (torrent.state === STATUS.torrent.CHECKING) {
         return clamp01(torrent.verificationProgress ?? normalizedProgress);
     }
@@ -130,8 +133,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => (
             <div className={TABLE.columnDefs.nameCell}>
                 <span
-                    title={torrent.errorEnvelope?.errorMessage ?? (torrent.errorString ? torrent.errorString : undefined)}
-                    className={cn(TABLE.columnDefs.nameLabel, TABLE_LAYOUT.fontSize, torrent.state === STATUS.torrent.PAUSED && TABLE.columnDefs.nameLabelPaused)}
+                    title={torrent.errorString ? torrent.errorString : undefined}
+                    className={cn(
+                        TABLE.columnDefs.nameLabel,
+                        TABLE_LAYOUT.fontSize,
+                        torrent.state === STATUS.torrent.PAUSED && TABLE.columnDefs.nameLabelPaused,
+                    )}
                 >
                     {torrent.name}
                 </span>
@@ -161,7 +168,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 <div className={TABLE.columnDefs.progressCell}>
                     <div className={cn(TABLE.columnDefs.progressMetricsRow, DENSE_NUMERIC)}>
                         <span>{(displayProgress * 100).toFixed(1)}%</span>
-                        <span className={TABLE.columnDefs.progressSecondary}>{formatBytes(torrent.totalSize * displayProgress)}</span>
+                        <span className={TABLE.columnDefs.progressSecondary}>
+                            {formatBytes(torrent.totalSize * displayProgress)}
+                        </span>
                     </div>
                     <SmoothProgressBar
                         value={displayProgress * 100}
@@ -185,11 +194,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t, optimisticStatus }) => (
-            <TorrentTable_StatusCell
-                torrent={torrent}
-                t={t}
-                optimisticStatus={optimisticStatus}
-            />
+            <TorrentTable_StatusCell torrent={torrent} t={t} optimisticStatus={optimisticStatus} />
         ),
     },
 
@@ -203,7 +208,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_queue",
         sortAccessor: (torrent) => torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
         headerIcon: ListOrdered,
-        render: ({ torrent }) => <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>{formatQueueOrdinal(torrent.queuePosition)}</span>,
+        render: ({ torrent }) => (
+            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
+                {formatQueueOrdinal(torrent.queuePosition)}
+            </span>
+        ),
     },
 
     eta: {
@@ -219,7 +228,10 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             const isChecking = torrent.state === STATUS.torrent.CHECKING;
             if (isChecking) {
                 return (
-                    <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)} title={t("labels.status.torrent.checking")}>
+                    <span
+                        className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}
+                        title={t("labels.status.torrent.checking")}
+                    >
                         -
                     </span>
                 );
@@ -260,7 +272,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Network,
         render: ({ torrent }) => (
             <div className={cn(TABLE.columnDefs.peersRow, DENSE_NUMERIC)}>
-                <StatusIcon Icon={Users} size="md" strokeWidth={ICON_STROKE_WIDTH_DENSE} className={TABLE.columnDefs.peersIcon} />
+                <StatusIcon
+                    Icon={Users}
+                    size="md"
+                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                    className={TABLE.columnDefs.peersIcon}
+                />
                 <span>{torrent.peerSummary.connected}</span>
                 <span className={TABLE.columnDefs.peersDivider}>/</span>
                 <span className={TABLE.columnDefs.peersSeedCount}>{torrent.peerSummary.seeds ?? "-"}</span>
@@ -278,7 +295,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.totalSize,
         headerIcon: HardDrive,
-        render: ({ torrent }) => <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>{formatBytes(torrent.totalSize)}</span>,
+        render: ({ torrent }) => (
+            <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>{formatBytes(torrent.totalSize)}</span>
+        ),
     },
 
     ratio: {
@@ -291,7 +310,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_ratio",
         sortAccessor: (torrent) => ratioValue(torrent),
         headerIcon: TrendingUp,
-        render: ({ torrent }) => <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>{ratioValue(torrent).toFixed(2)}</span>,
+        render: ({ torrent }) => (
+            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>{ratioValue(torrent).toFixed(2)}</span>
+        ),
     },
 
     added: {
@@ -312,7 +333,18 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
     },
 };
 
-export const DEFAULT_COLUMN_ORDER: ColumnId[] = ["name", "progress", "status", "queue", "eta", "speed", "peers", "size", "ratio", "added"];
+export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
+    "name",
+    "progress",
+    "status",
+    "queue",
+    "eta",
+    "speed",
+    "peers",
+    "size",
+    "ratio",
+    "added",
+];
 
 export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "queue", "speed", "peers", "size"];
 

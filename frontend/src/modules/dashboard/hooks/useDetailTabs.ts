@@ -107,7 +107,6 @@ export interface TorrentDetailTabSurfaces {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
         downloadDir: string;
         activePeers: number;
-        isRecoveryBlocked?: boolean;
     } | null;
     content: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
@@ -150,7 +149,6 @@ export interface TorrentDetailTabSurfaces {
 
 interface UseTorrentDetailTabCoordinatorParams {
     viewModel: DashboardDetailViewModel;
-    isRecoveryBlocked?: boolean;
     isStandalone?: boolean;
 }
 
@@ -164,7 +162,6 @@ interface UseTorrentDetailTabCoordinatorResult {
 
 export const useTorrentDetailTabCoordinator = ({
     viewModel,
-    isRecoveryBlocked,
     isStandalone = false,
 }: UseTorrentDetailTabCoordinatorParams): UseTorrentDetailTabCoordinatorResult => {
     const { t } = useTranslation();
@@ -196,7 +193,6 @@ export const useTorrentDetailTabCoordinator = ({
                 torrent,
                 downloadDir: torrent.downloadDir ?? "",
                 activePeers: torrent.peers?.length ?? 0,
-                isRecoveryBlocked,
             },
             content: {
                 torrent,
@@ -237,7 +233,7 @@ export const useTorrentDetailTabCoordinator = ({
                       }
                     : null,
         };
-    }, [torrent, isRecoveryBlocked, t, viewModel.tabs, isStandalone]);
+    }, [torrent, t, viewModel.tabs, isStandalone]);
 
     const activeSurface = useMemo(() => {
         if (active === "general" && surfaces.general) {

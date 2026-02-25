@@ -24,35 +24,6 @@ import type { DeleteIntent } from "@/app/types/workspace";
 import { createTorrentDispatch, type TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
-import type { DownloadMissingOutcome } from "@/app/context/RecoveryContext";
-import { BULK_RESUME_CONCURRENCY } from "@/config/logic";
-
-const mapWithConcurrency = async <T, R>(
-    items: T[],
-    concurrency: number,
-    worker: (item: T) => Promise<R>,
-): Promise<R[]> => {
-    if (items.length === 0) {
-        return [];
-    }
-    const boundedConcurrency = Math.max(1, Math.min(concurrency, items.length));
-    const results = new Array<R>(items.length);
-    let cursor = 0;
-    const runWorker = async () => {
-        while (true) {
-            const index = cursor;
-            cursor += 1;
-            if (index >= items.length) {
-                return;
-            }
-            results[index] = await worker(items[index]);
-        }
-    };
-    await Promise.all(
-        Array.from({ length: boundedConcurrency }, () => runWorker()),
-    );
-    return results;
-};
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -76,7 +47,6 @@ export interface WorkspaceTorrentDomain {
     selectedIds: string[];
     selectedTorrents: Torrent[];
     addTorrent: UseTorrentOrchestratorResult["addTorrent"];
-    recovery: UseTorrentOrchestratorResult["recovery"];
     workflow: {
         optimisticStatuses: OptimisticStatusMap;
         pendingDelete: DeleteIntent | null;
@@ -84,12 +54,12 @@ export interface WorkspaceTorrentDomain {
         clearPendingDelete: () => void;
         handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<TorrentCommandOutcome>;
         handleBulkAction: (action: TorrentTableAction) => Promise<TorrentCommandOutcome>;
+        handleSetDownloadLocation: (params: { torrent: Torrent; path: string; moveData: boolean }) => Promise<TorrentCommandOutcome>;
         removedIds: Set<string>;
     };
     handlers: {
         handleRequestDetails: (torrent: Torrent) => Promise<void>;
         handleCloseDetail: () => void;
-        handleDownloadMissing: (torrent: Torrent) => Promise<DownloadMissingOutcome>;
         handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
         handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
         handleSequentialToggle: (enabled: boolean) => Promise<void>;
@@ -146,8 +116,7 @@ export function useWorkspaceTorrentDomain({
         [torrentClient, refreshTorrents, refreshSessionStatsData, refreshDetailData, reportCommandError],
     );
 
-    const { optimisticStatuses, updateOptimisticStatuses, updateOperationOverlays } =
-        useOptimisticStatuses(torrents);
+    const { optimisticStatuses, updateOptimisticStatuses } = useOptimisticStatuses(torrents);
 
     const orchestrator = useTorrentOrchestrator({
         client: torrentClient,
@@ -159,21 +128,16 @@ export function useWorkspaceTorrentDomain({
         detailData,
         settingsConfig,
         clearDetail,
-        updateOperationOverlays,
     });
 
-    const { addTorrent, recovery } = orchestrator;
-    const { state: recoveryState, actions: recoveryActions } = recovery;
-    const {
-        executeDownloadMissing,
-        resumeTorrentWithRecovery,
-        handlePrepareDelete,
-        markTorrentPausedByUser,
-    } = recoveryActions;
+    const { addTorrent } = orchestrator;
 
     const { selectedIds, activeId, setActiveId } = useSelection();
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const selectedTorrents = useMemo(() => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)), [selectedIdsSet, torrents]);
+    const selectedTorrents = useMemo(
+        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+        [selectedIdsSet, torrents],
+    );
 
     const { handleFileSelectionChange, handleSequentialToggle, handleSuperSeedingToggle } = useDetailControls({
         detailData,
@@ -226,13 +190,6 @@ export function useWorkspaceTorrentDomain({
         handleCloseDetail();
     }, [detailData, torrents, handleCloseDetail]);
 
-    const handleDownloadMissing = useCallback(
-        async (torrent: Torrent): Promise<DownloadMissingOutcome> => {
-            return executeDownloadMissing(torrent);
-        },
-        [executeDownloadMissing],
-    );
-
     const handleOpenFolder = useOpenTorrentFolder();
 
     const executeTorrentActionViaDispatch = (
@@ -240,20 +197,33 @@ export function useWorkspaceTorrentDomain({
         torrent: Torrent,
         options?: { deleteData?: boolean },
     ) => {
-        if (action === "pause") {
-            markTorrentPausedByUser(torrent);
-        }
         return dispatchTorrentAction({
             action,
             torrent,
             options,
             dispatch,
-            resume: async (target) => resumeTorrentWithRecovery(target),
         });
     };
 
     const executeBulkRemoveViaDispatch = async (ids: string[], deleteData: boolean): Promise<TorrentCommandOutcome> => {
         const outcome = await dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
+        if (outcome.status === "applied") {
+            return { status: "success" };
+        }
+        if (outcome.status === "unsupported") {
+            return { status: "unsupported", reason: "action_not_supported" };
+        }
+        return { status: "failed", reason: "execution_failed" };
+    };
+
+    const executeSetDownloadLocationViaDispatch = async (
+        torrentId: string,
+        path: string,
+        moveData: boolean,
+    ): Promise<TorrentCommandOutcome> => {
+        const outcome = await dispatch(
+            TorrentIntents.ensureAtLocation(torrentId, path, { moveData }),
+        );
         if (outcome.status === "applied") {
             return { status: "success" };
         }
@@ -275,52 +245,26 @@ export function useWorkspaceTorrentDomain({
         }
     }, [refreshTorrents, rpcStatus]);
 
-    const {
-        pendingDelete,
-        confirmDelete,
-        clearPendingDelete,
-        handleTorrentAction,
-        handleBulkAction,
-        removedIds,
-    } = useTorrentWorkflow({
-        torrents,
-        optimisticStatuses,
-        updateOptimisticStatuses,
-        executeTorrentAction: executeTorrentActionViaDispatch,
-        executeBulkRemove: executeBulkRemoveViaDispatch,
-        onPrepareDelete: handlePrepareDelete,
-        onRecheckComplete: refreshAfterRecheck,
-        executeSelectionAction: async (action, targets) => {
-            if (action === "pause") {
-                targets.forEach((torrent) => {
-                    markTorrentPausedByUser(torrent);
+    const { pendingDelete, confirmDelete, clearPendingDelete, handleTorrentAction, handleBulkAction, handleSetDownloadLocation, removedIds } =
+        useTorrentWorkflow({
+            torrents,
+            optimisticStatuses,
+            updateOptimisticStatuses,
+            executeTorrentAction: executeTorrentActionViaDispatch,
+            executeBulkRemove: executeBulkRemoveViaDispatch,
+            executeSetDownloadLocation: executeSetDownloadLocationViaDispatch,
+            onRecheckComplete: refreshAfterRecheck,
+            executeSelectionAction: async (action, targets) => {
+                const ids = targets
+                    .map((torrent) => torrent.id ?? torrent.hash)
+                    .filter((id): id is string => Boolean(id));
+                return dispatchTorrentSelectionAction({
+                    action,
+                    ids,
+                    dispatch,
                 });
-            }
-            if (action === "resume") {
-                const resumeOutcomes = await mapWithConcurrency(
-                    targets,
-                    BULK_RESUME_CONCURRENCY,
-                    (torrent) =>
-                        resumeTorrentWithRecovery(torrent, {
-                            suppressFeedback: true,
-                        }),
-                );
-                if (resumeOutcomes.some((outcome) => outcome.status === "failed")) {
-                    return { status: "failed", reason: "execution_failed" };
-                }
-                if (resumeOutcomes.some((outcome) => outcome.status === "applied")) {
-                    return { status: "success" };
-                }
-                return { status: "canceled", reason: "operation_cancelled" };
-            }
-            const ids = targets.map((torrent) => torrent.id ?? torrent.hash).filter((id): id is string => Boolean(id));
-            return dispatchTorrentSelectionAction({
-                action,
-                ids,
-                dispatch,
-            });
-        },
-    });
+            },
+        });
 
     return {
         torrents,
@@ -333,10 +277,6 @@ export function useWorkspaceTorrentDomain({
         selectedIds,
         selectedTorrents,
         addTorrent,
-        recovery: {
-            ...recovery,
-            state: recoveryState,
-        },
         workflow: {
             optimisticStatuses,
             pendingDelete,
@@ -344,12 +284,12 @@ export function useWorkspaceTorrentDomain({
             clearPendingDelete,
             handleTorrentAction,
             handleBulkAction,
+            handleSetDownloadLocation,
             removedIds,
         },
         handlers: {
             handleRequestDetails,
             handleCloseDetail,
-            handleDownloadMissing,
             handleOpenFolder,
             handleFileSelectionChange,
             handleSequentialToggle,

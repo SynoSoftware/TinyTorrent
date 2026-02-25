@@ -14,7 +14,6 @@ import type {
     TorrentPeerEntity,
     TorrentTrackerEntity,
 } from "@/services/rpc/entities";
-import { buildErrorEnvelope } from "@/services/rpc/recovery";
 import STATUS, { type TorrentStatus } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
@@ -32,9 +31,7 @@ const STATUS_MAP: Record<number, TorrentStatus> = {
 // qBittorrent’s “Stalled torrent timeout” defaults to 60 seconds, so keep the grace window identical.
 const STALLED_GRACE_SECONDS = 60;
 
-const normalizeStatus = (
-    status: number | TorrentStatus | undefined
-): TorrentStatus => {
+const normalizeStatus = (status: number | TorrentStatus | undefined): TorrentStatus => {
     if (typeof status === "string") {
         return status as TorrentStatus;
     }
@@ -54,8 +51,6 @@ const normalizeErrorString = (value: unknown) => {
     return s.length > 0 ? s : undefined;
 };
 
-// Note: classification for recovery is centralized in `buildErrorEnvelope`.
-
 const numOr = (value: unknown, fallback: number) =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
@@ -68,21 +63,15 @@ type VerifyStateEntry = {
 };
 
 // Session-scoped runtime cache.
-// Owner: `resetRecoveryRuntimeSessionState` in `services/recovery/recovery-runtime-lifecycle.ts`.
 const verifyStateMap = new Map<string, VerifyStateEntry>();
 
 export function resetNormalizerRuntimeState() {
     verifyStateMap.clear();
 }
 
-const isCheckingStatusNum = (statusNum: unknown) =>
-    statusNum === 1 || statusNum === 2;
+const isCheckingStatusNum = (statusNum: unknown) => statusNum === 1 || statusNum === 2;
 
-const updateVerifyState = (
-    idKey: string | null,
-    currentlyVerifying: boolean,
-    nowSeconds: number
-) => {
+const updateVerifyState = (idKey: string | null, currentlyVerifying: boolean, nowSeconds: number) => {
     if (!idKey) return;
     const entry = verifyStateMap.get(idKey) ?? {
         wasVerifying: false,
@@ -95,10 +84,7 @@ const updateVerifyState = (
     verifyStateMap.set(idKey, entry);
 };
 
-const hasRecentVerifyCompletion = (
-    idKey: string | null,
-    nowSeconds: number
-) => {
+const hasRecentVerifyCompletion = (idKey: string | null, nowSeconds: number) => {
     if (!idKey) return false;
     const entry = verifyStateMap.get(idKey);
     if (!entry || entry.lastVerifyCompletedAt === undefined) return false;
@@ -123,14 +109,12 @@ const isWithinStallGraceWindow = (torrent: ActivityInfo) => {
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     const activityDate =
-        typeof torrent.activityDate === "number" &&
-        Number.isFinite(torrent.activityDate)
+        typeof torrent.activityDate === "number" && Number.isFinite(torrent.activityDate)
             ? Math.max(0, Math.floor(torrent.activityDate))
             : undefined;
 
     const addedDate =
-        typeof torrent.addedDate === "number" &&
-        Number.isFinite(torrent.addedDate)
+        typeof torrent.addedDate === "number" && Number.isFinite(torrent.addedDate)
             ? Math.max(0, Math.floor(torrent.addedDate))
             : undefined;
 
@@ -147,24 +131,14 @@ const isWithinStallGraceWindow = (torrent: ActivityInfo) => {
     return false;
 };
 
-export const deriveTorrentState = (
-    base: TorrentStatus,
-    torrent: TransmissionTorrent
-): TorrentStatus => {
+export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTorrent): TorrentStatus => {
     // 1) Error classification (authoritative)
     if (hasRpcError(torrent)) {
-        const env = buildErrorEnvelope(torrent as TransmissionTorrent);
-        return env.errorClass === "missingFiles"
-            ? STATUS.torrent.MISSING_FILES
-            : STATUS.torrent.ERROR;
+        return STATUS.torrent.ERROR;
     }
 
     // 2) Base states that must never be overridden
-    if (
-        base === STATUS.torrent.PAUSED ||
-        base === STATUS.torrent.CHECKING ||
-        base === STATUS.torrent.QUEUED
-    ) {
+    if (base === STATUS.torrent.PAUSED || base === STATUS.torrent.CHECKING || base === STATUS.torrent.QUEUED) {
         return base;
     }
 
@@ -176,31 +150,21 @@ export const deriveTorrentState = (
     const down = numOr(torrent.rateDownload, 0);
     const sendingToUs = numOr(torrent.peersSendingToUs, 0);
 
-    const statusNum =
-        typeof torrent.status === "number" ? torrent.status : undefined;
+    const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
     const statusIndicatesChecking = isCheckingStatusNum(statusNum);
-    const isVerifying =
-        typeof torrent.recheckProgress === "number" &&
-        torrent.recheckProgress > 0;
+    const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
     const currentlyVerifying = isVerifying || statusIndicatesChecking;
     const idKey = torrent.hashString ?? String(torrent.id ?? "");
     const nowSeconds = Math.floor(Date.now() / 1000);
     updateVerifyState(idKey || null, currentlyVerifying, nowSeconds);
-    const justCompletedVerify = hasRecentVerifyCompletion(
-        idKey || null,
-        nowSeconds
-    );
+    const justCompletedVerify = hasRecentVerifyCompletion(idKey || null, nowSeconds);
 
     const entry = idKey ? verifyStateMap.get(idKey) : undefined;
     const lastDownloadStartedAt = entry?.lastDownloadStartedAt;
     const justStartedDownloading =
-        typeof lastDownloadStartedAt === "number" &&
-        nowSeconds - lastDownloadStartedAt < STALLED_GRACE_SECONDS;
+        typeof lastDownloadStartedAt === "number" && nowSeconds - lastDownloadStartedAt < STALLED_GRACE_SECONDS;
 
-    const isWithinGrace =
-        isWithinStallGraceWindow(torrent) ||
-        justCompletedVerify ||
-        justStartedDownloading;
+    const isWithinGrace = isWithinStallGraceWindow(torrent) || justCompletedVerify || justStartedDownloading;
 
     let derived = base;
 
@@ -243,10 +207,7 @@ export const deriveTorrentState = (
             }
 
             // Keep your existing “download just started” marker if you still want it.
-            if (
-                derived === STATUS.torrent.DOWNLOADING &&
-                e.lastDerivedState !== STATUS.torrent.DOWNLOADING
-            ) {
+            if (derived === STATUS.torrent.DOWNLOADING && e.lastDerivedState !== STATUS.torrent.DOWNLOADING) {
                 e.lastDownloadStartedAt = nowSeconds;
             }
 
@@ -260,8 +221,6 @@ export const deriveTorrentState = (
 
     return derived;
 };
-
-// Error envelope is computed centrally in the recovery domain.
 
 const mapPriority = (priority?: number): LibtorrentPriority => {
     const normalized = typeof priority === "number" ? priority : 0;
@@ -278,9 +237,7 @@ const sanitizeFileName = (value: string | undefined, index: number) => {
     return `file-${index}`;
 };
 
-const zipFileEntities = (
-    detail: TransmissionTorrentDetail
-): TorrentFileEntity[] => {
+const zipFileEntities = (detail: TransmissionTorrentDetail): TorrentFileEntity[] => {
     const files = detail.files ?? [];
     const stats = detail.fileStats ?? [];
     const fileCount = files.length;
@@ -313,12 +270,8 @@ const zipFileEntities = (
     for (let index = 0; index < limit; ++index) {
         const file: TransmissionTorrentFile = files[index];
         const stat: TransmissionTorrentFileStat | undefined = stats[index];
-        const length =
-            typeof file.length === "number" ? file.length : undefined;
-        const bytesCompleted =
-            typeof file.bytesCompleted === "number"
-                ? file.bytesCompleted
-                : undefined;
+        const length = typeof file.length === "number" ? file.length : undefined;
+        const bytesCompleted = typeof file.bytesCompleted === "number" ? file.bytesCompleted : undefined;
         const progress =
             length && typeof bytesCompleted === "number" && length > 0
                 ? Math.min(bytesCompleted / length, 1)
@@ -336,12 +289,8 @@ const zipFileEntities = (
     return result;
 };
 
-const normalizeTracker = (
-    tracker: TransmissionTorrentTracker
-): TorrentTrackerEntity => ({
-    id: Number.isFinite(Number(tracker.id))
-        ? Number(tracker.id)
-        : tracker.tier,
+const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEntity => ({
+    id: Number.isFinite(Number(tracker.id)) ? Number(tracker.id) : tracker.tier,
     announce: tracker.announce,
     tier: tracker.tier,
     announceState: tracker.announceState,
@@ -352,12 +301,8 @@ const normalizeTracker = (
     lastScrapeResult: tracker.lastScrapeResult,
     lastScrapeSucceeded: tracker.lastScrapeSucceeded,
     // Preserve missing data as NaN so the UI can render "unknown".
-    seederCount: Number.isFinite(Number(tracker.seederCount))
-        ? Number(tracker.seederCount)
-        : NaN,
-    leecherCount: Number.isFinite(Number(tracker.leecherCount))
-        ? Number(tracker.leecherCount)
-        : NaN,
+    seederCount: Number.isFinite(Number(tracker.seederCount)) ? Number(tracker.seederCount) : NaN,
+    leecherCount: Number.isFinite(Number(tracker.leecherCount)) ? Number(tracker.leecherCount) : NaN,
     scrapeState: tracker.scrapeState,
 });
 
@@ -371,35 +316,21 @@ const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
     // preserve missing values as NaN so the UI can show "unknown" states
     // instead of fabricating zero values.
     clientName: peer.clientName ?? "",
-    rateToClient: Number.isFinite(Number(peer.rateToClient))
-        ? Number(peer.rateToClient)
-        : NaN,
-    rateToPeer: Number.isFinite(Number(peer.rateToPeer))
-        ? Number(peer.rateToPeer)
-        : NaN,
+    rateToClient: Number.isFinite(Number(peer.rateToClient)) ? Number(peer.rateToClient) : NaN,
+    rateToPeer: Number.isFinite(Number(peer.rateToPeer)) ? Number(peer.rateToPeer) : NaN,
     // Progress is safe to default to 0 for rendering geometry.
-    progress: Number.isFinite(Number(peer.progress))
-        ? Number(peer.progress)
-        : 0,
+    progress: Number.isFinite(Number(peer.progress)) ? Number(peer.progress) : 0,
     flagStr: peer.flagStr ?? "",
     country: peer.country,
 });
 
-export const normalizeTorrent = (
-    torrent: TransmissionTorrent
-): TorrentEntity => {
+export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => {
     const baseState = normalizeStatus(torrent.status);
     const derivedState = deriveTorrentState(baseState, torrent);
 
-    const progress =
-        derivedState === STATUS.torrent.MISSING_FILES
-            ? undefined
-            : torrent.percentDone;
+    const progress = torrent.percentDone;
 
-    const verificationProgress =
-        derivedState === STATUS.torrent.CHECKING
-            ? torrent.recheckProgress
-            : undefined;
+    const verificationProgress = derivedState === STATUS.torrent.CHECKING ? torrent.recheckProgress : undefined;
 
     // Use the hashString when present, otherwise fall back to the numeric RPC id
     // as a string. Some engines may omit or mis-populate hashString which would
@@ -430,6 +361,17 @@ export const normalizeTorrent = (
         ratio: numOr(torrent.uploadRatio, 0),
         uploaded: numOr(torrent.uploadedEver, 0),
         downloaded: numOr(torrent.downloadedEver, 0),
+        haveValid: typeof torrent.haveValid === "number" ? torrent.haveValid : undefined,
+        haveUnchecked: typeof torrent.haveUnchecked === "number" ? torrent.haveUnchecked : undefined,
+        doneDate: typeof torrent.doneDate === "number" ? torrent.doneDate : undefined,
+        secondsDownloading:
+            typeof torrent.secondsDownloading === "number"
+                ? torrent.secondsDownloading
+                : undefined,
+        secondsSeeding:
+            typeof torrent.secondsSeeding === "number"
+                ? torrent.secondsSeeding
+                : undefined,
         leftUntilDone: torrent.leftUntilDone,
         sizeWhenDone: torrent.sizeWhenDone,
         error: torrent.error,
@@ -440,19 +382,14 @@ export const normalizeTorrent = (
         added: numOr(torrent.addedDate, Math.floor(Date.now() / 1000)),
         savePath: torrent.downloadDir,
         rpcId: torrent.id,
-        errorEnvelope: buildErrorEnvelope(torrent),
     };
 
     return normalizedTorrent;
 };
 
-export const normalizeTorrentDetail = (
-    detail: TransmissionTorrentDetail
-): TorrentDetailEntity => {
+export const normalizeTorrentDetail = (detail: TransmissionTorrentDetail): TorrentDetailEntity => {
     const normalizedFiles = zipFileEntities(detail);
     const base = normalizeTorrent(detail);
-    // enrich envelope with tracker-aware insights when available
-    const envelope = buildErrorEnvelope(detail, detail);
     return {
         ...base,
         files: normalizedFiles,
@@ -463,7 +400,6 @@ export const normalizeTorrentDetail = (
         pieceStates: detail.pieceStates,
         pieceAvailability: detail.pieceAvailability,
         downloadDir: detail.downloadDir,
-        errorEnvelope: envelope,
     };
 };
 
@@ -477,83 +413,69 @@ export const normalizeTorrentDetail = (
  * result will preserve the previous state `A` until engine truth
  * moves into a legal state.
  */
-export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
-    {
-        [STATUS.torrent.PAUSED]: [
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.CHECKING,
-            STATUS.torrent.ERROR,
-            STATUS.torrent.MISSING_FILES,
-        ],
-        [STATUS.torrent.QUEUED]: [
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.CHECKING,
-            STATUS.torrent.ERROR,
-        ],
-        [STATUS.torrent.DOWNLOADING]: [
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.STALLED,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.ERROR,
-            STATUS.torrent.MISSING_FILES,
-        ],
-        [STATUS.torrent.SEEDING]: [
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.ERROR,
-            STATUS.torrent.MISSING_FILES,
-        ],
-        [STATUS.torrent.CHECKING]: [
-            STATUS.torrent.CHECKING,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.ERROR,
-        ],
-        [STATUS.torrent.STALLED]: [
-            STATUS.torrent.STALLED,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.ERROR,
-        ],
-        [STATUS.torrent.ERROR]: [
-            STATUS.torrent.ERROR,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.CHECKING,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.MISSING_FILES,
-        ],
-        [STATUS.torrent.MISSING_FILES]: [
-            STATUS.torrent.MISSING_FILES,
-            STATUS.torrent.PAUSED,
-            STATUS.torrent.CHECKING,
-            STATUS.torrent.QUEUED,
-            STATUS.torrent.DOWNLOADING,
-            STATUS.torrent.SEEDING,
-            STATUS.torrent.ERROR,
-        ],
-    };
+export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> = {
+    [STATUS.torrent.PAUSED]: [
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.SEEDING,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.QUEUED]: [
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.SEEDING,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.DOWNLOADING]: [
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.STALLED,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.SEEDING,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.SEEDING]: [
+        STATUS.torrent.SEEDING,
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.CHECKING]: [
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.SEEDING,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.STALLED]: [
+        STATUS.torrent.STALLED,
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.ERROR,
+    ],
+    [STATUS.torrent.ERROR]: [
+        STATUS.torrent.ERROR,
+        STATUS.torrent.PAUSED,
+        STATUS.torrent.QUEUED,
+        STATUS.torrent.CHECKING,
+        STATUS.torrent.DOWNLOADING,
+        STATUS.torrent.SEEDING,
+    ],
+};
 
 /**
  * Enforce allowed state transitions. If `prev` is undefined, accept `next`.
  * If transition is illegal, return `prev` to preserve engine-truth continuity.
  */
-export function enforceStateTransition(
-    prev: TorrentStatus | undefined,
-    next: TorrentStatus
-): TorrentStatus {
+export function enforceStateTransition(prev: TorrentStatus | undefined, next: TorrentStatus): TorrentStatus {
     if (!prev) return next;
     const allowed = ALLOWED_STATE_TRANSITIONS[prev] ?? [prev];
     return allowed.includes(next) ? next : prev;

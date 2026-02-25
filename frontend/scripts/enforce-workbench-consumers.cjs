@@ -16,8 +16,8 @@ const checks = [
         ),
         mustInclude: [
             "WORKBENCH.nav.root",
-            "WORKBENCH.nav.workbenchSurface",
-            "WORKBENCH.nav.workbenchShell",
+            "WORKBENCH.nav.surface",
+            "WORKBENCH.nav.shell",
         ],
     },
     {
@@ -31,8 +31,8 @@ const checks = [
         ),
         mustInclude: [
             "TABLE.hostRoot",
-            "TABLE.workbenchSurface",
-            "TABLE.workbenchShell",
+            "TABLE.surface",
+            "TABLE.shell",
         ],
     },
     {
@@ -46,7 +46,7 @@ const checks = [
         ),
         mustInclude: [
             "WORKBENCH.status.footer",
-            "WORKBENCH.status.workbenchSurface",
+            "WORKBENCH.status.surface",
         ],
     },
 ];

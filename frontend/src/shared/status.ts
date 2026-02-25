@@ -27,21 +27,12 @@ export const STATUS = {
         PAUSED: "paused",
         CHECKING: "checking",
         ERROR: "error",
-        MISSING_FILES: "missing_files",
-    },
-    torrentOperation: {
-        RELOCATING: "relocating",
-        RECOVERING: "recovering",
     },
 } as const;
 
-export type TorrentStatus =
-    (typeof STATUS.torrent)[keyof typeof STATUS.torrent];
-export type TorrentOperationState =
-    (typeof STATUS.torrentOperation)[keyof typeof STATUS.torrentOperation];
+export type TorrentStatus = (typeof STATUS.torrent)[keyof typeof STATUS.torrent];
 export type DiskStatus = (typeof STATUS.disk)[keyof typeof STATUS.disk];
-export type ConnectionStatus =
-    (typeof STATUS.connection)[keyof typeof STATUS.connection];
+export type ConnectionStatus = (typeof STATUS.connection)[keyof typeof STATUS.connection];
 export type EngineStatus = (typeof STATUS.engine)[keyof typeof STATUS.engine];
 
 export default STATUS;

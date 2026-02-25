@@ -5,9 +5,6 @@ import { usePreferences } from "@/app/context/PreferencesContext";
 import { CommandPalette } from "@/app/components/CommandPalette";
 import { WorkspaceShell } from "@/app/components/WorkspaceShell";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
-import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
-import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
-import { RecoveryProvider } from "@/app/context/RecoveryContext";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
@@ -32,11 +29,7 @@ function AppContent() {
     return (
         <AppCommandProvider value={appCommandValue}>
             <GlobalHotkeysHost {...controller.commands.globalHotkeys} />
-            <RecoveryProvider value={controller.recovery.recoveryContext}>
-                <WorkspaceShell workspaceViewModel={viewModel.workspace} statusBarViewModel={viewModel.statusBar} />
-                <TorrentRecoveryModal {...controller.recovery.recoveryModalProps} />
-                <SetDownloadPathModal />
-            </RecoveryProvider>
+            <WorkspaceShell workspaceViewModel={viewModel.workspace} statusBarViewModel={viewModel.statusBar} />
             <CommandPalette
                 isOpen={controller.commands.commandPaletteState.isOpen}
                 onOpenChange={controller.commands.commandPaletteState.setIsOpen}

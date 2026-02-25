@@ -1,9 +1,10 @@
 import type { TorrentStatus } from "@/services/rpc/entities";
-import type { TorrentOperationState } from "@/shared/status";
+
+export type OptimisticOperation = "moving";
 
 export type OptimisticStatusEntry = {
     state?: TorrentStatus;
-    operation?: TorrentOperationState;
+    operation?: OptimisticOperation;
 };
 
 export type OptimisticStatusMap = Record<string, OptimisticStatusEntry>;

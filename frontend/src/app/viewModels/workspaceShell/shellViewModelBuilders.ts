@@ -44,7 +44,6 @@ export interface DashboardViewModelParams {
     detailData: TorrentDetail | null;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
-    isDetailRecoveryBlocked: boolean;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
     handleFileSelectionChange: (
@@ -71,7 +70,6 @@ export function useDashboardViewModel({
     detailData,
     peerSortStrategy,
     inspectorTabCommand,
-    isDetailRecoveryBlocked,
     handleRequestDetails,
     closeDetail,
     handleFileSelectionChange,
@@ -100,7 +98,6 @@ export function useDashboardViewModel({
                 detailData,
                 handleRequestDetails,
                 closeDetail,
-                isDetailRecoveryBlocked,
                 tabs: {
                     navigation: {
                         inspectorTabCommand,
@@ -132,7 +129,6 @@ export function useDashboardViewModel({
             detailData,
             handleRequestDetails,
             closeDetail,
-            isDetailRecoveryBlocked,
             inspectorTabCommand,
             setInspectorTabCommand,
             handleFileSelectionChange,

@@ -80,7 +80,6 @@ function makeTorrent(overrides: Partial<TorrentEntity> = {}): TorrentEntity {
         added: 0,
         savePath: overrides.savePath ?? "/tmp",
         rpcId: overrides.rpcId ?? 1,
-        errorEnvelope: undefined,
     };
     return { ...base, ...overrides };
 }

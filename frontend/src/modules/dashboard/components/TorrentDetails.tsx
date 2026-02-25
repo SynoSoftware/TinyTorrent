@@ -8,7 +8,6 @@ import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel"
 export interface TorrentDetailsProps {
     viewModel: DashboardDetailViewModel;
     className?: string;
-    isRecoveryBlocked?: boolean;
     isStandalone?: boolean;
     isDetailFullscreen?: boolean;
     onDock?: () => void;
@@ -24,7 +23,6 @@ export interface TorrentDetailsProps {
 export function TorrentDetails({
     viewModel,
     className,
-    isRecoveryBlocked,
     isDetailFullscreen = false,
     isStandalone = false,
     onDock,
@@ -42,8 +40,6 @@ export function TorrentDetails({
     const { active, setActive, handleKeyDown, activeSurface } =
         useTorrentDetailTabCoordinator({
             viewModel,
-            isRecoveryBlocked:
-                isRecoveryBlocked ?? viewModel.isDetailRecoveryBlocked,
             isStandalone,
         });
 

@@ -30,28 +30,11 @@ export type EnsureTorrentValid = {
     torrentId: string | number;
 };
 
-export type EnsureTorrentRecoverable = {
-    type: "ENSURE_TORRENT_RECOVERABLE";
-    torrentId: string | number;
-};
-
 export type EnsureTorrentAtLocation = {
     type: "ENSURE_TORRENT_AT_LOCATION";
     torrentId: string | number;
     path: string;
     moveData?: boolean;
-    recreate?: boolean;
-};
-
-export type EnsureTorrentDataPresent = {
-    type: "ENSURE_TORRENT_DATA_PRESENT";
-    torrentId: string | number;
-    recreate?: boolean;
-};
-
-export type EnsureTorrentAnnounced = {
-    type: "ENSURE_TORRENT_ANNOUNCED";
-    torrentId: string | number;
 };
 
 export type TorrentAddTracker = {
@@ -96,11 +79,6 @@ export type EnsureSelectionPaused = {
 export type EnsureSelectionValid = {
     type: "ENSURE_SELECTION_VALID";
     torrentIds: Array<string | number>;
-};
-
-export type OpenTorrentFolder = {
-    type: "OPEN_TORRENT_FOLDER";
-    torrentId: string | number;
 };
 
 export type SetTorrentFilesWanted = {
@@ -156,10 +134,7 @@ export type TorrentIntent =
     | EnsureTorrentPaused
     | EnsureTorrentRemoved
     | EnsureTorrentValid
-    | EnsureTorrentRecoverable
     | EnsureTorrentAtLocation
-    | EnsureTorrentDataPresent
-    | EnsureTorrentAnnounced
     | TorrentAddTracker
     | TorrentRemoveTracker
     | TorrentReplaceTrackers
@@ -168,7 +143,6 @@ export type TorrentIntent =
     | EnsureSelectionRemoved
     | EnsureSelectionPaused
     | EnsureSelectionValid
-    | OpenTorrentFolder
     | SetTorrentFilesWanted
     | SetTorrentSequentialDownload
     | SetTorrentSuperSeeding
@@ -185,8 +159,6 @@ export type QueueMoveIntent = {
 
 export type TorrentIntentExtended = TorrentIntent | QueueMoveIntent;
 
-export type RecoveryState = null | Record<string, never>;
-
 export const TorrentIntents = {
     ensureActive: (torrentId: string | number): EnsureTorrentActive => ({
         type: "ENSURE_TORRENT_ACTIVE",
@@ -200,10 +172,7 @@ export const TorrentIntents = {
         type: "ENSURE_TORRENT_PAUSED",
         torrentId,
     }),
-    ensureRemoved: (
-        torrentId: string | number,
-        deleteData?: boolean
-    ): EnsureTorrentRemoved => ({
+    ensureRemoved: (torrentId: string | number, deleteData?: boolean): EnsureTorrentRemoved => ({
         type: "ENSURE_TORRENT_REMOVED",
         torrentId,
         deleteData,
@@ -212,120 +181,66 @@ export const TorrentIntents = {
         type: "ENSURE_TORRENT_VALID",
         torrentId,
     }),
-    ensureRecoverable: (
-        torrentId: string | number
-    ): EnsureTorrentRecoverable => ({
-        type: "ENSURE_TORRENT_RECOVERABLE",
-        torrentId,
-    }),
     ensureAtLocation: (
         torrentId: string | number,
         path: string,
         options?: {
             moveData?: boolean;
-            recreate?: boolean;
         },
     ): EnsureTorrentAtLocation => ({
         type: "ENSURE_TORRENT_AT_LOCATION",
         torrentId,
         path,
         moveData: options?.moveData,
-        recreate: options?.recreate,
     }),
-    ensureDataPresent: (
-        torrentId: string | number,
-        recreate?: boolean
-    ): EnsureTorrentDataPresent => ({
-        type: "ENSURE_TORRENT_DATA_PRESENT",
-        torrentId,
-        recreate,
-    }),
-    ensureAnnounced: (torrentId: string | number): EnsureTorrentAnnounced => ({
-        type: "ENSURE_TORRENT_ANNOUNCED",
-        torrentId,
-    }),
-    torrentAddTracker: (
-        torrentIds: Array<string | number>,
-        trackers: string[],
-    ): TorrentAddTracker => ({
+    torrentAddTracker: (torrentIds: Array<string | number>, trackers: string[]): TorrentAddTracker => ({
         type: "TORRENT_ADD_TRACKER",
         torrentIds,
         trackers,
     }),
-    torrentRemoveTracker: (
-        torrentIds: Array<string | number>,
-        trackerIds: number[],
-    ): TorrentRemoveTracker => ({
+    torrentRemoveTracker: (torrentIds: Array<string | number>, trackerIds: number[]): TorrentRemoveTracker => ({
         type: "TORRENT_REMOVE_TRACKER",
         torrentIds,
         trackerIds,
     }),
-    torrentReplaceTrackers: (
-        torrentIds: Array<string | number>,
-        trackers: string[],
-    ): TorrentReplaceTrackers => ({
+    torrentReplaceTrackers: (torrentIds: Array<string | number>, trackers: string[]): TorrentReplaceTrackers => ({
         type: "TORRENT_REPLACE_TRACKERS",
         torrentIds,
         trackers,
     }),
-    ensureSelectionActive: (
-        torrentIds: Array<string | number>
-    ): EnsureSelectionActive => ({
+    ensureSelectionActive: (torrentIds: Array<string | number>): EnsureSelectionActive => ({
         type: "ENSURE_SELECTION_ACTIVE",
         torrentIds,
     }),
-    ensureSelectionActiveNow: (
-        torrentIds: Array<string | number>
-    ): EnsureSelectionActiveNow => ({
+    ensureSelectionActiveNow: (torrentIds: Array<string | number>): EnsureSelectionActiveNow => ({
         type: "ENSURE_SELECTION_ACTIVE_NOW",
         torrentIds,
     }),
-    ensureSelectionRemoved: (
-        torrentIds: Array<string | number>,
-        deleteData?: boolean
-    ): EnsureSelectionRemoved => ({
+    ensureSelectionRemoved: (torrentIds: Array<string | number>, deleteData?: boolean): EnsureSelectionRemoved => ({
         type: "ENSURE_SELECTION_REMOVED",
         torrentIds,
         deleteData,
     }),
-    ensureSelectionPaused: (
-        torrentIds: Array<string | number>
-    ): EnsureSelectionPaused => ({
+    ensureSelectionPaused: (torrentIds: Array<string | number>): EnsureSelectionPaused => ({
         type: "ENSURE_SELECTION_PAUSED",
         torrentIds,
     }),
-    ensureSelectionValid: (
-        torrentIds: Array<string | number>
-    ): EnsureSelectionValid => ({
+    ensureSelectionValid: (torrentIds: Array<string | number>): EnsureSelectionValid => ({
         type: "ENSURE_SELECTION_VALID",
         torrentIds,
     }),
-    openTorrentFolder: (torrentId: string | number): OpenTorrentFolder => ({
-        type: "OPEN_TORRENT_FOLDER",
-        torrentId,
-    }),
-    setFilesWanted: (
-        torrentId: string | number,
-        fileIndexes: number[],
-        wanted: boolean
-    ): SetTorrentFilesWanted => ({
+    setFilesWanted: (torrentId: string | number, fileIndexes: number[], wanted: boolean): SetTorrentFilesWanted => ({
         type: "SET_TORRENT_FILES_WANTED",
         torrentId,
         fileIndexes,
         wanted,
     }),
-    setSequentialDownload: (
-        torrentId: string | number,
-        enabled: boolean
-    ): SetTorrentSequentialDownload => ({
+    setSequentialDownload: (torrentId: string | number, enabled: boolean): SetTorrentSequentialDownload => ({
         type: "SET_TORRENT_SEQUENTIAL",
         torrentId,
         enabled,
     }),
-    setSuperSeeding: (
-        torrentId: string | number,
-        enabled: boolean
-    ): SetTorrentSuperSeeding => ({
+    setSuperSeeding: (torrentId: string | number, enabled: boolean): SetTorrentSuperSeeding => ({
         type: "SET_TORRENT_SUPERSEEDING",
         torrentId,
         enabled,
@@ -333,18 +248,14 @@ export const TorrentIntents = {
     queueMove: (
         torrentId: string | number,
         direction: "up" | "down" | "top" | "bottom",
-        steps?: number
+        steps?: number,
     ): QueueMoveIntent => ({
         type: "QUEUE_MOVE",
         torrentId,
         direction,
         steps,
     }),
-    addMagnetTorrent: (
-        magnetLink: string,
-        downloadDir: string,
-        paused: boolean
-    ): AddMagnetTorrent => ({
+    addMagnetTorrent: (magnetLink: string, downloadDir: string, paused: boolean): AddMagnetTorrent => ({
         type: "ADD_MAGNET_TORRENT",
         magnetLink,
         downloadDir,
@@ -359,7 +270,7 @@ export const TorrentIntents = {
         priorityNormal: number[],
         priorityLow: number[],
         sequentialDownload?: boolean,
-        skipHashCheck?: boolean
+        skipHashCheck?: boolean,
     ): AddTorrentFromFile => ({
         type: "ADD_TORRENT_FROM_FILE",
         metainfoBase64,
@@ -376,7 +287,7 @@ export const TorrentIntents = {
         torrentId: string | number,
         downloadDir: string,
         filesUnwanted: number[],
-        resume: boolean
+        resume: boolean,
     ): FinalizeExistingTorrent => ({
         type: "FINALIZE_EXISTING_TORRENT",
         torrentId,

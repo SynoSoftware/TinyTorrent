@@ -287,7 +287,7 @@ export function useAddTorrentController({
                     showFeedback(t("modals.add_error_default"), "danger");
                     return { status: "failed", reason: "finalize_failed" };
                 }
-                showFeedback(t("recovery.toast_location_updated"), "success");
+                showFeedback(t("toolbar.feedback.location_updated"), "success");
                 closeAddTorrentWindow();
                 return { status: "finalized" };
             } catch (err) {

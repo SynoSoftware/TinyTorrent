@@ -43,7 +43,7 @@ export function useOpenTorrentFolder() {
             }
             if (!shellAgent.isAvailable) {
                 showFeedback(
-                    t("recovery.feedback.open_remote_folder"),
+                    t("toolbar.feedback.open_remote_folder"),
                     "warning"
                 );
                 return { status: "unsupported" };
@@ -64,13 +64,13 @@ export function useOpenTorrentFolder() {
                     }
                     if (target === parent) {
                         showFeedback(
-                            t("recovery.feedback.folder_parent_opened"),
+                            t("toolbar.feedback.folder_parent_opened"),
                             "info"
                         );
                         return { status: "opened_parent" };
                     }
                     showFeedback(
-                        t("recovery.feedback.folder_parent_opened"),
+                        t("toolbar.feedback.folder_parent_opened"),
                         "info"
                     );
                     return { status: "opened_root" };
@@ -89,7 +89,7 @@ export function useOpenTorrentFolder() {
                     lastError,
                 );
             }
-            showFeedback(t("recovery.open_path_failed"), "warning");
+            showFeedback(t("toolbar.feedback.open_path_failed"), "warning");
             return { status: "failed" };
         },
         [showFeedback, t]

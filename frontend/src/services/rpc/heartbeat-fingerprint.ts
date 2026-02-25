@@ -71,16 +71,6 @@ const mixTorrent = (hash: number, torrent: TorrentEntity): number => {
     mixed = mixHash(mixed, torrent.isGhost);
     mixed = mixHash(mixed, torrent.ghostLabel);
     mixed = mixHash(mixed, torrent.ghostState);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.errorClass);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.errorMessage);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.lastErrorAt);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.recoveryState);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.retryCount);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.nextRetryAt);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.recoveryKind);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.recoveryConfidence);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.fingerprint);
-    mixed = mixHash(mixed, torrent.errorEnvelope?.primaryAction);
     return mixed >>> 0;
 };
 

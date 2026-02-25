@@ -13,7 +13,6 @@ import type {
     NetworkTelemetry,
 } from "@/services/rpc/entities";
 import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerprint";
-import { processHeartbeat } from "@/services/rpc/recoveryAutomation";
 import { enforceStateTransition } from "@/services/rpc/normalizers";
 import STATUS from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
@@ -119,7 +118,7 @@ export class HeartbeatManager {
     // Timer ownership boundary:
     // - HeartbeatManager is the transport polling authority.
     // - It keeps an internal adaptive loop (mode/visibility/delta-aware cadence).
-    // - UI-level timers (clock/recovery probes/modal delays) are owned by app scheduler.
+    // - UI-level timers (clock/modal delays) are owned by app scheduler.
     private readonly subscribers = new Map<symbol, HeartbeatSubscriber>();
     private timerId?: number;
     private isRunning = false;
@@ -1168,11 +1167,6 @@ export class HeartbeatManager {
             entry.ptr = (entry.ptr + 1) % size;
         }
 
-        try {
-            processHeartbeat(torrents, previous ?? undefined);
-        } catch {
-            // ignore
-        }
     }
 
     private notifyError(snapshot: HeartbeatSubscriber[], error: unknown) {

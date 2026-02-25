@@ -18,18 +18,10 @@ type UseTorrentDataOptions = {
     pollingIntervalMs: number;
     markTransportConnected?: () => void;
 };
-export type QueueActionHandlers = {
-    moveToTop: (ids: string[]) => Promise<void>;
-    moveUp: (ids: string[]) => Promise<void>;
-    moveDown: (ids: string[]) => Promise<void>;
-    moveToBottom: (ids: string[]) => Promise<void>;
-};
-
 type UseTorrentDataResult = {
     torrents: Torrent[];
     isInitialLoadFinished: boolean;
     refresh: () => Promise<void>;
-    queueActions: QueueActionHandlers;
     runtimeSummary: TorrentRuntimeSummary;
     ghostTorrents: Torrent[];
     addGhostTorrent: (options: GhostTorrentOptions) => string;
@@ -52,9 +44,7 @@ const EMPTY_TORRENT_RUNTIME_SUMMARY: TorrentRuntimeSummary = {
     singleVerifyingName: null,
 };
 
-const deriveTorrentRuntimeSummary = (
-    torrents: Torrent[],
-): TorrentRuntimeSummary => {
+const deriveTorrentRuntimeSummary = (torrents: Torrent[]): TorrentRuntimeSummary => {
     if (torrents.length === 0) return EMPTY_TORRENT_RUNTIME_SUMMARY;
 
     let activeDownloadCount = 0;
@@ -64,11 +54,7 @@ const deriveTorrentRuntimeSummary = (
     let singleVerifyingName: string | null = null;
 
     torrents.forEach((torrent) => {
-        const isActiveDownload =
-            !torrent.isFinished &&
-            torrent.state !== STATUS.torrent.PAUSED &&
-            torrent.state !== STATUS.torrent.MISSING_FILES &&
-            !torrent.isGhost;
+        const isActiveDownload = !torrent.isFinished && torrent.state !== STATUS.torrent.PAUSED && !torrent.isGhost;
         if (isActiveDownload) {
             activeDownloadCount += 1;
             activeDownloadRequiredBytes += torrent.leftUntilDone ?? 0;
@@ -76,8 +62,7 @@ const deriveTorrentRuntimeSummary = (
 
         if (torrent.state === STATUS.torrent.CHECKING) {
             verifyingCount += 1;
-            verifyingProgressTotal +=
-                torrent.verificationProgress ?? torrent.progress ?? 0;
+            verifyingProgressTotal += torrent.verificationProgress ?? torrent.progress ?? 0;
             singleVerifyingName = torrent.name;
         }
     });
@@ -86,24 +71,19 @@ const deriveTorrentRuntimeSummary = (
         activeDownloadCount,
         activeDownloadRequiredBytes,
         verifyingCount,
-        verifyingAverageProgress:
-            verifyingCount > 0 ? verifyingProgressTotal / verifyingCount : 0,
+        verifyingAverageProgress: verifyingCount > 0 ? verifyingProgressTotal / verifyingCount : 0,
         singleVerifyingName: verifyingCount === 1 ? singleVerifyingName : null,
     };
 };
 
-const arePeerSummariesEqual = (
-    a: Torrent["peerSummary"],
-    b: Torrent["peerSummary"],
-) =>
+const arePeerSummariesEqual = (a: Torrent["peerSummary"], b: Torrent["peerSummary"]) =>
     a.connected === b.connected &&
     a.total === b.total &&
     a.sending === b.sending &&
     a.getting === b.getting &&
     a.seeds === b.seeds;
 
-const areSpeedsEqual = (a: Torrent["speed"], b: Torrent["speed"]) =>
-    a.down === b.down && a.up === b.up;
+const areSpeedsEqual = (a: Torrent["speed"], b: Torrent["speed"]) => a.down === b.down && a.up === b.up;
 
 const areTorrentsEqual = (current: Torrent, next: Torrent) =>
     current.id === next.id &&
@@ -123,16 +103,7 @@ const areTorrentsEqual = (current: Torrent, next: Torrent) =>
     current.leftUntilDone === next.leftUntilDone &&
     current.sizeWhenDone === next.sizeWhenDone &&
     current.error === next.error &&
-    (current.errorEnvelope?.errorMessage ?? current.errorString) ===
-        (next.errorEnvelope?.errorMessage ?? next.errorString) &&
-    (current.errorEnvelope?.errorClass ?? null) ===
-        (next.errorEnvelope?.errorClass ?? null) &&
-    (current.errorEnvelope?.recoveryState ?? null) ===
-        (next.errorEnvelope?.recoveryState ?? null) &&
-    (current.errorEnvelope?.fingerprint ?? null) ===
-        (next.errorEnvelope?.fingerprint ?? null) &&
-    (current.errorEnvelope?.primaryAction ?? null) ===
-        (next.errorEnvelope?.primaryAction ?? null) &&
+    current.errorString === next.errorString &&
     current.isFinished === next.isFinished &&
     current.sequentialDownload === next.sequentialDownload &&
     current.superSeeding === next.superSeeding &&
@@ -180,14 +151,9 @@ export function useTorrentData({
                 const cached = previousCache.get(incoming.id);
                 const normalized = {
                     ...incoming,
-                    added:
-                        incoming.added ??
-                        cached?.added ??
-                        Math.floor(Date.now() / 1000),
+                    added: incoming.added ?? cached?.added ?? Math.floor(Date.now() / 1000),
                 };
-                const reuseExisting = Boolean(
-                    cached && areTorrentsEqual(cached, normalized),
-                );
+                const reuseExisting = Boolean(cached && areTorrentsEqual(cached, normalized));
                 const nextTorrent = reuseExisting ? cached! : normalized;
                 nextCache.set(incoming.id, nextTorrent);
                 if (!reuseExisting) {
@@ -331,11 +297,7 @@ export function useTorrentData({
             markTransportConnected?.();
 
             // Fast no-op: explicit "no changes" hint is safe to trust
-            if (
-                snapshotCacheRef.current.size > 0 &&
-                Array.isArray(changedIds) &&
-                changedIds.length === 0
-            ) {
+            if (snapshotCacheRef.current.size > 0 && Array.isArray(changedIds) && changedIds.length === 0) {
                 return;
             }
 
@@ -352,15 +314,10 @@ export function useTorrentData({
 
                 const normalized: Torrent = {
                     ...incoming,
-                    added:
-                        incoming.added ??
-                        cached?.added ??
-                        Math.floor(Date.now() / 1000),
+                    added: incoming.added ?? cached?.added ?? Math.floor(Date.now() / 1000),
                 };
 
-                const reuseExisting =
-                    cached !== undefined &&
-                    areTorrentsEqual(cached, normalized);
+                const reuseExisting = cached !== undefined && areTorrentsEqual(cached, normalized);
 
                 nextCache.set(incoming.id, reuseExisting ? cached : normalized);
                 if (!reuseExisting) hasDataChanges = true;
@@ -386,11 +343,7 @@ export function useTorrentData({
                 setIsInitialLoadFinished(true);
             }
 
-            if (
-                previousOrder.length > 0 &&
-                !hasDataChanges &&
-                !hasOrderChanges
-            ) {
+            if (previousOrder.length > 0 && !hasDataChanges && !hasOrderChanges) {
                 return;
             }
 
@@ -422,30 +375,13 @@ export function useTorrentData({
         reportReadError,
     ]);
 
-    const runtimeSummary = useMemo(
-        () => deriveTorrentRuntimeSummary(torrents),
-        [torrents],
-    );
+    const runtimeSummary = useMemo(() => deriveTorrentRuntimeSummary(torrents), [torrents]);
 
     return {
         torrents,
         isInitialLoadFinished,
         refresh,
         runtimeSummary,
-        queueActions: {
-            moveToTop: async (ids) => {
-                await client.moveToTop(ids);
-            },
-            moveUp: async (ids) => {
-                await client.moveUp(ids);
-            },
-            moveDown: async (ids) => {
-                await client.moveDown(ids);
-            },
-            moveToBottom: async (ids) => {
-                await client.moveToBottom(ids);
-            },
-        },
         ghostTorrents: ghosts,
         addGhostTorrent,
         removeGhostTorrent,

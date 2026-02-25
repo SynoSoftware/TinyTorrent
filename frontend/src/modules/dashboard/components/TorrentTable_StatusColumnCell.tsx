@@ -1,47 +1,16 @@
 import { Chip } from "@heroui/react";
 import { type LucideIcon } from "lucide-react";
 import { type TFunction } from "i18next";
-import type { RecoveryState, TorrentStatus } from "@/services/rpc/entities";
-import {
-    formatRecoveryStatus,
-    formatRecoveryStatusFromClassification,
-    formatRecoveryTooltip,
-} from "@/shared/utils/recoveryFormat";
+import type { TorrentStatus } from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import { STATUS } from "@/shared/status";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
-import { TorrentTable_MissingFilesStatusCell } from "@/modules/dashboard/components/TorrentTable_MissingFilesStatusCell";
-import { FORM_CONTROL, TABLE } from "@/shared/ui/layout/glass-surface";
-import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { isActionableRecoveryErrorClass } from "@/services/recovery/errorClassificationGuards";
-import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import {
-    ArrowDown,
-    ArrowUp,
-    Bug,
-    WifiOff,
-    FileWarning,
-    ListStart,
-    Pause,
-    RefreshCw,
-    CheckCircle,
-    Hourglass,
-    AlertCircle,
-    Lock,
-    Search,
-} from "lucide-react";
+import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { ArrowDown, ArrowUp, Bug, WifiOff, ListStart, Pause, RefreshCw, FolderSync } from "lucide-react";
 
-type StatusColor =
-    | "success"
-    | "default"
-    | "primary"
-    | "secondary"
-    | "warning"
-    | "danger";
+type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" | "danger";
 
 type StatusMeta = {
     color: StatusColor;
@@ -57,8 +26,7 @@ const STATUS_CHIP_STYLE = {
     boxSizing: "border-box",
 } as const;
 
-// Allow both canonical TorrentStatus keys and RecoveryState keys.
-const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
+const statusMap: Record<TorrentStatus, StatusMeta> = {
     [STATUS.torrent.DOWNLOADING]: {
         color: "success",
         icon: ArrowDown,
@@ -94,58 +62,6 @@ const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
         icon: Bug,
         labelKey: "table.status_error",
     },
-    [STATUS.torrent.MISSING_FILES]: {
-        color: "warning",
-        icon: FileWarning,
-        labelKey: "table.status_missing_files",
-    },
-    ok: {
-        color: "success",
-        icon: CheckCircle,
-        labelKey: "recovery.status.ok",
-    },
-    transientWaiting: {
-        color: "secondary",
-        icon: Hourglass,
-        labelKey: "recovery.status.transientWaiting",
-    },
-    needsUserAction: {
-        color: "warning",
-        icon: AlertCircle,
-        labelKey: "recovery.status.needsUserAction",
-    },
-    needsUserConfirmation: {
-        color: "warning",
-        icon: AlertCircle,
-        labelKey: "recovery.status.needsUserConfirmation",
-    },
-    blocked: {
-        color: "danger",
-        icon: Lock,
-        labelKey: "recovery.status.blocked",
-    },
-    verifying: {
-        color: "warning",
-        icon: Search,
-        labelKey: "recovery.status.verifying",
-    },
-};
-
-const RELOCATING_STATUS_META: StatusMeta = {
-    color: "secondary",
-    icon: Hourglass,
-    labelKey: "table.status_relocating",
-};
-
-const RECOVERING_STATUS_META: StatusMeta = {
-    color: "secondary",
-    icon: Hourglass,
-    labelKey: "recovery.status.transientWaiting",
-};
-
-const OPERATION_STATUS_META: Partial<Record<string, StatusMeta>> = {
-    [STATUS.torrentOperation.RELOCATING]: RELOCATING_STATUS_META,
-    [STATUS.torrentOperation.RECOVERING]: RECOVERING_STATUS_META,
 };
 
 interface TorrentTableStatusColumnCellProps {
@@ -154,127 +70,43 @@ interface TorrentTableStatusColumnCellProps {
     optimisticStatus?: OptimisticStatusEntry;
 }
 
-export function TorrentTable_StatusCell({
-    torrent,
-    t,
-    optimisticStatus,
-}: TorrentTableStatusColumnCellProps) {
-    const { openRecoveryModal } = useRecoveryContext();
-    const { showFeedback } = useActionFeedback();
-    const classification = useResolvedRecoveryClassification(torrent);
-    const hasActionableRecoveryIssue = isActionableRecoveryErrorClass(
-        torrent.errorEnvelope?.errorClass,
-    );
-
-    const handleOpenRecoveryWorkbench = () => {
-        const outcome = openRecoveryModal(torrent, { forceWorkbench: true });
-        if (outcome.status === "requested" || outcome.status === "already_open") {
-            return;
-        }
-        showFeedback(t("recovery.feedback.recovery_not_required"), "warning");
-    };
-
-    const renderChip = (
-        icon: LucideIcon,
-        color: StatusColor,
-        label: string,
-        tooltip: string,
-        clickable: boolean,
-    ) => {
-        const chip = (
-            <Chip
-                size="md"
-                variant="flat"
-                color={color}
-                style={STATUS_CHIP_STYLE}
-                classNames={FORM_CONTROL.statusChipClassNames}
-            >
-                <div className={FORM_CONTROL.statusChipContent}>
-                    <StatusIcon
-                        Icon={icon}
-                        size="md"
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className={FORM_CONTROL.statusChipCurrentIcon}
-                    />
-                    <span className={FORM_CONTROL.statusChipLabel} title={tooltip}>
-                        {label}
-                    </span>
-                </div>
-            </Chip>
-        );
-        if (!clickable) {
-            return <div className={FORM_CONTROL.statusChipContainer}>{chip}</div>;
-        }
+export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: TorrentTableStatusColumnCellProps) {
+    const renderChip = (icon: LucideIcon, color: StatusColor, label: string, tooltip: string) => {
         return (
             <div className={FORM_CONTROL.statusChipContainer}>
-                <button
-                    type="button"
-                    onClick={handleOpenRecoveryWorkbench}
-                    title={tooltip}
-                    className={TABLE.builder.missingFilesStatusTriggerClass(false)}
+                <Chip
+                    size="md"
+                    variant="flat"
+                    color={color}
+                    style={STATUS_CHIP_STYLE}
+                    classNames={FORM_CONTROL.statusChipClassNames}
                 >
-                    {chip}
-                </button>
+                    <div className={FORM_CONTROL.statusChipContent}>
+                        <StatusIcon
+                            Icon={icon}
+                            size="md"
+                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                            className={FORM_CONTROL.statusChipCurrentIcon}
+                        />
+                        <span className={FORM_CONTROL.statusChipLabel} title={tooltip}>
+                            {label}
+                        </span>
+                    </div>
+                </Chip>
             </div>
         );
     };
 
-    const operationMeta = optimisticStatus?.operation
-        ? OPERATION_STATUS_META[optimisticStatus.operation]
-        : undefined;
-    if (operationMeta) {
-        const Icon = operationMeta.icon;
-        const label = t(operationMeta.labelKey);
-        const isRecoveringOverlay =
-            optimisticStatus?.operation === STATUS.torrentOperation.RECOVERING;
-        return renderChip(
-            Icon,
-            operationMeta.color,
-            label,
-            label,
-            hasActionableRecoveryIssue && isRecoveringOverlay,
-        );
+    const isMoving = optimisticStatus?.operation === "moving";
+    if (isMoving) {
+        const label = t("table.status_moving");
+        return renderChip(FolderSync, "primary", label, label);
     }
 
-    const effectiveState = getEffectiveRecoveryState(torrent);
-
-    const isMissingFilesCell = effectiveState === STATUS.torrent.MISSING_FILES;
-    const conf = statusMap[effectiveState] ?? statusMap[STATUS.torrent.PAUSED];
+    const conf = statusMap[torrent.state] ?? statusMap[STATUS.torrent.PAUSED];
     const Icon = conf.icon;
+    const label = t(conf.labelKey);
+    const tooltip = torrent.errorString && torrent.errorString.trim().length > 0 ? torrent.errorString : label;
 
-    const statusLabel = classification
-        ? formatRecoveryStatusFromClassification(classification, t)
-        : formatRecoveryStatus(
-              torrent.errorEnvelope,
-              t,
-              torrent.state,
-              conf.labelKey,
-          );
-
-    const tooltip =
-        (classification
-            ? formatRecoveryStatusFromClassification(classification, t)
-            : formatRecoveryTooltip(
-                  torrent.errorEnvelope,
-                  t,
-                  torrent.state,
-                  conf.labelKey,
-              )) || t(conf.labelKey);
-
-    if (isMissingFilesCell) {
-        return <TorrentTable_MissingFilesStatusCell torrent={torrent} t={t} />;
-    }
-    const isRecoveryWorkbenchStatus =
-        effectiveState === "transientWaiting" ||
-        effectiveState === "needsUserAction" ||
-        effectiveState === "needsUserConfirmation" ||
-        effectiveState === "blocked" ||
-        effectiveState === "verifying";
-    return renderChip(
-        Icon,
-        conf.color,
-        statusLabel,
-        tooltip,
-        hasActionableRecoveryIssue && isRecoveryWorkbenchStatus,
-    );
+    return renderChip(Icon, conf.color, label, tooltip);
 }

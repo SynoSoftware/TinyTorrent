@@ -214,14 +214,7 @@ export const SURFACE = {
     menu: SURFACE_MENU,
     atom: SURFACE_ATOM,
 } as const;
-const WORKBENCH_SURFACE_FAMILY = {
-    surface: SURFACE.role.workbench,
-    shell: SURFACE.surface.workbenchShell,
-    topEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeTop}`,
-    bottomEdge: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeBottom}`,
-} as const;
-const WORKBENCH_ISLAND_BORDER = "border-default/35";
-const WORKBENCH_ISLAND_SURFACE = `${WORKBENCH_SURFACE_FAMILY.shell} surface-layer-2 border ${WORKBENCH_ISLAND_BORDER}`;
+const WORKBENCH_SHELL = `${SURFACE.surface.workbenchShell} surface-layer-2 border border-default/35`;
 
 export const MODAL = {
     baseClassNames: SURFACE.modal.baseClassNames,
@@ -474,13 +467,17 @@ export const FORM = {
     sliderClassNames: { thumb: "shadow-small" } as const,
     rawConfigTextarea:
         "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-primary/40 focus:outline-none",
-    locationEditorRoot: `${SURFACE.surface.panelInfo} p-panel space-y-stage`,
+    locationEditorRoot: `${SURFACE.surface.panelInfo} p-tight space-y-panel`,
     locationEditorCaption: withOpacity(SURFACE.text.headingSection, 70),
     locationEditorError: withColor(SURFACE.text.caption, "danger"),
     locationEditorRow: "flex items-stretch gap-tools",
     locationEditorIconWrap: SURFACE.atom.insetRoundedFull,
     locationEditorIcon: "toolbar-icon-size-md text-foreground",
     locationEditorField: "flex-1 space-y-tight",
+    locationEditorValidationRow: "h-status-chip flex items-center",
+    locationEditorValidationHint: withOpacity(SURFACE.text.caption, 50),
+    locationEditorValidationWarning: withColor(SURFACE.text.caption, "warning"),
+    locationEditorFeedbackSlot: "h-24 overflow-hidden",
     workflow: {
         settingsToggleButton: `mr-tight text-foreground/35 ${INTERACTIVE_RECIPE.textMutedReveal}`,
         root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
@@ -589,15 +586,11 @@ const TORRENT_HEADER = {
 const TABLE_DETAILS_CONTENT_SCROLL_STYLE = (maxHeight: number) => ({
     maxHeight,
 });
-const TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS = (isBusyWithOtherTorrent: boolean) =>
-    isBusyWithOtherTorrent
-        ? `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer opacity-90 hover:opacity-90`
-        : `min-w-0 outline-none rounded-panel ${TRANSITION.reveal} cursor-pointer hover:opacity-90`;
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
-    shellPanel: `relative flex-1 h-full min-h-0 flex flex-col m-px ${WORKBENCH_ISLAND_SURFACE} overflow-hidden`,
-    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
-    workbenchShell: WORKBENCH_ISLAND_SURFACE,
+    shellPanel: `relative flex-1 h-full min-h-0 flex flex-col m-px overflow-hidden`,
+    surface: SURFACE.role.workbench,
+    shell: WORKBENCH_SHELL,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     columnHeader: TORRENT_HEADER,
@@ -678,7 +671,6 @@ export const TABLE = {
     detailsContentListScroll: "h-full min-h-0 overflow-y-auto px-panel py-panel",
     builder: {
         detailsContentScrollStyle: TABLE_DETAILS_CONTENT_SCROLL_STYLE,
-        missingFilesStatusTriggerClass: TABLE_MISSING_FILES_STATUS_TRIGGER_CLASS,
     } as const,
 } as const;
 export const DIAGNOSTIC = {
@@ -741,8 +733,8 @@ export const DIAGNOSTIC = {
 } as const;
 const WORKBENCH_NAV = {
     root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
-    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
-    workbenchShell: WORKBENCH_ISLAND_SURFACE,
+    surface: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeBottom}`,
+    shell: WORKBENCH_SHELL,
     titlebar: "app-titlebar flex w-full items-stretch",
     titlebarBaseStyle: {
         height: "var(--tt-navbar-h)",
@@ -821,7 +813,7 @@ const WORKBENCH_NAV = {
     } as const,
 } as const;
 const WORKBENCH_STATUS = {
-    workbenchSurface: WORKBENCH_SURFACE_FAMILY.surface,
+    surface: `${SURFACE.role.workbench} ${SURFACE.chrome.edgeTop}`,
     iconCurrent: "text-current",
     iconMuted: "opacity-50",
     srOnly: "sr-only",
@@ -848,7 +840,7 @@ const WORKBENCH_STATUS = {
     engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
-    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_ISLAND_SURFACE}`,
+    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_SHELL}`,
     main: "flex items-center justify-between gap-stage",
     speedFull: "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
     speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
@@ -889,8 +881,8 @@ export const WORKBENCH = {
         "absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40",
     immersiveBackgroundAccentTop:
         "absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35",
-    immersiveNavbarWrap: `${WORKBENCH_ISLAND_SURFACE} shadow-hud`,
-    immersiveMainWrap: `tt-shell-no-drag ${WORKBENCH_ISLAND_SURFACE} flex-1 min-h-0 h-full shadow-hud`,
+    immersiveNavbarWrap: `${WORKBENCH_SHELL} shadow-hud`,
+    immersiveMainWrap: `tt-shell-no-drag ${WORKBENCH_SHELL} flex-1 min-h-0 h-full shadow-hud`,
     immersiveMain: "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
     immersiveHudSection: "tt-shell-no-drag grid gap-panel",
     immersiveHudCard:
@@ -902,7 +894,7 @@ export const WORKBENCH = {
     immersiveHudTextWrap: "flex-1",
     immersiveHudTextLabel: `mt-tight ${TEXT_ROLE.bodyStrong}`,
     immersiveHudTextDescription: `mt-panel ${TEXT_ROLE.caption}`,
-    immersiveStatusWrap: `tt-shell-no-drag ${WORKBENCH_ISLAND_SURFACE} bg-background/75 shadow-hud blur-glass`,
+    immersiveStatusWrap: `tt-shell-no-drag ${WORKBENCH_SHELL} bg-background/75 shadow-hud blur-glass`,
     classicStack: "flex-1 min-h-0 h-full flex flex-col gap-tools",
     classicMainWrap: "tt-shell-no-drag flex-1 min-h-0 h-full",
     classicStatusWrap: "tt-shell-no-drag",
@@ -1094,7 +1086,7 @@ export const METRIC_CHART = {
         indicator: `absolute inset-y-0 left-0 transform origin-left rounded-full ${TRANSITION.slow} ease-out`,
     } as const,
     capacityGauge: {
-        container: "space-y-tight rounded-xl border bg-content1/15 p-panel",
+        container: "space-y-tight rounded-xl border bg-content1/15 p-tight",
         header: `flex items-center justify-between ${TEXT_ROLE.labelDense} text-foreground/60`,
         headerStyle: {
             fontSize: "var(--tt-font-size-base)",

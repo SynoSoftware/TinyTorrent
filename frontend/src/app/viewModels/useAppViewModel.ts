@@ -48,7 +48,6 @@ export interface DashboardDetailViewModel {
     detailData: TorrentDetail | null;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
-    isDetailRecoveryBlocked?: boolean;
     tabs: {
         navigation: {
             inspectorTabCommand: DetailTab | null;

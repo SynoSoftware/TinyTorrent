@@ -85,7 +85,6 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         detailData,
         handleRequestDetails,
         closeDetail,
-        isDetailRecoveryBlocked,
     } = detail;
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
@@ -336,7 +335,6 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                                 <TorrentDetails
                                     viewModel={detail}
                                     isDetailFullscreen={false}
-                                    isRecoveryBlocked={isDetailRecoveryBlocked}
                                     onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}
                                     onClose={handleDetailClose}
@@ -376,7 +374,6 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                                     isDetailFullscreen={
                                         isDetailFullscreenActive
                                     }
-                                    isRecoveryBlocked={isDetailRecoveryBlocked}
                                     isStandalone={true}
                                     onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}

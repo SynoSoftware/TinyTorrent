@@ -1,100 +1,72 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import type { TFunction } from "i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useTorrentCommands } from "@/app/context/AppCommandContext";
-import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
-import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
-import { formatMissingFileDetails } from "@/modules/dashboard/utils/missingFiles";
-import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
+import { useTorrentCommands, useRequiredTorrentActions } from "@/app/context/AppCommandContext";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
-import { canTriggerDownloadMissingAction } from "@/modules/dashboard/utils/recoveryEligibility";
-import { getEffectiveRecoveryState } from "@/modules/dashboard/utils/recoveryState";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
+import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
+import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
+import {
+    applySetDownloadLocation,
+    pickSetDownloadLocationDirectory,
+} from "@/modules/dashboard/utils/applySetDownloadLocation";
+import {
+    getSetDownloadLocationUiTextKeys,
+} from "@/modules/dashboard/domain/torrentRelocation";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
     downloadDir: string;
-    isRecoveryBlocked?: boolean;
     t: TFunction;
 };
 
 export type UseTorrentDetailsGeneralViewModelResult = {
-    showMissingFilesError: boolean;
     transmissionError: string | null;
-    canDownloadMissing: boolean;
-    isDownloadMissingInFlight: boolean;
-    probeLines: string[];
-    classificationLabel: string | null;
-    recoveryBlockedMessage: string | null;
     canSetLocation: boolean;
+    canPickDirectory: boolean;
     canOpenFolder: boolean;
     currentPath: string;
+    setDownloadLocationActionLabelKey: "table.actions.set_download_path" | "table.actions.locate_files";
+    setDownloadLocationModalTitleKey: "modals.set_download_location.title" | "modals.locate_files.title";
     isActive: boolean;
     mainActionLabel: string;
+    showSetDownloadPathModal: boolean;
     showRemoveModal: boolean;
+    openSetDownloadPathModal: () => void;
+    closeSetDownloadPathModal: () => void;
+    pickDirectoryForSetDownloadPath: (currentPath: string) => Promise<string | null>;
+    applySetDownloadPath: (params: { path: string }) => Promise<void>;
     openRemoveModal: () => void;
     closeRemoveModal: () => void;
     onConfirmRemove: (deleteData: boolean) => Promise<TorrentCommandOutcome>;
     onToggleStartStop: () => void;
     onStartNow: () => void;
-    onSetLocation: () => void;
-    onDownloadMissing: () => void;
     onOpenFolder: () => void;
 };
 
-export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isRecoveryBlocked, t }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
-    const { handleSetLocation: openDownloadPath, handleDownloadMissing, isDownloadMissingInFlight, setLocationCapability: downloadPathCapability, canOpenFolder, handleOpenFolder } = useRecoveryContext();
-    const { handleTorrentAction } = useTorrentCommands();
+export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
+    const { handleTorrentAction, setDownloadLocation } = useTorrentCommands();
+    const { dispatch } = useRequiredTorrentActions();
+    const { canOpenFolder } = useUiModeCapabilities();
+    const { canPickDirectory, pickDirectory } = useDirectoryPicker();
+    const torrentClient = useTorrentClient();
+    const openFolder = useOpenTorrentFolder();
 
+    const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
     const [showRemoveModal, setShowRemoveModal] = useState(false);
 
-    const probe = useMissingFilesProbe(torrent.id);
-    const probeLines = useMemo(() => formatMissingFileDetails(t, probe), [probe, t]);
-
-    const classification = useResolvedRecoveryClassification(torrent);
-    const classificationLabel = useMemo(() => {
-        if (!classification) return null;
-        if (classification.confidence === "unknown") {
-            return t("recovery.inline_fallback");
-        }
-        switch (classification.kind) {
-            case "pathLoss":
-                return t("recovery.status.folder_not_found", {
-                    path: classification.path ?? downloadDir ?? t("labels.unknown"),
-                });
-            case "volumeLoss":
-                return t("recovery.status.drive_disconnected", {
-                    drive: classification.root ?? extractDriveLabel(classification.path ?? downloadDir) ?? t("labels.unknown"),
-                });
-            case "accessDenied":
-                return t("recovery.status.access_denied");
-            default:
-                return t("recovery.generic_header");
-        }
-    }, [classification, downloadDir, t]);
-
-    const effectiveState = getEffectiveRecoveryState(torrent);
-    const showMissingFilesError = effectiveState === STATUS.torrent.MISSING_FILES;
     const transmissionError =
         typeof torrent.errorString === "string" &&
         torrent.errorString.trim().length > 0
             ? torrent.errorString
             : null;
-    const canDownloadMissing = canTriggerDownloadMissingAction(
-        torrent,
-        classification,
-    );
-    const downloadMissingBusy = isDownloadMissingInFlight(torrent);
 
     const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
-    const canSetLocation = downloadPathCapability.canBrowse || downloadPathCapability.supportsManual;
-
-    const recoveryBlockedMessage =
-        isRecoveryBlocked || effectiveState === "blocked"
-            ? t("recovery.status.blocked")
-            : null;
+    const canSetLocation = typeof torrentClient.setTorrentLocation === "function";
+    const setDownloadLocationUiTextKeys = getSetDownloadLocationUiTextKeys(torrent);
 
     const isActive =
         torrent.state === STATUS.torrent.DOWNLOADING ||
@@ -111,22 +83,52 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
         void handleTorrentAction("resume-now", torrent);
     }, [handleTorrentAction, torrent]);
 
-    const onSetLocation = useCallback(() => {
-        void openDownloadPath(torrent, {
-            surface: "general-tab",
-        });
-    }, [openDownloadPath, torrent]);
+    const pickDirectoryForSetDownloadPath = useCallback(
+        async (currentInput: string): Promise<string | null> => {
+            return pickSetDownloadLocationDirectory({
+                currentPath: currentInput,
+                torrent,
+                canPickDirectory,
+                pickDirectory,
+            });
+        },
+        [canPickDirectory, pickDirectory, torrent],
+    );
 
-    const onDownloadMissing = useCallback(() => {
-        if (downloadMissingBusy) {
+    const openSetDownloadPathModal = useCallback(() => {
+        if (!canSetLocation) {
             return;
         }
-        void handleDownloadMissing(torrent);
-    }, [downloadMissingBusy, handleDownloadMissing, torrent]);
+        setShowSetDownloadPathModal(true);
+    }, [canSetLocation]);
+
+    const closeSetDownloadPathModal = useCallback(() => {
+        setShowSetDownloadPathModal(false);
+    }, []);
+
+    const applySetDownloadPath = useCallback(
+        async ({ path }: { path: string }) => {
+            await applySetDownloadLocation({
+                torrent,
+                path,
+                client: torrentClient,
+                setDownloadLocation,
+                dispatchEnsureActive: dispatch,
+                t,
+            });
+        },
+        [
+            dispatch,
+            setDownloadLocation,
+            t,
+            torrent,
+            torrentClient,
+        ],
+    );
 
     const onOpenFolder = useCallback(() => {
         if (!currentPath) return;
-        void handleOpenFolder(currentPath).then((outcome) => {
+        void openFolder(currentPath).then((outcome) => {
             if (isOpenFolderSuccess(outcome)) {
                 return;
             }
@@ -134,7 +136,7 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
                 return;
             }
         });
-    }, [currentPath, handleOpenFolder]);
+    }, [currentPath, openFolder]);
 
     const onConfirmRemove = useCallback(
         async (deleteData: boolean): Promise<TorrentCommandOutcome> => {
@@ -157,26 +159,26 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, isReco
     }, []);
 
     return {
-        showMissingFilesError,
         transmissionError,
-        canDownloadMissing,
-        isDownloadMissingInFlight: downloadMissingBusy,
-        probeLines,
-        classificationLabel,
-        recoveryBlockedMessage,
         canSetLocation,
+        canPickDirectory,
         canOpenFolder,
         currentPath,
+        setDownloadLocationActionLabelKey: setDownloadLocationUiTextKeys.actionLabelKey,
+        setDownloadLocationModalTitleKey: setDownloadLocationUiTextKeys.modalTitleKey,
         isActive,
         mainActionLabel,
+        showSetDownloadPathModal,
         showRemoveModal,
+        openSetDownloadPathModal,
+        closeSetDownloadPathModal,
+        pickDirectoryForSetDownloadPath,
+        applySetDownloadPath,
         openRemoveModal,
         closeRemoveModal,
         onConfirmRemove,
         onToggleStartStop,
         onStartNow,
-        onSetLocation,
-        onDownloadMissing,
         onOpenFolder,
     };
 }

@@ -17,6 +17,11 @@ export interface TransmissionTorrent {
     uploadRatio: number;
     uploadedEver: number;
     downloadedEver: number;
+    haveValid?: number;
+    haveUnchecked?: number;
+    doneDate?: number;
+    secondsDownloading?: number;
+    secondsSeeding?: number;
     downloadDir?: string;
     leftUntilDone?: number;
     sizeWhenDone?: number;
@@ -118,6 +123,7 @@ export interface TransmissionSessionSettings {
     "idle-seeding-limit"?: number;
     "idle-seeding-limit-enabled"?: boolean;
     version?: string;
+    platform?: string;
     "rpc-version"?: number;
     ui?: {
         autoOpen?: boolean;
@@ -126,6 +132,8 @@ export interface TransmissionSessionSettings {
         splashMessage?: string;
     };
 }
+
+export type DaemonPathStyle = "windows" | "posix" | "unknown";
 
 export interface TransmissionFreeSpace {
     path: string;

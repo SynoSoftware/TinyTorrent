@@ -25,7 +25,10 @@ import { shellAgent } from "@/app/agents/shell-agent";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
-import type { TransmissionSessionSettings } from "@/services/rpc/types";
+import type {
+    DaemonPathStyle,
+    TransmissionSessionSettings,
+} from "@/services/rpc/types";
 import {
     createSessionSpeedHistoryStore,
     SessionSpeedHistoryProvider,
@@ -47,6 +50,7 @@ export interface SessionContextValue {
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
+    daemonPathStyle: DaemonPathStyle;
     uiCapabilities: UiCapabilities;
     engineCapabilities: EngineRuntimeCapabilities;
 }
@@ -66,6 +70,39 @@ interface SessionProviderProps {
     children: ReactNode;
 }
 
+const WINDOWS_DRIVE_ABSOLUTE_PATTERN = /^[a-zA-Z]:[\\/]/;
+const WINDOWS_UNC_ABSOLUTE_PATTERN = /^\\\\[^\\\/]+[\\\/][^\\\/]+(?:[\\\/].*)?$/;
+
+const resolveDaemonPathStyle = (
+    sessionSettings: TransmissionSessionSettings | null,
+): DaemonPathStyle => {
+    const rawPlatform = sessionSettings?.platform?.trim().toLowerCase();
+    if (rawPlatform) {
+        if (
+            rawPlatform.includes("windows") ||
+            rawPlatform.includes("win32")
+        ) {
+            return "windows";
+        }
+        return "posix";
+    }
+
+    const downloadDir = sessionSettings?.["download-dir"]?.trim();
+    if (!downloadDir) {
+        return "unknown";
+    }
+    if (
+        WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(downloadDir) ||
+        WINDOWS_UNC_ABSOLUTE_PATTERN.test(downloadDir)
+    ) {
+        return "windows";
+    }
+    if (downloadDir.startsWith("/")) {
+        return "posix";
+    }
+    return "unknown";
+};
+
 export function SessionProvider({ children }: SessionProviderProps) {
     const torrentClient = useTorrentClient();
     const {
@@ -79,6 +116,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,
+        sessionSettings,
     } = useTransmissionSession(torrentClient);
 
     const { activeProfile } = useConnectionConfig();
@@ -146,6 +184,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
+            daemonPathStyle: resolveDaemonPathStyle(sessionSettings),
             uiCapabilities,
             engineCapabilities,
         }),
@@ -161,6 +200,8 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
+            sessionSettings?.platform,
+            sessionSettings?.["download-dir"],
             uiCapabilities,
             engineCapabilities,
         ],

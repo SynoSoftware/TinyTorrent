@@ -3,13 +3,10 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
-import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
-import type { TorrentOperationState } from "@/shared/status";
 
 export interface UseTorrentOrchestratorParams {
     client: EngineAdapter;
@@ -21,28 +18,30 @@ export interface UseTorrentOrchestratorParams {
     detailData: TorrentDetail | null;
     settingsConfig: SettingsConfig;
     clearDetail: () => void;
-    updateOperationOverlays: (
-        updates: Array<{ id: string; operation?: TorrentOperationState }>,
-    ) => void;
 }
 
 export interface UseTorrentOrchestratorResult {
     addTorrent: UseAddTorrentControllerResult;
-    recovery: RecoveryControllerResult;
 }
 
 export function useTorrentOrchestrator({
-    client,
     dispatch,
+    torrents,
+    settingsConfig,
+    client,
     refreshTorrents,
     refreshSessionStatsData,
     refreshDetailData,
-    torrents,
     detailData,
-    settingsConfig,
     clearDetail,
-    updateOperationOverlays,
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
+    void client;
+    void refreshTorrents;
+    void refreshSessionStatsData;
+    void refreshDetailData;
+    void detailData;
+    void clearDetail;
+
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
     const addTorrent = useAddTorrentController({
@@ -52,28 +51,8 @@ export function useTorrentOrchestrator({
         pendingDeletionHashesRef,
     });
 
-    const recovery = useRecoveryController({
-        services: {
-            client,
-        },
-        data: {
-            torrents,
-            detailData,
-        },
-        refresh: {
-            refreshTorrents,
-            refreshSessionStatsData,
-            refreshDetailData,
-            clearDetail,
-            pendingDeletionHashesRef,
-        },
-        dispatch,
-        updateOperationOverlays,
-    });
-
     return {
         addTorrent,
-        recovery,
     };
 }
 

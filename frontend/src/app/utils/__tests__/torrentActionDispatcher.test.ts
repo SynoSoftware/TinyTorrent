@@ -15,111 +15,7 @@ const makeTorrent = (overrides?: Partial<Torrent>): Torrent =>
     }) as Torrent;
 
 describe("torrentActionDispatcher", () => {
-    it("maps resume applied outcome to success", async () => {
-        const dispatch = vi.fn(
-            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
-                void intent;
-                return {
-                    status: "applied",
-                };
-            },
-        );
-        const resume = vi.fn(async () => ({ status: "applied" as const }));
-
-        const outcome = await dispatchTorrentAction({
-            action: "resume",
-            torrent: makeTorrent(),
-            dispatch,
-            resume,
-        });
-
-        expect(outcome).toEqual({ status: "success" });
-        expect(resume).toHaveBeenCalledTimes(1);
-        expect(dispatch).not.toHaveBeenCalled();
-    });
-
-    it("maps resume cancelled outcome to canceled operation_cancelled", async () => {
-        const dispatch = vi.fn(
-            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
-                void intent;
-                return {
-                    status: "applied",
-                };
-            },
-        );
-        const resume = vi.fn(async () => ({ status: "cancelled" as const }));
-
-        const outcome = await dispatchTorrentAction({
-            action: "resume",
-            torrent: makeTorrent(),
-            dispatch,
-            resume,
-        });
-
-        expect(outcome).toEqual({
-            status: "canceled",
-            reason: "operation_cancelled",
-        });
-        expect(resume).toHaveBeenCalledTimes(1);
-        expect(dispatch).not.toHaveBeenCalled();
-    });
-
-    it("maps resume failed outcome to failed execution_failed", async () => {
-        const dispatch = vi.fn(
-            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
-                void intent;
-                return {
-                    status: "applied",
-                };
-            },
-        );
-        const resume = vi.fn(async () => ({
-            status: "failed" as const,
-            reason: "dispatch_not_applied" as const,
-        }));
-
-        const outcome = await dispatchTorrentAction({
-            action: "resume",
-            torrent: makeTorrent(),
-            dispatch,
-            resume,
-        });
-
-        expect(outcome).toEqual({
-            status: "failed",
-            reason: "execution_failed",
-        });
-        expect(resume).toHaveBeenCalledTimes(1);
-        expect(dispatch).not.toHaveBeenCalled();
-    });
-
-    it("falls back to failed when resume callback throws", async () => {
-        const dispatch = vi.fn(
-            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
-                void intent;
-                return {
-                    status: "applied",
-                };
-            },
-        );
-        const resume = vi.fn(async () => {
-            throw new Error("resume failed");
-        });
-
-        const outcome = await dispatchTorrentAction({
-            action: "resume",
-            torrent: makeTorrent(),
-            dispatch,
-            resume,
-        });
-
-        expect(outcome).toEqual({
-            status: "failed",
-            reason: "execution_failed",
-        });
-    });
-
-    it("uses dispatch path when custom resume handler is absent", async () => {
+    it("maps resume to ENSURE_TORRENT_ACTIVE", async () => {
         const dispatch = vi.fn(
             async (intent: unknown): Promise<TorrentDispatchOutcome> => {
                 void intent;
@@ -138,7 +34,6 @@ describe("torrentActionDispatcher", () => {
         expect(outcome).toEqual({ status: "success" });
         expect(dispatch).toHaveBeenCalledTimes(1);
         const firstCall = dispatch.mock.calls[0];
-        expect(firstCall).toBeDefined();
         const intent = (firstCall?.[0] ?? {}) as { type?: string };
         expect(intent.type).toBe("ENSURE_TORRENT_ACTIVE");
     });
@@ -152,24 +47,21 @@ describe("torrentActionDispatcher", () => {
                 };
             },
         );
-        const resume = vi.fn(async () => ({ status: "applied" as const }));
 
         const outcome = await dispatchTorrentAction({
             action: "resume-now",
             torrent: makeTorrent(),
             dispatch,
-            resume,
         });
 
         expect(outcome).toEqual({ status: "success" });
-        expect(resume).not.toHaveBeenCalled();
         expect(dispatch).toHaveBeenCalledTimes(1);
         const firstCall = dispatch.mock.calls[0];
         const intent = (firstCall?.[0] ?? {}) as { type?: string };
         expect(intent.type).toBe("ENSURE_TORRENT_ACTIVE_NOW");
     });
 
-    it("does not short-circuit resume while checking", async () => {
+    it("maps pause action to ENSURE_TORRENT_PAUSED", async () => {
         const dispatch = vi.fn(
             async (intent: unknown): Promise<TorrentDispatchOutcome> => {
                 void intent;
@@ -178,21 +70,41 @@ describe("torrentActionDispatcher", () => {
                 };
             },
         );
-        const resume = vi.fn(async () => ({ status: "applied" as const }));
 
         const outcome = await dispatchTorrentAction({
-            action: "resume",
-            torrent: makeTorrent({ state: "checking" }),
+            action: "pause",
+            torrent: makeTorrent(),
             dispatch,
-            resume,
         });
 
         expect(outcome).toEqual({ status: "success" });
-        expect(resume).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        const firstCall = dispatch.mock.calls[0];
+        const intent = (firstCall?.[0] ?? {}) as { type?: string };
+        expect(intent.type).toBe("ENSURE_TORRENT_PAUSED");
+    });
+
+    it("returns unsupported when no torrent key exists", async () => {
+        const dispatch = vi.fn(
+            async (_intent: unknown): Promise<TorrentDispatchOutcome> => ({
+                status: "applied",
+            }),
+        );
+
+        const outcome = await dispatchTorrentAction({
+            action: "pause",
+            torrent: makeTorrent({ id: undefined, hash: "" }),
+            dispatch,
+        });
+
+        expect(outcome).toEqual({
+            status: "unsupported",
+            reason: "action_not_supported",
+        });
         expect(dispatch).not.toHaveBeenCalled();
     });
 
-    it("bulk resume keeps checking torrents in target set", async () => {
+    it("bulk resume maps to ENSURE_SELECTION_ACTIVE", async () => {
         const dispatch = vi.fn(
             async (intent: unknown): Promise<TorrentDispatchOutcome> => {
                 void intent;
@@ -217,34 +129,6 @@ describe("torrentActionDispatcher", () => {
             torrentIds?: string[];
         };
         expect(intent.type).toBe("ENSURE_SELECTION_ACTIVE");
-        expect(intent.torrentIds).toEqual(ids);
-    });
-
-    it("bulk start-now maps to ENSURE_SELECTION_ACTIVE_NOW", async () => {
-        const dispatch = vi.fn(
-            async (intent: unknown): Promise<TorrentDispatchOutcome> => {
-                void intent;
-                return {
-                    status: "applied",
-                };
-            },
-        );
-
-        const ids = ["torrent-a", "torrent-b"];
-        const outcome = await dispatchTorrentSelectionAction({
-            action: "resume-now",
-            ids,
-            dispatch,
-        });
-
-        expect(outcome).toEqual({ status: "success" });
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        const firstCall = dispatch.mock.calls[0];
-        const intent = (firstCall?.[0] ?? {}) as {
-            type?: string;
-            torrentIds?: string[];
-        };
-        expect(intent.type).toBe("ENSURE_SELECTION_ACTIVE_NOW");
         expect(intent.torrentIds).toEqual(ids);
     });
 });

@@ -1,7 +1,7 @@
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import type { TorrentIntentExtended, QueueMoveIntent } from "@/app/intents/torrentIntents";
-import { watchVerifyCompletion } from "@/services/recovery/recovery-verifier";
+import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
 
 export type TorrentDispatchOutcome =
     | { status: "applied" }

@@ -10,8 +10,8 @@ import {
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import { resetRecoveryRuntimeSessionState } from "@/services/recovery/recovery-runtime-lifecycle";
 import { resetTransportSessionRuntimeOwner } from "@/services/transport";
+import { resetNormalizerRuntimeState } from "@/services/rpc/normalizers";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
@@ -60,12 +60,12 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     // instance lifecycle.
     useEffect(() => {
         resetTransportSessionRuntimeOwner();
-        resetRecoveryRuntimeSessionState();
+        resetNormalizerRuntimeState();
     }, []);
 
     useEffect(() => {
         resetTransportSessionRuntimeOwner();
-        resetRecoveryRuntimeSessionState();
+        resetNormalizerRuntimeState();
         return () => {
             destroyClient(client);
         };

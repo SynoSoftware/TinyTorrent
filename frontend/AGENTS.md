@@ -122,11 +122,24 @@ If a change introduces a new module/hook/service/model/constant set that is inte
 A change is not eligible to land (or be treated as done) if it introduces any of the following:
 
 - bypassing named authorities (tokens/primitives/text roles/interactive recipes/config)
-- feature-local styling authorities (inline styles, raw numbers, bracket classes) — see §5 pre-commit checklist
+- feature-local styling authorities (inline styles, raw numbers, bracket classes) — see §3.6 and §5 checklist
+- raw Tailwind utility authoring in feature UI files without qualifying under the Tailwind Exception Rule in §3.6
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
 - duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
 - a new surface without an Owner Extension Statement (§0.2)
 - expected failures represented as exceptions instead of typed outcomes (§20.1)
+
+For UI/styling changes intended to land/review, the following command gates are mandatory and must be listed in the change note:
+
+- `npm run enforce:surface-foundation`
+- `npm run enforce:surface-churn`
+- `npm run enforce:surface-unused`
+- `npm run enforce:surface-final-form`
+- `npm run enforce:workbench-parity`
+- `npm run enforce:workbench-consumers`
+- `npm run report:surface-tree`
+- `npm run report:surface-tree:all`
+- `npm run build`
 
 ## **0.4 Solo Dev Workflow (Low Ceremony)**
 
@@ -286,7 +299,7 @@ Prefer **standard elements** (shared primitives, semantic components, and tokeni
 
 Principle: *make the standard element once, then keep feature code boring.*
 
-Centralize only when it clearly pays off (shared pattern or repeated recipe). Avoid creating abstractions for one-offs.
+Centralize only when it clearly pays off (shared pattern or repeated recipe). Avoid creating abstractions for one-offs. This does not permit local visual styling authorities; §3.6 still governs styling.
 
 ## **3.4 Minimize Classname Churn (No Style Sweeps)**
 
@@ -310,7 +323,30 @@ When working *in those areas*, align with them. If they conflict with existing c
 
 ## **3.6 Feature Styling Ownership (Tier 2 Contract)**
 
-Feature code must consume shared semantic authorities for visual meaning and may use local utilities for layout mechanics.
+Feature code must consume shared semantic authorities for visual meaning. Tailwind utility authoring in feature files is disallowed by default and only permitted by the Tailwind Exception Rule below.
+
+### **No Local Styling Authority Rule (Hard)**
+
+Feature/UI files must not define styling authority.
+
+Forbidden:
+- local style constants/maps (`const ...CLASS...`, `const ...ClassNames...`)
+- raw Tailwind visual recipes in feature files
+- feature-prefixed style namespaces as end-state authorities
+
+Allowed:
+- consuming shared style authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`)
+- minor mechanical utilities only when they satisfy the Tailwind Exception Rule
+- mechanical class composition when semantic meaning is owned by shared authorities
+
+### **Modal Styling Contract (Hard)**
+
+Applies to `**/*Modal*.tsx`.
+
+- Modal files are style consumers only.
+- Modal files must not introduce modal-local class recipes or style maps.
+- Modal visual/layout semantics must come from shared authorities.
+- If a modal needs a new visual role, extend shared authorities first; do not implement styling locally in the modal file.
 
 ### **UI Surface Authority Rule (Hard; Tier 2 Contract)**
 
@@ -332,12 +368,33 @@ Feature code must consume shared semantic authorities for visual meaning and may
 
 **Allowed in feature/UI components:**
 - compose semantic classes from shared authorities
-- local mechanical utilities for spacing/alignment/sizing
-- third-party `classNames` composition when semantic meaning still comes from shared authorities
+- minor mechanical utilities only when they qualify under the Tailwind Exception Rule
+- third-party `classNames` composition only when semantic meaning still comes from shared authorities and Tailwind exceptions are not exceeded
 
 **Promotion rule:**
 - Promote to shared utilities/primitives when reuse is stable and semantic meaning exists.
 - If a semantic role is missing, extend the authority chain instead of creating local semantic rules.
+
+### **Tailwind Exception Rule (Hard)**
+
+Tailwind utilities are permitted in feature/UI files only when **all** conditions are true:
+
+1. The utilities are strictly mechanical (`flex`/alignment/spacing/flow) and do not encode visual semantics (no color, border, shadow, blur, radius, opacity, typography, transitions, or effects).
+2. The usage is minor and local (single element, short utility list), and creating a new shared token/role would be disproportionate.
+3. The same utility recipe is not repeated across components. On second reuse, promote to shared authority.
+4. No local style authority is introduced (`const ...ClassNames`, `const ...CLASS...`, feature-local styling maps).
+
+If any condition fails, move styling to shared authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`) before landing.
+
+### **Styling Exception Procedure (Hard)**
+
+If a shared style authority is missing:
+
+1. Stop local styling work.
+2. Add/extend the shared authority in `glass-surface.ts`, `textRoles.ts`, or `logic.ts`.
+3. Consume that authority from feature code.
+
+Direct local styling exceptions require explicit user approval in-thread. Silent or implied exceptions are forbidden.
 
 # **Structural Layout Primitives (Authority Scope)**
 
@@ -443,7 +500,7 @@ Must not:
 
 2. Any container responsible for page/workbench centering or stage padding **must use `Section`**.
 
-3. `Stack`/`Cluster` are preferred for repeated grouping patterns and stable UI motifs. Local `flex`/`gap` utilities are acceptable for one-off or low-reuse layout mechanics.
+3. `Stack`/`Cluster` are preferred for repeated grouping patterns and stable UI motifs. Local `flex`/`gap` utilities are acceptable for one-off or low-reuse layout mechanics only when they satisfy the Tailwind Exception Rule (§3.6).
 
 4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
 
@@ -528,7 +585,7 @@ These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
 - `var(--heroui-foreground)`
 - `var(--heroui-primary)`
 - `var(--heroui-default)` (for borders/dividers)
-- Tailwind utilities only when they wrap these semantic tokens.
+- Tailwind visual utilities belong in shared authorities. Feature files must follow §3.6 (Tailwind Exception Rule) and may not define local visual semantics.
 
 **Avoid:**
 
