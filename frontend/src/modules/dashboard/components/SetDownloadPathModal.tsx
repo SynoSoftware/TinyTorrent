@@ -1,7 +1,7 @@
-import { Button, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Button, Input } from "@heroui/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { HardDrive, X } from "lucide-react";
+import { HardDrive, type LucideIcon } from "lucide-react";
 import { useSession } from "@/app/context/SessionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { scheduler } from "@/app/services/scheduler";
@@ -16,11 +16,11 @@ import {
 import {
     SET_LOCATION_VALIDATION_DEBOUNCE_MS,
 } from "@/config/logic";
-import { MODAL, FORM } from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
+import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { DaemonPathStyle } from "@/services/rpc/types";
 
 type RelocationValidationFailureReason = Extract<RelocationTargetPathValidationResult, { ok: false }>["reason"];
@@ -51,6 +51,7 @@ type ActiveRootProbe = (RootProbeCacheEntry & { root: string }) | null;
 export interface SetDownloadPathModalProps {
     isOpen: boolean;
     titleKey?: string;
+    titleIcon?: LucideIcon;
     initialPath: string;
     canPickDirectory: boolean;
     allowInvalidPathApply?: boolean;
@@ -93,6 +94,7 @@ const getValidationReasonMessage = (
 export default function SetDownloadPathModal({
     isOpen,
     titleKey = "modals.set_download_location.title",
+    titleIcon = HardDrive,
     initialPath,
     canPickDirectory,
     allowInvalidPathApply = false,
@@ -114,7 +116,7 @@ export default function SetDownloadPathModal({
     const validationRunIdRef = useRef(0);
     const rootProbeRunIdRef = useRef(0);
     const rootProbeCacheRef = useRef<Map<string, RootProbeCacheEntry>>(new Map());
-    const contentRef = useRef<HTMLFormElement | null>(null);
+    const contentRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (!isOpen) {
@@ -436,17 +438,13 @@ export default function SetDownloadPathModal({
         validationState,
     ]);
 
-    const handleOpenChange = useCallback(
-        (open: boolean) => {
-            if (!open && !isSubmitting) {
-                onClose();
-            }
-        },
-        [isSubmitting, onClose],
-    );
-
-    const handleSubmit = useCallback(
-        (event: FormEvent<HTMLFormElement>) => {
+    const handleClose = useCallback(() => {
+        if (isSubmitting) return;
+        onClose();
+    }, [isSubmitting, onClose]);
+    const handlePathInputKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key !== "Enter") return;
             event.preventDefault();
             void handleApply();
         },
@@ -458,106 +456,86 @@ export default function SetDownloadPathModal({
     }
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onOpenChange={handleOpenChange}
-            backdrop="blur"
-            classNames={MODAL.compactClassNames}
-            isDismissable={!isSubmitting}
-            hideCloseButton
+        <ModalEx
+            open={isOpen}
+            onClose={handleClose}
+            title={t(titleKey)}
+            icon={titleIcon}
+            size="sm"
+            disableClose={isSubmitting}
+            secondaryAction={{
+                label: t("modals.cancel"),
+                onPress: handleClose,
+                disabled: isSubmitting,
+            }}
+            primaryAction={{
+                label: t("modals.set_download_location.apply"),
+                onPress: () => {
+                    void handleApply();
+                },
+                loading: isSubmitting,
+                disabled: !canApply,
+            }}
         >
-            <ModalContent>
-                <form ref={contentRef} onSubmit={handleSubmit}>
-                    <ModalHeader className={MODAL.dialogHeader}>
-                        <div className={MODAL.dialogHeaderLead}>
-                            <HardDrive className={FORM.locationEditorIcon} />
-                            <span>{t(titleKey)}</span>
-                        </div>
-                        <div className={MODAL.dialogFooterGroup}>
-                            <ToolbarIconButton
-                                Icon={X}
-                                ariaLabel={t("torrent_modal.actions.close")}
-                                onPress={onClose}
-                                isDisabled={isSubmitting}
-                            />
-                        </div>
-                    </ModalHeader>
-                    <ModalBody className={MODAL.dialogBody}>
-                        <div className={FORM.locationEditorRoot}>
-                            <div className={FORM.locationEditorRow}>
-                                <div className={FORM.locationEditorField}>
-                                    <div className={FORM.locationEditorPathRow}>
-                                        <div className={FORM.locationEditorHeader}>
-                                            <label htmlFor="set-download-location-path" className={TEXT_ROLE.caption}>
-                                                {t("directory_browser.path_label")}
-                                            </label>
-                                        </div>
-                                        <div className={FORM.locationEditorInputWrap}>
-                                            <Input
-                                                id="set-download-location-path"
-                                                className={TEXT_ROLE.codeMuted}
-                                                classNames={FORM.locationEditorInputClassNames}
-                                                value={path}
-                                                onValueChange={handlePathChange}
-                                                isDisabled={isSubmitting}
-                                                isInvalid={Boolean(submitError) || validationState.status === "invalid"}
-                                                variant="flat"
-                                                placeholder={t("directory_browser.enter_path")}
-                                                spellCheck="false"
-                                                autoComplete="off"
-                                                aria-label={t("directory_browser.path_label")}
-                                                title={manualEntryPrompt}
-                                            />
-                                        </div>
-                                        {canPickDirectory ? (
-                                            <div className={FORM.locationEditorBrowseWrap}>
-                                                <Button
-                                                    variant="flat"
-                                                    onPress={() => {
-                                                        void handleBrowse();
-                                                    }}
-                                                    isDisabled={isSubmitting}
-                                                >
-                                                    {t("modals.set_download_location.browse")}
-                                                </Button>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                    <div className={FORM.locationEditorFeedbackSlot}>
-                                        {shouldRenderGauge ? (
-                                            <DiskSpaceGauge
-                                                path={gaugeFreeSpace.path}
-                                                freeBytes={gaugeFreeSpace.sizeBytes}
-                                                totalBytes={gaugeFreeSpace.totalSize}
-                                            />
-                                        ) : (
-                                            <div className={FORM.locationEditorValidationRow}>
-                                                <span className={pathValidationFeedback.className}>
-                                                    {pathValidationFeedback.message}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+            <div ref={contentRef} className={FORM.locationEditorRoot}>
+                <div className={FORM.locationEditorRow}>
+                    <div className={FORM.locationEditorField}>
+                        <div className={FORM.locationEditorPathRow}>
+                            <div className={FORM.locationEditorHeader}>
+                                <label htmlFor="set-download-location-path" className={TEXT_ROLE.caption}>
+                                    {t("directory_browser.path_label")}
+                                </label>
                             </div>
+                            <div className={FORM.locationEditorInputWrap}>
+                                <Input
+                                    id="set-download-location-path"
+                                    className={TEXT_ROLE.codeMuted}
+                                    classNames={FORM.locationEditorInputClassNames}
+                                    value={path}
+                                    onValueChange={handlePathChange}
+                                    isDisabled={isSubmitting}
+                                    isInvalid={Boolean(submitError) || validationState.status === "invalid"}
+                                    variant="flat"
+                                    placeholder={t("directory_browser.enter_path")}
+                                    spellCheck="false"
+                                    autoComplete="off"
+                                    aria-label={t("directory_browser.path_label")}
+                                    title={manualEntryPrompt}
+                                    onKeyDown={handlePathInputKeyDown}
+                                />
+                            </div>
+                            {canPickDirectory ? (
+                                <div className={FORM.locationEditorBrowseWrap}>
+                                    <Button
+                                        variant="flat"
+                                        onPress={() => {
+                                            void handleBrowse();
+                                        }}
+                                        isDisabled={isSubmitting}
+                                    >
+                                        {t("modals.set_download_location.browse")}
+                                    </Button>
+                                </div>
+                            ) : null}
                         </div>
-                    </ModalBody>
-                    <ModalFooter className={MODAL.dialogFooter}>
-                        <Button variant="light" onPress={onClose} isDisabled={isSubmitting}>
-                            {t("modals.cancel")}
-                        </Button>
-                        <Button
-                            variant="shadow"
-                            color="primary"
-                            type="submit"
-                            isLoading={isSubmitting}
-                            isDisabled={!canApply}
-                        >
-                            {t("modals.set_download_location.apply")}
-                        </Button>
-                    </ModalFooter>
-                </form>
-            </ModalContent>
-        </Modal>
+                        <div className={FORM.locationEditorFeedbackSlot}>
+                            {shouldRenderGauge ? (
+                                <DiskSpaceGauge
+                                    path={gaugeFreeSpace.path}
+                                    freeBytes={gaugeFreeSpace.sizeBytes}
+                                    totalBytes={gaugeFreeSpace.totalSize}
+                                />
+                            ) : (
+                                <div className={FORM.locationEditorValidationRow}>
+                                    <span className={pathValidationFeedback.className}>
+                                        {pathValidationFeedback.message}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </ModalEx>
     );
 }

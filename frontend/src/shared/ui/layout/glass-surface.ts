@@ -130,6 +130,10 @@ const GLASS_SEMANTIC_CHROME = {
     dividerSoft: SURFACE_BORDER,
     headerBorder: MODAL_SURFACE_HEADER,
     footerBorder: MODAL_SURFACE_FOOTER,
+    dialogHeader: `${MODAL_SURFACE_HEADER} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
+    dialogFooter: `${MODAL_SURFACE_FOOTER} flex items-center justify-between gap-tools px-panel py-tight`,
+    workflowFooter:
+        `${MODAL_SURFACE_FOOTER} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
     headerPassive: `${MODAL_SURFACE_HEADER} select-none`,
     footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
     footerActionsPadded: `${MODAL_SURFACE_FOOTER} px-stage py-panel flex items-center justify-end gap-tools`,
@@ -198,9 +202,6 @@ const GLASS_ROLE_SEMANTIC = {
     },
     chrome: GLASS_SEMANTIC_CHROME,
 } as const;
-const MODAL_ICON_MD = "toolbar-icon-size-md";
-const MODAL_ICON_SM = "toolbar-icon-size-sm shrink-0";
-const MODAL_HEADER_ROW_BASE = `${GLASS_SEMANTIC_CHROME.headerBorder} flex justify-between items-center gap-panel px-stage py-panel`;
 export const SURFACE = {
     dial: GLASS_SURFACE_DIAL,
     role: GLASS_ROLE_CORE.surface,
@@ -231,8 +232,9 @@ export const MODAL = {
     sidebarVisible: "translate-x-0",
     sidebarHeader: "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
     headingFont: "tt-navbar-tab-font",
-    iconMd: MODAL_ICON_MD,
-    iconSm: MODAL_ICON_SM,
+    iconMd: "toolbar-icon-size-md",
+    iconSm: "toolbar-icon-size-sm shrink-0",
+    iconLg: "toolbar-icon-size-lg",
     headerPassive: SURFACE.chromeEx.headerPassive,
     footerEnd: SURFACE.chromeEx.footerEnd,
     footerActionsPadded: SURFACE.chromeEx.footerActionsPadded,
@@ -251,7 +253,7 @@ export const MODAL = {
     headerLead: "flex items-center gap-tools",
     headerLeadPrimaryIcon: "text-primary",
     hintText: `${TEXT_ROLE.bodyMuted} leading-relaxed`,
-    headerTitleWrap: "flex flex-col",
+    headerTitleWrap: "flex min-w-0 flex-col overflow-hidden",
     headerMobileBack: "sm:hidden -ml-tight text-foreground/50",
     headerUnsaved: `${TEXT_ROLE.statusWarning} animate-pulse tracking-0-2`,
     desktopClose: `text-foreground/40 hidden sm:flex ${INTERACTIVE_RECIPE.dismiss}`,
@@ -268,11 +270,12 @@ export const MODAL = {
     footerButtonRow: "flex gap-tools ml-auto",
     footerResetButton: `opacity-70 ${INTERACTIVE_RECIPE.buttonDefault}`,
     footerSaveButton: "font-semibold shadow-small shadow-primary/20",
-    dialogHeader: `${SURFACE.chromeEx.headerBorder} flex items-center justify-between gap-tools px-panel py-tight`,
-    dialogHeaderLead: "flex items-center gap-panel",
+    dialogHeader: SURFACE.chromeEx.dialogHeader,
+    dialogHeaderLead: "flex min-w-0 flex-1 items-center gap-panel",
     dialogHeaderIconWrap: SURFACE.atom.insetRoundedFull,
     dialogHeaderWarningIcon: "toolbar-icon-size-md text-warning",
     dialogBody: "flex flex-col gap-stage p-panel",
+    dialogBodyFlush: "flex min-h-0 flex-1 flex-col p-none overflow-hidden",
     dialogSectionStack: "flex flex-col gap-tight",
     dialogInsetStack: "flex flex-col gap-tight",
     dialogInsetPanel: SURFACE.atom.insetRounded,
@@ -284,8 +287,8 @@ export const MODAL = {
     dialogInsetLabel: `${TEXT_ROLE.bodySmall} font-medium text-foreground truncate`,
     dialogInsetDescription: `${TEXT_ROLE.bodySmall} truncate`,
     dialogOutcomePanel: `${SURFACE.atom.insetRounded} ${TEXT_ROLE.bodySmall}`,
-    dialogFooter: `${SURFACE.chromeEx.footerBorder} flex items-center justify-between gap-tools px-panel py-tight`,
-    dialogFooterGroup: "flex items-center gap-tools",
+    dialogFooter: SURFACE.chromeEx.dialogFooter,
+    dialogFooterGroup: "flex shrink-0 items-center gap-tools",
     dialogSecondaryAction: "font-medium text-foreground",
     dialogPrimaryAction: "font-bold",
     contentWrapper: "h-full flex flex-col",
@@ -293,17 +296,17 @@ export const MODAL = {
     mainPane: "flex-1 min-h-0 flex flex-col bg-content1/10 blur-glass relative w-full",
     workflow: {
         gateRoot: "flex flex-col h-full",
-        header: MODAL_HEADER_ROW_BASE,
+        header: SURFACE.chromeEx.dialogHeader,
         titleStack: "flex flex-col overflow-hidden gap-tight",
         sourceLabelCaption: `${TEXT_ROLE.caption} truncate font-mono leading-tight`,
         sourceMutedLabel: `${TEXT_ROLE.codeMuted} text-foreground/50 truncate leading-tight`,
-        iconMd: MODAL_ICON_MD,
-        iconMdPrimary: `${MODAL_ICON_MD} text-primary`,
+        iconMd: "toolbar-icon-size-md",
+        iconMdPrimary: "toolbar-icon-size-md text-primary",
         iconLgPrimary: "toolbar-icon-size-lg text-primary",
-        iconMdSuccess: `${MODAL_ICON_MD} text-success`,
-        iconMdWarning: `${MODAL_ICON_MD} text-warning`,
-        iconAlert: `${MODAL_ICON_MD} shrink-0`,
-        iconAlertMuted: `${MODAL_ICON_MD} shrink-0 text-foreground/50`,
+        iconMdSuccess: "toolbar-icon-size-md text-success",
+        iconMdWarning: "toolbar-icon-size-md text-warning",
+        iconAlert: "toolbar-icon-size-md shrink-0",
+        iconAlertMuted: "toolbar-icon-size-md shrink-0 text-foreground/50",
         warningTone: "text-warning",
         footerAlertText: `${TEXT_ROLE.bodyStrong} truncate`,
         headerIconButton: `text-foreground/60 ${INTERACTIVE_RECIPE.textReveal}`,
@@ -317,29 +320,26 @@ export const MODAL = {
         submitActions: "flex gap-tools",
         headerActions: "flex items-center gap-tools",
         headerDivider: "h-status-chip w-px bg-content1/10 mx-tight",
-        body: "flex-1 min-h-0 relative p-add-modal-pane-gap",
+        body: "flex-1 min-h-0 relative p-none",
         dropOverlay:
             "absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
         dropOverlayChip:
             "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
         panelGroup: "flex-1 min-h-0",
-        paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel ${TRANSITION.fast} group focus:outline-none relative`,
+        paneHandle:
+            `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${TRANSITION.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
         paneHandleEnabled: "cursor-col-resize",
-        paneHandleDisabled: "cursor-default pointer-events-none",
         resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
-        filePanel: `${SURFACE.atom.glassPanel} ${SURFACE.role.pane}`,
-        filePanelContent: "flex flex-col flex-1 min-h-0 outline-none border-default",
-        filePanelToolbar: "p-tight border-b border-default/50 flex gap-tools items-center surface-layer-1 blur-glass",
-        fileTableShell: "h-full w-full min-h-0 rounded-xl overflow-hidden shadow-inner",
-        filesTitle: `${TEXT_ROLE.labelDense} flex-1 pl-tight select-none text-foreground/40`,
-        smartSelectButton: `${SURFACE.atom.iconButton} min-w-badge px-tight`,
-        dropdownDangerItem: "text-danger",
+        settingsPanel: `${SURFACE.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
+        filePanel: "glass-panel surface-layer-2 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
+        filePanelContent: "flex flex-col flex-1 min-h-0 outline-none",
+        fileTableShell: "h-full w-full min-h-0",
         footerAlerts: "flex flex-col gap-tools",
         footerAlert: "flex items-center gap-tools max-w-modal-compact p-tight",
         footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
         footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
         footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
-        footer: `${SURFACE.chromeEx.footerBorder} flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between`,
+        footer: SURFACE.chromeEx.workflowFooter,
         inlineBlock: "inline-block",
         cancelButton: "font-medium",
         primaryButton: "font-bold px-stage min-w-button",
@@ -348,16 +348,13 @@ export const MODAL = {
         } as const,
     } as const,
     builder: {
-        paneHandleClass: (isSettingsCollapsed: boolean) =>
-            `${MODAL.workflow.paneHandle} ${isSettingsCollapsed ? MODAL.workflow.paneHandleDisabled : MODAL.workflow.paneHandleEnabled}`,
+        paneHandleClass: () => `${MODAL.workflow.paneHandle} ${MODAL.workflow.paneHandleEnabled}`,
         bodyPanelsClass: (isFullscreen: boolean) =>
             isFullscreen ? "flex flex-col flex-1 min-h-settings h-full min-h-0" : "flex flex-col flex-1 min-h-settings",
         settingsPanelClass: (isSettingsCollapsed: boolean) =>
             [
-                SURFACE.atom.glassPanel,
-                SURFACE.role.pane,
-                "bg-background/65",
-                isSettingsCollapsed ? "min-w-0 w-0 border-none" : "",
+                MODAL.workflow.settingsPanel,
+                isSettingsCollapsed ? "min-w-0 w-0" : "",
             ]
                 .filter(Boolean)
                 .join(" "),
@@ -372,9 +369,11 @@ export const MODAL = {
                 base: `${MODAL.addTorrentModalBase} ${!params.showDestinationGate && params.isFullscreen ? MODAL.addTorrentModalHeightFull : MODAL.addTorrentModalHeightDefault}`,
             }) as const,
         resizeHandleBarClass: (params: { isSettingsCollapsed: boolean; isPanelResizeActive: boolean }) =>
-            params.isSettingsCollapsed
-                ? `h-full w-divider ${TRANSITION.fast} bg-transparent`
-                : `h-full w-divider ${TRANSITION.fast} ${params.isPanelResizeActive ? "bg-primary/55" : "bg-default/30 group-hover:bg-primary/45"}`,
+            `h-full w-divider ${TRANSITION.fast} ${
+                params.isPanelResizeActive
+                    ? "bg-primary"
+                    : "bg-primary/70 group-hover:bg-primary/85"
+            }`,
     } as const,
 } as const;
 const FORM_STATUS_TONE_CLASS = (statusKind: string) =>
@@ -490,7 +489,6 @@ export const FORM = {
     locationEditorValidationWarning: withColor(SURFACE.text.caption, "warning"),
     locationEditorFeedbackSlot: "overflow-hidden",
     workflow: {
-        settingsToggleButton: `mr-tight text-foreground/35 ${INTERACTIVE_RECIPE.textMutedReveal}`,
         root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
         group: "flex flex-col gap-panel mb-panel",
         label: `${TEXT_ROLE_EXTENDED.settingsLabel} mb-panel flex items-center gap-tools`,
@@ -641,7 +639,6 @@ export const TABLE = {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
     columnHeaderPulseIcon: "text-foreground/50 animate-pulse toolbar-icon-size-md",
-    columnSettingsRow: "flex justify-between p-tight",
     columnDefs: {
         nameCell: "flex min-w-0 items-center h-full",
         nameLabel: `font-medium truncate max-w-full ${TRANSITION.fast} cap-height-text`,
@@ -1308,7 +1305,7 @@ export const INPUT = {
     } as const,
 } as const;
 export const FILE_BROWSER = {
-    container: "flex flex-col h-full rounded-medium border border-default-200/50 shadow-small",
+    container: "flex flex-col h-full min-h-0",
     toolbar: "flex flex-wrap items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30",
     searchInputClassNames: {
         base: "min-w-0",

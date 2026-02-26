@@ -1,21 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Modal,
-    ModalContent,
-    ModalHeader,
-    ModalBody,
-    ModalFooter,
-    Button,
     Checkbox,
 } from "@heroui/react";
+import { Trash2, type LucideIcon } from "lucide-react";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
-import { MODAL, FORM, FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { FORM, FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { ModalEx } from "@/shared/ui/layout/ModalEx";
 
 interface RemoveConfirmationModalProps {
     isOpen?: boolean;
+    titleIcon?: LucideIcon;
     onClose?: () => void;
     onConfirm?: (
         deleteData: boolean,
@@ -27,6 +24,7 @@ interface RemoveConfirmationModalProps {
 
 export function RemoveConfirmationModal({
     isOpen,
+    titleIcon = Trash2,
     onClose,
     onConfirm,
     torrentCount,
@@ -36,7 +34,6 @@ export function RemoveConfirmationModal({
     const deleteConfirmation = useDeleteConfirmationContextOptional();
     const [deleteData, setDeleteData] = useState(defaultDeleteData);
     const [loading, setLoading] = useState(false);
-    const confirmRef = React.useRef<HTMLButtonElement | null>(null);
 
     const resolvedIsOpen = isOpen ?? Boolean(deleteConfirmation?.pendingDelete);
     const resolvedTorrentCount =
@@ -60,6 +57,10 @@ export function RemoveConfirmationModal({
             }),
         [deleteConfirmation, onConfirm],
     );
+    const handleClose = React.useCallback(() => {
+        if (loading) return;
+        resolvedOnClose();
+    }, [loading, resolvedOnClose]);
 
     const normalizeDeleteOutcome = (
         outcome: DeleteConfirmationOutcome | TorrentCommandOutcome,
@@ -95,23 +96,13 @@ export function RemoveConfirmationModal({
         }
     }, [deleteData, loading, resolvedOnClose, resolvedOnConfirm]);
 
-    // Focus primary confirm when opened and wire keyboard shortcuts
+    // Keyboard shortcuts for deterministic confirm/cancel behavior.
     useEffect(() => {
         if (!resolvedIsOpen) return;
-        const el = confirmRef.current;
-        // focus the primary action for quick keyboard confirm
-        if (el) {
-            try {
-                el.focus();
-            } catch {
-                // Ignore focus errors in transient modal mount states
-            }
-        }
-
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
-                resolvedOnClose();
+                handleClose();
             } else if (e.key === "Enter") {
                 e.preventDefault();
                 void handleConfirm();
@@ -119,67 +110,62 @@ export function RemoveConfirmationModal({
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [handleConfirm, resolvedIsOpen, resolvedOnClose]);
+    }, [handleClose, handleConfirm, resolvedIsOpen]);
 
     return (
-        <Modal
-            isOpen={resolvedIsOpen}
-            onOpenChange={(nextOpen) => {
-                if (!nextOpen) {
-                    resolvedOnClose();
-                }
+        <ModalEx
+            open={resolvedIsOpen}
+            onClose={handleClose}
+            title={t("remove_modal.title")}
+            icon={titleIcon}
+            size="sm"
+            disableClose={loading}
+            secondaryAction={{
+                label: t("remove_modal.cancel"),
+                onPress: handleClose,
+                disabled: loading,
             }}
-            backdrop="blur"
-            classNames={MODAL.compactClassNames}
+            primaryAction={
+                deleteData
+                    ? undefined
+                    : {
+                          label: t("remove_modal.confirm_remove"),
+                          onPress: () => {
+                              void handleConfirm();
+                          },
+                          disabled: loading,
+                      }
+            }
+            dangerAction={
+                deleteData
+                    ? {
+                          label: t("remove_modal.confirm_delete_files"),
+                          onPress: () => {
+                              void handleConfirm();
+                          },
+                          disabled: loading,
+                      }
+                    : undefined
+            }
         >
-            <ModalContent>
-                <ModalHeader className={MODAL.headerPassive}>
-                    {t("remove_modal.title")}
-                </ModalHeader>
+            <div className={FORM.stackTools}>
+                <p>
+                    {resolvedTorrentCount === 1
+                        ? t("remove_modal.single_torrent_message")
+                        : t("remove_modal.multiple_torrents_message", {
+                              count: resolvedTorrentCount,
+                          })}
+                </p>
 
-                <ModalBody>
-                    <div className={FORM.stackTools}>
-                        <p>
-                            {resolvedTorrentCount === 1
-                                ? t("remove_modal.single_torrent_message")
-                                : t("remove_modal.multiple_torrents_message", {
-                                      count: resolvedTorrentCount,
-                                  })}
-                        </p>
-
-                        <Checkbox
-                            isSelected={deleteData}
-                            onValueChange={setDeleteData}
-                            classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
-                        >
-                            {t("remove_modal.delete_files_option")}
-                        </Checkbox>
-                    </div>
-                </ModalBody>
-
-                <ModalFooter className={MODAL.footerEnd}>
-                    <Button
-                        variant="light"
-                        onPress={resolvedOnClose}
-                        disabled={loading}
-                    >
-                        {t("remove_modal.cancel")}
-                    </Button>
-
-                    <Button
-                        ref={confirmRef}
-                        color={deleteData ? "danger" : "primary"}
-                        variant={deleteData ? "solid" : "shadow"}
-                        onPress={handleConfirm}
-                        disabled={loading}
-                    >
-                        {deleteData
-                            ? t("remove_modal.confirm_delete_files")
-                            : t("remove_modal.confirm_remove")}
-                    </Button>
-                </ModalFooter>
-            </ModalContent>
-        </Modal>
+                <Checkbox
+                    isSelected={deleteData}
+                    onValueChange={setDeleteData}
+                    classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                >
+                    {t("remove_modal.delete_files_option")}
+                </Checkbox>
+            </div>
+        </ModalEx>
     );
 }
 

@@ -41,6 +41,8 @@ interface AddTorrentSettingsState {
     statusKind: AddTorrentDestinationStatusKind;
     statusMessage: string;
     spaceErrorDetail: string | null;
+    startPaused: boolean;
+    setStartPaused: (next: boolean) => void;
     showTransferFlags: boolean;
     sequential: boolean;
     skipHashCheck: boolean;

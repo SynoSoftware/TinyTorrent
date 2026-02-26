@@ -24,7 +24,6 @@ export type QueueMenuAction = {
 export type ContextMenuKey = TorrentTableAction | "copy-hash" | "copy-magnet";
 export type RowContextMenuKey =
     | ContextMenuKey
-    | "cols"
     | "open-folder"
     | "set-download-location";
 

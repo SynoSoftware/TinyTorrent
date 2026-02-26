@@ -16,8 +16,6 @@ type UseTorrentTableContextParams = {
         virtualElement: ContextMenuVirtualElement;
         torrent: Torrent;
     } | null;
-    findRowElement: (id: string) => HTMLElement | null;
-    openColumnModal: (el: HTMLElement | null) => void;
     copyToClipboard: (s: string) => Promise<ClipboardWriteOutcome>;
     buildMagnetLink: (t: Torrent) => string;
     setContextMenu: React.Dispatch<
@@ -44,7 +42,7 @@ const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
 };
 
 export const useTorrentTableContextActions = (params: UseTorrentTableContextParams) => {
-    const { contextMenu, findRowElement, openColumnModal, copyToClipboard, buildMagnetLink, setContextMenu, selectedTorrents = [] } = params;
+    const { contextMenu, copyToClipboard, buildMagnetLink, setContextMenu, selectedTorrents = [] } = params;
 
     const selectionTargets = useMemo(() => {
         if (!contextMenu) return [];
@@ -88,11 +86,6 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             };
 
             try {
-                if (key === "cols") {
-                    const rowElement = findRowElement(torrent.id);
-                    openColumnModal(rowElement ?? null);
-                    return closeWithOutcome(COMMAND_OUTCOME_SUCCESS);
-                }
                 if (key === "open-folder") {
                     const path = resolveTorrentPath(torrent);
                     if (!canOpenFolder) {
@@ -160,8 +153,6 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
         },
         [
             contextMenu,
-            findRowElement,
-            openColumnModal,
             copyToClipboard,
             buildMagnetLink,
             setContextMenu,

@@ -19,7 +19,6 @@ import type {
     FileExplorerFilterMode,
     FileExplorerTreeViewModel,
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     FILE_BROWSER,
     FORM_CONTROL,
@@ -115,7 +114,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
     });
 
     return (
-        <GlassPanel className={FILE_BROWSER.container}>
+        <div className={FILE_BROWSER.container}>
             <div className={FILE_BROWSER.toolbar}>
                 <Input
                     classNames={FILE_BROWSER.searchInputClassNames}
@@ -333,6 +332,6 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                     </div>
                 )}
             </div>
-        </GlassPanel>
+        </div>
     );
 });

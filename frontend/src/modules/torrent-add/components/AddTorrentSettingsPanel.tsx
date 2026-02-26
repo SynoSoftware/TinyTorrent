@@ -21,6 +21,7 @@ import {
     Hash,
     Info,
     ListOrdered,
+    PauseCircle,
 } from "lucide-react";
 import { describePathKind } from "@/modules/torrent-add/utils/destination";
 import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
@@ -222,6 +223,23 @@ export function AddTorrentSettingsPanel() {
                             {t("modals.add_torrent.transfer_flags")}
                         </label>
                         <div className={FORM.workflow.flagsCheckboxes}>
+                            <Checkbox
+                                isSelected={settings.startPaused}
+                                onValueChange={settings.setStartPaused}
+                                classNames={
+                                    FORM_CONTROL.checkboxLabelBodySmallClassNames
+                                }
+                            >
+                                <span className={FORM.workflow.flagsItemLabel}>
+                                    <PauseCircle
+                                        className={FORM.workflow.flagsIcon}
+                                    />
+                                    {t("modals.add_torrent.add_paused")}
+                                </span>
+                            </Checkbox>
+                            <Divider
+                                className={FORM.workflow.flagsItemDivider}
+                            />
                             <Checkbox
                                 isSelected={settings.sequential}
                                 onValueChange={settings.setSequential}

@@ -82,7 +82,6 @@ export interface TorrentTableAPI {
         setMeasureLayerRef: (node: HTMLDivElement | null) => void;
     };
     state: {
-        isColumnModalOpen: boolean;
         activeDragHeaderId: string | null;
         isAnimationSuppressed: boolean;
         isAnyColumnResizing: boolean;
@@ -105,7 +104,6 @@ export interface TorrentTableAPI {
     lifecycle: {
         activateScope: () => void;
         deactivateScope: () => void;
-        setIsColumnModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
     };
     surfaces: TorrentTableSurfaces;
 }
@@ -128,7 +126,6 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(null);
     const [isColumnOrderChanging, setIsColumnOrderChanging] = useState<boolean>(false);
-    const [isColumnModalOpen, setIsColumnModalOpen] = useState<boolean>(false);
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(null);
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
@@ -355,14 +352,8 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         clearSelection: selection.clearSelection,
     };
 
-    const openColumnModal = useCallback(() => {
-        setIsColumnModalOpen(true);
-    }, []);
-
     const { handleContextMenuAction } = useTorrentTableContextActions({
         contextMenu,
-        findRowElement: (id) => (typeof document !== "undefined" ? (document.querySelector(`[data-torrent-row="${id}"]`) as HTMLElement | null) : null),
-        openColumnModal,
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
@@ -722,13 +713,21 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             autoFitAllColumns,
             handleHeaderMenuAction,
         }),
-        [headerMenuTriggerRect, closeHeaderMenu, headerMenuActiveColumn, headerMenuItems, headerMenuHideLabel, isHeaderMenuHideEnabled, autoFitAllColumns, handleHeaderMenuAction],
+        [
+            headerMenuTriggerRect,
+            closeHeaderMenu,
+            headerMenuActiveColumn,
+            headerMenuItems,
+            headerMenuHideLabel,
+            isHeaderMenuHideEnabled,
+            autoFitAllColumns,
+            handleHeaderMenuAction,
+        ],
     );
 
     return {
         refs: refBindings,
         state: {
-            isColumnModalOpen,
             activeDragHeaderId,
             isAnimationSuppressed,
             isAnyColumnResizing,
@@ -751,7 +750,6 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         lifecycle: {
             activateScope,
             deactivateScope,
-            setIsColumnModalOpen,
         },
         surfaces: {
             renderOverlayPortal,

@@ -676,10 +676,6 @@
         "column_desc_queue": "Position in the download/upload queue",
         "column_desc_ratio": "Upload / download ratio",
         "column_desc_speed": "Download / upload velocity",
-        "column_picker_apply": "Apply",
-        "column_picker_cancel": "Cancel",
-        "column_picker_description": "Right click a header to change the visible columns.",
-        "column_picker_reset": "Reset Layout",
         "column_picker_title": "Columns",
         "column_selection": "Selection",
         "data": {

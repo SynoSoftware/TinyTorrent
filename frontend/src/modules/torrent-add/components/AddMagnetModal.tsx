@@ -1,9 +1,4 @@
 import {
-    Button,
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
     Textarea,
 } from "@heroui/react";
 import {
@@ -14,17 +9,15 @@ import {
     type KeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Magnet, X } from "lucide-react";
+import { Magnet, type LucideIcon } from "lucide-react";
 
-import { INTERACTION_CONFIG } from "@/config/logic";
 import { MODAL, FORM, INPUT } from "@/shared/ui/layout/glass-surface";
-import { TEXT_ROLE } from "@/config/textRoles";
-import { StatusIcon } from "@/shared/ui/components/StatusIcon";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 
 export interface AddMagnetModalProps {
     isOpen: boolean;
+    titleIcon?: LucideIcon;
     initialValue?: string;
     onClose: () => void;
     onSubmit: (link: string) => Promise<AddTorrentCommandOutcome>;
@@ -38,6 +31,7 @@ export interface AddMagnetModalProps {
 
 export function AddMagnetModal({
     isOpen,
+    titleIcon = Magnet,
     initialValue,
     onClose,
     onSubmit,
@@ -85,71 +79,40 @@ export function AddMagnetModal({
     );
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onOpenChange={(open) => (!open ? handleClose() : undefined)}
-            backdrop="blur"
-            placement="center"
-            motionProps={INTERACTION_CONFIG.modalBloom}
-            hideCloseButton
-            classNames={MODAL.baseClassNames}
+        <ModalEx
+            open={isOpen}
+            onClose={handleClose}
+            title={t("modals.add_magnet.title")}
+            icon={titleIcon}
+            secondaryAction={{
+                label: t("modals.cancel"),
+                onPress: handleClose,
+                disabled: isSubmitting,
+            }}
+            primaryAction={{
+                label: t("modals.add_magnet.confirm"),
+                onPress: () => {
+                    void handleConfirm();
+                },
+                loading: isSubmitting,
+                disabled: isSubmitting || !value.trim(),
+            }}
         >
-            <ModalContent>
-                {() => (
-                    <>
-                        <div className={MODAL.header}>
-                            <div className={MODAL.headerLead}>
-                                <StatusIcon
-                                    Icon={Magnet}
-                                    size="md"
-                                    className={MODAL.headerLeadPrimaryIcon}
-                                />
-                                <span className={TEXT_ROLE.labelPrimary}>
-                                    {t("modals.add_magnet.title")}
-                                </span>
-                            </div>
-
-                            <ToolbarIconButton
-                                Icon={X}
-                                ariaLabel={t("torrent_modal.actions.close")}
-                                onPress={handleClose}
-                                iconSize="lg"
-                                className={MODAL.desktopClose}
-                            />
-                        </div>
-
-                        <ModalBody className={FORM.bodyStackPanel}>
-                            <Textarea
-                                ref={textareaRef}
-                                autoFocus
-                                value={value}
-                                onValueChange={setValue}
-                                placeholder={t("modals.add_magnet.placeholder")}
-                                variant="bordered"
-                                classNames={INPUT.codeTextareaClassNames}
-                                onKeyDown={handleKeyDown}
-                            />
-                            <p className={MODAL.hintText}>
-                                {t("modals.add_magnet.hint")}
-                            </p>
-                        </ModalBody>
-                        <ModalFooter className={MODAL.footerActionsPadded}>
-                            <Button variant="light" onPress={handleClose}>
-                                {t("modals.cancel")}
-                            </Button>
-                            <Button
-                                color="primary"
-                                variant="shadow"
-                                onPress={handleConfirm}
-                                isLoading={isSubmitting}
-                                isDisabled={isSubmitting || !value.trim()}
-                            >
-                                {t("modals.add_magnet.confirm")}
-                            </Button>
-                        </ModalFooter>
-                    </>
-                )}
-            </ModalContent>
-        </Modal>
+            <div className={FORM.bodyStackPanel}>
+                <Textarea
+                    ref={textareaRef}
+                    autoFocus
+                    value={value}
+                    onValueChange={setValue}
+                    placeholder={t("modals.add_magnet.placeholder")}
+                    variant="bordered"
+                    classNames={INPUT.codeTextareaClassNames}
+                    onKeyDown={handleKeyDown}
+                />
+                <p className={MODAL.hintText}>
+                    {t("modals.add_magnet.hint")}
+                </p>
+            </div>
+        </ModalEx>
     );
 }

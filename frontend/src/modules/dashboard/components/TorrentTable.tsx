@@ -9,7 +9,6 @@ import { ColumnHeaderPreview, TorrentTable_Headers } from "@/modules/dashboard/c
 import TorrentTable_Body from "@/modules/dashboard/components/TorrentTable_Body";
 import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "@/modules/dashboard/components/TorrentTable_HeaderMenu";
-import TorrentTable_ColumnSettingsModal from "@/modules/dashboard/components/TorrentTable_ColumnSettingsModal";
 import { useTorrentTableViewModel } from "@/modules/dashboard/hooks";
 
 interface TorrentTableProps {
@@ -33,65 +32,57 @@ export function TorrentTable({ viewModel, embedded = false }: TorrentTableProps)
     const activeHeader = table.instance.getFlatHeaders().find((header) => header.id === state.activeDragHeaderId);
 
     return (
-        <>
-            <div
-                ref={setTableContainerRef}
-                tabIndex={0}
-                onKeyDown={interaction.handleKeyDown}
-                onFocus={lifecycle.activateScope}
-                onBlur={lifecycle.deactivateScope}
-                data-tt-column-resizing={state.isAnyColumnResizing ? "true" : undefined}
-                data-tt-layout-suppressed={state.isAnimationSuppressed ? "true" : undefined}
-                style={TABLE.hostBorderRadiusStyle}
-                className={cn(TABLE.hostRoot, !embedded && TABLE.surface)}
-                onClick={menus.closeContextMenu}
-            >
-                <ColumnMeasurementLayer
-                    headers={table.measurementHeaders}
-                    rows={table.measurementRows}
-                    measureLayerRef={setMeasureLayerRef}
-                />
-                <DndContext
-                    collisionDetection={closestCenter}
-                    sensors={interaction.sensors}
-                    onDragStart={interaction.handleDragStart}
-                    onDragEnd={interaction.handleDragEnd}
-                    onDragCancel={interaction.handleDragCancel}
-                >
-                    <GlassPanel layer={1} className={tableShellClass}>
-                        <TorrentTable_Headers viewModel={surfaces.headersViewModel} />
-
-                        <TorrentTable_Body viewModel={surfaces.bodyViewModel} />
-                    </GlassPanel>
-                    {surfaces.renderOverlayPortal(
-                        <DragOverlay
-                            adjustScale={false}
-                            dropAnimation={null}
-                            className={surfaces.bodyViewModel.dnd.overlayClassName}
-                        >
-                            {activeHeader ? (
-                                <ColumnHeaderPreview
-                                    key={activeHeader.id}
-                                    header={activeHeader}
-                                    isAnimationSuppressed={state.isAnimationSuppressed}
-                                />
-                            ) : null}
-                        </DragOverlay>,
-                    )}
-                </DndContext>
-
-                {surfaces.renderOverlayPortal(<TorrentTable_RowMenu viewModel={surfaces.rowMenuViewModel} />)}
-
-                {surfaces.headerMenuViewModel.headerMenuTriggerRect &&
-                    surfaces.renderOverlayPortal(<TorrentTable_HeaderMenu viewModel={surfaces.headerMenuViewModel} />)}
-            </div>
-
-            <TorrentTable_ColumnSettingsModal
-                isOpen={state.isColumnModalOpen}
-                onOpenChange={lifecycle.setIsColumnModalOpen}
-                table={table.instance}
+        <div
+            ref={setTableContainerRef}
+            tabIndex={0}
+            onKeyDown={interaction.handleKeyDown}
+            onFocus={lifecycle.activateScope}
+            onBlur={lifecycle.deactivateScope}
+            data-tt-column-resizing={state.isAnyColumnResizing ? "true" : undefined}
+            data-tt-layout-suppressed={state.isAnimationSuppressed ? "true" : undefined}
+            style={TABLE.hostBorderRadiusStyle}
+            className={cn(TABLE.hostRoot, !embedded && TABLE.surface)}
+            onClick={menus.closeContextMenu}
+        >
+            <ColumnMeasurementLayer
+                headers={table.measurementHeaders}
+                rows={table.measurementRows}
+                measureLayerRef={setMeasureLayerRef}
             />
-        </>
+            <DndContext
+                collisionDetection={closestCenter}
+                sensors={interaction.sensors}
+                onDragStart={interaction.handleDragStart}
+                onDragEnd={interaction.handleDragEnd}
+                onDragCancel={interaction.handleDragCancel}
+            >
+                <GlassPanel layer={1} className={tableShellClass}>
+                    <TorrentTable_Headers viewModel={surfaces.headersViewModel} />
+
+                    <TorrentTable_Body viewModel={surfaces.bodyViewModel} />
+                </GlassPanel>
+                {surfaces.renderOverlayPortal(
+                    <DragOverlay
+                        adjustScale={false}
+                        dropAnimation={null}
+                        className={surfaces.bodyViewModel.dnd.overlayClassName}
+                    >
+                        {activeHeader ? (
+                            <ColumnHeaderPreview
+                                key={activeHeader.id}
+                                header={activeHeader}
+                                isAnimationSuppressed={state.isAnimationSuppressed}
+                            />
+                        ) : null}
+                    </DragOverlay>,
+                )}
+            </DndContext>
+
+            {surfaces.renderOverlayPortal(<TorrentTable_RowMenu viewModel={surfaces.rowMenuViewModel} />)}
+
+            {surfaces.headerMenuViewModel.headerMenuTriggerRect &&
+                surfaces.renderOverlayPortal(<TorrentTable_HeaderMenu viewModel={surfaces.headerMenuViewModel} />)}
+        </div>
     );
 }
 
