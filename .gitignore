@@ -32,16 +32,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-patch.txt
 package-lock.json
 
 .vercel
 .vshistory
 vcpkg_installed/
 vcpkg/
-backend/data/tinytorrent.db
-backend/data/tinytorrent.db-wal
-backend/data/tinytorrent.db-shm
+backend/data/
 *.dmp
 dump*.txt
 .aider*
@@ -52,6 +49,10 @@ scripts/zoom_report.json
 frontend/forensic-tailwind-mapping-after.txt
 frontend/src/modules/torrent-add/components/AddTorrentModal-original.tsx
 3rdParty/
-frontend/patch1.txt
-frontend/patch2.txt
 docs/bug fixing/
+docs/engine/
+frontend/docs/
+backend/docs/
+patch*.txt
+*.diff
+
