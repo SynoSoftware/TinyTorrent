@@ -13,6 +13,7 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import { status } from "@/shared/status";
 import {
     evaluateRelocationMoveVerification,
     resolveSetDownloadLocationMode,
@@ -51,11 +52,13 @@ interface UseTorrentWorkflowParams {
         torrentId: string,
         path: string,
         locationMode: LocationMode,
+        resumeAfter: boolean,
     ) => Promise<TorrentCommandOutcome>;
     executeSelectionAction: (
         action: TorrentTableAction,
         targets: Torrent[],
     ) => Promise<TorrentCommandOutcome>;
+    onVerificationStart?: () => void;
     onRecheckComplete?: () => Promise<RecheckRefreshOutcome>;
     onPrepareDelete?: (torrent: Torrent, deleteData: boolean) => void;
     announceAction?: (
@@ -108,6 +111,7 @@ export function useTorrentWorkflow({
     executeBulkRemove,
     executeSetDownloadLocation,
     executeSelectionAction,
+    onVerificationStart,
     onRecheckComplete,
     onPrepareDelete,
     announceAction: injectedAnnounce,
@@ -337,6 +341,9 @@ export function useTorrentWorkflow({
             action: TorrentTableAction,
             torrentsToUpdate: Torrent[],
         ): Promise<TorrentCommandOutcome> => {
+            if (action === "recheck") {
+                onVerificationStart?.();
+            }
             const optimisticTargets = buildOptimisticStatusUpdatesForAction(
                 action,
                 torrentsToUpdate,
@@ -366,6 +373,7 @@ export function useTorrentWorkflow({
         },
         [
             executeTorrentAction,
+            onVerificationStart,
             showFeedback,
             executeSelectionAction,
             t,
@@ -496,10 +504,20 @@ export function useTorrentWorkflow({
             path: string;
         }): Promise<TorrentCommandOutcome> => {
             const locationMode = resolveSetDownloadLocationMode(torrent);
+            const shouldResumeAfter =
+                torrent.state === status.torrent.downloading ||
+                torrent.state === status.torrent.seeding ||
+                torrent.state === status.torrent.checking ||
+                torrent.state === status.torrent.queued ||
+                torrent.state === status.torrent.stalled;
+            if (locationMode === "locate") {
+                onVerificationStart?.();
+            }
             const outcome = await executeSetDownloadLocation(
                 String(torrent.id),
                 path,
                 locationMode,
+                shouldResumeAfter,
             );
 
             if (!isSuccessfulOutcome(outcome)) {
@@ -517,6 +535,7 @@ export function useTorrentWorkflow({
         },
         [
             executeSetDownloadLocation,
+            onVerificationStart,
             showFeedback,
             startMoveOperation,
             t,

@@ -17,6 +17,7 @@ type UseTorrentDataOptions = {
     client: EngineAdapter;
     sessionReady: boolean;
     pollingIntervalMs: number;
+    preferFullFetch?: boolean;
     markTransportConnected?: () => void;
 };
 type UseTorrentDataResult = {
@@ -126,6 +127,7 @@ export function useTorrentData({
     client,
     sessionReady,
     pollingIntervalMs,
+    preferFullFetch = false,
     markTransportConnected,
 }: UseTorrentDataOptions): UseTorrentDataResult {
     const { reportReadError } = useSession();
@@ -358,6 +360,7 @@ export function useTorrentData({
         const intervalMs = Math.max(1000, pollingIntervalMs);
         const subscription = heartbeatDomain.subscribeTable({
             pollingIntervalMs: intervalMs,
+            preferFullFetch,
             onUpdate: handleHeartbeatUpdate,
             onError: () => {
                 if (!isMountedRef.current) return;
@@ -371,6 +374,7 @@ export function useTorrentData({
         heartbeatDomain,
         sessionReady,
         pollingIntervalMs,
+        preferFullFetch,
         handleHeartbeatUpdate,
         markTransportConnected,
         reportReadError,

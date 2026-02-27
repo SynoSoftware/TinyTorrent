@@ -267,7 +267,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const detailSetLocationFlow = useSetDownloadLocationFlow({
         torrent: detailData,
         setDownloadLocation: handleSetDownloadLocation,
-        dispatchEnsureActive: dispatch,
     });
 
     const executeTrackerMutation = useCallback(

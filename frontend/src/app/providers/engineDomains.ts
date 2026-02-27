@@ -13,6 +13,7 @@ import type { TransmissionSessionSettings } from "@/services/rpc/types";
 
 type TableSubscriptionParams = {
     pollingIntervalMs?: number;
+    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError: (event: HeartbeatErrorEvent) => void;
 };
@@ -23,6 +24,7 @@ type NonTableSubscriptionParams = {
     detailProfile?: HeartbeatDetailProfile;
     includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
+    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError: (event: HeartbeatErrorEvent) => void;
 };
@@ -151,10 +153,16 @@ export function useEngineHeartbeatDomain(
     const client = getClient(clientOverride) ?? contextClient;
     return useMemo<EngineHeartbeatDomain>(
         () => ({
-            subscribeTable: ({ pollingIntervalMs, onUpdate, onError }) =>
+            subscribeTable: ({
+                pollingIntervalMs,
+                preferFullFetch,
+                onUpdate,
+                onError,
+            }) =>
                 client.subscribeToHeartbeat({
                     mode: "table",
                     pollingIntervalMs,
+                    preferFullFetch,
                     onUpdate,
                     onError,
                 }),
@@ -164,6 +172,7 @@ export function useEngineHeartbeatDomain(
                 detailProfile,
                 includeTrackerStats,
                 pollingIntervalMs,
+                preferFullFetch,
                 onUpdate,
                 onError,
             }) =>
@@ -173,6 +182,7 @@ export function useEngineHeartbeatDomain(
                     detailProfile,
                     includeTrackerStats,
                     pollingIntervalMs,
+                    preferFullFetch,
                     onUpdate,
                     onError,
                 }),

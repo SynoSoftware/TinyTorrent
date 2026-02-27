@@ -780,6 +780,13 @@ To prevent "Slow Table / Fast CPU Burn":
     - The **Inspector** subscribes **only** to `state.torrents[activeId]`.
     - If the list updates but `activeId` data hasn't changed, the Inspector **must not re-render**.
 
+4. **Torrent Mutation Authority**
+
+    - All torrent-mutating UI work must go through the single command authority: `dispatch()` in `frontend/src/app/actions/torrentDispatch.ts`.
+    - UI helpers, modals, hooks, and view models must not call `EngineAdapter` torrent mutation methods directly (`verify`, `resume`, `pause`, `remove`, `setTorrentLocation`, queue moves, tracker mutations, file selection, etc.).
+    - Long-running torrent workflows such as move, locate, verify, and resume chaining belong to `torrentDispatch.ts` and may use helper watchers there.
+    - `EngineAdapter` direct calls are allowed only inside the transport/RPC layer, the dispatch authority itself, or read-only/query domains.
+
 ---
 
 # **7. UI/UX Philosophy**

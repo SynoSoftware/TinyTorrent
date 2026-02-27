@@ -41,6 +41,7 @@ export interface HeartbeatSubscriberParams {
     detailProfile?: HeartbeatDetailProfile;
     includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
+    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError?: (event: HeartbeatErrorEvent) => void;
 }
@@ -616,6 +617,15 @@ export class HeartbeatManager {
         return Math.max(500, interval);
     }
 
+    private hasFullFetchPriority() {
+        for (const { params } of this.subscribers.values()) {
+            if (params.preferFullFetch) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private async tick() {
         // Record the execution time of a real tick so throttling reflects
         // actual work, not just immediate trigger attempts.
@@ -692,7 +702,9 @@ export class HeartbeatManager {
                       )
                     : false;
                 const forceFull =
-                    hasChecking || this.cycleCount >= this.MAX_DELTA_CYCLES;
+                    this.hasFullFetchPriority() ||
+                    hasChecking ||
+                    this.cycleCount >= this.MAX_DELTA_CYCLES;
 
                 // --- 1. Fetch Global Stats ---
                 const sessionStatsCall = this.client.getSessionStats();

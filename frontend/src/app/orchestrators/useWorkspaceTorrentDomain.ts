@@ -123,6 +123,8 @@ export function useWorkspaceTorrentDomain({
         isRecheckPollingBoostActive || isVerificationPollingBoostActive
             ? Math.min(pollingIntervalMs, timing.heartbeat.detailMs)
             : pollingIntervalMs;
+    const preferFullFetch =
+        isRecheckPollingBoostActive || isVerificationPollingBoostActive;
 
     const {
         torrents,
@@ -134,6 +136,7 @@ export function useWorkspaceTorrentDomain({
         client: torrentClient,
         sessionReady: rpcStatus === status.connection.connected,
         pollingIntervalMs: effectiveTablePollingIntervalMs,
+        preferFullFetch,
         markTransportConnected,
     });
 
@@ -278,9 +281,15 @@ export function useWorkspaceTorrentDomain({
         torrentId: string,
         path: string,
         locationMode: LocationMode,
+        resumeAfter: boolean,
     ): Promise<TorrentCommandOutcome> => {
         const outcome = await dispatch(
-            TorrentIntents.ensureAtLocation(torrentId, path, locationMode),
+            TorrentIntents.ensureAtLocation(
+                torrentId,
+                path,
+                locationMode,
+                resumeAfter,
+            ),
         );
         if (outcome.status === "applied") {
             return commandOutcome.success();
@@ -292,7 +301,6 @@ export function useWorkspaceTorrentDomain({
     };
 
     const refreshAfterRecheck = useCallback(async (): Promise<RecheckRefreshOutcome> => {
-        triggerRecheckPollingBoost();
         if (rpcStatus !== status.connection.connected) {
             return commandReason.refreshSkipped;
         }
@@ -302,7 +310,7 @@ export function useWorkspaceTorrentDomain({
         } catch {
             return commandReason.refreshFailed;
         }
-    }, [refreshTorrents, rpcStatus, triggerRecheckPollingBoost]);
+    }, [refreshTorrents, rpcStatus]);
 
     const { pendingDelete, confirmDelete, clearPendingDelete, handleTorrentAction, handleBulkAction, handleSetDownloadLocation, removedIds } =
         useTorrentWorkflow({
@@ -312,6 +320,7 @@ export function useWorkspaceTorrentDomain({
             executeTorrentAction: executeTorrentActionViaDispatch,
             executeBulkRemove: executeBulkRemoveViaDispatch,
             executeSetDownloadLocation: executeSetDownloadLocationViaDispatch,
+            onVerificationStart: triggerRecheckPollingBoost,
             onRecheckComplete: refreshAfterRecheck,
             executeSelectionAction: async (action, targets) => {
                 const ids = targets

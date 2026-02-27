@@ -1,30 +1,11 @@
 import type { TFunction } from "i18next";
-import { status } from "@/shared/status";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
-import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { infraLogger } from "@/shared/utils/infraLogger";
-import {
-    resolveSetDownloadLocationMode,
-    toMoveDataFlag,
-} from "@/modules/dashboard/domain/torrentRelocation";
-
-type DispatchIntent = (intent: ReturnType<typeof TorrentIntents.ensureActive>) => Promise<TorrentDispatchOutcome>;
 type SetDownloadLocationCommand = (params: {
     torrent: Torrent;
     path: string;
 }) => Promise<TorrentCommandOutcome>;
-
-const wasTorrentRunning = (torrent: Torrent): boolean =>
-    torrent.state === status.torrent.downloading ||
-    torrent.state === status.torrent.seeding ||
-    torrent.state === status.torrent.checking ||
-    torrent.state === status.torrent.queued ||
-    torrent.state === status.torrent.stalled;
 
 export const resolveSetDownloadLocationPath = (
     torrent: Torrent | null | undefined,
@@ -51,27 +32,15 @@ export async function pickSetDownloadLocationDirectory({
 export async function applySetDownloadLocation({
     torrent,
     path,
-    client,
     setDownloadLocation,
-    dispatchEnsureActive,
     t,
 }: {
     torrent: Torrent;
     path: string;
-    client: EngineAdapter;
     setDownloadLocation: SetDownloadLocationCommand;
-    dispatchEnsureActive: DispatchIntent;
     t: TFunction;
 }): Promise<void> {
-    const targetId = torrent.id ?? torrent.hash;
-    if (!targetId) {
-        throw new Error(t("toolbar.feedback.failed"));
-    }
-
     const requestedPath = path.trim();
-
-    const shouldRestoreRunningState = wasTorrentRunning(torrent);
-    const locationMode = resolveSetDownloadLocationMode(torrent);
 
     const setLocationOutcome = await setDownloadLocation({
         torrent,
@@ -83,38 +52,5 @@ export async function applySetDownloadLocation({
         }
         throw new Error(t("toolbar.feedback.failed"));
     }
-
-    const targetKey = String(targetId);
-    const moveData = toMoveDataFlag(locationMode);
-    const runPostSetLocationFlow = async (): Promise<void> => {
-        if (!moveData) {
-            await client.verify([targetKey]);
-            await watchVerifyCompletion(client, targetKey);
-        }
-
-        if (shouldRestoreRunningState) {
-            const resumeOutcome = await dispatchEnsureActive(TorrentIntents.ensureActive(targetId));
-            if (resumeOutcome.status !== "applied") {
-                throw new Error(t("toolbar.feedback.failed"));
-            }
-        }
-    };
-
-    // Keep modal flow responsive: post-set-location follow-up is async and can take minutes.
-    void runPostSetLocationFlow().catch((error) => {
-        infraLogger.warn(
-            {
-                scope: "set_location",
-                event: "post_set_location_flow_failed",
-                message: "Post set-location flow failed",
-                details: {
-                    torrentId: targetKey,
-                    moveData,
-                    shouldRestoreRunningState,
-                },
-            },
-            error,
-        );
-    });
 }
 

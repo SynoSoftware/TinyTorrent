@@ -3,6 +3,7 @@ import { isRpcCommandError } from "@/services/rpc/errors";
 import type { TorrentIntentExtended, QueueMoveIntent } from "@/app/intents/torrentIntents";
 import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
 import { toMoveDataFlag } from "@/modules/dashboard/domain/torrentRelocation";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 export type DispatchStatus = "applied" | "unsupported" | "failed";
 export type DispatchReason =
@@ -73,6 +74,9 @@ interface RefreshPolicy {
 
 interface DispatchContext {
     client: EngineAdapter;
+    queueLocationFollowUp: (
+        intent: DispatchIntentByType<"ENSURE_TORRENT_AT_LOCATION">,
+    ) => void;
 }
 
 type DispatchHandlerOutcome =
@@ -243,6 +247,7 @@ const dispatchHandlers: DispatchHandlerTable = {
                 intent.path,
                 toMoveDataFlag(intent.locationMode),
             );
+            context.queueLocationFollowUp(intent);
             return dispatchOutcome.applied();
         },
         // Keep set-location command path responsive; UI convergence is owned by heartbeat.
@@ -457,6 +462,72 @@ const dispatchHandlers: DispatchHandlerTable = {
 const isDispatchableIntent = (intent: TorrentIntentExtended): intent is DispatchableIntent => Object.prototype.hasOwnProperty.call(dispatchHandlers, intent.type);
 
 export function createTorrentDispatch({ client, refreshTorrents, refreshSessionStatsData, refreshDetailData, reportCommandError }: CreateTorrentDispatchOptions) {
+    const locationFollowUpTokens = new Map<string, symbol>();
+
+    const refreshAuthoritativeState = async () => {
+        await refreshTorrents();
+        await refreshDetailData();
+        await refreshSessionStatsData();
+    };
+
+    const reportBackgroundOperationError = (error: unknown) => {
+        infraLogger.warn(
+            {
+                scope: "torrent_dispatch",
+                event: "background_operation_failed",
+                message: "Background torrent operation failed",
+            },
+            error,
+        );
+        if (reportCommandError && !isRpcCommandError(error)) {
+            reportCommandError(error);
+        }
+    };
+
+    const queueLocationFollowUp = (
+        intent: DispatchIntentByType<"ENSURE_TORRENT_AT_LOCATION">,
+    ) => {
+        const dispatchClient = client;
+        if (!dispatchClient) {
+            return;
+        }
+        const torrentId = String(intent.torrentId);
+        const token = Symbol(`location-follow-up:${torrentId}`);
+        locationFollowUpTokens.set(torrentId, token);
+
+        void (async () => {
+            try {
+                if (intent.locationMode === "locate") {
+                    await dispatchClient.verify([torrentId]);
+                    await refreshAuthoritativeState();
+                    await watchVerifyCompletion(dispatchClient, torrentId);
+                }
+
+                if (locationFollowUpTokens.get(torrentId) !== token) {
+                    return;
+                }
+
+                if (intent.resumeAfter) {
+                    await dispatchClient.resume([torrentId]);
+                }
+
+                if (locationFollowUpTokens.get(torrentId) !== token) {
+                    return;
+                }
+
+                await refreshAuthoritativeState();
+            } catch (error) {
+                if (locationFollowUpTokens.get(torrentId) === token) {
+                    reportBackgroundOperationError(error);
+                }
+            } finally {
+                if (locationFollowUpTokens.get(torrentId) === token) {
+                    locationFollowUpTokens.delete(torrentId);
+                }
+            }
+        })();
+    };
+
     const runWithRefresh = async (operation: () => Promise<DispatchHandlerOutcome>, options?: RefreshPolicy): Promise<TorrentDispatchOutcome> => {
         const refreshPolicy = {
             refreshTorrents: false,
@@ -508,6 +579,6 @@ export function createTorrentDispatch({ client, refreshTorrents, refreshSessionS
                 reason: dispatchReason.intentUnsupported,
             } as const;
         }
-        return executeIntent(intent, { client });
+        return executeIntent(intent, { client, queueLocationFollowUp });
     };
 }

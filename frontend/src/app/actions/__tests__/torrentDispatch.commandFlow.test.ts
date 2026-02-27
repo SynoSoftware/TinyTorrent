@@ -2,6 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { createTorrentDispatch } from "@/app/actions/torrentDispatch";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { status } from "@/shared/status";
+
+const waitForCondition = async (
+    predicate: () => boolean,
+    timeoutMs = 2000,
+) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (predicate()) {
+            return;
+        }
+        await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 20);
+        });
+    }
+    throw new Error("wait_for_condition_timeout");
+};
 
 const createMockClient = (commandLog: string[]): EngineAdapter => ({
     getTorrents: vi.fn(async () => []),
@@ -151,9 +168,71 @@ describe("torrentDispatch command flow", () => {
         );
 
         expect(outcome).toEqual({ status: "applied" });
+        await waitForCondition(() => commandLog.includes("verify:t-loc-1"));
         expect(commandLog).toEqual([
             "set-location:t-loc-1:D:\\Download:false",
+            "verify:t-loc-1",
         ]);
+    });
+
+    it("owns locate follow-up inside dispatch", async () => {
+        const commandLog: string[] = [];
+        let detailReadCount = 0;
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const client = createMockClient(commandLog);
+        client.getTorrentDetails = vi.fn(async () => {
+            detailReadCount += 1;
+            return {
+                id: "t-loc-followup",
+                hash: "h-loc-followup",
+                name: "follow-up",
+                state:
+                    detailReadCount === 1
+                        ? status.torrent.checking
+                        : status.torrent.paused,
+                speed: { down: 0, up: 0 },
+                peerSummary: { connected: 0 },
+                totalSize: 0,
+                eta: 0,
+                ratio: 0,
+                uploaded: 0,
+                downloaded: 0,
+                leftUntilDone: 0,
+                added: Date.now(),
+            };
+        });
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.ensureAtLocation(
+                "t-loc-followup",
+                "G:\\Download",
+                "locate",
+                true,
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        await waitForCondition(
+            () =>
+                commandLog.includes("verify:t-loc-followup") &&
+                commandLog.includes("resume:t-loc-followup"),
+        );
+        expect(commandLog).toEqual([
+            "set-location:t-loc-followup:G:\\Download:false",
+            "verify:t-loc-followup",
+            "resume:t-loc-followup",
+        ]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(2);
+        expect(refreshDetailData).toHaveBeenCalledTimes(2);
+        expect(refreshSessionStatsData).toHaveBeenCalledTimes(2);
     });
 
     it("dispatches single start-now intent using adapter startNow", async () => {

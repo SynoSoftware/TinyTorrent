@@ -37,6 +37,7 @@ export type EnsureTorrentAtLocation = {
     torrentId: string | number;
     path: string;
     locationMode: LocationMode;
+    resumeAfter?: boolean;
 };
 
 export type TorrentAddTracker = {
@@ -187,11 +188,13 @@ export const TorrentIntents = {
         torrentId: string | number,
         path: string,
         locationMode: LocationMode,
+        resumeAfter?: boolean,
     ): EnsureTorrentAtLocation => ({
         type: "ENSURE_TORRENT_AT_LOCATION",
         torrentId,
         path,
         locationMode,
+        resumeAfter,
     }),
     torrentAddTracker: (torrentIds: Array<string | number>, trackers: string[]): TorrentAddTracker => ({
         type: "TORRENT_ADD_TRACKER",

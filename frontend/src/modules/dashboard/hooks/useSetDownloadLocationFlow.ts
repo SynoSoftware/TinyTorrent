@@ -11,10 +11,7 @@ import {
     type SetDownloadLocationPolicy,
 } from "@/modules/dashboard/domain/torrentRelocation";
 import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
-import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 
 export interface UseSetDownloadLocationFlowParams {
     torrent: Torrent | null | undefined;
@@ -22,9 +19,6 @@ export interface UseSetDownloadLocationFlowParams {
         torrent: Torrent;
         path: string;
     }) => Promise<TorrentCommandOutcome>;
-    dispatchEnsureActive: (
-        intent: TorrentIntentExtended,
-    ) => Promise<TorrentDispatchOutcome>;
 }
 
 export interface UseSetDownloadLocationFlowResult {
@@ -38,11 +32,9 @@ export interface UseSetDownloadLocationFlowResult {
 export function useSetDownloadLocationFlow({
     torrent,
     setDownloadLocation,
-    dispatchEnsureActive,
 }: UseSetDownloadLocationFlowParams): UseSetDownloadLocationFlowResult {
     const { t } = useTranslation();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
-    const client = useTorrentClient();
 
     const policy = useMemo(
         () => resolveSetDownloadLocationPolicy(torrent ?? {}),
@@ -72,15 +64,11 @@ export function useSetDownloadLocationFlow({
             await applySetDownloadLocation({
                 torrent,
                 path,
-                client,
                 setDownloadLocation,
-                dispatchEnsureActive,
                 t,
             });
         },
         [
-            client,
-            dispatchEnsureActive,
             setDownloadLocation,
             t,
             torrent,

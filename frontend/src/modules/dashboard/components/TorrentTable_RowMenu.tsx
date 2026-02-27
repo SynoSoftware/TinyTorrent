@@ -16,7 +16,6 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import {
-    useRequiredTorrentActions,
     useTorrentCommands,
 } from "@/app/context/AppCommandContext";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
@@ -49,11 +48,9 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
     const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
     const [setLocationTorrent, setSetLocationTorrent] = useState<Torrent | null>(null);
     const { setDownloadLocation } = useTorrentCommands();
-    const { dispatch } = useRequiredTorrentActions();
     const setLocationFlow = useSetDownloadLocationFlow({
         torrent: setLocationTorrent,
         setDownloadLocation,
-        dispatchEnsureActive: dispatch,
     });
 
     const closeSetLocationModal = useCallback(() => {

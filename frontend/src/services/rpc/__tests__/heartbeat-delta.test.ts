@@ -173,4 +173,58 @@ describe("HeartbeatManager delta integration", () => {
 
         sub.unsubscribe();
     });
+
+    it("forces a full fetch when a subscriber requires authoritative convergence", async () => {
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([makeTorrent("1"), makeTorrent("2")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(makeTorrent("1")),
+        };
+
+        client.getRecentlyActive = vi
+            .fn<
+                () => Promise<{ torrents: TorrentEntity[]; removed?: number[] }>
+            >()
+            .mockResolvedValue({ torrents: [], removed: [] });
+
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+
+        const updates: HeartbeatPayload[] = [];
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: (p) => updates.push(p),
+            pollingIntervalMs: 1000,
+            preferFullFetch: true,
+        });
+
+        await new Promise<void>((resolve, reject) => {
+            const to = setTimeout(
+                () => reject(new Error("timeout initial")),
+                2000
+            );
+            const i = setInterval(() => {
+                if (updates.length >= 1) {
+                    clearInterval(i);
+                    clearTimeout(to);
+                    resolve();
+                }
+            }, 10);
+        });
+
+        expect(client.getTorrents).toHaveBeenCalledTimes(1);
+
+        await hbInternals.tick();
+
+        expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        expect(client.getRecentlyActive).not.toHaveBeenCalled();
+
+        sub.unsubscribe();
+    });
 });

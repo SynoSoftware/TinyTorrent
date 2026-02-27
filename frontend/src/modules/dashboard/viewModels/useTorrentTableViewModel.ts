@@ -51,6 +51,7 @@ import { status } from "@/shared/status";
 import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { deriveVisibleHeaderOrder } from "@/modules/dashboard/viewModels/torrentTableColumnOrder";
 const { layout, interaction, ui } = registry;
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
@@ -483,7 +484,14 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             columnVisibility,
         });
 
-    const headerSortableIds = useMemo(() => table.getVisibleLeafColumns().map((column) => column.id), [table]);
+    const headerSortableIds = useMemo(
+        () =>
+            deriveVisibleHeaderOrder(
+                columnOrder,
+                table.getVisibleLeafColumns().map((column) => column.id),
+            ),
+        [columnOrder, columnVisibility, table],
+    );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [

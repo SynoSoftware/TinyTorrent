@@ -32,6 +32,7 @@ This file is the *single source of truth* for the frontend’s structure followi
 3. **Preferences provider (#15)** centralizes theme, language, table layout, telemetry cadence. No localStorage hits outside that provider.
 4. **Timers scheduling (#19)** belongs to a single heartbeat. Components do not start their own intervals.
 5. **ViewModel boundaries (#13)**: presentation components only render; orchestrators/view-model providers derive selections, actions, recovery, and preferences.
+6. **Torrent mutation authority**: UI-initiated torrent writes go through the single command surface in [`app/actions/torrentDispatch.ts`](./src/app/actions/torrentDispatch.ts). Components, modals, hooks, and view models must not call `EngineAdapter` torrent mutation methods directly or build their own long-running mutation follow-up flows.
 
 ## 5. Why the current TODO list matters
 

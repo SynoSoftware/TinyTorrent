@@ -8,7 +8,6 @@ import type { TorrentTableRowMenuViewModel } from "@/modules/dashboard/types/tor
 
 const setDownloadPathModalSpy = vi.hoisted(() => vi.fn());
 const showFeedbackMock = vi.fn();
-const dispatchMock = vi.fn();
 const setDownloadLocationMock = vi.fn();
 const pickDirectoryMock = vi.fn();
 
@@ -69,9 +68,6 @@ vi.mock("@/app/hooks/useActionFeedback", () => ({
 }));
 
 vi.mock("@/app/context/AppCommandContext", () => ({
-    useRequiredTorrentActions: () => ({
-        dispatch: dispatchMock,
-    }),
     useTorrentCommands: () => ({
         setDownloadLocation: setDownloadLocationMock,
     }),
@@ -179,7 +175,6 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
     beforeEach(() => {
         setDownloadPathModalSpy.mockReset();
         showFeedbackMock.mockReset();
-        dispatchMock.mockReset();
         setDownloadLocationMock.mockReset();
         pickDirectoryMock.mockReset();
     });
