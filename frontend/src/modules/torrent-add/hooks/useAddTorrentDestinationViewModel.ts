@@ -2,15 +2,17 @@ import { useCallback, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import {
     describePathKind,
-    isValidDestinationForPolicy,
 } from "@/modules/torrent-add/utils/destination";
-import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useSession, useUiModeCapabilities } from "@/app/context/SessionContext";
 import { shellAgent } from "@/app/agents/shell-agent";
 import type { AddTorrentBrowseOutcome } from "@/modules/torrent-add/types";
+import {
+    evaluateDestinationPathCandidate,
+    normalizeDestinationPathForDaemon,
+} from "@/shared/domain/destinationPath";
 
 export interface UseAddTorrentDestinationViewModelParams {
     downloadDir: string;
-    onDownloadDirChange: (value: string) => void;
     addTorrentHistory: string[];
     setAddTorrentHistory: (next: string[]) => void;
 }
@@ -35,11 +37,11 @@ export interface UseAddTorrentDestinationViewModelResult {
 
 export function useAddTorrentDestinationViewModel({
     downloadDir,
-    onDownloadDirChange,
     addTorrentHistory,
     setAddTorrentHistory,
 }: UseAddTorrentDestinationViewModelParams): UseAddTorrentDestinationViewModelResult {
-    const { uiMode, canBrowse, destinationPathPolicy } = useUiModeCapabilities();
+    const { daemonPathStyle } = useSession();
+    const { uiMode, canBrowse } = useUiModeCapabilities();
     const [destinationDraft, setDestinationDraft] = useState("");
     const [destinationGateCompleted, setDestinationGateCompleted] = useState(false);
     const [destinationGateTried, setDestinationGateTried] = useState(false);
@@ -70,16 +72,21 @@ export function useAddTorrentDestinationViewModel({
     }, []);
 
     const resetForOpen = useCallback(() => {
-        const isInitiallyValid = isValidDestinationForPolicy(
+        const normalizedDownloadDir = normalizeDestinationPathForDaemon(
             downloadDir,
-            destinationPathPolicy,
+            daemonPathStyle,
         );
+        const candidate = evaluateDestinationPathCandidate(
+            normalizedDownloadDir,
+            daemonPathStyle,
+        );
+        const isInitiallyValid = candidate.hasValue && candidate.reason === null;
         setDestinationGateCompleted(isInitiallyValid);
         setDestinationGateTried(false);
-        setDestinationDraft(isInitiallyValid ? downloadDir : "");
+        setDestinationDraft(isInitiallyValid ? normalizedDownloadDir : "");
         setDropActive(false);
         dropActiveRef.current = false;
-    }, [destinationPathPolicy, downloadDir]);
+    }, [daemonPathStyle, downloadDir]);
 
     const applyDroppedPath = useCallback(
         (path?: string) => {
@@ -93,17 +100,8 @@ export function useAddTorrentDestinationViewModel({
             }
 
             setDestinationDraft(trimmed);
-            if (isValidDestinationForPolicy(trimmed, destinationPathPolicy)) {
-                onDownloadDirChange(trimmed);
-                pushRecentPath(trimmed);
-            }
         },
-        [
-            destinationGateCompleted,
-            destinationPathPolicy,
-            onDownloadDirChange,
-            pushRecentPath,
-        ]
+        [destinationGateCompleted]
     );
 
     const handleDrop = useCallback(

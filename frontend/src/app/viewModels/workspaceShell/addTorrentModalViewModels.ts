@@ -75,8 +75,13 @@ export function useAddTorrentModalProps({
                 addTorrentDefaults.downloadDir ||
                 settingsConfig.download_dir,
             commitMode: addTorrentDefaults.commitMode,
+            sequentialDownload: addTorrentDefaults.sequentialDownload,
+            skipHashCheck: addTorrentDefaults.skipHashCheck,
             onDownloadDirChange: addTorrentDefaults.setDownloadDir,
             onCommitModeChange: addTorrentDefaults.setCommitMode,
+            onSequentialDownloadChange:
+                addTorrentDefaults.setSequentialDownload,
+            onSkipHashCheckChange: addTorrentDefaults.setSkipHashCheck,
             isSubmitting: isAddingTorrent || isFinalizingExisting,
             onCancel,
             onConfirm,

@@ -8,14 +8,20 @@ const isValidCommitMode = (value: unknown): value is AddTorrentCommitMode =>
 export interface AddTorrentDefaults {
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
+    sequentialDownload: boolean;
+    skipHashCheck: boolean;
 }
 
 export function useAddTorrentDefaults({
     fallbackDownloadDir,
     fallbackCommitMode,
+    fallbackSequentialDownload,
+    fallbackSkipHashCheck,
 }: {
     fallbackDownloadDir: string;
     fallbackCommitMode: AddTorrentCommitMode;
+    fallbackSequentialDownload: boolean;
+    fallbackSkipHashCheck: boolean;
 }) {
     const {
         preferences: { addTorrentDefaults },
@@ -55,6 +61,14 @@ export function useAddTorrentDefaults({
     const commitMode = isValidCommitMode(addTorrentDefaults.commitMode)
         ? addTorrentDefaults.commitMode
         : fallbackCommitMode;
+    const sequentialDownload =
+        typeof addTorrentDefaults.sequentialDownload === "boolean"
+            ? addTorrentDefaults.sequentialDownload
+            : fallbackSequentialDownload;
+    const skipHashCheck =
+        typeof addTorrentDefaults.skipHashCheck === "boolean"
+            ? addTorrentDefaults.skipHashCheck
+            : fallbackSkipHashCheck;
 
     const setDownloadDir = useCallback(
         (value: string) => {
@@ -76,10 +90,34 @@ export function useAddTorrentDefaults({
         [addTorrentDefaults, setAddTorrentDefaults]
     );
 
+    const setSequentialDownload = useCallback(
+        (value: boolean) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaults,
+                sequentialDownload: value,
+            });
+        },
+        [addTorrentDefaults, setAddTorrentDefaults],
+    );
+
+    const setSkipHashCheck = useCallback(
+        (value: boolean) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaults,
+                skipHashCheck: value,
+            });
+        },
+        [addTorrentDefaults, setAddTorrentDefaults],
+    );
+
     return {
         downloadDir,
         commitMode,
+        sequentialDownload,
+        skipHashCheck,
         setDownloadDir,
         setCommitMode,
+        setSequentialDownload,
+        setSkipHashCheck,
     };
 }

@@ -1,40 +1,41 @@
-import { useCallback, useState } from "react";
-import type { TFunction } from "i18next";
+import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useTorrentCommands, useRequiredTorrentActions } from "@/app/context/AppCommandContext";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import { isOpenFolderSuccess } from "@/app/types/openFolder";
 import STATUS from "@/shared/status";
-import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
+import { useSession } from "@/app/context/SessionContext";
 import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
 import {
     applySetDownloadLocation,
     pickSetDownloadLocationDirectory,
+    resolveSetDownloadLocationPath,
 } from "@/modules/dashboard/utils/applySetDownloadLocation";
 import {
     getSetDownloadLocationUiTextKeys,
     shouldMoveDataOnSetLocation,
 } from "@/modules/dashboard/domain/torrentRelocation";
+import type { DaemonPathStyle } from "@/services/rpc/types";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
-    downloadDir: string;
-    t: TFunction;
 };
 
 export type UseTorrentDetailsGeneralViewModelResult = {
     transmissionError: string | null;
+    displayDownloadPath: string;
+    verificationPercent: number;
     canSetLocation: boolean;
     canPickDirectory: boolean;
-    canOpenFolder: boolean;
     currentPath: string;
+    daemonPathStyle: DaemonPathStyle;
+    checkFreeSpace?: (path: string) => Promise<unknown>;
+    mainActionLabelKey: "toolbar.pause" | "toolbar.resume";
     setDownloadLocationActionLabelKey: "table.actions.set_download_path" | "table.actions.locate_files";
     setDownloadLocationModalTitleKey: "modals.set_download_location.title" | "modals.locate_files.title";
-    allowInvalidSetLocationPathApply: boolean;
+    allowCreateSetLocationPath: boolean;
     isActive: boolean;
-    mainActionLabel: string;
     showSetDownloadPathModal: boolean;
     showRemoveModal: boolean;
     openSetDownloadPathModal: () => void;
@@ -46,16 +47,15 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     onConfirmRemove: (deleteData: boolean) => Promise<TorrentCommandOutcome>;
     onToggleStartStop: () => void;
     onStartNow: () => void;
-    onOpenFolder: () => void;
 };
 
-export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
+export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
+    const { t } = useTranslation();
     const { handleTorrentAction, setDownloadLocation } = useTorrentCommands();
     const { dispatch } = useRequiredTorrentActions();
-    const { canOpenFolder } = useUiModeCapabilities();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
     const torrentClient = useTorrentClient();
-    const openFolder = useOpenTorrentFolder();
+    const { daemonPathStyle } = useSession();
 
     const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
     const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -66,16 +66,26 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
             ? torrent.errorString
             : null;
 
-    const currentPath = downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
+    const currentPath = resolveSetDownloadLocationPath(torrent);
+    const displayDownloadPath = currentPath;
+    const verificationProgress = torrent.verificationProgress ?? 0;
+    const verificationPercent =
+        verificationProgress > 1
+            ? verificationProgress
+            : verificationProgress * 100;
     const canSetLocation = typeof torrentClient.setTorrentLocation === "function";
+    const checkFreeSpace = useMemo(
+        () => torrentClient.checkFreeSpace?.bind(torrentClient),
+        [torrentClient],
+    );
     const setDownloadLocationUiTextKeys = getSetDownloadLocationUiTextKeys(torrent);
-    const allowInvalidSetLocationPathApply = shouldMoveDataOnSetLocation(torrent);
+    const allowCreateSetLocationPath = shouldMoveDataOnSetLocation(torrent);
 
     const isActive =
         torrent.state === STATUS.torrent.DOWNLOADING ||
         torrent.state === STATUS.torrent.SEEDING ||
         torrent.state === STATUS.torrent.CHECKING;
-    const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");
+    const mainActionLabelKey = isActive ? "toolbar.pause" : "toolbar.resume";
 
     const onToggleStartStop = useCallback(() => {
         const action = isActive ? "pause" : "resume";
@@ -129,18 +139,6 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
         ],
     );
 
-    const onOpenFolder = useCallback(() => {
-        if (!currentPath) return;
-        void openFolder(currentPath).then((outcome) => {
-            if (isOpenFolderSuccess(outcome)) {
-                return;
-            }
-            if (outcome.status === "unsupported" || outcome.status === "missing_path" || outcome.status === "failed") {
-                return;
-            }
-        });
-    }, [currentPath, openFolder]);
-
     const onConfirmRemove = useCallback(
         async (deleteData: boolean): Promise<TorrentCommandOutcome> => {
             const action = deleteData ? "remove-with-data" : "remove";
@@ -163,15 +161,18 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
 
     return {
         transmissionError,
+        displayDownloadPath,
+        verificationPercent,
         canSetLocation,
         canPickDirectory,
-        canOpenFolder,
         currentPath,
+        daemonPathStyle,
+        checkFreeSpace,
+        mainActionLabelKey,
         setDownloadLocationActionLabelKey: setDownloadLocationUiTextKeys.actionLabelKey,
         setDownloadLocationModalTitleKey: setDownloadLocationUiTextKeys.modalTitleKey,
-        allowInvalidSetLocationPathApply,
+        allowCreateSetLocationPath,
         isActive,
-        mainActionLabel,
         showSetDownloadPathModal,
         showRemoveModal,
         openSetDownloadPathModal,
@@ -183,6 +184,5 @@ export function useTorrentDetailsGeneralViewModel({ torrent, downloadDir, t }: U
         onConfirmRemove,
         onToggleStartStop,
         onStartNow,
-        onOpenFolder,
     };
 }

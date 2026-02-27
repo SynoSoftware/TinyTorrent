@@ -43,6 +43,8 @@ export interface SystemPreferences {
 export interface AddTorrentDefaultsState {
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
+    sequentialDownload: boolean;
+    skipHashCheck: boolean;
 }
 
 export interface TorrentTablePersistenceState {
@@ -87,6 +89,8 @@ const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
     downloadDir: "",
     commitMode: "paused",
+    sequentialDownload: false,
+    skipHashCheck: true,
 };
 const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
@@ -345,6 +349,16 @@ const readLegacyPreferences = (): PreferencesState => {
             next.addTorrentDefaults.commitMode =
                 storedAddTorrentDefaults.commitMode;
         }
+        if (
+            typeof storedAddTorrentDefaults.sequentialDownload === "boolean"
+        ) {
+            next.addTorrentDefaults.sequentialDownload =
+                storedAddTorrentDefaults.sequentialDownload;
+        }
+        if (typeof storedAddTorrentDefaults.skipHashCheck === "boolean") {
+            next.addTorrentDefaults.skipHashCheck =
+                storedAddTorrentDefaults.skipHashCheck;
+        }
     }
 
     const legacyAddDir = window.localStorage.getItem(
@@ -454,6 +468,15 @@ const sanitizePreferences = (
             commitMode: isValidCommitMode(value.addTorrentDefaults?.commitMode)
                 ? value.addTorrentDefaults?.commitMode
                 : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
+            sequentialDownload:
+                typeof value.addTorrentDefaults?.sequentialDownload ===
+                "boolean"
+                    ? value.addTorrentDefaults.sequentialDownload
+                    : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
+            skipHashCheck:
+                typeof value.addTorrentDefaults?.skipHashCheck === "boolean"
+                    ? value.addTorrentDefaults.skipHashCheck
+                    : DEFAULT_ADD_TORRENT_DEFAULTS.skipHashCheck,
         },
         addTorrentHistory: Array.isArray(value.addTorrentHistory)
             ? value.addTorrentHistory.filter(

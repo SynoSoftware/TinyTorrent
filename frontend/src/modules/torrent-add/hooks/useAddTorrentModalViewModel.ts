@@ -14,18 +14,20 @@ import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
-import { INTERACTION_CONFIG, KEY_SCOPE } from "@/config/logic";
+import {
+    INTERACTION_CONFIG,
+    KEY_SCOPE,
+    SET_LOCATION_VALIDATION_DEBOUNCE_MS,
+} from "@/config/logic";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 import { useAddTorrentDestinationViewModel } from "@/modules/torrent-add/hooks/useAddTorrentDestinationViewModel";
 import { useAddTorrentFileSelectionViewModel } from "@/modules/torrent-add/hooks/useAddTorrentFileSelectionViewModel";
 import { useAddTorrentViewportViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewportViewModel";
-import { useFreeSpaceProbe } from "@/modules/torrent-add/hooks/useFreeSpaceProbe";
 import {
     buildFiles,
     buildSelectionCommit,
     type SmartSelectCommand,
 } from "@/modules/torrent-add/services/fileSelection";
-import { isValidDestinationForPolicy } from "@/modules/torrent-add/utils/destination";
 import {
     getAddTorrentDestinationStatus,
     type AddTorrentDestinationStatusKind,
@@ -36,12 +38,16 @@ import type {
     AddTorrentSelection,
     AddTorrentSource,
 } from "@/modules/torrent-add/types";
+import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
+import { getDestinationValidationReasonMessage } from "@/shared/utils/destinationPathValidationMessage";
 
 type ResolvedState = "pending" | "ready" | "error";
 
 export interface UseAddTorrentModalViewModelParams {
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     commitMode: AddTorrentCommitMode;
+    sequentialDownload: boolean;
+    skipHashCheck: boolean;
     downloadDir: string;
     isOpen: boolean;
     isSubmitting: boolean;
@@ -50,6 +56,8 @@ export interface UseAddTorrentModalViewModelParams {
         selection: AddTorrentSelection
     ) => Promise<AddTorrentCommandOutcome>;
     onDownloadDirChange: (value: string) => void;
+    onSequentialDownloadChange: (value: boolean) => void;
+    onSkipHashCheckChange: (value: boolean) => void;
     source: AddTorrentSource | null;
 }
 
@@ -164,18 +172,23 @@ export interface UseAddTorrentModalViewModelResult {
 export function useAddTorrentModalViewModel({
     checkFreeSpace,
     commitMode,
+    sequentialDownload,
+    skipHashCheck,
     downloadDir,
     isOpen,
     isSubmitting,
     onCancel,
     onConfirm,
     onDownloadDirChange,
+    onSequentialDownloadChange,
+    onSkipHashCheckChange,
     source,
 }: UseAddTorrentModalViewModelParams): UseAddTorrentModalViewModelResult {
     const { t } = useTranslation();
     const { rowHeight } = useLayoutMetrics();
     const {
-        uiCapabilities: { uiMode, canBrowse, destinationPathPolicy },
+        daemonPathStyle,
+        uiCapabilities: { uiMode, canBrowse },
     } = useSession();
     const { preferences: { addTorrentHistory }, setAddTorrentHistory } = usePreferences();
 
@@ -186,8 +199,6 @@ export function useAddTorrentModalViewModel({
     const wasOpenForResetRef = useRef(false);
     const prevSourceRef = useRef<AddTorrentSource | null>(null);
 
-    const [sequential, setSequential] = useState(false);
-    const [skipHashCheck, setSkipHashCheck] = useState(true);
     const [submitLocked, setSubmitLocked] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [submitCloseConfirm, setSubmitCloseConfirm] = useState(false);
@@ -221,7 +232,6 @@ export function useAddTorrentModalViewModel({
         applyDroppedPath,
     } = useAddTorrentDestinationViewModel({
         downloadDir,
-        onDownloadDirChange,
         addTorrentHistory,
         setAddTorrentHistory,
     });
@@ -279,8 +289,6 @@ export function useAddTorrentModalViewModel({
         if (shouldReset) {
             const initialFiles = buildFiles(source?.metadata);
             resetForSource(initialFiles);
-            setSequential(false);
-            setSkipHashCheck(true);
             setSubmitLocked(false);
             submitLockRef.current = false;
             setSubmitError(null);
@@ -301,19 +309,14 @@ export function useAddTorrentModalViewModel({
         source,
     ]);
 
-    const freeSpaceProbe = useFreeSpaceProbe({
-        checkFreeSpace,
-        path: destinationDraft,
-        enabled: isValidDestinationForPolicy(
-            destinationDraft.trim(),
-            destinationPathPolicy,
-        ),
+    const destinationValidation = useDestinationPathValidation({
+        isOpen,
+        candidatePath: destinationDraft,
+        daemonPathStyle,
+        checkFreeSpace:
+            typeof checkFreeSpace === "function" ? checkFreeSpace : undefined,
+        debounceMs: SET_LOCATION_VALIDATION_DEBOUNCE_MS,
     });
-    const freeSpace =
-        freeSpaceProbe.status === "ok" ? freeSpaceProbe.value : null;
-    const spaceError = freeSpaceProbe.status === "error";
-    const spaceErrorDetail =
-        freeSpaceProbe.status === "error" ? freeSpaceProbe.message ?? null : null;
 
     const resolvedState = useMemo<ResolvedState>(() => {
         if (source?.kind === "magnet" && !source.metadata) {
@@ -323,20 +326,31 @@ export function useAddTorrentModalViewModel({
         return files.length ? "ready" : "pending";
     }, [files.length, source]);
 
-    const activeDestination = destinationDraft.trim();
-    const isDestinationValid = isValidDestinationForPolicy(
-        activeDestination,
-        destinationPathPolicy,
-    );
-    const isDestinationDraftValid = isValidDestinationForPolicy(
-        destinationDraft,
-        destinationPathPolicy
-    );
+    const activeDestination = destinationValidation.normalizedPath.trim();
+    const isValidationUnavailable =
+        destinationValidation.reason === "validation_unavailable";
+    const isDestinationValid =
+        destinationValidation.status === "valid" ||
+        (isValidationUnavailable && destinationValidation.hasValue);
+    const isDestinationDraftValid = isDestinationValid;
+    const isDestinationDraftInvalid =
+        destinationValidation.status === "invalid" && !isValidationUnavailable;
+    const freeSpace = destinationValidation.freeSpace;
+    const hasSpaceWarning =
+        destinationValidation.status === "valid" &&
+        destinationValidation.probeWarning === "free_space_unavailable";
+    const destinationValidationMessage =
+        destinationValidation.status === "invalid" &&
+        destinationValidation.reason &&
+        !isValidationUnavailable
+            ? getDestinationValidationReasonMessage(destinationValidation.reason, t)
+            : null;
+    const spaceErrorDetail = null;
     const showDestinationGate = !destinationGateCompleted;
     const isDestinationGateRequiredError =
         destinationGateTried && !destinationDraft.trim();
     const isDestinationGateInvalidError =
-        !isDestinationDraftValid && Boolean(destinationDraft.trim());
+        isDestinationDraftInvalid && Boolean(destinationDraft.trim());
 
     const destinationStatus = useMemo(
         () =>
@@ -344,7 +358,7 @@ export function useAddTorrentModalViewModel({
                 activeDestination,
                 destinationDraft,
                 freeSpaceBytes: freeSpace?.sizeBytes ?? null,
-                hasSpaceError: spaceError,
+                hasSpaceError: hasSpaceWarning,
                 isDestinationDraftValid,
                 isDestinationGateInvalidError,
                 isDestinationGateRequiredError,
@@ -356,11 +370,11 @@ export function useAddTorrentModalViewModel({
             activeDestination,
             destinationDraft,
             freeSpace?.sizeBytes,
+            hasSpaceWarning,
             isDestinationDraftValid,
             isDestinationGateInvalidError,
             isDestinationGateRequiredError,
             isDestinationValid,
-            spaceError,
             t,
             uiMode,
         ]
@@ -378,6 +392,9 @@ export function useAddTorrentModalViewModel({
     const primaryBlockReason = (() => {
         if (submitError) return null;
         if (isDiskSpaceCritical) return null;
+        if (!isDestinationValid && destinationValidationMessage) {
+            return destinationValidationMessage;
+        }
         if (isSelectionEmpty) return t("modals.add_torrent.tooltip_select_one");
         if (resolvedState !== "ready") {
             return t("modals.add_torrent.tooltip_resolving_metadata");
@@ -392,32 +409,19 @@ export function useAddTorrentModalViewModel({
           : "5xl";
 
     const handleModalCancel = useCallback(() => {
-        if (
-            !showDestinationGate &&
-            destinationDraft.trim().length === 0 &&
-            downloadDir.trim().length > 0
-        ) {
-            onDownloadDirChange("");
-        }
         onCancel();
-    }, [
-        destinationDraft,
-        downloadDir,
-        onCancel,
-        onDownloadDirChange,
-        showDestinationGate,
-    ]);
+    }, [onCancel]);
 
     const handleDestinationGateContinue = useCallback(() => {
         markGateTried();
         if (!isDestinationDraftValid) return;
-        const committed = destinationDraft.trim();
+        const committed = destinationValidation.normalizedPath.trim();
         onDownloadDirChange(committed);
         pushRecentPath(committed);
         completeGate();
     }, [
         completeGate,
-        destinationDraft,
+        destinationValidation.normalizedPath,
         isDestinationDraftValid,
         markGateTried,
         onDownloadDirChange,
@@ -429,13 +433,12 @@ export function useAddTorrentModalViewModel({
             markGateTried();
             return;
         }
-        const committed = destinationDraft.trim();
-        if (isValidDestinationForPolicy(committed, destinationPathPolicy)) {
-            onDownloadDirChange(committed);
-        }
+        if (!isDestinationDraftValid) return;
+        const committed = destinationValidation.normalizedPath.trim();
+        onDownloadDirChange(committed);
     }, [
-        destinationPathPolicy,
-        destinationDraft,
+        destinationValidation.normalizedPath,
+        isDestinationDraftValid,
         markGateTried,
         onDownloadDirChange,
         showDestinationGate,
@@ -467,7 +470,7 @@ export function useAddTorrentModalViewModel({
             setSubmitError(null);
             setSubmitCloseConfirm(false);
 
-            const submitDir = destinationDraft.trim();
+            const submitDir = destinationValidation.normalizedPath.trim();
             if (submitDir && submitDir !== downloadDir) {
                 onDownloadDirChange(submitDir);
             }
@@ -491,7 +494,7 @@ export function useAddTorrentModalViewModel({
                     priorityNormal,
                     priorityLow,
                     options: {
-                        sequential,
+                        sequential: sequentialDownload,
                         skipHashCheck,
                     },
                 });
@@ -522,7 +525,7 @@ export function useAddTorrentModalViewModel({
         [
             canConfirm,
             commitMode,
-            destinationDraft,
+            destinationValidation.normalizedPath,
             downloadDir,
             files,
             onConfirm,
@@ -530,7 +533,7 @@ export function useAddTorrentModalViewModel({
             priorities,
             pushRecentPath,
             selectedIndexes,
-            sequential,
+            sequentialDownload,
             skipHashCheck,
             t,
         ]
@@ -662,11 +665,11 @@ export function useAddTorrentModalViewModel({
             isFullscreen,
             isPanelResizeActive,
             isSettingsCollapsed,
-            sequential,
+            sequential: sequentialDownload,
             setIsFullscreen,
             setIsPanelResizeActive,
-            setSequential,
-            setSkipHashCheck,
+            setSequential: onSequentialDownloadChange,
+            setSkipHashCheck: onSkipHashCheckChange,
             settingsPanelRef,
             skipHashCheck,
             toggleSettingsPanel,

@@ -16,21 +16,16 @@ import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPath
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
-    downloadDir: string;
-    activePeers: number;
 }
 
-export const GeneralTab = ({ torrent, downloadDir, activePeers }: GeneralTabProps) => {
+export const GeneralTab = ({ torrent }: GeneralTabProps) => {
     const { t } = useTranslation();
-    void activePeers;
     const general = useTorrentDetailsGeneralViewModel({
         torrent,
-        downloadDir,
-        t,
     });
 
     const isActive = general.isActive;
-    const mainActionLabel = general.mainActionLabel;
+    const mainActionLabel = t(general.mainActionLabelKey);
     const ToggleIcon = isActive ? Pause : Play;
 
     return (
@@ -39,16 +34,16 @@ export const GeneralTab = ({ torrent, downloadDir, activePeers }: GeneralTabProp
                 <div className={DETAILS.generalHeaderRow}>
                     <div className={DETAILS.generalPrimaryCol}>
                         <div className={TEXT_ROLE.caption}>{t("torrent_modal.labels.save_path")}</div>
-                        <code className={DETAILS.generalPathCode}>{downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}</code>
+                        <code className={DETAILS.generalPathCode}>{general.displayDownloadPath}</code>
                     </div>
                     <div className={DETAILS.generalVerifyCol}>
                         <div className={TEXT_ROLE.caption}>{t("torrent_modal.controls.verify")}</div>
                         <div className={DETAILS.generalVerifyWrap}>
-                            {(() => {
-                                const p = torrent.verificationProgress ?? 0;
-                                const percent = p > 1 ? p : p * 100;
-                                return <SmoothProgressBar value={percent} trackClassName={DETAILS.generalVerificationTrack} indicatorClassName={DETAILS.generalVerificationIndicator} />;
-                            })()}
+                            <SmoothProgressBar
+                                value={general.verificationPercent}
+                                trackClassName={DETAILS.generalVerificationTrack}
+                                indicatorClassName={DETAILS.generalVerificationIndicator}
+                            />
                         </div>
                     </div>
                 </div>
@@ -115,8 +110,10 @@ export const GeneralTab = ({ torrent, downloadDir, activePeers }: GeneralTabProp
                 isOpen={general.showSetDownloadPathModal}
                 titleKey={general.setDownloadLocationModalTitleKey}
                 initialPath={general.currentPath}
+                daemonPathStyle={general.daemonPathStyle}
+                checkFreeSpace={general.checkFreeSpace}
                 canPickDirectory={general.canPickDirectory}
-                allowInvalidPathApply={general.allowInvalidSetLocationPathApply}
+                allowCreatePath={general.allowCreateSetLocationPath}
                 onClose={general.closeSetDownloadPathModal}
                 onPickDirectory={general.pickDirectoryForSetDownloadPath}
                 onApply={general.applySetDownloadPath}

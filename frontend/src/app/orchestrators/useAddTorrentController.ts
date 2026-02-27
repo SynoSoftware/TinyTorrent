@@ -87,6 +87,8 @@ export function useAddTorrentController({
     const addTorrentDefaults = useAddTorrentDefaults({
         fallbackDownloadDir: settingsConfig.download_dir,
         fallbackCommitMode,
+        fallbackSequentialDownload: false,
+        fallbackSkipHashCheck: true,
     });
     const {
         downloadDir: addTorrentDownloadDir,

@@ -14,7 +14,7 @@ import type {
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useRequiredTorrentActions, useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
-import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useSession, useUiModeCapabilities } from "@/app/context/SessionContext";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -52,6 +52,7 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
     const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
     const { dispatch } = useRequiredTorrentActions();
     const { setDownloadLocation } = useTorrentCommands();
+    const { daemonPathStyle } = useSession();
     const torrentClient = useTorrentClient();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
     const { t } = useTranslation();
@@ -63,7 +64,7 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
             ).modalTitleKey,
         [setLocationTorrent],
     );
-    const allowInvalidSetLocationPathApply = useMemo(
+    const allowCreateSetLocationPath = useMemo(
         () => shouldMoveDataOnSetLocation(setLocationTorrent ?? {}),
         [setLocationTorrent],
     );
@@ -107,6 +108,10 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
             torrentClient,
         ],
     );
+    const checkFreeSpace = useMemo(
+        () => torrentClient.checkFreeSpace?.bind(torrentClient),
+        [torrentClient],
+    );
 
     const openSetLocationModalFromContext = useCallback(
         (torrent: Torrent) => {
@@ -135,8 +140,10 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
                 isOpen={Boolean(setLocationTorrent)}
                 titleKey={setLocationModalTitleKey}
                 initialPath={resolveSetDownloadLocationPath(setLocationTorrent)}
+                daemonPathStyle={daemonPathStyle}
+                checkFreeSpace={checkFreeSpace}
                 canPickDirectory={canPickDirectory}
-                allowInvalidPathApply={allowInvalidSetLocationPathApply}
+                allowCreatePath={allowCreateSetLocationPath}
                 onClose={closeSetLocationModal}
                 onPickDirectory={browseSetLocationPath}
                 onApply={applySetLocation}

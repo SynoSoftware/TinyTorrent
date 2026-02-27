@@ -346,6 +346,8 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             placement="center"
             size="5xl"
             hideCloseButton
+            isDismissable
+            isKeyboardDismissDisabled={false}
             classNames={MODAL.builder.settingsModalClassNames(uiMode === "Full")}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >

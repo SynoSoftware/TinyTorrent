@@ -136,6 +136,7 @@ export function ModalEx({
                 },
             }}
             isDismissable={!disableClose}
+            isKeyboardDismissDisabled={disableClose}
         >
             <ModalContent>
                 <ModalHeader className={MODAL.dialogHeader}>

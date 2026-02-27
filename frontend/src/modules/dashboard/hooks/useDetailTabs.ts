@@ -134,8 +134,6 @@ export const useDetailTabs = ({
 export interface TorrentDetailTabSurfaces {
     general: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
-        downloadDir: string;
-        activePeers: number;
     } | null;
     content: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
@@ -220,8 +218,6 @@ export const useTorrentDetailTabCoordinator = ({
         return {
             general: {
                 torrent,
-                downloadDir: torrent.downloadDir ?? "",
-                activePeers: torrent.peers?.length ?? 0,
             },
             content: {
                 torrent,
