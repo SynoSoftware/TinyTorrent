@@ -4,10 +4,11 @@ import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { flexRender, type Column, type Table } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import { registry } from "@/config/logic";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+const { layout, interaction, visuals, ui } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 
@@ -156,7 +157,7 @@ const TorrentTable_Header = memo(
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        strokeWidth={visuals.icon.strokeWidthDense}
                         className={TABLE.columnHeader.builder.sortIconClass(
                             sortArrowOpacity === "opacity-100",
                         )}
@@ -186,3 +187,5 @@ const TorrentTable_Header = memo(
 );
 
 export default TorrentTable_Header;
+
+

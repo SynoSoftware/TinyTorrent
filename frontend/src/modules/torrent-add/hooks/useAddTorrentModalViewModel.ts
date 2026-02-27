@@ -12,10 +12,9 @@ import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
-import {
-    KEY_SCOPE,
-    SET_LOCATION_VALIDATION_DEBOUNCE_MS,
-} from "@/config/logic";
+import { shellAgent } from "@/app/agents/shell-agent";
+import { registry } from "@/config/logic";
+import { KeyboardScope } from "@/app/controlPlane/shortcuts";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 import { useAddTorrentDestinationViewModel } from "@/modules/torrent-add/hooks/useAddTorrentDestinationViewModel";
 import { useAddTorrentFileSelectionViewModel } from "@/modules/torrent-add/hooks/useAddTorrentFileSelectionViewModel";
@@ -25,9 +24,10 @@ import {
     buildFiles,
 } from "@/modules/torrent-add/services/fileSelection";
 import {
+    resolveAddTorrentDestinationDecision,
     resolveAddTorrentModalSize,
+    resolveAddTorrentResolvedState,
     resolveAddTorrentSubmissionDecision,
-    type AddTorrentResolvedState,
 } from "@/modules/torrent-add/services/addTorrentModalDecisions";
 import {
     getAddTorrentDestinationStatus,
@@ -41,6 +41,7 @@ import type {
 } from "@/modules/torrent-add/types";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
+const { timing, shell } = registry;
 
 export interface UseAddTorrentModalViewModelParams {
     commitMode: AddTorrentCommitMode;
@@ -159,6 +160,18 @@ export function useAddTorrentModalViewModel({
         handleSettingsPanelCollapse,
         handleSettingsPanelExpand,
     } = useAddTorrentViewportViewModel(settingsPanelRef);
+    const destinationCapabilityPlane = useMemo(
+        () => ({
+            daemonPathStyle,
+            dropEnabled: uiMode === "Full",
+            browseDirectory: canBrowse
+                ? async (startPath?: string) =>
+                      (await shellAgent.browseDirectory(startPath)) ?? null
+                : undefined,
+        }),
+        [canBrowse, daemonPathStyle, uiMode],
+    );
+    const showBrowseAction = canBrowse;
 
     const {
         destinationDraft,
@@ -179,12 +192,13 @@ export function useAddTorrentModalViewModel({
         downloadDir,
         addTorrentHistory,
         setAddTorrentHistory,
+        capabilityPlane: destinationCapabilityPlane,
     });
 
     const { activate: activateModal, deactivate: deactivateModal } =
-        useKeyboardScope(KEY_SCOPE.Modal);
+        useKeyboardScope(KeyboardScope.Modal);
     const { activate: activateDashboard, deactivate: deactivateDashboard } =
-        useKeyboardScope(KEY_SCOPE.Dashboard);
+        useKeyboardScope(KeyboardScope.Dashboard);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -218,16 +232,13 @@ export function useAddTorrentModalViewModel({
         daemonPathStyle,
         checkFreeSpace:
             typeof checkFreeSpace === "function" ? checkFreeSpace : undefined,
-        debounceMs: SET_LOCATION_VALIDATION_DEBOUNCE_MS,
+        debounceMs: timing.debounce.setLocationValidationMs,
     });
 
-    const resolvedState = useMemo<AddTorrentResolvedState>(() => {
-        if (source?.kind === "magnet" && !source.metadata) {
-            if (source.status === "error") return "error";
-            return "pending";
-        }
-        return files.length ? "ready" : "pending";
-    }, [files.length, source]);
+    const resolvedState = useMemo(
+        () => resolveAddTorrentResolvedState({ source, fileCount: files.length }),
+        [files.length, source],
+    );
 
     const destinationDecision = useMemo(
         () =>
@@ -237,54 +248,65 @@ export function useAddTorrentModalViewModel({
             }),
         [destinationValidation],
     );
+    const destinationState = useMemo(
+        () =>
+            resolveAddTorrentDestinationDecision({
+                destinationDecision,
+                destinationValidation,
+                destinationDraft,
+                destinationGateCompleted,
+                destinationGateTried,
+            }),
+        [
+            destinationDecision,
+            destinationDraft,
+            destinationGateCompleted,
+            destinationGateTried,
+            destinationValidation,
+        ],
+    );
     const freeSpace = destinationValidation.freeSpace;
-    const activeDestination = destinationDecision.normalizedPath.trim();
-    const isDestinationValid = destinationDecision.canProceed;
-    const hasSpaceWarning =
-        destinationValidation.status === "valid" &&
-        destinationValidation.probeWarning === "free_space_unavailable";
-    const isDestinationGateRequiredError =
-        destinationGateTried && destinationDraft.trim().length === 0;
-    const isDestinationGateInvalidError =
-        destinationDecision.blockReason === "invalid" &&
-        destinationValidation.hasValue;
-    const showDestinationGate = !destinationGateCompleted;
     const spaceErrorDetail = null;
 
     const destinationStatus = useMemo(
         () =>
             getAddTorrentDestinationStatus({
-                activeDestination,
+                activeDestination: destinationState.activeDestination,
                 destinationDraft,
                 freeSpaceBytes: freeSpace?.sizeBytes ?? null,
-                hasSpaceError: hasSpaceWarning,
-                isDestinationGateInvalidError,
-                isDestinationGateRequiredError,
-                isDestinationValid,
+                hasSpaceError: destinationState.hasSpaceWarning,
+                isDestinationGateInvalidError: destinationState.isDestinationGateInvalidError,
+                isDestinationGateRequiredError: destinationState.isDestinationGateRequiredError,
+                isDestinationValid: destinationState.isDestinationValid,
                 uiMode,
                 t,
             }),
         [
-            activeDestination,
             destinationDraft,
+            destinationState.activeDestination,
+            destinationState.hasSpaceWarning,
+            destinationState.isDestinationGateInvalidError,
+            destinationState.isDestinationGateRequiredError,
+            destinationState.isDestinationValid,
             freeSpace?.sizeBytes,
-            hasSpaceWarning,
-            isDestinationGateInvalidError,
-            isDestinationGateRequiredError,
-            isDestinationValid,
             t,
             uiMode,
         ]
     );
 
-    const canSubmitByInputs =
-        !isSelectionEmpty &&
-        isDestinationValid &&
-        resolvedState === "ready";
+    const submissionDecision = useMemo(
+        () =>
+            resolveAddTorrentSubmissionDecision({
+                isSelectionEmpty,
+                isDestinationValid: destinationState.isDestinationValid,
+                resolvedState,
+            }),
+        [destinationState.isDestinationValid, isSelectionEmpty, resolvedState],
+    );
     const {
         submit: submitSelection,
     } = useAddTorrentSubmissionFlow({
-        canSubmit: canSubmitByInputs,
+        canSubmit: submissionDecision.canConfirm,
         destinationPath: destinationDecision.normalizedPath,
         downloadDir,
         commitMode,
@@ -297,18 +319,9 @@ export function useAddTorrentModalViewModel({
         onDownloadDirChange,
         onSubmitSuccess: pushRecentPath,
     });
-    const submissionDecision = useMemo(
-        () =>
-            resolveAddTorrentSubmissionDecision({
-                isSelectionEmpty,
-                isDestinationValid,
-                resolvedState,
-            }),
-        [isSelectionEmpty, isDestinationValid, resolvedState],
-    );
 
     const modalSize = resolveAddTorrentModalSize({
-        showDestinationGate,
+        showDestinationGate: destinationState.showDestinationGate,
         isFullscreen,
     });
 
@@ -318,46 +331,46 @@ export function useAddTorrentModalViewModel({
 
     const handleDestinationGateContinue = useCallback(() => {
         markGateTried();
-        if (!isDestinationValid) return;
+        if (!destinationState.isDestinationValid) return;
         const committed = destinationDecision.normalizedPath.trim();
         onDownloadDirChange(committed);
         pushRecentPath(committed);
         completeGate();
     }, [
         completeGate,
+        destinationState.isDestinationValid,
         destinationDecision.normalizedPath,
-        isDestinationValid,
         markGateTried,
         onDownloadDirChange,
         pushRecentPath,
     ]);
 
     const handleDestinationInputBlur = useCallback(() => {
-        if (showDestinationGate) {
+        if (destinationState.showDestinationGate) {
             markGateTried();
             return;
         }
-        if (!isDestinationValid) return;
+        if (!destinationState.isDestinationValid) return;
         const committed = destinationDecision.normalizedPath.trim();
         onDownloadDirChange(committed);
     }, [
+        destinationState.isDestinationValid,
+        destinationState.showDestinationGate,
         destinationDecision.normalizedPath,
-        isDestinationValid,
         markGateTried,
         onDownloadDirChange,
-        showDestinationGate,
     ]);
 
     const handleDestinationInputKeyDown = useCallback(
         (event: ReactKeyboardEvent<HTMLInputElement>) => {
-            if (showDestinationGate && event.key === "Enter") {
+            if (destinationState.showDestinationGate && event.key === "Enter") {
                 event.preventDefault();
                 event.stopPropagation();
                 handleDestinationGateContinue();
                 return;
             }
             if (
-                !showDestinationGate &&
+                !destinationState.showDestinationGate &&
                 event.key === "Enter" &&
                 !submissionDecision.canConfirm
             ) {
@@ -365,8 +378,8 @@ export function useAddTorrentModalViewModel({
             }
         },
         [
+            destinationState.showDestinationGate,
             handleDestinationGateContinue,
-            showDestinationGate,
             submissionDecision.canConfirm,
         ]
     );
@@ -414,11 +427,11 @@ export function useAddTorrentModalViewModel({
             handleDestinationGateContinue,
             handleDestinationInputBlur,
             handleDestinationInputKeyDown,
-            hasDestination: isDestinationValid,
+            hasDestination: destinationState.isDestinationValid,
             isTouchingDirectory,
             recentPaths: addTorrentHistory,
-            showBrowseAction: canBrowse,
-            showDestinationGate,
+            showBrowseAction,
+            showDestinationGate: destinationState.showDestinationGate,
             step1DestinationMessage: destinationStatus.step1StatusMessage,
             step1StatusKind: destinationStatus.step1StatusKind,
             step2StatusKind: destinationStatus.step2StatusKind,
@@ -462,3 +475,4 @@ export function useAddTorrentModalViewModel({
         },
     };
 }
+

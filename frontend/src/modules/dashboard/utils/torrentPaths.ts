@@ -1,4 +1,4 @@
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 
 export function resolveTorrentPath(
     torrent: Torrent | TorrentDetail | null | undefined
@@ -6,3 +6,4 @@ export function resolveTorrentPath(
     if (!torrent) return "";
     return torrent.savePath ?? torrent.downloadDir ?? "";
 }
+

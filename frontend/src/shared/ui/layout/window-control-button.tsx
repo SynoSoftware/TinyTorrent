@@ -2,12 +2,13 @@ import { Button, cn } from "@heroui/react";
 import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { ICON_STROKE_WIDTH, VISUAL_STATE } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     type ToolbarIconSize,
 } from "@/shared/ui/layout/toolbar-button";
+const { layout, visuals, ui } = registry;
 
 export type WindowControlButtonVariant = "neutral" | "danger";
 
@@ -55,7 +56,7 @@ export const WindowControlButton = forwardRef<
                 VARIANT_CLASSES[tone],
                 "window-control-button-width",
                 className,
-                disabled && VISUAL_STATE.disabled
+                disabled && visuals.state.disabled
             )}
             aria-label={ariaLabel}
             disabled={disabled}
@@ -63,10 +64,11 @@ export const WindowControlButton = forwardRef<
         >
             {Icon && (
                 <Icon
-                    strokeWidth={ICON_STROKE_WIDTH}
+                    strokeWidth={visuals.icon.strokeWidth}
                     className={cn(SURFACE.atom.textCurrent, iconSizeClass)}
                 />
             )}
         </Button>
     );
 });
+

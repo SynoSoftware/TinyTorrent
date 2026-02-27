@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { scheduler } from "@/app/services/scheduler";
-import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
-import { OPTIMISTIC_CHECKING_GRACE_MS } from "@/config/logic";
-import { STATUS } from "@/shared/status";
+import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
+import { registry } from "@/config/logic";
+import { status } from "@/shared/status";
+const { timing, ui } = registry;
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
     state?: TorrentStatus;
@@ -64,11 +65,11 @@ const reconcileOptimisticStatuses = (
             return;
         }
 
-        const isChecking = torrent.state === STATUS.torrent.CHECKING;
+        const isChecking = torrent.state === status.torrent.checking;
         const verificationProgress = torrent.verificationProgress;
         const isVerifying = typeof verificationProgress === "number" && verificationProgress < 1;
 
-        if (entry.state !== STATUS.torrent.CHECKING) {
+        if (entry.state !== status.torrent.checking) {
             if (torrent.state === entry.state) {
                 const mutableStatuses = ensureMutableStatuses();
                 const nextEntry = removeStateFromEntry(entry);
@@ -147,7 +148,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                           : operation;
 
                 if (state) {
-                    const isCheckingState = state === STATUS.torrent.CHECKING;
+                    const isCheckingState = state === status.torrent.checking;
                     next[id] = {
                         ...(previous ?? {
                             sawCheckingState: false,
@@ -155,8 +156,12 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                         operation: nextOperation,
                         state,
                         sawCheckingState: !isCheckingState,
-                        pendingCheckingUntilMs: isCheckingState ? Date.now() + OPTIMISTIC_CHECKING_GRACE_MS : undefined,
-                        pendingStateUntilMs: isCheckingState ? undefined : Date.now() + OPTIMISTIC_CHECKING_GRACE_MS,
+                        pendingCheckingUntilMs: isCheckingState
+                            ? Date.now() + timing.ui.optimisticCheckingGraceMs
+                            : undefined,
+                        pendingStateUntilMs: isCheckingState
+                            ? undefined
+                            : Date.now() + timing.ui.optimisticCheckingGraceMs,
                     };
                     return;
                 }
@@ -223,7 +228,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                 return;
             }
             if (
-                entry.state === STATUS.torrent.CHECKING &&
+                entry.state === status.torrent.checking &&
                 !entry.sawCheckingState &&
                 typeof entry.pendingCheckingUntilMs === "number"
             ) {
@@ -232,7 +237,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                     nextGraceExpiryDelayMs = delay;
                 }
             }
-            if (entry.state !== STATUS.torrent.CHECKING && typeof entry.pendingStateUntilMs === "number") {
+            if (entry.state !== status.torrent.checking && typeof entry.pendingStateUntilMs === "number") {
                 const delay = Math.max(0, entry.pendingStateUntilMs - Date.now());
                 if (nextGraceExpiryDelayMs === null || delay < nextGraceExpiryDelayMs) {
                     nextGraceExpiryDelayMs = delay;
@@ -257,3 +262,6 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
         updateOptimisticStatuses,
     };
 }
+
+
+

@@ -3,7 +3,8 @@ import { useDropzone } from "react-dropzone";
 
 import { shellAgent } from "@/app/agents/shell-agent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
-import { MAGNET_EVENT_DEDUP_WINDOW_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { timing, shell, ui } = registry;
 
 interface UseAddModalStateParams {
     onOpenAddMagnet: (magnetLink?: string) => void;
@@ -58,7 +59,7 @@ export function useAddModalState({
             if (
                 previous &&
                 previous.link === normalized &&
-                now - previous.handledAtMs < MAGNET_EVENT_DEDUP_WINDOW_MS
+                now - previous.handledAtMs < timing.ui.magnetEventDedupWindowMs
             ) {
                 return;
             }
@@ -80,3 +81,4 @@ export function useAddModalState({
         open,
     };
 }
+

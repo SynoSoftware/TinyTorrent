@@ -1,29 +1,36 @@
-import { KEY_SCOPE } from "@/config/logic";
-import { STATUS } from "@/shared/status";
+import { Shortcuts } from "@/app/controlPlane/shortcuts";
+import { status } from "@/shared/status";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type {
     CommandAction,
     CommandActionOutcome,
     CommandPaletteContext,
 } from "@/app/components/CommandPalette";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
+} from "@/modules/dashboard/types/contracts";
 import {
-    DASHBOARD_FILTERS,
+    dashboardFilters,
     type DashboardFilter,
 } from "@/modules/dashboard/types/dashboardFilter";
 import type { TFunction } from "i18next";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    commandOutcome,
+    commandReason,
+    isCommandCanceled,
+    isCommandSuccess,
+    isCommandUnsupported,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
 import {
     BASE_PALETTE_COMMANDS,
-    COMMAND_ID,
-    HOTKEY_COMMAND_ID,
-    HOTKEY_SHORTCUTS,
+    commandId,
+    hotkeyCommandId,
+    hotkeyShortcuts,
     type BasePaletteCommandId,
     type CommandGroupId,
     type HotkeyCommandId,
@@ -59,37 +66,34 @@ interface CommandPaletteBaseGroups {
     context: string;
 }
 
-const COMMAND_PALETTE_OUTCOME_SUCCESS: CommandActionOutcome = {
-    status: "success",
-};
-const COMMAND_PALETTE_OUTCOME_FAILED: CommandActionOutcome = {
-    status: "failed",
-    reason: "execution_failed",
-};
+const commandPaletteOutcomeSuccess: CommandActionOutcome =
+    commandOutcome.success();
+const commandPaletteOutcomeFailed: CommandActionOutcome =
+    commandOutcome.failed(commandReason.executionFailed);
 
 const toCommandPaletteOutcome = (
     outcome: TorrentCommandOutcome,
 ): CommandActionOutcome => {
-    if (outcome.status === "success") {
-        return COMMAND_PALETTE_OUTCOME_SUCCESS;
+    if (isCommandSuccess(outcome)) {
+        return commandPaletteOutcomeSuccess;
     }
-    if (outcome.status === "canceled") {
+    if (isCommandCanceled(outcome)) {
         return { status: "canceled", reason: outcome.reason };
     }
-    if (outcome.status === "unsupported") {
+    if (isCommandUnsupported(outcome)) {
         return { status: "unsupported", reason: outcome.reason };
     }
-    if (outcome.reason === "refresh_failed") {
+    if (outcome.reason === commandReason.refreshFailed) {
         return { status: "failed", reason: "refresh_failed" };
     }
-    return COMMAND_PALETTE_OUTCOME_FAILED;
+    return commandPaletteOutcomeFailed;
 };
 
 const completeAction = async (
     action: () => void | Promise<void>,
 ): Promise<CommandActionOutcome> => {
     await action();
-    return COMMAND_PALETTE_OUTCOME_SUCCESS;
+    return commandPaletteOutcomeSuccess;
 };
 
 export function buildCommandPaletteActions({
@@ -110,19 +114,19 @@ export function buildCommandPaletteActions({
     };
 
     const handlers: Record<BasePaletteCommandId, CommandAction["onSelect"]> = {
-        [COMMAND_ID.AddTorrent]: async () =>
+        [commandId.AddTorrent]: async () =>
             toCommandPaletteOutcome(await openAddTorrentPicker()),
-        [COMMAND_ID.AddMagnet]: async () =>
+        [commandId.AddMagnet]: async () =>
             toCommandPaletteOutcome(await openAddMagnet()),
-        [COMMAND_ID.OpenSettings]: () => completeAction(openSettings),
-        [COMMAND_ID.RefreshTorrents]: () => completeAction(refreshTorrents),
-        [COMMAND_ID.FocusSearch]: () => completeAction(focusSearchInput),
-        [COMMAND_ID.FilterAll]: () =>
-            completeAction(() => setFilter(DASHBOARD_FILTERS.ALL)),
-        [COMMAND_ID.FilterDownloading]: () =>
-            completeAction(() => setFilter(DASHBOARD_FILTERS.DOWNLOADING)),
-        [COMMAND_ID.FilterSeeding]: () =>
-            completeAction(() => setFilter(DASHBOARD_FILTERS.SEEDING)),
+        [commandId.OpenSettings]: () => completeAction(openSettings),
+        [commandId.RefreshTorrents]: () => completeAction(refreshTorrents),
+        [commandId.FocusSearch]: () => completeAction(focusSearchInput),
+        [commandId.FilterAll]: () =>
+            completeAction(() => setFilter(dashboardFilters.all)),
+        [commandId.FilterDownloading]: () =>
+            completeAction(() => setFilter(dashboardFilters.downloading)),
+        [commandId.FilterSeeding]: () =>
+            completeAction(() => setFilter(dashboardFilters.seeding)),
     };
 
     return BASE_PALETTE_COMMANDS.map((entry) => ({
@@ -144,7 +148,7 @@ export function buildContextCommandActions(
     if (activePart === "table" && deps.selectedTorrents.length) {
         entries.push(
             {
-                id: COMMAND_ID.ContextPauseSelected,
+                id: commandId.ContextPauseSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.pause_selected"),
                 description: deps.t(
@@ -156,7 +160,7 @@ export function buildContextCommandActions(
                     ),
             },
             {
-                id: COMMAND_ID.ContextResumeSelected,
+                id: commandId.ContextResumeSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.resume_selected"),
                 description: deps.t(
@@ -168,7 +172,7 @@ export function buildContextCommandActions(
                     ),
             },
             {
-                id: COMMAND_ID.ContextRecheckSelected,
+                id: commandId.ContextRecheckSelected,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.recheck_selected"),
                 description: deps.t(
@@ -184,7 +188,7 @@ export function buildContextCommandActions(
         const targetTorrent = deps.selectedTorrents[0];
         if (targetTorrent) {
             entries.push({
-                id: COMMAND_ID.ContextOpenInspector,
+                id: commandId.ContextOpenInspector,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.open_inspector"),
                 description: deps.t(
@@ -203,7 +207,7 @@ export function buildContextCommandActions(
             deps.detailData.files?.map((file) => file.index) ?? [];
         if (fileIndexes.length) {
             entries.push({
-                id: COMMAND_ID.ContextSelectAllFiles,
+                id: commandId.ContextSelectAllFiles,
                 group: contextGroup,
                 title: deps.t("command_palette.actions.select_all_files"),
                 description: deps.t(
@@ -225,8 +229,8 @@ export function buildContextCommandActions(
             const isSpeedSorted = deps.peerSortStrategy === "speed";
             entries.push({
                 id: isSpeedSorted
-                    ? COMMAND_ID.ContextResetPeerSort
-                    : COMMAND_ID.ContextSortPeersBySpeed,
+                    ? commandId.ContextResetPeerSort
+                    : commandId.ContextSortPeersBySpeed,
                 group: contextGroup,
                 title: deps.t(
                     isSpeedSorted
@@ -364,8 +368,8 @@ export function createGlobalHotkeyBindings({
         );
         if (!primaryTorrent) return;
         const isActive =
-            primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
-            primaryTorrent.state === STATUS.torrent.SEEDING;
+            primaryTorrent.state === status.torrent.downloading ||
+            primaryTorrent.state === status.torrent.seeding;
         const action: TorrentTableAction = isActive ? "pause" : "resume";
         void controller.handleTorrentAction(action, primaryTorrent);
     };
@@ -385,58 +389,60 @@ export function createGlobalHotkeyBindings({
     };
 
     const baseOptions: CommandHotkeyOptions = {
-        scopes: KEY_SCOPE.Dashboard,
+        scopes: Shortcuts.scopes.Dashboard,
     };
 
     const hotkeyOptions: Record<HotkeyCommandId, CommandHotkeyOptions> = {
-        [HOTKEY_COMMAND_ID.SelectAll]: baseOptions,
-        [HOTKEY_COMMAND_ID.Remove]: baseOptions,
-        [HOTKEY_COMMAND_ID.ShowDetails]: baseOptions,
-        [HOTKEY_COMMAND_ID.ToggleInspector]: {
-            scopes: KEY_SCOPE.Dashboard,
+        [hotkeyCommandId.SelectAll]: baseOptions,
+        [hotkeyCommandId.Remove]: baseOptions,
+        [hotkeyCommandId.ShowDetails]: baseOptions,
+        [hotkeyCommandId.ToggleInspector]: {
+            scopes: Shortcuts.scopes.Dashboard,
             enableOnFormTags: true,
             enableOnContentEditable: true,
         },
-        [HOTKEY_COMMAND_ID.TogglePause]: baseOptions,
-        [HOTKEY_COMMAND_ID.Recheck]: baseOptions,
-        [HOTKEY_COMMAND_ID.RemoveWithData]: baseOptions,
+        [hotkeyCommandId.TogglePause]: baseOptions,
+        [hotkeyCommandId.Recheck]: baseOptions,
+        [hotkeyCommandId.RemoveWithData]: baseOptions,
     };
 
     return {
-        [HOTKEY_COMMAND_ID.SelectAll]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.SelectAll],
+        [hotkeyCommandId.SelectAll]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.SelectAll],
             handler: selectAllHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.SelectAll],
+            options: hotkeyOptions[hotkeyCommandId.SelectAll],
         },
-        [HOTKEY_COMMAND_ID.Remove]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.Remove],
+        [hotkeyCommandId.Remove]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.Remove],
             handler: removeHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.Remove],
+            options: hotkeyOptions[hotkeyCommandId.Remove],
         },
-        [HOTKEY_COMMAND_ID.ShowDetails]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.ShowDetails],
+        [hotkeyCommandId.ShowDetails]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.ShowDetails],
             handler: showDetailsHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.ShowDetails],
+            options: hotkeyOptions[hotkeyCommandId.ShowDetails],
         },
-        [HOTKEY_COMMAND_ID.ToggleInspector]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.ToggleInspector],
+        [hotkeyCommandId.ToggleInspector]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.ToggleInspector],
             handler: toggleInspectorHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.ToggleInspector],
+            options: hotkeyOptions[hotkeyCommandId.ToggleInspector],
         },
-        [HOTKEY_COMMAND_ID.TogglePause]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.TogglePause],
+        [hotkeyCommandId.TogglePause]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.TogglePause],
             handler: togglePauseHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.TogglePause],
+            options: hotkeyOptions[hotkeyCommandId.TogglePause],
         },
-        [HOTKEY_COMMAND_ID.Recheck]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.Recheck],
+        [hotkeyCommandId.Recheck]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.Recheck],
             handler: recheckHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.Recheck],
+            options: hotkeyOptions[hotkeyCommandId.Recheck],
         },
-        [HOTKEY_COMMAND_ID.RemoveWithData]: {
-            keys: HOTKEY_SHORTCUTS[HOTKEY_COMMAND_ID.RemoveWithData],
+        [hotkeyCommandId.RemoveWithData]: {
+            keys: hotkeyShortcuts[hotkeyCommandId.RemoveWithData],
             handler: removeWithDataHandler,
-            options: hotkeyOptions[HOTKEY_COMMAND_ID.RemoveWithData],
+            options: hotkeyOptions[hotkeyCommandId.RemoveWithData],
         },
     };
 }
+
+

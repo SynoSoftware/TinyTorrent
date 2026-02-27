@@ -150,7 +150,7 @@
     --tt-brand-icon-size: calc(var(--icon) * 3);
     --tt-search-width: calc(40 * var(--u) * var(--z));
 
-    /* Drop overlay semantic tokens (align with UI_BASES.dropOverlay expectations)
+    /* Drop overlay semantic tokens (align with ui.bases.dropOverlay expectations)
          Use the workbench spacing token so intent remains centralized in logic.ts */
     --tt-drop-overlay-padding-x: var(--spacing-workbench);
     --tt-drop-overlay-padding-y: var(--spacing-workbench);
@@ -1160,3 +1160,4 @@ main .torrent-table-watermark {
         -webkit-app-region: no-drag;
     }
 }
+

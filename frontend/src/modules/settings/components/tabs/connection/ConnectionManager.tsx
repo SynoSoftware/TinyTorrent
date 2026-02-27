@@ -2,9 +2,9 @@ import { Button, Chip, Input } from "@heroui/react";
 import { RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import {
     useConnectionConfig,
     buildRpcEndpoint,
@@ -15,6 +15,7 @@ import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
 import { useSettingsFormActions } from "@/modules/settings/context/SettingsFormContext";
 import { FORM } from "@/shared/ui/layout/glass-surface";
+const { layout, visuals, ui } = registry;
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)
@@ -52,7 +53,7 @@ function useConnectionManagerState(): ConnectionManagerState {
         activeProfile,
         handleUpdate,
         endpointPreview,
-        isOffline: rpcStatus === STATUS.connection.ERROR,
+        isOffline: rpcStatus === status.connection.error,
     };
 }
 // TODO: Remove `token` from ConnectionProfile update shape once TT tokens are removed.
@@ -78,15 +79,15 @@ export function ConnectionCredentialsCard() {
     const { rpcStatus, uiCapabilities } = useSession();
     const connectionStatusLabel = useMemo(() => {
         const map: Record<string, string> = {
-            [STATUS.connection.CONNECTED]: t("status_bar.rpc_connected"),
-            [STATUS.connection.ERROR]: t("status_bar.rpc_error"),
-            [STATUS.connection.IDLE]: t("status_bar.rpc_idle"),
+            [status.connection.connected]: t("status_bar.rpc_connected"),
+            [status.connection.error]: t("status_bar.rpc_error"),
+            [status.connection.idle]: t("status_bar.rpc_idle"),
         };
         return map[rpcStatus];
     }, [rpcStatus, t]);
     const statusColor = useMemo<"success" | "warning" | "danger">(() => {
-        if (rpcStatus === STATUS.connection.CONNECTED) return "success";
-        if (rpcStatus === STATUS.connection.ERROR) return "danger";
+        if (rpcStatus === status.connection.connected) return "success";
+        if (rpcStatus === status.connection.error) return "danger";
         return "warning";
     }, [rpcStatus]);
 
@@ -94,7 +95,7 @@ export function ConnectionCredentialsCard() {
     const isFullMode = uiMode === "Full";
     const isNativeMode = isFullMode;
     const modeLabelKey = useMemo(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
+        if (rpcStatus !== status.connection.connected) {
             return "settings.connection.detecting_mode_label";
         }
         return isFullMode
@@ -102,7 +103,7 @@ export function ConnectionCredentialsCard() {
             : "settings.connection.ui_mode_rpc_label";
     }, [rpcStatus, isFullMode]);
     const modeSummaryKey = useMemo(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
+        if (rpcStatus !== status.connection.connected) {
             return "settings.connection.detecting_mode_summary";
         }
         return isFullMode
@@ -127,7 +128,7 @@ export function ConnectionCredentialsCard() {
         return t("settings.connection.profile_placeholder");
     }, [activeProfile.id, activeProfile.label, t]);
     const shouldShowAuthControls = true;
-    const isAuthModeResolved = rpcStatus === STATUS.connection.CONNECTED;
+    const isAuthModeResolved = rpcStatus === status.connection.connected;
     const isInsecureBasicAuth = (() => {
         const scheme = activeProfile.scheme;
         if (scheme !== "http") return false;
@@ -190,12 +191,12 @@ export function ConnectionCredentialsCard() {
                             startContent={
                                 statusColor === "success" ? (
                                     <CheckCircle
-                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        strokeWidth={visuals.icon.strokeWidth}
                                         className={FORM.connection.iconSmall}
                                     />
                                 ) : (
                                     <XCircle
-                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        strokeWidth={visuals.icon.strokeWidth}
                                         className={FORM.connection.iconSmall}
                                     />
                                 )
@@ -225,7 +226,7 @@ export function ConnectionCredentialsCard() {
                         type="button"
                         startContent={
                             <RefreshCw
-                                strokeWidth={ICON_STROKE_WIDTH}
+                                strokeWidth={visuals.icon.strokeWidth}
                                 className={FORM.connection.iconSmall}
                             />
                         }
@@ -322,3 +323,4 @@ export function ConnectionCredentialsCard() {
         </div>
     );
 }
+

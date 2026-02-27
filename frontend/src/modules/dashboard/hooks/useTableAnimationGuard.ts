@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-export const ANIMATION_SUPPRESSION_KEYS = {
+export const animationSuppressionKeys = {
     autoFit: "auto-fit",
     autoFitAll: "auto-fit-all",
     panelResize: "panel-resize",
@@ -9,7 +9,7 @@ export const ANIMATION_SUPPRESSION_KEYS = {
 } as const;
 
 export type AnimationSuppressionKey =
-    (typeof ANIMATION_SUPPRESSION_KEYS)[keyof typeof ANIMATION_SUPPRESSION_KEYS];
+    (typeof animationSuppressionKeys)[keyof typeof animationSuppressionKeys];
 
 export const useTableAnimationGuard = () => {
     const keysRef = useRef(new Set<AnimationSuppressionKey>());

@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATUS } from "@/shared/status";
-import {
-    DETAIL_REFRESH_INTERVAL_MS,
-    OPTIMISTIC_CHECKING_GRACE_MS,
-} from "@/config/logic";
+import { status } from "@/shared/status";
+import { registry } from "@/config/logic";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
@@ -19,16 +16,24 @@ import { TorrentIntents, type TorrentIntentExtended } from "@/app/intents/torren
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import { useTorrentOrchestrator } from "@/app/orchestrators/useTorrentOrchestrator";
 import type { UseTorrentOrchestratorResult } from "@/app/orchestrators/useTorrentOrchestrator";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { CapabilityStore } from "@/app/types/capabilities";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { DeleteIntent } from "@/app/types/workspace";
-import { createTorrentDispatch, type TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    createTorrentDispatch,
+    type TorrentDispatchOutcome,
+} from "@/app/actions/torrentDispatch";
+import {
+    commandOutcome,
+    commandReason,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
 import type { LocationMode } from "@/modules/dashboard/domain/torrentRelocation";
+const { timing, ui } = registry;
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -111,12 +116,12 @@ export function useWorkspaceTorrentDomain({
         recheckPollingBoostTimerRef.current = window.setTimeout(() => {
             setIsRecheckPollingBoostActive(false);
             recheckPollingBoostTimerRef.current = undefined;
-        }, OPTIMISTIC_CHECKING_GRACE_MS);
+        }, timing.ui.optimisticCheckingGraceMs);
     }, [clearRecheckPollingBoostTimer]);
 
     const effectiveTablePollingIntervalMs =
         isRecheckPollingBoostActive || isVerificationPollingBoostActive
-            ? Math.min(pollingIntervalMs, DETAIL_REFRESH_INTERVAL_MS)
+            ? Math.min(pollingIntervalMs, timing.heartbeat.detailMs)
             : pollingIntervalMs;
 
     const {
@@ -127,7 +132,7 @@ export function useWorkspaceTorrentDomain({
         ghostTorrents,
     } = useTorrentData({
         client: torrentClient,
-        sessionReady: rpcStatus === STATUS.connection.CONNECTED,
+        sessionReady: rpcStatus === status.connection.connected,
         pollingIntervalMs: effectiveTablePollingIntervalMs,
         markTransportConnected,
     });
@@ -261,12 +266,12 @@ export function useWorkspaceTorrentDomain({
     const executeBulkRemoveViaDispatch = async (ids: string[], deleteData: boolean): Promise<TorrentCommandOutcome> => {
         const outcome = await dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
         if (outcome.status === "applied") {
-            return { status: "success" };
+            return commandOutcome.success();
         }
         if (outcome.status === "unsupported") {
-            return { status: "unsupported", reason: "action_not_supported" };
+            return commandOutcome.unsupported();
         }
-        return { status: "failed", reason: "execution_failed" };
+        return commandOutcome.failed("execution_failed");
     };
 
     const executeSetDownloadLocationViaDispatch = async (
@@ -278,24 +283,24 @@ export function useWorkspaceTorrentDomain({
             TorrentIntents.ensureAtLocation(torrentId, path, locationMode),
         );
         if (outcome.status === "applied") {
-            return { status: "success" };
+            return commandOutcome.success();
         }
         if (outcome.status === "unsupported") {
-            return { status: "unsupported", reason: "action_not_supported" };
+            return commandOutcome.unsupported();
         }
-        return { status: "failed", reason: "execution_failed" };
+        return commandOutcome.failed("execution_failed");
     };
 
     const refreshAfterRecheck = useCallback(async (): Promise<RecheckRefreshOutcome> => {
         triggerRecheckPollingBoost();
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
-            return "refresh_skipped";
+        if (rpcStatus !== status.connection.connected) {
+            return commandReason.refreshSkipped;
         }
         try {
             await refreshTorrents();
             return "success";
         } catch {
-            return "refresh_failed";
+            return commandReason.refreshFailed;
         }
     }, [refreshTorrents, rpcStatus, triggerRecheckPollingBoost]);
 
@@ -351,3 +356,6 @@ export function useWorkspaceTorrentDomain({
         },
     };
 }
+
+
+

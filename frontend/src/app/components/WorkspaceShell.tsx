@@ -5,21 +5,13 @@ import { memo } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { DeleteConfirmationProvider } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import { X } from "lucide-react";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModalView";
 import { Navbar } from "@/app/components/layout/Navbar";
 import { StatusBar } from "@/app/components/layout/StatusBar";
-import {
-    IMMERSIVE_CHROME_PADDING,
-    IMMERSIVE_CHROME_RADIUS,
-    IMMERSIVE_HUD_CARD_RADIUS,
-    IMMERSIVE_MAIN_CONTENT_PADDING,
-    IMMERSIVE_MAIN_INNER_RADIUS,
-    IMMERSIVE_MAIN_OUTER_RADIUS,
-    IMMERSIVE_MAIN_PADDING,
-} from "@/config/logic";
+import { registry } from "@/config/logic";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { Section, type SectionPadding } from "@/shared/ui/layout/Section";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
@@ -28,6 +20,7 @@ import type {
     WorkspaceShellViewModel,
 } from "@/app/viewModels/useAppViewModel";
 import { TEXT_ROLE } from "@/config/textRoles";
+const { layout, shell, visuals, ui } = registry;
 
 const TOAST_SPRING_TRANSITION: Transition = {
     type: "spring",
@@ -94,6 +87,7 @@ export function WorkspaceShell({
         clearPendingDelete,
         confirmDelete,
     };
+    const immersive = shell.immersive;
 
     const hudGridClass =
         HUD_COLUMNS[
@@ -128,7 +122,7 @@ export function WorkspaceShell({
             )}
 
             <AnimatePresence>
-                {rpcStatus === STATUS.connection.ERROR && (
+                {rpcStatus === status.connection.error && (
                     <motion.div
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -175,8 +169,8 @@ export function WorkspaceShell({
                         <div
                             className={WORKBENCH.immersiveNavbarWrap}
                             style={{
-                                borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
-                                padding: `${IMMERSIVE_CHROME_PADDING}px`,
+                                borderRadius: `${immersive.chromeRadius}px`,
+                                padding: `${immersive.chromePadding}px`,
                             }}
                         >
                             {renderNavbar()}
@@ -193,8 +187,8 @@ export function WorkspaceShell({
                                     isNativeHost && WORKBENCH.nativeShellInner,
                                 )}
                                 style={{
-                                    borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
-                                    padding: `${IMMERSIVE_MAIN_PADDING}px`,
+                                    borderRadius: `${immersive.mainOuterRadius}px`,
+                                    padding: `${immersive.mainPadding}px`,
                                 }}
                             >
                                 <main
@@ -204,8 +198,8 @@ export function WorkspaceShell({
                                             WORKBENCH.nativeShellMain,
                                     )}
                                     style={{
-                                        borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
-                                        padding: `${IMMERSIVE_MAIN_CONTENT_PADDING}px`,
+                                        borderRadius: `${immersive.mainInnerRadius}px`,
+                                        padding: `${immersive.mainContentPadding}px`,
                                     }}
                                 >
                                     {renderModeLayoutSection()}
@@ -249,7 +243,7 @@ export function WorkspaceShell({
                                                         card.surfaceClass,
                                                     )}
                                                     style={{
-                                                        borderRadius: `${IMMERSIVE_HUD_CARD_RADIUS}px`,
+                                                        borderRadius: `${immersive.hudCardRadius}px`,
                                                     }}
                                                 >
                                                     <button
@@ -346,12 +340,12 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                                className={WORKBENCH.immersiveStatusWrap}
-                                style={{
-                                    borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
-                                    padding: `${IMMERSIVE_CHROME_PADDING}px`,
-                                }}
-                            >
+                            className={WORKBENCH.immersiveStatusWrap}
+                            style={{
+                                    borderRadius: `${immersive.chromeRadius}px`,
+                                    padding: `${immersive.chromePadding}px`,
+                            }}
+                        >
                                 {renderStatusBarSection()}
                             </div>
                         </>
@@ -374,3 +368,4 @@ export function WorkspaceShell({
         </div>
     );
 }
+

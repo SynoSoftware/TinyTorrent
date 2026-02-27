@@ -1,6 +1,25 @@
-import type { MotionProps, Transition } from "framer-motion";
 import constants from "@/config/constants.json";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
+import type {
+    DragOverlayConfig,
+    DetailsVisualizationsConfig,
+    InteractionConfig,
+    NativeHostWindow,
+    ShellStyle,
+    ShellTokens,
+    StatusVisualKeyFromKeys,
+    StatusVisualRecipe,
+    TooltipOpacityAnimation,
+} from "@/config/logicTypes";
+import {
+    adaptTransition,
+    asRecord,
+    mergeKnownKeysDeep,
+    normalizeRepeatType,
+    readNumberDomainFromSchema,
+    readOpacity,
+    readOptionalNumber,
+} from "@/config/logicUtils";
 
 // TODO: Keep `config/logic.ts` as a central “knob registry” and shared constants authority:
 // TODO: - UI/UX timing constants (polling cadence, animation delays, debounce windows) should be sourced from here (or from `constants.json`) and not hardcoded in leaf components.
@@ -8,7 +27,7 @@ import { STATUS } from "@/shared/status";
 // TODO: - If you find the same numeric literal used in multiple components, do not copy it: add a named token/constant (or flag it) so edits remain safe.
 
 // Design-system authority declaration
-export const DESIGN_SYSTEM_AUTHORITY = {
+const designSystemAuthority = {
     source: "index.css",
     primitives: ["--u", "--fz", "--z"],
     note: "All geometry must be derived from CSS primitives; JSON must contain intent only.",
@@ -16,27 +35,7 @@ export const DESIGN_SYSTEM_AUTHORITY = {
 
 // Design system: geometry is authoritative in CSS; JSON contains intent only.
 
-const normalizeRepeat = (value?: number) => (value === -1 ? Infinity : value);
-
-const adaptTransition = <T extends Transition>(transition: T) => ({
-    ...transition,
-    repeat: normalizeRepeat(transition.repeat),
-});
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-    value && typeof value === "object"
-        ? (value as Record<string, unknown>)
-        : {};
-
-type NativeHostWindow = Window & { __TINY_TORRENT_NATIVE__?: boolean };
-
-const readOptionalNumber = (value: unknown): number | undefined =>
-    typeof value === "number" && Number.isFinite(value) ? value : undefined;
-
-const readNumber = (value: unknown, fallback: number) =>
-    typeof value === "number" && Number.isFinite(value) ? value : fallback;
-
-const DEFAULT_LAYOUT_PIECE_MAP = {
+const defaultLayoutPieceMap = {
     columns: 42,
     base_rows: 6,
     max_rows: 12,
@@ -44,14 +43,14 @@ const DEFAULT_LAYOUT_PIECE_MAP = {
     cell_gap: 2,
 } as const;
 
-const DEFAULT_LAYOUT_HEATMAP = {
+const defaultLayoutHeatmap = {
     sample_limit_multiplier: 6,
     zoom_levels: [1, 1.5, 2, 2.5],
     cell_size: 6,
     cell_gap: 3,
 } as const;
 
-const DEFAULT_LAYOUT_PEER_MAP = {
+const defaultLayoutPeerMap = {
     drift_amplitude: 5,
     drift_duration: {
         min: 6,
@@ -59,47 +58,71 @@ const DEFAULT_LAYOUT_PEER_MAP = {
     },
 } as const;
 
-const DEFAULT_TABLE_LAYOUT = {
+const defaultTableLayout = {
     // Geometry is CSS-driven; defaults here are CSS var references.
     row_height: "var(--tt-h-row)",
     font_size: "text-scaled",
     font_mono: "font-mono",
     overscan: 20,
 } as const;
+const defaultLayoutDetails = {
+    tab_content_max_height: 360,
+} as const;
 
-const layoutConfig = constants.layout ?? {};
-const performanceConfig = asRecord(constants.performance);
-const defaultsConfig = asRecord(constants.defaults);
-const uiConfig = asRecord(constants.ui);
-const heartbeatConfig = asRecord(constants.heartbeats);
-const timerConfig = asRecord(constants.timers);
+const runtime = {
+    nativeHost:
+        import.meta.env.VITE_INTERNAL_MODE === "true" ||
+        (typeof window !== "undefined" &&
+            !!(window as NativeHostWindow).__TINY_TORRENT_NATIVE__),
+} as const;
+
+const {
+    layout: layoutConfig,
+    performance: performanceConfig,
+    defaults: defaultsConfig,
+    ui: uiConfig,
+    heartbeats: heartbeatConfig,
+    timers: timerConfig,
+} = {
+    layout: constants.layout ?? {},
+    performance: asRecord(constants.performance),
+    defaults: asRecord(constants.defaults),
+    ui: asRecord(constants.ui),
+    heartbeats: asRecord(constants.heartbeats),
+    timers: asRecord(constants.timers),
+} as const;
 const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
 
-const DEFAULT_DEFAULTS = {
+const defaultDefaults = {
     rpc_endpoint: "/transmission/rpc",
     magnet_protocol_prefix: "magnet:?",
 } as const;
 
-const DEFAULT_PERFORMANCE = {
-    history_data_points: 60,
-    max_delta_cycles: 30,
-    min_immediate_tick_ms: 1000,
-    read_rpc_cache_ms: 0,
-    transport_cache_ttl_ms: 500,
-    bulk_resume_concurrency: 6,
+const nonEmpty = (value: unknown, fallback: string) =>
+    typeof value === "string" && value.trim().length > 0 ? value : fallback;
+const n = (configKey: string, fallback: number) =>
+    ({ configKey, fallback }) as const;
+
+const performanceSchema = {
+    historyDataPoints: n("history_data_points", 60),
+    heartbeatMaxDeltaCycles: n("max_delta_cycles", 30),
+    heartbeatMinImmediateTriggerMs: n("min_immediate_tick_ms", 1000),
+    readRpcCacheTtlMs: n("read_rpc_cache_ms", 0),
+    transportCacheTtlMs: n("transport_cache_ttl_ms", 500),
+    bulkResumeConcurrency: n("bulk_resume_concurrency", 6),
 } as const;
 
-const DEFAULT_UI = {
+const defaultUi = {
     toast_display_duration_ms: 3000,
 } as const;
 
-const DEFAULT_HEARTBEATS = {
+const defaultHeartbeats = {
     table_refresh_interval_ms: 1500,
     detail_refresh_interval_ms: 500,
     background_refresh_interval_ms: 5000,
 } as const;
 
-const DEFAULT_TIMERS = {
+const defaultTimers = {
     clipboard_badge_duration_ms: 1500,
     focus_restore_delay_ms: 500,
     magnet_event_dedup_window_ms: 1000,
@@ -118,67 +141,35 @@ const DEFAULT_TIMERS = {
     set_location_move_timeout_ms: 600000,
 } as const;
 
-export const TOAST_DISPLAY_DURATION_MS = readNumber(
-    uiConfig.toast_display_duration_ms,
-    DEFAULT_UI.toast_display_duration_ms,
-);
-
-export const DEFAULT_RPC_ENDPOINT =
-    typeof defaultsConfig.rpc_endpoint === "string" &&
-    defaultsConfig.rpc_endpoint.trim().length > 0
-        ? defaultsConfig.rpc_endpoint
-        : DEFAULT_DEFAULTS.rpc_endpoint;
-
-export const MAGNET_PROTOCOL_PREFIX =
-    typeof defaultsConfig.magnet_protocol_prefix === "string" &&
-    defaultsConfig.magnet_protocol_prefix.trim().length > 0
-        ? defaultsConfig.magnet_protocol_prefix
-        : DEFAULT_DEFAULTS.magnet_protocol_prefix;
-
-export const HISTORY_DATA_POINTS = readNumber(
-    performanceConfig.history_data_points,
-    DEFAULT_PERFORMANCE.history_data_points,
-);
-
-export const HEARTBEAT_MAX_DELTA_CYCLES = readNumber(
-    performanceConfig.max_delta_cycles,
-    DEFAULT_PERFORMANCE.max_delta_cycles,
-);
-
-export const HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS = readNumber(
-    performanceConfig.min_immediate_tick_ms,
-    DEFAULT_PERFORMANCE.min_immediate_tick_ms,
-);
-
-export const READ_RPC_CACHE_TTL_MS = readNumber(
-    performanceConfig.read_rpc_cache_ms,
-    DEFAULT_PERFORMANCE.read_rpc_cache_ms,
-);
-
-export const TRANSPORT_CACHE_TTL_MS = readNumber(
-    performanceConfig.transport_cache_ttl_ms,
-    DEFAULT_PERFORMANCE.transport_cache_ttl_ms,
-);
-
-export const BULK_RESUME_CONCURRENCY = Math.max(
-    1,
-    Math.floor(
-        readNumber(
-            performanceConfig.bulk_resume_concurrency,
-            DEFAULT_PERFORMANCE.bulk_resume_concurrency,
-        ),
+const defaults = {
+    rpcEndpoint: nonEmpty(defaultsConfig.rpc_endpoint, defaultDefaults.rpc_endpoint),
+    magnetProtocolPrefix: nonEmpty(
+        defaultsConfig.magnet_protocol_prefix,
+        defaultDefaults.magnet_protocol_prefix,
     ),
+} as const;
+
+const resolvedPerformanceRaw = readNumberDomainFromSchema(
+    performanceConfig,
+    performanceSchema,
 );
+const resolvedPerformance = {
+    ...resolvedPerformanceRaw,
+    bulkResumeConcurrency: Math.max(
+        1,
+        Math.floor(resolvedPerformanceRaw.bulkResumeConcurrency),
+    ),
+} as const;
 
 // --- SHELL (Classic / Immersive) ---
-const DEFAULT_SHELL_CLASSIC = {
+const defaultShellClassic = {
     outer_radius: 12,
     panel_gap: 0,
     ring_padding: 0,
     handle_hit_area: 10,
 } as const;
 
-const DEFAULT_SHELL_IMMERSIVE = {
+const defaultShellImmersive = {
     // Immersive is its own shell. Keep defaults independent from classic
     // to avoid accidental cross-mode coupling.
     chrome_padding: 8,
@@ -187,214 +178,217 @@ const DEFAULT_SHELL_IMMERSIVE = {
     handle_hit_area: 20,
 } as const;
 
-const shellConfig = asRecord(layoutConfig.shell);
-
-// Back-compat: older config had layout.shell as the classic shell object.
-const legacyShellLooksClassic =
-    "outer_radius" in shellConfig ||
-    "panel_gap" in shellConfig ||
-    "ring_padding" in shellConfig;
-
-const classicShellConfig = legacyShellLooksClassic
-    ? shellConfig
-    : asRecord(shellConfig.classic);
-
-const immersiveShellConfig = asRecord(shellConfig.immersive);
-
-// Classic shell metrics (default for shared layout)
-const classicOuterRadius = readNumber(
-    classicShellConfig.outer_radius,
-    DEFAULT_SHELL_CLASSIC.outer_radius,
-);
-const classicRingPadding = readNumber(
-    classicShellConfig.ring_padding,
-    DEFAULT_SHELL_CLASSIC.ring_padding,
-);
-const classicPanelGap = readNumber(
-    classicShellConfig.panel_gap,
-    DEFAULT_SHELL_CLASSIC.panel_gap,
-);
-const classicHandleHitArea = readNumber(
-    classicShellConfig.handle_hit_area,
-    DEFAULT_SHELL_CLASSIC.handle_hit_area,
-);
-const classicInnerRadius = Math.max(0, classicOuterRadius - classicRingPadding);
-const classicInsetRadius = Math.max(0, classicInnerRadius - classicPanelGap);
-
-// Immersive shell metrics
-// Prefer `outer_radius` for immersive. Keep `main_inner_radius` as a legacy fallback.
-const immersiveOuterRadius =
-    readOptionalNumber(immersiveShellConfig.outer_radius) ??
-    readOptionalNumber(immersiveShellConfig.main_inner_radius) ??
-    classicOuterRadius;
-const immersiveRingPadding = readNumber(immersiveShellConfig.ring_padding, 0);
-const immersivePanelGap = readNumber(immersiveShellConfig.panel_gap, 0);
-// Increase immersive shell resize / handle hit-box to 20px by default
-const immersiveHandleHitArea = readNumber(
-    immersiveShellConfig.handle_hit_area,
-    DEFAULT_SHELL_IMMERSIVE.handle_hit_area,
-);
-const immersiveInnerRadius = Math.max(
-    0,
-    immersiveOuterRadius - immersiveRingPadding,
-);
-const immersiveInsetRadius = Math.max(
-    0,
-    immersiveInnerRadius - immersivePanelGap,
-);
-
-export type ShellStyle = "classic" | "immersive";
-
-export type ShellTokens = {
-    gap: number;
-    radius: number;
-    ringPadding: number;
-    handleHitArea: number;
-    innerRadius: number;
-    insetRadius: number;
-    // frameStyle now carries the container-facing geometry (border radius, padding
-    // and directional padding). Components may spread `...shell.frameStyle` and
-    // optionally override specific corners; this centralizes the container
-    // spacing so the Navbar/StatusBar can rely on consistent left/right padding.
-    outerStyle: {
-        borderRadius: string | number;
-        padding: string | number;
-        paddingLeft?: string | number;
-        paddingRight?: string | number;
-    };
-    surfaceStyle: { borderRadius: string | number };
-};
-
-export const SHELL_TOKENS_CLASSIC: ShellTokens = {
-    gap: classicPanelGap,
-    radius: classicOuterRadius,
-    ringPadding: classicRingPadding,
-    handleHitArea: classicHandleHitArea,
-    innerRadius: classicInnerRadius,
-    insetRadius: classicInsetRadius,
-    outerStyle: {
-        // Use the *inner* radius for the frame so inner block containers
-        // can be controlled from a single token (`innerRadius`).
-        borderRadius: classicInnerRadius,
-        padding: classicRingPadding,
-        // Standard left/right padding for block containers. Use the semantic
-        // panel spacing so Navbar/StatusBar and other blocks render consistently
-        // without per-component hacks.
-        paddingLeft: "var(--spacing-panel)",
-        paddingRight: "var(--spacing-panel)",
+const classicShellSchema = {
+    outerRadius: {
+        configKey: "outer_radius",
+        fallback: defaultShellClassic.outer_radius,
     },
-    surfaceStyle: {
-        borderRadius: classicInnerRadius,
+    ringPadding: {
+        configKey: "ring_padding",
+        fallback: defaultShellClassic.ring_padding,
     },
-};
-
-export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
-    gap: immersivePanelGap,
-    radius: immersiveOuterRadius,
-    ringPadding: immersiveRingPadding,
-    handleHitArea: immersiveHandleHitArea,
-    innerRadius: immersiveInnerRadius,
-    insetRadius: immersiveInsetRadius,
-    outerStyle: {
-        // Mirror classic: frame uses innerRadius so a single radius knob controls
-        // all block containers in both shells.
-        borderRadius: immersiveInnerRadius,
-        padding: immersiveRingPadding,
-        paddingLeft: "var(--spacing-panel)",
-        paddingRight: "var(--spacing-panel)",
+    panelGap: {
+        configKey: "panel_gap",
+        fallback: defaultShellClassic.panel_gap,
     },
-    surfaceStyle: {
-        borderRadius: immersiveInnerRadius,
+    handleHitArea: {
+        configKey: "handle_hit_area",
+        fallback: defaultShellClassic.handle_hit_area,
     },
-};
-
-export const getShellTokens = (style: ShellStyle): ShellTokens =>
-    style === "immersive" ? SHELL_TOKENS_IMMERSIVE : SHELL_TOKENS_CLASSIC;
-
-// ---------------------------------------------------------------------------
-// Surface ownership helpers (geometry-only)
-// ---------------------------------------------------------------------------
-// These helpers are small, explicit aliases to the shell's `surfaceStyle` and
-// exist to document and future-proof surface ownership. They intentionally
-// carry geometry only (radius propagation) and MUST NOT include visual
-// recipes (background, blur, border, shadow) or change runtime styling.
-//
-// Usage guidance (implementation note only):
-// - WORKBENCH_SURFACE applies to the docked workbench frame (the `PanelGroup`
-//   wrapper). Structural children (Panels, headers, tabs, content) must NOT
-//   reapply surface tokens — they are pure structural/content layers.
-// - MODAL_SURFACE applies to floating/standalone surfaces (fullscreen detail
-//   view and modal/dialog overlays). Modal content remains pure content.
-//
-// These helpers simply return the `surfaceStyle` object from the selected
-// shell tokens so future visual recipes can reuse consistent geometry.
-export const WORKBENCH_SURFACE = (style: ShellStyle) =>
-    getShellTokens(style).surfaceStyle;
-
-export const MODAL_SURFACE = (style: ShellStyle) =>
-    getShellTokens(style).surfaceStyle;
-
-export const IS_NATIVE_HOST =
-    import.meta.env.VITE_INTERNAL_MODE === "true" ||
-    !!(window as NativeHostWindow).__TINY_TORRENT_NATIVE__;
-
-export const SHELL_RADIUS = classicOuterRadius;
-export const SHELL_HANDLE_HIT_AREA = classicHandleHitArea;
-export const LAYOUT_METRICS = {
-    outerRadius: classicOuterRadius,
-    panelGap: classicPanelGap,
-    ringPadding: classicRingPadding,
-    handleHitArea: classicHandleHitArea,
-    innerRadius: classicInnerRadius,
-    insetRadius: classicInsetRadius,
 } as const;
+const immersiveShellMetricSchema = {
+    ringPadding: {
+        configKey: "ring_padding",
+        fallback: 0,
+    },
+    panelGap: {
+        configKey: "panel_gap",
+        fallback: 0,
+    },
+    handleHitArea: {
+        configKey: "handle_hit_area",
+        fallback: defaultShellImmersive.handle_hit_area,
+    },
+} as const;
+const immersiveShellSchema = {
+    chromePadding: {
+        configKey: "chrome_padding",
+        fallback: defaultShellImmersive.chrome_padding,
+    },
+    mainPadding: {
+        configKey: "main_padding",
+        fallback: defaultShellImmersive.main_padding,
+    },
+    mainContentPadding: {
+        configKey: "main_content_padding",
+        fallback: 0,
+    },
+    hudCardRadius: {
+        configKey: "hud_card_radius",
+        fallback: defaultShellImmersive.hud_card_radius,
+    },
+} as const;
+const resolveShellDomain = () => {
+    const shellConfig = asRecord(layoutConfig.shell);
 
-export const STATUS_CHIP_GAP = Math.max(2, LAYOUT_METRICS.panelGap);
-export const STATUS_CHIP_RADIUS = Math.max(
-    2,
-    Math.round(LAYOUT_METRICS.innerRadius / 2),
-);
+    // Back-compat: older config had layout.shell as the classic shell object.
+    const legacyShellLooksClassic =
+        "outer_radius" in shellConfig ||
+        "panel_gap" in shellConfig ||
+        "ring_padding" in shellConfig;
 
-// Immersive workspace chrome tokens (owned by the immersive shell)
-export const IMMERSIVE_CHROME_PADDING = readNumber(
-    immersiveShellConfig.chrome_padding,
-    DEFAULT_SHELL_IMMERSIVE.chrome_padding,
-);
-export const IMMERSIVE_MAIN_PADDING = readNumber(
-    immersiveShellConfig.main_padding,
-    DEFAULT_SHELL_IMMERSIVE.main_padding,
-);
-export const IMMERSIVE_MAIN_CONTENT_PADDING = readNumber(
-    immersiveShellConfig.main_content_padding,
-    immersivePanelGap,
-);
-export const IMMERSIVE_MAIN_INNER_RADIUS = immersiveOuterRadius;
-export const IMMERSIVE_HUD_CARD_RADIUS = readNumber(
-    immersiveShellConfig.hud_card_radius,
-    DEFAULT_SHELL_IMMERSIVE.hud_card_radius,
-);
+    const classicShellConfig = legacyShellLooksClassic
+        ? shellConfig
+        : asRecord(shellConfig.classic);
 
-export const IMMERSIVE_CHROME_RADIUS =
-    immersiveOuterRadius + IMMERSIVE_CHROME_PADDING;
-export const IMMERSIVE_MAIN_OUTER_RADIUS =
-    IMMERSIVE_MAIN_INNER_RADIUS + IMMERSIVE_MAIN_PADDING;
+    const immersiveShellConfig = asRecord(shellConfig.immersive);
 
-const pieceMapLayout = layoutConfig.piece_map ?? DEFAULT_LAYOUT_PIECE_MAP;
-const heatmapLayout = layoutConfig.heatmap ?? DEFAULT_LAYOUT_HEATMAP;
-const peerMapLayout = layoutConfig.peer_map ?? DEFAULT_LAYOUT_PEER_MAP;
-const tableLayout = {
-    ...DEFAULT_TABLE_LAYOUT,
-    ...(layoutConfig.table ?? {}),
+    const classicShellResolved = readNumberDomainFromSchema(
+        classicShellConfig,
+        classicShellSchema,
+    );
+
+    // Classic shell metrics (default for shared layout)
+    const classicOuterRadius = classicShellResolved.outerRadius;
+    const classicRingPadding = classicShellResolved.ringPadding;
+    const classicPanelGap = classicShellResolved.panelGap;
+    const classicHandleHitArea = classicShellResolved.handleHitArea;
+    const classicInnerRadius = Math.max(
+        0,
+        classicOuterRadius - classicRingPadding,
+    );
+    const classicInsetRadius = Math.max(0, classicInnerRadius - classicPanelGap);
+
+    // Immersive shell metrics
+    // Prefer `outer_radius` for immersive. Keep `main_inner_radius` as a legacy fallback.
+    const immersiveOuterRadius =
+        readOptionalNumber(immersiveShellConfig.outer_radius) ??
+        readOptionalNumber(immersiveShellConfig.main_inner_radius) ??
+        classicOuterRadius;
+    const immersiveShellMetrics = readNumberDomainFromSchema(
+        immersiveShellConfig,
+        immersiveShellMetricSchema,
+    );
+    const immersiveRingPadding = immersiveShellMetrics.ringPadding;
+    const immersivePanelGap = immersiveShellMetrics.panelGap;
+    // Increase immersive shell resize / handle hit-box to 20px by default
+    const immersiveHandleHitArea = immersiveShellMetrics.handleHitArea;
+    const immersiveInnerRadius = Math.max(
+        0,
+        immersiveOuterRadius - immersiveRingPadding,
+    );
+    const immersiveInsetRadius = Math.max(
+        0,
+        immersiveInnerRadius - immersivePanelGap,
+    );
+
+    const shellTokensClassic: ShellTokens = {
+        gap: classicPanelGap,
+        radius: classicOuterRadius,
+        ringPadding: classicRingPadding,
+        handleHitArea: classicHandleHitArea,
+        innerRadius: classicInnerRadius,
+        insetRadius: classicInsetRadius,
+        outerStyle: {
+            // Use the *inner* radius for the frame so inner block containers
+            // can be controlled from a single token (`innerRadius`).
+            borderRadius: classicInnerRadius,
+            padding: classicRingPadding,
+            // Standard left/right padding for block containers. Use the semantic
+            // panel spacing so Navbar/StatusBar and other blocks render consistently
+            // without per-component hacks.
+            paddingLeft: "var(--spacing-panel)",
+            paddingRight: "var(--spacing-panel)",
+        },
+        surfaceStyle: {
+            borderRadius: classicInnerRadius,
+        },
+    };
+
+    const shellTokensImmersive: ShellTokens = {
+        gap: immersivePanelGap,
+        radius: immersiveOuterRadius,
+        ringPadding: immersiveRingPadding,
+        handleHitArea: immersiveHandleHitArea,
+        innerRadius: immersiveInnerRadius,
+        insetRadius: immersiveInsetRadius,
+        outerStyle: {
+            // Mirror classic: frame uses innerRadius so a single radius knob controls
+            // all block containers in both shells.
+            borderRadius: immersiveInnerRadius,
+            padding: immersiveRingPadding,
+            paddingLeft: "var(--spacing-panel)",
+            paddingRight: "var(--spacing-panel)",
+        },
+        surfaceStyle: {
+            borderRadius: immersiveInnerRadius,
+        },
+    };
+
+    const getTokens = (style: ShellStyle): ShellTokens =>
+        style === "immersive" ? shellTokensImmersive : shellTokensClassic;
+
+    const workbenchSurface = (style: ShellStyle) => getTokens(style).surfaceStyle;
+    const modalSurface = (style: ShellStyle) => getTokens(style).surfaceStyle;
+
+    const metrics = {
+        outerRadius: classicOuterRadius,
+        panelGap: classicPanelGap,
+        ringPadding: classicRingPadding,
+        handleHitArea: classicHandleHitArea,
+        innerRadius: classicInnerRadius,
+        insetRadius: classicInsetRadius,
+    } as const;
+
+    const immersiveShell = {
+        ...readNumberDomainFromSchema(
+            immersiveShellConfig,
+            immersiveShellSchema,
+        ),
+        mainInnerRadius: immersiveOuterRadius,
+    } as const;
+    const immersive = {
+        ...immersiveShell,
+        chromeRadius: immersiveOuterRadius + immersiveShell.chromePadding,
+        mainOuterRadius: immersiveOuterRadius + immersiveShell.mainPadding,
+    } as const;
+
+    return {
+        shell: {
+            getTokens,
+            surfaces: {
+                workbench: workbenchSurface,
+                modal: modalSurface,
+            },
+            metrics,
+            radius: classicOuterRadius,
+            handleHitArea: classicHandleHitArea,
+            immersive,
+        },
+        statusChip: {
+            gap: Math.max(2, metrics.panelGap),
+            radius: Math.max(2, Math.round(metrics.innerRadius / 2)),
+        },
+    } as const;
 };
-const detailsLayout = layoutConfig.details ?? {};
+const { shell, statusChip } = resolveShellDomain();
 
-export const TABLE_LAYOUT = {
+const pieceMapLayout = layoutConfig.piece_map ?? defaultLayoutPieceMap;
+const heatmapLayout = layoutConfig.heatmap ?? defaultLayoutHeatmap;
+const peerMapLayout = layoutConfig.peer_map ?? defaultLayoutPeerMap;
+const tableLayoutConfig = {
+    ...defaultTableLayout,
+    ...(layoutConfig.table ?? {}),
+} as const;
+const detailsLayoutConfig = asRecord(layoutConfig.details);
+
+const tableLayout = {
     // These values are CSS-driven tokens; runtime code that needs
     // numeric pixel heights should read the computed style instead.
     rowHeight: "var(--tt-h-row)",
-    fontSize: tableLayout.font_size,
-    fontMono: tableLayout.font_mono,
-    overscan: tableLayout.overscan,
+    fontSize: tableLayoutConfig.font_size,
+    fontMono: tableLayoutConfig.font_mono,
+    overscan: tableLayoutConfig.overscan,
 } as const;
 
 // --- UI Token Bases from constants.json (used to initialize CSS variables) ---
@@ -404,13 +398,30 @@ const uiLayout = asRecord(layoutConfig.ui);
 // These values are derived from `constants.json` and must be imported by
 // runtime readers (hooks/components) that need numeric scale tokens.
 const scaleCfgTop = asRecord(uiLayout.scale);
-export const SCALE_BASES = {
-    unit: readNumber(scaleCfgTop.unit, 4),
-    fontBase: readNumber(scaleCfgTop.font_base ?? scaleCfgTop.fontBase, 11),
-    zoom: readNumber(scaleCfgTop.zoom ?? scaleCfgTop.level ?? 1, 1),
+const scaleBaseSchema = {
+    unit: {
+        configKey: "unit",
+        fallback: 4,
+    },
+    fontBase: {
+        configKey: "font_base",
+        fallback: 11,
+    },
+    zoom: {
+        configKey: "zoom",
+        fallback: 1,
+    },
+} as const;
+const scaleCfgNormalized = {
+    ...scaleCfgTop,
+    font_base: scaleCfgTop.font_base ?? scaleCfgTop.fontBase,
+    zoom: scaleCfgTop.zoom ?? scaleCfgTop.level,
+} as Record<string, unknown>;
+const scaleBases = {
+    ...readNumberDomainFromSchema(scaleCfgNormalized, scaleBaseSchema),
 };
 
-export const UI_BASES = {
+const uiBases = {
     navbar: {
         height: "var(--height-nav)",
         padding: "var(--spacing-workbench)",
@@ -454,116 +465,92 @@ export const UI_BASES = {
     },
 };
 
-// Semantic role names for application layer (exported so components/higher-level
-// code can reference the canonical recipe rather than ad-hoc class strings).
-export const DROP_OVERLAY_ROLE = "tt-drop-overlay";
-export const DROP_OVERLAY_TITLE_ROLE = "tt-drop-overlay__title";
-
-export const ICON_SIZE = {
-    primary: UI_BASES.statusbar.iconMd,
-    secondary: UI_BASES.statusbar.iconSm,
+const uiPrimitives = {
+    dropOverlayRole: "tt-drop-overlay",
+    dropOverlayTitleRole: "tt-drop-overlay__title",
+    // Minimum visual thickness (in pixels) for panel resize handles.
+    minHandleVisualWidth: 1,
+    handleHitareaClass: "w-handle",
 } as const;
 
-export function applyCssTokenBases() {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement.style;
-    // Simplified: only export the canonical scale primitives.
-    // All other UI tokens are derived in CSS from these two values.
-    const uiLayout = asRecord(layoutConfig.ui);
-    const scaleCfg = asRecord(uiLayout.scale);
-    // Preserve CSS defaults for unit and font base to avoid FOUC.
-    // Only set runtime zoom-level here (JS-driven zoom overrides).
-    const zoom = readNumber(scaleCfg.zoom ?? scaleCfg.level ?? 1, 1);
-    root.setProperty("--tt-zoom-level", String(zoom));
-}
+const visualizationPrimitives = {
+    speedWindowOptions: [
+        { key: "1m", label: "1m", minutes: 1 },
+        { key: "5m", label: "5m", minutes: 5 },
+        { key: "30m", label: "30m", minutes: 30 },
+        { key: "1h", label: "1h", minutes: 60 },
+    ],
+} as const;
 
-// Minimum visual thickness (in pixels) for panel resize handles.
-export const MIN_HANDLE_VISUAL_WIDTH = 1;
-
-export const PIECE_COLUMNS = pieceMapLayout.columns;
-export const PIECE_BASE_ROWS = pieceMapLayout.base_rows;
-export const PIECE_MAX_ROWS = pieceMapLayout.max_rows;
-export const PIECE_CANVAS_CELL_SIZE = pieceMapLayout.cell_size;
-export const PIECE_CANVAS_CELL_GAP = pieceMapLayout.cell_gap;
-
-export const HEATMAP_SAMPLE_LIMIT =
-    PIECE_COLUMNS * heatmapLayout.sample_limit_multiplier;
-export const HEATMAP_ZOOM_LEVELS = heatmapLayout.zoom_levels;
-export const HEATMAP_CANVAS_CELL_SIZE = heatmapLayout.cell_size;
-export const HEATMAP_CANVAS_CELL_GAP = heatmapLayout.cell_gap;
-
-export const PEER_MAP_CONFIG = peerMapLayout;
-
-export const SPEED_WINDOW_OPTIONS = [
-    { key: "1m", label: "1m", minutes: 1 },
-    { key: "5m", label: "5m", minutes: 5 },
-    { key: "30m", label: "30m", minutes: 30 },
-    { key: "1h", label: "1h", minutes: 60 },
-] as const;
-
-const iconography = constants.iconography ?? {};
-const iconographyStrokeWidth = readNumber(iconography.stroke_width, 1.5);
-const iconographyStrokeWidthDense = readNumber(
-    iconography.stroke_width_dense,
-    1.2,
+const iconography = asRecord(constants.iconography);
+const iconographySchema = {
+    strokeWidth: {
+        configKey: "stroke_width",
+        fallback: 1.5,
+    },
+    strokeWidthDense: {
+        configKey: "stroke_width_dense",
+        fallback: 1.2,
+    },
+} as const;
+const iconographyResolved = readNumberDomainFromSchema(
+    iconography,
+    iconographySchema,
 );
 
-export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth})`;
-export const ICON_STROKE_WIDTH_DENSE = `var(--tt-icon-stroke-dense, ${iconographyStrokeWidthDense})`;
-
-export const HANDLE_HITAREA_CLASS = "w-handle";
+const iconTokens = {
+    size: {
+        primary: uiBases.statusbar.iconMd,
+        secondary: uiBases.statusbar.iconSm,
+    },
+    strokeWidth: `var(--tt-icon-stroke, ${iconographyResolved.strokeWidth})`,
+    strokeWidthDense: `var(--tt-icon-stroke-dense, ${iconographyResolved.strokeWidthDense})`,
+} as const;
 
 // Cells should not include extra layout padding for the handle — the handle
 // hit-area is provided by an absolutely-positioned element so it won't
 // require reserved spacing in the layout.
-export const CELL_PADDING_CLASS = `pl-tight pr-tight`;
-
-export const CELL_BASE_CLASS =
-    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
-
-export const TABLE_CELL_CLASS = {
-    headerLabel: "gap-tools text-scaled font-bold uppercase text-foreground/60",
-    alignCenter: "justify-center",
-    alignEnd: "justify-end",
-    sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
-    measureLayer: "absolute pointer-events-none invisible",
-    measureRow: "flex",
-} as const;
-
-export const TABLE_ROW_CLASS = {
-    shell: "absolute top-0 left-0 border-b border-default/5 box-border",
-    dragCursorEnabled: "cursor-grab",
-    dragCursorDisabled: "cursor-default",
-    dragging: "opacity-50 grayscale scale-98 z-popover cursor-grabbing",
-    content: "relative flex items-center w-full h-full box-border",
-    selected: "bg-primary/20",
-    hover: "hover:bg-content1/10",
-    context: "bg-content1/20",
-    highlighted: "bg-foreground/10",
+const tableVisualTokens = {
+    cellPaddingClass: "pl-tight pr-tight",
+    cellBaseClass:
+        "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none",
+    cellClass: {
+        headerLabel: "gap-tools text-scaled font-bold uppercase text-foreground/60",
+        alignCenter: "justify-center",
+        alignEnd: "justify-end",
+        sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
+        measureLayer: "absolute pointer-events-none invisible",
+        measureRow: "flex",
+    },
+    rowClass: {
+        shell: "absolute top-0 left-0 border-b border-default/5 box-border",
+        dragCursorEnabled: "cursor-grab",
+        dragCursorDisabled: "cursor-default",
+        dragging: "opacity-50 grayscale scale-98 z-popover cursor-grabbing",
+        content: "relative flex items-center w-full h-full box-border",
+        selected: "bg-primary/20",
+        hover: "hover:bg-content1/10",
+        context: "bg-content1/20",
+        highlighted: "bg-foreground/10",
+    },
+    headerBase: "text-label font-bold uppercase tracking-label text-foreground/60",
+    surfaceBorder: "border-content1/20",
 } as const;
 
 // Shared header visual tokens used across table headers and inspector headers.
 // Components should compose layout-specific classes (grid/flex) with this
 // base so color, padding and typography remain consistent.
-// `HEADER_BASE` is typography-only: casing, scale, tracking and subdued text color.
+// `tableVisualTokens.headerBase` is typography-only: casing, scale, tracking and subdued text color.
 // It must NOT include background, padding, grid, border, or rounding.
 //
-// DEPRECATED: Use TEXT_ROLE.label from @/config/textRoles instead
-export const HEADER_BASE =
-    "text-label font-bold uppercase tracking-label text-foreground/60";
-export const SURFACE_BORDER = "border-content1/20";
-
-// DEPRECATED: Use TEXT_ROLE from @/config/textRoles instead
-export const TEXT_ROLES = {
+const textRoleTokens = {
     primary: "text-scaled font-semibold text-foreground",
     secondary: "text-scaled text-foreground/70",
-    label: `${HEADER_BASE} text-label`,
+    label: `${tableVisualTokens.headerBase} text-label`,
     helper: "text-label text-foreground/60",
 } as const;
 
-// Re-export centralized text role system for convenience
-export { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-export const STATUS_CHIP_STYLE = {
+const statusChipStyle = {
     width: "var(--tt-status-chip-w)",
     minWidth: "var(--tt-status-chip-w)",
     maxWidth: "var(--tt-status-chip-w)",
@@ -571,382 +558,166 @@ export const STATUS_CHIP_STYLE = {
     boxSizing: "border-box",
 } as const;
 
-// `TABLE_HEADER_CLASS` composes `HEADER_BASE` with table-specific surface, padding and grid.
-export const TABLE_HEADER_CLASS = `${HEADER_BASE} py-panel ${CELL_PADDING_CLASS} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border ${SURFACE_BORDER}`;
+// `tableHeaderClass` composes `headerBase` with table-specific surface, padding and grid.
+const tableHeaderClass = `${tableVisualTokens.headerBase} py-panel ${tableVisualTokens.cellPaddingClass} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border ${tableVisualTokens.surfaceBorder}`;
 
-export const STATUS_VISUAL_KEYS = {
-    tone: {
-        PRIMARY: "tone_primary",
-        SUCCESS: "tone_success",
-        WARNING: "tone_warning",
-        DANGER: "tone_danger",
-        MUTED: "tone_muted",
-        NEUTRAL: "tone_neutral",
+const timingSchemas = {
+    heartbeat: {
+        tableMs: n(
+            "table_refresh_interval_ms",
+            defaultHeartbeats.table_refresh_interval_ms,
+        ),
+        detailMs: n(
+            "detail_refresh_interval_ms",
+            defaultHeartbeats.detail_refresh_interval_ms,
+        ),
+        backgroundMs: n(
+            "background_refresh_interval_ms",
+            defaultHeartbeats.background_refresh_interval_ms,
+        ),
     },
-    speed: {
-        DOWN: "speed_down",
-        SEED: "speed_seed",
-        IDLE: "speed_idle",
+    debounce: {
+        tablePersistMs: n(
+            "table_persist_debounce_ms",
+            defaultTimers.table_persist_debounce_ms,
+        ),
+        setLocationValidationMs: n(
+            "set_location_validation_debounce_ms",
+            defaultTimers.set_location_validation_debounce_ms,
+        ),
+    },
+    cache: {
+        setLocationRootProbeTtlMs: n(
+            "set_location_root_probe_cache_ttl_ms",
+            defaultTimers.set_location_root_probe_cache_ttl_ms,
+        ),
+        setLocationRootProbeErrorTtlMs: n(
+            "set_location_root_probe_error_cache_ttl_ms",
+            defaultTimers.set_location_root_probe_error_cache_ttl_ms,
+        ),
+    },
+    timeouts: {
+        ghostMs: n("ghost_timeout_ms", defaultTimers.ghost_timeout_ms),
+        setLocationMoveMs: n(
+            "set_location_move_timeout_ms",
+            defaultTimers.set_location_move_timeout_ms,
+        ),
+    },
+    wsReconnect: {
+        initialDelayMs: n(
+            "initial_delay_ms",
+            defaultTimers.ws_reconnect.initial_delay_ms,
+        ),
+        maxDelayMs: n("max_delay_ms", defaultTimers.ws_reconnect.max_delay_ms),
+    },
+    ui: {
+        toastMs: n("toast_display_duration_ms", defaultUi.toast_display_duration_ms),
+        clipboardBadgeMs: n(
+            "clipboard_badge_duration_ms",
+            defaultTimers.clipboard_badge_duration_ms,
+        ),
+        focusRestoreMs: n(
+            "focus_restore_delay_ms",
+            defaultTimers.focus_restore_delay_ms,
+        ),
+        magnetEventDedupWindowMs: n(
+            "magnet_event_dedup_window_ms",
+            defaultTimers.magnet_event_dedup_window_ms,
+        ),
+        actionFeedbackStartToastMs: n(
+            "action_feedback_start_toast_duration_ms",
+            defaultTimers.action_feedback_start_toast_duration_ms,
+        ),
+        optimisticCheckingGraceMs: n(
+            "optimistic_checking_grace_ms",
+            defaultTimers.optimistic_checking_grace_ms,
+        ),
+    },
+    recovery: {
+        verifyWatchIntervalMs: n(
+            "verify_watch_interval_ms",
+            defaultTimers.verify_watch_interval_ms,
+        ),
     },
 } as const;
 
-// Semantic status visuals used across the app (moved out of components)
-export const STATUS_VISUALS: Record<
-    string,
-    {
-        bg: string;
-        border: string;
-        text: string;
-        shadow: string;
-        glow: string;
-        panel?: string;
-        button?: string;
-        hudSurface?: string;
-        hudIconBg?: string;
-    }
-> = {
-    [STATUS.connection.IDLE]: {
-        bg: "bg-content1/5 hover:bg-content1/10",
-        border: "border-default/10",
-        text: "text-foreground/40",
-        shadow: "shadow-none",
-        glow: "bg-content1",
-        hudSurface:
-            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
-        hudIconBg: "bg-warning/15 text-warning",
-    },
-    [STATUS.connection.CONNECTED]: {
-        bg: "bg-success/5 hover:bg-success/10",
-        border: "border-default/20",
-        text: "text-success",
-        shadow: "shadow-success-glow",
-        glow: "bg-success",
-        hudSurface:
-            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
-        hudIconBg: "bg-success/15 text-success",
-    },
-    [STATUS.connection.ERROR]: {
-        bg: "bg-danger/5 hover:bg-danger/10",
-        border: "border-default/20",
-        text: "text-danger",
-        shadow: "shadow-danger-glow",
-        glow: "bg-danger",
-        hudSurface:
-            "bg-gradient-to-br from-danger/20 via-background/25 to-background/5",
-        hudIconBg: "bg-danger/15 text-danger",
-    },
-    [STATUS_VISUAL_KEYS.tone.PRIMARY]: {
-        bg: "bg-primary/10",
-        border: "border-primary/30",
-        text: "text-primary",
-        shadow: "shadow-none",
-        glow: "bg-primary",
-        panel: "border-primary/40 bg-primary/10 text-primary",
-        button: "text-primary hover:text-primary-600 hover:bg-primary/10",
-    },
-    [STATUS_VISUAL_KEYS.tone.SUCCESS]: {
-        bg: "bg-success/10",
-        border: "border-success/30",
-        text: "text-success",
-        shadow: "shadow-none",
-        glow: "bg-success",
-        panel: "border-success/40 bg-success/10 text-success",
-        button: "text-success hover:text-success-600 hover:bg-success/10",
-    },
-    [STATUS_VISUAL_KEYS.tone.WARNING]: {
-        bg: "bg-warning/10",
-        border: "border-warning/30",
-        text: "text-warning",
-        shadow: "shadow-none",
-        glow: "bg-warning",
-        panel: "border-warning/30 bg-warning/10 text-warning",
-        button: "text-warning hover:text-warning-600 hover:bg-warning/10",
-    },
-    [STATUS_VISUAL_KEYS.tone.DANGER]: {
-        bg: "bg-danger/10",
-        border: "border-danger/30",
-        text: "text-danger",
-        shadow: "shadow-none",
-        glow: "bg-danger",
-        panel: "border-danger/40 bg-danger/5 text-danger",
-        button: "text-danger hover:text-danger-600 hover:bg-danger/10",
-    },
-    [STATUS_VISUAL_KEYS.tone.MUTED]: {
-        bg: "bg-content1/10",
-        border: "border-default/20",
-        text: "text-foreground/30",
-        shadow: "shadow-none",
-        glow: "bg-content1",
-    },
-    [STATUS_VISUAL_KEYS.tone.NEUTRAL]: {
-        bg: "bg-content1/10",
-        border: "border-default/20",
-        text: "text-default-500",
-        shadow: "shadow-none",
-        glow: "bg-content1",
-        button: "text-default-500 hover:text-foreground hover:bg-default-200",
-    },
-    [STATUS_VISUAL_KEYS.speed.DOWN]: {
-        bg: "bg-success/10",
-        border: "border-success/30",
-        text: "text-success",
-        shadow: "shadow-none",
-        glow: "bg-success",
-    },
-    [STATUS_VISUAL_KEYS.speed.SEED]: {
-        bg: "bg-primary/10",
-        border: "border-primary/30",
-        text: "text-primary",
-        shadow: "shadow-none",
-        glow: "bg-primary",
-    },
-    [STATUS_VISUAL_KEYS.speed.IDLE]: {
-        bg: "bg-content1/10",
-        border: "border-default/20",
-        text: "text-foreground/60",
-        shadow: "shadow-none",
-        glow: "bg-content1",
-    },
-};
-
-export const TABLE_REFRESH_INTERVAL_MS = readNumber(
-    heartbeatConfig.table_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.table_refresh_interval_ms,
-);
-export const DETAIL_REFRESH_INTERVAL_MS = readNumber(
-    heartbeatConfig.detail_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.detail_refresh_interval_ms,
-);
-export const BACKGROUND_REFRESH_INTERVAL_MS = readNumber(
-    heartbeatConfig.background_refresh_interval_ms,
-    DEFAULT_HEARTBEATS.background_refresh_interval_ms,
-);
-export const HEARTBEAT_INTERVALS = {
-    detail: DETAIL_REFRESH_INTERVAL_MS,
-    table: TABLE_REFRESH_INTERVAL_MS,
-    background: BACKGROUND_REFRESH_INTERVAL_MS,
-};
-
-export const CLIPBOARD_BADGE_DURATION_MS = readNumber(
-    timerConfig.clipboard_badge_duration_ms,
-    DEFAULT_TIMERS.clipboard_badge_duration_ms,
-);
-
-export const FOCUS_RESTORE_DELAY_MS = readNumber(
-    timerConfig.focus_restore_delay_ms,
-    DEFAULT_TIMERS.focus_restore_delay_ms,
-);
-
-export const MAGNET_EVENT_DEDUP_WINDOW_MS = readNumber(
-    timerConfig.magnet_event_dedup_window_ms,
-    DEFAULT_TIMERS.magnet_event_dedup_window_ms,
-);
-
-export const ACTION_FEEDBACK_START_TOAST_DURATION_MS = readNumber(
-    timerConfig.action_feedback_start_toast_duration_ms,
-    DEFAULT_TIMERS.action_feedback_start_toast_duration_ms,
-);
-
-export const OPTIMISTIC_CHECKING_GRACE_MS = readNumber(
-    timerConfig.optimistic_checking_grace_ms,
-    DEFAULT_TIMERS.optimistic_checking_grace_ms,
-);
-
-export const WS_RECONNECT_INITIAL_DELAY_MS = readNumber(
-    wsReconnectConfig.initial_delay_ms,
-    DEFAULT_TIMERS.ws_reconnect.initial_delay_ms,
-);
-
-export const WS_RECONNECT_MAX_DELAY_MS = readNumber(
-    wsReconnectConfig.max_delay_ms,
-    DEFAULT_TIMERS.ws_reconnect.max_delay_ms,
-);
-
-export const GHOST_TIMEOUT_MS = readNumber(
-    timerConfig.ghost_timeout_ms,
-    DEFAULT_TIMERS.ghost_timeout_ms,
-);
-
-export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
-    timerConfig.table_persist_debounce_ms,
-    DEFAULT_TIMERS.table_persist_debounce_ms,
-);
-
-export const SET_LOCATION_VALIDATION_DEBOUNCE_MS = readNumber(
-    timerConfig.set_location_validation_debounce_ms,
-    DEFAULT_TIMERS.set_location_validation_debounce_ms,
-);
-
-export const SET_LOCATION_ROOT_PROBE_CACHE_TTL_MS = readNumber(
-    timerConfig.set_location_root_probe_cache_ttl_ms,
-    DEFAULT_TIMERS.set_location_root_probe_cache_ttl_ms,
-);
-
-export const SET_LOCATION_ROOT_PROBE_ERROR_CACHE_TTL_MS = readNumber(
-    timerConfig.set_location_root_probe_error_cache_ttl_ms,
-    DEFAULT_TIMERS.set_location_root_probe_error_cache_ttl_ms,
-);
-
-export const RECOVERY_VERIFY_WATCH_INTERVAL_MS = readNumber(
-    timerConfig.verify_watch_interval_ms,
-    DEFAULT_TIMERS.verify_watch_interval_ms,
-);
-
-export const SET_LOCATION_MOVE_TIMEOUT_MS = readNumber(
-    timerConfig.set_location_move_timeout_ms,
-    DEFAULT_TIMERS.set_location_move_timeout_ms,
-);
-
-export interface DragOverlayRootConfig {
-    initialScale: number;
-    activeScale: number;
-    exitScale: number;
-    initialBlur: number;
-    activeBlur: number;
-    exitBlur: number;
-    transition: {
-        type: "spring";
-        stiffness: number;
-        damping: number;
-        mass: number;
-    };
-}
-
-export interface DragOverlayLayerConfig {
-    id: string;
-    className: string;
-    initial: Record<string, number>;
-    animate: Record<string, number>;
-    exit: Record<string, number>;
-    transition: Transition;
-}
-
-export interface DragOverlayIconConfig {
-    initialScale: number;
-    animateScale: number[];
-    transition: Transition;
-}
-
-export interface DragOverlayConfig {
-    root: DragOverlayRootConfig;
-    layers: DragOverlayLayerConfig[];
-    iconPulse: DragOverlayIconConfig;
-}
-
-export interface ModalBloomConfig {
-    originScale: number;
-    fallbackScale: number;
-    fallbackOffsetY: number;
-    exitScale: number;
-    exitOffsetY: number;
-    transition: {
-        type: "spring";
-        stiffness: number;
-        damping: number;
-    };
-}
-
-export interface ChartConfig {
-    width: number;
-    height: number;
-}
-
-export interface InteractionConfig {
-    dragOverlay: DragOverlayConfig;
-    modalBloom: ModalBloomConfig;
-    speedChart: ChartConfig;
-    networkGraph: ChartConfig;
-}
+const resolvedTiming = {
+    heartbeat: readNumberDomainFromSchema(heartbeatConfig, timingSchemas.heartbeat),
+    debounce: readNumberDomainFromSchema(timerConfig, timingSchemas.debounce),
+    cache: readNumberDomainFromSchema(timerConfig, timingSchemas.cache),
+    timeouts: readNumberDomainFromSchema(timerConfig, timingSchemas.timeouts),
+    wsReconnect: readNumberDomainFromSchema(
+        wsReconnectConfig,
+        timingSchemas.wsReconnect,
+    ),
+    ui: readNumberDomainFromSchema(uiConfig, timingSchemas.ui),
+    recovery: readNumberDomainFromSchema(timerConfig, timingSchemas.recovery),
+} as const;
 
 const normalizeDragOverlay = (
     dragOverlay: DragOverlayConfig,
 ): DragOverlayConfig => ({
     ...dragOverlay,
+    root: {
+        ...dragOverlay.root,
+        transition: {
+            ...dragOverlay.root.transition,
+            type: "spring",
+        },
+    },
     layers: dragOverlay.layers.map((layer) => ({
         ...layer,
-        transition: adaptTransition(layer.transition),
+        transition: {
+            ...adaptTransition(layer.transition),
+            type: "spring",
+            repeatType: normalizeRepeatType(layer.transition.repeatType),
+        },
     })),
     iconPulse: {
         ...dragOverlay.iconPulse,
-        transition: adaptTransition(dragOverlay.iconPulse.transition),
+        transition: {
+            ...adaptTransition(dragOverlay.iconPulse.transition),
+            type: "spring",
+            repeatType: normalizeRepeatType(
+                dragOverlay.iconPulse.transition.repeatType,
+            ),
+        },
     },
 });
 
-const rawInteraction = constants.interaction as InteractionConfig;
-export const INTERACTION_CONFIG: InteractionConfig = {
-    ...rawInteraction,
-    dragOverlay: normalizeDragOverlay(rawInteraction.dragOverlay),
-};
+const resolveInteractionConfig = (): InteractionConfig => {
+    const rawInteraction = constants.interaction as InteractionConfig;
 
-const SPEED_CHART = INTERACTION_CONFIG.speedChart;
-export const CHART_WIDTH = SPEED_CHART.width;
-export const CHART_HEIGHT = SPEED_CHART.height;
-
-export const DETAILS_TAB_CONTENT_MAX_HEIGHT =
-    detailsLayout.tab_content_max_height ?? 360;
-
-type DetailsPieceMapConfig = {
-    cell_size: number;
-    cell_gap: number;
-    columns: number;
-    rows: {
-        base: number;
-        max: number;
+    return {
+        ...rawInteraction,
+        dragOverlay: normalizeDragOverlay(rawInteraction.dragOverlay),
+        modalBloom: {
+            ...rawInteraction.modalBloom,
+            transition: {
+                ...rawInteraction.modalBloom.transition,
+                type: "spring",
+            },
+        },
     };
 };
 
-type DetailsPeerMapConfig = {
-    drift_amplitude: number;
-    drift_duration: {
-        min: number;
-        max: number;
-    };
-    layout: {
-        center: number;
-        radius: number;
-        base_node_size: number;
-        progress_scale: number;
-    };
-};
+const interactionConfig = resolveInteractionConfig();
+const interactionChart = interactionConfig.speedChart;
 
-type DetailsScatterConfig = {
-    padding: {
-        top: number;
-        bottom: number;
-        x: number;
-    };
-    radius: {
-        normal: number;
-        hover: number;
-        hit: number;
-    };
-};
+const detailsLayoutSchema = {
+    tabContentMaxHeight: {
+        configKey: "tab_content_max_height",
+        fallback: defaultLayoutDetails.tab_content_max_height,
+    },
+} as const;
+const detailsLayoutResolved = readNumberDomainFromSchema(
+    detailsLayoutConfig,
+    detailsLayoutSchema,
+);
+const detailsTabContentMaxHeight =
+    detailsLayoutResolved.tabContentMaxHeight;
 
-type DetailsAvailabilityHeatmapConfig = {
-    shadow_blur_max: number;
-    hover_stroke_width: number;
-    hover_stroke_inset: number;
-    cell_stroke_inset: number;
-    use_ui_sampling_shim?: boolean;
-};
-
-type DetailsSpeedChartConfig = {
-    line_width: number;
-    fill_alpha: number;
-    down_stroke_token: string;
-    up_stroke_token: string;
-};
-
-type DetailsVisualizationsConfig = {
-    piece_map: DetailsPieceMapConfig;
-    peer_map: DetailsPeerMapConfig;
-    scatter: DetailsScatterConfig;
-    availability_heatmap: DetailsAvailabilityHeatmapConfig;
-    speed_chart: DetailsSpeedChartConfig;
-    tooltip_animation: MotionProps;
-};
-
-const DEFAULT_DETAILS_VISUALIZATIONS: DetailsVisualizationsConfig = {
+const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
     piece_map: {
         cell_size: 10,
         cell_gap: 2,
@@ -1001,126 +772,386 @@ const DEFAULT_DETAILS_VISUALIZATIONS: DetailsVisualizationsConfig = {
     },
 };
 
-const DETAILS_VISUALIZATIONS =
-    (constants.visualizations?.details as DetailsVisualizationsConfig) ??
-    DEFAULT_DETAILS_VISUALIZATIONS;
+const resolveDetailsVisualizations = (
+    value: unknown,
+): DetailsVisualizationsConfig =>
+    mergeKnownKeysDeep(defaultDetailsVisualizations, asRecord(value));
 
-export const DETAILS_PIECE_MAP_CONFIG = DETAILS_VISUALIZATIONS.piece_map;
-export const DETAILS_PEER_MAP_CONFIG = DETAILS_VISUALIZATIONS.peer_map;
-export const DETAILS_SCATTER_CONFIG = DETAILS_VISUALIZATIONS.scatter;
-export const DETAILS_TOOLTIP_ANIMATION =
-    DETAILS_VISUALIZATIONS.tooltip_animation;
-const readOpacity = (value: unknown, fallback: number) => {
-    if (
-        value &&
-        typeof value === "object" &&
-        "opacity" in (value as Record<string, unknown>)
-    ) {
-        const candidate = (value as { opacity?: unknown }).opacity;
-        if (typeof candidate === "number") return candidate;
-    }
-    return fallback;
-};
-export type TooltipOpacityAnimation = {
-    initial: { opacity: number };
-    animate: { opacity: number };
-    exit: { opacity: number };
-};
-export const DETAILS_TOOLTIP_OPACITY_ANIMATION: TooltipOpacityAnimation = {
+const detailsVisualizations = resolveDetailsVisualizations(
+    constants.visualizations?.details,
+);
+
+const detailsPieceMapConfig = detailsVisualizations.piece_map;
+const detailsPeerMapConfig = detailsVisualizations.peer_map;
+const detailsScatterConfig = detailsVisualizations.scatter;
+const detailsTooltipAnimation =
+    detailsVisualizations.tooltip_animation;
+const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
     initial: {
-        opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.initial, 0),
+        opacity: readOpacity(detailsTooltipAnimation?.initial, 0),
     },
     animate: {
-        opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.animate, 1),
+        opacity: readOpacity(detailsTooltipAnimation?.animate, 1),
     },
-    exit: { opacity: readOpacity(DETAILS_TOOLTIP_ANIMATION?.exit, 0) },
+    exit: { opacity: readOpacity(detailsTooltipAnimation?.exit, 0) },
 };
 
 // Availability heatmap visual tokens (moved from hard-coded literals)
-export const DETAILS_AVAILABILITY_HEATMAP =
-    DETAILS_VISUALIZATIONS.availability_heatmap;
-export const HEATMAP_SHADOW_BLUR_MAX =
-    DETAILS_AVAILABILITY_HEATMAP.shadow_blur_max;
-export const HEATMAP_HOVER_STROKE_WIDTH =
-    DETAILS_AVAILABILITY_HEATMAP.hover_stroke_width;
-export const HEATMAP_HOVER_STROKE_INSET =
-    DETAILS_AVAILABILITY_HEATMAP.hover_stroke_inset;
-export const HEATMAP_CELL_STROKE_INSET =
-    DETAILS_AVAILABILITY_HEATMAP.cell_stroke_inset;
-export const HEATMAP_USE_UI_SAMPLING_SHIM = Boolean(
-    DETAILS_AVAILABILITY_HEATMAP.use_ui_sampling_shim,
+const detailsAvailabilityHeatmap =
+    detailsVisualizations.availability_heatmap;
+const heatmapShadowBlurMax =
+    detailsAvailabilityHeatmap.shadow_blur_max;
+const heatmapHoverStrokeWidth =
+    detailsAvailabilityHeatmap.hover_stroke_width;
+const heatmapHoverStrokeInset =
+    detailsAvailabilityHeatmap.hover_stroke_inset;
+const heatmapCellStrokeInset =
+    detailsAvailabilityHeatmap.cell_stroke_inset;
+const heatmapUseUiSamplingShim = Boolean(
+    detailsAvailabilityHeatmap.use_ui_sampling_shim,
 );
 
-export const DETAILS_SPEED_CHART = DETAILS_VISUALIZATIONS.speed_chart;
-export const SPEED_CHART_LINE_WIDTH = DETAILS_SPEED_CHART.line_width;
-export const SPEED_CHART_FILL_ALPHA = DETAILS_SPEED_CHART.fill_alpha;
-export const SPEED_CHART_DOWN_STROKE_TOKEN =
-    DETAILS_SPEED_CHART.down_stroke_token;
-export const SPEED_CHART_UP_STROKE_TOKEN = DETAILS_SPEED_CHART.up_stroke_token;
+const detailsSpeedChart = detailsVisualizations.speed_chart;
 
-// Chart geometry & behavior tokens (centralized so layout/behavior can be tuned)
-export const SPEED_CANVAS_DENOM_FLOOR = 1024; // baseline denominator for scaling
-export const SPEED_SMOOTH_DECAY = 0.98; // decay applied to maxRef smoothing
-export const SPEED_RETENTION_MS = 15 * 60_000; // fallback retention for history
+const defaultSpeedVisualization = {
+    canvasDenomFloor: 1024,
+    smoothDecay: 0.98,
+    retentionMs: 15 * 60_000,
+    bucketWidthSmall: 240,
+    bucketWidthMed: 520,
+    bucketCountSmall: 48,
+    bucketCountMed: 96,
+} as const;
 
-// Bucket thresholds used by visualizations to choose sampling resolution
-export const SPEED_BUCKET_WIDTH_SMALL = 240;
-export const SPEED_BUCKET_WIDTH_MED = 520;
-export const SPEED_BUCKET_COUNT_SMALL = 48;
-export const SPEED_BUCKET_COUNT_MED = 96;
+const trackingLabel = "tracking-label";
 
-// Typography / tracking roles (semantic tokens)
-export const TRACKING_LABEL = "tracking-label";
-
-export const TRANSITION = {
+const transitionTokens = {
     fast: "transition-colors duration-150",
     medium: "transition-all duration-200",
     slow: "transition-all duration-300",
     reveal: "transition-opacity duration-500",
 } as const;
 
-export const INTERACTIVE_RECIPE = {
-    buttonDefault: `${TRANSITION.fast} hover:bg-content2/50 active:scale-95`,
-    buttonPrimary: `${TRANSITION.fast} hover:bg-primary/20 active:scale-95`,
-    buttonDanger: `${TRANSITION.fast} hover:bg-danger/10 text-danger hover:text-danger-600`,
-    buttonGhost: `${TRANSITION.fast} hover:text-foreground hover:bg-content2/30`,
-    textReveal: `${TRANSITION.fast} hover:text-foreground`,
-    textMutedReveal: `${TRANSITION.fast} hover:text-foreground/70`,
-    menuItem: `${TRANSITION.fast} hover:bg-content2/50 cursor-pointer`,
-    menuItemDanger: `${TRANSITION.fast} hover:bg-danger/10 text-danger cursor-pointer`,
-    dismiss: `${TRANSITION.fast} hover:text-foreground hover:bg-content2/30 rounded-full`,
-    navItem: `${TRANSITION.fast} hover:text-foreground hover:bg-foreground/5`,
-    groupReveal: `${TRANSITION.reveal} group-hover:opacity-100 opacity-0`,
+const interactiveRecipe = {
+    buttonDefault: `${transitionTokens.fast} hover:bg-content2/50 active:scale-95`,
+    buttonPrimary: `${transitionTokens.fast} hover:bg-primary/20 active:scale-95`,
+    buttonDanger: `${transitionTokens.fast} hover:bg-danger/10 text-danger hover:text-danger-600`,
+    buttonGhost: `${transitionTokens.fast} hover:text-foreground hover:bg-content2/30`,
+    textReveal: `${transitionTokens.fast} hover:text-foreground`,
+    textMutedReveal: `${transitionTokens.fast} hover:text-foreground/70`,
+    menuItem: `${transitionTokens.fast} hover:bg-content2/50 cursor-pointer`,
+    menuItemDanger: `${transitionTokens.fast} hover:bg-danger/10 text-danger cursor-pointer`,
+    dismiss: `${transitionTokens.fast} hover:text-foreground hover:bg-content2/30 rounded-full`,
+    navItem: `${transitionTokens.fast} hover:text-foreground hover:bg-foreground/5`,
+    groupReveal: `${transitionTokens.reveal} group-hover:opacity-100 opacity-0`,
 } as const;
 
-export const VISUAL_STATE = {
+const visualState = {
     disabled: "opacity-50 pointer-events-none",
     muted: "opacity-40",
     ghost: "opacity-20",
 } as const;
 
-type ShortcutIntentMap = {
-    SelectAll: "action.select_all";
-    Delete: "action.delete";
-    ShowDetails: "action.show_details";
-    TogglePause: "action.toggle_pause";
-    Recheck: "action.recheck";
-    RemoveWithData: "action.remove_with_data";
-};
+const statusVisualKeys = {
+    tone: {
+        primary: "tone_primary",
+        success: "tone_success",
+        warning: "tone_warning",
+        danger: "tone_danger",
+        muted: "tone_muted",
+        neutral: "tone_neutral",
+    },
+    speed: {
+        down: "speed_down",
+        seed: "speed_seed",
+        idle: "speed_idle",
+    },
+} as const;
 
-type ShortcutKeyScopeMap = {
-    Dashboard: "dashboard";
-    Modal: "modal";
-    Settings: "settings";
-    App: "app";
-};
+const statusVisuals = {
+    [status.connection.idle]: {
+        bg: "bg-content1/5 hover:bg-content1/10",
+        border: "border-default/10",
+        text: "text-foreground/40",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+        hudSurface:
+            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
+        hudIconBg: "bg-warning/15 text-warning",
+    },
+    [status.connection.online]: {
+        bg: "bg-success/5 hover:bg-success/10",
+        border: "border-default/20",
+        text: "text-success",
+        shadow: "shadow-success-glow",
+        glow: "bg-success",
+        hudSurface:
+            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
+        hudIconBg: "bg-success/15 text-success",
+    },
+    [status.connection.connected]: {
+        bg: "bg-success/5 hover:bg-success/10",
+        border: "border-default/20",
+        text: "text-success",
+        shadow: "shadow-success-glow",
+        glow: "bg-success",
+        hudSurface:
+            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
+        hudIconBg: "bg-success/15 text-success",
+    },
+    [status.connection.polling]: {
+        bg: "bg-warning/5 hover:bg-warning/10",
+        border: "border-default/20",
+        text: "text-warning",
+        shadow: "shadow-none",
+        glow: "bg-warning",
+        hudSurface:
+            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
+        hudIconBg: "bg-warning/15 text-warning",
+    },
+    [status.connection.offline]: {
+        bg: "bg-content1/5 hover:bg-content1/10",
+        border: "border-default/10",
+        text: "text-foreground/40",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+        hudSurface:
+            "bg-gradient-to-br from-content1/10 via-background/30 to-background/5",
+        hudIconBg: "bg-content1/15 text-foreground/60",
+    },
+    [status.connection.error]: {
+        bg: "bg-danger/5 hover:bg-danger/10",
+        border: "border-default/20",
+        text: "text-danger",
+        shadow: "shadow-danger-glow",
+        glow: "bg-danger",
+        hudSurface:
+            "bg-gradient-to-br from-danger/20 via-background/25 to-background/5",
+        hudIconBg: "bg-danger/15 text-danger",
+    },
+    [statusVisualKeys.tone.primary]: {
+        bg: "bg-primary/10",
+        border: "border-primary/30",
+        text: "text-primary",
+        shadow: "shadow-none",
+        glow: "bg-primary",
+        panel: "border-primary/40 bg-primary/10 text-primary",
+        button: "text-primary hover:text-primary-600 hover:bg-primary/10",
+    },
+    [statusVisualKeys.tone.success]: {
+        bg: "bg-success/10",
+        border: "border-success/30",
+        text: "text-success",
+        shadow: "shadow-none",
+        glow: "bg-success",
+        panel: "border-success/40 bg-success/10 text-success",
+        button: "text-success hover:text-success-600 hover:bg-success/10",
+    },
+    [statusVisualKeys.tone.warning]: {
+        bg: "bg-warning/10",
+        border: "border-warning/30",
+        text: "text-warning",
+        shadow: "shadow-none",
+        glow: "bg-warning",
+        panel: "border-warning/30 bg-warning/10 text-warning",
+        button: "text-warning hover:text-warning-600 hover:bg-warning/10",
+    },
+    [statusVisualKeys.tone.danger]: {
+        bg: "bg-danger/10",
+        border: "border-danger/30",
+        text: "text-danger",
+        shadow: "shadow-none",
+        glow: "bg-danger",
+        panel: "border-danger/40 bg-danger/5 text-danger",
+        button: "text-danger hover:text-danger-600 hover:bg-danger/10",
+    },
+    [statusVisualKeys.tone.muted]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-foreground/30",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+    },
+    [statusVisualKeys.tone.neutral]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-default-500",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+        button: "text-default-500 hover:text-foreground hover:bg-default-200",
+    },
+    [statusVisualKeys.speed.down]: {
+        bg: "bg-success/10",
+        border: "border-success/30",
+        text: "text-success",
+        shadow: "shadow-none",
+        glow: "bg-success",
+    },
+    [statusVisualKeys.speed.seed]: {
+        bg: "bg-primary/10",
+        border: "border-primary/30",
+        text: "text-primary",
+        shadow: "shadow-none",
+        glow: "bg-primary",
+    },
+    [statusVisualKeys.speed.idle]: {
+        bg: "bg-content1/10",
+        border: "border-default/20",
+        text: "text-foreground/60",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+    },
+} satisfies Record<
+    StatusVisualKeyFromKeys<typeof statusVisualKeys>,
+    StatusVisualRecipe
+>;
 
-export const ShortcutIntent = constants.shortcuts.intents as ShortcutIntentMap;
+/* =========================================
+   DOMAIN: PERFORMANCE
+========================================= */
+const performance = resolvedPerformance;
 
-export type ShortcutIntent =
-    (typeof ShortcutIntent)[keyof typeof ShortcutIntent];
+/* =========================================
+   DOMAIN: TIMING
+========================================= */
+const timing = resolvedTiming;
 
-export const KEY_SCOPE = constants.shortcuts.keyScope as ShortcutKeyScopeMap;
+/* =========================================
+   DOMAIN: LAYOUT
+========================================= */
+const layout = {
+    table: tableLayout,
+    pieceMap: {
+        columns: pieceMapLayout.columns,
+        baseRows: pieceMapLayout.base_rows,
+        maxRows: pieceMapLayout.max_rows,
+        cellSize: pieceMapLayout.cell_size,
+        cellGap: pieceMapLayout.cell_gap,
+    },
+    heatmap: {
+        sampleLimit:
+            pieceMapLayout.columns * heatmapLayout.sample_limit_multiplier,
+        zoomLevels: heatmapLayout.zoom_levels,
+        cellSize: heatmapLayout.cell_size,
+        cellGap: heatmapLayout.cell_gap,
+        shadowBlurMax: heatmapShadowBlurMax,
+        hoverStrokeWidth: heatmapHoverStrokeWidth,
+        hoverStrokeInset: heatmapHoverStrokeInset,
+        cellStrokeInset: heatmapCellStrokeInset,
+        useUiSamplingShim: heatmapUseUiSamplingShim,
+    },
+    peerMap: peerMapLayout,
+} as const;
 
-export const KEYMAP: Record<ShortcutIntent, string | string[]> = constants
-    .shortcuts.keymap as Record<ShortcutIntent, string | string[]>;
+/* =========================================
+   DOMAIN: SHELL
+========================================= */
+
+/* =========================================
+   DOMAIN: INTERACTION
+========================================= */
+const interaction = {
+    config: interactionConfig,
+    chart: {
+        width: interactionChart.width,
+        height: interactionChart.height,
+    },
+} as const;
+
+/* =========================================
+   DOMAIN: VISUALS
+========================================= */
+const visuals = {
+    status: {
+        keys: statusVisualKeys,
+        recipes: statusVisuals,
+        chip: {
+            layout: statusChip,
+            style: statusChipStyle,
+        },
+    },
+    transitions: transitionTokens,
+    interactive: interactiveRecipe,
+    state: visualState,
+    typography: {
+        trackingLabel: trackingLabel,
+        headerBase: tableVisualTokens.headerBase,
+        textRoles: textRoleTokens,
+    },
+    surface: {
+        border: tableVisualTokens.surfaceBorder,
+    },
+    table: {
+        headerClass: tableHeaderClass,
+        cellBaseClass: tableVisualTokens.cellBaseClass,
+        cellPaddingClass: tableVisualTokens.cellPaddingClass,
+        cellClass: tableVisualTokens.cellClass,
+        rowClass: tableVisualTokens.rowClass,
+    },
+    icon: {
+        size: iconTokens.size,
+        strokeWidth: iconTokens.strokeWidth,
+        strokeWidthDense: iconTokens.strokeWidthDense,
+    },
+} as const;
+
+/* =========================================
+   DOMAIN: VISUALIZATIONS
+========================================= */
+const visualizations = {
+    details: {
+        tabContentMaxHeight: detailsTabContentMaxHeight,
+        pieceMap: detailsPieceMapConfig,
+        peerMap: detailsPeerMapConfig,
+        scatter: detailsScatterConfig,
+        tooltipAnimation: detailsTooltipAnimation,
+        tooltipOpacityAnimation: detailsTooltipOpacityAnimation,
+        availabilityHeatmap: detailsAvailabilityHeatmap,
+        speedWindowOptions: visualizationPrimitives.speedWindowOptions,
+        speedChart: {
+            config: detailsSpeedChart,
+            lineWidth: detailsSpeedChart.line_width,
+            fillAlpha: detailsSpeedChart.fill_alpha,
+            downStrokeToken: detailsSpeedChart.down_stroke_token,
+            upStrokeToken: detailsSpeedChart.up_stroke_token,
+            canvasDenomFloor: defaultSpeedVisualization.canvasDenomFloor,
+            smoothDecay: defaultSpeedVisualization.smoothDecay,
+            retentionMs: defaultSpeedVisualization.retentionMs,
+            bucketWidthSmall: defaultSpeedVisualization.bucketWidthSmall,
+            bucketWidthMed: defaultSpeedVisualization.bucketWidthMed,
+            bucketCountSmall: defaultSpeedVisualization.bucketCountSmall,
+            bucketCountMed: defaultSpeedVisualization.bucketCountMed,
+        },
+    },
+} as const;
+
+/* =========================================
+   DOMAIN: UI
+========================================= */
+const ui = {
+    designSystemAuthority: designSystemAuthority,
+    resizeHandle: {
+        minVisualWidth: uiPrimitives.minHandleVisualWidth,
+        hitAreaClass: uiPrimitives.handleHitareaClass,
+    },
+    dropOverlay: {
+        role: uiPrimitives.dropOverlayRole,
+        titleRole: uiPrimitives.dropOverlayTitleRole,
+    },
+    scaleBases,
+    bases: uiBases,
+} as const;
+
+export const registry = {
+    defaults,
+    runtime,
+    performance,
+    timing,
+    layout,
+    shell,
+    interaction,
+    visuals,
+    visualizations,
+    ui,
+} as const;
+

@@ -1,9 +1,9 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableRowMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 
 const setDownloadPathModalSpy = vi.hoisted(() => vi.fn());
@@ -121,7 +121,7 @@ const makeTorrent = (overrides?: Partial<Torrent>): Torrent => ({
     id: "torrent-1",
     hash: "hash-1",
     name: "Torrent",
-    state: STATUS.torrent.PAUSED,
+    state: status.torrent.paused,
     speed: { down: 0, up: 0 },
     peerSummary: { connected: 0 },
     totalSize: 1000,
@@ -239,3 +239,4 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
         }
     });
 });
+

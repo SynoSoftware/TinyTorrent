@@ -6,7 +6,7 @@ import type {
 } from "@/services/rpc/entities";
 import { HeartbeatManager } from "@/services/rpc/heartbeat";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 
 const dummyStats: SessionStats = {
     downloadSpeed: 0,
@@ -54,7 +54,7 @@ function makeTorrent(overrides: Partial<TorrentEntity> = {}): TorrentEntity {
         hash: overrides.hash ?? "torrent-hash-1",
         name: "torrent-1",
         progress: 0,
-        state: overrides.state ?? STATUS.torrent.DOWNLOADING,
+        state: overrides.state ?? status.torrent.downloading,
         verificationProgress: undefined,
         speed: overrides.speed ?? { down: 0, up: 0 },
         peerSummary: {
@@ -90,7 +90,7 @@ describe("Heartbeat telemetry", () => {
             id: "torrent-1",
             hash: "hash-1",
             rpcId: 11,
-            state: STATUS.torrent.DOWNLOADING,
+            state: status.torrent.downloading,
             speed: { down: 0, up: 0 },
         });
         const updatedTorrent = makeTorrent({
@@ -148,12 +148,12 @@ describe("Heartbeat telemetry", () => {
             id: "torrent-2",
             hash: "hash-2",
             rpcId: 22,
-            state: STATUS.torrent.DOWNLOADING,
+            state: status.torrent.downloading,
             speed: { down: 128, up: 0 },
         });
         const pausedTorrent = makeTorrent({
             ...torrent,
-            state: STATUS.torrent.PAUSED,
+            state: status.torrent.paused,
             speed: { down: 0, up: 0 },
         });
 
@@ -192,7 +192,7 @@ describe("Heartbeat telemetry", () => {
         await hbInternals.tick();
 
         const last = hbInternals.lastTorrents?.[0];
-        expect(last?.state).toBe(STATUS.torrent.PAUSED);
+        expect(last?.state).toBe(status.torrent.paused);
         expect(last?.speed?.down).toBe(0);
 
         const history = hbInternals.getSpeedHistory(last!.id);
@@ -206,7 +206,7 @@ describe("Heartbeat telemetry", () => {
             id: "to-remove",
             hash: "hash-remove",
             rpcId: 99,
-            state: STATUS.torrent.DOWNLOADING,
+            state: status.torrent.downloading,
             speed: { down: 64, up: 0 },
         });
         const removedRpcId = torrent.rpcId ?? 99;

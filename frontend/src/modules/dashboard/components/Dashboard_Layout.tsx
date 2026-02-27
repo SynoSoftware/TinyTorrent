@@ -2,11 +2,7 @@ import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { cn } from "@heroui/react";
 import {
-    Panel,
-    PanelGroup,
-    PanelResizeHandle,
-    type ImperativePanelHandle,
-} from "react-resizable-panels";
+    Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle, } from "react-resizable-panels";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusState } from "@/app/context/AppShellStateContext";
@@ -14,22 +10,14 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { TorrentTable } from "@/modules/dashboard/components/TorrentTable";
 import { TorrentDetails } from "@/modules/dashboard/components/TorrentDetails";
 import {
-    DetailOpenProvider,
-    type DetailOpenMode,
-} from "@/modules/dashboard/context/DetailOpenContext";
-import {
-    DETAILS_TOOLTIP_OPACITY_ANIMATION,
-    DROP_OVERLAY_ROLE,
-    DROP_OVERLAY_TITLE_ROLE,
-    ICON_STROKE_WIDTH,
-    getShellTokens,
-    MIN_HANDLE_VISUAL_WIDTH,
-} from "@/config/logic";
+    DetailOpenProvider, type DetailOpenMode, } from "@/modules/dashboard/context/DetailOpenContext";
+import { registry } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { Section } from "@/shared/ui/layout/Section";
 import { DASHBOARD } from "@/shared/ui/layout/glass-surface";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
+const { layout, shell, visuals, visualizations, ui } = registry;
 
 const ANIMATION = {
     spring: {
@@ -41,9 +29,9 @@ const ANIMATION = {
 } as const;
 
 const OVERLAY_FADE_ANIMATION = {
-    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity },
-    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity },
-    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity },
+    initial: { opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity },
+    animate: { opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity },
+    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity },
     transition: ANIMATION.entry,
 } as const;
 
@@ -60,15 +48,15 @@ const DROP_OVERLAY_ACCENT_ANIMATION = {
 
 const FULLSCREEN_PANEL_ANIMATION = {
     initial: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
         scale: 0.96,
     },
     animate: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
         scale: 1,
     },
     exit: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity,
         scale: 0.96,
     },
     transition: { duration: 0.25 },
@@ -91,7 +79,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
     const isImmersiveShell = workspaceStyle === "immersive";
 
-    const shell = getShellTokens(workspaceStyle);
+    const shellTokens = shell.getTokens(workspaceStyle);
 
     const splitDirection = detailSplitDirection ?? "vertical";
     const isHorizontalSplit = splitDirection === "horizontal";
@@ -187,7 +175,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             ? undefined
             : {
                   // Padding remains (geometry token); surfaceStyle removed — parent owns surface.
-                  padding: `${shell.gap}px`,
+                  padding: `${shellTokens.gap}px`,
               },
     });
 
@@ -206,16 +194,16 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     <div
                         className={cn(
                             DASHBOARD.dropOverlayIconWrap,
-                            DROP_OVERLAY_ROLE,
+                            ui.dropOverlay.role,
                         )}
                     >
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
-                            strokeWidth={ICON_STROKE_WIDTH}
+                            strokeWidth={visuals.icon.strokeWidth}
                             className={DASHBOARD.dropOverlayIconTone}
                         />
-                        <span className={DROP_OVERLAY_TITLE_ROLE}>
+                        <span className={ui.dropOverlay.titleRole}>
                             {t("drop_overlay.title")}
                         </span>
                     </div>
@@ -229,7 +217,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
             className={DASHBOARD.panelGroup}
-            style={shell.surfaceStyle}
+            style={shellTokens.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
             <Panel className={DASHBOARD.mainPanel}>
@@ -238,7 +226,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                         <div
                             className={DASHBOARD.tableHost}
                             style={{
-                                borderRadius: `${shell.innerRadius}px`,
+                                borderRadius: `${shellTokens.innerRadius}px`,
                             }}
                         >
                             {tableWatermarkEnabled && (
@@ -276,8 +264,8 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     isHorizontalSplit,
                 )}
                 hitAreaMargins={{
-                    coarse: shell.handleHitArea,
-                    fine: shell.handleHitArea,
+                    coarse: shellTokens.handleHitArea,
+                    fine: shellTokens.handleHitArea,
                 }}
                 style={{
                     // Use CSS-driven semantic gap (no new numeric literals)
@@ -290,11 +278,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                         style={
                             isHorizontalSplit
                                 ? {
-                                      width: `${MIN_HANDLE_VISUAL_WIDTH}px`,
+                                      width: `${ui.resizeHandle.minVisualWidth}px`,
                                       height: "100%",
                                   }
                                 : {
-                                      height: `${MIN_HANDLE_VISUAL_WIDTH}px`,
+                                      height: `${ui.resizeHandle.minVisualWidth}px`,
                                       width: "100%",
                                   }
                         }
@@ -319,7 +307,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                         <div
                             className={DASHBOARD.inspectorContent}
                             style={{
-                                borderRadius: `${shell.innerRadius}px`,
+                                borderRadius: `${shellTokens.innerRadius}px`,
                             }}
                         >
                             <motion.div
@@ -366,7 +354,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             <div className={DASHBOARD.fullscreenBackdrop} />
                             <motion.div
                                 className={DASHBOARD.fullscreenPanel}
-                                style={{ borderRadius: `${shell.radius}px` }}
+                                style={{ borderRadius: `${shellTokens.radius}px` }}
                                 {...FULLSCREEN_PANEL_ANIMATION}
                             >
                                 <TorrentDetails
@@ -387,3 +375,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         </Section>
     );
 }
+
+
+
+

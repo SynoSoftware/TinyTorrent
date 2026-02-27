@@ -1,5 +1,3 @@
-import { normalizeHost, isLoopbackHost } from "@/app/utils/hosts";
-
 export type UiMode = "Full" | "Rpc";
 
 export interface UiCapabilities {
@@ -11,6 +9,18 @@ export interface UiCapabilities {
     supportsManual: boolean;
     destinationPathPolicy: "windows_abs_only" | "any_abs";
     clipboardWriteSupported: boolean;
+}
+
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+export function normalizeHost(value: string): string {
+    return value.trim().replace(/^\[|\]$/g, "").toLowerCase();
+}
+
+export function isLoopbackHost(host: string): boolean {
+    if (!host) return false;
+    const normalized = normalizeHost(host);
+    return loopbackHosts.has(normalized);
 }
 
 function resolveUiMode(

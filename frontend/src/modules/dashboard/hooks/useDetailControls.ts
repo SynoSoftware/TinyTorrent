@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
@@ -115,3 +115,4 @@ export function useDetailControls({
         handleSuperSeedingToggle,
     };
 }
+

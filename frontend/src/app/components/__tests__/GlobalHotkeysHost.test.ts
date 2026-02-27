@@ -1,10 +1,10 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { HOTKEY_COMMAND_ID } from "@/app/commandCatalog";
+import { hotkeyCommandId } from "@/app/commandCatalog";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
-import { STATUS } from "@/shared/status";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { status } from "@/shared/status";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 const useHotkeysMock = vi.fn();
 const useSelectionMock = vi.fn();
@@ -16,7 +16,7 @@ const TEST_TORRENT: Torrent = {
     id: "torrent-a",
     hash: "hash-a",
     name: "A",
-    state: STATUS.torrent.DOWNLOADING,
+    state: status.torrent.downloading,
     speed: {
         down: 0,
         up: 0,
@@ -80,37 +80,37 @@ describe("GlobalHotkeysHost", () => {
         });
 
         const bindings = {
-            [HOTKEY_COMMAND_ID.SelectAll]: {
+            [hotkeyCommandId.SelectAll]: {
                 keys: "ctrl+a",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.Remove]: {
+            [hotkeyCommandId.Remove]: {
                 keys: "delete",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.ShowDetails]: {
+            [hotkeyCommandId.ShowDetails]: {
                 keys: "enter",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.ToggleInspector]: {
+            [hotkeyCommandId.ToggleInspector]: {
                 keys: "ctrl+i",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.TogglePause]: {
+            [hotkeyCommandId.TogglePause]: {
                 keys: "space",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.Recheck]: {
+            [hotkeyCommandId.Recheck]: {
                 keys: "r",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
             },
-            [HOTKEY_COMMAND_ID.RemoveWithData]: {
+            [hotkeyCommandId.RemoveWithData]: {
                 keys: "shift+delete",
                 handler: vi.fn(),
                 options: { scopes: "dashboard" },
@@ -145,13 +145,14 @@ describe("GlobalHotkeysHost", () => {
 
         expect(useHotkeysMock).toHaveBeenCalledTimes(7);
         expect(useHotkeysMock.mock.calls.map((entry) => entry[0])).toEqual([
-            bindings[HOTKEY_COMMAND_ID.SelectAll].keys,
-            bindings[HOTKEY_COMMAND_ID.Remove].keys,
-            bindings[HOTKEY_COMMAND_ID.ShowDetails].keys,
-            bindings[HOTKEY_COMMAND_ID.ToggleInspector].keys,
-            bindings[HOTKEY_COMMAND_ID.TogglePause].keys,
-            bindings[HOTKEY_COMMAND_ID.Recheck].keys,
-            bindings[HOTKEY_COMMAND_ID.RemoveWithData].keys,
+            bindings[hotkeyCommandId.SelectAll].keys,
+            bindings[hotkeyCommandId.Remove].keys,
+            bindings[hotkeyCommandId.ShowDetails].keys,
+            bindings[hotkeyCommandId.ToggleInspector].keys,
+            bindings[hotkeyCommandId.TogglePause].keys,
+            bindings[hotkeyCommandId.Recheck].keys,
+            bindings[hotkeyCommandId.RemoveWithData].keys,
         ]);
     });
 });
+

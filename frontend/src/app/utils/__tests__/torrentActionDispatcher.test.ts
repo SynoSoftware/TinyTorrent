@@ -3,7 +3,7 @@ import {
     dispatchTorrentAction,
     dispatchTorrentSelectionAction,
 } from "@/app/utils/torrentActionDispatcher";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 const makeTorrent = (overrides?: Partial<Torrent>): Torrent =>
@@ -132,3 +132,4 @@ describe("torrentActionDispatcher", () => {
         expect(intent.torrentIds).toEqual(ids);
     });
 });
+

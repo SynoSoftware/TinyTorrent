@@ -185,7 +185,15 @@
             "ShowDetails": "action.show_details",
             "TogglePause": "action.toggle_pause",
             "Recheck": "action.recheck",
-            "RemoveWithData": "action.remove_with_data"
+            "RemoveWithData": "action.remove_with_data",
+            "QueueMoveTop": "action.queue_move_top",
+            "QueueMoveUp": "action.queue_move_up",
+            "QueueMoveDown": "action.queue_move_down",
+            "QueueMoveBottom": "action.queue_move_bottom",
+            "NavigateNextTab": "action.navigate_next_tab",
+            "NavigatePreviousTab": "action.navigate_previous_tab",
+            "NavigateFirstTab": "action.navigate_first_tab",
+            "NavigateLastTab": "action.navigate_last_tab"
         },
         "keyScope": {
             "Dashboard": "dashboard",
@@ -199,7 +207,15 @@
             "action.show_details": ["enter", "meta+i", "ctrl+i"],
             "action.toggle_pause": ["space"],
             "action.recheck": "ctrl+r",
-            "action.remove_with_data": "shift+delete"
+            "action.remove_with_data": "shift+delete",
+            "action.queue_move_top": "ctrl+home",
+            "action.queue_move_up": "ctrl+up",
+            "action.queue_move_down": "ctrl+down",
+            "action.queue_move_bottom": "ctrl+end",
+            "action.navigate_next_tab": "arrowright",
+            "action.navigate_previous_tab": "arrowleft",
+            "action.navigate_first_tab": "home",
+            "action.navigate_last_tab": "end"
         }
     },
     "visualizations": {

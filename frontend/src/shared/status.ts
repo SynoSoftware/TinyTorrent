@@ -1,38 +1,49 @@
-export const STATUS = {
+export type EngineStatus = "detecting" | "unknown" | "healthy" | "degraded";
+export type ConnectionStatus =
+    | "online"
+    | "connected"
+    | "offline"
+    | "polling"
+    | "error"
+    | "idle";
+export type DiskStatus = "ok" | "low" | "full" | "unknown";
+export type TorrentStatus =
+    | "downloading"
+    | "seeding"
+    | "queued"
+    | "stalled"
+    | "paused"
+    | "checking"
+    | "error";
+
+export const status = {
     engine: {
-        DETECTING: "detecting",
-        UNKNOWN: "unknown",
-        HEALTHY: "healthy",
-        DEGRADED: "degraded",
+        detecting: "detecting",
+        unknown: "unknown",
+        healthy: "healthy",
+        degraded: "degraded",
     },
     connection: {
-        ONLINE: "online",
-        CONNECTED: "connected",
-        OFFLINE: "offline",
-        POLLING: "polling",
-        ERROR: "error",
-        IDLE: "idle",
+        online: "online",
+        connected: "connected",
+        offline: "offline",
+        polling: "polling",
+        error: "error",
+        idle: "idle",
     },
     disk: {
-        OK: "ok",
-        LOW: "low",
-        FULL: "full",
-        UNKNOWN: "unknown",
+        ok: "ok",
+        low: "low",
+        full: "full",
+        unknown: "unknown",
     },
     torrent: {
-        DOWNLOADING: "downloading",
-        SEEDING: "seeding",
-        QUEUED: "queued",
-        STALLED: "stalled",
-        PAUSED: "paused",
-        CHECKING: "checking",
-        ERROR: "error",
+        downloading: "downloading",
+        seeding: "seeding",
+        queued: "queued",
+        stalled: "stalled",
+        paused: "paused",
+        checking: "checking",
+        error: "error",
     },
 } as const;
-
-export type TorrentStatus = (typeof STATUS.torrent)[keyof typeof STATUS.torrent];
-export type DiskStatus = (typeof STATUS.disk)[keyof typeof STATUS.disk];
-export type ConnectionStatus = (typeof STATUS.connection)[keyof typeof STATUS.connection];
-export type EngineStatus = (typeof STATUS.engine)[keyof typeof STATUS.engine];
-
-export default STATUS;

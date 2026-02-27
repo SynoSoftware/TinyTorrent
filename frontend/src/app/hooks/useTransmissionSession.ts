@@ -8,7 +8,7 @@ import type {
     ConnectionStatus,
     RpcConnectionOutcome,
 } from "@/shared/types/rpc";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import { useRpcConnection } from "@/app/hooks/useRpcConnection";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 
@@ -91,7 +91,7 @@ export function useTransmissionSession(
     useEffect(() => {
         if (
             !sessionDomain.canDetectEngine ||
-            rpcStatus !== STATUS.connection.CONNECTED
+            rpcStatus !== status.connection.connected
         ) {
             return;
         }
@@ -99,7 +99,7 @@ export function useTransmissionSession(
     }, [rpcStatus, runEngineDetection, sessionDomain.canDetectEngine]);
 
     useEffect(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
+        if (rpcStatus !== status.connection.connected) {
             return;
         }
         void refreshSessionSettings().catch(() => {
@@ -121,9 +121,9 @@ export function useTransmissionSession(
         reportReadError,
         updateRequestTimeout,
         engineInfo:
-            rpcStatus === STATUS.connection.CONNECTED ? engineInfo : null,
+            rpcStatus === status.connection.connected ? engineInfo : null,
         isDetectingEngine:
-            rpcStatus === STATUS.connection.CONNECTED ? isDetectingEngine : false,
+            rpcStatus === status.connection.connected ? isDetectingEngine : false,
         lastConnectionAttempt,
     };
 }

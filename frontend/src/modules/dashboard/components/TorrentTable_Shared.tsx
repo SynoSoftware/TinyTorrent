@@ -3,18 +3,11 @@ import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import {
-    flexRender,
-    type Row,
-    type Table,
-} from "@tanstack/react-table";
+    flexRender, type Row, type Table, } from "@tanstack/react-table";
 import { cn } from "@heroui/react";
-import {
-    ICON_STROKE_WIDTH_DENSE,
-    CELL_BASE_CLASS,
-    CELL_PADDING_CLASS,
-    TABLE_CELL_CLASS,
-} from "@/config/logic";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { registry } from "@/config/logic";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+const { layout, visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 type TorrentTableCell = ReturnType<Row<Torrent>["getVisibleCells"]>[number];
@@ -35,7 +28,7 @@ export const getTableTotalWidthCss = (fallbackPx: number) =>
 
 export const MEASURE_HEADER_SELECTOR = "[data-tt-measure-header]";
 export const MEASURE_CELL_SELECTOR = "[data-tt-measure-cell]";
-export const MEASURE_LAYER_CLASS = TABLE_CELL_CLASS.measureLayer;
+export const MEASURE_LAYER_CLASS = visuals.table.cellClass.measureLayer;
 
 export const TableHeaderContent = memo(
     ({
@@ -66,12 +59,12 @@ export const TableHeaderContent = memo(
                     isMeasurement ? false : layoutEnabled ? "position" : false
                 }
                 className={cn(
-                    useBaseClass && CELL_BASE_CLASS,
-                    TABLE_CELL_CLASS.headerLabel,
-                    CELL_PADDING_CLASS,
-                    align === "center" && TABLE_CELL_CLASS.alignCenter,
-                    align === "end" && TABLE_CELL_CLASS.alignEnd,
-                    isSelection && TABLE_CELL_CLASS.alignCenter
+                    useBaseClass && visuals.table.cellBaseClass,
+                    visuals.table.cellClass.headerLabel,
+                    visuals.table.cellPaddingClass,
+                    align === "center" && visuals.table.cellClass.alignCenter,
+                    align === "end" && visuals.table.cellClass.alignEnd,
+                    isSelection && visuals.table.cellClass.alignCenter
                 )}
                 style={{
                     letterSpacing: "var(--tt-tracking-tight)",
@@ -84,9 +77,9 @@ export const TableHeaderContent = memo(
                 {flexRender(column.columnDef.header, header.getContext())}
                 {useBaseClass && showSortIcon && (
                     <SortArrowIcon
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        strokeWidth={visuals.icon.strokeWidthDense}
                         className={cn(
-                            TABLE_CELL_CLASS.sortIcon,
+                            visuals.table.cellClass.sortIcon,
                             sortArrowOpacity
                         )}
                     />
@@ -112,11 +105,11 @@ export const TableCellContent = memo(
                     ? { ["data-tt-measure-cell"]: cell.column.id }
                     : {})}
                 className={cn(
-                    CELL_BASE_CLASS,
-                    CELL_PADDING_CLASS,
-                    align === "center" && TABLE_CELL_CLASS.alignCenter,
-                    align === "end" && TABLE_CELL_CLASS.alignEnd,
-                    isSelection && TABLE_CELL_CLASS.alignCenter
+                    visuals.table.cellBaseClass,
+                    visuals.table.cellPaddingClass,
+                    align === "center" && visuals.table.cellClass.alignCenter,
+                    align === "end" && visuals.table.cellClass.alignEnd,
+                    isSelection && visuals.table.cellClass.alignCenter
                 )}
                 style={{
                     width: isMeasurement
@@ -157,7 +150,7 @@ export const ColumnMeasurementLayer = memo(
                 aria-hidden="true"
                 className={MEASURE_LAYER_CLASS}
             >
-                <div className={TABLE_CELL_CLASS.measureRow}>
+                <div className={visuals.table.cellClass.measureRow}>
                     {headers.map((header) => (
                         <TableHeaderContent
                             key={header.id}
@@ -167,7 +160,7 @@ export const ColumnMeasurementLayer = memo(
                     ))}
                 </div>
                 {rows.map((row) => (
-                    <div key={row.id} className={TABLE_CELL_CLASS.measureRow}>
+                    <div key={row.id} className={visuals.table.cellClass.measureRow}>
                         {row.getVisibleCells().map((cell) => (
                             <TableCellContent
                                 key={cell.id}
@@ -181,3 +174,5 @@ export const ColumnMeasurementLayer = memo(
         );
     }
 );
+
+

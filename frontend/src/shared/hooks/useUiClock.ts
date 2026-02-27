@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { DETAIL_REFRESH_INTERVAL_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { scheduler, type RecurringTaskHandle } from "@/app/services/scheduler";
+const { timing } = registry;
 
 type UiClockSubscriber = () => void;
 
 class UiClock {
     private readonly subscribers = new Set<UiClockSubscriber>();
-    private readonly intervalMs = DETAIL_REFRESH_INTERVAL_MS;
+    private readonly intervalMs = timing.heartbeat.detailMs;
     private tick = 0;
     private lastTickAt = Date.now();
     private task?: RecurringTaskHandle;
@@ -65,3 +66,4 @@ export const useUiClock = () => {
 
     return { tick, lastTickAt: uiClock.getLastTickAt() } as const;
 };
+

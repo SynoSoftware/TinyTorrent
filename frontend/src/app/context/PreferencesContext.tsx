@@ -23,7 +23,8 @@ import {
     SUPPORTED_LANGUAGE_CODES,
     type LanguageCode,
 } from "@/app/preferences/language";
-import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
+import { registry } from "@/config/logic";
+import type { DetailTab } from "@/modules/dashboard/types/contracts";
 import type { VisibilityState, SortingState } from "@tanstack/react-table";
 import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
@@ -76,6 +77,7 @@ export const ZOOM_EVENT_NAME = "tt-zoom-change";
 
 const clampScale = (value: number) => Math.max(0.7, Math.min(1.5, value));
 export { clampScale };
+export const DEFAULT_WORKBENCH_SCALE = clampScale(registry.ui.scaleBases.zoom);
 
 const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
     preventSleep: true,
@@ -157,7 +159,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     refreshIntervalMs: DEFAULT_SETTINGS_CONFIG.refresh_interval_ms,
     requestTimeoutMs: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
     tableWatermarkEnabled: DEFAULT_SETTINGS_CONFIG.table_watermark_enabled,
-    workbenchScale: 1,
+    workbenchScale: DEFAULT_WORKBENCH_SCALE,
     workspaceStyle: "classic",
     dismissedHudCardIds: [],
     theme: getInitialTheme(),
@@ -513,6 +515,9 @@ const readStoredPreferences = (): PreferencesState => {
     return legacy;
 };
 
+export const readInitialWorkbenchScale = () =>
+    readStoredPreferences().workbenchScale;
+
 export interface PreferencesContextValue {
     preferences: PreferencesState;
     supportedLanguages: readonly LanguageCode[];
@@ -631,7 +636,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }, [modifyPreferences]);
 
     const resetWorkbenchScale = useCallback(() => {
-        updatePreferences({ workbenchScale: 1 });
+        updatePreferences({ workbenchScale: DEFAULT_WORKBENCH_SCALE });
     }, [updatePreferences]);
 
     const setSystemPreferences = useCallback(
@@ -818,3 +823,4 @@ export function usePreferencesConnectionConfig() {
         setActiveProfileId: context.setActiveProfileId,
     };
 }
+

@@ -1,9 +1,10 @@
 import { scheduler } from "@/app/services/scheduler";
-import { RECOVERY_VERIFY_WATCH_INTERVAL_MS, GHOST_TIMEOUT_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
+const { timing } = registry;
 
-const VERIFY_WATCH_TIMEOUT_MS = GHOST_TIMEOUT_MS;
+const VERIFY_WATCH_TIMEOUT_MS = timing.timeouts.ghostMs;
 
 interface VerifyWatchResult {
     success: boolean;
@@ -15,10 +16,10 @@ interface VerifyWatchResult {
 const isCheckingState = (state?: string) => {
     if (!state) return false;
     const normalized = state.toLowerCase();
-    return normalized === STATUS.torrent.CHECKING || normalized === "check_wait" || normalized === "check_waiting";
+    return normalized === status.torrent.checking || normalized === "check_wait" || normalized === "check_waiting";
 };
 
-const isTerminalErrorState = (state?: string) => state === STATUS.torrent.ERROR;
+const isTerminalErrorState = (state?: string) => state === status.torrent.error;
 
 const delay = (ms: number) =>
     new Promise<void>((resolve) => {
@@ -65,7 +66,7 @@ export async function watchVerifyCompletion(
         } catch {
             // Best effort polling until timeout.
         }
-        await delay(RECOVERY_VERIFY_WATCH_INTERVAL_MS);
+        await delay(timing.recovery.verifyWatchIntervalMs);
     }
 
     return {
@@ -74,3 +75,4 @@ export async function watchVerifyCompletion(
         state: lastState,
     };
 }
+

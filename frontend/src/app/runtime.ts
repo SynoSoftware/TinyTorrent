@@ -1,5 +1,6 @@
-import { IS_NATIVE_HOST } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { infraLogger } from "@/shared/utils/infraLogger";
+const { runtime } = registry;
 
 type NativeShellEventPayload =
     | string
@@ -303,7 +304,7 @@ function extractPathFromResponse(response: unknown): string | undefined {
 }
 
 const runtimeIsNativeHost = () =>
-    Boolean(IS_NATIVE_HOST) || hasNativeHostFlag() || Boolean(getBridge());
+    Boolean(runtime.nativeHost) || hasNativeHostFlag() || Boolean(getBridge());
 
 export const NativeShell = {
     get isAvailable() {
@@ -387,3 +388,4 @@ export const Runtime = {
 };
 
 export default Runtime;
+

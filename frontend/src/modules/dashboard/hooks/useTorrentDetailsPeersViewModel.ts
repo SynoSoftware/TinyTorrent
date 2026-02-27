@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { formatSpeed } from "@/shared/utils/format";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
-import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
+import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 
 type PeerContextMenuState = {
@@ -257,3 +257,4 @@ export const useTorrentDetailsPeersViewModel = ({
         },
     };
 };
+

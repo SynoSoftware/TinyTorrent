@@ -8,13 +8,19 @@ import {
     evaluateDestinationPathCandidate,
     normalizeDestinationPathForDaemon,
 } from "@/shared/domain/destinationPath";
-import { useSession } from "@/app/context/SessionContext";
-import { shellAgent } from "@/app/agents/shell-agent";
+import type { DaemonPathStyle } from "@/services/rpc/types";
+
+export interface AddTorrentDestinationCapabilityPlane {
+    daemonPathStyle: DaemonPathStyle;
+    dropEnabled: boolean;
+    browseDirectory?: (startPath?: string) => Promise<string | null>;
+}
 
 export interface UseAddTorrentDestinationViewModelParams {
     downloadDir: string;
     addTorrentHistory: string[];
     setAddTorrentHistory: (next: string[]) => void;
+    capabilityPlane: AddTorrentDestinationCapabilityPlane;
 }
 
 export interface UseAddTorrentDestinationViewModelResult {
@@ -38,11 +44,9 @@ export function useAddTorrentDestinationViewModel({
     downloadDir,
     addTorrentHistory,
     setAddTorrentHistory,
+    capabilityPlane,
 }: UseAddTorrentDestinationViewModelParams): UseAddTorrentDestinationViewModelResult {
-    const {
-        daemonPathStyle,
-        uiCapabilities: { uiMode, canBrowse },
-    } = useSession();
+    const { daemonPathStyle, dropEnabled, browseDirectory } = capabilityPlane;
     const normalizedDownloadDir = normalizeDestinationPathForDaemon(
         downloadDir,
         daemonPathStyle,
@@ -108,7 +112,7 @@ export function useAddTorrentDestinationViewModel({
             event.preventDefault();
             setDropActive(false);
             dropActiveRef.current = false;
-            if (uiMode !== "Full") return;
+            if (!dropEnabled) return;
             const droppedFiles = Array.from(event.dataTransfer?.files ?? []);
             let path: string | undefined;
             if (droppedFiles.length) {
@@ -147,18 +151,18 @@ export function useAddTorrentDestinationViewModel({
             }
             applyDroppedPath(path);
         },
-        [applyDroppedPath, uiMode]
+        [applyDroppedPath, dropEnabled]
     );
 
     const handleDragOver = useCallback(
         (event: DragEvent) => {
             event.preventDefault();
-            if (uiMode !== "Full") return;
+            if (!dropEnabled) return;
             if (dropActiveRef.current) return;
             dropActiveRef.current = true;
             setDropActive(true);
         },
-        [uiMode]
+        [dropEnabled]
     );
 
     const handleDragLeave = useCallback(() => {
@@ -167,13 +171,13 @@ export function useAddTorrentDestinationViewModel({
     }, []);
 
     const handleBrowse = useCallback(async () => {
-        if (!canBrowse) {
+        if (typeof browseDirectory !== "function") {
             return { status: "unsupported" } as const;
         }
         setIsTouchingDirectory(true);
         try {
             const start = destinationGateCompleted ? downloadDir : destinationDraft;
-            const next = await shellAgent.browseDirectory(start);
+            const next = await browseDirectory(start);
             if (!next) {
                 return { status: "cancelled" } as const;
             }
@@ -186,10 +190,10 @@ export function useAddTorrentDestinationViewModel({
         }
     }, [
         applyDroppedPath,
-        canBrowse,
         destinationDraft,
         destinationGateCompleted,
         downloadDir,
+        browseDirectory,
     ]);
 
     return {

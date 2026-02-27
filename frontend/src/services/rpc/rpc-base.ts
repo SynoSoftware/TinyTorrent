@@ -18,19 +18,8 @@ import type {
 } from "@/services/rpc/types";
 import { z } from "zod";
 import {
-    parseRpcResponse,
-    zTransmissionTorrentArray,
-    zTransmissionTorrentDetailArray,
-    zTransmissionTorrentDetailSingle,
-    zSessionStats,
-    zTransmissionSessionSettings,
-    zTransmissionFreeSpace,
-    zTransmissionTorrentRenameResult,
-    zRpcSuccess,
-    zTransmissionAddTorrentResponse,
-    zTransmissionRecentlyActiveResponse,
-} from "@/services/rpc/schemas";
-import { READ_RPC_CACHE_TTL_MS } from "@/config/logic";
+    parseRpcResponse, zTransmissionTorrentArray, zTransmissionTorrentDetailArray, zTransmissionTorrentDetailSingle, zSessionStats, zTransmissionSessionSettings, zTransmissionFreeSpace, zTransmissionTorrentRenameResult, zRpcSuccess, zTransmissionAddTorrentResponse, zTransmissionRecentlyActiveResponse, } from "@/services/rpc/schemas";
+import { registry } from "@/config/logic";
 import type {
     EngineAdapter,
     EngineRuntimeCapabilities,
@@ -56,6 +45,7 @@ import { TransmissionRpcTransport } from "@/services/transport";
 import type { NetworkTelemetry } from "@/services/rpc/entities";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
+const { performance, ui } = registry;
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -77,7 +67,7 @@ const READ_ONLY_RPC_METHODS = new Set([
     "tt-get-capabilities",
     "free-space",
 ]);
-const READ_ONLY_RPC_RESPONSE_TTL_MS = READ_RPC_CACHE_TTL_MS;
+const READ_ONLY_RPC_RESPONSE_TTL_MS = performance.readRpcCacheTtlMs;
 
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
@@ -1682,3 +1672,4 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 }
+

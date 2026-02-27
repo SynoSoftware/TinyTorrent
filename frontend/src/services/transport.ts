@@ -1,6 +1,7 @@
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
-import { TRANSPORT_CACHE_TTL_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { performance, ui } = registry;
 
 export type TransportOutcomeKind =
     | "ok"
@@ -68,7 +69,7 @@ export class TransmissionRpcTransport {
 
     // 2. Short-lived Cache (TTL)
     private responseCache = new Map<string, { val: unknown; ts: number }>();
-    private readonly CACHE_TTL_MS = TRANSPORT_CACHE_TTL_MS;
+    private readonly CACHE_TTL_MS = performance.transportCacheTtlMs;
 
     // Helper: stable deterministic stringify for request argument hashing
     private stableStringify(value: unknown): string {
@@ -669,3 +670,4 @@ export class TransmissionRpcTransport {
         return { kind: "ok", value: json.arguments };
     }
 }
+

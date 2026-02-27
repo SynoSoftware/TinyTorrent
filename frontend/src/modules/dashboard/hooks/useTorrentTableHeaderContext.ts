@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { MouseEvent } from "react";
 import type { TFunction } from "i18next";
 import type { Column, Table } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 
 type HeaderContextMenuState = {
@@ -166,3 +166,4 @@ export const useTorrentTableHeaderContext = (
 };
 
 export default useTorrentTableHeaderContext;
+

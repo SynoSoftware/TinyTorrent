@@ -8,19 +8,27 @@ import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-import { DETAILS_TOOLTIP_OPACITY_ANIMATION, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
+import {
+    commandReason,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
+const { layout, visuals, visualizations, ui } = registry;
+
+const commandActionExceptionReason = "exception" as const;
 
 export type CommandActionOutcome =
-    | { status: "success" }
-    | { status: "canceled"; reason: "no_selection" }
-    | { status: "unsupported"; reason: "action_not_supported" }
+    | TorrentCommandOutcome
     | {
           status: "failed";
-          reason: "execution_failed" | "refresh_failed" | "exception";
+          reason: typeof commandActionExceptionReason;
       };
 
-type NonSuccessCommandActionOutcome = Exclude<CommandActionOutcome, { status: "success" }>;
+type NonSuccessCommandActionOutcome = Exclude<
+    CommandActionOutcome,
+    { status: "success" }
+>;
 
 export interface CommandAction {
     id: CommandId;
@@ -43,9 +51,9 @@ interface CommandPaletteProps {
 }
 
 const OVERLAY_FADE_ANIMATION = {
-    initial: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity },
-    animate: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity },
-    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity },
+    initial: { opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity },
+    animate: { opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity },
+    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity },
     transition: { duration: 0.2 },
 } as const;
 
@@ -56,17 +64,17 @@ const BACKDROP_FADE_ANIMATION = {
 
 const PANEL_ANIMATION = {
     initial: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
         y: -6,
         scale: 0.98,
     },
     animate: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
         y: 0,
         scale: 1,
     },
     exit: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity,
         y: -6,
         scale: 0.98,
     },
@@ -89,7 +97,10 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
         try {
             outcome = await action.onSelect();
         } catch {
-            outcome = { status: "failed", reason: "exception" };
+            outcome = {
+                status: "failed",
+                reason: commandActionExceptionReason,
+            };
         }
 
         if (outcome.status === "success") {
@@ -103,7 +114,7 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
     const outcomeMessage = useMemo(() => {
         if (!lastOutcome) return null;
         if (lastOutcome.status === "canceled") {
-            if (lastOutcome.reason === "no_selection") {
+            if (lastOutcome.reason === commandReason.noSelection) {
                 return t("command_palette.result.no_selection");
             }
             return t("command_palette.result.canceled");
@@ -117,8 +128,10 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
     const outcomeToneClass = useMemo(() => {
         if (!lastOutcome) return "";
         const toneKey =
-            lastOutcome.status === "failed" ? STATUS_VISUAL_KEYS.tone.DANGER : STATUS_VISUAL_KEYS.tone.WARNING;
-        return STATUS_VISUALS[toneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.text ?? "text-warning";
+            lastOutcome.status === "failed"
+                ? visuals.status.keys.tone.danger
+                : visuals.status.keys.tone.warning;
+        return visuals.status.recipes[toneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.warning]?.text ?? "text-warning";
     }, [lastOutcome]);
 
     return (
@@ -227,3 +240,5 @@ export function CommandPalette({ isOpen, onOpenChange, actions, getContextAction
         </AnimatePresence>
     );
 }
+
+

@@ -3,7 +3,7 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 
 interface SpeedTabProps {
@@ -18,7 +18,7 @@ export const SpeedTab = ({
     isStandalone = false,
 }: SpeedTabProps) => {
     const { t } = useTranslation();
-    const isChecking = torrentState === STATUS.torrent.CHECKING;
+    const isChecking = torrentState === status.torrent.checking;
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
         String(torrentId),
     );

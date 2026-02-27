@@ -3,10 +3,8 @@ import { useTranslation } from "react-i18next";
 import { addToast, closeToast } from "@heroui/toast";
 
 import type { FeedbackTone } from "@/shared/types/feedback";
-import {
-    ACTION_FEEDBACK_START_TOAST_DURATION_MS,
-    TOAST_DISPLAY_DURATION_MS,
-} from "@/config/logic";
+import { registry } from "@/config/logic";
+const { timing, ui } = registry;
 
 type FeedbackDescriptor = {
     key: string;
@@ -19,7 +17,7 @@ const GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL = {
         start: {
             key: "toolbar.feedback.resuming",
             tone: "info",
-            timeout: ACTION_FEEDBACK_START_TOAST_DURATION_MS,
+            timeout: timing.ui.actionFeedbackStartToastMs,
         },
         done: { key: "toolbar.feedback.resumed", tone: "success" },
     },
@@ -27,7 +25,7 @@ const GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL = {
         start: {
             key: "toolbar.feedback.pausing",
             tone: "warning",
-            timeout: ACTION_FEEDBACK_START_TOAST_DURATION_MS,
+            timeout: timing.ui.actionFeedbackStartToastMs,
         },
         done: { key: "toolbar.feedback.paused", tone: "warning" },
     },
@@ -35,7 +33,7 @@ const GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL = {
         start: {
             key: "toolbar.feedback.rehashing",
             tone: "info",
-            timeout: ACTION_FEEDBACK_START_TOAST_DURATION_MS,
+            timeout: timing.ui.actionFeedbackStartToastMs,
         },
         done: { key: "toolbar.feedback.rehashed", tone: "success" },
     },
@@ -43,7 +41,7 @@ const GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL = {
         start: {
             key: "toolbar.feedback.removing",
             tone: "danger",
-            timeout: ACTION_FEEDBACK_START_TOAST_DURATION_MS,
+            timeout: timing.ui.actionFeedbackStartToastMs,
         },
         done: { key: "toolbar.feedback.removed", tone: "danger" },
     },
@@ -51,7 +49,7 @@ const GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL = {
         start: {
             key: "toolbar.feedback.removing",
             tone: "danger",
-            timeout: ACTION_FEEDBACK_START_TOAST_DURATION_MS,
+            timeout: timing.ui.actionFeedbackStartToastMs,
         },
         done: {
             key: "toolbar.feedback.removed",
@@ -65,7 +63,7 @@ export const GLOBAL_ACTION_FEEDBACK_CONFIG =
     GLOBAL_ACTION_FEEDBACK_CONFIG_INTERNAL;
 export type FeedbackStage = "start" | "done";
 
-const TOAST_DURATION_MS = TOAST_DISPLAY_DURATION_MS;
+const TOAST_DURATION_MS = timing.ui.toastMs;
 
 const TONE_TO_TOAST: Record<
     FeedbackTone,
@@ -168,3 +166,4 @@ export function useActionFeedback() {
         showFeedback,
     };
 }
+

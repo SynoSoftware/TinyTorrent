@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import type { Row, RowSelectionState } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 // Wiring-friendly keyboard hook. Parent must provide the dependencies
 // previously captured by the inline implementation.
@@ -137,3 +137,4 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
 };
 
 export default useTorrentTableKeyboard;
+

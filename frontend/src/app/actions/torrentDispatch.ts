@@ -4,13 +4,30 @@ import type { TorrentIntentExtended, QueueMoveIntent } from "@/app/intents/torre
 import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
 import { toMoveDataFlag } from "@/modules/dashboard/domain/torrentRelocation";
 
+export type DispatchStatus = "applied" | "unsupported" | "failed";
+export type DispatchReason =
+    | "client_unavailable"
+    | "intent_unsupported"
+    | "method_missing"
+    | "execution_failed";
+
+export const dispatchReason = {
+    clientUnavailable: "client_unavailable",
+    intentUnsupported: "intent_unsupported",
+    methodMissing: "method_missing",
+    executionFailed: "execution_failed",
+} as const satisfies Record<string, DispatchReason>;
+
 export type TorrentDispatchOutcome =
     | { status: "applied" }
     | {
           status: "unsupported";
           reason: "client_unavailable" | "intent_unsupported" | "method_missing";
       }
-    | { status: "failed"; reason: "execution_failed" };
+    | {
+          status: "failed";
+          reason: "execution_failed";
+      };
 
 export interface CreateTorrentDispatchOptions {
     client: EngineAdapter | null | undefined;
@@ -58,7 +75,12 @@ interface DispatchContext {
     client: EngineAdapter;
 }
 
-type DispatchHandlerOutcome = { status: "applied" } | { status: "unsupported"; reason: "method_missing" };
+type DispatchHandlerOutcome =
+    | { status: "applied" }
+    | {
+          status: "unsupported";
+          reason: "method_missing";
+      };
 
 interface DispatchHandlerDefinition<TType extends DispatchableIntentType> {
     run: (intent: DispatchIntentByType<TType>, context: DispatchContext) => Promise<DispatchHandlerOutcome>;
@@ -67,6 +89,24 @@ interface DispatchHandlerDefinition<TType extends DispatchableIntentType> {
 
 type DispatchHandlerTable = {
     [TType in DispatchableIntentType]: DispatchHandlerDefinition<TType>;
+};
+
+const dispatchOutcome = {
+    applied(): DispatchHandlerOutcome {
+        return { status: "applied" };
+    },
+    methodMissing(): DispatchHandlerOutcome {
+        return {
+            status: "unsupported",
+            reason: dispatchReason.methodMissing,
+        };
+    },
+    executionFailed(): TorrentDispatchOutcome {
+        return {
+            status: "failed",
+            reason: dispatchReason.executionFailed,
+        };
+    },
 };
 
 const requireClientMethod = <TMethod extends keyof EngineAdapter>(client: EngineAdapter, method: TMethod) => {
@@ -95,7 +135,7 @@ const runQueueMove = async (intent: QueueMoveIntent, context: DispatchContext): 
         }
         await context.client.moveToBottom([torrentId]);
     }
-    return { status: "applied" };
+    return dispatchOutcome.applied();
 };
 
 const runAddTorrentFromFile = async (intent: DispatchIntentByType<"ADD_TORRENT_FROM_FILE">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
@@ -125,13 +165,13 @@ const runAddTorrentFromFile = async (intent: DispatchIntentByType<"ADD_TORRENT_F
         await watchVerifyCompletion(context.client, String(result.id));
         await context.client.resume([result.id]);
     }
-    return { status: "applied" };
+    return dispatchOutcome.applied();
 };
 
 const runFinalizeExistingTorrent = async (intent: DispatchIntentByType<"FINALIZE_EXISTING_TORRENT">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
     const setTorrentLocation = requireClientMethod(context.client, "setTorrentLocation");
     if (typeof setTorrentLocation !== "function") {
-        return { status: "unsupported", reason: "method_missing" };
+        return dispatchOutcome.methodMissing();
     }
     const setTorrentLocationBound = setTorrentLocation.bind(context.client);
     await setTorrentLocationBound(String(intent.torrentId), intent.downloadDir, true);
@@ -142,14 +182,14 @@ const runFinalizeExistingTorrent = async (intent: DispatchIntentByType<"FINALIZE
     if (intent.resume) {
         await context.client.resume([String(intent.torrentId)]);
     }
-    return { status: "applied" };
+    return dispatchOutcome.applied();
 };
 
-const DISPATCH_HANDLERS: DispatchHandlerTable = {
+const dispatchHandlers: DispatchHandlerTable = {
     ENSURE_TORRENT_ACTIVE: {
         run: async (intent, context) => {
             await context.client.resume([String(intent.torrentId)]);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -161,10 +201,10 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const startNow = requireClientMethod(context.client, "startNow");
             if (typeof startNow !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await startNow.bind(context.client)([String(intent.torrentId)]);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -175,7 +215,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_TORRENT_PAUSED: {
         run: async (intent, context) => {
             await context.client.pause([String(intent.torrentId)]);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -186,7 +226,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_TORRENT_REMOVED: {
         run: async (intent, context) => {
             await context.client.remove([String(intent.torrentId)], Boolean(intent.deleteData));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
     },
     ENSURE_TORRENT_AT_LOCATION: {
@@ -196,14 +236,14 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
                 "setTorrentLocation",
             );
             if (typeof setTorrentLocation !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await setTorrentLocation.bind(context.client)(
                 String(intent.torrentId),
                 intent.path,
                 toMoveDataFlag(intent.locationMode),
             );
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         // Keep set-location command path responsive; UI convergence is owned by heartbeat.
         refresh: {},
@@ -211,7 +251,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_TORRENT_VALID: {
         run: async (intent, context) => {
             await context.client.verify([String(intent.torrentId)]);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -223,14 +263,14 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const addTrackers = requireClientMethod(context.client, "addTrackers");
             if (typeof addTrackers !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await addTrackers
                 .bind(context.client)(
                     (intent.torrentIds || []).map(String),
                     intent.trackers,
                 );
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshDetail: true,
@@ -243,14 +283,14 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
                 "removeTrackers",
             );
             if (typeof removeTrackers !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await removeTrackers
                 .bind(context.client)(
                     (intent.torrentIds || []).map(String),
                     intent.trackerIds,
                 );
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshDetail: true,
@@ -263,14 +303,14 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
                 "replaceTrackers",
             );
             if (typeof replaceTrackers !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await replaceTrackers
                 .bind(context.client)(
                     (intent.torrentIds || []).map(String),
                     intent.trackers,
                 );
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshDetail: true,
@@ -280,10 +320,10 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const updateFileSelection = requireClientMethod(context.client, "updateFileSelection");
             if (typeof updateFileSelection !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await updateFileSelection.bind(context.client)(String(intent.torrentId), intent.fileIndexes, intent.wanted);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -295,10 +335,10 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const setSequentialDownload = requireClientMethod(context.client, "setSequentialDownload");
             if (typeof setSequentialDownload !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await setSequentialDownload.bind(context.client)(String(intent.torrentId), intent.enabled);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -310,10 +350,10 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const setSuperSeeding = requireClientMethod(context.client, "setSuperSeeding");
             if (typeof setSuperSeeding !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await setSuperSeeding.bind(context.client)(String(intent.torrentId), intent.enabled);
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -324,7 +364,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_SELECTION_ACTIVE: {
         run: async (intent, context) => {
             await context.client.resume((intent.torrentIds || []).map(String));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -336,11 +376,11 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
         run: async (intent, context) => {
             const startNow = requireClientMethod(context.client, "startNow");
             if (typeof startNow !== "function") {
-                return { status: "unsupported", reason: "method_missing" };
+                return dispatchOutcome.methodMissing();
             }
             await startNow
                 .bind(context.client)((intent.torrentIds || []).map(String));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -351,7 +391,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_SELECTION_PAUSED: {
         run: async (intent, context) => {
             await context.client.pause((intent.torrentIds || []).map(String));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -362,13 +402,13 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     ENSURE_SELECTION_REMOVED: {
         run: async (intent, context) => {
             await context.client.remove((intent.torrentIds || []).map(String), Boolean(intent.deleteData));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
     },
     ENSURE_SELECTION_VALID: {
         run: async (intent, context) => {
             await context.client.verify((intent.torrentIds || []).map(String));
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -388,7 +428,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
                 paused: intent.paused,
                 downloadDir: intent.downloadDir,
             });
-            return { status: "applied" };
+            return dispatchOutcome.applied();
         },
         refresh: {
             refreshTorrents: true,
@@ -414,7 +454,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
     },
 };
 
-const isDispatchableIntent = (intent: TorrentIntentExtended): intent is DispatchableIntent => Object.prototype.hasOwnProperty.call(DISPATCH_HANDLERS, intent.type);
+const isDispatchableIntent = (intent: TorrentIntentExtended): intent is DispatchableIntent => Object.prototype.hasOwnProperty.call(dispatchHandlers, intent.type);
 
 export function createTorrentDispatch({ client, refreshTorrents, refreshSessionStatsData, refreshDetailData, reportCommandError }: CreateTorrentDispatchOptions) {
     const runWithRefresh = async (operation: () => Promise<DispatchHandlerOutcome>, options?: RefreshPolicy): Promise<TorrentDispatchOutcome> => {
@@ -446,12 +486,12 @@ export function createTorrentDispatch({ client, refreshTorrents, refreshSessionS
                     reportCommandError(error);
                 }
             }
-            return { status: "failed", reason: "execution_failed" };
+            return dispatchOutcome.executionFailed();
         }
     };
 
     const executeIntent = async <TType extends DispatchableIntentType>(intent: DispatchIntentByType<TType>, context: DispatchContext) => {
-        const handler = DISPATCH_HANDLERS[intent.type];
+        const handler = dispatchHandlers[intent.type];
         return runWithRefresh(() => handler.run(intent, context), handler.refresh);
     };
 
@@ -459,13 +499,13 @@ export function createTorrentDispatch({ client, refreshTorrents, refreshSessionS
         if (!client) {
             return {
                 status: "unsupported",
-                reason: "client_unavailable",
+                reason: dispatchReason.clientUnavailable,
             } as const;
         }
         if (!isDispatchableIntent(intent)) {
             return {
                 status: "unsupported",
-                reason: "intent_unsupported",
+                reason: dispatchReason.intentUnsupported,
             } as const;
         }
         return executeIntent(intent, { client });

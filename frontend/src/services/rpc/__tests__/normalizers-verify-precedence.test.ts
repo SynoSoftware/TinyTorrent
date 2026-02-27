@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import { deriveTorrentState } from "@/services/rpc/normalizers";
 import type { TransmissionTorrent } from "@/services/rpc/types";
 
@@ -32,8 +32,8 @@ describe("deriveTorrentState verify precedence", () => {
             errorString: "No data found",
         });
 
-        expect(deriveTorrentState(STATUS.torrent.DOWNLOADING, torrent)).toBe(
-            STATUS.torrent.CHECKING,
+        expect(deriveTorrentState(status.torrent.downloading, torrent)).toBe(
+            status.torrent.checking,
         );
     });
 
@@ -44,8 +44,8 @@ describe("deriveTorrentState verify precedence", () => {
             error: 3,
         });
 
-        expect(deriveTorrentState(STATUS.torrent.DOWNLOADING, torrent)).toBe(
-            STATUS.torrent.ERROR,
+        expect(deriveTorrentState(status.torrent.downloading, torrent)).toBe(
+            status.torrent.error,
         );
     });
 });

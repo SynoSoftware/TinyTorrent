@@ -1,11 +1,4 @@
-import {
-    GHOST_TIMEOUT_MS,
-    HEARTBEAT_INTERVALS,
-    HEARTBEAT_MAX_DELTA_CYCLES,
-    HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS,
-    HISTORY_DATA_POINTS,
-    WS_RECONNECT_MAX_DELAY_MS,
-} from "@/config/logic";
+import { registry } from "@/config/logic";
 import type {
     SessionStats,
     TorrentDetailEntity,
@@ -14,8 +7,9 @@ import type {
 } from "@/services/rpc/entities";
 import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerprint";
 import { enforceStateTransition } from "@/services/rpc/normalizers";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
+const { performance, timing, ui } = registry;
 
 export type HeartbeatMode = "background" | "table" | "detail";
 export type HeartbeatDetailProfile = "standard" | "pieces";
@@ -93,9 +87,9 @@ type HeartbeatSubscriber = {
 };
 
 const MODE_INTERVALS: Record<HeartbeatMode, number> = {
-    background: HEARTBEAT_INTERVALS.background,
-    table: HEARTBEAT_INTERVALS.table,
-    detail: HEARTBEAT_INTERVALS.detail,
+    background: timing.heartbeat.backgroundMs,
+    table: timing.heartbeat.tableMs,
+    detail: timing.heartbeat.detailMs,
 };
 
 const DETAIL_FETCH_CONCURRENCY = 3;
@@ -112,7 +106,7 @@ type DetailFetchRequest = {
     includeTrackerStats: boolean;
 };
 
-const RECENT_REMOVED_TTL_MS = GHOST_TIMEOUT_MS;
+const RECENT_REMOVED_TTL_MS = timing.timeouts.ghostMs;
 
 export class HeartbeatManager {
     // Timer ownership boundary:
@@ -158,7 +152,7 @@ export class HeartbeatManager {
     >();
     private client: HeartbeatClientWithTelemetry;
 
-    private readonly historySize: number = HISTORY_DATA_POINTS;
+    private readonly historySize: number = performance.historyDataPoints;
     private computeHash(torrents: TorrentEntity[]) {
         return computeTorrentListFingerprint(torrents);
     }
@@ -204,14 +198,14 @@ export class HeartbeatManager {
         // Read cadence controls from logic.ts authority.
         try {
             this.MAX_DELTA_CYCLES =
-                Number.isFinite(HEARTBEAT_MAX_DELTA_CYCLES) &&
-                HEARTBEAT_MAX_DELTA_CYCLES > 0
-                    ? HEARTBEAT_MAX_DELTA_CYCLES
+                Number.isFinite(performance.heartbeatMaxDeltaCycles) &&
+                performance.heartbeatMaxDeltaCycles > 0
+                    ? performance.heartbeatMaxDeltaCycles
                     : 30;
             this.MIN_IMMEDIATE_TRIGGER_MS =
-                Number.isFinite(HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS) &&
-                HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS >= 0
-                    ? HEARTBEAT_MIN_IMMEDIATE_TRIGGER_MS
+                Number.isFinite(performance.heartbeatMinImmediateTriggerMs) &&
+                performance.heartbeatMinImmediateTriggerMs >= 0
+                    ? performance.heartbeatMinImmediateTriggerMs
                     : 1000;
         } catch {
             this.MAX_DELTA_CYCLES = 30;
@@ -694,7 +688,7 @@ export class HeartbeatManager {
                 const hasChecking = Array.isArray(torrents)
                     ? torrents.some(
                           (torrent) =>
-                              torrent.state === STATUS.torrent.CHECKING,
+                              torrent.state === status.torrent.checking,
                       )
                     : false;
                 const forceFull =
@@ -913,7 +907,7 @@ export class HeartbeatManager {
                                 const nowResync = Date.now();
                                 if (
                                     nowResync - this.lastResyncAt >
-                                    WS_RECONNECT_MAX_DELAY_MS
+                                    timing.wsReconnect.maxDelayMs
                                 ) {
                                     try {
                                         if (shouldDiag) {
@@ -1181,3 +1175,4 @@ export class HeartbeatManager {
         });
     }
 }
+

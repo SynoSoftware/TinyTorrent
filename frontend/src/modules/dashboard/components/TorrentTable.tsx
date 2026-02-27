@@ -9,7 +9,7 @@ import { ColumnHeaderPreview, TorrentTable_Headers } from "@/modules/dashboard/c
 import TorrentTable_Body from "@/modules/dashboard/components/TorrentTable_Body";
 import TorrentTable_RowMenu from "@/modules/dashboard/components/TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "@/modules/dashboard/components/TorrentTable_HeaderMenu";
-import { useTorrentTableViewModel } from "@/modules/dashboard/hooks";
+import { useTorrentTableViewModel } from "@/modules/dashboard/viewModels/useTorrentTableViewModel";
 
 interface TorrentTableProps {
     viewModel: TorrentTableViewModel;

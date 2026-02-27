@@ -6,25 +6,40 @@ import {
     type KeyboardEvent,
     type ReactNode,
 } from "react";
-import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
-import { usePreferences } from "@/app/context/PreferencesContext";
 import { useTranslation } from "react-i18next";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
+import { usePreferences } from "@/app/context/PreferencesContext";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { GeneralTab } from "@/modules/dashboard/components/TorrentDetails_General";
 import { ContentTab } from "@/modules/dashboard/components/TorrentDetails_Content";
 import { PiecesTab } from "@/modules/dashboard/components/TorrentDetails_Pieces";
 import { TrackersTab } from "@/modules/dashboard/components/TorrentDetails_Trackers";
 import { PeersTab } from "@/modules/dashboard/components/TorrentDetails_Peers";
 import { SpeedTab } from "@/modules/dashboard/components/TorrentDetails_Speed";
+import type { DetailTab } from "@/modules/dashboard/types/contracts";
+import {
+    resolveShortcutIntentFromKeyboardEvent,
+} from "@/app/controlPlane/shortcuts";
+import { ShortcutIntents } from "@/shared/controlPlane/shortcutVocabulary";
+import {
+    type TorrentDispatchOutcome,
+} from "@/app/actions/torrentDispatch";
 
-export const DETAIL_TABS: DetailTab[] = [
-    "general",
-    "content",
-    "pieces",
-    "trackers",
-    "peers",
-    "speed",
-];
+type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
+
+const {
+    NavigateNextTab,
+    NavigatePreviousTab,
+    NavigateFirstTab,
+    NavigateLastTab,
+} = ShortcutIntents;
+
+const detailTabNavigationIntents = [
+    NavigateNextTab,
+    NavigatePreviousTab,
+    NavigateFirstTab,
+    NavigateLastTab,
+] as const;
 
 const isEditableKeyTarget = (target: EventTarget | null): boolean => {
     if (!(target instanceof HTMLElement)) {
@@ -80,60 +95,18 @@ export const useDetailTabs = ({
         setInspectorTab,
     ]);
 
-    const handleKeyDown = useCallback(
-        (event: KeyboardEvent) => {
-            const currentTarget = event.currentTarget;
-            const target = event.target;
-            if (
-                event.defaultPrevented ||
-                !(currentTarget instanceof HTMLElement) ||
-                !(target instanceof Node) ||
-                !currentTarget.contains(target) ||
-                isEditableKeyTarget(target)
-            ) {
-                return;
-            }
-
-            const { key } = event;
-            if (key === "ArrowRight") {
-                const idx = DETAIL_TABS.indexOf(active);
-                setActive(DETAIL_TABS[(idx + 1) % DETAIL_TABS.length]);
-                event.preventDefault();
-                return;
-            }
-            if (key === "ArrowLeft") {
-                const idx = DETAIL_TABS.indexOf(active);
-                setActive(
-                    DETAIL_TABS[
-                        (idx - 1 + DETAIL_TABS.length) % DETAIL_TABS.length
-                    ]
-                );
-                event.preventDefault();
-                return;
-            }
-            if (key === "Home") {
-                setActive(DETAIL_TABS[0]);
-                event.preventDefault();
-                return;
-            }
-            if (key === "End") {
-                setActive(DETAIL_TABS[DETAIL_TABS.length - 1]);
-                event.preventDefault();
-            }
-        },
-        [active, setActive]
-    );
-
     return {
         active,
         setActive,
-        handleKeyDown,
     };
 };
 
 export interface TorrentDetailTabSurfaces {
     general: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
+        canSetLocation: boolean;
+        onTorrentAction: DashboardDetailViewModel["tabs"]["general"]["handleTorrentAction"];
+        setLocation: DashboardDetailViewModel["tabs"]["general"]["setLocation"];
     } | null;
     content: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
@@ -150,13 +123,16 @@ export interface TorrentDetailTabSurfaces {
         pieceAvailability?: number[];
     } | null;
     trackers: {
-        torrentId: string | number;
-        torrentIds?: Array<string | number>;
+        targetIds: Array<string | number>;
+        scope: DashboardDetailViewModel["tabs"]["trackers"]["scope"];
         trackers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["trackers"]
         >;
         emptyMessage: string;
         isStandalone?: boolean;
+        addTrackers: DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"];
+        replaceTrackers: DashboardDetailViewModel["tabs"]["trackers"]["replaceTrackers"];
+        removeTrackers: DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"];
     } | null;
     peers: {
         peers: NonNullable<
@@ -174,6 +150,60 @@ export interface TorrentDetailTabSurfaces {
     } | null;
 }
 
+export interface TorrentDetailTabDefinition {
+    id: DetailTab;
+    labelKey: string;
+    isVisible?: (surfaces: TorrentDetailTabSurfaces) => boolean;
+    render: (surfaces: TorrentDetailTabSurfaces) => ReactNode;
+}
+
+export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
+    {
+        id: "general",
+        labelKey: "inspector.tab.general",
+        isVisible: (surfaces) => surfaces.general !== null,
+        render: (surfaces) =>
+            surfaces.general ? createElement(GeneralTab, surfaces.general) : null,
+    },
+    {
+        id: "content",
+        labelKey: "inspector.tab.content",
+        isVisible: (surfaces) => surfaces.content !== null,
+        render: (surfaces) =>
+            surfaces.content ? createElement(ContentTab, surfaces.content) : null,
+    },
+    {
+        id: "pieces",
+        labelKey: "inspector.tab.pieces",
+        isVisible: (surfaces) => surfaces.pieces !== null,
+        render: (surfaces) =>
+            surfaces.pieces ? createElement(PiecesTab, surfaces.pieces) : null,
+    },
+    {
+        id: "trackers",
+        labelKey: "inspector.tab.trackers",
+        isVisible: (surfaces) => surfaces.trackers !== null,
+        render: (surfaces) =>
+            surfaces.trackers
+                ? createElement(TrackersTab, surfaces.trackers)
+                : null,
+    },
+    {
+        id: "peers",
+        labelKey: "inspector.tab.peers",
+        isVisible: (surfaces) => surfaces.peers !== null,
+        render: (surfaces) =>
+            surfaces.peers ? createElement(PeersTab, surfaces.peers) : null,
+    },
+    {
+        id: "speed",
+        labelKey: "inspector.tab.speed",
+        isVisible: (surfaces) => surfaces.speed !== null,
+        render: (surfaces) =>
+            surfaces.speed ? createElement(SpeedTab, surfaces.speed) : null,
+    },
+] as const;
+
 interface UseTorrentDetailTabCoordinatorParams {
     viewModel: DashboardDetailViewModel;
     isStandalone?: boolean;
@@ -183,8 +213,8 @@ interface UseTorrentDetailTabCoordinatorResult {
     active: DetailTab;
     setActive: (tab: DetailTab | ((t: DetailTab) => DetailTab)) => void;
     handleKeyDown: (event: KeyboardEvent) => void;
-    surfaces: TorrentDetailTabSurfaces;
     activeSurface: ReactNode;
+    tabs: Array<Pick<TorrentDetailTabDefinition, "id" | "labelKey">>;
 }
 
 export const useTorrentDetailTabCoordinator = ({
@@ -192,16 +222,55 @@ export const useTorrentDetailTabCoordinator = ({
     isStandalone = false,
 }: UseTorrentDetailTabCoordinatorParams): UseTorrentDetailTabCoordinatorResult => {
     const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const torrent = viewModel.detailData;
     const {
         active,
         setActive,
-        handleKeyDown,
     } = useDetailTabs({
         inspectorTabCommand: viewModel.tabs.navigation.inspectorTabCommand,
         onInspectorTabCommandHandled:
             viewModel.tabs.navigation.onInspectorTabCommandHandled,
     });
+
+    const runTrackerMutation = useCallback(
+        async (
+            mutate: () => Promise<TrackerMutationOutcome>,
+        ) => {
+            const outcome = await mutate();
+            if (outcome.status === "unsupported") {
+                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
+            } else if (outcome.status === "failed") {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+            }
+            return outcome;
+        },
+        [showFeedback, t],
+    );
+
+    const addTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"]>(
+        (targetIds, trackers) =>
+            runTrackerMutation(() =>
+                viewModel.tabs.trackers.addTrackers(targetIds, trackers),
+            ),
+        [runTrackerMutation, viewModel.tabs.trackers],
+    );
+
+    const replaceTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["replaceTrackers"]>(
+        (targetIds, trackers) =>
+            runTrackerMutation(() =>
+                viewModel.tabs.trackers.replaceTrackers(targetIds, trackers),
+            ),
+        [runTrackerMutation, viewModel.tabs.trackers],
+    );
+
+    const removeTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"]>(
+        (targetIds, trackerIds) =>
+            runTrackerMutation(() =>
+                viewModel.tabs.trackers.removeTrackers(targetIds, trackerIds),
+            ),
+        [runTrackerMutation, viewModel.tabs.trackers],
+    );
 
     const surfaces = useMemo<TorrentDetailTabSurfaces>(() => {
         if (!torrent) {
@@ -218,6 +287,9 @@ export const useTorrentDetailTabCoordinator = ({
         return {
             general: {
                 torrent,
+                canSetLocation: viewModel.tabs.general.canSetLocation,
+                onTorrentAction: viewModel.tabs.general.handleTorrentAction,
+                setLocation: viewModel.tabs.general.setLocation,
             },
             content: {
                 torrent,
@@ -234,10 +306,14 @@ export const useTorrentDetailTabCoordinator = ({
                 pieceAvailability: torrent.pieceAvailability,
             },
             trackers: {
-                torrentId: torrent.id ?? torrent.hash,
+                targetIds: viewModel.tabs.trackers.targetIds,
+                scope: viewModel.tabs.trackers.scope,
                 trackers: torrent.trackers ?? [],
                 emptyMessage: t("torrent_modal.trackers.empty_backend"),
                 isStandalone,
+                addTrackers,
+                replaceTrackers,
+                removeTrackers,
             },
             peers: {
                 peers: torrent.peers ?? [],
@@ -258,35 +334,119 @@ export const useTorrentDetailTabCoordinator = ({
                       }
                     : null,
         };
-    }, [torrent, t, viewModel.tabs, isStandalone]);
+    }, [
+        addTrackers,
+        isStandalone,
+        removeTrackers,
+        replaceTrackers,
+        t,
+        torrent,
+        viewModel.tabs.content.handleFileSelectionChange,
+        viewModel.tabs.general.canSetLocation,
+        viewModel.tabs.general.handleTorrentAction,
+        viewModel.tabs.general.setLocation,
+        viewModel.tabs.peers.handlePeerContextAction,
+        viewModel.tabs.peers.peerSortStrategy,
+        viewModel.tabs.trackers.scope,
+        viewModel.tabs.trackers.targetIds,
+    ]);
+
+    const visibleTabDefs = useMemo(
+        () =>
+            TAB_DEFS.filter((definition) =>
+                definition.isVisible ? definition.isVisible(surfaces) : true,
+            ),
+        [surfaces],
+    );
+
+    const visibleTabIds = useMemo(
+        () => visibleTabDefs.map(({ id }) => id),
+        [visibleTabDefs],
+    );
+
+    useEffect(() => {
+        if (!visibleTabIds.length) {
+            return;
+        }
+        if (visibleTabIds.includes(active)) {
+            return;
+        }
+        setActive(visibleTabIds[0]);
+    }, [active, setActive, visibleTabIds]);
+
+    const handleKeyDown = useCallback(
+        (event: KeyboardEvent) => {
+            if (!visibleTabIds.length) {
+                return;
+            }
+            const currentTarget = event.currentTarget;
+            const target = event.target;
+            if (
+                event.defaultPrevented ||
+                !(currentTarget instanceof HTMLElement) ||
+                !(target instanceof Node) ||
+                !currentTarget.contains(target) ||
+                isEditableKeyTarget(target)
+            ) {
+                return;
+            }
+
+            const intent = resolveShortcutIntentFromKeyboardEvent(
+                event,
+                detailTabNavigationIntents,
+            );
+            if (!intent) {
+                return;
+            }
+
+            const activeIndex = visibleTabIds.indexOf(active);
+            const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
+            if (intent === NavigateNextTab) {
+                setActive(
+                    visibleTabIds[(safeActiveIndex + 1) % visibleTabIds.length],
+                );
+                event.preventDefault();
+                return;
+            }
+            if (intent === NavigatePreviousTab) {
+                setActive(
+                    visibleTabIds[
+                        (safeActiveIndex - 1 + visibleTabIds.length) %
+                            visibleTabIds.length
+                    ],
+                );
+                event.preventDefault();
+                return;
+            }
+            if (intent === NavigateFirstTab) {
+                setActive(visibleTabIds[0]);
+                event.preventDefault();
+                return;
+            }
+            if (intent === NavigateLastTab) {
+                setActive(visibleTabIds[visibleTabIds.length - 1]);
+                event.preventDefault();
+            }
+        },
+        [active, setActive, visibleTabIds],
+    );
 
     const activeSurface = useMemo(() => {
-        if (active === "general" && surfaces.general) {
-            return createElement(GeneralTab, surfaces.general);
-        }
-        if (active === "content" && surfaces.content) {
-            return createElement(ContentTab, surfaces.content);
-        }
-        if (active === "pieces" && surfaces.pieces) {
-            return createElement(PiecesTab, surfaces.pieces);
-        }
-        if (active === "trackers" && surfaces.trackers) {
-            return createElement(TrackersTab, surfaces.trackers);
-        }
-        if (active === "peers" && surfaces.peers) {
-            return createElement(PeersTab, surfaces.peers);
-        }
-        if (active === "speed" && surfaces.speed) {
-            return createElement(SpeedTab, surfaces.speed);
-        }
-        return null;
-    }, [active, surfaces]);
+        const activeDefinition =
+            visibleTabDefs.find((definition) => definition.id === active) ??
+            visibleTabDefs[0];
+        return activeDefinition ? activeDefinition.render(surfaces) : null;
+    }, [active, surfaces, visibleTabDefs]);
 
     return {
         active,
         setActive,
         handleKeyDown,
-        surfaces,
         activeSurface,
+        tabs: visibleTabDefs.map(({ id, labelKey }) => ({
+            id,
+            labelKey,
+        })),
     };
 };
+

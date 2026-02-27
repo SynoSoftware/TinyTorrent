@@ -1,18 +1,11 @@
-import {
-    createContext,
-    createElement,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
-    type ReactNode,
-} from "react";
+import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode, } from "react";
 
-import { HISTORY_DATA_POINTS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import type { SessionStats } from "@/services/rpc/entities";
 import { subscribeUiClock } from "@/shared/hooks/useUiClock";
+const { performance } = registry;
 
-const HISTORY_POINTS = HISTORY_DATA_POINTS;
+const HISTORY_POINTS = performance.historyDataPoints;
 
 const createHistoryBuffer = () =>
     new Array(HISTORY_POINTS).fill(0);
@@ -145,3 +138,4 @@ export const useSessionSpeedHistory = () => {
 
     return history;
 };
+

@@ -1,20 +1,9 @@
-import {
-    Button,
-    Divider,
-    Select,
-    SelectItem,
-    Slider,
-    Switch,
-    cn,
-} from "@heroui/react";
+import { Button, Divider, Select, SelectItem, Slider, Switch, cn, } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 import {
-    ALT_SPEED_DAY_OPTIONS,
-    type InputBlock,
-    type SectionBlock,
-} from "@/modules/settings/data/settings-tabs";
-import { ICON_STROKE_WIDTH, VISUAL_STATE } from "@/config/logic";
+    ALT_SPEED_DAY_OPTIONS, type InputBlock, type SectionBlock, } from "@/modules/settings/data/settings-tabs";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { FORM } from "@/shared/ui/layout/glass-surface";
@@ -26,6 +15,7 @@ import {
     useSettingsFormActions,
     useSettingsFormState,
 } from "@/modules/settings/context/SettingsFormContext";
+const { layout, visuals, ui } = registry;
 
 // TODO: Architectural boundary: SettingsBlockRenderers must be view-only.
 // TODO: - No RPC calls, no ShellExtensions calls, no capability inference.
@@ -115,7 +105,7 @@ export function SwitchRenderer({
                 <span
                     className={cn(
                         FORM.switchLabel,
-                        isDisabled && VISUAL_STATE.muted,
+                        isDisabled && visuals.state.muted,
                     )}
                 >
                     {t(block.labelKey)}
@@ -245,7 +235,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             endContent={
                 block.endIcon ? (
                     <block.endIcon
-                        strokeWidth={ICON_STROKE_WIDTH}
+                        strokeWidth={visuals.icon.strokeWidth}
                         className={FORM.inputEndIcon}
                     />
                 ) : undefined
@@ -519,3 +509,4 @@ export function RawConfigRenderer({
 export function DividerRenderer() {
     return <Divider className={FORM.divider} />;
 }
+

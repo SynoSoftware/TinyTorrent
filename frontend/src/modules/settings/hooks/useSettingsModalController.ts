@@ -4,10 +4,8 @@ import type { UiMode } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { scheduler } from "@/app/services/scheduler";
-import { STATUS } from "@/shared/status";
-import {
-    CLIPBOARD_BADGE_DURATION_MS,
-} from "@/config/logic";
+import { status } from "@/shared/status";
+import { registry } from "@/config/logic";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
 import {
     DEFAULT_SETTINGS_CONFIG,
@@ -30,6 +28,7 @@ import type {
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
 } from "@/modules/settings/context/SettingsFormContext";
+const { timing, shell, ui } = registry;
 
 type LiveUserPreferencePatch = Partial<
     Pick<
@@ -263,7 +262,7 @@ export function useSettingsModalController(
         }
         jsonCopyTimerRef.current = scheduler.scheduleTimeout(() => {
             setJsonCopyStatus("idle");
-        }, CLIPBOARD_BADGE_DURATION_MS);
+        }, timing.ui.clipboardBadgeMs);
         switch (outcome.status) {
             case "copied":
                 return SETTINGS_ACTION_APPLIED;
@@ -468,7 +467,7 @@ export function useSettingsModalController(
                         text: t("settings.modal.test_port_unsupported"),
                     });
                     return;
-                case STATUS.connection.OFFLINE:
+                case status.connection.offline:
                     setModalFeedback({
                         type: "error",
                         text: t("settings.modal.test_port_offline"),
@@ -507,7 +506,7 @@ export function useSettingsModalController(
                 return SETTINGS_ACTION_UNSUPPORTED;
             }
             const outcome = await onReconnect();
-            if (outcome.status !== STATUS.connection.CONNECTED) {
+            if (outcome.status !== status.connection.connected) {
                 setModalFeedback({
                     type: "error",
                     text: t("settings.modal.error_reconnect"),
@@ -777,3 +776,4 @@ export function useSettingsModalController(
         ],
     );
 }
+

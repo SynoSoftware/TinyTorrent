@@ -4,30 +4,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 
-const dispatchMock = vi.fn();
-const showFeedbackMock = vi.fn();
+const addTrackersMock = vi.fn();
+const replaceTrackersMock = vi.fn();
+const removeTrackersMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
     useTranslation: () => ({
         t: (key: string) => (key === "labels.unknown" ? "Unknown" : key),
-    }),
-}));
-
-vi.mock("@/app/context/AppCommandContext", () => ({
-    useRequiredTorrentActions: () => ({
-        dispatch: dispatchMock,
-    }),
-}));
-
-vi.mock("@/app/hooks/useActionFeedback", () => ({
-    useActionFeedback: () => ({
-        showFeedback: showFeedbackMock,
-    }),
-}));
-
-vi.mock("@/app/context/AppShellStateContext", () => ({
-    useSelection: () => ({
-        selectedIds: [],
     }),
 }));
 
@@ -57,10 +40,14 @@ const waitForCondition = async (
 const ViewModelHarness = forwardRef<HarnessRef, { trackers: TorrentTrackerEntity[] }>(
     ({ trackers }, ref) => {
         const viewModel = useTorrentDetailsTrackersViewModel({
-            torrentId: "torrent-1",
+            targetIds: ["torrent-1"],
+            scope: "inspected",
             trackers,
             emptyMessage: "empty",
             serverTime: 0,
+            addTrackers: addTrackersMock,
+            replaceTrackers: replaceTrackersMock,
+            removeTrackers: removeTrackersMock,
         });
 
         useImperativeHandle(
@@ -126,9 +113,12 @@ const mountHarness = async (trackers: TorrentTrackerEntity[]): Promise<MountedHa
 
 describe("useTorrentDetailsTrackersViewModel", () => {
     beforeEach(() => {
-        dispatchMock.mockReset();
-        dispatchMock.mockResolvedValue({ status: "applied" });
-        showFeedbackMock.mockReset();
+        addTrackersMock.mockReset();
+        replaceTrackersMock.mockReset();
+        removeTrackersMock.mockReset();
+        addTrackersMock.mockResolvedValue({ status: "applied" });
+        replaceTrackersMock.mockResolvedValue({ status: "applied" });
+        removeTrackersMock.mockResolvedValue({ status: "applied" });
     });
 
     afterEach(() => {
@@ -169,7 +159,7 @@ describe("useTorrentDetailsTrackersViewModel", () => {
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 80);
             });
-            expect(dispatchMock).not.toHaveBeenCalled();
+            expect(replaceTrackersMock).not.toHaveBeenCalled();
         } finally {
             mounted.cleanup();
         }

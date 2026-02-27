@@ -5,14 +5,13 @@ import { cn } from "@heroui/react";
 import { useEffect, useRef, useState, useId } from "react";
 
 import {
-    buildSplinePathFromPoints,
-    createSplinePoints,
-} from "@/shared/utils/spline";
-import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
+    buildSplinePathFromPoints, createSplinePoints, } from "@/shared/utils/spline";
+import { registry } from "@/config/logic";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 import { useUiClock } from "@/shared/hooks/useUiClock";
+const { layout, interaction, visuals, ui } = registry;
 
-const { networkGraph } = INTERACTION_CONFIG;
+const { networkGraph } = interaction.config;
 const GRAPH_WIDTH = networkGraph.width;
 const GRAPH_HEIGHT = networkGraph.height;
 
@@ -177,7 +176,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 d={safeLinePath}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={ICON_STROKE_WIDTH}
+                strokeWidth={visuals.icon.strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className={cn(colorClass)}
@@ -188,3 +187,4 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         </svg>
     );
 };
+

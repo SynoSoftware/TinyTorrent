@@ -11,11 +11,16 @@ import type {
     TableContextMenu,
     TorrentTableRowMenuViewModel,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
+import { rowMenuKey } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
+import {
+    useRequiredTorrentActions,
+    useTorrentCommands,
+} from "@/app/context/AppCommandContext";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import {
     resolveSetDownloadLocationPolicy,
 } from "@/modules/dashboard/domain/torrentRelocation";
@@ -43,8 +48,12 @@ export interface TorrentTableRowMenuProps {
 export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuProps) {
     const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
     const [setLocationTorrent, setSetLocationTorrent] = useState<Torrent | null>(null);
+    const { setDownloadLocation } = useTorrentCommands();
+    const { dispatch } = useRequiredTorrentActions();
     const setLocationFlow = useSetDownloadLocationFlow({
         torrent: setLocationTorrent,
+        setDownloadLocation,
+        dispatchEnsureActive: dispatch,
     });
 
     const closeSetLocationModal = useCallback(() => {
@@ -103,7 +112,7 @@ function TorrentTable_RowMenuInner({
     setLocationPolicy: ReturnType<typeof resolveSetDownloadLocationPolicy>;
     onClose: () => void;
     handleContextMenuAction: (
-        key?: RowContextMenuKey,
+        key: RowContextMenuKey,
     ) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
@@ -153,8 +162,8 @@ function TorrentTable_RowMenuInner({
     };
 
     const handleMenuActionPress = useCallback(
-        async (key?: RowContextMenuKey) => {
-            if (key === "set-download-location") {
+        async (key: RowContextMenuKey) => {
+            if (key === rowMenuKey.setDownloadLocation) {
                 onRequestSetDownloadLocation(contextTorrent);
                 return;
             }
@@ -221,9 +230,11 @@ function TorrentTable_RowMenuInner({
         if (rowMenuViewModel.showOpenFolder) {
             items.push(
                 <DropdownItem
-                    key="open-folder"
+                    key={rowMenuKey.openFolder}
                     isDisabled={rowMenuViewModel.openFolderDisabled}
-                    onPress={() => void handleMenuActionPress("open-folder")}
+                    onPress={() =>
+                        void handleMenuActionPress(rowMenuKey.openFolder)
+                    }
                 >
                     {t("table.actions.open_folder")}
                 </DropdownItem>,
@@ -232,8 +243,10 @@ function TorrentTable_RowMenuInner({
 
         items.push(
             <DropdownItem
-                key="set-download-location"
-                onPress={() => void handleMenuActionPress("set-download-location")}
+                key={rowMenuKey.setDownloadLocation}
+                onPress={() =>
+                    void handleMenuActionPress(rowMenuKey.setDownloadLocation)
+                }
                 textValue={t(setLocationPolicy.actionLabelKey)}
             >
                 {t(setLocationPolicy.actionLabelKey)}
@@ -242,10 +255,10 @@ function TorrentTable_RowMenuInner({
 
         items.push(
             <DropdownItem
-                key="copy-hash"
+                key={rowMenuKey.copyHash}
                 isDisabled={!clipboardWriteSupported}
-                shortcut={getContextMenuShortcut("copy-hash")}
-                onPress={() => void handleMenuActionPress("copy-hash")}
+                shortcut={getContextMenuShortcut(rowMenuKey.copyHash)}
+                onPress={() => void handleMenuActionPress(rowMenuKey.copyHash)}
             >
                 {t("table.actions.copy_hash")}
             </DropdownItem>,
@@ -253,10 +266,12 @@ function TorrentTable_RowMenuInner({
 
         items.push(
             <DropdownItem
-                key="copy-magnet"
+                key={rowMenuKey.copyMagnet}
                 isDisabled={!clipboardWriteSupported}
-                shortcut={getContextMenuShortcut("copy-magnet")}
-                onPress={() => void handleMenuActionPress("copy-magnet")}
+                shortcut={getContextMenuShortcut(rowMenuKey.copyMagnet)}
+                onPress={() =>
+                    void handleMenuActionPress(rowMenuKey.copyMagnet)
+                }
             >
                 {t("table.actions.copy_magnet")}
             </DropdownItem>,
@@ -325,3 +340,4 @@ function TorrentTable_RowMenuInner({
         </Dropdown>
     );
 }
+

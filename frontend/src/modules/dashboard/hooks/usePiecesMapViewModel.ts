@@ -4,22 +4,9 @@ import { useTranslation } from "react-i18next";
 import { scheduler } from "@/app/services/scheduler";
 import { formatBytes } from "@/shared/utils/format";
 import {
-    cancelScheduledFrame,
-    scheduleFrame,
-    useCanvasPalette,
-    clamp,
-    buildPieceGridRows,
-    classifyPieceState,
-    normalizePiecePercent,
-    fitCanvasToContainer,
-    resolveCanvasColor,
-    computePieceMapGeometry,
-    findPieceAtPoint,
-    type FrameHandle,
-    type PieceMapGeometry,
-    type PieceStatus,
-} from "@/modules/dashboard/hooks/utils/canvasUtils";
-import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
+    cancelScheduledFrame, scheduleFrame, useCanvasPalette, clamp, buildPieceGridRows, classifyPieceState, normalizePiecePercent, fitCanvasToContainer, resolveCanvasColor, computePieceMapGeometry, findPieceAtPoint, type FrameHandle, type PieceMapGeometry, type PieceStatus, } from "@/modules/dashboard/hooks/utils/canvasUtils";
+import { registry } from "@/config/logic";
+const { visualizations } = registry;
 
 export interface PiecesMapProps {
     percent: number;
@@ -92,13 +79,13 @@ export function usePiecesMapViewModel({
     const totalPieces = safePieceCount ?? fallbackPieces;
     const columns = Math.max(
         1,
-        Number.isFinite(DETAILS_PIECE_MAP_CONFIG.columns)
-            ? DETAILS_PIECE_MAP_CONFIG.columns
+        Number.isFinite(visualizations.details.pieceMap.columns)
+            ? visualizations.details.pieceMap.columns
             : 1
     );
     const gridRows = buildPieceGridRows(totalPieces, columns, {
-        base: DETAILS_PIECE_MAP_CONFIG.rows.base,
-        max: DETAILS_PIECE_MAP_CONFIG.rows.max,
+        base: visualizations.details.pieceMap.rows.base,
+        max: visualizations.details.pieceMap.rows.max,
     });
 
     const pieceStatesLength = pieceStates?.length ?? 0;
@@ -550,3 +537,5 @@ export function usePiecesMapViewModel({
         },
     };
 }
+
+

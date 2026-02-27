@@ -5,26 +5,13 @@ import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { TEXT_ROLE } from "@/config/textRoles";
 import {
-    SURFACE,
-    HEATMAP,
-} from "@/shared/ui/layout/glass-surface";
+    SURFACE, HEATMAP, } from "@/shared/ui/layout/glass-surface";
 import {
-    getAvailabilityColor,
-    useCanvasPalette,
-} from "@/modules/dashboard/hooks/utils/canvasUtils";
-import {
-    HEATMAP_CANVAS_CELL_GAP,
-    HEATMAP_CANVAS_CELL_SIZE,
-    HEATMAP_SAMPLE_LIMIT,
-    HEATMAP_ZOOM_LEVELS,
-    PIECE_COLUMNS,
-    HEATMAP_SHADOW_BLUR_MAX,
-    HEATMAP_HOVER_STROKE_WIDTH,
-    HEATMAP_HOVER_STROKE_INSET,
-    HEATMAP_USE_UI_SAMPLING_SHIM,
-} from "@/config/logic";
+    getAvailabilityColor, useCanvasPalette, } from "@/modules/dashboard/hooks/utils/canvasUtils";
+import { registry } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+const { layout, visuals, ui } = registry;
 
 // Scheduling: the shared scheduler now drives `useUiClock()` so redraw cadence is centralized and documented.
 
@@ -47,6 +34,13 @@ export const AvailabilityHeatmap = ({
     emptyLabel,
     formatTooltip,
 }: AvailabilityHeatmapProps) => {
+    const { pieceMap, heatmap } = layout;
+    const PIECE_COLUMNS = pieceMap.columns;
+    const HEATMAP_CANVAS_CELL_SIZE = heatmap.cellSize;
+    const HEATMAP_CANVAS_CELL_GAP = heatmap.cellGap;
+    const HEATMAP_ZOOM_LEVELS = heatmap.zoomLevels;
+    const HEATMAP_SAMPLE_LIMIT = heatmap.sampleLimit;
+
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
     const [zoomPulseUntilTick, setZoomPulseUntilTick] = useState<number | null>(
@@ -82,10 +76,10 @@ export const AvailabilityHeatmap = ({
     const zoomLevel = HEATMAP_ZOOM_LEVELS[zoomIndex] ?? 1;
     // Compatibility shim: sampling & decimation are performed client-side
     // until the engine/adapter provides an already-windowed availability list.
-    // This behavior is controlled by `HEATMAP_USE_UI_SAMPLING_SHIM` so it can
+    // This behavior is controlled by `layout.heatmap.useUiSamplingShim` so it can
     // be explicitly disabled once the engine takes ownership.
     const sampleLimit = Math.round(HEATMAP_SAMPLE_LIMIT * zoomLevel);
-    const USE_UI_SAMPLING_SHIM = HEATMAP_USE_UI_SAMPLING_SHIM;
+    const USE_UI_SAMPLING_SHIM = layout.heatmap.useUiSamplingShim;
     if (!USE_UI_SAMPLING_SHIM) {
         // When the shim is disabled we assume the adapter supplied a prepared
         // `pieceAvailability` array sized to the heatmap window; clamp sampleLimit
@@ -173,8 +167,8 @@ export const AvailabilityHeatmap = ({
                 if (cell.value > 0) {
                     ctx.shadowColor = color;
                     ctx.shadowBlur = Math.min(
-                        HEATMAP_SHADOW_BLUR_MAX,
-                        (cell.value / maxPeers) * HEATMAP_SHADOW_BLUR_MAX + 1,
+                        layout.heatmap.shadowBlurMax,
+                        (cell.value / maxPeers) * layout.heatmap.shadowBlurMax + 1,
                     );
                 }
             } else {
@@ -190,8 +184,8 @@ export const AvailabilityHeatmap = ({
             if (stableHoveredCell?.gridIndex === index) {
                 ctx.strokeStyle = palette.highlight;
                 // Use configured hover stroke width and inset tokens
-                ctx.lineWidth = HEATMAP_HOVER_STROKE_WIDTH;
-                const inset = HEATMAP_HOVER_STROKE_INSET;
+                ctx.lineWidth = layout.heatmap.hoverStrokeWidth;
+                const inset = layout.heatmap.hoverStrokeInset;
                 const w = HEATMAP_CANVAS_CELL_SIZE - inset * 2;
                 ctx.strokeRect(x + inset, y + inset, w, w);
             }
@@ -350,3 +344,4 @@ export const AvailabilityHeatmap = ({
         </motion.div>
     );
 };
+

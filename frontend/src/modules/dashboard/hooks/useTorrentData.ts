@@ -3,14 +3,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import { useSession } from "@/app/context/SessionContext";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentStatus } from "@/services/rpc/entities";
-import STATUS from "@/shared/status";
-import { GHOST_TIMEOUT_MS } from "@/config/logic";
+import { status } from "@/shared/status";
+import { registry } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "@/modules/dashboard/hooks/utils/torrent-order.ts";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import { scheduler } from "@/app/services/scheduler";
 import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
+const { timing } = registry;
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -54,13 +55,13 @@ const deriveTorrentRuntimeSummary = (torrents: Torrent[]): TorrentRuntimeSummary
     let singleVerifyingName: string | null = null;
 
     torrents.forEach((torrent) => {
-        const isActiveDownload = !torrent.isFinished && torrent.state !== STATUS.torrent.PAUSED && !torrent.isGhost;
+        const isActiveDownload = !torrent.isFinished && torrent.state !== status.torrent.paused && !torrent.isGhost;
         if (isActiveDownload) {
             activeDownloadCount += 1;
             activeDownloadRequiredBytes += torrent.leftUntilDone ?? 0;
         }
 
-        if (torrent.state === STATUS.torrent.CHECKING) {
+        if (torrent.state === status.torrent.checking) {
             verifyingCount += 1;
             verifyingProgressTotal += torrent.verificationProgress ?? torrent.progress ?? 0;
             singleVerifyingName = torrent.name;
@@ -199,7 +200,7 @@ export function useTorrentData({
         name: options.label,
         progress: 0,
         verificationProgress: 0,
-        state: options.state ?? STATUS.torrent.QUEUED,
+        state: options.state ?? status.torrent.queued,
         speed: { down: 0, up: 0 },
         peerSummary: {
             connected: 0,
@@ -261,7 +262,7 @@ export function useTorrentData({
             });
             const cancelTimer = scheduler.scheduleTimeout(() => {
                 removeGhostTorrent(ghost.id);
-            }, GHOST_TIMEOUT_MS);
+            }, timing.timeouts.ghostMs);
             ghostTimersRef.current.set(ghost.id, cancelTimer);
             return ghost.id;
         },
@@ -387,3 +388,5 @@ export function useTorrentData({
         removeGhostTorrent,
     };
 }
+
+

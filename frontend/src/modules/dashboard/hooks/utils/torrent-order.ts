@@ -1,4 +1,4 @@
-import type { Torrent } from "@/modules/dashboard/types/torrent.ts";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 export function buildUniqueTorrentOrder(torrents: Torrent[]): string[] {
     const order: string[] = [];

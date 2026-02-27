@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 
 interface UseTorrentDetailHeaderStatusParams {
     torrent?: TorrentDetail | null;
@@ -35,3 +35,4 @@ export function useTorrentDetailHeaderStatus({
         };
     }, [torrent]);
 }
+

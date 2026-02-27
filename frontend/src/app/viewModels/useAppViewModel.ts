@@ -9,21 +9,24 @@ import type {
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
 import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import type {
     PeerSortStrategy,
     DetailTab,
-} from "@/modules/dashboard/types/torrentDetail";
-import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
+} from "@/modules/dashboard/types/contracts";
+import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
-import { STATUS } from "@/shared/status";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
+import type { SetDownloadLocationPolicy } from "@/modules/dashboard/domain/torrentRelocation";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 
 /**
  * View models describe **what** a view renders and **what** actions it exposes.
@@ -53,11 +56,43 @@ export interface DashboardDetailViewModel {
             inspectorTabCommand: DetailTab | null;
             onInspectorTabCommandHandled: () => void;
         };
+        general: {
+            canSetLocation: boolean;
+            handleTorrentAction: (
+                action: TorrentTableAction,
+                torrent: Torrent
+            ) => Promise<TorrentCommandOutcome>;
+            setLocation: {
+                policy: SetDownloadLocationPolicy;
+                currentPath: string;
+                canPickDirectory: boolean;
+                pickDirectoryForSetDownloadPath: (
+                    currentPath: string
+                ) => Promise<string | null>;
+                applySetDownloadPath: (params: { path: string }) => Promise<void>;
+            };
+        };
         content: {
             handleFileSelectionChange: (
                 indexes: number[],
                 wanted: boolean
             ) => Promise<void>;
+        };
+        trackers: {
+            scope: "inspected" | "selection";
+            targetIds: Array<string | number>;
+            addTrackers: (
+                targetIds: Array<string | number>,
+                trackers: string[]
+            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
+            replaceTrackers: (
+                targetIds: Array<string | number>,
+                trackers: string[]
+            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
+            removeTrackers: (
+                targetIds: Array<string | number>,
+                trackerIds: number[]
+            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
         };
         peers: {
             peerSortStrategy: PeerSortStrategy;
@@ -178,9 +213,7 @@ export interface NavbarViewModel {
     onWindowCommand: (command: "minimize" | "maximize" | "close") => void;
 }
 
-export type StatusBarTransportStatus =
-    | typeof STATUS.connection.POLLING
-    | typeof STATUS.connection.OFFLINE;
+export type StatusBarTransportStatus = "polling" | "offline";
 
 export interface StatusBarViewModel {
     workspaceStyle: WorkspaceStyle;
@@ -217,4 +250,6 @@ export function useAppViewModel(params: UseAppViewModelParams): AppViewModel {
         [workspaceShell, statusBar]
     );
 }
+
+
 

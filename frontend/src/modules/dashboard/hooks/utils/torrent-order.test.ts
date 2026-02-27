@@ -1,4 +1,4 @@
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { buildUniqueTorrentOrder } from "@/modules/dashboard/hooks/utils/torrent-order";
 
 const assertDeepEqual = <T>(actual: T, expected: T, message: string) => {
@@ -47,3 +47,4 @@ assertDeepEqual(
     [],
     "should return empty order for empty snapshots"
 );
+

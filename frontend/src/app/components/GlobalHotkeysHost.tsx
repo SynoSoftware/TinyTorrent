@@ -4,8 +4,8 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { useSelection } from "@/app/context/AppShellStateContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { createGlobalHotkeyBindings } from "@/app/commandRegistry";
-import { HOTKEY_COMMAND_ID } from "@/app/commandCatalog";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { hotkeyCommandId } from "@/app/commandCatalog";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 
 export interface GlobalHotkeysHostProps {
     torrents: Torrent[];
@@ -65,51 +65,51 @@ export function GlobalHotkeysHost({
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.SelectAll].keys,
-        hotkeys[HOTKEY_COMMAND_ID.SelectAll].handler,
-        hotkeys[HOTKEY_COMMAND_ID.SelectAll].options,
+        hotkeys[hotkeyCommandId.SelectAll].keys,
+        hotkeys[hotkeyCommandId.SelectAll].handler,
+        hotkeys[hotkeyCommandId.SelectAll].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.Remove].keys,
-        hotkeys[HOTKEY_COMMAND_ID.Remove].handler,
-        hotkeys[HOTKEY_COMMAND_ID.Remove].options,
+        hotkeys[hotkeyCommandId.Remove].keys,
+        hotkeys[hotkeyCommandId.Remove].handler,
+        hotkeys[hotkeyCommandId.Remove].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].keys,
-        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].handler,
-        hotkeys[HOTKEY_COMMAND_ID.ShowDetails].options,
+        hotkeys[hotkeyCommandId.ShowDetails].keys,
+        hotkeys[hotkeyCommandId.ShowDetails].handler,
+        hotkeys[hotkeyCommandId.ShowDetails].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].keys,
-        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].handler,
-        hotkeys[HOTKEY_COMMAND_ID.ToggleInspector].options,
+        hotkeys[hotkeyCommandId.ToggleInspector].keys,
+        hotkeys[hotkeyCommandId.ToggleInspector].handler,
+        hotkeys[hotkeyCommandId.ToggleInspector].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.TogglePause].keys,
-        hotkeys[HOTKEY_COMMAND_ID.TogglePause].handler,
-        hotkeys[HOTKEY_COMMAND_ID.TogglePause].options,
+        hotkeys[hotkeyCommandId.TogglePause].keys,
+        hotkeys[hotkeyCommandId.TogglePause].handler,
+        hotkeys[hotkeyCommandId.TogglePause].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.Recheck].keys,
-        hotkeys[HOTKEY_COMMAND_ID.Recheck].handler,
-        hotkeys[HOTKEY_COMMAND_ID.Recheck].options,
+        hotkeys[hotkeyCommandId.Recheck].keys,
+        hotkeys[hotkeyCommandId.Recheck].handler,
+        hotkeys[hotkeyCommandId.Recheck].options,
         [hotkeys],
     );
 
     useHotkeys(
-        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].keys,
-        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].handler,
-        hotkeys[HOTKEY_COMMAND_ID.RemoveWithData].options,
+        hotkeys[hotkeyCommandId.RemoveWithData].keys,
+        hotkeys[hotkeyCommandId.RemoveWithData].handler,
+        hotkeys[hotkeyCommandId.RemoveWithData].options,
         [hotkeys],
     );
 
@@ -117,3 +117,4 @@ export function GlobalHotkeysHost({
 }
 
 export default GlobalHotkeysHost;
+

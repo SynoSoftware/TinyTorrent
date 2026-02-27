@@ -2,10 +2,11 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/app/context/SessionContext";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
-import { STATUS_VISUALS } from "@/config/logic";
+import { registry } from "@/config/logic";
 
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import type { AmbientHudCard } from "@/app/types/workspace";
+const { visuals } = registry;
 
 interface UseHudCardsParams {
     isDragActive: boolean;
@@ -35,11 +36,11 @@ export function useHudCards({
         let connectionSurface = "";
         let connectionIconBg = "";
         const connectionVisual =
-            STATUS_VISUALS[rpcStatus] ?? STATUS_VISUALS[STATUS.connection.CONNECTED];
+            visuals.status.recipes[rpcStatus] ?? visuals.status.recipes[status.connection.connected];
         const connectionIcon =
-            rpcStatus === STATUS.connection.ERROR ? AlertTriangle : PlugZap;
+            rpcStatus === status.connection.error ? AlertTriangle : PlugZap;
 
-        if (rpcStatus === STATUS.connection.CONNECTED) {
+        if (rpcStatus === status.connection.connected) {
             connectionTitle = t("workspace.stage.connection_online_title");
             connectionDescription = t(
                 "workspace.stage.connection_online_description",
@@ -53,7 +54,7 @@ export function useHudCards({
                 "bg-gradient-to-br from-success/15 via-background/30 to-background/10";
             connectionIconBg =
                 connectionVisual?.hudIconBg ?? "bg-success/15 text-success";
-        } else if (rpcStatus === STATUS.connection.IDLE) {
+        } else if (rpcStatus === status.connection.idle) {
             connectionTitle = isDetectingEngine
                 ? t("workspace.stage.connection_detecting_title")
                 : t("workspace.stage.connection_idle_title");
@@ -139,3 +140,4 @@ export function useHudCards({
         visibleHudCards,
     };
 }
+

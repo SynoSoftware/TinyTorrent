@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 
 export type RehashStatus = {
@@ -28,3 +28,4 @@ export type AmbientHudCard = {
     iconBgClass: string;
     icon: LucideIcon;
 };
+

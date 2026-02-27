@@ -14,31 +14,33 @@ import type {
     TorrentPeerEntity,
     TorrentTrackerEntity,
 } from "@/services/rpc/entities";
-import STATUS, { type TorrentStatus } from "@/shared/status";
+import { status, type TorrentStatus } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
 const STATUS_MAP: Record<number, TorrentStatus> = {
-    0: STATUS.torrent.PAUSED,
-    1: STATUS.torrent.CHECKING,
-    2: STATUS.torrent.CHECKING,
-    3: STATUS.torrent.QUEUED,
-    4: STATUS.torrent.DOWNLOADING,
-    5: STATUS.torrent.QUEUED,
-    6: STATUS.torrent.SEEDING,
-    7: STATUS.torrent.PAUSED,
+    0: status.torrent.paused,
+    1: status.torrent.checking,
+    2: status.torrent.checking,
+    3: status.torrent.queued,
+    4: status.torrent.downloading,
+    5: status.torrent.queued,
+    6: status.torrent.seeding,
+    7: status.torrent.paused,
 };
 
 // qBittorrent’s “Stalled torrent timeout” defaults to 60 seconds, so keep the grace window identical.
 const STALLED_GRACE_SECONDS = 60;
 
-const normalizeStatus = (status: number | TorrentStatus | undefined): TorrentStatus => {
-    if (typeof status === "string") {
-        return status as TorrentStatus;
+const normalizeStatus = (
+    rawStatus: number | TorrentStatus | undefined,
+): TorrentStatus => {
+    if (typeof rawStatus === "string") {
+        return rawStatus as TorrentStatus;
     }
-    if (typeof status === "number") {
-        return STATUS_MAP[status] ?? STATUS.torrent.PAUSED;
+    if (typeof rawStatus === "number") {
+        return STATUS_MAP[rawStatus] ?? status.torrent.paused;
     }
-    return STATUS.torrent.PAUSED;
+    return status.torrent.paused;
 };
 
 // Transmission error semantics:
@@ -141,22 +143,22 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
     // Transmission may keep error=3 while a manual recheck is in progress.
     // If we keep returning ERROR here, UI never shows checking/progress.
     if (currentlyVerifying) {
-        return STATUS.torrent.CHECKING;
+        return status.torrent.checking;
     }
 
     // 2) Error classification (authoritative outside active verify)
     if (hasRpcError(torrent)) {
-        return STATUS.torrent.ERROR;
+        return status.torrent.error;
     }
 
     // 3) Base states that must never be overridden
-    if (base === STATUS.torrent.PAUSED || base === STATUS.torrent.CHECKING || base === STATUS.torrent.QUEUED) {
+    if (base === status.torrent.paused || base === status.torrent.checking || base === status.torrent.queued) {
         return base;
     }
 
     // 🔒 4) Completed torrents are NEVER stalled
     if (torrent.percentDone === 1) {
-        return STATUS.torrent.SEEDING;
+        return status.torrent.seeding;
     }
 
     const down = numOr(torrent.rateDownload, 0);
@@ -176,7 +178,7 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
 
     let derived = base;
 
-    if (base === STATUS.torrent.DOWNLOADING) {
+    if (base === status.torrent.downloading) {
         const noTraffic = down === 0;
         const noUploadingPeers = sendingToUs === 0;
 
@@ -203,19 +205,19 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
 
             if (shouldResetNoTraffic) {
                 e.noTrafficSince = undefined;
-                derived = STATUS.torrent.DOWNLOADING;
+                derived = status.torrent.downloading;
             } else {
                 // Start timer on first observation, only emit STALLED if it persists long enough.
                 e.noTrafficSince ??= nowSeconds;
 
                 derived =
                     nowSeconds - e.noTrafficSince >= STALLED_GRACE_SECONDS
-                        ? STATUS.torrent.STALLED
-                        : STATUS.torrent.DOWNLOADING;
+                        ? status.torrent.stalled
+                        : status.torrent.downloading;
             }
 
             // Keep your existing “download just started” marker if you still want it.
-            if (derived === STATUS.torrent.DOWNLOADING && e.lastDerivedState !== STATUS.torrent.DOWNLOADING) {
+            if (derived === status.torrent.downloading && e.lastDerivedState !== status.torrent.downloading) {
                 e.lastDownloadStartedAt = nowSeconds;
             }
 
@@ -223,7 +225,7 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
             verifyStateMap.set(idKey, e);
         } else {
             // No idKey: be conservative
-            derived = STATUS.torrent.DOWNLOADING;
+            derived = status.torrent.downloading;
         }
     }
 
@@ -338,7 +340,7 @@ export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity =>
 
     const progress = torrent.percentDone;
 
-    const verificationProgress = derivedState === STATUS.torrent.CHECKING ? torrent.recheckProgress : undefined;
+    const verificationProgress = derivedState === status.torrent.checking ? torrent.recheckProgress : undefined;
 
     // Use the hashString when present, otherwise fall back to the numeric RPC id
     // as a string. Some engines may omit or mis-populate hashString which would
@@ -422,60 +424,60 @@ export const normalizeTorrentDetail = (detail: TransmissionTorrentDetail): Torre
  * moves into a legal state.
  */
 export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> = {
-    [STATUS.torrent.PAUSED]: [
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.SEEDING,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.ERROR,
+    [status.torrent.paused]: [
+        status.torrent.paused,
+        status.torrent.queued,
+        status.torrent.downloading,
+        status.torrent.seeding,
+        status.torrent.checking,
+        status.torrent.error,
     ],
-    [STATUS.torrent.QUEUED]: [
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.SEEDING,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.ERROR,
+    [status.torrent.queued]: [
+        status.torrent.queued,
+        status.torrent.downloading,
+        status.torrent.seeding,
+        status.torrent.paused,
+        status.torrent.checking,
+        status.torrent.error,
     ],
-    [STATUS.torrent.DOWNLOADING]: [
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.STALLED,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.SEEDING,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.ERROR,
+    [status.torrent.downloading]: [
+        status.torrent.downloading,
+        status.torrent.queued,
+        status.torrent.stalled,
+        status.torrent.checking,
+        status.torrent.seeding,
+        status.torrent.paused,
+        status.torrent.error,
     ],
-    [STATUS.torrent.SEEDING]: [
-        STATUS.torrent.SEEDING,
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.ERROR,
+    [status.torrent.seeding]: [
+        status.torrent.seeding,
+        status.torrent.queued,
+        status.torrent.checking,
+        status.torrent.paused,
+        status.torrent.error,
     ],
-    [STATUS.torrent.CHECKING]: [
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.SEEDING,
-        STATUS.torrent.ERROR,
+    [status.torrent.checking]: [
+        status.torrent.checking,
+        status.torrent.queued,
+        status.torrent.paused,
+        status.torrent.downloading,
+        status.torrent.seeding,
+        status.torrent.error,
     ],
-    [STATUS.torrent.STALLED]: [
-        STATUS.torrent.STALLED,
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.ERROR,
+    [status.torrent.stalled]: [
+        status.torrent.stalled,
+        status.torrent.downloading,
+        status.torrent.checking,
+        status.torrent.paused,
+        status.torrent.error,
     ],
-    [STATUS.torrent.ERROR]: [
-        STATUS.torrent.ERROR,
-        STATUS.torrent.PAUSED,
-        STATUS.torrent.QUEUED,
-        STATUS.torrent.CHECKING,
-        STATUS.torrent.DOWNLOADING,
-        STATUS.torrent.SEEDING,
+    [status.torrent.error]: [
+        status.torrent.error,
+        status.torrent.paused,
+        status.torrent.queued,
+        status.torrent.checking,
+        status.torrent.downloading,
+        status.torrent.seeding,
     ],
 };
 

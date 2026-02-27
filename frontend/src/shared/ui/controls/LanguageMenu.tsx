@@ -1,20 +1,15 @@
-// All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config. SCALE_BASES tokenization flagged for follow-up.
+// All config tokens imported from '@/config/logic'. Icon sizing uses visuals.icon.strokeWidth from config. ui.scaleBases tokenization flagged for follow-up.
 // Language preference is now managed by the Preferences provider.
 
-import {
-    Dropdown,
-    DropdownTrigger,
-    DropdownMenu,
-    DropdownItem,
-    cn,
-} from "@heroui/react";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn, } from "@heroui/react";
 import { Check, Globe } from "lucide-react";
 import { type ReactNode, type SVGProps, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
+const { layout, visuals, ui } = registry;
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
 
@@ -118,7 +113,7 @@ export function LanguageMenu() {
     const icon = (
         <Globe
             size={18}
-            strokeWidth={ICON_STROKE_WIDTH}
+            strokeWidth={visuals.icon.strokeWidth}
             className={SURFACE.atom.textCurrent}
         />
     );
@@ -161,7 +156,7 @@ export function LanguageMenu() {
                                 isActive ? (
                                     <Check
                                         size={22}
-                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        strokeWidth={visuals.icon.strokeWidth}
                                         className={
                                             SURFACE.menu.checkIconPrimary
                                         }
@@ -177,3 +172,4 @@ export function LanguageMenu() {
         </Dropdown>
     );
 }
+

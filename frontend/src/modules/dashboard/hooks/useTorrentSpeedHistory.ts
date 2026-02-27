@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import STATUS from "@/shared/status";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import { status } from "@/shared/status";
 import { useSpeedHistoryDomain } from "@/shared/hooks/useSpeedHistoryDomain";
 
 type SpeedHistoryMap = Record<string, number[]>;
@@ -21,7 +21,7 @@ export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
 
         currentTorrents.forEach((torrent) => {
             const data = store.get(torrent.id);
-            const isSeeding = torrent.state === STATUS.torrent.SEEDING;
+            const isSeeding = torrent.state === status.torrent.seeding;
             nextHistory[torrent.id] = isSeeding ? data.up : data.down;
         });
 
@@ -64,3 +64,4 @@ export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
 
     return historyRef;
 };
+

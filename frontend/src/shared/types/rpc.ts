@@ -1,17 +1,17 @@
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import type { ConnectionStatus } from "@/shared/status";
 export type { ConnectionStatus } from "@/shared/status";
 
 export const normalizeRpcStatus = (s: string): ConnectionStatus => {
     switch (s) {
-        case STATUS.connection.CONNECTED:
-            return STATUS.connection.CONNECTED;
-        case STATUS.connection.IDLE:
-            return STATUS.connection.IDLE;
-        case STATUS.connection.ERROR:
-            return STATUS.connection.ERROR;
+        case status.connection.connected:
+            return status.connection.connected;
+        case status.connection.idle:
+            return status.connection.idle;
+        case status.connection.error:
+            return status.connection.error;
         default:
-            return STATUS.connection.OFFLINE ?? STATUS.connection.IDLE;
+            return status.connection.offline ?? status.connection.idle;
     }
 };
 
@@ -23,7 +23,7 @@ export type RpcConnectionAction = "probe" | "reconnect";
 
 export type RpcConnectionOutcome =
     | {
-          status: typeof STATUS.connection.CONNECTED;
+          status: "connected";
           action: RpcConnectionAction;
       }
     | {

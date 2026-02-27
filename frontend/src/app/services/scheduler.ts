@@ -6,7 +6,7 @@
  * recurring/timeout jobs. When no work remains the loop stops automatically.
  *
  * Current scheduled work:
- * 1. UiClock ticks (DETAIL_REFRESH_INTERVAL_MS) — constant cadence so dashboards can redraw.
+ * 1. UiClock ticks (timing.heartbeat.detailMs) — constant cadence so dashboards can redraw.
  * 2. Missing-files recovery probes (configured cadence) — iterates only errored torrents, so cost scales with the size of the errored set.
  * 3. Volume-loss polling (same configured recovery cadence) — runs only when connected to a local TinyTorrent daemon (uiMode="Full") and checks each errored torrent sequentially.
  * 4. Recovery modal auto-retry (modal cadence) — only active while the modal is open and recovery is unresolved.

@@ -8,18 +8,17 @@ import { useAddModalState } from "@/app/hooks/useAddModalState";
 import { useAddTorrentDefaults } from "@/app/hooks/useAddTorrentDefaults";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import type { SettingsConfig } from "@/modules/settings/data/config";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type {
-    AddTorrentSelection,
-    AddTorrentSource,
-} from "@/modules/torrent-add/types";
+    AddTorrentSelection, AddTorrentSource, } from "@/modules/torrent-add/types";
 import { parseTorrentFile } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { infraLogger } from "@/shared/utils/infraLogger";
-import { TOAST_DISPLAY_DURATION_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { timing, ui } = registry;
 
 export interface UseAddTorrentControllerParams {
     dispatch: (
@@ -143,7 +142,7 @@ export function useAddTorrentController({
                     : t("modals.add_torrent.background_progress"),
             color: active.phase === "unknown" ? "warning" : "primary",
             severity: active.phase === "unknown" ? "warning" : "primary",
-            timeout: TOAST_DISPLAY_DURATION_MS,
+            timeout: timing.ui.toastMs,
             hideCloseButton: true,
         });
     }, [t]);
@@ -271,7 +270,7 @@ export function useAddTorrentController({
                         title: t("modals.add_torrent.submission_already_running"),
                         color: "warning",
                         severity: "warning",
-                        timeout: TOAST_DISPLAY_DURATION_MS,
+                        timeout: timing.ui.toastMs,
                         hideCloseButton: true,
                     });
                     return;
@@ -288,7 +287,7 @@ export function useAddTorrentController({
                     title: failureMessage,
                     color: "danger",
                     severity: "danger",
-                    timeout: TOAST_DISPLAY_DURATION_MS,
+                    timeout: timing.ui.toastMs,
                     hideCloseButton: false,
                     endContent: createElement(
                         Button,
@@ -317,7 +316,7 @@ export function useAddTorrentController({
                             : t("toolbar.feedback.added"),
                     color: "success",
                     severity: "success",
-                    timeout: TOAST_DISPLAY_DURATION_MS,
+                    timeout: timing.ui.toastMs,
                     hideCloseButton: true,
                     endContent:
                         matchedTorrent && openTorrentDetailsById
@@ -360,7 +359,7 @@ export function useAddTorrentController({
                     description: t("modals.add_torrent.unknown_outcome_body"),
                     color: "warning",
                     severity: "warning",
-                    timeout: TOAST_DISPLAY_DURATION_MS * 3,
+                    timeout: timing.ui.toastMs * 3,
                     hideCloseButton: false,
                     endContent: createElement(
                         Button,
@@ -396,7 +395,7 @@ export function useAddTorrentController({
                                         title: t("modals.add_torrent.unknown_retry_hint"),
                                         color: "warning",
                                         severity: "warning",
-                                        timeout: TOAST_DISPLAY_DURATION_MS,
+                                        timeout: timing.ui.toastMs,
                                         hideCloseButton: false,
                                         endContent: createElement(
                                             Button,
@@ -741,3 +740,5 @@ function base32ToHex(value: string): string | null {
     }
     return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+

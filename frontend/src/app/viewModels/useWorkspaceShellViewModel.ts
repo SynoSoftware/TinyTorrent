@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+} from "@/modules/dashboard/types/contracts";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { CommandPaletteContext } from "@/app/components/CommandPalette";
 import {
     buildCommandPaletteActions,
@@ -28,7 +28,7 @@ import {
     useWorkspaceShellModel,
 } from "@/app/viewModels/workspaceShell/shellViewModelBuilders";
 import {
-    DASHBOARD_FILTERS,
+    dashboardFilters,
     type DashboardFilter,
 } from "@/modules/dashboard/types/dashboardFilter";
 import type {
@@ -46,15 +46,18 @@ import { shellAgent } from "@/app/agents/shell-agent";
 import { useHudCards } from "@/app/hooks/useHudCards";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { CapabilityStore } from "@/app/types/capabilities";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import {
-    type TorrentDispatchOutcome,
-} from "@/app/actions/torrentDispatch";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+    commandOutcome,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
 import type {
     TorrentIntentExtended,
 } from "@/app/intents/torrentIntents";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { useWorkspaceTorrentDomain } from "@/app/orchestrators/useWorkspaceTorrentDomain";
 import { bindEngineCheckFreeSpace } from "@/services/rpc/engine-adapter";
+import { useSetDownloadLocationFlow } from "@/modules/dashboard/hooks/useSetDownloadLocationFlow";
 
 export interface WorkspaceShellController {
     shell: {
@@ -222,8 +225,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleRequestDetails,
         handleCloseDetail,
         handleFileSelectionChange,
-        handleSequentialToggle,
-        handleSuperSeedingToggle,
     } = handlers;
 
     const { getRootProps, getInputProps, isDragActive } = addModalState;
@@ -237,16 +238,16 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             openAddMagnet: async (magnetLink?: string) => {
                 const outcome = openAddMagnet(magnetLink);
                 if (outcome.status === "blocked_in_flight") {
-                    return { status: "success", reason: "queued" } as const;
+                    return commandOutcome.success("queued");
                 }
-                return { status: "success" } as const;
+                return commandOutcome.success();
             },
             openAddTorrentPicker: async () => {
                 const outcome = openAddTorrentPicker();
                 if (outcome.status === "blocked_in_flight") {
-                    return { status: "success", reason: "queued" } as const;
+                    return commandOutcome.success("queued");
                 }
-                return { status: "success" } as const;
+                return commandOutcome.success();
             },
         }),
         [
@@ -257,6 +258,54 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             openAddMagnet,
             openAddTorrentPicker,
         ],
+    );
+
+    const canSetLocation = useMemo(
+        () => typeof torrentClient.setTorrentLocation === "function",
+        [torrentClient],
+    );
+    const detailSetLocationFlow = useSetDownloadLocationFlow({
+        torrent: detailData,
+        setDownloadLocation: handleSetDownloadLocation,
+        dispatchEnsureActive: dispatch,
+    });
+
+    const executeTrackerMutation = useCallback(
+        async (intent: TorrentIntentExtended) => {
+            const outcome = await dispatch(intent);
+            if (outcome.status === "applied") {
+                return { status: "applied" } as const;
+            }
+            if (outcome.status === "unsupported") {
+                return { status: "unsupported" } as const;
+            }
+            return { status: "failed" } as const;
+        },
+        [dispatch],
+    );
+
+    const addTrackers = useCallback(
+        (targetIds: Array<string | number>, trackers: string[]) =>
+            executeTrackerMutation(
+                TorrentIntents.torrentAddTracker(targetIds, trackers),
+            ),
+        [executeTrackerMutation],
+    );
+
+    const replaceTrackers = useCallback(
+        (targetIds: Array<string | number>, trackers: string[]) =>
+            executeTrackerMutation(
+                TorrentIntents.torrentReplaceTrackers(targetIds, trackers),
+            ),
+        [executeTrackerMutation],
+    );
+
+    const removeTrackers = useCallback(
+        (targetIds: Array<string | number>, trackerIds: number[]) =>
+            executeTrackerMutation(
+                TorrentIntents.torrentRemoveTracker(targetIds, trackerIds),
+            ),
+        [executeTrackerMutation],
     );
 
     const handleEnsureSelectionActive = useCallback(() => {
@@ -330,9 +379,9 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     ]);
 
     const transportStatus: StatusBarTransportStatus =
-        rpcStatus === STATUS.connection.CONNECTED
+        rpcStatus === status.connection.connected
             ? liveTransportStatus
-            : STATUS.connection.OFFLINE;
+            : status.connection.offline;
 
     const emphasizeActions = useMemo(
         () => ({
@@ -345,7 +394,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [],
     );
 
-    const [filter, setFilter] = useState<DashboardFilter>(DASHBOARD_FILTERS.ALL);
+    const [filter, setFilter] = useState<DashboardFilter>(dashboardFilters.all);
     const [searchQuery, setSearchQuery] = useState("");
     const [peerSortStrategy, setPeerSortStrategy] =
         useState<PeerSortStrategy>("none");
@@ -363,14 +412,19 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         isInitialLoadFinished,
         optimisticStatuses,
         removedIds,
+        selectedIds,
         detailData,
         peerSortStrategy,
         inspectorTabCommand,
+        canSetLocation,
+        generalSetLocation: detailSetLocationFlow,
         handleRequestDetails,
         closeDetail: handleCloseDetail,
+        handleTorrentAction,
         handleFileSelectionChange,
-        handleSequentialToggle,
-        handleSuperSeedingToggle,
+        addTrackers,
+        replaceTrackers,
+        removeTrackers,
         setInspectorTabCommand,
         capabilities,
     });
@@ -561,3 +615,5 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         },
     };
 }
+
+

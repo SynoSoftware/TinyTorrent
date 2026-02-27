@@ -1,5 +1,9 @@
-import { HEADER_BASE, INTERACTIVE_RECIPE, SURFACE_BORDER, TRANSITION, VISUAL_STATE } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
+const { layout, shell, visuals } = registry;
+
+const transition = visuals.transitions;
+
 const GLASS_SURFACE_DIAL = {
     opacity: {
         panel: "bg-content1/10",
@@ -53,8 +57,8 @@ const GLASS_ROLE_CORE = {
         divider: "border-default/20",
     },
     state: {
-        interactive: INTERACTIVE_RECIPE.buttonDefault,
-        disabled: VISUAL_STATE.disabled,
+        interactive: visuals.interactive.buttonDefault,
+        disabled: visuals.state.disabled,
     },
     text: {
         heading: TEXT_ROLE.heading,
@@ -89,8 +93,8 @@ const MENU_PANEL_HEADER = `px-panel py-tight border-b border-content1/10 mb-tigh
 const MENU_PANEL_HEADER_ICON = "text-foreground/30";
 const MENU_PANEL_HEADER_TEXT = `${TEXT_ROLE.label} text-foreground/40 truncate`;
 const MENU_ACTION_BUTTON_BASE = `w-full flex items-center gap-tools px-panel py-tight rounded-xl ${TEXT_ROLE.buttonText}`;
-const MENU_ACTION_BUTTON = `${MENU_ACTION_BUTTON_BASE} ${INTERACTIVE_RECIPE.menuItem}`;
-const MENU_ACTION_BUTTON_DANGER = `${MENU_ACTION_BUTTON_BASE} ${withColor(TEXT_ROLE.buttonText, "danger")} ${INTERACTIVE_RECIPE.menuItemDanger} border-t border-content1/10 mt-tight`;
+const MENU_ACTION_BUTTON = `${MENU_ACTION_BUTTON_BASE} ${visuals.interactive.menuItem}`;
+const MENU_ACTION_BUTTON_DANGER = `${MENU_ACTION_BUTTON_BASE} ${withColor(TEXT_ROLE.buttonText, "danger")} ${visuals.interactive.menuItemDanger} border-t border-content1/10 mt-tight`;
 const STATUS_CHIP_PATTERN = {
     base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
     content: "font-bold text-scaled tracking-wider whitespace-nowrap text-foreground",
@@ -123,11 +127,11 @@ const MODAL_CHROME_CLASSNAMES = {
     footer: "p-none select-none",
 } as const;
 const SURFACE_TOOLTIP = {
-    content: `${GLASS_SURFACE_DIAL.opacity.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
+    content: `${GLASS_SURFACE_DIAL.opacity.modal} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: GLASS_SURFACE_DIAL.opacity.modal,
 } as const;
 const GLASS_SEMANTIC_CHROME = {
-    dividerSoft: SURFACE_BORDER,
+    dividerSoft: visuals.surface.border,
     headerBorder: MODAL_SURFACE_HEADER,
     footerBorder: MODAL_SURFACE_FOOTER,
     dialogHeader: `${MODAL_SURFACE_HEADER} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
@@ -185,20 +189,20 @@ const SURFACE_ATOM = {
     glassBlock: "acrylic shadow-inner",
 } as const;
 const ROLE_PANEL_INSET_BASE = `${PANEL_SURFACE_INSET_FRAME} ${GLASS_SURFACE_DIAL.opacity.panel}`;
-const ROLE_PANEL_RAISED = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
-const ROLE_PANEL_MUTED = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel}`;
-const ROLE_PANEL_INFO = `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.workbench}`;
+const ROLE_PANEL_RAISED = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel}`;
+const ROLE_PANEL_MUTED = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel}`;
+const ROLE_PANEL_INFO = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.workbench}`;
 const GLASS_ROLE_SEMANTIC = {
     surface: {
         workbenchShell: `${SURFACE_ATOM.glassBlock} ${SURFACE_ATOM.shadowBlock}`,
         panelInset: ROLE_PANEL_INSET_BASE,
         tooltip: SURFACE_TOOLTIP.content,
-        statusModule: `${GLASS_SURFACE_DIAL.radius.modal} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.panel} ${GLASS_SURFACE_DIAL.blur.soft}`,
+        statusModule: `${GLASS_SURFACE_DIAL.radius.modal} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel} ${GLASS_SURFACE_DIAL.blur.soft}`,
         panelRaised: ROLE_PANEL_RAISED,
         panelMuted: ROLE_PANEL_MUTED,
         panelInfo: ROLE_PANEL_INFO,
-        panelWorkflow: `${GLASS_SURFACE_DIAL.radius.raised} border ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.pane}`,
-        sidebarPanel: `flex flex-col border-r ${SURFACE_BORDER} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.panel}`,
+        panelWorkflow: `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.pane}`,
+        sidebarPanel: `flex flex-col border-r ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.panel}`,
     },
     chrome: GLASS_SEMANTIC_CHROME,
 } as const;
@@ -227,7 +231,7 @@ export const MODAL = {
     addTorrentModalHeightFull: "h-full",
     addTorrentModalHeightDefault: "max-h-modal-body",
     addTorrentModalChromeClassNames: SURFACE.modal.chromeClassNames,
-    sidebar: `${SURFACE.surface.sidebarPanel} ${TRANSITION.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
+    sidebar: `${SURFACE.surface.sidebarPanel} ${transition.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
     sidebarHeader: "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
@@ -240,9 +244,9 @@ export const MODAL = {
     footerActionsPadded: SURFACE.chromeEx.footerActionsPadded,
     sidebarCloseButton: "sm:hidden text-foreground/50",
     sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
-    tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel rounded-panel ${TRANSITION.medium} group relative`,
+    tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel rounded-panel ${transition.medium} group relative`,
     tabButtonActive: "bg-primary/10 text-primary font-semibold",
-    tabButtonInactive: `text-foreground/60 font-medium ${INTERACTIVE_RECIPE.navItem}`,
+    tabButtonInactive: `text-foreground/60 font-medium ${visuals.interactive.navItem}`,
     tabIcon: "shrink-0 toolbar-icon-size-md",
     tabIconActive: "text-primary",
     tabIconInactive: "text-foreground/50",
@@ -256,7 +260,7 @@ export const MODAL = {
     headerTitleWrap: "flex min-w-0 flex-col overflow-hidden",
     headerMobileBack: "sm:hidden -ml-tight text-foreground/50",
     headerUnsaved: `${TEXT_ROLE.statusWarning} animate-pulse tracking-0-2`,
-    desktopClose: `text-foreground/40 hidden sm:flex ${INTERACTIVE_RECIPE.dismiss}`,
+    desktopClose: `text-foreground/40 hidden sm:flex ${visuals.interactive.dismiss}`,
     contentStack: "flex flex-col space-y-stage sm:space-y-stage pb-stage",
     scrollContent: "flex-1 min-h-0 overflow-y-auto scrollbar-hide",
     alert: "mb-panel px-panel py-tight",
@@ -268,7 +272,7 @@ export const MODAL = {
     footerWarningTitle: `${TEXT_ROLE.bodyStrong} text-warning`,
     footerActions: "flex gap-tools ml-auto shrink-0",
     footerButtonRow: "flex gap-tools ml-auto",
-    footerResetButton: `opacity-70 ${INTERACTIVE_RECIPE.buttonDefault}`,
+    footerResetButton: `opacity-70 ${visuals.interactive.buttonDefault}`,
     footerSaveButton: "font-semibold shadow-small shadow-primary/20",
     dialogHeader: SURFACE.chromeEx.dialogHeader,
     dialogHeaderLead: "flex min-w-0 flex-1 items-center gap-panel",
@@ -309,7 +313,7 @@ export const MODAL = {
         iconAlertMuted: "toolbar-icon-size-md shrink-0 text-foreground/50",
         warningTone: "text-warning",
         footerAlertText: `${TEXT_ROLE.bodyStrong} truncate`,
-        headerIconButton: `text-foreground/60 ${INTERACTIVE_RECIPE.textReveal}`,
+        headerIconButton: `text-foreground/60 ${visuals.interactive.textReveal}`,
         gateBody: "flex-1 min-h-0 flex items-center justify-center",
         gateContent: "w-full max-w-modal",
         formRoot: "flex flex-col min-h-0 flex-1 relative",
@@ -327,7 +331,7 @@ export const MODAL = {
             "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
         panelGroup: "flex-1 min-h-0",
         paneHandle:
-            `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${TRANSITION.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
+            `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
         paneHandleEnabled: "cursor-col-resize",
         resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
         settingsPanel: `${SURFACE.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
@@ -369,7 +373,7 @@ export const MODAL = {
                 base: `${MODAL.addTorrentModalBase} ${!params.showDestinationGate && params.isFullscreen ? MODAL.addTorrentModalHeightFull : MODAL.addTorrentModalHeightDefault}`,
             }) as const,
         resizeHandleBarClass: (params: { isSettingsCollapsed: boolean; isPanelResizeActive: boolean }) =>
-            `h-full w-divider ${TRANSITION.fast} ${
+            `h-full w-divider ${transition.fast} ${
                 params.isPanelResizeActive
                     ? "bg-primary"
                     : "bg-primary/70 group-hover:bg-primary/85"
@@ -382,8 +386,8 @@ const FORM_STATUS_TONE_CLASS = (statusKind: string) =>
 // this builder prevents repeated inline classNames objects in renderers.
 const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: { disabled: boolean; mono: boolean }) => ({
     inputWrapper: params.disabled
-        ? `h-button ${TRANSITION.fast} ${VISUAL_STATE.disabled}`
-        : `h-button ${TRANSITION.fast} group-hover:border-primary/50`,
+        ? `h-button ${transition.fast} ${visuals.state.disabled}`
+        : `h-button ${transition.fast} group-hover:border-primary/50`,
     input: params.mono
         ? `${withOpacity(TEXT_ROLE.body, 90)} font-mono tracking-tight`
         : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
@@ -437,8 +441,8 @@ export const FORM = {
     inputActionRow: "flex w-full items-end gap-tools",
     inputActionFill: "flex-1 min-w-0",
     inputEndIcon: "text-foreground/40 shrink-0 toolbar-icon-size-sm",
-    inputActionButton: `h-button px-stage shrink-0 ${TEXT_ROLE.buttonText} tracking-wider uppercase bg-primary/10 text-primary ${INTERACTIVE_RECIPE.buttonPrimary}`,
-    daySelectorButton: `h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-primary/10 text-primary text-scaled min-w-0 ${INTERACTIVE_RECIPE.buttonPrimary}`,
+    inputActionButton: `h-button px-stage shrink-0 ${TEXT_ROLE.buttonText} tracking-wider uppercase bg-primary/10 text-primary ${visuals.interactive.buttonPrimary}`,
+    daySelectorButton: `h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-primary/10 text-primary text-scaled min-w-0 ${visuals.interactive.buttonPrimary}`,
     daySelectorSelected: "font-bold",
     daySelectorUnselected: "text-foreground/60",
     daySelectorList: "flex flex-wrap gap-tools",
@@ -544,7 +548,7 @@ export const FORM = {
         settingsBufferedInputClassNames: SETTINGS_BUFFERED_INPUT_CLASS_NAMES,
     } as const,
 } as const;
-const TORRENT_HEADER_CELL_BASE_CLASS = `relative flex items-center h-row border-r border-content1/10 ${TRANSITION.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
+const TORRENT_HEADER_CELL_BASE_CLASS = `relative flex items-center h-row border-r border-content1/10 ${transition.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
 const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
     "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none flex-1 gap-tools text-scaled font-bold uppercase text-foreground/60 pl-tight pr-tight";
 const TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE = {
@@ -584,7 +588,7 @@ const TORRENT_HEADER = {
             `text-primary shrink-0 toolbar-icon-size-sm ${visible ? "opacity-100" : "opacity-0"}`,
         resizeBarClass: (isResizing: boolean) =>
             [
-                `bg-foreground/10 ${TRANSITION.fast} rounded-full h-resize-h`,
+                `bg-foreground/10 ${transition.fast} rounded-full h-resize-h`,
                 "group-hover:bg-primary/50",
                 isResizing ? "bg-primary h-resize-h" : "",
             ]
@@ -641,7 +645,7 @@ export const TABLE = {
     columnHeaderPulseIcon: "text-foreground/50 animate-pulse toolbar-icon-size-md",
     columnDefs: {
         nameCell: "flex min-w-0 items-center h-full",
-        nameLabel: `font-medium truncate max-w-full ${TRANSITION.fast} cap-height-text`,
+        nameLabel: `font-medium truncate max-w-full ${transition.fast} cap-height-text`,
         nameLabelPaused: "text-foreground/50",
         progressCell: "flex flex-col gap-tight w-full min-w-0 py-tight",
         progressMetricsRow: "flex justify-between items-end font-medium opacity-80",
@@ -770,7 +774,7 @@ const WORKBENCH_NAV = {
         fontSize: "var(--tt-fz-navbar)",
     } as const,
     searchIcon: "text-default-400",
-    actions: `flex items-center gap-tools ${TRANSITION.medium} shrink-0 opacity-100`,
+    actions: `flex items-center gap-tools ${transition.medium} shrink-0 opacity-100`,
     primaryActions: "flex items-center gap-tools min-w-0",
     primaryActionEmphasis: "ring-1 ring-primary/20",
     selectionSeparator: "hidden sm:flex w-px bg-default-200/50 mx-tight",
@@ -780,44 +784,44 @@ const WORKBENCH_NAV = {
     selectionExtraActions: "hidden sm:flex gap-tools",
     selectionPauseEmphasis: "ring-1 ring-warning/30 shadow-sm",
     selectionRecheckEmphasis: "ring-1 ring-default/20 shadow-sm",
-    ghostAction: `text-default-400 ${INTERACTIVE_RECIPE.buttonGhost}`,
+    ghostAction: `text-default-400 ${visuals.interactive.buttonGhost}`,
     ghostActionOverflow: "overflow-visible",
     themeMobileWrap: "flex md:hidden",
     rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
     rehashTooltipWrap: "relative group cursor-help",
     rehashTrack: "h-track bg-transparent",
     rehashIndicator: "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
-    rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${INTERACTIVE_RECIPE.groupReveal}`,
+    rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${visuals.interactive.groupReveal}`,
     windowControls: "hidden md:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
     windowControlsStyle: {
         paddingLeft: 0,
         paddingRight: 0,
     } as const,
     toneButtonFallback: {
-        primary: `text-primary ${INTERACTIVE_RECIPE.buttonPrimary}`,
-        success: `text-success ${INTERACTIVE_RECIPE.buttonDefault}`,
-        warning: `text-warning ${INTERACTIVE_RECIPE.buttonDefault}`,
-        danger: INTERACTIVE_RECIPE.buttonDanger,
-        neutral: `text-default-500 ${INTERACTIVE_RECIPE.buttonGhost}`,
+        primary: `text-primary ${visuals.interactive.buttonPrimary}`,
+        success: `text-success ${visuals.interactive.buttonDefault}`,
+        warning: `text-warning ${visuals.interactive.buttonDefault}`,
+        danger: visuals.interactive.buttonDanger,
+        neutral: `text-default-500 ${visuals.interactive.buttonGhost}`,
     } as const,
     filterTabsClassNames: {
         base: "",
         tabList:
             "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
         cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full",
-        tab: `px-panel font-semibold text-default-500 text-navbar ${INTERACTIVE_RECIPE.navItem}`,
+        tab: `px-panel font-semibold text-default-500 text-navbar ${visuals.interactive.navItem}`,
     } as const,
     searchInputClassNames: {
-        base: TRANSITION.medium,
+        base: transition.medium,
         mainWrapper: "h-navbar-pill",
         input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
-        inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${TRANSITION.fast}`,
+        inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${transition.fast}`,
     } as const,
     builder: {
         selectionActionsClass: (hasSelection: boolean) =>
             hasSelection
-                ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
-                : `flex items-center gap-tools ${TRANSITION.medium} opacity-30 pointer-events-none grayscale`,
+                ? `flex items-center gap-tools ${transition.medium} opacity-100`
+                : `flex items-center gap-tools ${transition.medium} opacity-30 pointer-events-none grayscale`,
     } as const,
 } as const;
 const WORKBENCH_STATUS = {
@@ -833,18 +837,18 @@ const WORKBENCH_STATUS = {
     statValueText: `${TEXT_ROLE_EXTENDED.statusBarValue} truncate text-right font-semibold`,
     statIcon: "text-foreground/30",
     telemetryIconWrap: "inline-flex items-center",
-    speedModule: `flex flex-1 items-center h-full min-w-0 gap-tools group ${SURFACE.surface.statusModule} ${TRANSITION.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
+    speedModule: `flex flex-1 items-center h-full min-w-0 gap-tools group ${SURFACE.surface.statusModule} ${transition.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
     speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
-    speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${TRANSITION.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
+    speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${transition.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
     speedModuleGraphCanvas: "absolute inset-0 h-full w-full",
     speedModuleOverlay: "absolute inset-0 flex items-center justify-start px-panel pointer-events-none",
     speedModuleOverlayRow: "flex items-center gap-tools text-foreground",
-    speedModuleIconWrap: `flex items-center justify-center rounded-modal ${TRANSITION.fast} toolbar-icon-size-xl`,
+    speedModuleIconWrap: `flex items-center justify-center rounded-modal ${transition.fast} toolbar-icon-size-xl`,
     speedModuleTextWrap: "flex flex-col gap-tight text-left",
     speedModuleLabel: `${TEXT_ROLE_EXTENDED.statusBarLabel} text-foreground/40`,
     speedModuleValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
     speedSeparator: "w-px bg-content1/10",
-    engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${TRANSITION.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
+    engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${transition.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
     engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
@@ -945,7 +949,7 @@ export const SPLIT = {
     hudLabel: `${withOpacity(TEXT_ROLE.label, 40)} mr-2`,
     mapCanvas: "h-full w-full",
     resizeHandle: "h-sep cursor-row-resize flex items-center justify-center",
-    resizeBar: `w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 ${TRANSITION.fast}`,
+    resizeBar: `w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 ${transition.fast}`,
     listSurface: `flex-1 min-h-0 relative flex flex-col ${SURFACE.surface.panelRaised}`,
     header: `flex items-center gap-panel px-panel py-tight border-b border-content1/10 ${withOpacity(TEXT_ROLE.label, 30)}`,
     headerFlagCol: "w-col-id",
@@ -955,7 +959,7 @@ export const SPLIT = {
     listScroll: "flex-1 min-h-0 overflow-y-auto relative outline-none select-none",
     flagsCol: `w-col-id ${TEXT_ROLE.codeMuted}`,
     flagsWrap: "flex gap-tight",
-    flagToken: `cursor-help hover:text-primary ${TRANSITION.fast}`,
+    flagToken: `cursor-help hover:text-primary ${transition.fast}`,
     endpointCol: "flex-1 min-w-0 flex items-center gap-tools",
     encryptedIcon: "text-success/50",
     utpIcon: "text-primary/50",
@@ -972,28 +976,28 @@ export const SPLIT = {
     peerMapCompassIcon: "text-primary/50",
     peerMapCanvasWrap: "flex-1 min-h-0 relative",
     peerMapSvg: "w-full h-full cursor-crosshair overflow-visible",
-    peerMapRing: `${TRANSITION.fast} opacity-03`,
+    peerMapRing: `${transition.fast} opacity-03`,
     peerMapGuides: "pointer-events-none",
     peerMapGuideCircle: "text-foreground/5",
     peerMapGuideAxis: "text-foreground/10",
-    peerMapActivityIcon: TRANSITION.reveal,
+    peerMapActivityIcon: transition.reveal,
     peerMapActivityIconActive: "opacity-100 text-primary",
     peerMapActivityIconInactive: "opacity-0",
-    peerMapNodeMotion: TRANSITION.medium,
+    peerMapNodeMotion: transition.medium,
     peerMapNodeGlow: "drop-shadow-primary-small",
     builder: {
         addressClass: (isHostile: boolean) =>
             isHostile ? `${TEXT_ROLE.code} truncate text-danger` : `${TEXT_ROLE.code} truncate text-foreground/90`,
         peerActivityClass: (isInstrument: boolean) =>
-            isInstrument ? `${TRANSITION.reveal} opacity-100 text-primary` : `${TRANSITION.reveal} opacity-0`,
+            isInstrument ? `${transition.reveal} opacity-100 text-primary` : `${transition.reveal} opacity-0`,
         peerNodeClass: (isUTP: boolean) =>
-            isUTP ? `${TRANSITION.medium} drop-shadow-primary-small` : TRANSITION.medium,
+            isUTP ? `${transition.medium} drop-shadow-primary-small` : transition.medium,
         rowClass: (params: { hovered: boolean; hostile: boolean }) =>
             params.hostile
-                ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-danger/5`
+                ? `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 bg-danger/5`
                 : params.hovered
-                  ? `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 bg-primary/10`
-                  : `absolute left-0 right-0 flex items-center px-panel ${TRANSITION.fast} border-b border-content1/5 hover:bg-content1/5`,
+                  ? `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 bg-primary/10`
+                  : `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 hover:bg-content1/5`,
         virtualCanvasStyle: (totalSize: number) =>
             ({
                 height: totalSize,
@@ -1029,13 +1033,13 @@ export const CONTEXT_MENU = {
     header: SURFACE.menu.panelHeader,
     headerIcon: SURFACE.menu.panelHeaderIcon,
     headerText: SURFACE.menu.panelHeaderText,
-    sectionHeading: `border-t ${SURFACE_BORDER} pt-panel`,
-    sectionHeadingStrong: `border-t ${SURFACE_BORDER} mt-tight pt-tight font-bold`,
+    sectionHeading: `border-t ${visuals.surface.border} pt-panel`,
+    sectionHeadingStrong: `border-t ${visuals.surface.border} mt-tight pt-tight font-bold`,
     sectionHeadingTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
     sectionNestedItem: "pl-stage",
-    editorItem: `border-t ${SURFACE_BORDER} p-0`,
+    editorItem: `border-t ${visuals.surface.border} p-0`,
     editorWrap: "px-panel pt-panel",
     actionButton: SURFACE.menu.actionButton,
     dangerActionButton: SURFACE.menu.dangerActionButton,
@@ -1066,7 +1070,7 @@ const METRIC_CHART_WINDOW_BUTTON_CLASS = (active: boolean) =>
 const METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS = (isInsufficient: boolean) =>
     isInsufficient
         ? `${METRIC_CHART.capacityGauge.container} border-danger/40 bg-danger/5`
-        : `${METRIC_CHART.capacityGauge.container} ${SURFACE_BORDER}`;
+        : `${METRIC_CHART.capacityGauge.container} ${visuals.surface.border}`;
 const METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS = (isInsufficient: boolean) =>
     isInsufficient
         ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
@@ -1091,7 +1095,7 @@ export const METRIC_CHART = {
     areaMuted: "opacity-20",
     progressBar: {
         track: "relative h-full overflow-hidden rounded-full bg-content1/20",
-        indicator: `absolute inset-y-0 left-0 transform origin-left rounded-full ${TRANSITION.slow} ease-out`,
+        indicator: `absolute inset-y-0 left-0 transform origin-left rounded-full ${transition.slow} ease-out`,
     } as const,
     capacityGauge: {
         container: "space-y-tight rounded-xl border bg-content1/15 p-tight",
@@ -1121,14 +1125,14 @@ export const METRIC_CHART = {
 } as const;
 const DASHBOARD_RESIZE_HANDLE_CLASS = (isHorizontalSplit: boolean) =>
     isHorizontalSplit
-        ? `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-col-resize`
-        : `group relative z-panel ${TRANSITION.fast} focus:outline-none cursor-row-resize`;
+        ? `group relative z-panel ${transition.fast} focus:outline-none cursor-col-resize`
+        : `group relative z-panel ${transition.fast} focus:outline-none cursor-row-resize`;
 const DASHBOARD_INSPECTOR_PANEL_CLASS = (isHorizontalSplit: boolean) =>
     isHorizontalSplit
         ? "hidden overflow-hidden lg:flex shadow-medium h-full"
         : "hidden overflow-hidden lg:flex shadow-medium w-full";
 export const DASHBOARD = {
-    root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${TRANSITION.medium} border-t border-default/10 bg-transparent`,
+    root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${transition.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
     contentClassicSurface: "bg-background/40",
     dropOverlay: "pointer-events-none absolute inset-0 flex items-center justify-center z-popover",
@@ -1141,13 +1145,13 @@ export const DASHBOARD = {
     tableWatermark: "torrent-table-watermark absolute inset-0 z-0 pointer-events-none",
     tableContent: "relative z-panel h-full min-h-0",
     resizeHandleInner: "absolute inset-0 flex items-center justify-center",
-    resizeHandleBar: `${TRANSITION.fast} bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50`,
+    resizeHandleBar: `${transition.fast} bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50`,
     inspectorContent: "h-full min-h-0 flex-1",
     section: "flex-1 min-h-0 h-full",
     fullscreenOverlay: "fixed inset-0 z-dnd",
     fullscreenSection: "relative h-full flex items-center justify-center",
     fullscreenBackdrop: "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
-    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${SURFACE_BORDER} shadow-medium`,
+    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${visuals.surface.border} shadow-medium`,
     builder: {
         resizeHandleClass: DASHBOARD_RESIZE_HANDLE_CLASS,
         inspectorPanelClass: DASHBOARD_INSPECTOR_PANEL_CLASS,
@@ -1204,7 +1208,7 @@ export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${SURFACE.atom.glassBlock} ${SURFACE.atom.shadowBlock}`,
     rootStandalone: "overflow-y-auto",
     body: "flex-1 min-h-0 bg-transparent py-tight",
-    headerRoot: `flex items-center h-row ${HEADER_BASE}`,
+    headerRoot: `flex items-center h-row ${visuals.typography.headerBase}`,
     headerRootEmbedded: "bg-content1/80 border-b border-default/10",
     headerTrackingStyle: {
         letterSpacing: "var(--tt-tracking-wide)",
@@ -1216,16 +1220,16 @@ export const DETAILS = {
     headerPrimaryHint: withOpacity(TEXT_ROLE.caption, 50),
     headerCenter: "flex items-center w-full gap-panel",
     headerTabs: "flex items-center gap-tight",
-    headerTabBase: `py-tight rounded-full border ${TEXT_ROLE.buttonText} font-bold ${TRANSITION.fast} px-panel`,
+    headerTabBase: `py-tight rounded-full border ${TEXT_ROLE.buttonText} font-bold ${transition.fast} px-panel`,
     headerTabActive: "text-foreground",
-    headerTabInactive: `text-foreground/60 ${INTERACTIVE_RECIPE.navItem}`,
+    headerTabInactive: `text-foreground/60 ${visuals.interactive.navItem}`,
     headerRight: "flex items-center gap-tight min-w-max px-tight",
     speedRoot: "h-full flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
     speedEmbeddedSurface: "flex-1 h-full p-stage flex flex-col min-h-0",
     speedChartHost: "flex-1 min-h-0",
     speedCheckingAlert: `${withColor(TEXT_ROLE.body, "warning")} mb-tight shrink-0`,
-    speedCollectingPanel: `mb-tight shrink-0 rounded-2xl border ${SURFACE_BORDER} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`,
+    speedCollectingPanel: `mb-tight shrink-0 rounded-2xl border ${visuals.surface.border} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`,
     generalRoot: "space-y-stage",
     generalCard: `p-panel flex flex-col gap-tools ${SURFACE.surface.panelInfo}`,
     generalHeaderRow: "flex items-center justify-between",
@@ -1293,7 +1297,7 @@ export const FORM_CONTROL = {
 export const INPUT = {
     mono: {
         input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
-        inputWrapper: `surface-layer-1 ${TRANSITION.fast} shadow-none group-hover:border-default/10`,
+        inputWrapper: `surface-layer-1 ${transition.fast} shadow-none group-hover:border-default/10`,
     } as const,
     monoEmphasized: {
         inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
@@ -1331,9 +1335,9 @@ export const FILE_BROWSER = {
     emptyText: `${TEXT_ROLE.body} opacity-50`,
     progressClassNames: {
         track: "h-sep",
-        indicator: `${TRANSITION.medium} h-sep`,
+        indicator: `${transition.medium} h-sep`,
     } as const,
-    row: `grid grid-cols-file-tree items-center h-row px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 ${TRANSITION.fast}`,
+    row: `grid grid-cols-file-tree items-center h-row px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 ${transition.fast}`,
     rowDimmed: "opacity-60 grayscale-[0.5]",
     rowCheckboxWrap: "flex items-center justify-center",
     rowNameCell: "flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent",
@@ -1352,8 +1356,8 @@ export const FILE_BROWSER = {
     iconText: "toolbar-icon-size-sm text-default-500",
     iconDefault: "toolbar-icon-size-sm text-default-400",
     iconSmall: "toolbar-icon-size-sm",
-    chevronButton: `file-tree-chevron-hit text-default-400 rounded-full hover:text-foreground hover:bg-default-200/50 ${TRANSITION.fast}`,
-    priorityChip: `h-status-chip gap-tight px-tight min-w-status-chip cursor-pointer hover:opacity-80 ${TRANSITION.reveal}`,
+    chevronButton: `file-tree-chevron-hit text-default-400 rounded-full hover:text-foreground hover:bg-default-200/50 ${transition.fast}`,
+    priorityChip: `h-status-chip gap-tight px-tight min-w-status-chip cursor-pointer hover:opacity-80 ${transition.reveal}`,
     priorityMenuDangerItem: "text-danger",
     priorityMenuHighIcon: "toolbar-icon-size-sm text-success",
     priorityMenuNormalIcon: "toolbar-icon-size-sm text-primary",
@@ -1362,11 +1366,11 @@ export const FILE_BROWSER = {
     builder: {
         selectionActionsClass: (hasSelection: boolean) =>
             hasSelection
-                ? `flex items-center gap-tools ${TRANSITION.medium} opacity-100`
-                : `flex items-center gap-tools ${TRANSITION.medium} opacity-0 pointer-events-none`,
+                ? `flex items-center gap-tools ${transition.medium} opacity-100`
+                : `flex items-center gap-tools ${transition.medium} opacity-0 pointer-events-none`,
     } as const,
 } as const;
-const HEATMAP_CANVAS_FRAME_CLASS = `${SURFACE.surface.panelRaised} p-tight ${TRANSITION.medium}`;
+const HEATMAP_CANVAS_FRAME_CLASS = `${SURFACE.surface.panelRaised} p-tight ${transition.medium}`;
 const HEATMAP_CANVAS_PULSE_CLASS = "opacity-70 shadow-availability ring-1 ring-primary/40";
 export const HEATMAP = {
     empty: `${SURFACE.surface.panelRaised} p-panel text-center`,
@@ -1392,3 +1396,4 @@ export const HEATMAP = {
             isZooming ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}` : HEATMAP_CANVAS_FRAME_CLASS,
     } as const,
 } as const;
+

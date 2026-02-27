@@ -5,16 +5,15 @@ import { useTranslation } from "react-i18next";
 import { Activity, Compass } from "lucide-react";
 import { scheduler } from "@/app/services/scheduler";
 import {
-    SURFACE,
-    SPLIT,
-} from "@/shared/ui/layout/glass-surface";
+    SURFACE, SPLIT, } from "@/shared/ui/layout/glass-surface";
 import { useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
-import { DETAILS_PEER_MAP_CONFIG, ICON_STROKE_WIDTH } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+const { layout, visuals, visualizations, ui } = registry;
 
 // Scheduling: the shared scheduler now drives `useUiClock()` so redraw cadence updates stay centralized and predictable.
 
@@ -65,7 +64,7 @@ export const PeerMap = ({
         radius: R_MAX,
         base_node_size: MIN_S,
         progress_scale: S_SCALE,
-    } = DETAILS_PEER_MAP_CONFIG.layout;
+    } = visualizations.details.peerMap.layout;
     const VIEWBOX = C * 2;
 
     // 1. Attention & Decay Engine
@@ -342,7 +341,7 @@ export const PeerMap = ({
                                 : 1;
                             const initialSw = node.isInstrument
                                 ? node.isUTP
-                                    ? ICON_STROKE_WIDTH
+                                    ? visuals.icon.strokeWidth
                                     : 0.5
                                 : 0;
 
@@ -380,7 +379,7 @@ export const PeerMap = ({
                                                         SPD_PHYSICS.VECTOR_SCALAR
                                                 }
                                                 stroke={node.color}
-                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                strokeWidth={visuals.icon.strokeWidth}
                                             />
                                         )}
 
@@ -401,7 +400,7 @@ export const PeerMap = ({
                                                 fill: node.color,
                                                 strokeWidth: node.isInstrument
                                                     ? node.isUTP
-                                                        ? ICON_STROKE_WIDTH
+                                                        ? visuals.icon.strokeWidth
                                                         : 0.5
                                                     : 0,
                                             }}
@@ -441,3 +440,5 @@ export const PeerMap = ({
         </div>
     );
 };
+
+

@@ -6,13 +6,14 @@ import { useSession } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
-import { SET_LOCATION_VALIDATION_DEBOUNCE_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
+const { timing, layout, ui } = registry;
 
 export interface SetDownloadPathModalProps {
     isOpen: boolean;
@@ -142,7 +143,7 @@ export default function SetDownloadPathModal({
         candidatePath: path,
         daemonPathStyle,
         checkFreeSpace,
-        debounceMs: SET_LOCATION_VALIDATION_DEBOUNCE_MS,
+        debounceMs: timing.debounce.setLocationValidationMs,
     });
 
     useEffect(() => {
@@ -328,3 +329,4 @@ export default function SetDownloadPathModal({
         </ModalEx>
     );
 }
+

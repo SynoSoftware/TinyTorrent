@@ -2,7 +2,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { INTERACTION_CONFIG } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
 const SETTINGS_PANEL_DEFAULT = 40;
@@ -21,6 +21,7 @@ import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
 import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { useAddTorrentModalViewModel } from "@/modules/torrent-add/hooks/useAddTorrentModalViewModel";
+const { interaction } = registry;
 
 export interface AddTorrentModalProps {
     isOpen: boolean;
@@ -39,14 +40,14 @@ export interface AddTorrentModalProps {
 }
 
 const FULL_CONTENT_ANIMATION = {
-    transition: INTERACTION_CONFIG.modalBloom.transition,
+    transition: interaction.config.modalBloom.transition,
     visible: {
         opacity: 1,
         y: 0,
     },
     hidden: {
         opacity: 0,
-        y: INTERACTION_CONFIG.modalBloom.fallbackOffsetY,
+        y: interaction.config.modalBloom.fallbackOffsetY,
     },
 };
 
@@ -358,3 +359,4 @@ export function AddTorrentModal({
         </ModalEx>
     );
 }
+

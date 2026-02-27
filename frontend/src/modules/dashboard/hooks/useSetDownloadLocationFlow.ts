@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import {
     applySetDownloadLocation,
     pickSetDownloadLocationDirectory,
@@ -12,10 +12,19 @@ import {
 } from "@/modules/dashboard/domain/torrentRelocation";
 import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useRequiredTorrentActions, useTorrentCommands } from "@/app/context/AppCommandContext";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 
 export interface UseSetDownloadLocationFlowParams {
     torrent: Torrent | null | undefined;
+    setDownloadLocation: (params: {
+        torrent: Torrent;
+        path: string;
+    }) => Promise<TorrentCommandOutcome>;
+    dispatchEnsureActive: (
+        intent: TorrentIntentExtended,
+    ) => Promise<TorrentDispatchOutcome>;
 }
 
 export interface UseSetDownloadLocationFlowResult {
@@ -28,12 +37,12 @@ export interface UseSetDownloadLocationFlowResult {
 
 export function useSetDownloadLocationFlow({
     torrent,
+    setDownloadLocation,
+    dispatchEnsureActive,
 }: UseSetDownloadLocationFlowParams): UseSetDownloadLocationFlowResult {
     const { t } = useTranslation();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
     const client = useTorrentClient();
-    const { setDownloadLocation } = useTorrentCommands();
-    const { dispatch } = useRequiredTorrentActions();
 
     const policy = useMemo(
         () => resolveSetDownloadLocationPolicy(torrent ?? {}),
@@ -65,13 +74,13 @@ export function useSetDownloadLocationFlow({
                 path,
                 client,
                 setDownloadLocation,
-                dispatchEnsureActive: dispatch,
+                dispatchEnsureActive,
                 t,
             });
         },
         [
             client,
-            dispatch,
+            dispatchEnsureActive,
             setDownloadLocation,
             t,
             torrent,
@@ -86,3 +95,4 @@ export function useSetDownloadLocationFlow({
         applySetDownloadPath,
     };
 }
+

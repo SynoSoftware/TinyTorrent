@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Skeleton } from "@heroui/react";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
-import { TABLE_HEADER_CLASS, TABLE_LAYOUT } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+const { layout, visuals, ui } = registry;
 
 interface Props {
     isLoading?: boolean;
@@ -25,7 +26,7 @@ export const TorrentTable_EmptyState: React.FC<Props> = ({
                         key={i}
                         className={TABLE.loadingRow}
                         style={{
-                            height: TABLE_LAYOUT.rowHeight,
+                            height: layout.table.rowHeight,
                         }}
                     >
                         <div className={TABLE.loadingSkeletonWrap}>
@@ -58,7 +59,7 @@ export const TorrentTable_EmptyState: React.FC<Props> = ({
             </p>
             <div className={TABLE.emptyPreview}>
                 <div
-                    className={TABLE_HEADER_CLASS}
+                    className={visuals.table.headerClass}
                     style={TABLE.emptyHintTrackingStyle}
                 >
                     <span className={TABLE.emptyBar} />
@@ -78,3 +79,4 @@ export const TorrentTable_EmptyState: React.FC<Props> = ({
 };
 
 export default TorrentTable_EmptyState;
+

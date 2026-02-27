@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
 import type {
-    SortingState,
-    VisibilityState,
-} from "@tanstack/react-table";
+    SortingState, VisibilityState, } from "@tanstack/react-table";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { scheduler } from "@/app/services/scheduler";
-import { TABLE_PERSIST_DEBOUNCE_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { timing, layout } = registry;
 
 // Persist table layout state via the Preferences provider.
 // Extracted from `TorrentTable.tsx` to keep persistence concerns isolated.
@@ -66,7 +65,7 @@ export const useTorrentTablePersistence = ({
         saveTimeoutRef.current = scheduler.scheduleTimeout(() => {
             setTorrentTableState(latestStateRef.current);
             saveTimeoutRef.current = null;
-        }, TABLE_PERSIST_DEBOUNCE_MS);
+        }, timing.debounce.tablePersistMs);
     }, [
         columnOrder,
         columnSizing,
@@ -89,3 +88,4 @@ export const useTorrentTablePersistence = ({
 };
 
 export default useTorrentTablePersistence;
+

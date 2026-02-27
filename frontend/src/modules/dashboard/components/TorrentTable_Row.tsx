@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
-import { TABLE_ROW_CLASS } from "@/config/logic";
+import { registry } from "@/config/logic";
 
 import type { TorrentTableRowProps } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+const { layout, shell, interaction, visuals } = registry;
 
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const TorrentTable_Row = memo(
@@ -135,13 +136,13 @@ const TorrentTable_Row = memo(
                         : `torrent-row-shell-${row.id}`
                 }
                 className={cn(
-                    TABLE_ROW_CLASS.shell,
+                    visuals.table.rowClass.shell,
                     // Dragging overrides
                     canReorderQueue
-                        ? TABLE_ROW_CLASS.dragCursorEnabled
-                        : TABLE_ROW_CLASS.dragCursorDisabled,
+                        ? visuals.table.rowClass.dragCursorEnabled
+                        : visuals.table.rowClass.dragCursorDisabled,
                     isDragging &&
-                        TABLE_ROW_CLASS.dragging
+                        visuals.table.rowClass.dragging
                 )}
                 style={rowStyle}
                 onClick={(e) => onRowClick(e, row.id, virtualRow.index)}
@@ -158,16 +159,16 @@ const TorrentTable_Row = memo(
                     }
                     initial={false}
                     className={cn(
-                        TABLE_ROW_CLASS.content,
+                        visuals.table.rowClass.content,
                         isSelected
-                            ? TABLE_ROW_CLASS.selected
-                            : TABLE_ROW_CLASS.hover,
+                            ? visuals.table.rowClass.selected
+                            : visuals.table.rowClass.hover,
                         isContext &&
                             !isSelected &&
-                            TABLE_ROW_CLASS.context,
+                            visuals.table.rowClass.context,
                         isHighlighted &&
                             !isSelected &&
-                            TABLE_ROW_CLASS.highlighted
+                            visuals.table.rowClass.highlighted
                     )}
                 >
                     {row.getVisibleCells().map((cell) => (
@@ -180,3 +181,4 @@ const TorrentTable_Row = memo(
 );
 
 export default TorrentTable_Row;
+

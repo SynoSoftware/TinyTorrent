@@ -5,7 +5,7 @@ import {
     usePiecesMapViewModel,
     type PiecesMapProps,
     type PiecesMapViewModel,
-} from "@/modules/dashboard/hooks";
+} from "@/modules/dashboard/hooks/usePiecesMapViewModel";
 
 const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
     const { t } = useTranslation();

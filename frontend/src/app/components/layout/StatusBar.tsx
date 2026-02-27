@@ -1,17 +1,4 @@
-import {
-    ArrowDown,
-    ArrowUp,
-    Network,
-    ArrowUpDown,
-    Component,
-    Files,
-    Activity,
-    HardDrive,
-    Cog as TransmissionIcon,
-    RefreshCw,
-    AlertCircle,
-    type LucideIcon,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, Network, ArrowUpDown, Component, Files, Activity, HardDrive, Cog as TransmissionIcon, RefreshCw, AlertCircle, type LucideIcon, } from "lucide-react";
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -22,16 +9,20 @@ import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
-import { getShellTokens, UI_BASES, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
-import { STATUS as APP_STATUS } from "@/shared/status";
+import { registry } from "@/config/logic";
+import { status as appStatus } from "@/shared/status";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 import type { NetworkTelemetry } from "@/services/rpc/entities";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
-import type { StatusBarViewModel } from "@/app/viewModels/useAppViewModel";
+import type {
+    StatusBarTransportStatus,
+    StatusBarViewModel,
+} from "@/app/viewModels/useAppViewModel";
 import type { StatusIconProps } from "@/shared/ui/components/StatusIcon";
+const { layout, shell, visuals, ui } = registry;
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -40,22 +31,21 @@ const DISK_LABELS: Record<string, string> = {
     unknown: "status_bar.disk_unknown",
 };
 
-const TRANSPORT_LABELS: Record<TransportStatus, string> = {
-    [APP_STATUS.connection.POLLING]: "status_bar.transport_polling",
-    [APP_STATUS.connection.OFFLINE]: "status_bar.transport_offline",
+const TRANSPORT_LABELS: Record<StatusBarTransportStatus, string> = {
+    [appStatus.connection.polling]: "status_bar.transport_polling",
+    [appStatus.connection.offline]: "status_bar.transport_offline",
 };
 
 const RPC_STATUS_LABEL: Record<string, string> = {
-    [APP_STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
-    [APP_STATUS.connection.IDLE]: "status_bar.rpc_idle",
-    [APP_STATUS.connection.ERROR]: "status_bar.rpc_error",
+    [appStatus.connection.connected]: "status_bar.rpc_connected",
+    [appStatus.connection.idle]: "status_bar.rpc_idle",
+    [appStatus.connection.error]: "status_bar.rpc_error",
 };
 
 /* ------------------------------------------------------------------ */
 /* TYPES */
 /* ------------------------------------------------------------------ */
 
-type TransportStatus = typeof APP_STATUS.connection.POLLING | typeof APP_STATUS.connection.OFFLINE;
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
 interface StatusBarProps {
@@ -115,14 +105,14 @@ function TelemetryIcon({
 }) {
     const toneKey =
         tone === "ok"
-            ? APP_STATUS.connection.CONNECTED
+            ? appStatus.connection.connected
             : tone === "warn"
-              ? STATUS_VISUAL_KEYS.tone.WARNING
+              ? visuals.status.keys.tone.warning
               : tone === "bad"
-                ? APP_STATUS.connection.ERROR
-                : STATUS_VISUAL_KEYS.tone.MUTED;
+                ? appStatus.connection.error
+                : visuals.status.keys.tone.muted;
     const toneClass =
-        STATUS_VISUALS[toneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.MUTED]?.text ?? "text-foreground/30";
+        visuals.status.recipes[toneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.muted]?.text ?? "text-foreground/30";
 
     return (
         <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)} title={title}>
@@ -151,15 +141,15 @@ function SpeedModule({
     separator?: boolean;
 }) {
     const { t } = useTranslation();
-    const iconToneKey = tone === "success" ? STATUS_VISUAL_KEYS.tone.SUCCESS : STATUS_VISUAL_KEYS.tone.PRIMARY;
+    const iconToneKey = tone === "success" ? visuals.status.keys.tone.success : visuals.status.keys.tone.primary;
     const iconToneClass =
-        STATUS_VISUALS[iconToneKey]?.text ?? STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.text ?? "text-primary";
+        visuals.status.recipes[iconToneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.primary]?.text ?? "text-primary";
 
     return (
         <>
             <div className={WORKBENCH.status.speedModule}>
                 <div className={WORKBENCH.status.speedModuleGraphWrap}>
-                    <div className={WORKBENCH.status.speedModuleGraph} style={{ minWidth: UI_BASES.statusbar.min100 }}>
+                    <div className={WORKBENCH.status.speedModuleGraph} style={{ minWidth: ui.bases.statusbar.min100 }}>
                         <NetworkGraph data={history} color={tone} className={WORKBENCH.status.speedModuleGraphCanvas} />
                         <div className={WORKBENCH.status.speedModuleOverlay}>
                             <div className={WORKBENCH.status.speedModuleOverlayRow}>
@@ -192,7 +182,7 @@ function StatusTelemetryGrid({
     freeBytes,
 }: {
     telemetry: NetworkTelemetry | null;
-    transportStatus: TransportStatus;
+    transportStatus: StatusBarTransportStatus;
     rpcStatus: ConnectionStatus;
     diskState: DiskState;
     freeBytes?: number | null;
@@ -201,20 +191,20 @@ function StatusTelemetryGrid({
 
     // ENGINE (combined: state + transport)
     const engineIcon =
-        rpcStatus === APP_STATUS.connection.ERROR
+        rpcStatus === appStatus.connection.error
             ? AlertCircle
-            : transportStatus === APP_STATUS.connection.POLLING
+            : transportStatus === appStatus.connection.polling
               ? ArrowUpDown
               : Activity;
 
     const engineTone =
-        rpcStatus === APP_STATUS.connection.ERROR
+        rpcStatus === appStatus.connection.error
             ? "bad"
-            : rpcStatus === APP_STATUS.connection.IDLE
+            : rpcStatus === appStatus.connection.idle
               ? "warn"
-              : transportStatus === APP_STATUS.connection.POLLING
+              : transportStatus === appStatus.connection.polling
                 ? "warn"
-                : rpcStatus === APP_STATUS.connection.CONNECTED
+                : rpcStatus === appStatus.connection.connected
                   ? "ok"
                   : "bad";
 
@@ -225,7 +215,7 @@ function StatusTelemetryGrid({
     // If we're not connected, render discovery as muted to avoid showing
     // stale/passive telemetry while disconnected.
     const discoveryTone =
-        rpcStatus !== APP_STATUS.connection.CONNECTED
+        rpcStatus !== appStatus.connection.connected
             ? "muted"
             : telemetry == null
               ? "muted"
@@ -298,20 +288,20 @@ function EngineControlChip({
     onClick?: () => Promise<unknown>;
     tooltip: string;
 }) {
-    // Defensive: STATUS_VISUALS may not contain every possible rpcStatus string
+    // Defensive: visuals.status.recipes may not contain every possible rpcStatus string
     // (e.g. legacy/experimental status values). Fall back to a sensible
     // connected visual when possible so the HUD remains informative.
     const statusVisual =
-        STATUS_VISUALS[rpcStatus] ??
-        STATUS_VISUALS[APP_STATUS.connection.CONNECTED] ??
-        Object.values(STATUS_VISUALS)[0];
+        visuals.status.recipes[rpcStatus] ??
+        visuals.status.recipes[appStatus.connection.connected] ??
+        Object.values(visuals.status.recipes)[0];
     const EngineIcon = uiMode === "Full" ? TinyTorrentIcon : TransmissionIcon;
 
     const renderEngineLogo = () => {
-        if (rpcStatus === APP_STATUS.connection.IDLE) {
+        if (rpcStatus === appStatus.connection.idle) {
             return <StatusIcon Icon={RefreshCw} size="lg" className={WORKBENCH.status.iconMuted} />;
         }
-        if (rpcStatus === APP_STATUS.connection.ERROR) {
+        if (rpcStatus === appStatus.connection.error) {
             return <StatusIcon Icon={AlertCircle} size="lg" />;
         }
         return <StatusIcon Icon={EngineIcon} size="lg" className={WORKBENCH.status.iconCurrent} />;
@@ -334,13 +324,13 @@ function EngineControlChip({
             )}
             title={tooltip}
             style={{
-                height: UI_BASES.statusbar.buttonH,
-                minWidth: UI_BASES.statusbar.buttonMinW,
+                height: ui.bases.statusbar.buttonH,
+                minWidth: ui.bases.statusbar.buttonMinW,
             }}
         >
             {renderEngineLogo()}
 
-            {rpcStatus === APP_STATUS.connection.CONNECTED && (
+            {rpcStatus === appStatus.connection.connected && (
                 <span className={WORKBENCH.status.engineConnectedWrap}>
                     <motion.span
                         className={cn(WORKBENCH.status.engineConnectedPulse, statusVisual.glow)}
@@ -388,7 +378,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         activeDownloadRequiredBytes,
     } = viewModel;
     const { t } = useTranslation();
-    const shell = getShellTokens(workspaceStyle);
+    const shellTokens = shell.getTokens(workspaceStyle);
 
     // Disk safety calculation (canonical logic)
     const freeBytes =
@@ -421,7 +411,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     // Determine a localized server type label for the control tooltip.
     const modeLabel =
-        rpcStatus === APP_STATUS.connection.CONNECTED
+        rpcStatus === appStatus.connection.connected
             ? uiMode === "Full"
                 ? t("settings.connection.ui_mode_full_label")
                 : t("settings.connection.ui_mode_rpc_label")
@@ -442,13 +432,13 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         <footer
             className={cn(WORKBENCH.status.footer, WORKBENCH.status.surface)}
             style={{
-                ...shell.outerStyle,
+                ...shellTokens.outerStyle,
             }}
         >
             <div
                 className={WORKBENCH.status.main}
                 style={{
-                    ...shell.surfaceStyle,
+                    ...shellTokens.surfaceStyle,
                     height: "var(--tt-statusbar-h)",
                 }}
             >
@@ -543,3 +533,4 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         </footer>
     );
 }
+

@@ -4,9 +4,18 @@ import type { Virtualizer } from "@tanstack/react-virtual";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { KEY_SCOPE, KEYMAP, ShortcutIntent, TABLE_LAYOUT } from "@/config/logic";
+import { registry } from "@/config/logic";
+import {
+    resolveShortcutIntent,
+    Shortcuts,
+} from "@/app/controlPlane/shortcuts";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import {
+    getTorrentTableActionShortcutIntent,
+    isTorrentTableAction,
+    torrentTableActions,
+} from "@/modules/dashboard/types/torrentTable";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrentTablePersistence";
@@ -14,7 +23,7 @@ import { useTorrentTableContextActions } from "@/modules/dashboard/hooks/useTorr
 import { useTorrentTableHeaderContext } from "@/modules/dashboard/hooks/useTorrentTableHeaderContext";
 import { useTorrentTableInteractions, type ColumnDragCommitOutcome } from "@/modules/dashboard/hooks/useTorrentTableInteractions";
 import { useDetailOpenContext } from "@/modules/dashboard/context/DetailOpenContext";
-import useTableAnimationGuard, { ANIMATION_SUPPRESSION_KEYS } from "@/modules/dashboard/hooks/useTableAnimationGuard";
+import useTableAnimationGuard, { animationSuppressionKeys } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 import { useColumnSizingController } from "@/modules/dashboard/hooks/useColumnSizingController";
 import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorrentTableVirtualization";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
@@ -24,8 +33,9 @@ import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { TORRENTTABLE_COLUMN_DEFS, DEFAULT_COLUMN_ORDER, type ColumnId } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { DASHBOARD_FILTERS } from "@/modules/dashboard/types/dashboardFilter";
+import { dashboardFilters } from "@/modules/dashboard/types/dashboardFilter";
 import type {
+    ContextMenuKey,
     HeaderContextMenu,
     QueueMenuAction,
     TableContextMenu,
@@ -37,10 +47,11 @@ import type {
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+const { layout, interaction, ui } = registry;
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
@@ -53,19 +64,12 @@ const formatShortcutLabel = (value?: string | string[]) => (Array.isArray(value)
 
 const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
 
-const CONTEXT_MENU_SHORTCUTS: Partial<Record<string, string | string[]>> = {
-    pause: KEYMAP[ShortcutIntent.TogglePause],
-    resume: KEYMAP[ShortcutIntent.TogglePause],
-    recheck: KEYMAP[ShortcutIntent.Recheck],
-    remove: KEYMAP[ShortcutIntent.Delete],
-    "remove-with-data": KEYMAP[ShortcutIntent.RemoveWithData],
-    "queue-move-top": "ctrl+home",
-    "queue-move-up": "ctrl+up",
-    "queue-move-down": "ctrl+down",
-    "queue-move-bottom": "ctrl+end",
+const getContextMenuShortcut = (action: ContextMenuKey) => {
+    if (!isTorrentTableAction(action)) return "";
+    return formatShortcutLabel(
+        resolveShortcutIntent(getTorrentTableActionShortcutIntent(action)),
+    );
 };
-
-const getContextMenuShortcut = (action: string) => formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
 const renderVisibleCells = (row: Row<Torrent>) =>
     row.getVisibleCells().map((cell) => {
@@ -188,11 +192,11 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         const displayTorrents = pooledTorrents.filter((torrent) => !isRemoved(torrent.id ?? torrent.hash)).map(getDisplayTorrent);
 
         const filteredByState =
-            filter === DASHBOARD_FILTERS.ALL
+            filter === dashboardFilters.all
                 ? displayTorrents
                 : displayTorrents.filter(
                       (torrent) =>
-                          torrent.isGhost || torrent.state === filter || (torrent.state === STATUS.torrent.CHECKING && (filter === STATUS.torrent.DOWNLOADING || filter === STATUS.torrent.SEEDING)),
+                          torrent.isGhost || torrent.state === filter || (torrent.state === status.torrent.checking && (filter === status.torrent.downloading || filter === status.torrent.seeding)),
                   );
 
         const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -306,7 +310,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         rows,
         parentRef,
         rowHeight,
-        TABLE_LAYOUT,
+        tableLayout: layout.table,
         table,
         isAnyColumnResizing,
         measureColumnMinWidths,
@@ -357,10 +361,10 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
-        selectedTorrents: selection.selectedTorrents,
     });
 
-    const { activate: activateScope, deactivate: deactivateScope } = useKeyboardScope(KEY_SCOPE.Dashboard);
+    const { activate: activateScope, deactivate: deactivateScope } =
+        useKeyboardScope(Shortcuts.scopes.Dashboard);
 
     const {
         canReorderQueue,
@@ -483,10 +487,10 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
-            { key: "queue-move-top", label: t("table.queue.move_top") },
-            { key: "queue-move-up", label: t("table.queue.move_up") },
-            { key: "queue-move-down", label: t("table.queue.move_down") },
-            { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
+            { key: torrentTableActions.queueMoveTop, label: t("table.queue.move_top") },
+            { key: torrentTableActions.queueMoveUp, label: t("table.queue.move_up") },
+            { key: torrentTableActions.queueMoveDown, label: t("table.queue.move_down") },
+            { key: torrentTableActions.queueMoveBottom, label: t("table.queue.move_bottom") },
         ],
         [t],
     );
@@ -502,9 +506,9 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             if (resizeTimerRef.current !== null) {
                 resizeTimerRef.current();
             }
-            beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
+            beginAnimationSuppression(animationSuppressionKeys.panelResize);
             resizeTimerRef.current = scheduler.scheduleTimeout(() => {
-                endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
+                endAnimationSuppression(animationSuppressionKeys.panelResize);
                 resizeTimerRef.current = null;
             }, 150);
         });
@@ -515,7 +519,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             if (resizeTimerRef.current !== null) {
                 resizeTimerRef.current();
             }
-            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
+            endAnimationSuppression(animationSuppressionKeys.panelResize);
         };
     }, [beginAnimationSuppression, endAnimationSuppression]);
 
@@ -613,7 +617,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
                 isLoading: viewModel.isLoading,
                 hasSourceTorrents: viewModel.torrents.length > 0,
                 visibleRowCount: rows.length,
-                tableLayout: TABLE_LAYOUT,
+                tableLayout: layout.table,
                 rowHeight,
                 marqueeRect,
             },
@@ -762,3 +766,5 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
 }
 
 export default useTorrentTableViewModel;
+
+

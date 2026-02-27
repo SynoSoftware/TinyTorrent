@@ -11,7 +11,7 @@ import type {
 } from "@tanstack/react-table";
 import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
 import type { MouseEvent, ReactNode, RefObject } from "react";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
@@ -21,11 +21,20 @@ export type QueueMenuAction = {
     label: string;
 };
 
-export type ContextMenuKey = TorrentTableAction | "copy-hash" | "copy-magnet";
-export type RowContextMenuKey =
-    | ContextMenuKey
-    | "open-folder"
-    | "set-download-location";
+export const rowMenuKey = {
+    copyHash: "copy-hash",
+    copyMagnet: "copy-magnet",
+    openFolder: "open-folder",
+    setDownloadLocation: "set-download-location",
+} as const;
+
+type RowMenuPrimitiveKey = (typeof rowMenuKey)[keyof typeof rowMenuKey];
+const rowMenuShortcutKeys = [rowMenuKey.copyHash, rowMenuKey.copyMagnet] as const;
+type RowMenuShortcutKey = (typeof rowMenuShortcutKeys)[number];
+
+export type ContextMenuKey = TorrentTableAction | RowMenuShortcutKey;
+
+export type RowContextMenuKey = TorrentTableAction | RowMenuPrimitiveKey;
 
 export type HeaderMenuActionOptions = {
     keepOpen?: boolean;
@@ -155,7 +164,7 @@ export interface TorrentTableRowMenuViewModel {
     contextMenu: TableContextMenu | null;
     onClose: () => void;
     handleContextMenuAction: (
-        key?: RowContextMenuKey,
+        key: RowContextMenuKey,
     ) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
@@ -182,4 +191,5 @@ export interface TorrentTableSurfaces {
     rowMenuViewModel: TorrentTableRowMenuViewModel;
     headerMenuViewModel: TorrentTableHeaderMenuViewModel;
 }
+
 

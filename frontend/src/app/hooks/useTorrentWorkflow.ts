@@ -3,17 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import type { DeleteIntent } from "@/app/types/workspace";
 import {
-    GLOBAL_ACTION_FEEDBACK_CONFIG,
-    useActionFeedback,
-    type FeedbackAction,
-} from "@/app/hooks/useActionFeedback";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+    GLOBAL_ACTION_FEEDBACK_CONFIG, useActionFeedback, type FeedbackAction, } from "@/app/hooks/useActionFeedback";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    commandOutcome, commandReason, isCommandFailed, isCommandSuccess, type SuccessReason, type TorrentCommandOutcome, } from "@/app/context/AppCommandContext";
 import { buildOptimisticStatusUpdatesForAction } from "@/app/domain/torrentActionPolicy";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { TorrentStatus } from "@/services/rpc/entities";
-import { SET_LOCATION_MOVE_TIMEOUT_MS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import {
     evaluateRelocationMoveVerification,
@@ -23,11 +21,12 @@ import {
 
 // removed unused `FeedbackTone` import
 import { useSelection } from "@/app/context/AppShellStateContext";
+const { timing } = registry;
 
 export type RecheckRefreshOutcome =
     | "success"
-    | "refresh_failed"
-    | "refresh_skipped";
+    | typeof commandReason.refreshFailed
+    | typeof commandReason.refreshSkipped;
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
@@ -74,21 +73,18 @@ interface UseTorrentWorkflowParams {
 const getTorrentKey = (torrent: { id?: string | number; hash?: string }) =>
     torrent.id?.toString() ?? torrent.hash ?? "";
 
-const COMMAND_OUTCOME_QUEUED: TorrentCommandOutcome = {
-    status: "success",
-    reason: "queued",
-};
-const COMMAND_OUTCOME_REFRESH_SKIPPED: TorrentCommandOutcome = {
-    status: "success",
-    reason: "refresh_skipped",
-};
-const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
-    status: "canceled",
-    reason: "no_selection",
-};
-const COMMAND_OUTCOME_REFRESH_FAILED: TorrentCommandOutcome = {
-    status: "failed",
-    reason: "refresh_failed",
+const ACTION_ID_PREVIEW_COUNT = 3;
+const ACTION_ID_PREVIEW_ID_MAX = 12;
+
+const hashActionIds = (ids: string[]): string => {
+    let hash = 0x811c9dc5;
+    ids.forEach((id) => {
+        for (let index = 0; index < id.length; index += 1) {
+            hash ^= id.charCodeAt(index);
+            hash = Math.imul(hash, 0x01000193);
+        }
+    });
+    return (hash >>> 0).toString(36);
 };
 
 type PendingMoveOperation = {
@@ -99,8 +95,10 @@ type PendingMoveOperation = {
 
 const isSuccessfulOutcome = (
     outcome: TorrentCommandOutcome,
-): outcome is { status: "success"; reason?: "queued" | "refresh_skipped" } =>
-    outcome.status === "success";
+): outcome is {
+    status: "success";
+    reason?: SuccessReason;
+} => isCommandSuccess(outcome);
 
 export function useTorrentWorkflow({
     torrents,
@@ -124,14 +122,16 @@ export function useTorrentWorkflow({
     const [pendingMoveOperations, setPendingMoveOperations] = useState<
         Record<string, PendingMoveOperation>
     >({});
-    const { selectedIds, setSelectedIds, setActiveId } = useSelection();
+    const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const selectedTorrentIdsSet = useMemo(
-        () => new Set(selectedIds),
+        () => new Set(selectedIds.map(String)),
         [selectedIds],
     );
     const selectedTorrents = useMemo(
         () =>
-            torrents.filter((torrent) => selectedTorrentIdsSet.has(torrent.id)),
+            torrents.filter((torrent) =>
+                selectedTorrentIdsSet.has(String(torrent.id)),
+            ),
         [selectedTorrentIdsSet, torrents],
     );
     // TODO: Move selection-aware action logic into a view-model/shared handler (aligned with App split) so workflow is not tightly coupled to SelectionContext and prop drilling.
@@ -189,7 +189,17 @@ export function useTorrentWorkflow({
             .map(String)
             .filter(Boolean)
             .sort();
-        const suffix = ids.length ? ids.join(",") : "unknown";
+        const preview = ids
+            .slice(0, ACTION_ID_PREVIEW_COUNT)
+            .map((id) => id.slice(0, ACTION_ID_PREVIEW_ID_MAX))
+            .join(",");
+        const overflow =
+            ids.length > ACTION_ID_PREVIEW_COUNT
+                ? `,+${ids.length - ACTION_ID_PREVIEW_COUNT}`
+                : "";
+        const suffix = ids.length
+            ? `${preview}${overflow}#${hashActionIds(ids)}`
+            : "unknown";
         return `${action}:${suffix}`;
     };
 
@@ -221,7 +231,7 @@ export function useTorrentWorkflow({
                 [torrentId]: {
                     torrentId,
                     requestedPath,
-                    timeoutAtMs: startedAtMs + SET_LOCATION_MOVE_TIMEOUT_MS,
+                    timeoutAtMs: startedAtMs + timing.timeouts.setLocationMoveMs,
                 },
             }));
             updateOptimisticStatuses([
@@ -260,7 +270,9 @@ export function useTorrentWorkflow({
             return;
         }
 
-        const torrentById = new Map(torrents.map((torrent) => [torrent.id, torrent]));
+        const torrentById = new Map(
+            torrents.map((torrent) => [String(torrent.id), torrent]),
+        );
         const resolvedIds: string[] = [];
         const nowMs = Date.now();
 
@@ -342,7 +354,7 @@ export function useTorrentWorkflow({
                 return outcome;
             }
 
-            if (outcome.status === "failed") {
+            if (isCommandFailed(outcome)) {
                 showFeedback(t("toolbar.feedback.failed"), "danger");
             }
             if (optimisticTargets.length) {
@@ -371,24 +383,30 @@ export function useTorrentWorkflow({
             }
 
             if (typeof onRecheckComplete !== "function") {
-                return COMMAND_OUTCOME_REFRESH_SKIPPED;
+                return commandOutcome.success(commandReason.refreshSkipped);
             }
 
+            let refreshOutcome: RecheckRefreshOutcome;
             try {
-                const refreshOutcome = await onRecheckComplete();
-                if (refreshOutcome === "success") {
-                    return outcome;
-                }
-                if (refreshOutcome === "refresh_skipped") {
-                    return COMMAND_OUTCOME_REFRESH_SKIPPED;
-                }
+                refreshOutcome = await onRecheckComplete();
             } catch {
                 showFeedback(t("toolbar.feedback.failed"), "danger");
-                return COMMAND_OUTCOME_REFRESH_FAILED;
+                return commandOutcome.failed(commandReason.refreshFailed);
             }
 
-            showFeedback(t("toolbar.feedback.failed"), "danger");
-            return COMMAND_OUTCOME_REFRESH_FAILED;
+            if (refreshOutcome === "success") {
+                return outcome;
+            }
+            if (refreshOutcome === commandReason.refreshSkipped) {
+                return commandOutcome.success(commandReason.refreshSkipped);
+            }
+            if (refreshOutcome === commandReason.refreshFailed) {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+                return commandOutcome.failed(commandReason.refreshFailed);
+            }
+
+            const exhaustive: never = refreshOutcome;
+            return exhaustive;
         },
         [onRecheckComplete, showFeedback, t],
     );
@@ -400,7 +418,7 @@ export function useTorrentWorkflow({
         ): Promise<TorrentCommandOutcome> => {
             if (action === "remove" || action === "remove-with-data") {
                 requestDelete([torrent], action, action === "remove-with-data");
-                return COMMAND_OUTCOME_QUEUED;
+                return commandOutcome.success(commandReason.queued);
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
@@ -433,11 +451,11 @@ export function useTorrentWorkflow({
 
     const handleBulkAction = useCallback(
         async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
-            if (!selectedTorrents.length) return COMMAND_OUTCOME_NO_SELECTION;
+            if (!selectedTorrents.length) return commandOutcome.noSelection();
             const targets = [...selectedTorrents];
             if (action === "remove" || action === "remove-with-data") {
                 requestDelete(targets, action, action === "remove-with-data");
-                return COMMAND_OUTCOME_QUEUED;
+                return commandOutcome.success(commandReason.queued);
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
@@ -479,20 +497,20 @@ export function useTorrentWorkflow({
         }): Promise<TorrentCommandOutcome> => {
             const locationMode = resolveSetDownloadLocationMode(torrent);
             const outcome = await executeSetDownloadLocation(
-                torrent.id,
+                String(torrent.id),
                 path,
                 locationMode,
             );
 
             if (!isSuccessfulOutcome(outcome)) {
-                if (outcome.status === "failed") {
+                if (isCommandFailed(outcome)) {
                     showFeedback(t("toolbar.feedback.failed"), "danger");
                 }
                 return outcome;
             }
 
             if (locationMode === "move") {
-                startMoveOperation(torrent.id, path);
+                startMoveOperation(String(torrent.id), path);
             }
 
             return outcome;
@@ -523,21 +541,21 @@ export function useTorrentWorkflow({
             if (!key) return;
             markRemoved(key);
             recentlyRemovedKeysRef.current.add(key);
-            setSelectedIds([]);
-            setActiveId(null);
             onPrepareDelete?.(torrent, deleteData);
         },
-        [markRemoved, onPrepareDelete, setActiveId, setSelectedIds],
+        [markRemoved, onPrepareDelete],
     );
 
     const confirmDelete = useCallback(
         async (overrideDeleteData?: boolean): Promise<TorrentCommandOutcome> => {
-            if (!pendingDelete) return COMMAND_OUTCOME_NO_SELECTION;
+            if (!pendingDelete) return commandOutcome.noSelection();
             const {
                 torrents: toDelete,
                 action,
                 deleteData: pdDelete,
             } = pendingDelete;
+            const previousSelectedIds = selectedIds;
+            const previousActiveId = activeId;
             setPendingDelete(null);
             const deleteData = overrideDeleteData ?? pdDelete;
             const count = toDelete.length;
@@ -548,11 +566,13 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", count, actionId);
             }
 
+            setSelectedIds([]);
+            setActiveId(null);
             toDelete.forEach((torrent) => {
                 performUIActionDelete(torrent, deleteData);
             });
 
-            let outcome: TorrentCommandOutcome = { status: "success" };
+            let outcome: TorrentCommandOutcome = commandOutcome.success();
             if (
                 toDelete.length > 1 &&
                 (action === "remove" || action === "remove-with-data")
@@ -573,10 +593,12 @@ export function useTorrentWorkflow({
             }
 
             if (!isSuccessfulOutcome(outcome)) {
-                if (outcome.status === "failed") {
+                if (isCommandFailed(outcome)) {
                     showFeedback(t("toolbar.feedback.failed"), "danger");
                 }
                 revertRemovedKeys(toDelete);
+                setSelectedIds(previousSelectedIds);
+                setActiveId(previousActiveId);
             }
 
             if (hasFeedback && isSuccessfulOutcome(outcome)) {
@@ -592,6 +614,10 @@ export function useTorrentWorkflow({
             pendingDelete,
             performUIActionDelete,
             revertRemovedKeys,
+            selectedIds,
+            activeId,
+            setActiveId,
+            setSelectedIds,
             t,
             showFeedback,
         ],
@@ -606,7 +632,9 @@ export function useTorrentWorkflow({
         handleBulkAction,
         handleSetDownloadLocation,
         removedIds: removedKeys,
-        performUIActionDelete,
     };
 }
+
+
+
 

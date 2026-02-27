@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { formatDurationMs, formatSpeed } from "@/shared/utils/format";
 import { scheduler } from "@/app/services/scheduler";
-import { SPEED_WINDOW_OPTIONS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import {
     HISTORY_POINTS,
@@ -13,28 +13,18 @@ import {
     useCanvasPalette,
 } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import {
-    SPEED_CHART_LINE_WIDTH,
-    SPEED_CHART_DOWN_STROKE_TOKEN,
-    SPEED_CHART_UP_STROKE_TOKEN,
-    SPEED_CHART_FILL_ALPHA,
-    SPEED_CANVAS_DENOM_FLOOR,
-    SPEED_SMOOTH_DECAY,
-    SPEED_RETENTION_MS,
-    SPEED_BUCKET_WIDTH_SMALL,
-    SPEED_BUCKET_WIDTH_MED,
-    SPEED_BUCKET_COUNT_SMALL,
-    SPEED_BUCKET_COUNT_MED,
-} from "@/config/logic";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { cn } from "@heroui/react";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
+const { visualizations } = registry;
 
 // Use Lucide icons to match project style and theme (color via currentColor)
 
 type Point = { x: number; y: number };
 type TimedValue = { ts: number; value: number; synthetic?: boolean };
-type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
+const speedWindowOptions = visualizations.details.speedWindowOptions;
+const speedChart = visualizations.details.speedChart;
+type SpeedWindowKey = (typeof speedWindowOptions)[number]["key"];
 type LayoutMode = "combined" | "split";
 
 type SeriesChartProps = {
@@ -52,7 +42,10 @@ interface SpeedChartProps {
     isStandalone?: boolean;
 }
 
-const nowMs = () => performance.timeOrigin + performance.now();
+const nowMs = () => {
+    const perf = globalThis.performance;
+    return perf ? perf.timeOrigin + perf.now() : Date.now();
+};
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
 /** Data Processing Utilities */
@@ -94,7 +87,7 @@ const buildPoints = (
 ): Point[] => {
     if (!values.length || width <= 0 || height <= 0) return [];
     const spacing = values.length > 1 ? width / (values.length - 1) : width;
-    const denom = Math.max(maxValue, SPEED_CANVAS_DENOM_FLOOR);
+    const denom = Math.max(maxValue, speedChart.canvasDenomFloor);
     return values.map((value, index) => ({
         x: index * spacing,
         y: height - clamp01(value / denom) * height,
@@ -150,7 +143,7 @@ const createGradient = (
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     try {
         const topTransparentPct = `${Math.round(
-            (1 - SPEED_CHART_FILL_ALPHA) * 100,
+            (1 - speedChart.fillAlpha) * 100,
         )}%`;
         gradient.addColorStop(
             0,
@@ -161,7 +154,7 @@ const createGradient = (
             `color-mix(in srgb, ${color}, transparent 100%)`,
         );
     } catch {
-        gradient.addColorStop(0, `rgba(127,127,127,${SPEED_CHART_FILL_ALPHA})`);
+        gradient.addColorStop(0, `rgba(127,127,127,${speedChart.fillAlpha})`);
         gradient.addColorStop(1, "rgba(127,127,127,0)");
     }
     return gradient;
@@ -169,8 +162,8 @@ const createGradient = (
 
 const computeBucketsFromWidth = (width: number) => {
     if (width <= 0) return 0;
-    if (width < SPEED_BUCKET_WIDTH_SMALL) return SPEED_BUCKET_COUNT_SMALL;
-    if (width < SPEED_BUCKET_WIDTH_MED) return SPEED_BUCKET_COUNT_MED;
+    if (width < speedChart.bucketWidthSmall) return speedChart.bucketCountSmall;
+    if (width < speedChart.bucketWidthMed) return speedChart.bucketCountMed;
     return HISTORY_POINTS;
 };
 
@@ -240,8 +233,8 @@ const SeriesChart = ({
         const values = resampleTimed(timedRef.current, windowMs, buckets);
 
         // 2. Update Max Scaling
-        const peak = Math.max(...values, SPEED_CANVAS_DENOM_FLOOR);
-        maxRef.current = Math.max(maxRef.current * SPEED_SMOOTH_DECAY, peak);
+        const peak = Math.max(...values, speedChart.canvasDenomFloor);
+        maxRef.current = Math.max(maxRef.current * speedChart.smoothDecay, peak);
 
         // 3. Build Points
         const points = buildPoints(
@@ -272,7 +265,7 @@ const SeriesChart = ({
 
         strokeSmooth(ctx, points);
         ctx.strokeStyle = color;
-        ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
+        ctx.lineWidth = speedChart.lineWidth;
         ctx.stroke();
 
         // Draw subtle reference guides: horizontal mid-line (~50%),
@@ -291,7 +284,7 @@ const SeriesChart = ({
             ctx.stroke();
 
             // Horizontal: per-series MAX line (placed at correct Y based on maxRef)
-            const denom = Math.max(maxRef.current, SPEED_CANVAS_DENOM_FLOOR);
+            const denom = Math.max(maxRef.current, speedChart.canvasDenomFloor);
             const seriesMaxYRaw =
                 size.height - clamp01(maxRef.current / denom) * size.height;
             const seriesMaxY = Math.min(
@@ -399,16 +392,16 @@ const CombinedChart = ({
         // 2. Scaling
         const downPeak = Math.max(...downValues, 0);
         const upPeak = Math.max(...upValues, 0);
-        const peak = Math.max(downPeak, upPeak, SPEED_CANVAS_DENOM_FLOOR);
-        maxRef.current = Math.max(maxRef.current * SPEED_SMOOTH_DECAY, peak);
+        const peak = Math.max(downPeak, upPeak, speedChart.canvasDenomFloor);
+        maxRef.current = Math.max(maxRef.current * speedChart.smoothDecay, peak);
 
         // Maintain smoothed per-series max values for labeling
         downMaxRefLocal.current = Math.max(
-            downMaxRefLocal.current * SPEED_SMOOTH_DECAY,
+            downMaxRefLocal.current * speedChart.smoothDecay,
             downPeak,
         );
         upMaxRefLocal.current = Math.max(
-            upMaxRefLocal.current * SPEED_SMOOTH_DECAY,
+            upMaxRefLocal.current * speedChart.smoothDecay,
             upPeak,
         );
 
@@ -449,7 +442,7 @@ const CombinedChart = ({
 
         strokeSmooth(ctx, upPoints);
         ctx.strokeStyle = upColor;
-        ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
+        ctx.lineWidth = speedChart.lineWidth;
         ctx.stroke();
 
         // Draw Download
@@ -460,7 +453,7 @@ const CombinedChart = ({
 
         strokeSmooth(ctx, downPoints);
         ctx.strokeStyle = downColor;
-        ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
+        ctx.lineWidth = speedChart.lineWidth;
         ctx.stroke();
 
         // Draw subtle reference guides for combined chart as well
@@ -487,7 +480,7 @@ const CombinedChart = ({
             }
 
             // Per-series MAX dashed lines (placed at the correct Y position)
-            const denom = Math.max(maxRef.current, SPEED_CANVAS_DENOM_FLOOR);
+            const denom = Math.max(maxRef.current, speedChart.canvasDenomFloor);
             const yDownMaxRaw =
                 size.height -
                 clamp01(downMaxRefLocal.current / denom) * size.height;
@@ -613,8 +606,8 @@ export const SpeedChart = ({
     const latestUp = upHistory.at(-1) ?? 0;
 
     const windowOption =
-        SPEED_WINDOW_OPTIONS.find((option) => option.key === selectedWindow) ??
-        SPEED_WINDOW_OPTIONS[0];
+        speedWindowOptions.find((option) => option.key === selectedWindow) ??
+        speedWindowOptions[0];
     const windowMs = windowOption.minutes * 60_000;
 
     const downTimed = useRef<TimedValue[]>([]);
@@ -669,7 +662,7 @@ export const SpeedChart = ({
         downTimed.current.push({ ts, value: latestDown });
         upTimed.current.push({ ts, value: latestUp });
 
-        const retainMs = Math.max(windowMs, SPEED_RETENTION_MS);
+        const retainMs = Math.max(windowMs, speedChart.retentionMs);
         const cutoff = ts - retainMs;
 
         if (downTimed.current[0]?.ts < cutoff) {
@@ -679,8 +672,8 @@ export const SpeedChart = ({
     }, [latestDown, latestUp, windowMs, downHistory, upHistory]); // ONLY runs when network data or engine history changes
 
     const downColor =
-        getCssToken(SPEED_CHART_DOWN_STROKE_TOKEN) || palette.primary;
-    const upColor = getCssToken(SPEED_CHART_UP_STROKE_TOKEN) || palette.success;
+        getCssToken(speedChart.downStrokeToken) || palette.primary;
+    const upColor = getCssToken(speedChart.upStrokeToken) || palette.success;
 
     return (
         <div className={METRIC_CHART.root}>
@@ -726,7 +719,7 @@ export const SpeedChart = ({
                     </ButtonGroup>
 
                     <div className={METRIC_CHART.windowGroup}>
-                        {SPEED_WINDOW_OPTIONS.map((option) => (
+                        {speedWindowOptions.map((option) => (
                             <Button
                                 key={option.key}
                                 size="md"
@@ -820,3 +813,6 @@ export const SpeedChart = ({
         </div>
     );
 };
+
+
+

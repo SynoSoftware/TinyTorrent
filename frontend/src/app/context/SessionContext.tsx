@@ -15,10 +15,10 @@ import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { SessionStats, EngineInfo } from "@/services/rpc/entities";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import { deriveUiCapabilities } from "@/app/utils/uiMode";
 import type { UiCapabilities } from "@/app/utils/uiMode";
-import { normalizeHost } from "@/app/utils/hosts";
+import { normalizeHost } from "@/app/utils/uiMode";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import Runtime from "@/app/runtime";
 import { shellAgent } from "@/app/agents/shell-agent";
@@ -236,7 +236,7 @@ function SessionTelemetryProvider({ children }: SessionProviderProps) {
             torrentClient,
             reportReadError,
             isMountedRef,
-            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
+            sessionReady: rpcStatus === status.connection.connected,
         });
     useSessionSpeedHistoryFeed(sessionStats);
 

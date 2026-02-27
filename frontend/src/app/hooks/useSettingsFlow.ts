@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MutableRefObject } from "react";
 
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
@@ -253,7 +253,7 @@ export function useSettingsFlow({
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
     useEffect(() => {
-        if (!isSettingsOpen || rpcStatus !== STATUS.connection.CONNECTED)
+        if (!isSettingsOpen || rpcStatus !== status.connection.connected)
             return;
         let active = true;
         const loadSettings = async () => {
@@ -350,7 +350,7 @@ export function useSettingsFlow({
             if (!sessionDomain.canTestPort) {
                 return { status: "unsupported" };
             }
-            if (rpcStatus !== STATUS.connection.CONNECTED) {
+            if (rpcStatus !== status.connection.connected) {
                 return { status: "offline" };
             }
             const outcome = await sessionDomain.testPort();

@@ -8,7 +8,7 @@ import type {
     RpcConnectionAction,
     RpcConnectionOutcome,
 } from "@/shared/types/rpc";
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
@@ -28,7 +28,7 @@ export function useRpcConnection(
     const sessionDomain = useEngineSessionDomain(client);
 
     const [rpcStatus, setRpcStatus] = useState<ConnectionStatus>(
-        STATUS.connection.IDLE
+        status.connection.idle
     );
     const [isReady, setIsReady] = useState(false);
     const [lastConnectionAttempt, setLastConnectionAttempt] =
@@ -50,13 +50,13 @@ export function useRpcConnection(
                 },
                 error,
             );
-            updateStatus(STATUS.connection.ERROR);
+            updateStatus(status.connection.error);
         },
         [updateStatus]
     );
 
     const markTransportConnected = useCallback(() => {
-        updateStatus(STATUS.connection.CONNECTED);
+        updateStatus(status.connection.connected);
     }, [updateStatus]);
 
     const reportCommandError = useCallback((error?: unknown) => {
@@ -98,12 +98,12 @@ export function useRpcConnection(
     // TODO: Ensure this hook never triggers any TinyTorrent-only handshake (`tt-get-capabilities`, websocket setup, etc.). Those must be deleted from the adapter layer (see todo.md task 1).
     const connect = useCallback(
         async (action: RpcConnectionAction): Promise<RpcConnectionOutcome> => {
-        updateStatus(STATUS.connection.IDLE);
+        updateStatus(status.connection.idle);
         setIsReady(false);
         try {
             await sessionDomain.probeConnection();
 
-            updateStatus(STATUS.connection.CONNECTED);
+            updateStatus(status.connection.connected);
             if (isMountedRef.current) setIsReady(true);
             return recordAttempt({
                 status: "connected",
@@ -119,7 +119,7 @@ export function useRpcConnection(
                 },
                 err,
             );
-            updateStatus(STATUS.connection.ERROR);
+            updateStatus(status.connection.error);
             if (isMountedRef.current) setIsReady(false);
             return recordAttempt({
                 status: "failed",
@@ -148,7 +148,7 @@ export function useRpcConnection(
     }, [connect]);
 
     const reconnect = useCallback(async () => {
-        updateStatus(STATUS.connection.IDLE);
+        updateStatus(status.connection.idle);
         setIsReady(false);
 
         try {

@@ -1,20 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
-import { DETAIL_TABS } from "@/modules/dashboard/hooks/useDetailTabs";
+import { registry } from "@/config/logic";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
+import type { DetailTab } from "@/modules/dashboard/types/contracts";
+import type { TorrentDetailTabDefinition } from "@/modules/dashboard/hooks/useDetailTabs";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
-
-const DETAIL_TAB_LABELS: Record<string, string> = {
-    general: "inspector.tab.general",
-    content: "inspector.tab.content",
-    pieces: "inspector.tab.pieces",
-    trackers: "inspector.tab.trackers",
-    peers: "inspector.tab.peers",
-    speed: "inspector.tab.speed",
-};
+const { layout, visuals, ui } = registry;
 
 const NAME_MAX_LENGTH = 56;
 
@@ -36,6 +28,7 @@ interface TorrentDetailHeaderProps {
     onClose?: () => void;
     activeTab: DetailTab;
     onTabChange: (tab: DetailTab) => void;
+    tabs: Array<Pick<TorrentDetailTabDefinition, "id" | "labelKey">>;
     statusLabel?: string | null;
     statusTooltip?: string | null;
     primaryHint?: string | null;
@@ -51,6 +44,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         onClose,
         activeTab,
         onTabChange,
+        tabs,
         statusLabel,
         statusTooltip,
         primaryHint,
@@ -72,7 +66,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             {/* LEFT */}
             <div className={DETAILS.headerLeft}>
                 <Info
-                    strokeWidth={ICON_STROKE_WIDTH}
+                    strokeWidth={visuals.icon.strokeWidth}
                     className={DETAILS.headerInfoIcon}
                 />
                 <span className={DETAILS.headerTitle}>
@@ -96,20 +90,17 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             {/* CENTER */}
             <div className={DETAILS.headerCenter}>
                 <div className={DETAILS.headerTabs}>
-                    {DETAIL_TABS.map((tab) => (
+                    {tabs.map((tab) => (
                         <button
-                            key={tab}
+                            key={tab.id}
                             type="button"
-                            aria-pressed={activeTab === tab}
-                            onClick={() => onTabChange(tab)}
+                            aria-pressed={activeTab === tab.id}
+                            onClick={() => onTabChange(tab.id)}
                             className={DETAILS.builder.headerTabButtonClass(
-                                activeTab === tab,
+                                activeTab === tab.id,
                             )}
                         >
-                            {t(
-                                DETAIL_TAB_LABELS[tab] ??
-                                    `inspector.tab.${tab}`,
-                            )}
+                            {t(tab.labelKey)}
                         </button>
                     ))}
                 </div>
@@ -145,3 +136,6 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         </div>
     );
 };
+
+
+

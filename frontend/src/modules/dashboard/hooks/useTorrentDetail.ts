@@ -8,8 +8,8 @@ import {
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useSession } from "@/app/context/SessionContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { STATUS } from "@/shared/status";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { status } from "@/shared/status";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
 interface UseTorrentDetailParams {
@@ -39,7 +39,7 @@ export function useTorrentDetail({
     const {
         preferences: { inspectorTab },
     } = usePreferences();
-    const sessionReady = rpcStatus === STATUS.connection.CONNECTED;
+    const sessionReady = rpcStatus === status.connection.connected;
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
     const activeDetailIdRef = useRef<string | null>(null);
     const detailTimestampRef = useRef(0);
@@ -163,3 +163,4 @@ export function useTorrentDetail({
         mutateDetail,
     };
 }
+

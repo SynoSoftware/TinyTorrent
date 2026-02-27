@@ -7,18 +7,21 @@ import "@/i18n/index";
 import App from "@/app/App";
 import { ClientProvider } from "@/app/providers/TorrentClientProvider";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
-import { KEY_SCOPE, TOAST_DISPLAY_DURATION_MS, applyCssTokenBases } from "@/config/logic";
+import { registry } from "@/config/logic";
+import { Shortcuts } from "@/app/controlPlane/shortcuts";
+import { applyCssTokenBases } from "@/app/bootstrap/applyCssTokenBases";
 import { ConnectionConfigProvider } from "@/app/context/ConnectionConfigContext";
 import { SessionProvider } from "@/app/context/SessionContext";
 import { PreferencesProvider } from "@/app/context/PreferencesContext";
 import { AppShellStateProvider } from "@/app/context/AppShellStateContext";
+const { timing, ui } = registry;
 
 // Apply CSS variable bases from constants.json before rendering.
 applyCssTokenBases();
 
-const APP_INITIAL_HOTKEY_SCOPES = [DEFAULT_KEYBOARD_SCOPE, KEY_SCOPE.App];
+const APP_INITIAL_HOTkeyScopeS = [DEFAULT_KEYBOARD_SCOPE, Shortcuts.scopes.App];
 const APP_TOAST_PROPS = {
-    timeout: TOAST_DISPLAY_DURATION_MS,
+    timeout: timing.ui.toastMs,
     hideCloseButton: true,
     variant: "flat",
     radius: "lg",
@@ -36,7 +39,7 @@ const APP_TOAST_REGION_PROPS = {
 const mount = async () => {
     createRoot(document.getElementById("root")!).render(
         <StrictMode>
-            <HotkeysProvider initiallyActiveScopes={APP_INITIAL_HOTKEY_SCOPES}>
+            <HotkeysProvider initiallyActiveScopes={APP_INITIAL_HOTkeyScopeS}>
                 <PreferencesProvider>
                     <ConnectionConfigProvider>
                         <ClientProvider>
@@ -60,3 +63,4 @@ const mount = async () => {
 };
 
 void mount();
+

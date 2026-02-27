@@ -7,7 +7,7 @@ import {
 } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { useColumnResizing } from "@/modules/dashboard/hooks/useColumnResizing";
 import {
-    ANIMATION_SUPPRESSION_KEYS,
+    animationSuppressionKeys,
     type AnimationSuppressionKey,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
@@ -158,7 +158,7 @@ export const useColumnSizingController = <TData,>({
             }
 
             if (shouldSuppress) {
-                beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFit);
+                beginAnimationSuppression(animationSuppressionKeys.autoFit);
             }
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
@@ -170,7 +170,7 @@ export const useColumnSizingController = <TData,>({
                 window.requestAnimationFrame(() => {
                     window.requestAnimationFrame(() => {
                         endAnimationSuppression(
-                            ANIMATION_SUPPRESSION_KEYS.autoFit
+                            animationSuppressionKeys.autoFit
                         );
                     });
                 });
@@ -192,7 +192,7 @@ export const useColumnSizingController = <TData,>({
     );
 
     const autoFitAllColumns = useCallback(() => {
-        beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll);
+        beginAnimationSuppression(animationSuppressionKeys.autoFitAll);
         const measuredWidths = measureColumnMinWidths();
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
@@ -200,7 +200,7 @@ export const useColumnSizingController = <TData,>({
         });
         window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() =>
-                endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll)
+                endAnimationSuppression(animationSuppressionKeys.autoFitAll)
             );
         });
     }, [

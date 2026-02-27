@@ -4,16 +4,14 @@ import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
-    CONTEXT_MENU,
-    SURFACE,
-    SPLIT,
-} from "@/shared/ui/layout/glass-surface";
+    CONTEXT_MENU, SURFACE, SPLIT, } from "@/shared/ui/layout/glass-surface";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { registry } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
-import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
-import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks";
+import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
+import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
+const { layout, visuals, ui } = registry;
 
 interface PeersTabProps {
     peers: TorrentPeerEntity[];
@@ -233,7 +231,7 @@ export const PeersTab = ({
                                         <StatusIcon
                                             Icon={Copy}
                                             size="sm"
-                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            strokeWidth={visuals.icon.strokeWidth}
                                         />
                                         {viewModel.labels.copyIpAction}
                                     </button>
@@ -248,7 +246,7 @@ export const PeersTab = ({
                                         <StatusIcon
                                             Icon={UserPlus}
                                             size="sm"
-                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            strokeWidth={visuals.icon.strokeWidth}
                                         />
                                         {viewModel.labels.addPeerAction}
                                     </button>
@@ -265,7 +263,7 @@ export const PeersTab = ({
                                         <StatusIcon
                                             Icon={Ban}
                                             size="sm"
-                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            strokeWidth={visuals.icon.strokeWidth}
                                         />
                                         {viewModel.labels.banIpAction}
                                     </button>
@@ -278,3 +276,5 @@ export const PeersTab = ({
         </div>
     );
 };
+
+

@@ -1,17 +1,28 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
-import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
-import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import { useSelection } from "@/app/context/AppShellStateContext";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+
+type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 
 interface UseTorrentDetailsTrackersViewModelParams {
-    torrentId: string | number;
-    torrentIds?: Array<string | number>;
+    targetIds: Array<string | number>;
+    scope: "inspected" | "selection";
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     serverTime?: number;
+    addTrackers: (
+        targetIds: Array<string | number>,
+        trackers: string[],
+    ) => Promise<TrackerMutationOutcome>;
+    replaceTrackers: (
+        targetIds: Array<string | number>,
+        trackers: string[],
+    ) => Promise<TrackerMutationOutcome>;
+    removeTrackers: (
+        targetIds: Array<string | number>,
+        trackerIds: number[],
+    ) => Promise<TrackerMutationOutcome>;
 }
 
 type TrackerStatusTone = "pending" | "online" | "partial";
@@ -34,6 +45,7 @@ export interface TorrentDetailsTrackersViewModel {
         showAdd: boolean;
         newTrackers: string;
         isMutating: boolean;
+        scope: "inspected" | "selection";
     };
     labels: {
         emptyMessage: string;
@@ -121,16 +133,16 @@ const buildOptimisticTracker = (
 });
 
 export const useTorrentDetailsTrackersViewModel = ({
-    torrentId,
-    torrentIds,
+    targetIds,
+    scope,
     trackers,
     emptyMessage,
     serverTime,
+    addTrackers,
+    replaceTrackers,
+    removeTrackers,
 }: UseTorrentDetailsTrackersViewModelParams): TorrentDetailsTrackersViewModel => {
     const { t } = useTranslation();
-    const { dispatch } = useRequiredTorrentActions();
-    const { showFeedback } = useActionFeedback();
-    const { selectedIds } = useSelection();
     const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");
     const [isMutating, setIsMutating] = useState(false);
@@ -140,70 +152,26 @@ export const useTorrentDetailsTrackersViewModel = ({
 
     const unknownLabel = t("labels.unknown");
     const safeTrackers = useMemo(() => trackers ?? [], [trackers]);
-    const targetIds = useMemo(
-        () => {
-            if (torrentIds?.length) {
-                return torrentIds;
-            }
-            const currentId = String(torrentId);
-            if (
-                selectedIds.length > 1 &&
-                selectedIds.includes(currentId)
-            ) {
-                return selectedIds;
-            }
-            return [torrentId];
-        },
-        [torrentId, torrentIds, selectedIds],
-    );
     const visibleTrackers = optimisticTrackers ?? safeTrackers;
     const isEmpty = visibleTrackers.length === 0;
-
-    const handleMutationOutcome = useCallback(
-        (outcome: { status: "applied" | "unsupported" | "failed" }) => {
-            if (outcome.status === "applied") {
-                return;
-            }
-            if (outcome.status === "unsupported") {
-                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
-                return;
-            }
-            showFeedback(t("toolbar.feedback.failed"), "danger");
-        },
-        [showFeedback, t],
-    );
 
     const executeMutation = useCallback(
         async (
             nextTrackers: TorrentTrackerEntity[],
-            intentFactory: () => ReturnType<
-                | typeof TorrentIntents.torrentAddTracker
-                | typeof TorrentIntents.torrentRemoveTracker
-                | typeof TorrentIntents.torrentReplaceTrackers
-            >,
+            mutate: () => Promise<TrackerMutationOutcome>,
         ) => {
             setOptimisticTrackers(nextTrackers);
             setIsMutating(true);
             try {
-                const outcome = await dispatch(intentFactory());
-                if (outcome.status === "applied") {
-                    setOptimisticTrackers(null);
-                    return;
-                }
+                await mutate();
                 setOptimisticTrackers(null);
-                handleMutationOutcome(
-                    outcome.status === "unsupported"
-                        ? { status: "unsupported" }
-                        : { status: "failed" },
-                );
             } catch {
                 setOptimisticTrackers(null);
-                showFeedback(t("toolbar.feedback.failed"), "danger");
             } finally {
                 setIsMutating(false);
             }
         },
-        [dispatch, handleMutationOutcome, showFeedback, t],
+        [],
     );
 
     const rows = useMemo<TrackerRowViewModel[]>(
@@ -296,9 +264,10 @@ export const useTorrentDetailsTrackersViewModel = ({
         setShowAdd(false);
         setNewTrackers("");
         void executeMutation(nextTrackers, () =>
-            TorrentIntents.torrentAddTracker(targetIds, trackersToAdd),
+            addTrackers(targetIds, trackersToAdd),
         );
     }, [
+        addTrackers,
         executeMutation,
         isMutating,
         newTrackers,
@@ -318,9 +287,15 @@ export const useTorrentDetailsTrackersViewModel = ({
         setShowAdd(false);
         setNewTrackers("");
         void executeMutation(nextTrackers, () =>
-            TorrentIntents.torrentReplaceTrackers(targetIds, replacementTrackers),
+            replaceTrackers(targetIds, replacementTrackers),
         );
-    }, [executeMutation, isMutating, newTrackers, targetIds]);
+    }, [
+        executeMutation,
+        isMutating,
+        newTrackers,
+        replaceTrackers,
+        targetIds,
+    ]);
 
     const removeTracker = useCallback(
         (row: TrackerRowViewModel) => {
@@ -331,10 +306,10 @@ export const useTorrentDetailsTrackersViewModel = ({
                     toTrackerIdentity(tracker) !== `${trackerId}|${row.announce}`,
             );
             void executeMutation(nextTrackers, () =>
-                TorrentIntents.torrentRemoveTracker(targetIds, [trackerId]),
+                removeTrackers(targetIds, [trackerId]),
             );
         },
-        [executeMutation, isMutating, targetIds, visibleTrackers],
+        [executeMutation, isMutating, removeTrackers, targetIds, visibleTrackers],
     );
 
     return {
@@ -343,6 +318,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             showAdd,
             newTrackers,
             isMutating,
+            scope,
         },
         labels: {
             emptyMessage,

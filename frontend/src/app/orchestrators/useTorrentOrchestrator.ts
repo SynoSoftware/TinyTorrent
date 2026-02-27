@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
@@ -60,3 +60,4 @@ export function useTorrentOrchestrator({
 }
 
 export default useTorrentOrchestrator;
+

@@ -2,9 +2,9 @@ import React, { useEffect, forwardRef, useImperativeHandle, useRef, useState } f
 import { afterEach, describe, expect, it } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { useOptimisticStatuses } from "@/app/hooks/useOptimisticStatuses";
-import { STATUS } from "@/shared/status";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import { status } from "@/shared/status";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 
 type HarnessRef = {
     getSnapshot: () => OptimisticStatusMap;
@@ -95,7 +95,7 @@ describe("useOptimisticStatuses", () => {
     });
 
     it("drops optimistic statuses for ids outside authoritative torrent ids", async () => {
-        const mounted = await mountHarness([makeTorrent("t-1", STATUS.torrent.DOWNLOADING)]);
+        const mounted = await mountHarness([makeTorrent("t-1", status.torrent.downloading)]);
         try {
             const readHarness = () => {
                 const harness = mounted.ref.current;
@@ -108,7 +108,7 @@ describe("useOptimisticStatuses", () => {
             readHarness().updateOptimisticStatuses([
                 {
                     id: "missing-torrent-id",
-                    state: STATUS.torrent.CHECKING,
+                    state: status.torrent.checking,
                 },
             ]);
             await new Promise<void>((resolve) => {
@@ -121,7 +121,7 @@ describe("useOptimisticStatuses", () => {
     });
 
     it("cleans optimistic entries when torrent leaves authoritative list", async () => {
-        const mounted = await mountHarness([makeTorrent("t-2", STATUS.torrent.PAUSED)]);
+        const mounted = await mountHarness([makeTorrent("t-2", status.torrent.paused)]);
         try {
             const readHarness = () => {
                 const harness = mounted.ref.current;
@@ -134,10 +134,10 @@ describe("useOptimisticStatuses", () => {
             readHarness().updateOptimisticStatuses([
                 {
                     id: "t-2",
-                    state: STATUS.torrent.CHECKING,
+                    state: status.torrent.checking,
                 },
             ]);
-            await waitForCondition(() => readHarness().getSnapshot()["t-2"]?.state === STATUS.torrent.CHECKING);
+            await waitForCondition(() => readHarness().getSnapshot()["t-2"]?.state === status.torrent.checking);
 
             const rendersBeforeRemoval = readHarness().getRenderCount();
             readHarness().setTorrents([]);
@@ -154,7 +154,7 @@ describe("useOptimisticStatuses", () => {
     });
 
     it("keeps pause optimism until paused is confirmed", async () => {
-        const mounted = await mountHarness([makeTorrent("t-3", STATUS.torrent.DOWNLOADING)]);
+        const mounted = await mountHarness([makeTorrent("t-3", status.torrent.downloading)]);
         try {
             const readHarness = () => {
                 const harness = mounted.ref.current;
@@ -167,20 +167,20 @@ describe("useOptimisticStatuses", () => {
             readHarness().updateOptimisticStatuses([
                 {
                     id: "t-3",
-                    state: STATUS.torrent.PAUSED,
+                    state: status.torrent.paused,
                 },
             ]);
             await waitForCondition(
-                () => readHarness().getSnapshot()["t-3"]?.state === STATUS.torrent.PAUSED,
+                () => readHarness().getSnapshot()["t-3"]?.state === status.torrent.paused,
             );
 
-            readHarness().setTorrents([makeTorrent("t-3", STATUS.torrent.DOWNLOADING)]);
+            readHarness().setTorrents([makeTorrent("t-3", status.torrent.downloading)]);
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, 120);
             });
-            expect(readHarness().getSnapshot()["t-3"]?.state).toBe(STATUS.torrent.PAUSED);
+            expect(readHarness().getSnapshot()["t-3"]?.state).toBe(status.torrent.paused);
 
-            readHarness().setTorrents([makeTorrent("t-3", STATUS.torrent.PAUSED)]);
+            readHarness().setTorrents([makeTorrent("t-3", status.torrent.paused)]);
             await waitForCondition(() => !readHarness().getSnapshot()["t-3"]);
         } finally {
             mounted.cleanup();
@@ -188,7 +188,7 @@ describe("useOptimisticStatuses", () => {
     });
 
     it("expires non-checking optimism when engine state never confirms it", async () => {
-        const mounted = await mountHarness([makeTorrent("t-4", STATUS.torrent.DOWNLOADING)]);
+        const mounted = await mountHarness([makeTorrent("t-4", status.torrent.downloading)]);
         try {
             const readHarness = () => {
                 const harness = mounted.ref.current;
@@ -201,11 +201,11 @@ describe("useOptimisticStatuses", () => {
             readHarness().updateOptimisticStatuses([
                 {
                     id: "t-4",
-                    state: STATUS.torrent.PAUSED,
+                    state: status.torrent.paused,
                 },
             ]);
             await waitForCondition(
-                () => readHarness().getSnapshot()["t-4"]?.state === STATUS.torrent.PAUSED,
+                () => readHarness().getSnapshot()["t-4"]?.state === status.torrent.paused,
             );
 
             await waitForCondition(() => !readHarness().getSnapshot()["t-4"], 6500);
@@ -214,3 +214,5 @@ describe("useOptimisticStatuses", () => {
         }
     }, 12000);
 });
+
+

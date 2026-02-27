@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { Row } from "@tanstack/react-table";
 import type { RowSelectionState } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { useSelection } from "@/app/context/AppShellStateContext";
 
 
@@ -268,4 +268,5 @@ export const useRowSelectionController = (
 };
 
 export default useRowSelectionController;
+
 

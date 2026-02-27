@@ -4,7 +4,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 export type DetailOpenMode = "docked" | "fullscreen";
 
@@ -36,3 +36,4 @@ export function DetailOpenProvider({
 export function useDetailOpenContext(): DetailOpenContextValue {
     return useContext(DetailOpenContext);
 }
+

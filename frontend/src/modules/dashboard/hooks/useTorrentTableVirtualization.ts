@@ -9,7 +9,7 @@ import type {
     Table,
 } from "@tanstack/react-table";
 import { useMarqueeSelection } from "@/modules/dashboard/hooks/useMarqueeSelection";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 
 // Strongly-typed deps for the virtualization hook. Avoids use of `any` and
@@ -18,7 +18,7 @@ export type UseTorrentTableVirtualizationDeps = {
     rows: Row<Torrent>[];
     parentRef: RefObject<HTMLDivElement | null>;
     rowHeight: number;
-    TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
+    tableLayout: { rowHeight: number | string; overscan: number };
     table: {
         getTotalSize: () => number;
         getFlatHeaders: () => ReturnType<Table<Torrent>["getFlatHeaders"]>;
@@ -61,7 +61,7 @@ export const useTorrentTableVirtualization = (
         rows,
         parentRef,
         rowHeight,
-        TABLE_LAYOUT,
+        tableLayout,
         table,
         isAnyColumnResizing,
         measureColumnMinWidths,
@@ -85,7 +85,7 @@ export const useTorrentTableVirtualization = (
         count: rows.length,
         getScrollElement: () => parentRef.current,
         estimateSize: () => rowHeight,
-        overscan: TABLE_LAYOUT.overscan,
+        overscan: tableLayout.overscan,
     });
 
     // If the row height token or computed value changes, ensure the virtualizer
@@ -196,3 +196,4 @@ export const useTorrentTableVirtualization = (
 };
 
 export default useTorrentTableVirtualization;
+

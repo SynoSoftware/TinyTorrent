@@ -4,17 +4,13 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
-    FileExplorerTree,
-    type FileExplorerContextAction,
-    type FileExplorerEntry,
-    type FileExplorerToggleCommand,
-    type FileExplorerToggleOutcome,
-} from "@/shared/ui/workspace/FileExplorerTree";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+    FileExplorerTree, type FileExplorerContextAction, type FileExplorerEntry, type FileExplorerToggleCommand, type FileExplorerToggleOutcome, } from "@/shared/ui/workspace/FileExplorerTree";
+import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { useFileExplorerViewModel } from "@/modules/dashboard/hooks";
+import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
+const { visualizations, ui } = registry;
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
@@ -143,7 +139,7 @@ export const ContentTab = ({
                     <div
                         className={TABLE.detailsContentListScroll}
                         style={TABLE.builder.detailsContentScrollStyle(
-                            DETAILS_TAB_CONTENT_MAX_HEIGHT,
+                            visualizations.details.tabContentMaxHeight,
                         )}
                     >
                         <FileExplorerTree viewModel={fileExplorerViewModel} />
@@ -153,3 +149,6 @@ export const ContentTab = ({
         </div>
     );
 };
+
+
+

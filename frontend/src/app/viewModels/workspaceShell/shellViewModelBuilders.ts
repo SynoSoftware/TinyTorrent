@@ -12,18 +12,23 @@ import type {
 } from "@/app/viewModels/useAppViewModel";
 import type { StatusBarTransportStatus } from "@/app/viewModels/useAppViewModel";
 import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+} from "@/modules/dashboard/types/contracts";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { SessionStats } from "@/services/rpc/entities";
 import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { UiMode } from "@/app/utils/uiMode";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    isCommandCanceled,
+    isCommandSuccess,
+    isCommandUnsupported,
+} from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
@@ -41,17 +46,22 @@ export interface DashboardViewModelParams {
     isInitialLoadFinished: boolean;
     optimisticStatuses: OptimisticStatusMap;
     removedIds: Set<string>;
+    selectedIds: string[];
     detailData: TorrentDetail | null;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
+    canSetLocation: boolean;
+    generalSetLocation: DashboardViewModel["detail"]["tabs"]["general"]["setLocation"];
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
+    handleTorrentAction: DashboardViewModel["detail"]["tabs"]["general"]["handleTorrentAction"];
     handleFileSelectionChange: (
         indexes: number[],
         wanted: boolean,
     ) => Promise<void>;
-    handleSequentialToggle: (enabled: boolean) => Promise<void>;
-    handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
+    addTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["addTrackers"];
+    replaceTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["replaceTrackers"];
+    removeTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["removeTrackers"];
     setInspectorTabCommand: (value: DetailTab | null) => void;
     capabilities: CapabilityStore;
 }
@@ -67,12 +77,19 @@ export function useDashboardViewModel({
     isInitialLoadFinished,
     optimisticStatuses,
     removedIds,
+    selectedIds,
     detailData,
     peerSortStrategy,
     inspectorTabCommand,
+    canSetLocation,
+    generalSetLocation,
     handleRequestDetails,
     closeDetail,
+    handleTorrentAction,
     handleFileSelectionChange,
+    addTrackers,
+    replaceTrackers,
+    removeTrackers,
     setInspectorTabCommand,
     capabilities,
 }: DashboardViewModelParams): DashboardViewModel {
@@ -104,9 +121,46 @@ export function useDashboardViewModel({
                         onInspectorTabCommandHandled: () =>
                             setInspectorTabCommand(null),
                     },
+                    general: {
+                        canSetLocation,
+                        handleTorrentAction,
+                        setLocation: generalSetLocation,
+                    },
                     content: {
                         handleFileSelectionChange,
                     },
+                    trackers: (() => {
+                        const inspectedId = detailData?.id ?? detailData?.hash;
+                        if (inspectedId == null) {
+                            return {
+                                scope: "inspected" as const,
+                                targetIds: [] as Array<string | number>,
+                                addTrackers,
+                                replaceTrackers,
+                                removeTrackers,
+                            };
+                        }
+                        const inspectedKey = String(inspectedId);
+                        if (
+                            selectedIds.length > 1 &&
+                            selectedIds.includes(inspectedKey)
+                        ) {
+                            return {
+                                scope: "selection" as const,
+                                targetIds: selectedIds,
+                                addTrackers,
+                                replaceTrackers,
+                                removeTrackers,
+                            };
+                        }
+                        return {
+                            scope: "inspected" as const,
+                            targetIds: [inspectedId],
+                            addTrackers,
+                            replaceTrackers,
+                            removeTrackers,
+                        };
+                    })(),
                     peers: {
                         peerSortStrategy,
                         handlePeerContextAction: undefined,
@@ -126,12 +180,19 @@ export function useDashboardViewModel({
             tableWatermarkEnabled,
             isDragActive,
             removedIds,
+            selectedIds,
             detailData,
             handleRequestDetails,
             closeDetail,
             inspectorTabCommand,
             setInspectorTabCommand,
+            canSetLocation,
+            generalSetLocation,
+            handleTorrentAction,
             handleFileSelectionChange,
+            addTrackers,
+            replaceTrackers,
+            removeTrackers,
             peerSortStrategy,
         ],
     );
@@ -374,13 +435,13 @@ export function useDeletionViewModel({
             overrideDeleteData?: boolean,
         ): Promise<DeleteConfirmationOutcome> => {
             const outcome = await confirmDeleteCommand(overrideDeleteData);
-            if (outcome.status === "success") {
+            if (isCommandSuccess(outcome)) {
                 return { status: "success" };
             }
-            if (outcome.status === "canceled") {
+            if (isCommandCanceled(outcome)) {
                 return { status: "canceled" };
             }
-            if (outcome.status === "unsupported") {
+            if (isCommandUnsupported(outcome)) {
                 return { status: "unsupported" };
             }
             return { status: "failed" };
@@ -452,3 +513,5 @@ export function useWorkspaceShellModel({
         ],
     );
 }
+
+

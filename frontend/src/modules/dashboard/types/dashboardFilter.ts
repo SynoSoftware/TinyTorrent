@@ -1,15 +1,21 @@
-import { STATUS } from "@/shared/status";
+import { status } from "@/shared/status";
 
-export const DASHBOARD_FILTERS = {
-    ALL: "all",
-    DOWNLOADING: STATUS.torrent.DOWNLOADING,
-    SEEDING: STATUS.torrent.SEEDING,
+export const all = "all" as const;
+export const downloading = status.torrent.downloading;
+export const seeding = status.torrent.seeding;
+
+export const dashboardFilters = {
+    all,
+    downloading,
+    seeding,
 } as const;
 
 export type DashboardFilter =
-    (typeof DASHBOARD_FILTERS)[keyof typeof DASHBOARD_FILTERS];
+    | typeof all
+    | typeof downloading
+    | typeof seeding;
 
 export const isDashboardFilter = (value: string): value is DashboardFilter =>
-    value === DASHBOARD_FILTERS.ALL ||
-    value === DASHBOARD_FILTERS.DOWNLOADING ||
-    value === DASHBOARD_FILTERS.SEEDING;
+    value === all ||
+    value === downloading ||
+    value === seeding;

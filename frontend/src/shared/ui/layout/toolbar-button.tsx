@@ -1,17 +1,11 @@
 import { Button, cn } from "@heroui/react";
 import {
-    cloneElement,
-    forwardRef,
-    isValidElement,
-    type CSSProperties,
-    type ComponentPropsWithoutRef,
-    type ReactElement,
-    type ReactNode,
-} from "react";
+    cloneElement, forwardRef, isValidElement, type CSSProperties, type ComponentPropsWithoutRef, type ReactElement, type ReactNode, } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { ICON_STROKE_WIDTH, TRANSITION } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
+const { visuals } = registry;
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
@@ -59,7 +53,7 @@ export const ToolbarIconButton = forwardRef<
     ref
 ) {
     const mergedVariant = variant ?? "ghost";
-    const strokeWidth = iconStrokeWidth ?? ICON_STROKE_WIDTH;
+    const strokeWidth = iconStrokeWidth ?? visuals.icon.strokeWidth;
     const iconClass = ICON_SIZE_CLASSES[iconSize];
 
     type IconElementProps = {
@@ -115,7 +109,7 @@ export const ToolbarIconButton = forwardRef<
             variant={mergedVariant}
             radius="full"
             className={cn(
-                `p-tight inline-flex items-center justify-center ${TRANSITION.fast} toolbar-icon-hit`,
+                `p-tight inline-flex items-center justify-center ${visuals.transitions.fast} toolbar-icon-hit`,
                 className
             )}
             aria-label={ariaLabel}
@@ -126,3 +120,4 @@ export const ToolbarIconButton = forwardRef<
         </Button>
     );
 });
+

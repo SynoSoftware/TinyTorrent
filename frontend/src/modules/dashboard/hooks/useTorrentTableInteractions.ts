@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
 import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
 type RowVirtualizerLike = {
@@ -137,3 +137,4 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
 };
 
 export default useTorrentTableInteractions;
+

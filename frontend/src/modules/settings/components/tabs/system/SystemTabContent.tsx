@@ -6,13 +6,12 @@ import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import {
-    shellAgent,
-    type SystemIntegrationReadOutcome,
-} from "@/app/agents/shell-agent";
+    shellAgent, type SystemIntegrationReadOutcome, } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import { VISUAL_STATE } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { FORM } from "@/shared/ui/layout/glass-surface";
+const { layout, shell, visuals, ui } = registry;
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
@@ -74,12 +73,12 @@ function SystemRow({
     disabled,
 }: SystemRowProps) {
     return (
-        <div className={cn(FORM.systemRow, disabled && VISUAL_STATE.disabled)}>
+        <div className={cn(FORM.systemRow, disabled && visuals.state.disabled)}>
             <div className={FORM.systemRowHeader}>
                 <span
                     className={cn(
                         FORM.systemRowLabel,
-                        disabled && VISUAL_STATE.muted,
+                        disabled && visuals.state.muted,
                     )}
                 >
                     {label}
@@ -93,7 +92,7 @@ function SystemRow({
                 <p
                     className={cn(
                         FORM.systemRowHelper,
-                        disabled && VISUAL_STATE.muted,
+                        disabled && visuals.state.muted,
                     )}
                 >
                     {helper}
@@ -374,3 +373,4 @@ export function SystemTabContent() {
         </div>
     );
 }
+

@@ -2,16 +2,14 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
 import {
-    DEFAULT_COLUMN_ORDER,
-    TORRENTTABLE_COLUMN_DEFS,
-    type ColumnId,
-} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
-import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+    DEFAULT_COLUMN_ORDER, TORRENTTABLE_COLUMN_DEFS, type ColumnId, } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
+import { registry } from "@/config/logic";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { RefObject } from "react";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+const { layout, visuals, ui } = registry;
 
 export function useTorrentTableColumns({
     t,
@@ -46,7 +44,7 @@ export function useTorrentTableColumns({
                             style={TABLE.columnHeaderLabelTrackingStyle}
                         >
                             <HeaderIcon
-                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                strokeWidth={visuals.icon.strokeWidthDense}
                                 className={TABLE.columnHeaderPulseIcon}
                             />
                             <span>{label}</span>
@@ -88,3 +86,6 @@ export function useTorrentTableColumns({
 
     return { columns, tableMeta };
 }
+
+
+

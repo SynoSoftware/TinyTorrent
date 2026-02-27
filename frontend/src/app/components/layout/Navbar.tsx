@@ -1,23 +1,7 @@
 import { Input, Tab, Tabs, cn } from "@heroui/react";
 import type { Key } from "react";
 import {
-    DownloadCloud,
-    ListChecks,
-    Pause,
-    Play,
-    RotateCcw,
-    Search,
-    Settings,
-    Trash2,
-    UploadCloud,
-    Minimize,
-    Maximize,
-    Moon,
-    Sun,
-    X,
-    FileUp,
-    Magnet,
-} from "lucide-react";
+    DownloadCloud, ListChecks, Pause, Play, RotateCcw, Search, Settings, Trash2, UploadCloud, Minimize, Maximize, Moon, Sun, X, FileUp, Magnet, } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -28,10 +12,11 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
-import { getShellTokens, STATUS_VISUAL_KEYS, STATUS_VISUALS } from "@/config/logic";
+import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
+const { layout, shell, visuals, ui } = registry;
 
 interface NavbarProps {
     viewModel: NavbarViewModel;
@@ -55,7 +40,7 @@ export function Navbar({ viewModel }: NavbarProps) {
     } = viewModel;
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
-    const shell = getShellTokens(workspaceStyle);
+    const shellTokens = shell.getTokens(workspaceStyle);
     const {
         preferences: { theme },
         toggleTheme,
@@ -63,11 +48,11 @@ export function Navbar({ viewModel }: NavbarProps) {
     const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
     const toneButtonClass = {
-        primary: STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.PRIMARY]?.button ?? WORKBENCH.nav.toneButtonFallback.primary,
-        success: STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.SUCCESS]?.button ?? WORKBENCH.nav.toneButtonFallback.success,
-        warning: STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.WARNING]?.button ?? WORKBENCH.nav.toneButtonFallback.warning,
-        danger: STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.DANGER]?.button ?? WORKBENCH.nav.toneButtonFallback.danger,
-        neutral: STATUS_VISUALS[STATUS_VISUAL_KEYS.tone.NEUTRAL]?.button ?? WORKBENCH.nav.toneButtonFallback.neutral,
+        primary: visuals.status.recipes[visuals.status.keys.tone.primary]?.button ?? WORKBENCH.nav.toneButtonFallback.primary,
+        success: visuals.status.recipes[visuals.status.keys.tone.success]?.button ?? WORKBENCH.nav.toneButtonFallback.success,
+        warning: visuals.status.recipes[visuals.status.keys.tone.warning]?.button ?? WORKBENCH.nav.toneButtonFallback.warning,
+        danger: visuals.status.recipes[visuals.status.keys.tone.danger]?.button ?? WORKBENCH.nav.toneButtonFallback.danger,
+        neutral: visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ?? WORKBENCH.nav.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -80,7 +65,7 @@ export function Navbar({ viewModel }: NavbarProps) {
             <div
                 className={WORKBENCH.nav.titlebar}
                 style={{
-                    ...shell.surfaceStyle,
+                    ...shellTokens.surfaceStyle,
                     ...WORKBENCH.nav.titlebarBaseStyle,
                 }}
             >
@@ -92,7 +77,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         WORKBENCH.nav.main,
                     )}
                     style={{
-                        ...shell.outerStyle,
+                        ...shellTokens.outerStyle,
                     }}
                 >
                     <div className={WORKBENCH.nav.left}>
@@ -296,7 +281,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                 <div
                     className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.windowControls)}
                     style={{
-                        ...shell.outerStyle,
+                        ...shellTokens.outerStyle,
                         ...WORKBENCH.nav.windowControlsStyle,
                     }}
                 >
@@ -335,3 +320,4 @@ export function Navbar({ viewModel }: NavbarProps) {
         </header>
     );
 }
+

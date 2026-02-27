@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { UI_BASES, SCALE_BASES } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { layout, ui } = registry;
 
 // Public, minimal metric surface. This hook is a reader only - it does NOT
 // define design tokens, colors, or magic numbers. Those live in
@@ -37,11 +38,11 @@ function readNumberVar(
 }
 
 export default function useLayoutMetrics(): LayoutMetrics {
-    const baseRow = UI_BASES.fileExplorer.rowHeight;
-    const baseMenuWidth = UI_BASES.fileExplorer.contextMenuWidth;
-    const baseMenuMargin = UI_BASES.fileExplorer.contextMenuMargin;
-    const baseUnit = SCALE_BASES.unit;
-    const baseFont = SCALE_BASES.fontBase;
+    const baseRow = ui.bases.fileExplorer.rowHeight;
+    const baseMenuWidth = ui.bases.fileExplorer.contextMenuWidth;
+    const baseMenuMargin = ui.bases.fileExplorer.contextMenuMargin;
+    const baseUnit = ui.scaleBases.unit;
+    const baseFont = ui.scaleBases.fontBase;
 
     const numericBaseRow =
         typeof baseRow === "number" ? baseRow : Math.round(baseUnit * 12);
@@ -62,7 +63,7 @@ export default function useLayoutMetrics(): LayoutMetrics {
             unit: baseUnit,
             fontBase: baseFont,
             iconSize: Math.round(baseFont * 1.25),
-            zoomLevel: SCALE_BASES.zoom,
+            zoomLevel: ui.scaleBases.zoom,
         }),
         [
             numericBaseRow,
@@ -143,7 +144,7 @@ export default function useLayoutMetrics(): LayoutMetrics {
                     iconSize: readNumberVar(styles, "--tt-icon-size", 12),
                     zoomLevel: parseZoom(
                         styles.getPropertyValue("--tt-zoom-level"),
-                        SCALE_BASES.zoom
+                        ui.scaleBases.zoom
                     ),
                 };
                 setMetrics(next);
@@ -185,3 +186,4 @@ export default function useLayoutMetrics(): LayoutMetrics {
 
     return metrics;
 }
+

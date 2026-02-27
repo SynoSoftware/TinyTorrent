@@ -1,7 +1,7 @@
 import React from "react";
 import { SortableContext } from "@dnd-kit/sortable";
 import type { HeaderGroup, Table } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { cn } from "@heroui/react";
 import {
@@ -131,3 +131,4 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
 };
 
 export default TorrentTable_Headers;
+

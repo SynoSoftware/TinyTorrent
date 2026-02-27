@@ -1,9 +1,14 @@
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import {
+    commandOutcome,
+    type TorrentCommandOutcome,
+} from "@/app/context/AppCommandContext";
+import {
+    type TorrentDispatchOutcome,
+} from "@/app/actions/torrentDispatch";
 
 type DispatchFn = (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
 
@@ -14,30 +19,16 @@ interface DispatchTorrentActionParams {
     options?: { deleteData?: boolean };
 }
 
-const COMMAND_OUTCOME_SUCCESS: TorrentCommandOutcome = { status: "success" };
-const COMMAND_OUTCOME_FAILED: TorrentCommandOutcome = {
-    status: "failed",
-    reason: "execution_failed",
-};
-const COMMAND_OUTCOME_UNSUPPORTED: TorrentCommandOutcome = {
-    status: "unsupported",
-    reason: "action_not_supported",
-};
-const COMMAND_OUTCOME_NO_SELECTION: TorrentCommandOutcome = {
-    status: "canceled",
-    reason: "no_selection",
-};
-
 const mapDispatchOutcome = (outcome: TorrentDispatchOutcome): TorrentCommandOutcome => {
     switch (outcome.status) {
         case "applied":
-            return COMMAND_OUTCOME_SUCCESS;
+            return commandOutcome.success();
         case "unsupported":
-            return COMMAND_OUTCOME_UNSUPPORTED;
+            return commandOutcome.unsupported();
         case "failed":
-            return COMMAND_OUTCOME_FAILED;
+            return commandOutcome.failed("execution_failed");
         default:
-            return COMMAND_OUTCOME_FAILED;
+            return commandOutcome.failed("execution_failed");
     }
 };
 
@@ -49,7 +40,7 @@ export async function dispatchTorrentAction({
 }: DispatchTorrentActionParams): Promise<TorrentCommandOutcome> {
     const targetId = torrent.id ?? torrent.hash;
     if (!targetId) {
-        return COMMAND_OUTCOME_UNSUPPORTED;
+        return commandOutcome.unsupported();
     }
 
     switch (action) {
@@ -78,7 +69,7 @@ export async function dispatchTorrentAction({
         case "queue-move-down":
             return mapDispatchOutcome(await dispatch(TorrentIntents.queueMove(targetId, "down", 1)));
         default:
-            return COMMAND_OUTCOME_UNSUPPORTED;
+            return commandOutcome.unsupported();
     }
 }
 
@@ -94,7 +85,7 @@ export async function dispatchTorrentSelectionAction({
     dispatch,
 }: DispatchTorrentSelectionActionParams): Promise<TorrentCommandOutcome> {
     if (!ids.length) {
-        return COMMAND_OUTCOME_NO_SELECTION;
+        return commandOutcome.noSelection();
     }
 
     switch (action) {
@@ -107,6 +98,7 @@ export async function dispatchTorrentSelectionAction({
         case "recheck":
             return mapDispatchOutcome(await dispatch(TorrentIntents.ensureSelectionValid(ids)));
         default:
-            return COMMAND_OUTCOME_UNSUPPORTED;
+            return commandOutcome.unsupported();
     }
 }
+

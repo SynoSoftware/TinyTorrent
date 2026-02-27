@@ -1,13 +1,11 @@
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
-import {
-    SET_LOCATION_ROOT_PROBE_CACHE_TTL_MS,
-    SET_LOCATION_ROOT_PROBE_ERROR_CACHE_TTL_MS,
-} from "@/config/logic";
+import { registry } from "@/config/logic";
 import {
     readDestinationFreeSpace,
     toRpcWindowsProbeRootPath,
     type DestinationRootProbeResult,
 } from "@/shared/domain/destinationPath";
+const { timing } = registry;
 
 export interface DestinationRootProbeCachePolicy {
     successTtlMs: number;
@@ -30,8 +28,8 @@ type DestinationRootProbeCacheEntry = {
 };
 
 const DEFAULT_POLICY: DestinationRootProbeCachePolicy = {
-    successTtlMs: SET_LOCATION_ROOT_PROBE_CACHE_TTL_MS,
-    errorTtlMs: SET_LOCATION_ROOT_PROBE_ERROR_CACHE_TTL_MS,
+    successTtlMs: timing.cache.setLocationRootProbeTtlMs,
+    errorTtlMs: timing.cache.setLocationRootProbeErrorTtlMs,
 };
 
 export const createDestinationRootProbeCache = (
@@ -99,3 +97,4 @@ export const createDestinationRootProbeCache = (
         },
     };
 };
+

@@ -2,11 +2,7 @@ import { Button, Modal, ModalContent, cn } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import {
-    ICON_STROKE_WIDTH,
-    INTERACTION_CONFIG,
-    DETAILS_TOOLTIP_OPACITY_ANIMATION,
-} from "@/config/logic";
+import { registry } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import { MODAL } from "@/shared/ui/layout/glass-surface";
 import { Section } from "@/shared/ui/layout/Section";
@@ -19,9 +15,10 @@ import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
 import { TEXT_ROLE } from "@/config/textRoles";
-import type { SettingsModalController } from "@/modules/settings/hooks";
-import { useSettingsModalController } from "@/modules/settings/hooks";
+import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
+import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
+const { layout, interaction, visuals, visualizations, ui } = registry;
 
 interface SettingsModalViewProps {
     controller: SettingsModalController;
@@ -59,7 +56,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                     onPress={controller.commands.onRequestClose}
                 >
                     <X
-                        strokeWidth={ICON_STROKE_WIDTH}
+                        strokeWidth={visuals.icon.strokeWidth}
                         className={MODAL.iconMd}
                     />
                 </Button>
@@ -81,7 +78,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                         }}
                     >
                         <tab.icon
-                            strokeWidth={ICON_STROKE_WIDTH}
+                            strokeWidth={visuals.icon.strokeWidth}
                             className={cn(
                                 MODAL.tabIcon,
                                 activeTabDefinition.id === tab.id
@@ -162,14 +159,14 @@ interface SettingsContentProps {
 
 const SETTINGS_TAB_CONTENT_ANIMATION = {
     initial: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.initial.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
         y: 10,
     },
     animate: {
-        opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.animate.opacity,
+        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
         y: 0,
     },
-    exit: { opacity: DETAILS_TOOLTIP_OPACITY_ANIMATION.exit.opacity, y: -10 },
+    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity, y: -10 },
     transition: { duration: 0.2 },
 } as const;
 
@@ -296,7 +293,7 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
                 onPress={controller.commands.onReset}
                 startContent={
                     <RotateCcw
-                        strokeWidth={ICON_STROKE_WIDTH}
+                        strokeWidth={visuals.icon.strokeWidth}
                         className={MODAL.iconSm}
                     />
                 }
@@ -321,7 +318,7 @@ function SettingsFooter({ controller }: SettingsFooterProps) {
                     startContent={
                         !isSaving && (
                             <Save
-                                strokeWidth={ICON_STROKE_WIDTH}
+                                strokeWidth={visuals.icon.strokeWidth}
                                 className={MODAL.iconSm}
                             />
                         )
@@ -349,7 +346,7 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             isDismissable
             isKeyboardDismissDisabled={false}
             classNames={MODAL.builder.settingsModalClassNames(uiMode === "Full")}
-            motionProps={INTERACTION_CONFIG.modalBloom}
+            motionProps={interaction.config.modalBloom}
         >
             <ModalContent className={MODAL.contentWrapper}>
                 <div className={MODAL.layout}>
@@ -369,3 +366,5 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     const controller = useSettingsModalController(viewModel);
     return <SettingsModalView controller={controller} />;
 }
+
+

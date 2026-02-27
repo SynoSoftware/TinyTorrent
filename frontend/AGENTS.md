@@ -1336,6 +1336,69 @@ All control flow (intents, actions, commands, events, orchestration switches):
 - must not contain transitional, fallback, or dual-path logic
 - must not be constructed directly by UI components
 
+Typed vocabulary contract for closed, cross-cutting domains (status/reason/outcome/intent IDs):
+
+- Define one canonical vocabulary authority per domain:
+  literal-union types, or a small token/factory surface, or config-derived unions (`constants.json`).
+- Closed vocabularies must be finite and locally enumerable; adding a member must trigger compile-time exhaustiveness failures in affected switches/branches.
+- Closed vocabularies must be fully enumerable from one authority surface (for example `Object.values(Vocabulary)`), with no parallel literal unions or implicit string-concatenated expansion.
+- Open/dynamic domains (plugin registries, protocol-driven dynamic keys, remote flag namespaces) are not closed vocabularies and must be explicitly documented as open.
+- Consumers must import vocabulary/constructors; do not re-spell raw literals at call sites.
+- Prefer literal unions + discriminated unions + small factories for ergonomics.
+- Do not introduce runtime enums or ALL_CAPS pseudo-enum objects for TypeScript control-plane vocabularies.
+- Naming convention: enum-like control-plane vocabulary authorities and members use PascalCase. camelCase is reserved for non-vocabulary runtime values/functions. ALL_CAPS enum-style naming is forbidden unless required by an external protocol, third-party API, or platform contract.
+- Namespace objects that group vocabulary authorities (for example `Shortcuts`, `TorrentActions`) also use PascalCase.
+- Avoid `typeof SOME_CONST.X` type plumbing in consumer code when a domain alias/union can express intent directly.
+- Exhaustive branching over closed vocabularies must use a `never` guard in the unreachable/default path.
+
+Preferred readability pattern (default for new/edited control-plane vocab):
+
+- Hoist vocabulary members as local `const` values, then compose the authority object/map from those members.
+- Keep `typeof` union derivation localized to the authority module only.
+- Prefer membership checks that derive from the authority surface (for example `Object.values(vocabulary).includes(value as Member)` or an equivalent helper) so adding a member does not require editing multiple branch checks.
+- Keep call sites short: consume imported tokens/factories, not repeated string literals.
+
+Vocabulary projection rule (global):
+
+- Define each closed vocabulary once as the canonical authority (`const Vocabulary = { ... } as const`).
+- Do not manually re-enumerate vocabulary members in downstream projections (keymaps, labels, handlers, metadata).
+- Cross-vocabulary relationships (for example `action -> shortcut intent`) must be declared at the source authority that owns the source member; resolver/consumer modules may resolve them but must not restate mapping tables.
+- If projection shape is already compatible, cast once at the boundary (`as Record<VocabUnion, T>`) instead of per-member mapping.
+- If per-key fallback/normalization is needed, derive programmatically from `Object.values(Vocabulary)`; never duplicate members manually.
+- Adding a new vocabulary member must require editing the authority definition only, not multiple projection blocks.
+- Consumers must depend on exported projected surfaces and must not reconstruct vocabulary projections locally.
+
+Local repetition rule (global):
+
+- In new/edited code, repeated literals, member paths, or mapping fragments across nearby lines are forbidden when they create a second maintenance point.
+- Hoist repeated values once (destructure/`const`) or derive programmatically from the authority surface.
+- Allowed exception: tiny repetition only when it is strictly clearer and does not introduce drift risk.
+
+Runtime policy resolution contract (config boundary modules such as `config/logic.ts`):
+
+- Resolve knobs once at the boundary module. Leaf code must not parse config, call readers, or apply local defaults.
+- Runtime policy modules must not define or resolve control-plane identifiers (status/reason/outcome/intent IDs).
+- A module should stay in one architectural layer: do not mix control-plane authority, runtime policy resolution, and presentation recipes unless explicitly declared as a multi-domain authority.
+- Runtime policy modules normalize configuration values; feature-specific shaping/derivation belongs in the owning feature/domain module.
+- Export grouped domain surfaces, not flat export sprawl. One top-level object per domain is the default.
+- Structured resolution must fallback per-key; never replace an entire resolved domain object because one key is invalid.
+- Boundary outputs must be complete, validated, and normalized. Do not export raw/partial shapes and do not require downstream fixups.
+- Keep external naming at the boundary. Read snake_case externally; expose camelCase app-facing keys.
+- Resolved surfaces are immutable (`as const` / `Readonly`) and must not be mutated at runtime.
+- Use shared resolution helpers (`readNumber`, `readString`, `readBool`, `clamp`, `readEnum`, `readStringArray`, `mergeKnownKeys`) instead of ad-hoc readers.
+- Cross-domain dependencies must be explicit and one-way (no cyclic reads).
+- Each domain exposes one canonical access surface. Parallel grouped + flat exports are forbidden except temporary `/** @deprecated */` migration aliases.
+- Time values in app-facing exports use explicit suffixes (`Ms`, `Sec`, etc.) consistently.
+- Domain blocks should start with a short header comment: owned scope, source path, and enforced invariants.
+- Module names must match their primary authority; side effects unrelated to that authority are forbidden.
+
+Boundary adapter rule (global):
+
+- Any external→internal transformation (JSON config, RPC payloads, env flags, host capabilities) must normalize once and validate once at its boundary owner.
+- Boundary adapters must export complete internal types and must not leak external naming conventions.
+- Casting external data directly (`as InternalType`) is forbidden unless preceded by validation or guarded normalization.
+- Consumers must not re-interpret boundary data or apply secondary patchups.
+
 If typing is unclear, **the architecture is incomplete and must be fixed**.
 Refactors must preserve a buildable state unless performing an explicitly declared staged migration. Breaking type safety is not.
 

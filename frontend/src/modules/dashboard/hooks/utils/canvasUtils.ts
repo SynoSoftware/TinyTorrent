@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { HISTORY_DATA_POINTS } from "@/config/logic";
+import { registry } from "@/config/logic";
+const { performance, layout } = registry;
 // Layout metrics (unit/zoom/etc.) are provided by `useLayoutMetrics` when
 // needed; color tokens are a theme concern and are read directly from the
 // rendered CSS (HeroUI tokens). Avoid embedding literal colors here.
@@ -319,7 +320,7 @@ export const getAvailabilityColor = (value: number, maxPeers: number) => {
     return `hsl(${hue}, 75%, ${lightness}%)`;
 };
 
-export const HISTORY_POINTS = HISTORY_DATA_POINTS;
+export const HISTORY_POINTS = performance.historyDataPoints;
 
 export const computeCanvasBackingScale = (zoomLevel = 1) => {
     const dpr =
@@ -346,3 +347,4 @@ export const setupCanvasBackingStore = (
     }
     return ctx;
 };
+

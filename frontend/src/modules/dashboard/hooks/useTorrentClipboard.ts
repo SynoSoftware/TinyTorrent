@@ -1,12 +1,13 @@
 import { useCallback } from "react";
-import { MAGNET_PROTOCOL_PREFIX } from "@/config/logic";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { registry } from "@/config/logic";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import {
     writeClipboardOutcome,
     type ClipboardWriteOutcome,
 } from "@/shared/utils/clipboard";
+const { defaults } = registry;
 
-const DEFAULT_MAGNET_PREFIX = MAGNET_PROTOCOL_PREFIX;
+const DEFAULT_MAGNET_PREFIX = defaults.magnetProtocolPrefix;
 
 export function useTorrentClipboard() {
     const buildMagnetLink = useCallback(
@@ -23,3 +24,5 @@ export function useTorrentClipboard() {
 
     return { copyToClipboard, buildMagnetLink };
 }
+
+

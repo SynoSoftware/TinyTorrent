@@ -1,11 +1,11 @@
 import type { TFunction } from "i18next";
-import STATUS from "@/shared/status";
+import { status } from "@/shared/status";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import {
@@ -20,11 +20,11 @@ type SetDownloadLocationCommand = (params: {
 }) => Promise<TorrentCommandOutcome>;
 
 const wasTorrentRunning = (torrent: Torrent): boolean =>
-    torrent.state === STATUS.torrent.DOWNLOADING ||
-    torrent.state === STATUS.torrent.SEEDING ||
-    torrent.state === STATUS.torrent.CHECKING ||
-    torrent.state === STATUS.torrent.QUEUED ||
-    torrent.state === STATUS.torrent.STALLED;
+    torrent.state === status.torrent.downloading ||
+    torrent.state === status.torrent.seeding ||
+    torrent.state === status.torrent.checking ||
+    torrent.state === status.torrent.queued ||
+    torrent.state === status.torrent.stalled;
 
 export const resolveSetDownloadLocationPath = (
     torrent: Torrent | null | undefined,
@@ -117,3 +117,4 @@ export async function applySetDownloadLocation({
         );
     });
 }
+

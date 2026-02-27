@@ -10,31 +10,52 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks";
+import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
+import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+
+type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 
 interface TrackersTabProps {
-    torrentId: string | number;
-    torrentIds?: Array<string | number>;
+    targetIds: Array<string | number>;
+    scope: "inspected" | "selection";
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     serverTime?: number;
     isStandalone?: boolean;
+    addTrackers: (
+        targetIds: Array<string | number>,
+        trackers: string[],
+    ) => Promise<TrackerMutationOutcome>;
+    replaceTrackers: (
+        targetIds: Array<string | number>,
+        trackers: string[],
+    ) => Promise<TrackerMutationOutcome>;
+    removeTrackers: (
+        targetIds: Array<string | number>,
+        trackerIds: number[],
+    ) => Promise<TrackerMutationOutcome>;
 }
 
 export const TrackersTab: React.FC<TrackersTabProps> = ({
-    torrentId,
-    torrentIds,
+    targetIds,
+    scope,
     trackers,
     emptyMessage,
     serverTime,
+    addTrackers,
+    replaceTrackers,
+    removeTrackers,
     isStandalone = false,
 }) => {
     const viewModel = useTorrentDetailsTrackersViewModel({
-        torrentId,
-        torrentIds,
+        targetIds,
+        scope,
         trackers,
         emptyMessage,
         serverTime,
+        addTrackers,
+        replaceTrackers,
+        removeTrackers,
     });
 
     if (viewModel.state.isEmpty) {
