@@ -1,5 +1,10 @@
 import { isPathMatch } from "@/shared/utils/pathUtils";
 
+export type LocationMode = "move" | "locate";
+
+export const toMoveDataFlag = (locationMode: LocationMode): boolean =>
+    locationMode === "move";
+
 export type TorrentRelocationContext = {
     error?: number;
     errorString?: string;
@@ -16,6 +21,11 @@ export type TorrentRelocationContext = {
 type SetDownloadLocationUiTextKeys = {
     actionLabelKey: "table.actions.set_download_path" | "table.actions.locate_files";
     modalTitleKey: "modals.set_download_location.title" | "modals.locate_files.title";
+};
+
+export type SetDownloadLocationPolicy = SetDownloadLocationUiTextKeys & {
+    locationMode: LocationMode;
+    allowCreatePath: boolean;
 };
 
 export type RelocationMoveVerificationResult =
@@ -72,9 +82,9 @@ export const isMissingDataLocalError = (
     return hasPriorLifeEvidence;
 };
 
-export const shouldMoveDataOnSetLocation = (
+export const resolveSetDownloadLocationMode = (
     context: TorrentRelocationContext,
-): boolean => !isMissingDataLocalError(context);
+): LocationMode => (isMissingDataLocalError(context) ? "locate" : "move");
 
 export const evaluateRelocationMoveVerification = ({
     requestedPath,
@@ -121,3 +131,15 @@ export const getSetDownloadLocationUiTextKeys = (
     isMissingDataLocalError(context)
         ? SET_DOWNLOAD_LOCATION_UI_TEXT_KEYS.locate
         : SET_DOWNLOAD_LOCATION_UI_TEXT_KEYS.default;
+
+export const resolveSetDownloadLocationPolicy = (
+    context: TorrentRelocationContext,
+): SetDownloadLocationPolicy => {
+    const locationMode = resolveSetDownloadLocationMode(context);
+    const uiTextKeys = getSetDownloadLocationUiTextKeys(context);
+    return {
+        ...uiTextKeys,
+        locationMode,
+        allowCreatePath: locationMode === "move",
+    };
+};

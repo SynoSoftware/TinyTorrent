@@ -54,6 +54,7 @@ import type {
     TorrentIntentExtended,
 } from "@/app/intents/torrentIntents";
 import { useWorkspaceTorrentDomain } from "@/app/orchestrators/useWorkspaceTorrentDomain";
+import { bindEngineCheckFreeSpace } from "@/services/rpc/engine-adapter";
 
 export interface WorkspaceShellController {
     shell: {
@@ -70,7 +71,8 @@ export interface WorkspaceShellController {
             handleBulkAction: (
                 action: TorrentTableAction,
             ) => Promise<TorrentCommandOutcome>;
-            setDownloadLocation: (params: { torrent: Torrent; path: string; moveData: boolean }) => Promise<TorrentCommandOutcome>;
+            setDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
+            checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
             openAddMagnet: (
                 magnetLink?: string,
             ) => Promise<TorrentCommandOutcome>;
@@ -119,7 +121,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const canUseShell = uiCapabilities.uiMode === "Full";
 
     const addTorrentCheckFreeSpace = useMemo(() => {
-        const rpcCheckFreeSpace = torrentClient.checkFreeSpace?.bind(torrentClient);
+        const rpcCheckFreeSpace = bindEngineCheckFreeSpace(torrentClient);
         if (!rpcCheckFreeSpace) return undefined;
         if (!canUseShell) {
             return rpcCheckFreeSpace;
@@ -201,8 +203,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleMagnetSubmit,
         addSource,
         addTorrentDefaults,
-        isFinalizingExisting,
-        isAddingTorrent,
         closeAddTorrentWindow,
         handleTorrentWindowConfirm,
     } = addTorrent;
@@ -233,12 +233,19 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleTorrentAction,
             handleBulkAction,
             setDownloadLocation: handleSetDownloadLocation,
+            checkFreeSpace: addTorrentCheckFreeSpace,
             openAddMagnet: async (magnetLink?: string) => {
-                openAddMagnet(magnetLink);
+                const outcome = openAddMagnet(magnetLink);
+                if (outcome.status === "blocked_in_flight") {
+                    return { status: "success", reason: "queued" } as const;
+                }
                 return { status: "success" } as const;
             },
             openAddTorrentPicker: async () => {
-                openAddTorrentPicker();
+                const outcome = openAddTorrentPicker();
+                if (outcome.status === "blocked_in_flight") {
+                    return { status: "success", reason: "queued" } as const;
+                }
                 return { status: "success" } as const;
             },
         }),
@@ -246,6 +253,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleTorrentAction,
             handleBulkAction,
             handleSetDownloadLocation,
+            addTorrentCheckFreeSpace,
             openAddMagnet,
             openAddTorrentPicker,
         ],
@@ -523,13 +531,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const addTorrentModalProps = useAddTorrentModalProps({
         addSource,
         addTorrentDefaults,
-        settingsConfig: settingsFlow.settingsConfig,
-        isAddingTorrent,
-        isFinalizingExisting,
         onCancel: closeAddTorrentWindow,
         onConfirm: handleTorrentWindowConfirm,
-        torrentClient,
-        checkFreeSpace: addTorrentCheckFreeSpace,
     });
 
     return {

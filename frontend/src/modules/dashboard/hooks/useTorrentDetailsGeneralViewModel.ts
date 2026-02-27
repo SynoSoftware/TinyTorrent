@@ -1,22 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useCallback, useState } from "react";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useTorrentCommands, useRequiredTorrentActions } from "@/app/context/AppCommandContext";
+import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import STATUS from "@/shared/status";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useSession } from "@/app/context/SessionContext";
-import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
-import {
-    applySetDownloadLocation,
-    pickSetDownloadLocationDirectory,
-    resolveSetDownloadLocationPath,
-} from "@/modules/dashboard/utils/applySetDownloadLocation";
-import {
-    getSetDownloadLocationUiTextKeys,
-    shouldMoveDataOnSetLocation,
-} from "@/modules/dashboard/domain/torrentRelocation";
-import type { DaemonPathStyle } from "@/services/rpc/types";
+import { useSetDownloadLocationFlow } from "@/modules/dashboard/hooks/useSetDownloadLocationFlow";
 
 type UseTorrentDetailsGeneralViewModelParams = {
     torrent: TorrentDetail;
@@ -29,8 +17,6 @@ export type UseTorrentDetailsGeneralViewModelResult = {
     canSetLocation: boolean;
     canPickDirectory: boolean;
     currentPath: string;
-    daemonPathStyle: DaemonPathStyle;
-    checkFreeSpace?: (path: string) => Promise<unknown>;
     mainActionLabelKey: "toolbar.pause" | "toolbar.resume";
     setDownloadLocationActionLabelKey: "table.actions.set_download_path" | "table.actions.locate_files";
     setDownloadLocationModalTitleKey: "modals.set_download_location.title" | "modals.locate_files.title";
@@ -50,12 +36,8 @@ export type UseTorrentDetailsGeneralViewModelResult = {
 };
 
 export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetailsGeneralViewModelParams): UseTorrentDetailsGeneralViewModelResult {
-    const { t } = useTranslation();
-    const { handleTorrentAction, setDownloadLocation } = useTorrentCommands();
-    const { dispatch } = useRequiredTorrentActions();
-    const { canPickDirectory, pickDirectory } = useDirectoryPicker();
+    const { handleTorrentAction } = useTorrentCommands();
     const torrentClient = useTorrentClient();
-    const { daemonPathStyle } = useSession();
 
     const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
     const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -66,7 +48,10 @@ export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetails
             ? torrent.errorString
             : null;
 
-    const currentPath = resolveSetDownloadLocationPath(torrent);
+    const setLocationFlow = useSetDownloadLocationFlow({
+        torrent,
+    });
+    const currentPath = setLocationFlow.currentPath;
     const displayDownloadPath = currentPath;
     const verificationProgress = torrent.verificationProgress ?? 0;
     const verificationPercent =
@@ -74,13 +59,6 @@ export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetails
             ? verificationProgress
             : verificationProgress * 100;
     const canSetLocation = typeof torrentClient.setTorrentLocation === "function";
-    const checkFreeSpace = useMemo(
-        () => torrentClient.checkFreeSpace?.bind(torrentClient),
-        [torrentClient],
-    );
-    const setDownloadLocationUiTextKeys = getSetDownloadLocationUiTextKeys(torrent);
-    const allowCreateSetLocationPath = shouldMoveDataOnSetLocation(torrent);
-
     const isActive =
         torrent.state === STATUS.torrent.DOWNLOADING ||
         torrent.state === STATUS.torrent.SEEDING ||
@@ -96,18 +74,6 @@ export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetails
         void handleTorrentAction("resume-now", torrent);
     }, [handleTorrentAction, torrent]);
 
-    const pickDirectoryForSetDownloadPath = useCallback(
-        async (currentInput: string): Promise<string | null> => {
-            return pickSetDownloadLocationDirectory({
-                currentPath: currentInput,
-                torrent,
-                canPickDirectory,
-                pickDirectory,
-            });
-        },
-        [canPickDirectory, pickDirectory, torrent],
-    );
-
     const openSetDownloadPathModal = useCallback(() => {
         if (!canSetLocation) {
             return;
@@ -118,26 +84,6 @@ export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetails
     const closeSetDownloadPathModal = useCallback(() => {
         setShowSetDownloadPathModal(false);
     }, []);
-
-    const applySetDownloadPath = useCallback(
-        async ({ path }: { path: string }) => {
-            await applySetDownloadLocation({
-                torrent,
-                path,
-                client: torrentClient,
-                setDownloadLocation,
-                dispatchEnsureActive: dispatch,
-                t,
-            });
-        },
-        [
-            dispatch,
-            setDownloadLocation,
-            t,
-            torrent,
-            torrentClient,
-        ],
-    );
 
     const onConfirmRemove = useCallback(
         async (deleteData: boolean): Promise<TorrentCommandOutcome> => {
@@ -164,21 +110,20 @@ export function useTorrentDetailsGeneralViewModel({ torrent }: UseTorrentDetails
         displayDownloadPath,
         verificationPercent,
         canSetLocation,
-        canPickDirectory,
+        canPickDirectory: setLocationFlow.canPickDirectory,
         currentPath,
-        daemonPathStyle,
-        checkFreeSpace,
         mainActionLabelKey,
-        setDownloadLocationActionLabelKey: setDownloadLocationUiTextKeys.actionLabelKey,
-        setDownloadLocationModalTitleKey: setDownloadLocationUiTextKeys.modalTitleKey,
-        allowCreateSetLocationPath,
+        setDownloadLocationActionLabelKey: setLocationFlow.policy.actionLabelKey,
+        setDownloadLocationModalTitleKey: setLocationFlow.policy.modalTitleKey,
+        allowCreateSetLocationPath: setLocationFlow.policy.allowCreatePath,
         isActive,
         showSetDownloadPathModal,
         showRemoveModal,
         openSetDownloadPathModal,
         closeSetDownloadPathModal,
-        pickDirectoryForSetDownloadPath,
-        applySetDownloadPath,
+        pickDirectoryForSetDownloadPath:
+            setLocationFlow.pickDirectoryForSetDownloadPath,
+        applySetDownloadPath: setLocationFlow.applySetDownloadPath,
         openRemoveModal,
         closeRemoveModal,
         onConfirmRemove,

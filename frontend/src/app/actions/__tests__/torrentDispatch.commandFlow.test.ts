@@ -137,7 +137,7 @@ describe("torrentDispatch command flow", () => {
         ]);
     });
 
-    it("dispatches set-location with explicit move flag", async () => {
+    it("dispatches set-location with explicit locate mode", async () => {
         const commandLog: string[] = [];
         const dispatch = createTorrentDispatch({
             client: createMockClient(commandLog),
@@ -147,9 +147,7 @@ describe("torrentDispatch command flow", () => {
         });
 
         const outcome = await dispatch(
-            TorrentIntents.ensureAtLocation("t-loc-1", "D:\\Download", {
-                moveData: false,
-            }),
+            TorrentIntents.ensureAtLocation("t-loc-1", "D:\\Download", "locate"),
         );
 
         expect(outcome).toEqual({ status: "applied" });
@@ -190,7 +188,7 @@ describe("torrentDispatch command flow", () => {
         expect(commandLog).toEqual(["start-now:t-1,t-2"]);
     });
 
-    it("defaults set-location to moveData true", async () => {
+    it("dispatches set-location with explicit move mode", async () => {
         const commandLog: string[] = [];
         const dispatch = createTorrentDispatch({
             client: createMockClient(commandLog),
@@ -200,7 +198,7 @@ describe("torrentDispatch command flow", () => {
         });
 
         const outcome = await dispatch(
-            TorrentIntents.ensureAtLocation("t-loc-2", "E:\\Download"),
+            TorrentIntents.ensureAtLocation("t-loc-2", "E:\\Download", "move"),
         );
 
         expect(outcome).toEqual({ status: "applied" });
@@ -225,7 +223,7 @@ describe("torrentDispatch command flow", () => {
         });
 
         const outcome = await dispatch(
-            TorrentIntents.ensureAtLocation("t-loc-3", "F:\\Download"),
+            TorrentIntents.ensureAtLocation("t-loc-3", "F:\\Download", "move"),
         );
 
         expect(outcome).toEqual({

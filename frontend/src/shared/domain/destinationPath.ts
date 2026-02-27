@@ -1,4 +1,7 @@
-import type { DaemonPathStyle } from "@/services/rpc/types";
+import type {
+    DaemonPathStyle,
+    TransmissionFreeSpace,
+} from "@/services/rpc/types";
 import {
     extractWindowsRoot,
     isAbsolutePath,
@@ -204,11 +207,11 @@ export const resolvePosixProbeCandidates = (path: string): string[] => {
 };
 
 export const readDestinationFreeSpace = (
-    value: unknown,
+    value: TransmissionFreeSpace | null | undefined,
 ): DestinationFreeSpace | undefined => {
-    const path = (value as { path?: unknown })?.path;
-    const sizeBytes = (value as { sizeBytes?: unknown })?.sizeBytes;
-    const totalSize = (value as { totalSize?: unknown })?.totalSize;
+    const path = value?.path;
+    const sizeBytes = value?.sizeBytes;
+    const totalSize = value?.totalSize;
 
     if (
         typeof path === "string" &&

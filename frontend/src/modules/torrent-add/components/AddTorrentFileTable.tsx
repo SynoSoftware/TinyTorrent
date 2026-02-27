@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import {
     FileExplorerTree,
     type FileExplorerTreeViewModel,
@@ -10,13 +10,15 @@ import type {
     TorrentFileEntity,
     LibtorrentPriority,
 } from "@/services/rpc/entities";
-import type { FilePriority } from "@/modules/torrent-add/services/fileSelection";
-import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
+import type {
+    FilePriority,
+} from "@/modules/torrent-add/services/fileSelection";
 import { MODAL } from "@/shared/ui/layout/glass-surface";
+import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 
 const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
     low: 1,
-    normal: 4, // Assuming 4 is normal default in libtorrent/app
+    normal: 4,
     high: 7,
 };
 
@@ -30,44 +32,51 @@ export const AddTorrentFileTable = () => {
         rowSelection,
     } = fileTable;
 
-    // 1. Adapt flat files to TorrentFileEntity for the Tree
-    // We memoize this to prevent tree rebuilding on every render unless data changes
-    const treeFiles: TorrentFileEntity[] = useMemo(() => {
-        return files.map((f) => {
-            // Determine "wanted" state from rowSelection
-            // In TanStack table, selection usually means "checked"
-            const isSelected = !!rowSelection[f.index];
-
-            // Determine priority
-            const filePriority = priorities.get(f.index) ?? "normal";
-            const libPriority = PRIORITY_MAP[filePriority] ?? 0; // Default to 0? Or 1?
-
-            return {
-                index: f.index,
-                name: f.path, // Tree expects full path in 'name' (e.g. "dir/file.mkv") to build structure
-                length: f.length,
+    const treeFiles: TorrentFileEntity[] = useMemo(
+        () =>
+            files.map((file) => ({
+                index: file.index,
+                name: file.path,
+                length: file.length,
                 completed: 0,
                 progress: 0,
-                priority: libPriority,
-                wanted: isSelected,
-            };
-        });
-    }, [files, rowSelection, priorities]);
+                priority: PRIORITY_MAP.normal,
+                wanted: true,
+            })),
+        [files],
+    );
 
-    // 2. Adapt Toggle Action
-    // Tree calls: (indexes, wanted)
-    // Table expects: setRowSelection(old => new)
+    const wantedByIndex = useMemo(() => {
+        const next = new Map<number, boolean>();
+        for (const [indexKey, wanted] of Object.entries(rowSelection)) {
+            if (!wanted) continue;
+            const index = Number(indexKey);
+            if (Number.isFinite(index)) {
+                next.set(index, true);
+            }
+        }
+        return next;
+    }, [rowSelection]);
+
+    const priorityByIndex = useMemo(() => {
+        const next = new Map<number, LibtorrentPriority>();
+        for (const [index, priority] of priorities.entries()) {
+            next.set(index, PRIORITY_MAP[priority]);
+        }
+        return next;
+    }, [priorities]);
+
     const handleFilesToggle = useCallback(
         (indexes: number[], wanted: boolean): FileExplorerToggleOutcome => {
             onRowSelectionChange((prev) => {
                 const next = { ...prev };
-                indexes.forEach((idx) => {
+                for (const idx of indexes) {
                     if (wanted) {
                         next[idx] = true;
                     } else {
                         delete next[idx];
                     }
-                });
+                }
                 return next;
             });
             return { status: "success" };
@@ -75,36 +84,40 @@ export const AddTorrentFileTable = () => {
         [onRowSelectionChange],
     );
 
-    // 3. Adapt Context Menu / Priority Actions
     const handleFileContextAction = useCallback(
         (action: FileExplorerContextAction, entry: FileExplorerEntry) => {
-            switch (action) {
-                case "priority_high":
-                    onSetPriority(entry.index, "high");
-                    break;
-                case "priority_normal":
-                    onSetPriority(entry.index, "normal");
-                    break;
-                case "priority_low":
-                    onSetPriority(entry.index, "low");
-                    break;
-                default:
-                    break;
+            if (action === "priority_high") {
+                onSetPriority(entry.index, "high");
+                return;
+            }
+            if (action === "priority_normal") {
+                onSetPriority(entry.index, "normal");
+                return;
+            }
+            if (action === "priority_low") {
+                onSetPriority(entry.index, "low");
             }
         },
         [onSetPriority],
     );
 
-    // 4. Construct ViewModel
-    const viewModel: FileExplorerTreeViewModel = useMemo(() => {
-        return {
+    const viewModel: FileExplorerTreeViewModel = useMemo(
+        () => ({
             files: treeFiles,
+            wantedByIndex,
+            priorityByIndex,
             onFilesToggle: handleFilesToggle,
             onFileContextAction: handleFileContextAction,
-        };
-    }, [treeFiles, handleFilesToggle, handleFileContextAction]);
+        }),
+        [
+            treeFiles,
+            wantedByIndex,
+            priorityByIndex,
+            handleFilesToggle,
+            handleFileContextAction,
+        ],
+    );
 
-    // 5. Render
     return (
         <div className={MODAL.workflow.fileTableShell}>
             <FileExplorerTree viewModel={viewModel} />

@@ -12,22 +12,14 @@ import type {
     TorrentTableRowMenuViewModel,
 } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
-import { useRequiredTorrentActions, useTorrentCommands } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
-import { useSession, useUiModeCapabilities } from "@/app/context/SessionContext";
+import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
 import {
-    applySetDownloadLocation,
-    pickSetDownloadLocationDirectory,
-    resolveSetDownloadLocationPath,
-} from "@/modules/dashboard/utils/applySetDownloadLocation";
-import {
-    getSetDownloadLocationUiTextKeys,
-    shouldMoveDataOnSetLocation,
+    resolveSetDownloadLocationPolicy,
 } from "@/modules/dashboard/domain/torrentRelocation";
+import { useSetDownloadLocationFlow } from "@/modules/dashboard/hooks/useSetDownloadLocationFlow";
 
 type RowMenuAction = {
     key: RowContextMenuKey;
@@ -50,69 +42,14 @@ export interface TorrentTableRowMenuProps {
 
 export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuProps) {
     const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
-    const { dispatch } = useRequiredTorrentActions();
-    const { setDownloadLocation } = useTorrentCommands();
-    const { daemonPathStyle } = useSession();
-    const torrentClient = useTorrentClient();
-    const { canPickDirectory, pickDirectory } = useDirectoryPicker();
-    const { t } = useTranslation();
     const [setLocationTorrent, setSetLocationTorrent] = useState<Torrent | null>(null);
-    const setLocationModalTitleKey = useMemo(
-        () =>
-            getSetDownloadLocationUiTextKeys(
-                setLocationTorrent ?? {},
-            ).modalTitleKey,
-        [setLocationTorrent],
-    );
-    const allowCreateSetLocationPath = useMemo(
-        () => shouldMoveDataOnSetLocation(setLocationTorrent ?? {}),
-        [setLocationTorrent],
-    );
+    const setLocationFlow = useSetDownloadLocationFlow({
+        torrent: setLocationTorrent,
+    });
 
     const closeSetLocationModal = useCallback(() => {
         setSetLocationTorrent(null);
     }, []);
-
-    const browseSetLocationPath = useCallback(
-        async (currentPath: string): Promise<string | null> => {
-            return pickSetDownloadLocationDirectory({
-                currentPath,
-                torrent: setLocationTorrent,
-                canPickDirectory,
-                pickDirectory,
-            });
-        },
-        [canPickDirectory, pickDirectory, setLocationTorrent],
-    );
-
-    const applySetLocation = useCallback(
-        async ({ path }: { path: string }) => {
-            const target = setLocationTorrent;
-            if (!target) {
-                throw new Error(t("toolbar.feedback.failed"));
-            }
-            await applySetDownloadLocation({
-                torrent: target,
-                path,
-                client: torrentClient,
-                setDownloadLocation,
-                dispatchEnsureActive: dispatch,
-                t,
-            });
-        },
-        [
-            dispatch,
-            setDownloadLocation,
-            setLocationTorrent,
-            t,
-            torrentClient,
-        ],
-    );
-    const checkFreeSpace = useMemo(
-        () => torrentClient.checkFreeSpace?.bind(torrentClient),
-        [torrentClient],
-    );
-
     const openSetLocationModalFromContext = useCallback(
         (torrent: Torrent) => {
             setSetLocationTorrent(torrent);
@@ -127,6 +64,9 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
                 {contextMenu ? (
                     <TorrentTable_RowMenuInner
                         contextMenu={contextMenu}
+                        setLocationPolicy={resolveSetDownloadLocationPolicy(
+                            contextMenu.torrent,
+                        )}
                         onClose={onClose}
                         handleContextMenuAction={handleContextMenuAction}
                         queueMenuActions={queueMenuActions}
@@ -138,15 +78,13 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
 
             <SetDownloadPathModal
                 isOpen={Boolean(setLocationTorrent)}
-                titleKey={setLocationModalTitleKey}
-                initialPath={resolveSetDownloadLocationPath(setLocationTorrent)}
-                daemonPathStyle={daemonPathStyle}
-                checkFreeSpace={checkFreeSpace}
-                canPickDirectory={canPickDirectory}
-                allowCreatePath={allowCreateSetLocationPath}
+                titleKey={setLocationFlow.policy.modalTitleKey}
+                initialPath={setLocationFlow.currentPath}
+                canPickDirectory={setLocationFlow.canPickDirectory}
+                allowCreatePath={setLocationFlow.policy.allowCreatePath}
                 onClose={closeSetLocationModal}
-                onPickDirectory={browseSetLocationPath}
-                onApply={applySetLocation}
+                onPickDirectory={setLocationFlow.pickDirectoryForSetDownloadPath}
+                onApply={setLocationFlow.applySetDownloadPath}
             />
         </>
     );
@@ -154,6 +92,7 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
 
 function TorrentTable_RowMenuInner({
     contextMenu,
+    setLocationPolicy,
     onClose,
     handleContextMenuAction,
     queueMenuActions,
@@ -161,6 +100,7 @@ function TorrentTable_RowMenuInner({
     onRequestSetDownloadLocation,
 }: {
     contextMenu: TableContextMenu;
+    setLocationPolicy: ReturnType<typeof resolveSetDownloadLocationPolicy>;
     onClose: () => void;
     handleContextMenuAction: (
         key?: RowContextMenuKey,
@@ -175,10 +115,6 @@ function TorrentTable_RowMenuInner({
 
     const contextTorrent = contextMenu.torrent;
     const shouldShowOpenFolder = canOpenFolder;
-    const setLocationUiTextKeys = useMemo(
-        () => getSetDownloadLocationUiTextKeys(contextTorrent),
-        [contextTorrent],
-    );
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
@@ -298,9 +234,9 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="set-download-location"
                 onPress={() => void handleMenuActionPress("set-download-location")}
-                textValue={t(setLocationUiTextKeys.actionLabelKey)}
+                textValue={t(setLocationPolicy.actionLabelKey)}
             >
-                {t(setLocationUiTextKeys.actionLabelKey)}
+                {t(setLocationPolicy.actionLabelKey)}
             </DropdownItem>,
         );
 
@@ -354,7 +290,7 @@ function TorrentTable_RowMenuInner({
         clipboardWriteSupported,
         getContextMenuShortcut,
         handleMenuActionPress,
-        setLocationUiTextKeys.actionLabelKey,
+        setLocationPolicy.actionLabelKey,
         t,
     ]);
 

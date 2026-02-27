@@ -7,14 +7,16 @@ import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { shouldMoveDataOnSetLocation } from "@/modules/dashboard/domain/torrentRelocation";
 import { infraLogger } from "@/shared/utils/infraLogger";
+import {
+    resolveSetDownloadLocationMode,
+    toMoveDataFlag,
+} from "@/modules/dashboard/domain/torrentRelocation";
 
 type DispatchIntent = (intent: ReturnType<typeof TorrentIntents.ensureActive>) => Promise<TorrentDispatchOutcome>;
 type SetDownloadLocationCommand = (params: {
     torrent: Torrent;
     path: string;
-    moveData: boolean;
 }) => Promise<TorrentCommandOutcome>;
 
 const wasTorrentRunning = (torrent: Torrent): boolean =>
@@ -67,14 +69,13 @@ export async function applySetDownloadLocation({
     }
 
     const requestedPath = path.trim();
-    const moveData = shouldMoveDataOnSetLocation(torrent);
 
     const shouldRestoreRunningState = wasTorrentRunning(torrent);
+    const locationMode = resolveSetDownloadLocationMode(torrent);
 
     const setLocationOutcome = await setDownloadLocation({
         torrent,
         path: requestedPath,
-        moveData,
     });
     if (setLocationOutcome.status !== "success") {
         if (setLocationOutcome.status === "unsupported") {
@@ -84,6 +85,7 @@ export async function applySetDownloadLocation({
     }
 
     const targetKey = String(targetId);
+    const moveData = toMoveDataFlag(locationMode);
     const runPostSetLocationFlow = async (): Promise<void> => {
         if (!moveData) {
             await client.verify([targetKey]);

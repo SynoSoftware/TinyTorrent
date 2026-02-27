@@ -1,28 +1,18 @@
-import { createContext, useContext } from "react";
-import type {
-    DragEvent,
-    KeyboardEvent as ReactKeyboardEvent,
-    ReactNode,
-} from "react";
-import type { RowSelectionState } from "@tanstack/react-table";
-import type { AddTorrentDestinationStatusKind } from "@/modules/torrent-add/utils/destinationStatus";
-import type {
-    FilePriority,
-    FileRow,
-    SmartSelectCommand,
-} from "@/modules/torrent-add/services/fileSelection";
+import { createContext, useContext, type ReactNode } from "react";
 import type { AddTorrentBrowseOutcome } from "@/modules/torrent-add/types";
+import type { AddTorrentDestinationStatusKind } from "@/modules/torrent-add/utils/destinationStatus";
+import type { FilePriority, FileRow } from "@/modules/torrent-add/services/fileSelection";
+import type { RowSelectionState } from "@tanstack/react-table";
+import type { DragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 
-type ResolvedState = "pending" | "ready" | "error";
-
-interface AddTorrentDestinationInputState {
+export interface AddTorrentDestinationInputState {
     value: string;
     onChange: (next: string) => void;
     onBlur: () => void;
     onKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
 }
 
-interface AddTorrentDestinationGateState {
+export interface AddTorrentDestinationGateState {
     statusKind: AddTorrentDestinationStatusKind;
     statusMessage: string;
     isDestinationValid: boolean;
@@ -32,7 +22,7 @@ interface AddTorrentDestinationGateState {
     onBrowse: () => Promise<AddTorrentBrowseOutcome>;
 }
 
-interface AddTorrentSettingsState {
+export interface AddTorrentSettingsState {
     onDrop: (event: DragEvent<HTMLDivElement>) => void;
     onDragOver: (event: DragEvent) => void;
     onDragLeave: () => void;
@@ -50,21 +40,14 @@ interface AddTorrentSettingsState {
     setSkipHashCheck: (next: boolean) => void;
 }
 
-interface AddTorrentFileTableState {
+export interface AddTorrentFileTableState {
     files: FileRow[];
     priorities: Map<number, FilePriority>;
-    resolvedState: ResolvedState;
-    rowHeight: number;
-    selectedCount: number;
-    selectedSize: number;
     rowSelection: RowSelectionState;
-    onCyclePriority: (index: number) => void;
-    onRowClick: (index: number, shiftKey: boolean) => void;
     onRowSelectionChange: (
         next: RowSelectionState | ((prev: RowSelectionState) => RowSelectionState)
     ) => void;
     onSetPriority: (index: number, value: FilePriority) => void;
-    onSmartSelect: (command: SmartSelectCommand) => void;
 }
 
 export interface AddTorrentModalContextValue {
@@ -75,7 +58,7 @@ export interface AddTorrentModalContextValue {
 }
 
 const AddTorrentModalContext = createContext<AddTorrentModalContextValue | null>(
-    null
+    null,
 );
 
 export function AddTorrentModalContextProvider({
@@ -97,7 +80,7 @@ export function useAddTorrentModalContext(): AddTorrentModalContextValue {
     const context = useContext(AddTorrentModalContext);
     if (!context) {
         throw new Error(
-            "useAddTorrentModalContext must be used within AddTorrentModalContextProvider"
+            "useAddTorrentModalContext must be used within AddTorrentModalContextProvider",
         );
     }
     return context;

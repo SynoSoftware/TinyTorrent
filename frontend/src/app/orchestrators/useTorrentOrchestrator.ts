@@ -18,6 +18,7 @@ export interface UseTorrentOrchestratorParams {
     detailData: TorrentDetail | null;
     settingsConfig: SettingsConfig;
     clearDetail: () => void;
+    openTorrentDetailsById?: (torrentId: string) => Promise<void>;
 }
 
 export interface UseTorrentOrchestratorResult {
@@ -34,9 +35,9 @@ export function useTorrentOrchestrator({
     refreshDetailData,
     detailData,
     clearDetail,
+    openTorrentDetailsById,
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
     void client;
-    void refreshTorrents;
     void refreshSessionStatsData;
     void refreshDetailData;
     void detailData;
@@ -49,6 +50,8 @@ export function useTorrentOrchestrator({
         settingsConfig,
         torrents,
         pendingDeletionHashesRef,
+        refreshTorrents,
+        openTorrentDetailsById,
     });
 
     return {

@@ -60,7 +60,7 @@ export function AddMagnetModal({
         setIsSubmitting(true);
         try {
             const outcome = await onSubmit(trimmed);
-            if (outcome.status === "added") {
+            if (outcome.status === "added" || outcome.status === "queued") {
                 handleClose();
             }
         } finally {

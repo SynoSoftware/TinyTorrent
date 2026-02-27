@@ -1,25 +1,24 @@
 import { Button, Input } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { HardDrive, type LucideIcon } from "lucide-react";
-import type { DaemonPathStyle } from "@/services/rpc/types";
-import { type DestinationValidationReason, normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
+import { useSession } from "@/app/context/SessionContext";
+import { useTorrentCommands } from "@/app/context/AppCommandContext";
+import { normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
+import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
 import { SET_LOCATION_VALIDATION_DEBOUNCE_MS } from "@/config/logic";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
-import { useDestinationPathValidation, type DestinationPathValidationResult } from "@/shared/hooks/useDestinationPathValidation";
-import { getDestinationValidationReasonMessage } from "@/shared/utils/destinationPathValidationMessage";
+import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
 
 export interface SetDownloadPathModalProps {
     isOpen: boolean;
     titleKey?: string;
     titleIcon?: LucideIcon;
     initialPath: string;
-    daemonPathStyle: DaemonPathStyle;
-    checkFreeSpace?: (path: string) => Promise<unknown>;
     canPickDirectory: boolean;
     allowCreatePath?: boolean;
     onClose: () => void;
@@ -37,20 +36,6 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
     return fallback;
 };
 
-type ApplyState =
-    | {
-          canApply: true;
-          normalizedPath: string;
-          blockReason: null;
-          validationReason: null;
-      }
-    | {
-          canApply: false;
-          normalizedPath: string;
-          blockReason: "empty" | "invalid" | "pending";
-          validationReason: DestinationValidationReason | null;
-      };
-
 type PathFeedbackState =
     | {
           kind: "gauge";
@@ -62,75 +47,15 @@ type PathFeedbackState =
           className: string;
       };
 
-const resolveApplyState = ({
-    trimmedPath,
-    validation,
-}: {
-    trimmedPath: string;
-    validation: DestinationPathValidationResult;
-}): ApplyState => {
-    if (!trimmedPath) {
-        return {
-            canApply: false,
-            normalizedPath: validation.normalizedPath,
-            blockReason: "empty",
-            validationReason: null,
-        };
-    }
-
-    if (validation.status === "invalid") {
-        return {
-            canApply: false,
-            normalizedPath: validation.normalizedPath,
-            blockReason: "invalid",
-            validationReason: validation.reason,
-        };
-    }
-
-    if (validation.status !== "valid") {
-        return {
-            canApply: false,
-            normalizedPath: validation.normalizedPath,
-            blockReason: "pending",
-            validationReason: null,
-        };
-    }
-
-    return {
-        canApply: true,
-        normalizedPath: validation.normalizedPath,
-        blockReason: null,
-        validationReason: null,
-    };
-};
-
-const resolveApplyBlockMessage = (
-    applyState: ApplyState,
-    t: ReturnType<typeof useTranslation>["t"],
-): string => {
-    if (applyState.blockReason === "empty") {
-        return t("directory_browser.validation_required");
-    }
-    if (applyState.blockReason === "invalid") {
-        if (applyState.validationReason) {
-            return getDestinationValidationReasonMessage(applyState.validationReason, t);
-        }
-        return t("directory_browser.error");
-    }
-    return t("set_location.reason.validation_pending");
-};
-
 const resolvePathFeedbackState = ({
     submitError,
-    trimmedPath,
-    validation,
-    applyState,
+    hasValue,
+    applyDecision,
     t,
 }: {
     submitError: string | null;
-    trimmedPath: string;
-    validation: DestinationPathValidationResult;
-    applyState: ApplyState;
+    hasValue: boolean;
+    applyDecision: ReturnType<typeof resolveDestinationValidationDecision>;
     t: ReturnType<typeof useTranslation>["t"];
 }): PathFeedbackState => {
     if (submitError) {
@@ -141,7 +66,7 @@ const resolvePathFeedbackState = ({
         };
     }
 
-    if (!trimmedPath) {
+    if (!hasValue) {
         return {
             kind: "message",
             message: "\u00A0",
@@ -149,38 +74,29 @@ const resolvePathFeedbackState = ({
         };
     }
 
-    if (applyState.blockReason === "invalid" && applyState.validationReason) {
+    if (
+        applyDecision.blockReason === "invalid" &&
+        applyDecision.blockMessageKey
+    ) {
         return {
             kind: "message",
-            message: getDestinationValidationReasonMessage(applyState.validationReason, t),
+            message: t(applyDecision.blockMessageKey),
             className: FORM.locationEditorValidationWarning,
         };
     }
 
-    if (
-        validation.status === "valid" &&
-        typeof validation.freeSpace?.sizeBytes === "number" &&
-        typeof validation.freeSpace.totalSize === "number"
-    ) {
-        const { path, sizeBytes, totalSize } = validation.freeSpace;
+    if (applyDecision.gauge) {
         return {
             kind: "gauge",
-            freeSpace: {
-                path,
-                sizeBytes,
-                totalSize,
-            },
+            freeSpace: applyDecision.gauge,
         };
     }
 
-    if (
-        validation.status === "valid" &&
-        typeof validation.freeSpace?.sizeBytes === "number"
-    ) {
+    if (typeof applyDecision.availableSpaceBytes === "number") {
         return {
             kind: "message",
             message: t("set_location.reason.available_space", {
-                size: formatBytes(validation.freeSpace.sizeBytes),
+                size: formatBytes(applyDecision.availableSpaceBytes),
             }),
             className: FORM.locationEditorValidationHint,
         };
@@ -198,8 +114,6 @@ export default function SetDownloadPathModal({
     titleKey = "modals.set_download_location.title",
     titleIcon = HardDrive,
     initialPath,
-    daemonPathStyle,
-    checkFreeSpace,
     canPickDirectory,
     allowCreatePath = true,
     onClose,
@@ -207,6 +121,8 @@ export default function SetDownloadPathModal({
     onApply,
 }: SetDownloadPathModalProps) {
     const { t } = useTranslation();
+    const { daemonPathStyle } = useSession();
+    const { checkFreeSpace } = useTorrentCommands();
     const [path, setPath] = useState(initialPath);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
@@ -240,20 +156,15 @@ export default function SetDownloadPathModal({
         return () => window.cancelAnimationFrame(frame);
     }, [isOpen]);
 
-    const trimmedPath = path.trim();
     const manualEntryPromptKey = allowCreatePath
         ? "directory_browser.manual_entry_prompt_move"
         : "directory_browser.manual_entry_prompt_locate";
     const manualEntryPrompt = t(manualEntryPromptKey);
-    const applyState = useMemo(
-        () =>
-            resolveApplyState({
-                trimmedPath,
-                validation: destinationValidation,
-            }),
-        [destinationValidation, trimmedPath],
-    );
-    const canApply = !isSubmitting && applyState.canApply;
+    const applyDecision = resolveDestinationValidationDecision({
+        mode: "strict",
+        snapshot: destinationValidation,
+    });
+    const canApply = !isSubmitting && applyDecision.canProceed;
 
     const handlePathChange = useCallback(
         (value: string) => {
@@ -277,31 +188,30 @@ export default function SetDownloadPathModal({
         }
     }, [canPickDirectory, daemonPathStyle, isSubmitting, onPickDirectory, path, t]);
 
-    const pathFeedbackState = useMemo(
-        () =>
-            resolvePathFeedbackState({
-                submitError,
-                trimmedPath,
-                validation: destinationValidation,
-                applyState,
-                t,
-            }),
-        [applyState, destinationValidation, submitError, t, trimmedPath],
-    );
+    const pathFeedbackState = resolvePathFeedbackState({
+        submitError,
+        hasValue: destinationValidation.hasValue,
+        applyDecision,
+        t,
+    });
     const isInputInvalid =
-        Boolean(submitError) || applyState.blockReason === "invalid";
+        Boolean(submitError) || applyDecision.blockReason === "invalid";
 
     const handleApply = useCallback(async () => {
         if (isSubmitting) return;
-        if (!applyState.canApply) {
-            setSubmitError(resolveApplyBlockMessage(applyState, t));
+        if (!applyDecision.canProceed) {
+            setSubmitError(
+                applyDecision.blockMessageKey
+                    ? t(applyDecision.blockMessageKey)
+                    : t("directory_browser.error"),
+            );
             return;
         }
         setIsSubmitting(true);
         setSubmitError(null);
         try {
             await onApply({
-                path: applyState.normalizedPath,
+                path: applyDecision.normalizedPath,
             });
             onClose();
         } catch (applyError) {
@@ -310,7 +220,7 @@ export default function SetDownloadPathModal({
             setIsSubmitting(false);
         }
     }, [
-        applyState,
+        applyDecision,
         isSubmitting,
         onApply,
         onClose,

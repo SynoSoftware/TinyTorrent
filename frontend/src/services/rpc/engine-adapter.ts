@@ -30,6 +30,20 @@ export const DEFAULT_ENGINE_CAPABILITIES: EngineRuntimeCapabilities = {
     canCheckFreeSpace: false,
 };
 
+export type EngineCheckFreeSpace = (
+    path: string,
+) => Promise<TransmissionFreeSpace>;
+
+export const bindEngineCheckFreeSpace = (
+    engine: EngineAdapter,
+): EngineCheckFreeSpace | undefined => {
+    const checkFreeSpace = engine.checkFreeSpace;
+    if (typeof checkFreeSpace !== "function") {
+        return undefined;
+    }
+    return (path: string) => checkFreeSpace.call(engine, path);
+};
+
 export type TorrentDetailProfile = "standard" | "pieces";
 
 export interface TorrentDetailsRequestOptions {

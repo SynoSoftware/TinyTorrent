@@ -27,6 +27,8 @@ export type FileExplorerToggleCommand = (
 
 export interface FileExplorerTreeViewModel {
     files: FileExplorerEntry[];
+    wantedByIndex?: ReadonlyMap<number, boolean>;
+    priorityByIndex?: ReadonlyMap<number, LibtorrentPriority>;
     emptyMessage?: string;
     onFilesToggle: FileExplorerToggleCommand;
     onFileContextAction?: (

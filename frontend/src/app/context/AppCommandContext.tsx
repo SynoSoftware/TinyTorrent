@@ -4,6 +4,7 @@ import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 export type TorrentCommandOutcome =
     | { status: "success"; reason?: "queued" | "refresh_skipped" }
@@ -17,7 +18,8 @@ export type TorrentCommandOutcome =
 export interface TorrentCommandAPI {
     handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<TorrentCommandOutcome>;
     handleBulkAction: (action: TorrentTableAction) => Promise<TorrentCommandOutcome>;
-    setDownloadLocation: (params: { torrent: Torrent; path: string; moveData: boolean }) => Promise<TorrentCommandOutcome>;
+    setDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
+    checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     openAddTorrentPicker: () => Promise<TorrentCommandOutcome>;
     openAddMagnet: (magnetLink?: string) => Promise<TorrentCommandOutcome>;
 }

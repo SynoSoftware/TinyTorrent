@@ -10,6 +10,14 @@ import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal"
 import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
 import { useAppViewModel } from "@/app/viewModels/useAppViewModel";
 import { AppCommandProvider } from "@/app/context/AppCommandContext";
+import type { AddTorrentSource } from "@/modules/torrent-add/types";
+
+const buildAddTorrentModalKey = (source: AddTorrentSource): string => {
+    if (source.kind === "file") {
+        return `file:${source.file.name}:${source.file.size}:${source.file.lastModified}`;
+    }
+    return `magnet:${source.magnetLink}:${source.status}:${source.torrentId ?? ""}:${source.metadata?.name ?? ""}`;
+};
 
 function AppContent() {
     const controller = useWorkspaceShellViewModel();
@@ -38,7 +46,12 @@ function AppContent() {
             />
             <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
             {controller.addTorrent.addTorrentModalProps && (
-                <AddTorrentModal {...controller.addTorrent.addTorrentModalProps} />
+                <AddTorrentModal
+                    key={buildAddTorrentModalKey(
+                        controller.addTorrent.addTorrentModalProps.source,
+                    )}
+                    {...controller.addTorrent.addTorrentModalProps}
+                />
             )}
         </AppCommandProvider>
     );

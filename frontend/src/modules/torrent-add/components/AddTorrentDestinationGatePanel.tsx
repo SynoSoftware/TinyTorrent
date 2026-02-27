@@ -8,13 +8,13 @@ import {
     HardDrive,
     Info,
 } from "lucide-react";
-import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     FORM,
     INPUT,
     SURFACE,
 } from "@/shared/ui/layout/glass-surface";
+import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
 
 export function AddTorrentDestinationGatePanel() {

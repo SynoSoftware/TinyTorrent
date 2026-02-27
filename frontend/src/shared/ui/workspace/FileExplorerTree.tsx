@@ -45,7 +45,13 @@ const ROW_ESTIMATE = 36;
 export const FileExplorerTree = memo(function FileExplorerTree({
     viewModel,
 }: FileExplorerTreeProps) {
-    const { files, onFilesToggle, onFileContextAction } = viewModel;
+    const {
+        files,
+        wantedByIndex,
+        priorityByIndex,
+        onFilesToggle,
+        onFileContextAction,
+    } = viewModel;
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +73,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({
         filePriorityMap,
         isAllSelected,
         isIndeterminate,
-    } = useFileExplorerTreeState(files);
+    } = useFileExplorerTreeState(files, {
+        wantedByIndex,
+        priorityByIndex,
+    });
 
     useEffect(() => {
         const next = new Set<number>();

@@ -4,6 +4,8 @@
 // TODO: - Do not add “RPC extended” or “tinytorrent server mode” semantics here; Transmission RPC is the daemon contract.
 // TODO: - If you need new commands, prefer adding them to the command registry (see todo.md item 17) and mapping registry ids -> intents in one place.
 
+import type { LocationMode } from "@/modules/dashboard/domain/torrentRelocation";
+
 export type EnsureTorrentActive = {
     type: "ENSURE_TORRENT_ACTIVE";
     torrentId: string | number;
@@ -34,7 +36,7 @@ export type EnsureTorrentAtLocation = {
     type: "ENSURE_TORRENT_AT_LOCATION";
     torrentId: string | number;
     path: string;
-    moveData?: boolean;
+    locationMode: LocationMode;
 };
 
 export type TorrentAddTracker = {
@@ -184,14 +186,12 @@ export const TorrentIntents = {
     ensureAtLocation: (
         torrentId: string | number,
         path: string,
-        options?: {
-            moveData?: boolean;
-        },
+        locationMode: LocationMode,
     ): EnsureTorrentAtLocation => ({
         type: "ENSURE_TORRENT_AT_LOCATION",
         torrentId,
         path,
-        moveData: options?.moveData,
+        locationMode,
     }),
     torrentAddTracker: (torrentIds: Array<string | number>, trackers: string[]): TorrentAddTracker => ({
         type: "TORRENT_ADD_TRACKER",

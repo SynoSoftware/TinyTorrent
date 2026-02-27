@@ -1,6 +1,6 @@
-import { Button, Spinner } from "@heroui/react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
+import { useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
@@ -10,25 +10,22 @@ const SETTINGS_PANEL_MIN = 25;
 const FILE_PANEL_DEFAULT = 60;
 const FILE_PANEL_MIN = 30;
 
-import { FolderOpen, HardDrive, AlertTriangle, type LucideIcon } from "lucide-react";
+import { FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
 
 import { MODAL } from "@/shared/ui/layout/glass-surface";
-import type { TransmissionFreeSpace } from "@/services/rpc/types";
-import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommitMode, AddTorrentSelection, AddTorrentSource } from "@/modules/torrent-add/types";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
 import { AddTorrentFileTable } from "@/modules/torrent-add/components/AddTorrentFileTable";
 import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
-import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
-import { useAddTorrentViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewModel";
-import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
+import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
+import { useAddTorrentModalViewModel } from "@/modules/torrent-add/hooks/useAddTorrentModalViewModel";
 
 export interface AddTorrentModalProps {
     isOpen: boolean;
     titleIcon?: LucideIcon;
-    source: AddTorrentSource | null;
+    source: AddTorrentSource;
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
@@ -37,10 +34,8 @@ export interface AddTorrentModalProps {
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     onSequentialDownloadChange: (value: boolean) => void;
     onSkipHashCheckChange: (value: boolean) => void;
-    isSubmitting: boolean;
     onCancel: () => void;
     onConfirm: (selection: AddTorrentSelection) => Promise<AddTorrentCommandOutcome>;
-    checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
 }
 
 const FULL_CONTENT_ANIMATION = {
@@ -67,23 +62,18 @@ export function AddTorrentModal({
     onCommitModeChange,
     onSequentialDownloadChange,
     onSkipHashCheckChange,
-    isSubmitting,
     onCancel,
     onConfirm,
-    checkFreeSpace,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
-    const viewModel = useAddTorrentViewModel({
-        checkFreeSpace,
+    const viewModel = useAddTorrentModalViewModel({
         commitMode,
         downloadDir,
         sequentialDownload,
         skipHashCheck,
         isOpen,
-        isSubmitting,
         onCancel,
         onConfirm,
-        onCommitModeChange,
         onSequentialDownloadChange,
         onSkipHashCheckChange,
         onDownloadDirChange,
@@ -93,24 +83,18 @@ export function AddTorrentModal({
         modal,
         destination,
         dragDrop,
+        table,
         settings,
         submission,
         source: sourceViewModel,
-        handleDestinationGateKeyDown,
-        modalContextValue,
     } = viewModel;
     const {
         formRef,
         handleFormKeyDown,
         handleFormSubmit,
         handleModalCancel,
+        modalSize,
         requestSubmit,
-        shouldShowCloseConfirm,
-        shouldShowSubmittingOverlay,
-        requestCloseConfirm,
-        cancelCloseConfirm,
-        submitError,
-        submitLocked,
     } = modal;
     const { hasDestination, showDestinationGate, uiMode } = destination;
     const { dropActive, handleDragLeave, handleDragOver, handleDrop } = dragDrop;
@@ -123,13 +107,12 @@ export function AddTorrentModal({
         handleSettingsPanelCollapse,
         handleSettingsPanelExpand,
     } = settings;
-    const { canConfirm, isDiskSpaceCritical, primaryBlockReason } = submission;
+    const { canConfirm } = submission;
     const { sourceLabel } = sourceViewModel;
     const TitleIcon = titleIcon;
     const modalTitle = showDestinationGate
         ? t("modals.add_torrent.destination_prompt_title")
         : t("modals.add_torrent.title");
-    const modalExSize = showDestinationGate ? "lg" : "5xl";
     const modalTitleContent = (
         <>
             <span className={`${TEXT_ROLE_EXTENDED.modalTitle} truncate`}>{modalTitle}</span>
@@ -146,7 +129,117 @@ export function AddTorrentModal({
     );
     const primaryActionLabel =
         commitMode === "paused" ? t("modals.add_torrent.add_paused") : t("modals.add_torrent.add_and_start");
-    const isActionLocked = isSubmitting || submitLocked;
+    const handleDestinationGateKeyDown = useCallback(
+        (event: ReactKeyboardEvent<HTMLDivElement>) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                handleModalCancel();
+                return;
+            }
+            if (event.key === "Enter") {
+                event.preventDefault();
+                destination.handleDestinationGateContinue();
+            }
+        },
+        [destination.handleDestinationGateContinue, handleModalCancel],
+    );
+
+    const destinationInput = useMemo(
+        () => ({
+            value: destination.destinationDraft,
+            onBlur: destination.handleDestinationInputBlur,
+            onChange: destination.updateDestinationDraft,
+            onKeyDown: destination.handleDestinationInputKeyDown,
+        }),
+        [
+            destination.destinationDraft,
+            destination.handleDestinationInputBlur,
+            destination.updateDestinationDraft,
+            destination.handleDestinationInputKeyDown,
+        ],
+    );
+    const destinationGate = useMemo(
+        () => ({
+            statusKind: destination.step1StatusKind,
+            statusMessage: destination.step1DestinationMessage,
+            isDestinationValid: destination.hasDestination,
+            isTouchingDirectory: destination.isTouchingDirectory,
+            showBrowseAction: destination.showBrowseAction,
+            onConfirm: destination.handleDestinationGateContinue,
+            onBrowse: destination.handleBrowse,
+        }),
+        [
+            destination.step1StatusKind,
+            destination.step1DestinationMessage,
+            destination.hasDestination,
+            destination.isTouchingDirectory,
+            destination.showBrowseAction,
+            destination.handleDestinationGateContinue,
+            destination.handleBrowse,
+        ],
+    );
+    const settingsPanel = useMemo(
+        () => ({
+            onDrop: dragDrop.handleDrop,
+            onDragOver: dragDrop.handleDragOver,
+            onDragLeave: dragDrop.handleDragLeave,
+            recentPaths: destination.recentPaths,
+            applyRecentPath: dragDrop.applyDroppedPath,
+            statusKind: destination.step2StatusKind,
+            statusMessage: destination.step2StatusMessage,
+            spaceErrorDetail: destination.spaceErrorDetail,
+            startPaused: commitMode === "paused",
+            setStartPaused: (next: boolean) =>
+                onCommitModeChange(next ? "paused" : "start"),
+            showTransferFlags: source?.kind === "file",
+            sequential: settings.sequential,
+            skipHashCheck: settings.skipHashCheck,
+            setSequential: settings.setSequential,
+            setSkipHashCheck: settings.setSkipHashCheck,
+        }),
+        [
+            dragDrop.handleDrop,
+            dragDrop.handleDragOver,
+            dragDrop.handleDragLeave,
+            destination.recentPaths,
+            dragDrop.applyDroppedPath,
+            destination.step2StatusKind,
+            destination.step2StatusMessage,
+            destination.spaceErrorDetail,
+            commitMode,
+            onCommitModeChange,
+            source?.kind,
+            settings.sequential,
+            settings.skipHashCheck,
+            settings.setSequential,
+            settings.setSkipHashCheck,
+        ],
+    );
+    const fileTable = useMemo(
+        () => ({
+            files: table.files,
+            priorities: table.priorities,
+            rowSelection: table.rowSelection,
+            onRowSelectionChange: table.onRowSelectionChange,
+            onSetPriority: table.onSetPriority,
+        }),
+        [
+            table.files,
+            table.priorities,
+            table.rowSelection,
+            table.onRowSelectionChange,
+            table.onSetPriority,
+        ],
+    );
+    const modalContextValue = useMemo(
+        () => ({
+            destinationInput,
+            destinationGate,
+            settings: settingsPanel,
+            fileTable,
+        }),
+        [destinationInput, destinationGate, settingsPanel, fileTable],
+    );
 
     return (
         <ModalEx
@@ -154,9 +247,8 @@ export function AddTorrentModal({
             onClose={handleModalCancel}
             title={modalTitleContent}
             icon={TitleIcon}
-            size={modalExSize}
+            size={modalSize}
             maximize={!showDestinationGate}
-            disableClose={isActionLocked}
             bodyVariant={showDestinationGate ? "padded" : "flush"}
             secondaryAction={
                 showDestinationGate
@@ -164,7 +256,6 @@ export function AddTorrentModal({
                     : {
                           label: t("modals.cancel"),
                           onPress: handleModalCancel,
-                          disabled: isActionLocked,
                       }
             }
             primaryAction={
@@ -173,9 +264,8 @@ export function AddTorrentModal({
                     : {
                           label: primaryActionLabel,
                           onPress: requestSubmit,
-                          loading: isActionLocked,
                           disabled: !canConfirm,
-                      }
+                }
             }
         >
             <AddTorrentModalContextProvider value={modalContextValue}>
@@ -200,41 +290,6 @@ export function AddTorrentModal({
                         onSubmit={handleFormSubmit}
                         onKeyDown={handleFormKeyDown}
                     >
-                        {shouldShowSubmittingOverlay ? (
-                            <div className={MODAL.workflow.submitOverlay}>
-                                {!shouldShowCloseConfirm ? (
-                                    <>
-                                        <Spinner color="primary" />
-                                        <p className={TEXT_ROLE.codeCaption}>{t("modals.add_torrent.submitting")}</p>
-                                        <p className={MODAL.workflow.submitHintMuted}>
-                                            {t("modals.add_torrent.submitting_close_hint")}
-                                        </p>
-                                        <Button variant="flat" onPress={requestCloseConfirm}>
-                                            {t("modals.add_torrent.close_overlay")}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <StatusIcon Icon={AlertTriangle} className={MODAL.workflow.warningTone} />
-                                        <p className={MODAL.workflow.submitWarningTitleCaption}>
-                                            {t("modals.add_torrent.close_while_submitting_title")}
-                                        </p>
-                                        <p className={MODAL.workflow.submitHintMuted}>
-                                            {t("modals.add_torrent.close_while_submitting_body")}
-                                        </p>
-                                        <div className={MODAL.workflow.submitActions}>
-                                            <Button variant="flat" onPress={cancelCloseConfirm}>
-                                                {t("modals.add_torrent.keep_waiting")}
-                                            </Button>
-                                            <Button color="danger" variant="shadow" onPress={handleModalCancel}>
-                                                {t("modals.add_torrent.close_anyway")}
-                                            </Button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        ) : null}
-
                         <div className={MODAL.workflow.body}>
                             {dropActive ? (
                                 <div className={MODAL.workflow.dropOverlay}>

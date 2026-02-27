@@ -12,7 +12,6 @@ export interface AddTorrentDestinationStatusParams {
     destinationDraft: string;
     freeSpaceBytes: number | null;
     hasSpaceError: boolean;
-    isDestinationDraftValid: boolean;
     isDestinationGateInvalidError: boolean;
     isDestinationGateRequiredError: boolean;
     isDestinationValid: boolean;
@@ -40,7 +39,6 @@ export function getAddTorrentDestinationStatus({
     destinationDraft,
     freeSpaceBytes,
     hasSpaceError,
-    isDestinationDraftValid,
     isDestinationGateInvalidError,
     isDestinationGateRequiredError,
     isDestinationValid,
@@ -60,7 +58,7 @@ export function getAddTorrentDestinationStatus({
     const step1StatusKind: AddTorrentDestinationStatusKind =
         isDestinationGateRequiredError || isDestinationGateInvalidError
             ? "danger"
-            : hasDraft && isDestinationDraftValid
+            : hasDraft && isDestinationValid
               ? hasKnownFreeSpace
                     ? "ok"
                     : hasSpaceError
@@ -72,7 +70,7 @@ export function getAddTorrentDestinationStatus({
         ? t("modals.add_torrent.destination_required_chip")
         : isDestinationGateInvalidError
           ? invalidMessage
-          : hasDraft && isDestinationDraftValid
+          : hasDraft && isDestinationValid
             ? hasKnownFreeSpace
                 ? formatFreeSpace()
                 : hasSpaceError

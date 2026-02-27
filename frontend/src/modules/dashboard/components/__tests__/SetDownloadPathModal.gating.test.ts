@@ -13,6 +13,18 @@ vi.mock("react-i18next", () => ({
     }),
 }));
 
+vi.mock("@/app/context/SessionContext", () => ({
+    useSession: () => ({
+        daemonPathStyle: "windows",
+    }),
+}));
+
+vi.mock("@/app/context/AppCommandContext", () => ({
+    useTorrentCommands: () => ({
+        checkFreeSpace: undefined,
+    }),
+}));
+
 vi.mock("@/shared/hooks/useDestinationPathValidation", () => ({
     useDestinationPathValidation: (...args: unknown[]) => validationHookMock(...args),
 }));
@@ -73,7 +85,6 @@ const renderModal = (allowCreatePath: boolean) => {
         React.createElement(SetDownloadPathModal, {
             isOpen: true,
             initialPath: "C:\\target",
-            daemonPathStyle: "windows",
             canPickDirectory: false,
             allowCreatePath,
             onClose: vi.fn(),

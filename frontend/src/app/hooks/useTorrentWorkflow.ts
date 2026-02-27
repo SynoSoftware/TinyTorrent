@@ -15,7 +15,11 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { SET_LOCATION_MOVE_TIMEOUT_MS } from "@/config/logic";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { evaluateRelocationMoveVerification } from "@/modules/dashboard/domain/torrentRelocation";
+import {
+    evaluateRelocationMoveVerification,
+    resolveSetDownloadLocationMode,
+    type LocationMode,
+} from "@/modules/dashboard/domain/torrentRelocation";
 
 // removed unused `FeedbackTone` import
 import { useSelection } from "@/app/context/AppShellStateContext";
@@ -47,7 +51,7 @@ interface UseTorrentWorkflowParams {
     executeSetDownloadLocation: (
         torrentId: string,
         path: string,
-        moveData: boolean,
+        locationMode: LocationMode,
     ) => Promise<TorrentCommandOutcome>;
     executeSelectionAction: (
         action: TorrentTableAction,
@@ -469,16 +473,15 @@ export function useTorrentWorkflow({
         async ({
             torrent,
             path,
-            moveData,
         }: {
             torrent: Torrent;
             path: string;
-            moveData: boolean;
         }): Promise<TorrentCommandOutcome> => {
+            const locationMode = resolveSetDownloadLocationMode(torrent);
             const outcome = await executeSetDownloadLocation(
                 torrent.id,
                 path,
-                moveData,
+                locationMode,
             );
 
             if (!isSuccessfulOutcome(outcome)) {
@@ -488,7 +491,7 @@ export function useTorrentWorkflow({
                 return outcome;
             }
 
-            if (moveData) {
+            if (locationMode === "move") {
                 startMoveOperation(torrent.id, path);
             }
 

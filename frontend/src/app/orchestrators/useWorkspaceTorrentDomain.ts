@@ -28,6 +28,7 @@ import type { DeleteIntent } from "@/app/types/workspace";
 import { createTorrentDispatch, type TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
+import type { LocationMode } from "@/modules/dashboard/domain/torrentRelocation";
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -58,7 +59,7 @@ export interface WorkspaceTorrentDomain {
         clearPendingDelete: () => void;
         handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<TorrentCommandOutcome>;
         handleBulkAction: (action: TorrentTableAction) => Promise<TorrentCommandOutcome>;
-        handleSetDownloadLocation: (params: { torrent: Torrent; path: string; moveData: boolean }) => Promise<TorrentCommandOutcome>;
+        handleSetDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
         removedIds: Set<string>;
     };
     handlers: {
@@ -156,6 +157,31 @@ export function useWorkspaceTorrentDomain({
     );
 
     const { optimisticStatuses, updateOptimisticStatuses } = useOptimisticStatuses(torrents);
+    const { selectedIds, activeId, setActiveId } = useSelection();
+    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const selectedTorrents = useMemo(
+        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+        [selectedIdsSet, torrents],
+    );
+
+    const openTorrentDetailsById = useCallback(
+        async (torrentId: string) => {
+            const target = torrents.find((torrent) => torrent.id === torrentId);
+            setActiveId(torrentId);
+            await loadDetail(
+                torrentId,
+                target
+                    ? ({
+                          ...target,
+                          trackers: [],
+                          files: [],
+                          peers: [],
+                      } as TorrentDetail)
+                    : undefined,
+            );
+        },
+        [loadDetail, setActiveId, torrents],
+    );
 
     const orchestrator = useTorrentOrchestrator({
         client: torrentClient,
@@ -167,16 +193,10 @@ export function useWorkspaceTorrentDomain({
         detailData,
         settingsConfig,
         clearDetail,
+        openTorrentDetailsById,
     });
 
     const { addTorrent } = orchestrator;
-
-    const { selectedIds, activeId, setActiveId } = useSelection();
-    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const selectedTorrents = useMemo(
-        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
-        [selectedIdsSet, torrents],
-    );
 
     const { handleFileSelectionChange, handleSequentialToggle, handleSuperSeedingToggle } = useDetailControls({
         detailData,
@@ -187,15 +207,9 @@ export function useWorkspaceTorrentDomain({
 
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
-            setActiveId(torrent.id);
-            await loadDetail(torrent.id, {
-                ...torrent,
-                trackers: [],
-                files: [],
-                peers: [],
-            } as TorrentDetail);
+            await openTorrentDetailsById(torrent.id);
         },
-        [loadDetail, setActiveId],
+        [openTorrentDetailsById],
     );
 
     const handleCloseDetail = useCallback(() => {
@@ -258,10 +272,10 @@ export function useWorkspaceTorrentDomain({
     const executeSetDownloadLocationViaDispatch = async (
         torrentId: string,
         path: string,
-        moveData: boolean,
+        locationMode: LocationMode,
     ): Promise<TorrentCommandOutcome> => {
         const outcome = await dispatch(
-            TorrentIntents.ensureAtLocation(torrentId, path, { moveData }),
+            TorrentIntents.ensureAtLocation(torrentId, path, locationMode),
         );
         if (outcome.status === "applied") {
             return { status: "success" };

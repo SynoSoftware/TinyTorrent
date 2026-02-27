@@ -21,6 +21,12 @@ vi.mock("@/app/context/AppCommandContext", () => ({
 }));
 
 vi.mock("react-i18next", () => ({
+    initReactI18next: {
+        type: "3rdParty",
+        init: () => {
+            // no-op test shim
+        },
+    },
     useTranslation: () => ({
         t: (key: string) => key,
     }),
@@ -29,6 +35,12 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/app/providers/TorrentClientProvider", () => ({
     useTorrentClient: () => ({
         setTorrentLocation: vi.fn(),
+    }),
+}));
+
+vi.mock("@/app/context/SessionContext", () => ({
+    useSession: () => ({
+        daemonPathStyle: "posix",
     }),
 }));
 

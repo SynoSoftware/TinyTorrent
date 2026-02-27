@@ -112,6 +112,8 @@ const DEFAULT_TIMERS = {
     ghost_timeout_ms: 30000,
     table_persist_debounce_ms: 250,
     set_location_validation_debounce_ms: 200,
+    set_location_root_probe_cache_ttl_ms: 15000,
+    set_location_root_probe_error_cache_ttl_ms: 2000,
     verify_watch_interval_ms: 500,
     set_location_move_timeout_ms: 600000,
 } as const;
@@ -773,6 +775,16 @@ export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
 export const SET_LOCATION_VALIDATION_DEBOUNCE_MS = readNumber(
     timerConfig.set_location_validation_debounce_ms,
     DEFAULT_TIMERS.set_location_validation_debounce_ms,
+);
+
+export const SET_LOCATION_ROOT_PROBE_CACHE_TTL_MS = readNumber(
+    timerConfig.set_location_root_probe_cache_ttl_ms,
+    DEFAULT_TIMERS.set_location_root_probe_cache_ttl_ms,
+);
+
+export const SET_LOCATION_ROOT_PROBE_ERROR_CACHE_TTL_MS = readNumber(
+    timerConfig.set_location_root_probe_error_cache_ttl_ms,
+    DEFAULT_TIMERS.set_location_root_probe_error_cache_ttl_ms,
 );
 
 export const RECOVERY_VERIFY_WATCH_INTERVAL_MS = readNumber(

@@ -110,8 +110,6 @@ export const GeneralTab = ({ torrent }: GeneralTabProps) => {
                 isOpen={general.showSetDownloadPathModal}
                 titleKey={general.setDownloadLocationModalTitleKey}
                 initialPath={general.currentPath}
-                daemonPathStyle={general.daemonPathStyle}
-                checkFreeSpace={general.checkFreeSpace}
                 canPickDirectory={general.canPickDirectory}
                 allowCreatePath={general.allowCreateSetLocationPath}
                 onClose={general.closeSetDownloadPathModal}

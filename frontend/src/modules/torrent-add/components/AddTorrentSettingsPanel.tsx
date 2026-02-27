@@ -24,7 +24,9 @@ import {
     PauseCircle,
 } from "lucide-react";
 import { describePathKind } from "@/modules/torrent-add/utils/destination";
-import { DESTINATION_INPUT_LAYOUT_ID } from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
+import {
+    DESTINATION_INPUT_LAYOUT_ID,
+} from "@/modules/torrent-add/components/AddTorrentDestinationGatePanel";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import {
     FORM,
@@ -35,8 +37,7 @@ import {
 
 export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
-    const { destinationInput, destinationGate, settings } =
-        useAddTorrentModalContext();
+    const { destinationInput, destinationGate, settings } = useAddTorrentModalContext();
 
     return (
         <div className={FORM.workflow.root}>

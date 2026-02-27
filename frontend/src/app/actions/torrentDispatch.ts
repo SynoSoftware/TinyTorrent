@@ -2,6 +2,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import type { TorrentIntentExtended, QueueMoveIntent } from "@/app/intents/torrentIntents";
 import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
+import { toMoveDataFlag } from "@/modules/dashboard/domain/torrentRelocation";
 
 export type TorrentDispatchOutcome =
     | { status: "applied" }
@@ -200,7 +201,7 @@ const DISPATCH_HANDLERS: DispatchHandlerTable = {
             await setTorrentLocation.bind(context.client)(
                 String(intent.torrentId),
                 intent.path,
-                intent.moveData ?? true,
+                toMoveDataFlag(intent.locationMode),
             );
             return { status: "applied" };
         },
