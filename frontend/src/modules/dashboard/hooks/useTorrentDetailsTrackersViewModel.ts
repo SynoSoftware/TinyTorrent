@@ -199,7 +199,9 @@ export const useTorrentDetailsTrackersViewModel = ({
                         : unknownLabel;
                 const peersLabel = `${seeders} / ${leechers}`;
 
-                const hasAttempt = tracker.lastAnnounceTime != null;
+                const hasAttempt =
+                    typeof tracker.lastAnnounceTime === "number" &&
+                    tracker.lastAnnounceTime > 0;
                 const lastSucceeded = tracker.lastAnnounceSucceeded === true;
 
                 let statusTone: TrackerStatusTone = "pending";

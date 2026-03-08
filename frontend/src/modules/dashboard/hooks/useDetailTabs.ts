@@ -138,6 +138,7 @@ export interface TorrentDetailTabSurfaces {
         peers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["peers"]
         >;
+        emptyMessage: string;
         onPeerContextAction?: DashboardDetailViewModel["tabs"]["peers"]["handlePeerContextAction"];
         torrentProgress?: number;
         sortBySpeed?: boolean;
@@ -294,7 +295,9 @@ export const useTorrentDetailTabCoordinator = ({
             content: {
                 torrent,
                 files: torrent.files ?? [],
-                emptyMessage: t("torrent_modal.files_empty"),
+                emptyMessage: torrent.files == null
+                    ? t("torrent_modal.loading")
+                    : t("torrent_modal.files_empty"),
                 onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
                 isStandalone,
             },
@@ -309,7 +312,9 @@ export const useTorrentDetailTabCoordinator = ({
                 targetIds: viewModel.tabs.trackers.targetIds,
                 scope: viewModel.tabs.trackers.scope,
                 trackers: torrent.trackers ?? [],
-                emptyMessage: t("torrent_modal.trackers.empty_backend"),
+                emptyMessage: torrent.trackers == null
+                    ? t("torrent_modal.loading")
+                    : t("torrent_modal.trackers.empty_backend"),
                 isStandalone,
                 addTrackers,
                 replaceTrackers,
@@ -317,6 +322,9 @@ export const useTorrentDetailTabCoordinator = ({
             },
             peers: {
                 peers: torrent.peers ?? [],
+                emptyMessage: torrent.peers == null
+                    ? t("torrent_modal.loading")
+                    : t("torrent_modal.peers.empty_backend"),
                 onPeerContextAction: viewModel.tabs.peers.handlePeerContextAction,
                 torrentProgress: torrent.progress ?? 0,
                 sortBySpeed: viewModel.tabs.peers.peerSortStrategy === "speed",

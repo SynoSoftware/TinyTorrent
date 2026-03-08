@@ -6,9 +6,12 @@ import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entiti
 import type { DetailTab } from "@/modules/dashboard/types/contracts";
 import type { TorrentDetailTabDefinition } from "@/modules/dashboard/hooks/useDetailTabs";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 const NAME_MAX_LENGTH = 56;
+
+const sanitizeDomIdToken = (value: string) =>
+    value.replace(/[^A-Za-z0-9_-]+/g, "-");
 
 const truncateTorrentName = (value?: string, fallback?: string) => {
     if (!value && fallback) return fallback;
@@ -55,6 +58,9 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         torrent?.name,
         t("general.unknown"),
     );
+    const tabDomIdPrefix = sanitizeDomIdToken(
+        String(torrent?.id ?? torrent?.hash ?? "inspector"),
+    );
 
     const hasStatus = Boolean(statusLabel);
 
@@ -89,12 +95,20 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
 
             {/* CENTER */}
             <div className={DETAILS.headerCenter}>
-                <div className={DETAILS.headerTabs}>
+                <div
+                    className={DETAILS.headerTabs}
+                    role="tablist"
+                    aria-label={t("inspector.panel_label")}
+                >
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
                             type="button"
-                            aria-pressed={activeTab === tab.id}
+                            id={`${tabDomIdPrefix}-tab-${tab.id}`}
+                            role="tab"
+                            aria-selected={activeTab === tab.id}
+                            aria-controls={`${tabDomIdPrefix}-panel-${tab.id}`}
+                            tabIndex={activeTab === tab.id ? 0 : -1}
                             onClick={() => onTabChange(tab.id)}
                             className={DETAILS.builder.headerTabButtonClass(
                                 activeTab === tab.id,

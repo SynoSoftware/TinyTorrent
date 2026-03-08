@@ -659,6 +659,15 @@ Write code so a human can read and edit it quickly.
 - If argument or prop surfaces show boundary leakage, redesign the boundary.
 - Comments are allowed only for short, non-obvious rationale tied to an invariant or contract.
 
+### **16.6a React Data Flow & Render Cost**
+
+- Use **props by default** when data is owned by the parent and consumed by an immediate child or a small adjacent subtree.
+- Do **not** thread props across multiple layers just to reach distant consumers; extend the real owner, redesign the boundary, or promote the value to Context only when the owner and lifecycle are truly shared.
+- Use **Context** for cross-cutting, non-adjacent, authority-owned values with multiple consumers. Do not use Context as a dumping ground for leaf-local state or convenience wiring.
+- High-churn Context values must be split or otherwise constrained so unrelated consumers do not re-render on every update.
+- Use **`useMemo` / `useCallback` only when they pay for themselves**: preserving referential stability for memoized children, preventing expensive recalculation, or satisfying a library contract that depends on stable identity.
+- Do not memoize trivial expressions, wrapper objects, or pass-through callbacks by default. If a memo exists, it should defend either correctness or measurable render cost.
+
 ## **16.7 God Objects, Patterns, and Placement**
 
 Do not create or enlarge god files. If a touched file is already overloaded, reduce its responsibility surface at least a little.

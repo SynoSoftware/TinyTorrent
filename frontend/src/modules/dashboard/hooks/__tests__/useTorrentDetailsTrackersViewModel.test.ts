@@ -16,6 +16,7 @@ vi.mock("react-i18next", () => ({
 
 type HarnessRef = {
     getPeersLabel: () => string;
+    getStatusLabel: () => string;
     getNewTrackers: () => string;
     setNewTrackers: (value: string) => void;
     submitReplace: () => void;
@@ -54,6 +55,7 @@ const ViewModelHarness = forwardRef<HarnessRef, { trackers: TorrentTrackerEntity
             ref,
             () => ({
                 getPeersLabel: () => viewModel.data.rows[0]?.peersLabel ?? "",
+                getStatusLabel: () => viewModel.data.rows[0]?.statusLabel ?? "",
                 getNewTrackers: () => viewModel.state.newTrackers,
                 setNewTrackers: (value: string) =>
                     viewModel.actions.setNewTrackers(value),
@@ -136,6 +138,26 @@ describe("useTorrentDetailsTrackersViewModel", () => {
                 return harness;
             };
             expect(readHarness().getPeersLabel()).toBe("Unknown / Unknown");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("keeps trackers pending before the first announce attempt", async () => {
+        const mounted = await mountHarness([
+            makeTracker({
+                lastAnnounceTime: 0,
+                lastAnnounceSucceeded: false,
+            }),
+        ]);
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+            expect(harness.getStatusLabel()).toBe(
+                "torrent_modal.trackers.status_pending",
+            );
         } finally {
             mounted.cleanup();
         }

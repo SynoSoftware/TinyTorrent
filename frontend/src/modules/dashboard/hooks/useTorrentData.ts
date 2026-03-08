@@ -355,12 +355,20 @@ export function useTorrentData({
         [markTransportConnected],
     );
 
+    const runtimeSummary = useMemo(() => deriveTorrentRuntimeSummary(torrents), [torrents]);
+
     useEffect(() => {
         if (!sessionReady) return;
-        const intervalMs = Math.max(1000, pollingIntervalMs);
+        const hasVerificationPollingBoost = runtimeSummary.verifyingCount > 0;
+        const intervalMs = Math.max(
+            1000,
+            hasVerificationPollingBoost
+                ? Math.min(pollingIntervalMs, timing.heartbeat.detailMs)
+                : pollingIntervalMs,
+        );
         const subscription = heartbeatDomain.subscribeTable({
             pollingIntervalMs: intervalMs,
-            preferFullFetch,
+            preferFullFetch: preferFullFetch || hasVerificationPollingBoost,
             onUpdate: handleHeartbeatUpdate,
             onError: () => {
                 if (!isMountedRef.current) return;
@@ -375,12 +383,11 @@ export function useTorrentData({
         sessionReady,
         pollingIntervalMs,
         preferFullFetch,
+        runtimeSummary.verifyingCount,
         handleHeartbeatUpdate,
         markTransportConnected,
         reportReadError,
     ]);
-
-    const runtimeSummary = useMemo(() => deriveTorrentRuntimeSummary(torrents), [torrents]);
 
     return {
         torrents,

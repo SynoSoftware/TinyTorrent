@@ -23,7 +23,17 @@ export function useTorrentDetailHeaderStatus({
             };
         }
 
-        const statusLabel = String(torrent.state);
+        const statusLabel =
+            typeof torrent.state === "string" && torrent.state.length > 0
+                ? torrent.state
+                : null;
+        if (!statusLabel) {
+            return {
+                statusLabel: null,
+                tooltip: null,
+                primaryHint: null,
+            };
+        }
         const tooltip = torrent.errorString && torrent.errorString.trim().length > 0
             ? torrent.errorString
             : statusLabel;

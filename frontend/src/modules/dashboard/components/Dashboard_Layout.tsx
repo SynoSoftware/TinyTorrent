@@ -17,7 +17,7 @@ import { Section } from "@/shared/ui/layout/Section";
 import { DASHBOARD } from "@/shared/ui/layout/glass-surface";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
-const { layout, shell, visuals, visualizations, ui } = registry;
+const { shell, visuals, visualizations, ui } = registry;
 
 const ANIMATION = {
     spring: {
@@ -61,6 +61,26 @@ const FULLSCREEN_PANEL_ANIMATION = {
     },
     transition: { duration: 0.25 },
 } as const;
+
+const isEditableKeyboardTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    const tagName = target.tagName;
+    if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+    ) {
+        return true;
+    }
+
+    return (
+        target.isContentEditable ||
+        target.closest("[contenteditable='true']") !== null
+    );
+};
 
 interface DashboardLayoutProps {
     viewModel: DashboardViewModel;
@@ -147,10 +167,10 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     useEffect(() => {
         if (!isDetailOpen) return;
         const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                handleDetailClose();
-            }
+            if (event.key !== "Escape" || event.defaultPrevented) return;
+            if (isEditableKeyboardTarget(event.target)) return;
+            event.preventDefault();
+            handleDetailClose();
         };
         window.addEventListener("keydown", handleEscape);
         return () => window.removeEventListener("keydown", handleEscape);

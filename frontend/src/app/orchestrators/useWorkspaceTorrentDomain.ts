@@ -33,7 +33,7 @@ import {
 } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
 import type { LocationMode } from "@/modules/dashboard/domain/torrentRelocation";
-const { timing, ui } = registry;
+const { timing } = registry;
 
 export interface UseWorkspaceTorrentDomainParams {
     torrentClient: EngineAdapter;
@@ -90,8 +90,6 @@ export function useWorkspaceTorrentDomain({
     const isMountedRef = useRef(false);
     const [isRecheckPollingBoostActive, setIsRecheckPollingBoostActive] =
         useState(false);
-    const [isVerificationPollingBoostActive, setIsVerificationPollingBoostActive] =
-        useState(false);
     const recheckPollingBoostTimerRef = useRef<number | undefined>(undefined);
 
     useEffect(() => {
@@ -120,11 +118,10 @@ export function useWorkspaceTorrentDomain({
     }, [clearRecheckPollingBoostTimer]);
 
     const effectiveTablePollingIntervalMs =
-        isRecheckPollingBoostActive || isVerificationPollingBoostActive
+        isRecheckPollingBoostActive
             ? Math.min(pollingIntervalMs, timing.heartbeat.detailMs)
             : pollingIntervalMs;
-    const preferFullFetch =
-        isRecheckPollingBoostActive || isVerificationPollingBoostActive;
+    const preferFullFetch = isRecheckPollingBoostActive;
 
     const {
         torrents,
@@ -140,14 +137,13 @@ export function useWorkspaceTorrentDomain({
         markTransportConnected,
     });
 
-    useEffect(() => {
-        const hasVerificationInProgress = runtimeSummary.verifyingCount > 0;
-        setIsVerificationPollingBoostActive((prev) =>
-            prev === hasVerificationInProgress ? prev : hasVerificationInProgress,
-        );
-    }, [runtimeSummary.verifyingCount]);
-
-    const { detailData, loadDetail, refreshDetailData, clearDetail, mutateDetail } = useTorrentDetail({
+    const {
+        detailData,
+        loadDetail,
+        refreshDetailData,
+        clearDetail,
+        mutateDetail,
+    } = useTorrentDetail({
         torrentClient,
         isMountedRef,
     });
@@ -178,14 +174,7 @@ export function useWorkspaceTorrentDomain({
             setActiveId(torrentId);
             await loadDetail(
                 torrentId,
-                target
-                    ? ({
-                          ...target,
-                          trackers: [],
-                          files: [],
-                          peers: [],
-                      } as TorrentDetail)
-                    : undefined,
+                target ? ({ ...target } as TorrentDetail) : undefined,
             );
         },
         [loadDetail, setActiveId, torrents],
@@ -231,14 +220,7 @@ export function useWorkspaceTorrentDomain({
         const activeTorrent = selectedTorrents.find((torrent) => torrent.id === activeId) ?? null;
         void loadDetail(
             activeId,
-            activeTorrent
-                ? ({
-                      ...activeTorrent,
-                      trackers: [],
-                      files: [],
-                      peers: [],
-                  } as TorrentDetail)
-                : undefined,
+            activeTorrent ? ({ ...activeTorrent } as TorrentDetail) : undefined,
         );
     }, [activeId, detailData, loadDetail, selectedTorrents]);
 

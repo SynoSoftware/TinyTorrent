@@ -35,6 +35,7 @@ const FLAG_MAP: Record<string, string> = {
 
 interface UseTorrentDetailsPeersViewModelParams {
     peers: TorrentPeerEntity[];
+    emptyMessage: string;
     listRef: RefObject<HTMLDivElement | null>;
     onPeerContextAction?: (
         action: PeerContextAction,
@@ -95,6 +96,7 @@ export interface TorrentDetailsPeersViewModel {
 
 export const useTorrentDetailsPeersViewModel = ({
     peers,
+    emptyMessage,
     listRef,
     onPeerContextAction,
     sortBySpeed = false,
@@ -153,19 +155,24 @@ export const useTorrentDetailsPeersViewModel = ({
             const y = event.clientY - rect.top;
             const margin = fileContextMenuMargin;
             const menuWidth = fileContextMenuWidth || 200;
+            const estimatedMenuHeight = rowHeight * 4;
 
             const boundedX = Math.min(
                 Math.max(x, margin),
                 rect.width - menuWidth - margin
             );
+            const maxY = Math.max(
+                margin,
+                rect.height - estimatedMenuHeight - margin
+            );
             const boundedY = Math.min(
                 Math.max(y, margin),
-                rect.height - margin
+                maxY
             );
 
             setPeerContextMenu({ peer, x: boundedX, y: boundedY });
         },
-        [fileContextMenuMargin, fileContextMenuWidth, listRef]
+        [fileContextMenuMargin, fileContextMenuWidth, listRef, rowHeight]
     );
 
     const runContextAction = useCallback(
@@ -237,7 +244,7 @@ export const useTorrentDetailsPeersViewModel = ({
             rowViewModels,
         },
         labels: {
-            emptyMessage: t("torrent_modal.peers.empty_backend"),
+            emptyMessage,
             flagsHeader: t("peers.columns.flags"),
             endpointHeader: t("peers.columns.endpoint"),
             clientHeader: t("peers.columns.client_identification"),

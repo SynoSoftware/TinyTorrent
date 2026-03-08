@@ -5,6 +5,9 @@ import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorre
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
+const sanitizeDomIdToken = (value: string) =>
+    value.replace(/[^A-Za-z0-9_-]+/g, "-");
+
 export interface TorrentDetailsProps {
     viewModel: DashboardDetailViewModel;
     className?: string;
@@ -34,6 +37,9 @@ export function TorrentDetails({
     onPopout?: () => void;
 }) {
     const { detailData: torrent } = viewModel;
+    const tabDomIdPrefix = sanitizeDomIdToken(
+        String(torrent?.id ?? torrent?.hash ?? "inspector"),
+    );
     const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
         torrent,
     });
@@ -69,7 +75,14 @@ export function TorrentDetails({
                 primaryHint={primaryHint}
             />
 
-            <div className={DETAILS.body}>{activeSurface}</div>
+            <div
+                id={`${tabDomIdPrefix}-panel-${active}`}
+                className={DETAILS.body}
+                role="tabpanel"
+                aria-labelledby={`${tabDomIdPrefix}-tab-${active}`}
+            >
+                {activeSurface}
+            </div>
         </div>
     );
 }

@@ -10,7 +10,7 @@ import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
-const { visualizations, ui } = registry;
+const { visualizations } = registry;
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
@@ -59,6 +59,7 @@ export const ContentTab = ({
     );
     const explorer = useFileExplorerViewModel(files, fileToggleCommand);
     const filesCount = explorer.files.length;
+    const isLoading = files == null;
 
     const fileCountLabel =
         filesCount === 1
@@ -81,15 +82,17 @@ export const ContentTab = ({
         return (
             <div className={TABLE.detailsContentRoot}>
                 <AlertPanel
-                    severity="warning"
+                    severity={isLoading ? "info" : "warning"}
                     className={TABLE.detailsContentWarning}
                 >
                     <div className={TEXT_ROLE.statusWarning}>
-                        {t("torrent_modal.files_empty")}
+                        {emptyMessage}
                     </div>
-                    <div className={TABLE.detailsContentRecoveryNote}>
-                        {t("torrent_modal.files_missing_desc")}
-                    </div>
+                    {!isLoading ? (
+                        <div className={TABLE.detailsContentRecoveryNote}>
+                            {t("torrent_modal.files_missing_desc")}
+                        </div>
+                    ) : null}
                 </AlertPanel>
             </div>
         );

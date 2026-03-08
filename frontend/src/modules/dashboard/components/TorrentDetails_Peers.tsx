@@ -11,10 +11,11 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
 import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 interface PeersTabProps {
     peers: TorrentPeerEntity[];
+    emptyMessage: string;
     onPeerContextAction?: (
         action: PeerContextAction,
         peer: TorrentPeerEntity,
@@ -26,6 +27,7 @@ interface PeersTabProps {
 
 export const PeersTab = ({
     peers,
+    emptyMessage,
     onPeerContextAction,
     sortBySpeed = false,
     torrentProgress = 0,
@@ -33,6 +35,7 @@ export const PeersTab = ({
     const listRef = useRef<HTMLDivElement | null>(null);
     const viewModel = useTorrentDetailsPeersViewModel({
         peers,
+        emptyMessage,
         listRef,
         onPeerContextAction,
         sortBySpeed,

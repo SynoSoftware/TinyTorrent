@@ -896,6 +896,7 @@
         "files_search_placeholder": "Search files...",
         "files_select_extension": "Select by extension...",
         "files_missing_desc": "Missing files detected. Try Download missing or recheck.",
+        "loading": "Loading torrent details...",
         "placeholder": "Select a torrent and open the inspector to see details.",
         "errors": {
             "no_data_found_title": "Missing files",
