@@ -5,6 +5,17 @@ Frontend rules for TinyTorrent. §21 is the only canonical architectural law; ev
 
 **Current defaults:** React 19, TypeScript, Vite, Tailwind v4, HeroUI, Framer Motion, react-dropzone, Lucide, Zod, `@tanstack/react-virtual`, `cmdk`, `react-resizable-panels`, React Context, and frameless window controls.
 
+**Rule tiers:**
+- **Tier 1:** foundational invariants in §21 only
+- **Tier 2:** enforced contracts and gates derived from §21
+- **Tier 3:** replaceable implementation defaults and UX guidance
+
+**Constitutional framing (hard):**
+- Only §21 defines architectural invariants.
+- Tier 2 operationalizes §21 for implementation and review.
+- Tier 3 is replaceable policy and defaults.
+- Non-§21 sections must not introduce parallel law surfaces.
+
 ---
 
 # **0. Quick Rules**
@@ -41,6 +52,8 @@ If a landing/review change adds a new module, hook, service, model, or constant 
 - **Why new surface:** why extension would violate ownership, lifecycle, or authority rules
 - **Consumers:** at least one immediate consumer in the same change
 
+New surfaces are a last resort, not a neutral choice. "Cleaner" or "more modular" is not sufficient justification without measurable reduction in duplication, ambiguity, or boundary leakage.
+
 ## **0.3 Landing Gates (DoD)**
 
 A change is not ready to land if it introduces any of the following:
@@ -65,6 +78,8 @@ For UI or styling changes intended to land/review, run and report:
 - `npm run report:surface-tree:all`
 - `npm run build`
 
+Landing/review gates enforce architecture and consistency; they do not create new architectural invariants.
+
 ## **0.4 Solo Dev Workflow (Low Ceremony)**
 
 - **WIP:** move fast, keep the build green, obey hard rules, skip landing artifacts.
@@ -84,8 +99,59 @@ Before adding a new hook, component, helper, service, model, or constant:
 - search for an existing owner first
 - extend it when lifecycle and authority already match
 - do not add a layer whose main job is forwarding, renaming, or reshaping existing data
+- answer these five questions before adding a new surface:
+  1. who owns this decision?
+  2. who owns this state?
+  3. what is the lifecycle?
+  4. what is the single public contract surface?
+  5. why cannot the existing owner absorb this?
 
 This is workflow guidance. §21 still governs authority, ownership, lifecycle, and indirection.
+
+## **0.6 Spec Kaizen Note (Triggered, Non-Blocking)**
+
+At the end of a landed/reviewed iteration, include a short **Spec Kaizen Note** only when the work exposed a real **spec-level weakness** in `AGENTS.md`.
+
+A Spec Kaizen Note is about **spec friction**, not general code quality.
+
+Valid triggers include:
+
+- an ambiguity caused ownership, placement, or lifecycle confusion
+- a repeated failure mode was not covered by an existing rule
+- two sections overlapped, contradicted each other, or created false-law pressure
+- a review gate was too weak to catch real architectural drift
+- a rule caused repeated unnecessary ceremony without protecting maintainability
+- a non-§21 section started behaving like parallel law
+
+Invalid triggers include:
+
+- a one-off implementation mistake
+- code that could be cleaner without any spec ambiguity
+- local refactor opportunities
+- stylistic preferences
+- speculative rule ideas without evidence
+
+Output requirement:
+
+- If no real spec-level weakness was exposed, output: **Spec Kaizen Note: none**
+- If triggered, keep it short and include:
+  - **Observed gap:** what in `AGENTS.md` failed or was unclear
+  - **Impact:** why it matters for maintainability, clarity, or enforcement
+  - **Suggested change:** the smallest amendment that would improve the spec
+  - **Evidence level:** one-off, repeated, or systemic
+
+Promotion threshold:
+
+- **1 occurrence:** note it, but do not amend the spec unless the ambiguity is severe
+- **2-3 occurrences:** propose tightening or clarifying existing wording
+- **repeated/systemic pattern:** amend the spec
+
+Rules:
+
+- do not propose spec changes for one-off implementation mistakes
+- do not create new architectural law outside §21
+- prefer amending or tightening existing sections over adding new sections
+- fix local code problems in code; use the Kaizen Note only for spec problems
 
 # **1. Product Intent**
 
@@ -193,6 +259,8 @@ Tailwind utilities are allowed in feature/UI files only when all of the followin
 
 If any condition fails, move the styling into shared authorities before landing. Local styling exceptions require explicit user approval in-thread.
 
+If shared styling authority is missing, stop local styling work and extend shared authority first, then consume it from the feature file.
+
 ## **3.6 Structural Layout Primitives**
 
 Shared primitives own recurring layout and surface meaning:
@@ -206,7 +274,7 @@ Rules:
 
 - visually framed containers use `Surface`
 - stage-centering containers use `Section`
-- repeated vertical or horizontal grouping should use `Stack` or `Cluster`
+- repeated stable grouping patterns must be promoted to `Stack` or `Cluster`; one-off mechanical layout may remain local under the Tailwind Exception Rule
 - feature modules must not define local variants of these primitives
 - do not stack multiple `Surface` recipes for the same intent
 - during refactors, migrate repeated background/border/radius/blur to `Surface`, centering/max-width/stage padding to `Section`, and repeated grouping gaps to `Stack` or `Cluster`
@@ -234,6 +302,11 @@ Use HeroUI semantic tokens, not raw colors.
 - No hex, named Tailwind colors, inline `rgba()`, or hand-picked light/dark border colors.
 - Shell-level visual constants live in `config/constants.json`.
 - Default visual direction: automatic theme/language detection with Dark/English fallbacks, glass for floating surfaces, comfortable controls, strong typography, and restrained depth.
+
+Reference mappings (authority-owned; consume through shared authorities/primitives, do not inline in feature files):
+- **Layer 0 shell:** `bg-background` with subtle configured noise
+- **Layer 1 panels/tables:** `backdrop-blur-md bg-background/60 border-default/10`
+- **Layer 2 floating surfaces:** `backdrop-blur-xl bg-content1/80 shadow-medium border-default/20`
 
 ---
 
@@ -279,9 +352,12 @@ TinyTorrent is a local UI controlling a local daemon. Remote connections are sec
 
 - One central heartbeat loop only. Components must not create fetch intervals.
 - Adaptive polling is the current default; future push mode may replace it without changing UI contracts.
+- Current config-owned polling defaults are defined in `constants.json` / `logic.ts`; leaf UI must not hardcode polling intervals.
+- Current defaults currently resolve to table `1500ms`, details `500ms`, background `5000ms`.
 - Subscriptions stay selective: the table listens to list deltas, the inspector listens to the active torrent.
 - Torrent mutations go through `dispatch()` in `frontend/src/app/actions/torrentDispatch.ts`.
 - UI helpers, modals, hooks, and ViewModels must not call mutation methods on `EngineAdapter` directly.
+- Forbidden direct UI calls include `verify`, `resume`, `pause`, `remove`, `setTorrentLocation`, queue moves, tracker mutations, and file-selection mutations.
 
 ---
 
@@ -293,6 +369,7 @@ Structural state changes should be motion-authored with Framer Motion. Use share
 
 - Selection is OS-style: click single, Ctrl/Cmd add, Shift range, right-click acts on the selection.
 - `body` and `#root` stay fullscreen with no window scrollbar; only panes and lists scroll internally.
+- Default root utility for fullscreen shell mode is `h-screen w-screen overflow-hidden` on `body` and `#root`; equivalent authority-owned implementation is allowed.
 - Internal scroll areas must not cause layout shift.
 - Default to tool behavior over document behavior: `user-select: none` except for explicit copy-required text.
 - I-beam cursor is only for editable text fields.
@@ -331,6 +408,8 @@ Structural state changes should be motion-authored with Framer Motion. Use share
 - Inspector defaults to collapsed (`size = 0`) and opens through double-click or shortcut.
 - Inspector size, orientation, and open state persist locally.
 - Use `react-resizable-panels` for splits, thin semantic drag handles, and no heavy gutters.
+- Prefer `overlay-scrollbar` for pane/list scroll regions when suitable.
+- Split handles should use a semantic hit-target class/token such as `h-handle-hit` (or current equivalent authority token).
 - Main and inspector panes stay mounted when collapsed to preserve focus, selection, scroll state, and continuity.
 - Context menus must be custom and flip/reposition rather than overflow the window.
 - Workbench model: `Part -> Container -> Pane -> View`. Parts never unmount, containers always exist, views may swap, and pane-level resizing/collapse handles continuity.
@@ -430,6 +509,17 @@ Flat, co-located structure optimized for speed:
 - `src/shared/`: reusable UI, hooks, and utilities
 - `src/i18n/en.json`: source-of-truth locale file
 
+Reference tree:
+```txt
+src/
+|-- app/
+|-- config/
+|-- modules/
+|-- services/
+|-- shared/
+\-- i18n/en.json
+```
+
 ---
 
 ## **Rules**
@@ -473,6 +563,15 @@ Flat, co-located structure optimized for speed:
 - UI must never call `fetch` directly. Flow stays `UI -> hooks/viewmodels -> services/adapters -> schemas -> network/native boundary`.
 - Internal imports use the `@/` alias: `@/app`, `@/modules`, `@/shared`, `@/services`, `@/config`, `@/i18n`.
 - Rewrite deep relative imports to aliases when touched. Do not change alias config in `tsconfig.json` or `vite.config.ts` unless approved.
+Alias map:
+```txt
+@/app      -> src/app
+@/modules  -> src/modules
+@/shared   -> src/shared
+@/services -> src/services
+@/config   -> src/config
+@/i18n     -> src/i18n
+```
 
 ## **16.2 Incremental Improvement**
 
@@ -495,9 +594,11 @@ Control vocabularies such as intents, actions, commands, events, and orchestrati
 - use PascalCase authorities and namespace objects for closed vocabularies
 - stay out of UI components except for consumption
 - use `never` guards for exhaustive branches
+- avoid `typeof SOME_CONST.X` typing in consumer code when a domain alias/union expresses intent more directly
 
 Closed-vocabulary rules:
 
+- each closed vocabulary must have exactly one canonical authority module; downstream consumers may project from it but must not restate members
 - keep each closed vocabulary locally enumerable from one authority surface
 - do not maintain parallel literal unions, manual re-enumerations, or string-concatenated expansion
 - derive projections and membership checks from the authority surface, for example via `Object.values(...)` or an equivalent helper
@@ -553,6 +654,8 @@ Write code so a human can read and edit it quickly.
 - Avoid unnecessary TypeScript cleverness, gratuitous `useMemo`/`useCallback`, and speculative abstractions.
 - Do not add wrapper hooks, components, or ViewModels whose main job is forwarding, renaming, or re-packing existing state or actions.
 - Keep one owner for mutable UI state. Local state is for transient UI mechanics, not mirrored domain/ViewModel state.
+- Prefer explicit duplication over wrong sharing when owners, lifecycles, or semantics differ.
+- Design for deletion: each file and abstraction must have a clear reason to exist and an obvious deletion test.
 - If argument or prop surfaces show boundary leakage, redesign the boundary.
 - Comments are allowed only for short, non-obvious rationale tied to an invariant or contract.
 
@@ -593,10 +696,18 @@ Forbidden:
 Pause and rethink if a change reveals:
 
 - duplicated source of truth
+- pass-through props growing across component boundaries
 - wrapper layers with no ownership or contract value
+- a hook that mostly forwards another owner
+- a new file that exists only to rename or reshape data
+- a component that both decides and executes workflow logic
 - growing parameter plumbing
+- the same operation now has two callable contract surfaces
+- feature code introducing local policy/config defaults
+- raw payload or raw config data reaching feature code
 - feature state mirrored locally instead of read from its owner
 - a small helper turning into a dumping ground
+- a new abstraction that reduces no duplication, ambiguity, or contract count
 
 Prefer a better minimal solution over layering on another workaround.
 
