@@ -54,6 +54,7 @@ export type DetailsPieceMapConfig = {
         base: number;
         max: number;
     };
+    chunk_interval?: number;
 };
 
 export type DetailsPeerMapConfig = {

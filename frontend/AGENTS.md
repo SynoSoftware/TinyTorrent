@@ -60,7 +60,7 @@ A change is not ready to land if it introduces any of the following:
 
 - bypassed named authorities
 - feature-local styling authorities, inline visual styles, raw numbers, or bracket classes that violate §3
-- raw Tailwind visual recipes in feature UI files outside the Tailwind Exception Rule
+- new local visual styling in feature files, or new shared tokens added without attempting reuse or consolidation first
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
 - duplicated decision logic across Component, Hook, ViewModel, or Orchestrator layers
 - a new surface without an Owner Extension Statement
@@ -227,66 +227,42 @@ If a styling rule is outside this chain, it is guidance, not authority.
 - Do not do classname sweeps for “consistency” unless you are fixing behavior, adopting an existing standard in touched code, or creating the missing standard element.
 - Current cleanup plans are working documents, not law: `SURFACE_CLEANUP_PLAN.md`, `TEXT_ROLE_MIGRATION.md`, `CONSISTENCY_AUDIT.md`.
 
-## **3.4 Feature Styling Ownership (Hard)**
+## **3.4 Shared Surface Authority & Token Reduction (Hard)**
 
-Feature files are style consumers, not style authorities.
+`frontend/src/shared/ui/layout/glass-surface.ts` is the single authority for reusable UI presentation and structural layout contracts.
 
-Forbidden:
+Feature files must consume exported surfaces, layout primitives, builders, and class contracts from `glass-surface.ts`. Feature files must not define local visual systems through ad hoc `className` strings, local token sets, feature-prefixed style maps, or repeated utility recipes.
 
-- local style constants or maps such as `const ...CLASS...` or `const ...ClassNames...`
-- raw Tailwind visual recipes in feature files
-- feature-owned surface systems, feature-prefixed token maps, or duplicate semantic systems
-- ad-hoc semantic surface recipes using `bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`, or similar visual classes as a local design system
+If a visual or structural pattern is reused, visually meaningful, or part of tab, panel, or layout composition, it belongs in `glass-surface.ts`, not in the feature file.
 
-Allowed:
+When editing existing UI, prefer reduction over addition:
 
-- shared authorities from `glass-surface.ts`, `textRoles.ts`, and `logic.ts`
-- short mechanical utilities when they satisfy the Tailwind Exception Rule
-- local layout composition when semantic meaning still comes from shared authorities
+- reuse an existing shared token or contract if it is close enough
+- collapse near-duplicate shared tokens when semantics match
+- add a new shared token only when an existing one cannot express the intent cleanly
+- do not create a new token for one-off local preference
 
-Modal files are style consumers only. If a modal needs a new visual role, extend the shared authority first.
+The direction of change must be toward fewer shared tokens, fewer parallel contracts, and less local styling authority.
 
-Surface semantics must come from shared surface authority or structural primitives. Feature modules may not invent new composite surface recipes.
+Review gate:
+
+- reject changes that introduce new local visual styling in feature files
+- reject changes that add a new shared token when an existing one can absorb the need
+- prefer merging and deleting near-duplicate tokens over preserving them
 
 ## **3.5 Tailwind Exception Rule (Hard)**
 
-Tailwind utilities are allowed in feature/UI files only when all of the following are true:
+Inline Tailwind in feature files is allowed only for tiny one-element mechanical nudges with no visual semantics and no structural role.
 
-1. they are strictly mechanical: layout, alignment, spacing, or flow only
-2. they are short and local to one element
-3. the same recipe is not repeated; on second reuse, promote it
-4. they do not create a local styling authority
-
-If any condition fails, move the styling into shared authorities before landing. Local styling exceptions require explicit user approval in-thread.
-
-If shared styling authority is missing, stop local styling work and extend shared authority first, then consume it from the feature file.
+It must not be used for panels, tab roots, layout structure, spacing systems, surfaces, reusable patterns, or any visually meaningful styling.
 
 ## **3.6 Structural Layout Primitives**
 
-Shared primitives own recurring layout and surface meaning:
+`glass-surface.ts` owns recurring structural layout and presentation contracts.
 
-- **`Surface`**: background, blur, elevation, border, radius, surface padding
-- **`Section`**: page centering, horizontal rhythm, max-width, stage padding
-- **`Stack`**: vertical spacing between children
-- **`Cluster`**: horizontal grouping rhythm for tools, buttons, and chips
+Shared primitives and contracts there must own recurring panel layouts, section headers, framed content areas, split layouts, grouped controls, canvas containers, legends, stats rows, and similar reusable structures.
 
-Rules:
-
-- visually framed containers use `Surface`
-- stage-centering containers use `Section`
-- repeated stable grouping patterns must be promoted to `Stack` or `Cluster`; one-off mechanical layout may remain local under the Tailwind Exception Rule
-- feature modules must not define local variants of these primitives
-- do not stack multiple `Surface` recipes for the same intent
-- during refactors, migrate repeated background/border/radius/blur to `Surface`, centering/max-width/stage padding to `Section`, and repeated grouping gaps to `Stack` or `Cluster`
-
-Layout ownership stays deterministic:
-
-- `Surface` = visual framing
-- `Section` = page alignment
-- `Stack` = vertical rhythm
-- `Cluster` = horizontal rhythm
-
-No other component should absorb those responsibilities.
+Feature code may compose those shared contracts, but must not invent parallel structural styling locally.
 
 ---
 

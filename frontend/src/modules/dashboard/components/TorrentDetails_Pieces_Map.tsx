@@ -77,46 +77,6 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                 </div>
             )}
 
-            <div ref={rootRef} className={SPLIT.mapFrame}>
-                <div className={SPLIT.mapFrameInner}>
-                    <canvas
-                        ref={canvasRef}
-                        className={SPLIT.mapCanvasLayer}
-                        onMouseMove={handlers.onMouseMove}
-                        onMouseLeave={handlers.onMouseLeave}
-                        onMouseDown={handlers.onMouseDown}
-                        style={SPLIT.builder.canvasInteractionStyle(cursor)}
-                    />
-                    <canvas
-                        ref={overlayRef}
-                        className={SPLIT.mapCanvasOverlayLayer}
-                    />
-
-                    {tooltipLines.length > 0 && tooltipStyle && (
-                        <div className={SPLIT.mapTooltip} style={tooltipStyle}>
-                            {tooltipLines.map((line, index) => (
-                                <span
-                                    key={`piece-tooltip-${index}`}
-                                    className={
-                                        index === 0
-                                            ? SPLIT.mapTooltipPrimaryLine
-                                            : SPLIT.mapTooltipSecondaryLine
-                                    }
-                                >
-                                    {line}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className={SPLIT.mapHintWrap}>
-                        <div className={SPLIT.mapHintChip}>
-                            {t("torrent_modal.piece_map.hint_interact")}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div className={SPLIT.mapLegendRow}>
                 <span className={SPLIT.mapLegendItem}>
                     <span
@@ -157,6 +117,47 @@ const PiecesMapView = ({ viewModel }: { viewModel: PiecesMapViewModel }) => {
                     </span>
                 </span>
             </div>
+
+            <div ref={rootRef} className={SPLIT.mapFrame}>
+                <div className={SPLIT.mapFrameInner}>
+                    <canvas
+                        ref={canvasRef}
+                        className={SPLIT.mapCanvasLayer}
+                        onMouseMove={handlers.onMouseMove}
+                        onMouseLeave={handlers.onMouseLeave}
+                        onMouseDown={handlers.onMouseDown}
+                        style={SPLIT.builder.canvasInteractionStyle(cursor)}
+                    />
+                    <canvas
+                        ref={overlayRef}
+                        className={SPLIT.mapCanvasOverlayLayer}
+                    />
+
+                    {tooltipLines.length > 0 && tooltipStyle && (
+                        <div className={SPLIT.mapTooltip} style={tooltipStyle}>
+                            {tooltipLines.map((line, index) => (
+                                <span
+                                    key={`piece-tooltip-${index}`}
+                                    className={
+                                        index === 0
+                                            ? SPLIT.mapTooltipPrimaryLine
+                                            : SPLIT.mapTooltipSecondaryLine
+                                    }
+                                >
+                                    {line}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className={SPLIT.mapHintWrap}>
+                        <div className={SPLIT.mapHintChip}>
+                            {t("torrent_modal.piece_map.hint_interact")}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     );
 };

@@ -1,17 +1,18 @@
-import { Button, Tooltip, cn } from "@heroui/react";
+import { Tooltip, cn } from "@heroui/react";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { TEXT_ROLE } from "@/config/textRoles";
+import { useTranslation } from "react-i18next";
 import {
     SURFACE, HEATMAP, } from "@/shared/ui/layout/glass-surface";
 import {
     getAvailabilityColor, useCanvasPalette, } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import { registry } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-import StatusIcon from "@/shared/ui/components/StatusIcon";
-const { layout, visuals, ui } = registry;
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+const { layout } = registry;
 
 // Scheduling: the shared scheduler now drives `useUiClock()` so redraw cadence is centralized and documented.
 
@@ -34,6 +35,7 @@ export const AvailabilityHeatmap = ({
     emptyLabel,
     formatTooltip,
 }: AvailabilityHeatmapProps) => {
+    const { t } = useTranslation();
     const { pieceMap, heatmap } = layout;
     const PIECE_COLUMNS = pieceMap.columns;
     const HEATMAP_CANVAS_CELL_SIZE = heatmap.cellSize;
@@ -46,7 +48,7 @@ export const AvailabilityHeatmap = ({
     const [zoomPulseUntilTick, setZoomPulseUntilTick] = useState<number | null>(
         null,
     );
-    // Decoupled: visuals update only when pieceAvailability changes
+    // Decoupled: the canvas redraws only when pieceAvailability changes
     const availabilityList = useMemo(
         () => pieceAvailability ?? [],
         [pieceAvailability],
@@ -69,7 +71,7 @@ export const AvailabilityHeatmap = ({
                 return next;
             });
         },
-        [tick],
+        [tick, HEATMAP_ZOOM_LEVELS.length],
     );
     const isZooming = zoomPulseUntilTick !== null && tick <= zoomPulseUntilTick;
 
@@ -200,6 +202,8 @@ export const AvailabilityHeatmap = ({
         maxPeers,
         palette.highlight,
         palette.placeholder,
+        HEATMAP_CANVAS_CELL_SIZE,
+        PIECE_COLUMNS,
     ]);
 
     // Redraw on data or UI clock. Avoid per-component timers.
@@ -240,7 +244,7 @@ export const AvailabilityHeatmap = ({
                 peers: cell.value,
             });
         },
-        [canvasWidth, canvasHeight, cellPitch, gridRows, heatCells],
+        [canvasWidth, canvasHeight, cellPitch, gridRows, heatCells, PIECE_COLUMNS],
     );
 
     const tooltipContent = stableHoveredCell
@@ -288,39 +292,27 @@ export const AvailabilityHeatmap = ({
                     </span>
                 </div>
                 <div className={HEATMAP.controls}>
-                    <Button
-                        size="md"
-                        variant="shadow"
-                        color="default"
-                        className={HEATMAP.zoomButton}
+                    <ToolbarIconButton
+                        Icon={ZoomOut}
+                        ariaLabel={t("torrent_modal.piece_map.zoom_out")}
                         onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
-                    >
-                        <StatusIcon
-                            Icon={ZoomOut}
-                            size="sm"
-                            className={HEATMAP.zoomIcon}
-                        />
-                    </Button>
+                        className={HEATMAP.zoomButton}
+                        iconSize="sm"
+                    />
                     <span className={HEATMAP.zoomValue}>
                         x{zoomLevel.toFixed(1)}
                     </span>
-                    <Button
-                        size="md"
-                        variant="shadow"
-                        color="default"
-                        className={HEATMAP.zoomButton}
+                    <ToolbarIconButton
+                        Icon={ZoomIn}
+                        ariaLabel={t("torrent_modal.piece_map.zoom_in")}
                         onPress={() => handleZoom("in")}
                         isDisabled={
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
                         }
-                    >
-                        <StatusIcon
-                            Icon={ZoomIn}
-                            size="sm"
-                            className={HEATMAP.zoomIcon}
-                        />
-                    </Button>
+                        className={HEATMAP.zoomButton}
+                        iconSize="sm"
+                    />
                 </div>
             </div>
             <div className={HEATMAP.builder.canvasFrameClass(isZooming)}>

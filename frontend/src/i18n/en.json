@@ -891,6 +891,8 @@
             "binary_states_note": "Backend provided only verified/missing piece information.",
             "tooltip": "Piece #{{piece}} - {{status}}",
             "tooltip_progress": "Torrent progress: {{percent}}%",
+            "zoom_in": "Zoom in",
+            "zoom_out": "Zoom out",
             "tooltip_size": "Piece size: {{size}}"
         },
         "files_search_placeholder": "Search files...",

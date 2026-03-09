@@ -726,6 +726,7 @@ const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
             base: 4,
             max: 16,
         },
+        chunk_interval: 10,
     },
     peer_map: {
         drift_amplitude: 8,

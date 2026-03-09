@@ -8,11 +8,30 @@ import {
 import { registry } from "@/config/logic";
 const { visualizations } = registry;
 
+export type PiecesMapFileBoundary = {
+    startIndex: number;
+    endIndex: number;
+    name: string;
+};
+
+export type PieceMapHoverPayload = {
+    pieceIndex: number;
+    status: PieceStatus;
+    row: number;
+    col: number;
+    fileName?: string;
+};
+
 export interface PiecesMapProps {
     percent: number;
     pieceCount?: number;
     pieceStates?: number[];
     pieceSize?: number;
+    chunkInterval?: number;
+    highlightPieceIndex?: number | null;
+    focusPieceIndex?: number | null;
+    fileBoundaries?: PiecesMapFileBoundary[];
+    onPieceHover?: (info: PieceMapHoverPayload | null) => void;
 }
 
 type HoverInfo = {
@@ -58,6 +77,11 @@ export function usePiecesMapViewModel({
     pieceCount,
     pieceStates,
     pieceSize,
+    chunkInterval,
+    highlightPieceIndex,
+    focusPieceIndex,
+    fileBoundaries,
+    onPieceHover,
 }: PiecesMapProps): PiecesMapViewModel {
     const rootRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -77,16 +101,24 @@ export function usePiecesMapViewModel({
             ? Math.round(pieceCount)
             : undefined;
     const totalPieces = safePieceCount ?? fallbackPieces;
-    const columns = Math.max(
-        1,
-        Number.isFinite(visualizations.details.pieceMap.columns)
-            ? visualizations.details.pieceMap.columns
-            : 1
-    );
-    const gridRows = buildPieceGridRows(totalPieces, columns, {
-        base: visualizations.details.pieceMap.rows.base,
-        max: visualizations.details.pieceMap.rows.max,
-    });
+const columns = Math.max(
+    1,
+    Number.isFinite(visualizations.details.pieceMap.columns)
+        ? visualizations.details.pieceMap.columns
+        : 1
+);
+const gridRows = buildPieceGridRows(totalPieces, columns, {
+    base: visualizations.details.pieceMap.rows.base,
+    max: visualizations.details.pieceMap.rows.max,
+});
+const defaultChunkInterval = Math.max(
+    2,
+    Math.round(visualizations.details.pieceMap.chunk_interval ?? 10),
+);
+const resolvedChunkInterval =
+    Number.isFinite(chunkInterval) && chunkInterval > 0
+        ? Math.max(1, Math.round(chunkInterval))
+        : defaultChunkInterval;
 
     const pieceStatesLength = pieceStates?.length ?? 0;
     const hasBinaryPieceStates =
@@ -113,11 +145,28 @@ export function usePiecesMapViewModel({
         () => resolvedStates.filter((status) => status === "downloading").length,
         [resolvedStates]
     );
-    const missingCount = totalPieces - doneCount - downloadingCount;
+const missingCount = totalPieces - doneCount - downloadingCount;
 
-    const pieceSizeLabel = pieceSize
-        ? formatBytes(pieceSize)
-        : t("torrent_modal.stats.unknown_size");
+const pieceSizeLabel = pieceSize
+    ? formatBytes(pieceSize)
+    : t("torrent_modal.stats.unknown_size");
+
+const validFileBoundaries = useMemo(() => {
+    if (!fileBoundaries?.length) return [];
+    return fileBoundaries
+        .map((boundary) => ({
+            startIndex: Math.max(
+                0,
+                Math.min(totalPieces - 1, boundary.startIndex),
+            ),
+            endIndex: Math.max(
+                0,
+                Math.min(totalPieces - 1, boundary.endIndex),
+            ),
+            name: boundary.name,
+        }))
+        .filter((boundary) => boundary.startIndex <= boundary.endIndex);
+}, [fileBoundaries, totalPieces]);
 
     const frameRef = useRef<FrameHandle | null>(null);
     const overlayFrameRef = useRef<FrameHandle | null>(null);

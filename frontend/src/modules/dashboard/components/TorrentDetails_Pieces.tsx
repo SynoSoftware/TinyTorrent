@@ -1,10 +1,9 @@
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { SPLIT } from "@/shared/ui/layout/glass-surface";
+import { DASHBOARD, SPLIT } from "@/shared/ui/layout/glass-surface";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
 import { PiecesMap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Map";
-import { TEXT_ROLE } from "@/config/textRoles";
 
 interface PiecesTabProps {
     piecePercent: number;
@@ -28,9 +27,7 @@ export const PiecesTab = ({
             <Panel defaultSize={50} className={SPLIT.panel} collapsible>
                 <GlassPanel className={SPLIT.surfacePanel}>
                     <div className={SPLIT.sectionHeader}>
-                        <span className={TEXT_ROLE.label}>
-                            {t("torrent_modal.tabs.pieces")}
-                        </span>
+                        <span aria-hidden="true" />
                         <span className={SPLIT.sectionHeaderMeta}>
                             {t("torrent_modal.piece_map.tooltip_progress", {
                                 percent: Math.max(
@@ -54,22 +51,16 @@ export const PiecesTab = ({
                 </GlassPanel>
             </Panel>
 
-            <PanelResizeHandle>
-                <div className={SPLIT.resizeHandle}>
-                    <div className={SPLIT.resizeBar} />
+            <PanelResizeHandle
+                className={DASHBOARD.builder.resizeHandleClass(false)}
+            >
+                <div className={DASHBOARD.resizeHandleInner}>
+                    <div className={DASHBOARD.resizeHandleBar} />
                 </div>
             </PanelResizeHandle>
 
             <Panel defaultSize={50} className={SPLIT.panel}>
                 <GlassPanel className={SPLIT.surfacePanel}>
-                    <div className={SPLIT.sectionHeader}>
-                        <span className={TEXT_ROLE.label}>
-                            {t("torrent_modal.availability.label")}
-                        </span>
-                        <span className={SPLIT.sectionHeaderCaption}>
-                            {t("torrent_modal.availability.legend_common")}
-                        </span>
-                    </div>
                     <AvailabilityHeatmap
                         pieceAvailability={pieceAvailability}
                         label={t("torrent_modal.availability.label")}
