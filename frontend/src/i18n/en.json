@@ -888,10 +888,22 @@
             "upload": "UL"
         },
         "piece_map": {
+            "availability_missing_note": "Swarm availability is unavailable, so missing pieces use a neutral tone.",
             "binary_states_note": "Backend provided only verified/missing piece information.",
+            "dead_stat": "Dead / 0 peers",
+            "hint_interact": "Scroll to zoom. Drag to pan. Drag the minimap to jump.",
+            "hide_hud": "Hide insights",
+            "legend_dead": "Dead",
+            "minimap_label": "Overview",
+            "show_hud": "Show insights",
+            "surface_title": "Unified Swarm Map",
             "tooltip": "Piece #{{piece}} - {{status}}",
+            "tooltip_availability_unknown": "Availability unknown",
+            "tooltip_peers": "{{peers}} peers in swarm",
+            "tooltip_piece": "Piece #{{piece}}",
             "tooltip_progress": "Torrent progress: {{percent}}%",
             "zoom_in": "Zoom in",
+            "zoom_reset": "Reset view",
             "zoom_out": "Zoom out",
             "tooltip_size": "Piece size: {{size}}"
         },

@@ -1,9 +1,11 @@
-import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { DASHBOARD, SPLIT } from "@/shared/ui/layout/glass-surface";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
 import { PiecesMap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Map";
+import { normalizePiecePercent } from "@/modules/dashboard/hooks/utils/canvasUtils";
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { SPLIT } from "@/shared/ui/layout/glass-surface";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 interface PiecesTabProps {
     piecePercent: number;
@@ -21,65 +23,47 @@ export const PiecesTab = ({
     pieceAvailability,
 }: PiecesTabProps) => {
     const { t } = useTranslation();
+    const [showPersistentHud, setShowPersistentHud] = useState(true);
+    const displayProgressPercent = Math.round(normalizePiecePercent(piecePercent) * 100);
 
     return (
-        <PanelGroup direction="vertical" className={SPLIT.panelGroup}>
-            <Panel defaultSize={50} className={SPLIT.panel} collapsible>
-                <GlassPanel className={SPLIT.surfacePanel}>
-                    <div className={SPLIT.sectionHeader}>
-                        <span aria-hidden="true" />
-                        <span className={SPLIT.sectionHeaderMeta}>
-                            {t("torrent_modal.piece_map.tooltip_progress", {
-                                percent: Math.max(
-                                    0,
-                                    Math.min(100, piecePercent ?? 0),
-                                ),
-                            })}
-                        </span>
-                    </div>
-
-                    <div className={SPLIT.surfacePanelBody}>
-                        <div className={SPLIT.surfacePanelFill}>
-                            <PiecesMap
-                                percent={piecePercent}
-                                pieceCount={pieceCount}
-                                pieceSize={pieceSize}
-                                pieceStates={pieceStates}
-                            />
-                        </div>
-                    </div>
-                </GlassPanel>
-            </Panel>
-
-            <PanelResizeHandle
-                className={DASHBOARD.builder.resizeHandleClass(false)}
-            >
-                <div className={DASHBOARD.resizeHandleInner}>
-                    <div className={DASHBOARD.resizeHandleBar} />
-                </div>
-            </PanelResizeHandle>
-
-            <Panel defaultSize={50} className={SPLIT.panel}>
-                <GlassPanel className={SPLIT.surfacePanel}>
-                    <AvailabilityHeatmap
-                        pieceAvailability={pieceAvailability}
-                        label={t("torrent_modal.availability.label")}
-                        legendRare={t("torrent_modal.availability.legend_rare")}
-                        legendCommon={t(
-                            "torrent_modal.availability.legend_common",
-                        )}
-                        emptyLabel={t(
-                            "torrent_modal.availability.backend_missing",
-                        )}
-                        formatTooltip={(piece, peers) =>
-                            t("torrent_modal.availability.tooltip", {
-                                piece,
-                                peers,
-                            })
+        <GlassPanel className={SPLIT.surfacePanel}>
+            <div className={SPLIT.sectionHeader}>
+                <span className={SPLIT.sectionHeaderCaption}>
+                    {t("torrent_modal.piece_map.surface_title")}
+                </span>
+                <div className={SPLIT.sectionHeaderActions}>
+                    <span className={SPLIT.sectionHeaderMeta}>
+                        {t("torrent_modal.piece_map.tooltip_progress", {
+                            percent: displayProgressPercent,
+                        })}
+                    </span>
+                    <ToolbarIconButton
+                        Icon={showPersistentHud ? EyeOff : Eye}
+                        ariaLabel={
+                            showPersistentHud
+                                ? t("torrent_modal.piece_map.hide_hud")
+                                : t("torrent_modal.piece_map.show_hud")
                         }
+                        onPress={() => setShowPersistentHud((current) => !current)}
+                        className={SPLIT.sectionHeaderIconButton}
+                        iconSize="sm"
                     />
-                </GlassPanel>
-            </Panel>
-        </PanelGroup>
+                </div>
+            </div>
+
+            <div className={SPLIT.surfacePanelBody}>
+                <div className={SPLIT.surfacePanelFill}>
+                    <PiecesMap
+                        percent={piecePercent}
+                        pieceCount={pieceCount}
+                        pieceSize={pieceSize}
+                        pieceStates={pieceStates}
+                        pieceAvailability={pieceAvailability}
+                        showPersistentHud={showPersistentHud}
+                    />
+                </div>
+            </div>
+        </GlassPanel>
     );
 };
