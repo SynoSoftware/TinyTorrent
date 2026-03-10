@@ -78,18 +78,33 @@ const buildLegendCells = ({
 
 const resolveSwatchVisual = (palette: Palette, tone: SwarmTone) => {
     if (tone === "verified") {
-        return { color: palette.success, opacity: 1, borderColor: undefined as string | undefined };
+        return {
+            color: palette.success,
+            borderColor: undefined as string | undefined,
+        };
     }
     if (tone === "common") {
-        return { color: palette.primary, opacity: 0.35, borderColor: undefined as string | undefined };
+        return {
+            color: `color-mix(in oklab, ${palette.primary} 35%, transparent)`,
+            borderColor: undefined as string | undefined,
+        };
     }
     if (tone === "rare") {
-        return { color: palette.warning, opacity: 0.75, borderColor: undefined as string | undefined };
+        return {
+            color: `color-mix(in oklab, ${palette.warning} 75%, transparent)`,
+            borderColor: undefined as string | undefined,
+        };
     }
     if (tone === "dead") {
-        return { color: palette.foreground, opacity: 0.12, borderColor: palette.danger };
+        return {
+            color: `color-mix(in oklab, ${palette.foreground} 12%, transparent)`,
+            borderColor: palette.danger,
+        };
     }
-    return { color: palette.foreground, opacity: 0.18, borderColor: undefined as string | undefined };
+    return {
+        color: `color-mix(in oklab, ${palette.foreground} 18%, transparent)`,
+        borderColor: undefined as string | undefined,
+    };
 };
 
 const resolveRarePattern = (palette: Palette, tone: SwarmTone) =>
@@ -215,6 +230,7 @@ const PiecesMapTooltip = ({
                     className={SPLIT.mapTooltipSwatchGrid}
                     style={SPLIT.builder.swatchGridStyle({
                         gap: tooltipDetail.swatchGap,
+                        columns: tooltipDetail.swatchColumns,
                     })}
                 >
                     {tooltipDetail.swatches.map((swatch, index) => {
@@ -225,7 +241,6 @@ const PiecesMapTooltip = ({
                                 className={SPLIT.mapTooltipSwatch}
                                 style={SPLIT.builder.legendSwatchStyle({
                                     background: visual.color,
-                                    opacity: visual.opacity,
                                     size: tooltipDetail.swatchSize,
                                     borderColor: visual.borderColor,
                                     backgroundImage: resolveRarePattern(palette, swatch.tone),
@@ -311,47 +326,47 @@ const PiecesMapView = ({
 
     return (
         <div className={SPLIT.mapPanel}>
-            <div className={SPLIT.mapFrame}>
-                <div ref={rootRef} className={SPLIT.mapFrameInner}>
-                    {showPersistentHud && (
-                        <PiecesMapHud
-                            totalPieces={totalPieces}
-                            pieceSizeLabel={pieceSizeLabel}
-                            verifiedCount={verifiedCount}
-                            verifiedPercent={verifiedPercent}
-                            missingCount={missingCount}
-                            rareCount={rareCount}
-                            deadCount={deadCount}
-                            availabilityMissing={availabilityMissing}
-                            t={t}
-                        />
-                    )}
+            <div
+                ref={rootRef}
+                className={`${SPLIT.mapFrame} ${SPLIT.mapFrameInner}`}
+            >
+                <canvas
+                    ref={canvasRef}
+                    className={SPLIT.mapCanvasLayer}
+                    onMouseMove={handlers.onMouseMove}
+                    onMouseLeave={handlers.onMouseLeave}
+                    style={SPLIT.builder.canvasInteractionStyle("default")}
+                />
+                <canvas
+                    ref={overlayRef}
+                    className={SPLIT.mapCanvasOverlayLayer}
+                />
 
-                    <canvas
-                        ref={canvasRef}
-                        className={SPLIT.mapCanvasLayer}
-                        onMouseMove={handlers.onMouseMove}
-                        onMouseLeave={handlers.onMouseLeave}
-                        style={SPLIT.builder.canvasInteractionStyle("default")}
-                    />
-                    <canvas
-                        ref={overlayRef}
-                        className={SPLIT.mapCanvasOverlayLayer}
-                    />
+                <PiecesMapTooltip
+                    tooltipDetail={tooltipDetail}
+                    tooltipRef={tooltipRef}
+                    tooltipStyle={tooltipStyle}
+                    palette={palette}
+                    t={t}
+                />
+            </div>
 
-                    <PiecesMapTooltip
-                        tooltipDetail={tooltipDetail}
-                        tooltipRef={tooltipRef}
-                        tooltipStyle={tooltipStyle}
-                        palette={palette}
+            {showPersistentHud && (
+                <div className={SPLIT.mapHudDockRow}>
+                    <PiecesMapHud
+                        totalPieces={totalPieces}
+                        pieceSizeLabel={pieceSizeLabel}
+                        verifiedCount={verifiedCount}
+                        verifiedPercent={verifiedPercent}
+                        missingCount={missingCount}
+                        rareCount={rareCount}
+                        deadCount={deadCount}
+                        availabilityMissing={availabilityMissing}
                         t={t}
                     />
-
-                    {showPersistentHud && (
-                        <PiecesMapLegend legendCells={legendCells} />
-                    )}
+                    <PiecesMapLegend legendCells={legendCells} />
                 </div>
-            </div>
+            )}
         </div>
     );
 };

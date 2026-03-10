@@ -685,6 +685,8 @@ Write code so a human can read and edit it quickly.
 
 - Do not treat lower complexity alone as success.
 - Do not extract helpers only to satisfy complexity metrics.
+- Do not create 1-2 line helpers unless they are reused, define a real domain term, or centralize an invariant.
+- Single-use micro-helpers are a code smell by default, not a cleanliness win.
 - Extract only when at least one is true:
   - logic is reused
   - substantial branch complexity is removed from the owner
@@ -694,6 +696,7 @@ Write code so a human can read and edit it quickly.
 - Avoid pass-through wrappers, trivial selectors, trivial normalizers, and other single-use micro-helpers unless they carry meaningful semantic weight.
 - If complexity improves while readability, traceability, or maintainability worsens, treat that as a refactor regression.
 - Prefer centralizing a domain rule once over repeating it across small “clean” helpers.
+- Prefer one compact local block over multiple tiny helpers when the logic is single-use and easy to read inline.
 
 ## **16.7 God Objects, Patterns, and Placement**
 
@@ -728,6 +731,7 @@ Forbidden:
 - files that both decide and execute
 - helper files that grow indefinitely
 - callbacks that close over engine state
+- 1-5 line single-use helpers created only to lower reported complexity
 
 Pause and rethink if a change reveals:
 

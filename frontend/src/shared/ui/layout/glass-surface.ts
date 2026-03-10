@@ -1,6 +1,6 @@
 import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
-const { layout, shell, visuals } = registry;
+const { visuals } = registry;
 
 const transition = visuals.transitions;
 
@@ -133,17 +133,13 @@ const SURFACE_TOOLTIP = {
 const MAP_OVERLAY_SURFACE = `${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.overlay}`;
 const MAP_OVERLAY_RADIUS = GLASS_SURFACE_DIAL.radius.raised;
 const MAP_OVERLAY_CARD = `${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`;
-const MAP_OVERLAY_ANCHOR = "absolute bottom-panel z-panel";
-const MAP_OVERLAY_ANCHOR_LEFT = `${MAP_OVERLAY_ANCHOR} left-panel`;
-const MAP_OVERLAY_ANCHOR_RIGHT = `${MAP_OVERLAY_ANCHOR} right-panel`;
 const GLASS_SEMANTIC_CHROME = {
     dividerSoft: visuals.surface.border,
     headerBorder: MODAL_SURFACE_HEADER,
     footerBorder: MODAL_SURFACE_FOOTER,
     dialogHeader: `${MODAL_SURFACE_HEADER} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
     dialogFooter: `${MODAL_SURFACE_FOOTER} flex items-center justify-between gap-tools px-panel py-tight`,
-    workflowFooter:
-        `${MODAL_SURFACE_FOOTER} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
+    workflowFooter: `${MODAL_SURFACE_FOOTER} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
     headerPassive: `${MODAL_SURFACE_HEADER} select-none`,
     footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
     footerActionsPadded: `${MODAL_SURFACE_FOOTER} px-stage py-panel flex items-center justify-end gap-tools`,
@@ -336,12 +332,12 @@ export const MODAL = {
         dropOverlayChip:
             "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
         panelGroup: "flex-1 min-h-0",
-        paneHandle:
-            `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
+        paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
         paneHandleEnabled: "cursor-col-resize",
         resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
         settingsPanel: `${SURFACE.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
-        filePanel: "glass-panel surface-layer-2 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
+        filePanel:
+            "glass-panel surface-layer-2 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
         filePanelContent: "flex flex-col flex-1 min-h-0 outline-none",
         fileTableShell: "h-full w-full min-h-0",
         footerAlerts: "flex flex-col gap-tools",
@@ -362,12 +358,7 @@ export const MODAL = {
         bodyPanelsClass: (isFullscreen: boolean) =>
             isFullscreen ? "flex flex-col flex-1 min-h-settings h-full min-h-0" : "flex flex-col flex-1 min-h-settings",
         settingsPanelClass: (isSettingsCollapsed: boolean) =>
-            [
-                MODAL.workflow.settingsPanel,
-                isSettingsCollapsed ? "min-w-0 w-0" : "",
-            ]
-                .filter(Boolean)
-                .join(" "),
+            [MODAL.workflow.settingsPanel, isSettingsCollapsed ? "min-w-0 w-0" : ""].filter(Boolean).join(" "),
         settingsModalClassNames: (isFullMode: boolean) =>
             ({
                 base: isFullMode ? MODAL.settingsModalBaseFull : MODAL.settingsModalBaseRpc,
@@ -380,9 +371,7 @@ export const MODAL = {
             }) as const,
         resizeHandleBarClass: (params: { isSettingsCollapsed: boolean; isPanelResizeActive: boolean }) =>
             `h-full w-divider ${transition.fast} ${
-                params.isPanelResizeActive
-                    ? "bg-primary"
-                    : "bg-primary/70 group-hover:bg-primary/85"
+                params.isPanelResizeActive ? "bg-primary" : "bg-primary/70 group-hover:bg-primary/85"
             }`,
     } as const,
 } as const;
@@ -935,8 +924,7 @@ export const SPLIT = {
     mapStatsTrackingStyle: {
         letterSpacing: "var(--tt-tracking-wide)",
     } as const,
-    mapHud:
-        `${MAP_OVERLAY_ANCHOR_LEFT} flex max-w-[min(100%-calc(var(--tt-panel)*2),56rem)] flex-wrap items-start gap-panel ${MAP_OVERLAY_CARD}`,
+    mapHud: `flex max-w-[56rem] min-w-0 flex-wrap items-start gap-panel ${MAP_OVERLAY_CARD}`,
     mapHudStat: "flex min-w-0 flex-col gap-tight",
     mapHudStatQuiet: "flex min-w-0 flex-col gap-tight opacity-60",
     mapHudLabel: withOpacity(TEXT_ROLE.caption, 45),
@@ -947,20 +935,21 @@ export const SPLIT = {
     mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel",
     mapLegendCell: "flex min-w-0 items-center gap-tight",
     mapLegendCellPlaceholder: "invisible",
-    mapFrame: `relative z-panel flex-1 min-h-0 ${SURFACE.surface.panelRaised} p-tight overflow-hidden`,
+    mapFrame: "relative z-panel flex-1 min-h-0 overflow-hidden",
     mapFrameInner: "relative h-full w-full overflow-hidden isolate",
     mapCanvasLayer: "absolute inset-0 block h-full w-full",
     mapCanvasOverlayLayer: "absolute inset-0 block h-full w-full pointer-events-none",
     mapTooltip: `pointer-events-none absolute z-panel max-w-tooltip ${SURFACE.tooltip.content} ${TEXT_ROLE.body}`,
     mapTooltipPrimaryLine: "block whitespace-normal font-semibold",
     mapTooltipSecondaryLine: "block whitespace-normal text-foreground/70",
-    mapTooltipSwatchGrid: "my-tight grid max-h-24 grid-cols-8 overflow-y-auto pr-tight",
+    mapTooltipSwatchGrid: "my-tight grid max-h-24 overflow-y-auto pr-tight",
     mapTooltipInfoStack: "flex flex-col gap-tight",
     mapTooltipSwatch: "inline-block",
     mapLegendItem: "flex items-center gap-tight whitespace-nowrap leading-none min-w-0",
     mapLegendSwatch: "inline-block rounded-panel",
-    mapLegendFloat: `${MAP_OVERLAY_ANCHOR_RIGHT} ${MAP_OVERLAY_CARD}`,
-    mapPanel: "flex flex-col h-full w-full",
+    mapLegendFloat: `shrink-0 ${MAP_OVERLAY_CARD}`,
+    mapHudDockRow: "flex flex-wrap items-end justify-between gap-panel pt-tight",
+    mapPanel: "flex flex-col h-full w-full p-tight",
     hudRow: "flex items-center justify-end gap-tools px-panel",
     hudLabel: `${withOpacity(TEXT_ROLE.label, 40)} mr-2`,
     mapCanvas: "h-full w-full",
@@ -1042,16 +1031,21 @@ export const SPLIT = {
                 height: params.size ?? 14,
                 background: params.background,
                 backgroundImage: params.backgroundImage,
+                boxSizing: "border-box",
                 borderWidth: params.borderColor ? "var(--tt-divider-width)" : 0,
                 borderStyle: params.borderColor ? "solid" : "none",
                 borderColor: params.borderColor,
                 opacity: params.opacity,
                 display: "inline-block",
             }) as const,
-        swatchGridStyle: (params: { gap: number }) =>
+        swatchGridStyle: (params: { gap: number; columns?: number }) =>
             ({
                 columnGap: params.gap,
                 rowGap: params.gap,
+                gridTemplateColumns:
+                    params.columns && params.columns > 0
+                        ? `repeat(${Math.max(1, Math.floor(params.columns))}, max-content)`
+                        : undefined,
             }) as const,
     } as const,
 } as const;
@@ -1424,4 +1418,3 @@ export const HEATMAP = {
             isZooming ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}` : HEATMAP_CANVAS_FRAME_CLASS,
     } as const,
 } as const;
-

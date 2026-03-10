@@ -903,7 +903,9 @@
             "tooltip_block_summary": "{{count}} pieces • {{size}} total",
             "tooltip_peers_range": "{{min}}-{{max}} peers in swarm",
             "tooltip_piece": "Piece #{{piece}}",
+            "tooltip_piece_range_with_count": "{{count}} Pieces: #{{start}}-{{end}}",
             "tooltip_piece_range": "Pieces #{{start}}-{{end}}",
+            "tooltip_piece_with_count": "{{count}} Piece: #{{piece}}",
             "tooltip_progress": "Torrent progress: {{percent}}%",
             "tooltip_state_count": "{{count}} {{state}}",
             "tooltip_size": "Piece size: {{size}}"

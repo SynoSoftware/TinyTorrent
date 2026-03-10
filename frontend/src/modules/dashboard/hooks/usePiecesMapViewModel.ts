@@ -37,6 +37,7 @@ const FIXED_CELL_UNITS = 4;
 const SEPARATOR_BLOCKS = 8;
 const SEPARATOR_GUTTER_MULTIPLIER = 1.5;
 const TOPOLOGY_SCORE_EPSILON = 1e-6;
+const MIN_BALANCED_COLUMN_COVERAGE_X = 0.72;
 const SWARM_TONE_WEIGHT: Record<SwarmTone, number> = {
     dead: 5,
     rare: 4,
@@ -95,6 +96,7 @@ type TooltipDetail = {
     swatches: TooltipDetailSwatch[];
     swatchSize: number;
     swatchGap: number;
+    swatchColumns: number;
 };
 type CellBounds = {
     x: number;
@@ -106,6 +108,8 @@ type TopologyMetrics = {
     topology: DisplayTopology;
     contentWidth: number;
     contentHeight: number;
+    coverageX: number;
+    coverageY: number;
     fitsHeight: boolean;
     coverageScore: number;
 };
@@ -162,41 +166,56 @@ const resolveTooltipAvailabilityLine = (params: {
 const buildTooltipTitle = (block: DisplayBlock, t: TranslateFn) => {
     const titlePrefix =
         block.pieceCount === 1
-            ? t("torrent_modal.piece_map.tooltip_piece", {
+            ? t("torrent_modal.piece_map.tooltip_piece_with_count", {
+                  count: block.pieceCount,
                   piece: block.startPieceIndex + 1,
               })
-            : t("torrent_modal.piece_map.tooltip_piece_range", {
+            : t("torrent_modal.piece_map.tooltip_piece_range_with_count", {
+                  count: block.pieceCount,
                   start: block.startPieceIndex + 1,
                   end: block.endPieceIndex + 1,
               });
     return `${titlePrefix}, ${block.totalSizeLabel}`;
 };
 
-const buildTooltipSummary = (block: DisplayBlock, t: TranslateFn) => {
+const buildTooltipSummary = (
+    block: DisplayBlock,
+    availabilityMissing: boolean,
+    t: TranslateFn,
+) => {
     const summaryParts = [
         {
+            key: "verified",
             count: block.verifiedCount,
             stateLabel: t("torrent_modal.stats.verified"),
         },
         {
+            key: "common",
             count: block.commonCount,
             stateLabel: t("torrent_modal.availability.legend_common"),
         },
         {
+            key: "rare",
             count: block.rareCount,
             stateLabel: t("torrent_modal.availability.legend_rare"),
         },
         {
+            key: "dead",
             count: block.deadCount,
             stateLabel: t("torrent_modal.piece_map.legend_dead"),
         },
         {
+            key: "missing",
             count: block.missingCount,
             stateLabel: t("torrent_modal.stats.missing"),
         },
     ];
     return summaryParts
-        .filter((part) => part.count > 0)
+        .filter(
+            (part) =>
+                part.count > 0 &&
+                (availabilityMissing || part.key !== "missing"),
+        )
         .map((part) =>
             t("torrent_modal.piece_map.tooltip_state_count", {
                 count: part.count,
@@ -232,7 +251,11 @@ const buildTooltipDetail = (params: TooltipDetailBuildParams): TooltipDetail | n
     }
     return {
         title: buildTooltipTitle(params.block, params.t),
-        summary: buildTooltipSummary(params.block, params.t),
+        summary: buildTooltipSummary(
+            params.block,
+            params.availabilityMissing,
+            params.t,
+        ),
         availabilityLine: resolveTooltipAvailabilityLine({
             block: params.block,
             availabilityMissing: params.availabilityMissing,
@@ -247,6 +270,7 @@ const buildTooltipDetail = (params: TooltipDetailBuildParams): TooltipDetail | n
         }),
         swatchSize: params.swatchSize,
         swatchGap: params.swatchGap,
+        swatchColumns: SEPARATOR_BLOCKS,
     };
 };
 
@@ -743,8 +767,7 @@ const scheduleDrawFrames = (params: {
 
         const fitZoom = Math.max(params.displayTopology.fitZoom, 1e-6);
         const contentWidth = params.colAxis.total * fitZoom;
-        const contentHeight = params.rowAxis.total * fitZoom;
-        const origin = resolveContentOrigin(cssW, cssH, contentWidth, contentHeight);
+        const origin = resolveContentOrigin(cssW, contentWidth);
         params.drawStateRef.current = {
             fitZoom,
             viewportWidth: cssW,
@@ -847,12 +870,10 @@ const resolveAlignedColumns = (columns: number, totalCells: number) => {
 
 const resolveContentOrigin = (
     viewportWidth: number,
-    viewportHeight: number,
     contentWidth: number,
-    contentHeight: number,
 ) => ({
     x: Math.max(0, (viewportWidth - contentWidth) / 2),
-    y: Math.max(0, (viewportHeight - contentHeight) / 2),
+    y: 0,
 });
 
 const buildAxis = (
@@ -903,7 +924,7 @@ const fitIndex = (value: number, starts: number[], cellSize: number) => {
     return value < start + cellSize ? index : null;
 };
 
-const resolveColumnCount = (params: {
+const resolveMaxFittingColumns = (params: {
     viewportWidth: number | null;
     totalCells: number;
     cellSize: number;
@@ -949,6 +970,59 @@ const resolveColumnCount = (params: {
     return resolveAlignedColumns(best, params.totalCells);
 };
 
+const resolveColumnCandidates = (params: {
+    maxColumns: number;
+    totalCells: number;
+}) => {
+    const cappedMaxColumns = clamp(params.maxColumns, 1, params.totalCells);
+    if (params.totalCells < SEPARATOR_BLOCKS || cappedMaxColumns < SEPARATOR_BLOCKS) {
+        return [cappedMaxColumns];
+    }
+
+    const candidates: number[] = [];
+    for (
+        let columns = cappedMaxColumns;
+        columns >= SEPARATOR_BLOCKS;
+        columns -= SEPARATOR_BLOCKS
+    ) {
+        candidates.push(columns);
+    }
+    return candidates;
+};
+
+const pickBetterColumnMetrics = (
+    current: TopologyMetrics | null,
+    candidate: TopologyMetrics,
+) => {
+    if (!current) {
+        return candidate;
+    }
+    if (candidate.fitsHeight !== current.fitsHeight) {
+        return candidate.fitsHeight ? candidate : current;
+    }
+
+    const currentHasBalancedWidth =
+        current.coverageX >= MIN_BALANCED_COLUMN_COVERAGE_X;
+    const candidateHasBalancedWidth =
+        candidate.coverageX >= MIN_BALANCED_COLUMN_COVERAGE_X;
+    if (currentHasBalancedWidth !== candidateHasBalancedWidth) {
+        return candidateHasBalancedWidth ? candidate : current;
+    }
+
+    if (candidate.coverageScore > current.coverageScore + TOPOLOGY_SCORE_EPSILON) {
+        return candidate;
+    }
+    if (
+        Math.abs(candidate.coverageScore - current.coverageScore) <=
+            TOPOLOGY_SCORE_EPSILON &&
+        candidate.contentHeight >
+            current.contentHeight + TOPOLOGY_SCORE_EPSILON
+    ) {
+        return candidate;
+    }
+    return current;
+};
+
 const computeOverviewTopology = (params: {
     viewportWidth: number | null;
     viewportHeight: number | null;
@@ -986,7 +1060,7 @@ const resolveTopologyMetrics = (params: {
         params.viewportWidth != null && params.viewportWidth > 0
             ? blockCount
             : Math.min(params.fallbackColumns, blockCount);
-    const columns = resolveColumnCount({
+    const maxFittingColumns = resolveMaxFittingColumns({
         viewportWidth: params.viewportWidth,
         totalCells: blockCount,
         cellSize: params.cellSize,
@@ -996,49 +1070,78 @@ const resolveTopologyMetrics = (params: {
         separatorEvery: SEPARATOR_BLOCKS,
         separatorExtraGap,
     });
-    const topology = computeOverviewTopology({
-        viewportWidth: params.viewportWidth,
-        viewportHeight: params.viewportHeight,
-        totalPieces: params.totalPieces,
-        columns,
-        piecesPerBlock: params.piecesPerBlock,
-        cellSize: params.cellSize,
-        gap: params.gap,
+    const columnCandidates = resolveColumnCandidates({
+        maxColumns: maxFittingColumns,
+        totalCells: blockCount,
     });
-    const contentWidth = estimateAxisTotal(
-        topology.columns,
-        params.cellSize,
-        params.gap,
-        SEPARATOR_BLOCKS,
-        separatorExtraGap,
-    );
-    const contentHeight = estimateAxisTotal(
-        topology.rows,
-        params.cellSize,
-        params.gap,
-        SEPARATOR_BLOCKS,
-        separatorExtraGap,
-    );
-    const fitsHeight =
-        params.viewportHeight == null ||
-        params.viewportHeight <= 0 ||
-        contentHeight <= params.viewportHeight;
-    const coverageX =
-        params.viewportWidth != null && params.viewportWidth > 0
-            ? clamp(contentWidth / params.viewportWidth, 0, 1)
-            : 1;
-    const coverageY =
-        params.viewportHeight != null && params.viewportHeight > 0
-            ? clamp(contentHeight / params.viewportHeight, 0, 1)
-            : 1;
 
-    return {
-        topology,
-        contentWidth,
-        contentHeight,
-        fitsHeight,
-        coverageScore: coverageX * coverageY,
-    };
+    let bestMetrics: TopologyMetrics | null = null;
+    for (const columns of columnCandidates) {
+        const topology = computeOverviewTopology({
+            viewportWidth: params.viewportWidth,
+            viewportHeight: params.viewportHeight,
+            totalPieces: params.totalPieces,
+            columns,
+            piecesPerBlock: params.piecesPerBlock,
+            cellSize: params.cellSize,
+            gap: params.gap,
+        });
+        const contentWidth = estimateAxisTotal(
+            topology.columns,
+            params.cellSize,
+            params.gap,
+            SEPARATOR_BLOCKS,
+            separatorExtraGap,
+        );
+        const contentHeight = estimateAxisTotal(
+            topology.rows,
+            params.cellSize,
+            params.gap,
+            SEPARATOR_BLOCKS,
+            separatorExtraGap,
+        );
+        const coverageX =
+            params.viewportWidth != null && params.viewportWidth > 0
+                ? clamp(contentWidth / params.viewportWidth, 0, 1)
+                : 1;
+        const coverageY =
+            params.viewportHeight != null && params.viewportHeight > 0
+                ? clamp(contentHeight / params.viewportHeight, 0, 1)
+                : 1;
+        const fitsHeight =
+            params.viewportHeight == null ||
+            params.viewportHeight <= 0 ||
+            contentHeight <= params.viewportHeight;
+        bestMetrics = pickBetterColumnMetrics(bestMetrics, {
+            topology,
+            contentWidth,
+            contentHeight,
+            coverageX,
+            coverageY,
+            fitsHeight,
+            coverageScore: coverageX * coverageY,
+        });
+    }
+
+    return (
+        bestMetrics ?? {
+            topology: computeOverviewTopology({
+                viewportWidth: params.viewportWidth,
+                viewportHeight: params.viewportHeight,
+                totalPieces: params.totalPieces,
+                columns: 1,
+                piecesPerBlock: params.piecesPerBlock,
+                cellSize: params.cellSize,
+                gap: params.gap,
+            }),
+            contentWidth: params.cellSize,
+            contentHeight: params.cellSize,
+            coverageX: 1,
+            coverageY: 1,
+            fitsHeight: true,
+            coverageScore: 0,
+        }
+    );
 };
 
 const resolvePiecesPerBlockCandidates = (params: {

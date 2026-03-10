@@ -27,8 +27,8 @@ export const PiecesTab = ({
     const displayProgressPercent = Math.round(normalizePiecePercent(piecePercent) * 100);
 
     return (
-        <GlassPanel className={SPLIT.surfacePanel}>
-            <div className={SPLIT.sectionHeader}>
+        <GlassPanel className={`${SPLIT.surfacePanel} p-none`}>
+            <div className={`${SPLIT.sectionHeader} px-panel pt-panel`}>
                 <span className={SPLIT.sectionHeaderCaption}>
                     {t("torrent_modal.piece_map.surface_title")}
                 </span>

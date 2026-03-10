@@ -1,10 +1,14 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
-    FileExplorerTree, type FileExplorerContextAction, type FileExplorerEntry, type FileExplorerToggleCommand, type FileExplorerToggleOutcome, } from "@/shared/ui/workspace/FileExplorerTree";
+    FileExplorerTree,
+    type FileExplorerContextAction,
+    type FileExplorerEntry,
+    type FileExplorerToggleCommand,
+    type FileExplorerToggleOutcome,
+} from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
@@ -77,6 +81,9 @@ export const ContentTab = ({
         }),
         [explorer.files, explorer.toggle, emptyMessage, onFileContextAction],
     );
+    const contentHostClassName = isStandalone
+        ? `${TABLE.detailsContentPanel} ${TABLE.detailsContentListHost}`
+        : TABLE.detailsContentListHost;
 
     if (filesCount === 0) {
         return (
@@ -100,55 +107,32 @@ export const ContentTab = ({
 
     return (
         <div className={TABLE.detailsContentRoot}>
-            {isStandalone ? (
-                <GlassPanel className={TABLE.detailsContentHeaderShell}>
-                    <div className={TABLE.detailsContentHeaderRow}>
-                        <div className={TABLE.detailsContentHeaderMeta}>
-                            <span className={TABLE.detailsContentHeaderTitle}>
-                                {t("torrent_modal.files_title")}
-                            </span>
-                            <p className={TEXT_ROLE.caption}>
-                                {t("torrent_modal.files_description")}
-                            </p>
-                        </div>
-                        <span className={TEXT_ROLE.labelPrimary}>
-                            {fileCountLabel}
+            <div className={TABLE.detailsContentHeaderShell}>
+                <div className={TABLE.detailsContentHeaderRow}>
+                    <div className={TABLE.detailsContentHeaderMeta}>
+                        <span className={TABLE.detailsContentHeaderTitle}>
+                            {t("torrent_modal.files_title")}
                         </span>
+                        <p className={TEXT_ROLE.caption}>
+                            {t("torrent_modal.files_description")}
+                        </p>
                     </div>
-                </GlassPanel>
-            ) : (
-                <div className={TABLE.detailsContentHeaderShell}>
-                    <div className={TABLE.detailsContentHeaderRow}>
-                        <div className={TABLE.detailsContentHeaderMeta}>
-                            <span className={TABLE.detailsContentHeaderTitle}>
-                                {t("torrent_modal.files_title")}
-                            </span>
-                            <p className={TEXT_ROLE.caption}>
-                                {t("torrent_modal.files_description")}
-                            </p>
-                        </div>
-                        <span className={TEXT_ROLE.labelPrimary}>
-                            {fileCountLabel}
-                        </span>
-                    </div>
+                    <span className={TEXT_ROLE.labelPrimary}>
+                        {fileCountLabel}
+                    </span>
                 </div>
-            )}
+            </div>
 
-            <GlassPanel className={TABLE.detailsContentPanel}>
-                <div className={TABLE.detailsContentSectionHeader}>
-                    {t("torrent_modal.tabs.content")}
+            <div className={contentHostClassName}>
+                <div
+                    className={TABLE.detailsContentListScroll}
+                    style={TABLE.builder.detailsContentScrollStyle(
+                        visualizations.details.tabContentMaxHeight,
+                    )}
+                >
+                    <FileExplorerTree viewModel={fileExplorerViewModel} />
                 </div>
-                <div className={TABLE.detailsContentListHost}>
-                    <div
-                        className={TABLE.detailsContentListScroll}
-                        style={TABLE.builder.detailsContentScrollStyle(
-                            visualizations.details.tabContentMaxHeight,
-                        )}
-                    >
-                        <FileExplorerTree viewModel={fileExplorerViewModel} />
-                    </div>
-                </div>
-            </GlassPanel>
+            </div>
         </div>
     );
 };
