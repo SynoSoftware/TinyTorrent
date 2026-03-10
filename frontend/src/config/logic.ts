@@ -45,7 +45,7 @@ const defaultLayoutPieceMap = {
 
 const defaultLayoutHeatmap = {
     sample_limit_multiplier: 6,
-    zoom_levels: [1, 1.5, 2, 2.5],
+    zoom_levels: [1, 1.5, 2, 2.5, 4, 6, 8],
     cell_size: 6,
     cell_gap: 3,
 } as const;

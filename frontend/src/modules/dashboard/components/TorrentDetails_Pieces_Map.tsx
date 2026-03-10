@@ -34,6 +34,7 @@ const PiecesMapView = ({
         deadCount,
         availabilityMissing,
         zoomLabel,
+        blockDensityLabel,
         showMinimap,
         showHelpHint,
         isDragging,
@@ -130,7 +131,9 @@ const PiecesMapView = ({
                                 className={SPLIT.mapZoomButton}
                                 iconSize="sm"
                             />
-                            <span className={SPLIT.mapZoomValue}>{zoomLabel}</span>
+                            <span className={SPLIT.mapZoomValue}>
+                                {zoomLabel} · {blockDensityLabel}
+                            </span>
                             <ToolbarIconButton
                                 Icon={ZoomIn}
                                 ariaLabel={t("torrent_modal.piece_map.zoom_in")}

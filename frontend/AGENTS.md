@@ -60,6 +60,7 @@ A change is not ready to land if it introduces any of the following:
 
 - bypassed named authorities
 - feature-local styling authorities, inline visual styles, raw numbers, or bracket classes that violate §3
+- raw policy/timing/geometry literals outside a declared authority or explicit local algorithmic necessity
 - new local visual styling in feature files, or new shared tokens added without attempting reuse or consolidation first
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
 - duplicated decision logic across Component, Hook, ViewModel, or Orchestrator layers
@@ -219,6 +220,12 @@ If a styling rule is outside this chain, it is guidance, not authority.
 - Prefer existing knobs and tokens over adding new global dials.
 - New global knobs, if truly necessary, must enter through the token pipeline.
 - Design decisions flow through `config/constants.json` -> `index.css` -> `config/logic.ts` -> component usage.
+
+Feature code must not invent new design or policy numbers locally.
+
+- Raw literals for spacing, radii, opacity, blur, shadow, z-index, animation timing, polling, debounce, timeout, thresholds, and similar reusable UI/runtime policy are forbidden unless owned by an existing authority or introduced through the proper authority chain.
+- If a number affects shared behavior or shared presentation, it is not “just local”; move it to the correct authority instead of leaving it inline.
+- Trivial algorithmic literals with no shared semantic meaning, such as `0`, `1`, array indexing, and basic loop math, are allowed.
 
 ## **3.3 Standard Elements Over Inline Recipes**
 
@@ -535,7 +542,12 @@ src/
 - Components use PascalCase; grouped siblings may use underscores such as `Dashboard_Grid.tsx`.
 - Hooks and logic files use camelCase.
 - Services use kebab-case.
-- Never hardcode numbers or colors in code; use `@/config/constants.json` and `@/config/logic.ts`.
+- Never hardcode semantic numbers or colors in code.
+- Route visual and runtime-policy literals through their authority:
+  - design/presentation numbers -> token pipeline and shared UI authorities
+  - behavioral/timing numbers -> config/control-plane authority
+  - feature-local thresholds only when they are truly local, non-reusable, and not part of shared UX policy
+- If a raw number would need a name in review, it should usually not be inline.
 - UI must never call `fetch` directly. Flow stays `UI -> hooks/viewmodels -> services/adapters -> schemas -> network/native boundary`.
 - Internal imports use the `@/` alias: `@/app`, `@/modules`, `@/shared`, `@/services`, `@/config`, `@/i18n`.
 - Rewrite deep relative imports to aliases when touched. Do not change alias config in `tsconfig.json` or `vite.config.ts` unless approved.
