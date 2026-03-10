@@ -1,5 +1,17 @@
-import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+    CSSProperties,
+    MouseEvent as ReactMouseEvent,
+    MutableRefObject,
+    RefObject,
+} from "react";
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { registry } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
@@ -24,6 +36,14 @@ const TOOLTIP_EDGE_PADDING = 10;
 const FIXED_CELL_UNITS = 4;
 const SEPARATOR_BLOCKS = 8;
 const SEPARATOR_GUTTER_MULTIPLIER = 1.5;
+const TOPOLOGY_SCORE_EPSILON = 1e-6;
+const SWARM_TONE_WEIGHT: Record<SwarmTone, number> = {
+    dead: 5,
+    rare: 4,
+    common: 3,
+    missing: 2,
+    verified: 1,
+};
 
 type SwarmTone = "verified" | "common" | "rare" | "dead" | "missing";
 type Axis = { starts: number[]; total: number };
@@ -88,6 +108,697 @@ type TopologyMetrics = {
     contentHeight: number;
     fitsHeight: boolean;
     coverageScore: number;
+};
+type ViewportBoundsSetter = (
+    next:
+        | ViewportBounds
+        | ((current: ViewportBounds | null) => ViewportBounds | null),
+) => void;
+type OverviewTopologyParams = {
+    viewportWidth: number | null;
+    viewportHeight: number | null;
+    totalPieces: number;
+    cellSize: number;
+    gap: number;
+    fallbackColumns: number;
+};
+type TranslateFn = ReturnType<typeof useTranslation>["t"];
+type TooltipDetailBuildParams = {
+    block: DisplayBlock | null;
+    t: TranslateFn;
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+    resolvedStates: PieceStatus[];
+    swatchSize: number;
+    swatchGap: number;
+};
+
+const resolveTooltipAvailabilityLine = (params: {
+    block: DisplayBlock;
+    availabilityMissing: boolean;
+    t: TranslateFn;
+}) => {
+    if (params.block.missingCount <= 0) {
+        return null;
+    }
+    if (
+        params.availabilityMissing ||
+        params.block.peerMin == null ||
+        params.block.peerMax == null
+    ) {
+        return params.t("torrent_modal.piece_map.tooltip_availability_unknown");
+    }
+    return params.block.peerMin === params.block.peerMax
+        ? params.t("torrent_modal.piece_map.tooltip_available_peers", {
+              peers: params.block.peerMin,
+          })
+        : params.t("torrent_modal.piece_map.tooltip_peers_range", {
+              min: params.block.peerMin,
+              max: params.block.peerMax,
+          });
+};
+
+const buildTooltipTitle = (block: DisplayBlock, t: TranslateFn) => {
+    const titlePrefix =
+        block.pieceCount === 1
+            ? t("torrent_modal.piece_map.tooltip_piece", {
+                  piece: block.startPieceIndex + 1,
+              })
+            : t("torrent_modal.piece_map.tooltip_piece_range", {
+                  start: block.startPieceIndex + 1,
+                  end: block.endPieceIndex + 1,
+              });
+    return `${titlePrefix}, ${block.totalSizeLabel}`;
+};
+
+const buildTooltipSummary = (block: DisplayBlock, t: TranslateFn) => {
+    const summaryParts = [
+        {
+            count: block.verifiedCount,
+            stateLabel: t("torrent_modal.stats.verified"),
+        },
+        {
+            count: block.commonCount,
+            stateLabel: t("torrent_modal.availability.legend_common"),
+        },
+        {
+            count: block.rareCount,
+            stateLabel: t("torrent_modal.availability.legend_rare"),
+        },
+        {
+            count: block.deadCount,
+            stateLabel: t("torrent_modal.piece_map.legend_dead"),
+        },
+        {
+            count: block.missingCount,
+            stateLabel: t("torrent_modal.stats.missing"),
+        },
+    ];
+    return summaryParts
+        .filter((part) => part.count > 0)
+        .map((part) =>
+            t("torrent_modal.piece_map.tooltip_state_count", {
+                count: part.count,
+                state: part.stateLabel,
+            }),
+        )
+        .join(" · ");
+};
+
+const buildTooltipSwatches = (params: {
+    block: DisplayBlock;
+    resolvedStates: PieceStatus[];
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+}) =>
+    Array.from({ length: params.block.pieceCount }, (_, offset): TooltipDetailSwatch => {
+        const pieceIndex = params.block.startPieceIndex + offset;
+        return {
+            tone: resolvePieceTone({
+                pieceIndex,
+                resolvedStates: params.resolvedStates,
+                availabilityMissing: params.availabilityMissing,
+                availability: params.availability,
+                rareThreshold: params.rareThreshold,
+            }),
+        };
+    });
+
+const buildTooltipDetail = (params: TooltipDetailBuildParams): TooltipDetail | null => {
+    if (!params.block) {
+        return null;
+    }
+    return {
+        title: buildTooltipTitle(params.block, params.t),
+        summary: buildTooltipSummary(params.block, params.t),
+        availabilityLine: resolveTooltipAvailabilityLine({
+            block: params.block,
+            availabilityMissing: params.availabilityMissing,
+            t: params.t,
+        }),
+        swatches: buildTooltipSwatches({
+            block: params.block,
+            resolvedStates: params.resolvedStates,
+            availabilityMissing: params.availabilityMissing,
+            availability: params.availability,
+            rareThreshold: params.rareThreshold,
+        }),
+        swatchSize: params.swatchSize,
+        swatchGap: params.swatchGap,
+    };
+};
+
+const resolveTooltipStyleForBlock = (params: {
+    hoveredBlock: DisplayBlock | null;
+    tooltipElement: HTMLDivElement | null;
+    drawState: DrawState | null;
+    colAxis: Axis;
+    rowAxis: Axis;
+    cellSize: number;
+}): CSSProperties | undefined => {
+    if (!params.hoveredBlock || !params.tooltipElement || !params.drawState) {
+        return undefined;
+    }
+
+    const bounds = resolveRenderedCellBounds({
+        x:
+            params.drawState.contentOriginX +
+            (params.colAxis.starts[params.hoveredBlock.col] ?? 0) *
+                params.drawState.fitZoom,
+        y:
+            params.drawState.contentOriginY +
+            (params.rowAxis.starts[params.hoveredBlock.row] ?? 0) *
+                params.drawState.fitZoom,
+        size: params.cellSize * params.drawState.fitZoom,
+    });
+    const tooltipRect = params.tooltipElement.getBoundingClientRect();
+    const maxLeft = Math.max(
+        TOOLTIP_EDGE_PADDING,
+        params.drawState.viewportWidth - tooltipRect.width - TOOLTIP_EDGE_PADDING,
+    );
+    const maxTop = Math.max(
+        TOOLTIP_EDGE_PADDING,
+        params.drawState.viewportHeight - tooltipRect.height - TOOLTIP_EDGE_PADDING,
+    );
+    const left = clamp(
+        bounds.x + bounds.width / 2 - tooltipRect.width / 2,
+        TOOLTIP_EDGE_PADDING,
+        maxLeft,
+    );
+    const aboveTop = bounds.y - tooltipRect.height - TOOLTIP_GAP;
+    const belowTop = bounds.y + bounds.height + TOOLTIP_GAP;
+    const preferredTop =
+        aboveTop >= TOOLTIP_EDGE_PADDING || belowTop > maxTop
+            ? aboveTop
+            : belowTop;
+    const top = clamp(preferredTop, TOOLTIP_EDGE_PADDING, maxTop);
+
+    return { left, top, visibility: "visible" };
+};
+
+const resolvePieceTone = (params: {
+    pieceIndex: number;
+    resolvedStates: PieceStatus[];
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+}): SwarmTone => {
+    if ((params.resolvedStates[params.pieceIndex] ?? "missing") === "done") {
+        return "verified";
+    }
+    if (params.availabilityMissing) {
+        return "missing";
+    }
+    const peers = params.availability[params.pieceIndex] ?? 0;
+    if (peers <= 0) {
+        return "dead";
+    }
+    if (peers <= params.rareThreshold) {
+        return "rare";
+    }
+    return "common";
+};
+
+const summarizeToneCounts = (params: {
+    totalPieces: number;
+    resolvedStates: PieceStatus[];
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+}) => {
+    let rareCount = 0;
+    let deadCount = 0;
+    let verifiedCount = 0;
+
+    for (let pieceIndex = 0; pieceIndex < params.totalPieces; pieceIndex += 1) {
+        const tone = resolvePieceTone({
+            pieceIndex,
+            resolvedStates: params.resolvedStates,
+            availabilityMissing: params.availabilityMissing,
+            availability: params.availability,
+            rareThreshold: params.rareThreshold,
+        });
+        if (tone === "verified") {
+            verifiedCount += 1;
+        } else if (tone === "rare") {
+            rareCount += 1;
+        } else if (tone === "dead") {
+            deadCount += 1;
+        }
+    }
+
+    return { rareCount, deadCount, verifiedCount };
+};
+
+const countBlockToneComposition = (params: {
+    startPieceIndex: number;
+    endPieceIndex: number;
+    resolvedStates: PieceStatus[];
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+}) => {
+    let verifiedInBlock = 0;
+    let commonInBlock = 0;
+    let deadInBlock = 0;
+    let rareInBlock = 0;
+    let peerMin: number | null = null;
+    let peerMax: number | null = null;
+
+    for (
+        let pieceIndex = params.startPieceIndex;
+        pieceIndex <= params.endPieceIndex;
+        pieceIndex += 1
+    ) {
+        const tone = resolvePieceTone({
+            pieceIndex,
+            resolvedStates: params.resolvedStates,
+            availabilityMissing: params.availabilityMissing,
+            availability: params.availability,
+            rareThreshold: params.rareThreshold,
+        });
+        if (tone === "verified") {
+            verifiedInBlock += 1;
+            continue;
+        }
+        if (tone === "common") {
+            commonInBlock += 1;
+        } else if (tone === "rare") {
+            rareInBlock += 1;
+        } else if (tone === "dead") {
+            deadInBlock += 1;
+        }
+
+        if (!params.availabilityMissing && tone !== "missing") {
+            const peers = params.availability[pieceIndex] ?? 0;
+            peerMin = peerMin == null ? peers : Math.min(peerMin, peers);
+            peerMax = peerMax == null ? peers : Math.max(peerMax, peers);
+        }
+    }
+
+    return {
+        verifiedInBlock,
+        commonInBlock,
+        rareInBlock,
+        deadInBlock,
+        peerMin,
+        peerMax,
+    };
+};
+
+const resolveDominantBlockTone = (params: {
+    composition: Array<{ tone: SwarmTone; count: number }>;
+    availabilityMissing: boolean;
+    missingCount: number;
+}) => {
+    const dominantTone = params.composition.reduce(
+        (best, entry) => {
+            if (entry.count > best.count) {
+                return entry;
+            }
+            if (entry.count === best.count && entry.count > 0) {
+                return SWARM_TONE_WEIGHT[entry.tone] > SWARM_TONE_WEIGHT[best.tone]
+                    ? entry
+                    : best;
+            }
+            return best;
+        },
+        params.composition[0] ?? { tone: "verified" as SwarmTone, count: 0 },
+    );
+    if (dominantTone.count > 0) {
+        return dominantTone.tone;
+    }
+    return params.availabilityMissing && params.missingCount > 0
+        ? "missing"
+        : "verified";
+};
+
+const buildDisplayBlocks = (params: {
+    displayCellCount: number;
+    columns: number;
+    displayTopology: DisplayTopology;
+    totalPieces: number;
+    resolvedStates: PieceStatus[];
+    availabilityMissing: boolean;
+    availability: number[];
+    rareThreshold: number;
+    pieceSize?: number;
+    t: TranslateFn;
+}): Array<DisplayBlock | null> =>
+    Array.from({ length: params.displayCellCount }, (_, blockIndex) => {
+        const row = Math.floor(blockIndex / params.columns);
+        const col = blockIndex % params.columns;
+        const pieceRange = resolveCellPieceRange({
+            row,
+            col,
+            topology: params.displayTopology,
+            totalPieces: params.totalPieces,
+        });
+        if (!pieceRange) {
+            return null;
+        }
+
+        const compositionCounts = countBlockToneComposition({
+            startPieceIndex: pieceRange.startPieceIndex,
+            endPieceIndex: pieceRange.endPieceIndex,
+            resolvedStates: params.resolvedStates,
+            availabilityMissing: params.availabilityMissing,
+            availability: params.availability,
+            rareThreshold: params.rareThreshold,
+        });
+        const pieceCount = pieceRange.endPieceIndex - pieceRange.startPieceIndex + 1;
+        const missingInBlock = pieceCount - compositionCounts.verifiedInBlock;
+        const composition: Array<{ tone: SwarmTone; count: number }> = [
+            { tone: "verified", count: compositionCounts.verifiedInBlock },
+            { tone: "common", count: compositionCounts.commonInBlock },
+            { tone: "rare", count: compositionCounts.rareInBlock },
+            { tone: "dead", count: compositionCounts.deadInBlock },
+            {
+                tone: "missing",
+                count: params.availabilityMissing ? missingInBlock : 0,
+            },
+        ];
+        const tone = resolveDominantBlockTone({
+            composition,
+            availabilityMissing: params.availabilityMissing,
+            missingCount: missingInBlock,
+        });
+
+        return {
+            blockIndex,
+            row,
+            col,
+            startPieceIndex: pieceRange.startPieceIndex,
+            endPieceIndex: pieceRange.endPieceIndex,
+            pieceCount,
+            totalSizeLabel: params.pieceSize
+                ? formatBytes(params.pieceSize * pieceCount)
+                : params.t("torrent_modal.stats.unknown_size"),
+            verifiedCount: compositionCounts.verifiedInBlock,
+            missingCount: missingInBlock,
+            commonCount: compositionCounts.commonInBlock,
+            rareCount: compositionCounts.rareInBlock,
+            deadCount: compositionCounts.deadInBlock,
+            isMixed: composition.filter((entry) => entry.count > 0).length > 1,
+            tone,
+            peerMin: compositionCounts.peerMin,
+            peerMax: compositionCounts.peerMax,
+        };
+    });
+
+const readDisplayCell = (params: {
+    clientX: number;
+    clientY: number;
+    drawState: DrawState | null;
+    root: HTMLDivElement | null;
+    colAxis: Axis;
+    rowAxis: Axis;
+    cellSize: number;
+    displayBlocks: Array<DisplayBlock | null>;
+    columns: number;
+}): DisplayBlock | null => {
+    if (!params.drawState || !params.root) {
+        return null;
+    }
+
+    const rect = params.root.getBoundingClientRect();
+    const localX = params.clientX - rect.left;
+    const localY = params.clientY - rect.top;
+    const worldX =
+        (localX - params.drawState.contentOriginX) /
+        Math.max(params.drawState.fitZoom, 1e-6);
+    const worldY =
+        (localY - params.drawState.contentOriginY) /
+        Math.max(params.drawState.fitZoom, 1e-6);
+    const col = fitIndex(worldX, params.colAxis.starts, params.cellSize);
+    const row = fitIndex(worldY, params.rowAxis.starts, params.cellSize);
+    if (col == null || row == null) {
+        return null;
+    }
+
+    const block = params.displayBlocks[row * params.columns + col] ?? null;
+    if (!block) {
+        return null;
+    }
+
+    const bounds = resolveRenderedCellBounds({
+        x:
+            params.drawState.contentOriginX +
+            (params.colAxis.starts[block.col] ?? 0) * params.drawState.fitZoom,
+        y:
+            params.drawState.contentOriginY +
+            (params.rowAxis.starts[block.row] ?? 0) * params.drawState.fitZoom,
+        size: params.cellSize * params.drawState.fitZoom,
+    });
+    const isInsideRenderedCell =
+        localX >= bounds.x &&
+        localX <= bounds.x + bounds.width &&
+        localY >= bounds.y &&
+        localY <= bounds.y + bounds.height;
+    return isInsideRenderedCell ? block : null;
+};
+
+const drawDisplayBlocksToCanvas = (params: {
+    ctx: CanvasRenderingContext2D;
+    displayBlocks: Array<DisplayBlock | null>;
+    palette: ReturnType<typeof useCanvasPalette>;
+    origin: { x: number; y: number };
+    colAxis: Axis;
+    rowAxis: Axis;
+    fitZoom: number;
+    cellSize: number;
+    displayTopology: DisplayTopology;
+}) => {
+    const size = params.cellSize * params.displayTopology.fitZoom;
+    for (const block of params.displayBlocks) {
+        if (!block) {
+            continue;
+        }
+        const bounds = resolveRenderedCellBounds({
+            x: params.origin.x + (params.colAxis.starts[block.col] ?? 0) * params.fitZoom,
+            y: params.origin.y + (params.rowAxis.starts[block.row] ?? 0) * params.fitZoom,
+            size,
+        });
+
+        if (block.tone === "verified") {
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.success);
+            params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        } else if (block.tone === "common") {
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.primary);
+            params.ctx.globalAlpha = 0.35;
+            params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            params.ctx.globalAlpha = 1;
+        } else if (block.tone === "rare") {
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.warning);
+            params.ctx.globalAlpha = 0.75;
+            params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            params.ctx.globalAlpha = 1;
+        } else if (block.tone === "dead") {
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.foreground);
+            params.ctx.globalAlpha = 0.12;
+            params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            params.ctx.globalAlpha = 1;
+            params.ctx.strokeStyle = resolveCanvasColor(params.palette.danger);
+            params.ctx.lineWidth = Math.max(1, params.displayTopology.fitZoom * 0.12);
+            params.ctx.strokeRect(
+                bounds.x + 0.5,
+                bounds.y + 0.5,
+                Math.max(0, bounds.width - 1),
+                Math.max(0, bounds.height - 1),
+            );
+        } else {
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.foreground);
+            params.ctx.globalAlpha = 0.18;
+            params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            params.ctx.globalAlpha = 1;
+        }
+
+        if (block.tone === "rare" && Math.min(bounds.width, bounds.height) >= 5) {
+            params.ctx.save();
+            params.ctx.beginPath();
+            params.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+            params.ctx.clip();
+            params.ctx.strokeStyle = resolveCanvasColor(params.palette.foreground);
+            params.ctx.globalAlpha = 0.22;
+            params.ctx.lineWidth = Math.max(1, params.displayTopology.fitZoom * 0.12);
+            const stripeGap = Math.max(
+                4,
+                Math.min(bounds.width, bounds.height) * 0.4,
+            );
+            for (
+                let stripe = -Math.min(bounds.width, bounds.height);
+                stripe < Math.max(bounds.width, bounds.height) * 2;
+                stripe += stripeGap
+            ) {
+                params.ctx.beginPath();
+                params.ctx.moveTo(bounds.x + stripe, bounds.y + bounds.height);
+                params.ctx.lineTo(bounds.x + stripe + bounds.height, bounds.y);
+                params.ctx.stroke();
+            }
+            params.ctx.restore();
+            params.ctx.globalAlpha = 1;
+        }
+
+        if (block.isMixed && Math.min(bounds.width, bounds.height) >= 6) {
+            const markerSize = Math.max(
+                4,
+                Math.min(bounds.width, bounds.height) * 0.24,
+            );
+            params.ctx.fillStyle = resolveCanvasColor(params.palette.foreground);
+            params.ctx.globalAlpha = 0.6;
+            params.ctx.beginPath();
+            params.ctx.moveTo(bounds.x + bounds.width, bounds.y);
+            params.ctx.lineTo(bounds.x + bounds.width - markerSize, bounds.y);
+            params.ctx.lineTo(bounds.x + bounds.width, bounds.y + markerSize);
+            params.ctx.closePath();
+            params.ctx.fill();
+            params.ctx.globalAlpha = 1;
+        }
+    }
+};
+
+const drawHoveredBlockOverlay = (params: {
+    ctx: CanvasRenderingContext2D;
+    hoveredBlock: DisplayBlock | null;
+    drawState: DrawState;
+    colAxis: Axis;
+    rowAxis: Axis;
+    cellSize: number;
+    palette: ReturnType<typeof useCanvasPalette>;
+}) => {
+    if (!params.hoveredBlock) {
+        return;
+    }
+
+    const hoveredBounds = resolveRenderedCellBounds({
+        x:
+            params.drawState.contentOriginX +
+            (params.colAxis.starts[params.hoveredBlock.col] ?? 0) *
+                params.drawState.fitZoom,
+        y:
+            params.drawState.contentOriginY +
+            (params.rowAxis.starts[params.hoveredBlock.row] ?? 0) *
+                params.drawState.fitZoom,
+        size: params.cellSize * params.drawState.fitZoom,
+    });
+    params.ctx.strokeStyle = resolveCanvasColor(params.palette.foreground);
+    params.ctx.globalAlpha = 0.82;
+    params.ctx.lineWidth = 1.5;
+    params.ctx.strokeRect(
+        hoveredBounds.x + 0.5,
+        hoveredBounds.y + 0.5,
+        Math.max(0, hoveredBounds.width - 1),
+        Math.max(0, hoveredBounds.height - 1),
+    );
+    params.ctx.globalAlpha = 1;
+};
+
+const scheduleDrawFrames = (params: {
+    frameRef: MutableRefObject<FrameHandle | null>;
+    overlayFrameRef: MutableRefObject<FrameHandle | null>;
+    canvasRef: RefObject<HTMLCanvasElement | null>;
+    overlayRef: RefObject<HTMLCanvasElement | null>;
+    rootRef: RefObject<HTMLDivElement | null>;
+    viewportBounds: ViewportBounds | null;
+    setViewportBounds: ViewportBoundsSetter;
+    drawStateRef: MutableRefObject<DrawState | null>;
+    displayTopology: DisplayTopology;
+    colAxis: Axis;
+    rowAxis: Axis;
+    cellSize: number;
+    displayBlocks: Array<DisplayBlock | null>;
+    palette: ReturnType<typeof useCanvasPalette>;
+    hoveredBlock: DisplayBlock | null;
+}) => {
+    if (params.frameRef.current) {
+        cancelScheduledFrame(params.frameRef.current);
+    }
+
+    params.frameRef.current = scheduleFrame(() => {
+        const canvas = params.canvasRef.current;
+        if (!canvas) {
+            return;
+        }
+
+        const measuredViewportBounds = readViewportBounds(params.rootRef.current);
+        if (
+            measuredViewportBounds != null &&
+            (measuredViewportBounds.width !== params.viewportBounds?.width ||
+                measuredViewportBounds.height !== params.viewportBounds?.height)
+        ) {
+            params.setViewportBounds(measuredViewportBounds);
+            return;
+        }
+
+        const { cssW, cssH } = fitCanvasToContainer(
+            canvas,
+            params.rootRef.current,
+            MIN_DRAW_DIMENSION,
+        );
+        if (cssW < MIN_DRAW_DIMENSION || cssH < MIN_DRAW_DIMENSION) {
+            return;
+        }
+
+        const fitZoom = Math.max(params.displayTopology.fitZoom, 1e-6);
+        const contentWidth = params.colAxis.total * fitZoom;
+        const contentHeight = params.rowAxis.total * fitZoom;
+        const origin = resolveContentOrigin(cssW, cssH, contentWidth, contentHeight);
+        params.drawStateRef.current = {
+            fitZoom,
+            viewportWidth: cssW,
+            viewportHeight: cssH,
+            contentOriginX: origin.x,
+            contentOriginY: origin.y,
+        };
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+            return;
+        }
+
+        ctx.clearRect(0, 0, cssW, cssH);
+        drawDisplayBlocksToCanvas({
+            ctx,
+            displayBlocks: params.displayBlocks,
+            palette: params.palette,
+            origin,
+            colAxis: params.colAxis,
+            rowAxis: params.rowAxis,
+            fitZoom,
+            cellSize: params.cellSize,
+            displayTopology: params.displayTopology,
+        });
+    });
+
+    if (params.overlayFrameRef.current) {
+        cancelScheduledFrame(params.overlayFrameRef.current);
+    }
+    params.overlayFrameRef.current = scheduleFrame(() => {
+        const overlay = params.overlayRef.current;
+        const drawState = params.drawStateRef.current;
+        if (!overlay || !drawState) {
+            return;
+        }
+
+        fitCanvasToContainer(overlay, params.rootRef.current, MIN_DRAW_DIMENSION);
+        const ctx = overlay.getContext("2d");
+        if (!ctx) {
+            return;
+        }
+
+        ctx.clearRect(0, 0, drawState.viewportWidth, drawState.viewportHeight);
+        drawHoveredBlockOverlay({
+            ctx,
+            hoveredBlock: params.hoveredBlock,
+            drawState,
+            colAxis: params.colAxis,
+            rowAxis: params.rowAxis,
+            cellSize: params.cellSize,
+            palette: params.palette,
+        });
+    });
 };
 
 const readViewportBounds = (element: HTMLElement | null): ViewportBounds | null => {
@@ -366,51 +1077,76 @@ const resolvePiecesPerBlockCandidates = (params: {
     return Array.from(candidates).sort((left, right) => left - right);
 };
 
-const resolveOverviewTopology = (params: {
-    viewportWidth: number | null;
-    viewportHeight: number | null;
-    totalPieces: number;
-    cellSize: number;
-    gap: number;
-    fallbackColumns: number;
-}): DisplayTopology => {
-    if (params.totalPieces <= 0) {
-        return computeOverviewTopology({
-            viewportWidth: params.viewportWidth,
-            viewportHeight: params.viewportHeight,
-            totalPieces: 1,
-            columns: 1,
-            piecesPerBlock: 1,
-            cellSize: params.cellSize,
-            gap: params.gap,
-        });
-    }
+const hasRenderableViewport = (params: OverviewTopologyParams) =>
+    params.viewportWidth != null &&
+    params.viewportWidth > 0 &&
+    params.viewportHeight != null &&
+    params.viewportHeight > 0;
 
-    if (
-        params.viewportWidth == null ||
-        params.viewportWidth <= 0 ||
-        params.viewportHeight == null ||
-        params.viewportHeight <= 0
-    ) {
-        return computeOverviewTopology({
-            viewportWidth: params.viewportWidth,
-            viewportHeight: params.viewportHeight,
-            totalPieces: params.totalPieces,
-            columns: Math.min(params.fallbackColumns, params.totalPieces),
-            piecesPerBlock: 1,
-            cellSize: params.cellSize,
-            gap: params.gap,
-        });
-    }
-
-    const candidates = resolvePiecesPerBlockCandidates({
+const buildFallbackOverviewTopology = (
+    params: OverviewTopologyParams,
+    totalPieces: number,
+) =>
+    computeOverviewTopology({
         viewportWidth: params.viewportWidth,
         viewportHeight: params.viewportHeight,
-        totalPieces: params.totalPieces,
+        totalPieces,
+        columns: Math.min(params.fallbackColumns, totalPieces),
+        piecesPerBlock: 1,
         cellSize: params.cellSize,
         gap: params.gap,
     });
 
+const pickBestFittingMetrics = (params: {
+    current: TopologyMetrics | null;
+    candidate: TopologyMetrics;
+    viewportHeight: number;
+}) => {
+    if (!params.current) {
+        return params.candidate;
+    }
+    if (
+        params.candidate.coverageScore >
+        params.current.coverageScore + TOPOLOGY_SCORE_EPSILON
+    ) {
+        return params.candidate;
+    }
+    if (
+        Math.abs(params.candidate.coverageScore - params.current.coverageScore) >
+        TOPOLOGY_SCORE_EPSILON
+    ) {
+        return params.current;
+    }
+
+    const candidateHeightCoverage =
+        params.viewportHeight > 0
+            ? params.candidate.contentHeight / params.viewportHeight
+            : 1;
+    const currentHeightCoverage =
+        params.viewportHeight > 0
+            ? params.current.contentHeight / params.viewportHeight
+            : 1;
+    if (
+        candidateHeightCoverage >
+        currentHeightCoverage + TOPOLOGY_SCORE_EPSILON
+    ) {
+        return params.candidate;
+    }
+    if (
+        Math.abs(candidateHeightCoverage - currentHeightCoverage) <=
+            TOPOLOGY_SCORE_EPSILON &&
+        params.candidate.topology.piecesPerBlock <
+            params.current.topology.piecesPerBlock
+    ) {
+        return params.candidate;
+    }
+    return params.current;
+};
+
+const evaluateOverviewMetrics = (
+    params: OverviewTopologyParams,
+    candidates: number[],
+) => {
     let best: TopologyMetrics | null = null;
     let fallback: TopologyMetrics | null = null;
 
@@ -424,50 +1160,46 @@ const resolveOverviewTopology = (params: {
             gap: params.gap,
             fallbackColumns: params.fallbackColumns,
         });
-
-        if (!fallback || metrics.coverageScore > fallback.coverageScore + 1e-6) {
+        if (
+            !fallback ||
+            metrics.coverageScore >
+                fallback.coverageScore + TOPOLOGY_SCORE_EPSILON
+        ) {
             fallback = metrics;
         }
-
         if (!metrics.fitsHeight) {
             continue;
         }
-        if (!best) {
-            best = metrics;
-            continue;
-        }
-        if (metrics.coverageScore > best.coverageScore + 1e-6) {
-            best = metrics;
-            continue;
-        }
-        if (Math.abs(metrics.coverageScore - best.coverageScore) > 1e-6) {
-            continue;
-        }
-        const metricsHeightCoverage =
-            params.viewportHeight > 0 ? metrics.contentHeight / params.viewportHeight : 1;
-        const bestHeightCoverage =
-            params.viewportHeight > 0 ? best.contentHeight / params.viewportHeight : 1;
-        if (metricsHeightCoverage > bestHeightCoverage + 1e-6) {
-            best = metrics;
-            continue;
-        }
-        if (
-            Math.abs(metricsHeightCoverage - bestHeightCoverage) <= 1e-6 &&
-            metrics.topology.piecesPerBlock < best.topology.piecesPerBlock
-        ) {
-            best = metrics;
-        }
+        best = pickBestFittingMetrics({
+            current: best,
+            candidate: metrics,
+            viewportHeight: params.viewportHeight ?? 0,
+        });
     }
 
-    return best?.topology ?? fallback?.topology ?? computeOverviewTopology({
-        viewportWidth: params.viewportWidth,
-        viewportHeight: params.viewportHeight,
+    return { best, fallback };
+};
+
+const resolveOverviewTopology = (params: OverviewTopologyParams): DisplayTopology => {
+    const normalizedTotalPieces = Math.max(1, params.totalPieces);
+    const fallbackTopology = buildFallbackOverviewTopology(
+        params,
+        normalizedTotalPieces,
+    );
+    if (params.totalPieces <= 0 || !hasRenderableViewport(params)) {
+        return fallbackTopology;
+    }
+
+    const candidates = resolvePiecesPerBlockCandidates({
+        viewportWidth: params.viewportWidth ?? 0,
+        viewportHeight: params.viewportHeight ?? 0,
         totalPieces: params.totalPieces,
-        columns: Math.min(params.fallbackColumns, params.totalPieces),
-        piecesPerBlock: 1,
         cellSize: params.cellSize,
         gap: params.gap,
     });
+    const { best, fallback } = evaluateOverviewMetrics(params, candidates);
+
+    return best?.topology ?? fallback?.topology ?? fallbackTopology;
 };
 
 const resolveCellPieceRange = (params: {
@@ -594,7 +1326,9 @@ export function usePiecesMapViewModel({
     const [viewportBounds, setViewportBounds] = useState<ViewportBounds | null>(null);
     const normalizedPercent = normalizePiecePercent(percent);
     const totalPieces =
-        typeof pieceCount === "number" && Number.isFinite(pieceCount) && pieceCount > 0
+        typeof pieceCount === "number" &&
+        Number.isFinite(pieceCount) &&
+        pieceCount > 0
             ? Math.round(pieceCount)
             : Math.max(64, Math.round(256 * Math.max(normalizedPercent, 0.1)));
     const cellSize = Math.max(1, Math.round(unit * FIXED_CELL_UNITS));
@@ -643,17 +1377,25 @@ export function usePiecesMapViewModel({
         [cellGap, cellSize, rows, separatorExtraGap],
     );
 
-    const pieceStatesLength = pieceStates?.length ?? 0;
     const availabilityLength = pieceAvailability?.length ?? 0;
+    const pieceStatesLength = pieceStates?.length ?? 0;
     const hasBinaryPieceStates =
-        pieceStatesLength >= totalPieces && (pieceStates?.every((value) => value === 0 || value === 1) ?? false);
-    const resolvedStates = useMemo(() => {
-        if (pieceStates && pieceStates.length >= totalPieces) {
-            return pieceStates.slice(0, totalPieces).map((value) => resolveStatus(value, hasBinaryPieceStates));
-        }
-        const doneUntil = Math.round(totalPieces * normalizedPercent);
-        return Array.from({ length: totalPieces }, (_, index) => (index < doneUntil ? "done" : "missing"));
-    }, [hasBinaryPieceStates, normalizedPercent, pieceStates, totalPieces]);
+        pieceStatesLength >= totalPieces &&
+        (pieceStates?.every((value) => value === 0 || value === 1) ?? false);
+    const resolvedStates = useMemo(
+        () => {
+            if (pieceStates && pieceStates.length >= totalPieces) {
+                return pieceStates
+                    .slice(0, totalPieces)
+                    .map((value) => resolveStatus(value, hasBinaryPieceStates));
+            }
+            const doneUntil = Math.round(totalPieces * normalizedPercent);
+            return Array.from({ length: totalPieces }, (_, index) =>
+                index < doneUntil ? "done" : "missing",
+            );
+        },
+        [hasBinaryPieceStates, normalizedPercent, pieceStates, totalPieces],
+    );
 
     const availabilityMissing = availabilityLength === 0;
     const availability = useMemo(
@@ -670,125 +1412,19 @@ export function usePiecesMapViewModel({
     const maxPeers = availability.reduce((max, value) => Math.max(max, value), 0) || 1;
     const rareThreshold = Math.max(1, Math.ceil(maxPeers * 0.15));
 
-    const resolveTone = (pieceIndex: number): SwarmTone => {
-        if ((resolvedStates[pieceIndex] ?? "missing") === "done") {
-            return "verified";
-        }
-        if (availabilityMissing) {
-            return "missing";
-        }
-        const peers = availability[pieceIndex] ?? 0;
-        if (peers <= 0) {
-            return "dead";
-        }
-        if (peers <= rareThreshold) {
-            return "rare";
-        }
-        return "common";
-    };
-
     const displayBlocks = useMemo<Array<DisplayBlock | null>>(
         () =>
-            Array.from({ length: displayCellCount }, (_, blockIndex) => {
-                const row = Math.floor(blockIndex / columns);
-                const col = blockIndex % columns;
-                const pieceRange = resolveCellPieceRange({
-                    row,
-                    col,
-                    topology: displayTopology,
-                    totalPieces,
-                });
-                if (!pieceRange) {
-                    return null;
-                }
-
-                let verifiedInBlock = 0;
-                let commonInBlock = 0;
-                let deadInBlock = 0;
-                let rareInBlock = 0;
-                let peerMin: number | null = null;
-                let peerMax: number | null = null;
-
-                for (
-                    let pieceIndex = pieceRange.startPieceIndex;
-                    pieceIndex <= pieceRange.endPieceIndex;
-                    pieceIndex += 1
-                ) {
-                    const state = resolvedStates[pieceIndex] ?? "missing";
-                    if (state === "done") {
-                        verifiedInBlock += 1;
-                        continue;
-                    }
-                    if (availabilityMissing) {
-                        continue;
-                    }
-
-                    const peers = availability[pieceIndex] ?? 0;
-                    peerMin = peerMin == null ? peers : Math.min(peerMin, peers);
-                    peerMax = peerMax == null ? peers : Math.max(peerMax, peers);
-                    if (peers <= 0) {
-                        deadInBlock += 1;
-                    } else if (peers <= rareThreshold) {
-                        rareInBlock += 1;
-                    } else {
-                        commonInBlock += 1;
-                    }
-                }
-
-                const pieceCount = pieceRange.endPieceIndex - pieceRange.startPieceIndex + 1;
-                const missingInBlock = pieceCount - verifiedInBlock;
-                const composition: Array<{ tone: SwarmTone; count: number }> = [
-                    { tone: "verified", count: verifiedInBlock },
-                    { tone: "common", count: commonInBlock },
-                    { tone: "rare", count: rareInBlock },
-                    { tone: "dead", count: deadInBlock },
-                    { tone: "missing", count: availabilityMissing ? missingInBlock : 0 },
-                ];
-                const dominantTone = composition.reduce(
-                    (best, entry) => {
-                        if (entry.count > best.count) {
-                            return entry;
-                        }
-                        if (entry.count === best.count && entry.count > 0) {
-                            const weight = {
-                                dead: 5,
-                                rare: 4,
-                                common: 3,
-                                missing: 2,
-                                verified: 1,
-                            } satisfies Record<SwarmTone, number>;
-                            return weight[entry.tone] > weight[best.tone] ? entry : best;
-                        }
-                        return best;
-                    },
-                    composition[0] ?? { tone: "verified" as SwarmTone, count: 0 },
-                );
-
-                return {
-                    blockIndex,
-                    row,
-                    col,
-                    startPieceIndex: pieceRange.startPieceIndex,
-                    endPieceIndex: pieceRange.endPieceIndex,
-                    pieceCount,
-                    totalSizeLabel: pieceSize
-                        ? formatBytes(pieceSize * pieceCount)
-                        : t("torrent_modal.stats.unknown_size"),
-                    verifiedCount: verifiedInBlock,
-                    missingCount: missingInBlock,
-                    commonCount: commonInBlock,
-                    rareCount: rareInBlock,
-                    deadCount: deadInBlock,
-                    isMixed: composition.filter((entry) => entry.count > 0).length > 1,
-                    tone:
-                        dominantTone.count > 0
-                            ? dominantTone.tone
-                            : availabilityMissing && missingInBlock > 0
-                              ? "missing"
-                              : "verified",
-                    peerMin,
-                    peerMax,
-                };
+            buildDisplayBlocks({
+                displayCellCount,
+                columns,
+                displayTopology,
+                totalPieces,
+                resolvedStates,
+                availabilityMissing,
+                availability,
+                rareThreshold,
+                pieceSize,
+                t,
             }),
         [
             availability,
@@ -803,307 +1439,134 @@ export function usePiecesMapViewModel({
             totalPieces,
         ],
     );
-
-    let rareCount = 0;
-    let deadCount = 0;
-    let verifiedCount = 0;
-    for (let index = 0; index < totalPieces; index += 1) {
-        const tone = resolveTone(index);
-        if (tone === "verified") {
-            verifiedCount += 1;
-        } else if (tone === "rare") {
-            rareCount += 1;
-        } else if (tone === "dead") {
-            deadCount += 1;
-        }
-    }
+    const { rareCount, deadCount, verifiedCount } = useMemo(
+        () =>
+            summarizeToneCounts({
+                totalPieces,
+                resolvedStates,
+                availabilityMissing,
+                availability,
+                rareThreshold,
+            }),
+        [
+            availability,
+            availabilityMissing,
+            rareThreshold,
+            resolvedStates,
+            totalPieces,
+        ],
+    );
 
     const missingCount = totalPieces - verifiedCount;
-    const verifiedPercent = totalPieces > 0 ? Math.round((verifiedCount / totalPieces) * 100) : 0;
-    const pieceSizeLabel = pieceSize ? formatBytes(pieceSize) : t("torrent_modal.stats.unknown_size");
+    const verifiedPercent =
+        totalPieces > 0 ? Math.round((verifiedCount / totalPieces) * 100) : 0;
+    const pieceSizeLabel = pieceSize
+        ? formatBytes(pieceSize)
+        : t("torrent_modal.stats.unknown_size");
 
     const [hoveredBlock, setHoveredBlock] = useState<DisplayBlock | null>(null);
     const [tooltipStyle, setTooltipStyle] = useState<CSSProperties>();
 
+    const readCell = useCallback(
+        (clientX: number, clientY: number) =>
+            readDisplayCell({
+                clientX,
+                clientY,
+                drawState: drawStateRef.current,
+                root: rootRef.current,
+                colAxis,
+                rowAxis,
+                cellSize,
+                displayBlocks,
+                columns,
+            }),
+        [cellSize, colAxis, columns, displayBlocks, rowAxis],
+    );
+    const syncHoveredBlockFromPointer = useEffectEvent(() => {
+        setHoveredBlock(
+            pointerRef.current.isInside
+                ? readCell(pointerRef.current.clientX, pointerRef.current.clientY)
+                : null,
+        );
+    });
+
+    const scheduleDraw = useCallback(
+        () =>
+            scheduleDrawFrames({
+                frameRef,
+                overlayFrameRef,
+                canvasRef,
+                overlayRef,
+                rootRef,
+                viewportBounds,
+                setViewportBounds,
+                drawStateRef,
+                displayTopology,
+                colAxis,
+                rowAxis,
+                cellSize,
+                displayBlocks,
+                palette,
+                hoveredBlock,
+            }),
+        [
+            canvasRef,
+            cellSize,
+            colAxis,
+            displayBlocks,
+            displayTopology,
+            drawStateRef,
+            frameRef,
+            hoveredBlock,
+            overlayRef,
+            overlayFrameRef,
+            palette,
+            rowAxis,
+            rootRef,
+            setViewportBounds,
+            viewportBounds,
+        ],
+    );
+
     useEffect(() => {
-        pointerRef.current.isInside = false;
-        setHoveredBlock(null);
-        setTooltipStyle(undefined);
-    }, [totalPieces]);
-
-    const readCell = (clientX: number, clientY: number) => {
-        const drawState = drawStateRef.current;
-        const root = rootRef.current;
-        if (!drawState || !root) {
-            return null;
-        }
-
-        const rect = root.getBoundingClientRect();
-        const localX = clientX - rect.left;
-        const localY = clientY - rect.top;
-        const worldX =
-            (localX - drawState.contentOriginX) / Math.max(drawState.fitZoom, 1e-6);
-        const worldY =
-            (localY - drawState.contentOriginY) / Math.max(drawState.fitZoom, 1e-6);
-        const col = fitIndex(worldX, colAxis.starts, cellSize);
-        const row = fitIndex(worldY, rowAxis.starts, cellSize);
-        if (col == null || row == null) {
-            return null;
-        }
-
-        const block = displayBlocks[row * columns + col] ?? null;
-        if (!block) {
-            return null;
-        }
-
-        const bounds = resolveRenderedCellBounds({
-            x:
-                drawState.contentOriginX +
-                (colAxis.starts[block.col] ?? 0) * drawState.fitZoom,
-            y:
-                drawState.contentOriginY +
-                (rowAxis.starts[block.row] ?? 0) * drawState.fitZoom,
-            size: cellSize * drawState.fitZoom,
-        });
-        const isInsideRenderedCell =
-            localX >= bounds.x &&
-            localX <= bounds.x + bounds.width &&
-            localY >= bounds.y &&
-            localY <= bounds.y + bounds.height;
-        return isInsideRenderedCell ? block : null;
-    };
-
-    const scheduleDraw = () => {
-        if (frameRef.current) {
-            cancelScheduledFrame(frameRef.current);
-        }
-        frameRef.current = scheduleFrame(() => {
-            const canvas = canvasRef.current;
-            if (!canvas) {
-                return;
-            }
-            const measuredViewportBounds = readViewportBounds(rootRef.current);
-            if (
-                measuredViewportBounds != null &&
-                (measuredViewportBounds.width !== viewportBounds?.width ||
-                    measuredViewportBounds.height !== viewportBounds?.height)
-            ) {
-                setViewportBounds(measuredViewportBounds);
-                return;
-            }
-
-            const { cssW, cssH } = fitCanvasToContainer(canvas, rootRef.current, MIN_DRAW_DIMENSION);
-            if (cssW < MIN_DRAW_DIMENSION || cssH < MIN_DRAW_DIMENSION) {
-                return;
-            }
-
-            const fitZoom = Math.max(displayTopology.fitZoom, 1e-6);
-            const contentWidth = colAxis.total * fitZoom;
-            const contentHeight = rowAxis.total * fitZoom;
-            const origin = resolveContentOrigin(cssW, cssH, contentWidth, contentHeight);
-            drawStateRef.current = {
-                fitZoom,
-                viewportWidth: cssW,
-                viewportHeight: cssH,
-                contentOriginX: origin.x,
-                contentOriginY: origin.y,
-            };
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-                return;
-            }
-
-            ctx.clearRect(0, 0, cssW, cssH);
-            const size = cellSize * displayTopology.fitZoom;
-            for (const block of displayBlocks) {
-                if (!block) {
-                    continue;
-                }
-
-                const bounds = resolveRenderedCellBounds({
-                    x: origin.x + (colAxis.starts[block.col] ?? 0) * fitZoom,
-                    y: origin.y + (rowAxis.starts[block.row] ?? 0) * fitZoom,
-                    size,
-                });
-
-                if (block.tone === "verified") {
-                    ctx.fillStyle = resolveCanvasColor(palette.success);
-                    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                } else if (block.tone === "common") {
-                    ctx.fillStyle = resolveCanvasColor(palette.primary);
-                    ctx.globalAlpha = 0.35;
-                    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    ctx.globalAlpha = 1;
-                } else if (block.tone === "rare") {
-                    ctx.fillStyle = resolveCanvasColor(palette.warning);
-                    ctx.globalAlpha = 0.75;
-                    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    ctx.globalAlpha = 1;
-                } else if (block.tone === "dead") {
-                    ctx.fillStyle = resolveCanvasColor(palette.foreground);
-                    ctx.globalAlpha = 0.12;
-                    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    ctx.globalAlpha = 1;
-                    ctx.strokeStyle = resolveCanvasColor(palette.danger);
-                    ctx.lineWidth = Math.max(1, displayTopology.fitZoom * 0.12);
-                    ctx.strokeRect(
-                        bounds.x + 0.5,
-                        bounds.y + 0.5,
-                        Math.max(0, bounds.width - 1),
-                        Math.max(0, bounds.height - 1),
-                    );
-                } else {
-                    ctx.fillStyle = resolveCanvasColor(palette.foreground);
-                    ctx.globalAlpha = 0.18;
-                    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    ctx.globalAlpha = 1;
-                }
-
-                if (block.tone === "rare" && Math.min(bounds.width, bounds.height) >= 5) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    ctx.clip();
-                    ctx.strokeStyle = resolveCanvasColor(palette.foreground);
-                    ctx.globalAlpha = 0.22;
-                    ctx.lineWidth = Math.max(1, displayTopology.fitZoom * 0.12);
-                    const stripeGap = Math.max(4, Math.min(bounds.width, bounds.height) * 0.4);
-                    for (
-                        let stripe = -Math.min(bounds.width, bounds.height);
-                        stripe < Math.max(bounds.width, bounds.height) * 2;
-                        stripe += stripeGap
-                    ) {
-                        ctx.beginPath();
-                        ctx.moveTo(bounds.x + stripe, bounds.y + bounds.height);
-                        ctx.lineTo(bounds.x + stripe + bounds.height, bounds.y);
-                        ctx.stroke();
-                    }
-                    ctx.restore();
-                    ctx.globalAlpha = 1;
-                }
-
-                if (block.isMixed && Math.min(bounds.width, bounds.height) >= 6) {
-                    const markerSize = Math.max(4, Math.min(bounds.width, bounds.height) * 0.24);
-                    ctx.fillStyle = resolveCanvasColor(palette.foreground);
-                    ctx.globalAlpha = 0.6;
-                    ctx.beginPath();
-                    ctx.moveTo(bounds.x + bounds.width, bounds.y);
-                    ctx.lineTo(bounds.x + bounds.width - markerSize, bounds.y);
-                    ctx.lineTo(bounds.x + bounds.width, bounds.y + markerSize);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
-                }
-            }
-
-        });
-
-        if (overlayFrameRef.current) {
-            cancelScheduledFrame(overlayFrameRef.current);
-        }
-        overlayFrameRef.current = scheduleFrame(() => {
-            const overlay = overlayRef.current;
-            const drawState = drawStateRef.current;
-            if (!overlay || !drawState) {
-                return;
-            }
-
-            fitCanvasToContainer(overlay, rootRef.current, MIN_DRAW_DIMENSION);
-            const ctx = overlay.getContext("2d");
-            if (!ctx) {
-                return;
-            }
-
-            ctx.clearRect(0, 0, drawState.viewportWidth, drawState.viewportHeight);
-            const size = cellSize * drawState.fitZoom;
-
-            if (hoveredBlock) {
-                const hoveredBounds = resolveRenderedCellBounds({
-                    x:
-                        drawState.contentOriginX +
-                        (colAxis.starts[hoveredBlock.col] ?? 0) * drawState.fitZoom,
-                    y:
-                        drawState.contentOriginY +
-                        (rowAxis.starts[hoveredBlock.row] ?? 0) * drawState.fitZoom,
-                    size,
-                });
-                ctx.strokeStyle = resolveCanvasColor(palette.foreground);
-                ctx.globalAlpha = 0.82;
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(
-                    hoveredBounds.x + 0.5,
-                    hoveredBounds.y + 0.5,
-                    Math.max(0, hoveredBounds.width - 1),
-                    Math.max(0, hoveredBounds.height - 1),
-                );
-                ctx.globalAlpha = 1;
-            }
-        });
-    };
-    scheduleDrawRef.current = scheduleDraw;
+        scheduleDrawRef.current = scheduleDraw;
+    }, [scheduleDraw]);
 
     useEffect(() => {
         scheduleDraw();
-    }, [cellSize, colAxis, columns, displayBlocks, displayTopology, hoveredBlock, palette, rowAxis, rows, viewportBounds]);
+    }, [scheduleDraw]);
 
     useEffect(() => {
-        if (!pointerRef.current.isInside) {
-            return;
-        }
-        setHoveredBlock(readCell(pointerRef.current.clientX, pointerRef.current.clientY));
-    }, [colAxis, displayBlocks, rowAxis]);
+        pointerRef.current.isInside = false;
+        syncHoveredBlockFromPointer();
+    }, [totalPieces]);
 
     useEffect(() => {
-        if (!hoveredBlock) {
-            setTooltipStyle(undefined);
-            return;
-        }
+        syncHoveredBlockFromPointer();
+    }, [readCell]);
 
-        const tooltip = tooltipRef.current;
-        const drawState = drawStateRef.current;
-        if (!tooltip || !drawState) {
-            return;
-        }
-
-        const bounds = resolveRenderedCellBounds({
-            x:
-                drawState.contentOriginX +
-                (colAxis.starts[hoveredBlock.col] ?? 0) * drawState.fitZoom,
-            y:
-                drawState.contentOriginY +
-                (rowAxis.starts[hoveredBlock.row] ?? 0) * drawState.fitZoom,
-            size: cellSize * drawState.fitZoom,
-        });
-        const tooltipRect = tooltip.getBoundingClientRect();
-        const maxLeft = Math.max(
-            TOOLTIP_EDGE_PADDING,
-            drawState.viewportWidth - tooltipRect.width - TOOLTIP_EDGE_PADDING,
+    useEffect(() => {
+        setTooltipStyle(
+            resolveTooltipStyleForBlock({
+                hoveredBlock,
+                tooltipElement: tooltipRef.current,
+                drawState: drawStateRef.current,
+                colAxis,
+                rowAxis,
+                cellSize,
+            }),
         );
-        const maxTop = Math.max(
-            TOOLTIP_EDGE_PADDING,
-            drawState.viewportHeight - tooltipRect.height - TOOLTIP_EDGE_PADDING,
-        );
-        const left = clamp(
-            bounds.x + bounds.width / 2 - tooltipRect.width / 2,
-            TOOLTIP_EDGE_PADDING,
-            maxLeft,
-        );
-        const aboveTop = bounds.y - tooltipRect.height - TOOLTIP_GAP;
-        const belowTop = bounds.y + bounds.height + TOOLTIP_GAP;
-        const preferredTop = aboveTop >= TOOLTIP_EDGE_PADDING || belowTop > maxTop ? aboveTop : belowTop;
-        const top = clamp(preferredTop, TOOLTIP_EDGE_PADDING, maxTop);
-
-        setTooltipStyle({ left, top, visibility: "visible" });
-    }, [cellSize, colAxis, columns, displayTopology, hoveredBlock, rowAxis, rows]);
+    }, [cellSize, colAxis, hoveredBlock, rowAxis]);
 
     useEffect(() => {
         const syncViewportBounds = () => {
             const nextBounds = readViewportBounds(rootRef.current);
-            if (nextBounds == null) {
+            if (!nextBounds) {
                 return;
             }
             setViewportBounds((currentBounds) =>
-                currentBounds?.width === nextBounds.width && currentBounds?.height === nextBounds.height
+                currentBounds?.width === nextBounds.width &&
+                currentBounds?.height === nextBounds.height
                     ? currentBounds
                     : nextBounds,
             );
@@ -1114,8 +1577,9 @@ export function usePiecesMapViewModel({
             syncViewportBounds();
             scheduleDrawRef.current();
         });
-        if (rootRef.current) {
-            observer.observe(rootRef.current);
+        const observedRoot = rootRef.current;
+        if (observedRoot) {
+            observer.observe(observedRoot);
         }
         return () => {
             observer.disconnect();
@@ -1130,113 +1594,29 @@ export function usePiecesMapViewModel({
         [],
     );
 
-    const formatAvailabilitySummary = (block: DisplayBlock | null) => {
-        if (!block || block.missingCount <= 0) {
-            return null;
-        }
-        if (availabilityMissing || block.peerMin == null || block.peerMax == null) {
-            return t("torrent_modal.piece_map.tooltip_availability_unknown");
-        }
-        return block.peerMin === block.peerMax
-            ? t("torrent_modal.piece_map.tooltip_available_peers", {
-                  peers: block.peerMin,
-              })
-            : t("torrent_modal.piece_map.tooltip_peers_range", {
-                  min: block.peerMin,
-                  max: block.peerMax,
-              });
-    };
-
-    const tooltipDetail = useMemo<TooltipDetail | null>(() => {
-        if (!hoveredBlock) {
-            return null;
-        }
-
-        const titlePrefix =
-            hoveredBlock.pieceCount === 1
-                ? t("torrent_modal.piece_map.tooltip_piece", {
-                      piece: hoveredBlock.startPieceIndex + 1,
-                  })
-                : t("torrent_modal.piece_map.tooltip_piece_range", {
-                      start: hoveredBlock.startPieceIndex + 1,
-                      end: hoveredBlock.endPieceIndex + 1,
-                  });
-        const title = `${titlePrefix}, ${hoveredBlock.totalSizeLabel}`;
-        const summaryParts = [
-            hoveredBlock.verifiedCount > 0
-                ? t("torrent_modal.piece_map.tooltip_state_count", {
-                      count: hoveredBlock.verifiedCount,
-                      state: t("torrent_modal.stats.verified"),
-                  })
-                : null,
-            hoveredBlock.commonCount > 0
-                ? t("torrent_modal.piece_map.tooltip_state_count", {
-                      count: hoveredBlock.commonCount,
-                      state: t("torrent_modal.availability.legend_common"),
-                  })
-                : null,
-            hoveredBlock.rareCount > 0
-                ? t("torrent_modal.piece_map.tooltip_state_count", {
-                      count: hoveredBlock.rareCount,
-                      state: t("torrent_modal.availability.legend_rare"),
-                  })
-                : null,
-            hoveredBlock.deadCount > 0
-                ? t("torrent_modal.piece_map.tooltip_state_count", {
-                      count: hoveredBlock.deadCount,
-                      state: t("torrent_modal.piece_map.legend_dead"),
-                  })
-                : null,
-            hoveredBlock.missingCount > 0
-                ? t("torrent_modal.piece_map.tooltip_state_count", {
-                      count: hoveredBlock.missingCount,
-                      state: t("torrent_modal.stats.missing"),
-                  })
-                : null,
-        ].filter((value): value is string => Boolean(value));
-        const summary = summaryParts.join(" · ");
-        const swatches = Array.from(
-            { length: hoveredBlock.pieceCount },
-            (_, offset): TooltipDetailSwatch => {
-                const pieceIndex = hoveredBlock.startPieceIndex + offset;
-                const state = resolvedStates[pieceIndex] ?? "missing";
-                if (state === "done") {
-                    return { tone: "verified" };
-                }
-                if (availabilityMissing) {
-                    return { tone: "missing" };
-                }
-                const peers = availability[pieceIndex] ?? 0;
-                if (peers <= 0) {
-                    return { tone: "dead" };
-                }
-                if (peers <= rareThreshold) {
-                    return { tone: "rare" };
-                }
-                return { tone: "common" };
-            },
-        );
-
-        const availabilityLine = formatAvailabilitySummary(hoveredBlock);
-
-        return {
-            title,
-            summary,
-            availabilityLine,
-            swatches,
-            swatchSize: cellSize,
-            swatchGap: cellGap,
-        };
-    }, [
-        availability,
-        availabilityMissing,
-        cellGap,
-        cellSize,
-        hoveredBlock,
-        rareThreshold,
-        resolvedStates,
-        t,
-    ]);
+    const tooltipDetail = useMemo<TooltipDetail | null>(
+        () =>
+            buildTooltipDetail({
+                block: hoveredBlock,
+                t,
+                availabilityMissing,
+                availability,
+                rareThreshold,
+                resolvedStates,
+                swatchSize: cellSize,
+                swatchGap: cellGap,
+            }),
+        [
+            availability,
+            availabilityMissing,
+            cellGap,
+            cellSize,
+            hoveredBlock,
+            rareThreshold,
+            resolvedStates,
+            t,
+        ],
+    );
 
     return {
         refs: {

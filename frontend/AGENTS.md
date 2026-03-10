@@ -86,6 +86,26 @@ Landing/review gates enforce architecture and consistency; they do not create ne
 - **WIP:** move fast, keep the build green, obey hard rules, skip landing artifacts.
 - **Landing/review:** provide a short change note, required artifacts, and the commands you actually ran.
 
+### **0.4a Targeted Quality Check (Non-Trivial Edits/Refactors)**
+
+After each non-trivial edit or refactor, run targeted quality checks on touched files/scope and report them in the final response.
+
+- complexity check (minimum: `npx eslint <touched-file-or-scope> --rule "complexity:[2,14]" --format stylish`)
+- build/lint/test status as applicable (run, pass/fail, or not run)
+- whether LOC expansion or helper-sprawl concerns were introduced
+- any complexity alarms in touched files/scope that remain unresolved
+
+If the complexity check reports any alarm that was not fixed in the change, report it explicitly. For each unresolved alarm, include:
+
+- file/function or nearest identifiable scope
+- reported complexity value and threshold
+- why it was not fixed now
+- whether it is acceptable debt, follow-up work, or a refactor/Kaizen trigger
+
+Do not silently ignore unresolved complexity alarms.
+Do not treat lower complexity alone as success.
+Use complexity as a review signal, not a writing goal.
+
 ## **0.5 Pre-Edit Workflow (Default)**
 
 Before editing:
@@ -122,6 +142,11 @@ Valid triggers include:
 - two sections overlapped, contradicted each other, or created false-law pressure
 - a review gate was too weak to catch real architectural drift
 - a rule caused repeated unnecessary ceremony without protecting maintainability
+- a refactor improved a local metric while maintainability worsened because extraction-granularity guidance was insufficient
+- complexity decreased while touched-file LOC rose significantly with no corresponding ownership or boundary gain
+- many single-use helpers were introduced in one authority file without creating a real boundary
+- abstraction depth increased without reducing duplication, ambiguity, or contract count
+- domain rules were duplicated across tiny helpers while metrics looked better
 - a non-§21 section started behaving like parallel law
 
 Invalid triggers include:
@@ -656,6 +681,20 @@ Write code so a human can read and edit it quickly.
 - Use **`useMemo` / `useCallback` only when they pay for themselves**: preserving referential stability for memoized children, preventing expensive recalculation, or satisfying a library contract that depends on stable identity.
 - Do not memoize trivial expressions, wrapper objects, or pass-through callbacks by default. If a memo exists, it should defend either correctness or measurable render cost.
 
+### **16.6b Extraction Granularity**
+
+- Do not treat lower complexity alone as success.
+- Do not extract helpers only to satisfy complexity metrics.
+- Extract only when at least one is true:
+  - logic is reused
+  - substantial branch complexity is removed from the owner
+  - a stable boundary is created
+  - a domain invariant is centralized
+- Keep one-off linear shaping local to the owner.
+- Avoid pass-through wrappers, trivial selectors, trivial normalizers, and other single-use micro-helpers unless they carry meaningful semantic weight.
+- If complexity improves while readability, traceability, or maintainability worsens, treat that as a refactor regression.
+- Prefer centralizing a domain rule once over repeating it across small “clean” helpers.
+
 ## **16.7 God Objects, Patterns, and Placement**
 
 Do not create or enlarge god files. If a touched file is already overloaded, reduce its responsibility surface at least a little.
@@ -728,6 +767,7 @@ Prefer a better minimal solution over layering on another workaround.
 - Before reporting completion, review the code and fix important issues until satisfied.
 - Before landing/review, run `npm run build` and fix build errors when possible.
 - Never run `git restore`, `git reset`, `git clean`, or `checkout --` without explicit confirmation. Preserve local changes.
+- Unresolved quality alarms in touched code must be reported explicitly; passing build/test does not waive reporting.
 
 # **20. Enforced Operational Contracts (Tier 2)**
 
