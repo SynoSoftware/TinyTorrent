@@ -1,9 +1,6 @@
-import { useState } from "react";
-import { ZoomIn, ZoomOut, ScanSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { SPLIT } from "@/shared/ui/layout/glass-surface";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import {
     usePiecesMapViewModel,
     type PiecesMapProps,
@@ -20,30 +17,74 @@ const PiecesMapView = ({
     showPersistentHud,
 }: PiecesMapViewProps) => {
     const { t } = useTranslation();
-    const [isMapHovered, setIsMapHovered] = useState(false);
     const {
-        refs: { rootRef, canvasRef, overlayRef, minimapRef, tooltipRef },
+        refs: { rootRef, canvasRef, overlayRef, tooltipRef },
         palette,
         totalPieces,
         pieceSizeLabel,
         verifiedCount,
         verifiedPercent,
         missingCount,
-        commonCount,
         rareCount,
         deadCount,
         availabilityMissing,
-        zoomLabel,
-        blockDensityLabel,
-        showMinimap,
-        showHelpHint,
-        isDragging,
-        tooltipLines,
+        tooltipDetail,
         tooltipStyle,
-        controls,
         handlers,
     } = viewModel;
-    const showInteractionHint = isMapHovered && showHelpHint && !isDragging;
+
+    const legendCells = availabilityMissing
+        ? [
+              {
+                  key: "verified",
+                  label: t("torrent_modal.stats.verified"),
+                  swatch: { background: palette.success },
+              },
+              {
+                  key: "missing",
+                  label: t("torrent_modal.stats.missing"),
+                  swatch: { background: palette.foreground, opacity: 0.2 },
+              },
+              null,
+              null,
+          ]
+        : [
+              {
+                  key: "verified",
+                  label: t("torrent_modal.stats.verified"),
+                  swatch: { background: palette.success },
+              },
+              {
+                  key: "common",
+                  label: t("torrent_modal.availability.legend_common"),
+                  swatch: { background: palette.primary, opacity: 0.35 },
+              },
+              {
+                  key: "rare",
+                  label: t("torrent_modal.availability.legend_rare"),
+                  swatch: { background: palette.warning },
+              },
+              {
+                  key: "dead",
+                  label: t("torrent_modal.piece_map.legend_dead"),
+                  swatch: { background: palette.danger },
+              },
+          ];
+    const resolveDetailSegmentVisual = (tone: "verified" | "common" | "rare" | "dead" | "missing") => {
+        if (tone === "verified") {
+            return { color: palette.success, opacity: 1, borderColor: undefined as string | undefined };
+        }
+        if (tone === "common") {
+            return { color: palette.primary, opacity: 0.35, borderColor: undefined as string | undefined };
+        }
+        if (tone === "rare") {
+            return { color: palette.warning, opacity: 0.75, borderColor: undefined as string | undefined };
+        }
+        if (tone === "dead") {
+            return { color: palette.foreground, opacity: 0.12, borderColor: palette.danger };
+        }
+        return { color: palette.foreground, opacity: 0.18, borderColor: undefined as string | undefined };
+    };
     const renderHudStat = ({
         label,
         value,
@@ -60,10 +101,10 @@ const PiecesMapView = ({
             tone === "danger"
                 ? SPLIT.mapHudValueDanger
                 : tone === "warning"
-                    ? SPLIT.mapHudValueWarning
-                    : quiet
-                        ? SPLIT.mapHudValueQuiet
-                        : SPLIT.mapHudValue;
+                  ? SPLIT.mapHudValueWarning
+                  : quiet
+                    ? SPLIT.mapHudValueQuiet
+                    : SPLIT.mapHudValue;
 
         return (
             <div className={statClass}>
@@ -74,14 +115,9 @@ const PiecesMapView = ({
     };
 
     return (
-        <div className={SPLIT.contentStack}>
+        <div className={SPLIT.mapPanel}>
             <div className={SPLIT.mapFrame}>
-                <div
-                    ref={rootRef}
-                    className={SPLIT.mapFrameInner}
-                    onMouseEnter={() => setIsMapHovered(true)}
-                    onMouseLeave={() => setIsMapHovered(false)}
-                >
+                <div ref={rootRef} className={SPLIT.mapFrameInner}>
                     {showPersistentHud && (
                         <div
                             className={SPLIT.mapHud}
@@ -121,54 +157,19 @@ const PiecesMapView = ({
                         </div>
                     )}
 
-                    {showPersistentHud && (
-                        <div className={SPLIT.mapControlsFloat}>
-                            <ToolbarIconButton
-                                Icon={ZoomOut}
-                                ariaLabel={t("torrent_modal.piece_map.zoom_out")}
-                                onPress={controls.zoomOut}
-                                isDisabled={!controls.canZoomOut}
-                                className={SPLIT.mapZoomButton}
-                                iconSize="sm"
-                            />
-                            <span className={SPLIT.mapZoomValue}>
-                                {zoomLabel} · {blockDensityLabel}
-                            </span>
-                            <ToolbarIconButton
-                                Icon={ZoomIn}
-                                ariaLabel={t("torrent_modal.piece_map.zoom_in")}
-                                onPress={controls.zoomIn}
-                                isDisabled={!controls.canZoomIn}
-                                className={SPLIT.mapZoomButton}
-                                iconSize="sm"
-                            />
-                            <ToolbarIconButton
-                                Icon={ScanSearch}
-                                ariaLabel={t("torrent_modal.piece_map.zoom_reset")}
-                                onPress={controls.reset}
-                                className={SPLIT.mapZoomButton}
-                                iconSize="sm"
-                            />
-                        </div>
-                    )}
-
                     <canvas
                         ref={canvasRef}
                         className={SPLIT.mapCanvasLayer}
                         onMouseMove={handlers.onMouseMove}
                         onMouseLeave={handlers.onMouseLeave}
-                        onMouseDown={handlers.onMouseDown}
-                        onWheel={handlers.onWheel}
-                        style={SPLIT.builder.canvasInteractionStyle(
-                            isDragging ? "grabbing" : "grab",
-                        )}
+                        style={SPLIT.builder.canvasInteractionStyle("default")}
                     />
                     <canvas
                         ref={overlayRef}
                         className={SPLIT.mapCanvasOverlayLayer}
                     />
 
-                    {tooltipLines.length > 0 && (
+                    {tooltipDetail && (
                         <div
                             ref={tooltipRef}
                             className={SPLIT.mapTooltip}
@@ -180,110 +181,84 @@ const PiecesMapView = ({
                                 }
                             }
                         >
-                            {tooltipLines.map((line, index) => (
-                                <span
-                                    key={`piece-tooltip-${index}`}
-                                    className={
-                                        index === 0
-                                            ? SPLIT.mapTooltipPrimaryLine
-                                            : SPLIT.mapTooltipSecondaryLine
-                                    }
+                            <span className={SPLIT.mapTooltipPrimaryLine}>
+                                {tooltipDetail.title}
+                            </span>
+                            {tooltipDetail.swatches.length > 0 && (
+                                <div
+                                    className={SPLIT.mapTooltipSwatchGrid}
+                                    style={SPLIT.builder.swatchGridStyle({
+                                        gap: tooltipDetail.swatchGap,
+                                    })}
                                 >
-                                    {line}
+                                    {tooltipDetail.swatches.map((swatch, index) => {
+                                        const visual = resolveDetailSegmentVisual(swatch.tone);
+                                        const rarePattern =
+                                            swatch.tone === "rare"
+                                                ? `repeating-linear-gradient(135deg, color-mix(in oklab, ${palette.foreground} 22%, transparent) 0 1px, transparent 1px 4px)`
+                                                : undefined;
+                                        return (
+                                            <span
+                                                key={`piece-tooltip-swatch-${index}`}
+                                                className={SPLIT.mapTooltipSwatch}
+                                                style={SPLIT.builder.legendSwatchStyle({
+                                                    background: visual.color,
+                                                    opacity: visual.opacity,
+                                                    size: tooltipDetail.swatchSize,
+                                                    borderColor: visual.borderColor,
+                                                    backgroundImage: rarePattern,
+                                                })}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <div className={SPLIT.mapTooltipInfoStack}>
+                                <span className={SPLIT.mapTooltipSecondaryLine}>
+                                    {tooltipDetail.summary}
                                 </span>
-                            ))}
+                                {tooltipDetail.availabilityLine && (
+                                    <span className={SPLIT.mapTooltipSecondaryLine}>
+                                        {t("torrent_modal.stats.availability")}:{" "}
+                                        {tooltipDetail.availabilityLine}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     )}
 
                     {showPersistentHud && (
                         <div className={SPLIT.mapLegendFloat}>
-                            <span className={SPLIT.mapLegendItem}>
-                                <span
-                                    className={SPLIT.mapLegendSwatch}
-                                    style={SPLIT.builder.legendSwatchStyle({
-                                        background: palette.success,
-                                    })}
-                                />
-                                <span className={TEXT_ROLE.bodyMuted}>
-                                    {t("torrent_modal.stats.verified")}
-                                </span>
-                            </span>
-                            {availabilityMissing ? (
-                                <span className={SPLIT.mapLegendItem}>
-                                    <span
-                                        className={SPLIT.mapLegendSwatch}
-                                        style={SPLIT.builder.legendSwatchStyle({
-                                            background: palette.foreground,
-                                            opacity: 0.2,
-                                        })}
-                                    />
-                                    <span className={TEXT_ROLE.bodyMuted}>
-                                        {t("torrent_modal.stats.missing")}
-                                    </span>
-                                </span>
-                            ) : (
-                                <>
-                                    <span className={SPLIT.mapLegendItem}>
+                            <div className={SPLIT.mapLegendGrid}>
+                                {legendCells.map((cell, index) =>
+                                    cell ? (
                                         <span
-                                            className={SPLIT.mapLegendSwatch}
-                                            style={SPLIT.builder.legendSwatchStyle({
-                                                background: palette.primary,
-                                                opacity: 0.35,
-                                            })}
-                                        />
-                                        <span className={TEXT_ROLE.bodyMuted}>
-                                            {t("torrent_modal.availability.legend_common")}
+                                            key={`piece-map-legend-${cell.key}`}
+                                            className={SPLIT.mapLegendCell}
+                                        >
+                                            <span className={SPLIT.mapLegendItem}>
+                                                <span
+                                                    className={SPLIT.mapLegendSwatch}
+                                                    style={SPLIT.builder.legendSwatchStyle(
+                                                        cell.swatch,
+                                                    )}
+                                                />
+                                                <span className={TEXT_ROLE.bodyMuted}>
+                                                    {cell.label}
+                                                </span>
+                                            </span>
                                         </span>
-                                    </span>
-                                    <span className={SPLIT.mapLegendItem}>
+                                    ) : (
                                         <span
-                                            className={SPLIT.mapLegendSwatch}
-                                            style={SPLIT.builder.legendSwatchStyle({
-                                                background: palette.warning,
-                                            })}
-                                        />
-                                        <span className={TEXT_ROLE.bodyMuted}>
-                                            {t("torrent_modal.availability.legend_rare")}
+                                            key={`piece-map-legend-placeholder-${index}`}
+                                            className={`${SPLIT.mapLegendCell} ${SPLIT.mapLegendCellPlaceholder}`}
+                                            aria-hidden="true"
+                                        >
+                                            <span className={SPLIT.mapLegendItem}>.</span>
                                         </span>
-                                    </span>
-                                    <span className={SPLIT.mapLegendItem}>
-                                        <span
-                                            className={SPLIT.mapLegendSwatch}
-                                            style={SPLIT.builder.legendSwatchStyle({
-                                                background: palette.danger,
-                                            })}
-                                        />
-                                        <span className={TEXT_ROLE.bodyMuted}>
-                                            {t("torrent_modal.piece_map.legend_dead")}
-                                        </span>
-                                    </span>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {(showMinimap || showInteractionHint) && (
-                        <div className={SPLIT.mapCornerStack}>
-                            {showMinimap && (
-                                <div className={SPLIT.mapMinimap}>
-                                    <div className={SPLIT.mapMinimapLabel}>
-                                        {t("torrent_modal.piece_map.minimap_label")}
-                                    </div>
-                                    <canvas
-                                        ref={minimapRef}
-                                        className={SPLIT.mapMinimapCanvas}
-                                        onMouseDown={handlers.onMinimapMouseDown}
-                                    />
-                                </div>
-                            )}
-
-                            {showInteractionHint && (
-                                <div className={SPLIT.mapHintWrap}>
-                                    <div className={SPLIT.mapHintChip}>
-                                        {t("torrent_modal.piece_map.hint_interact")}
-                                    </div>
-                                </div>
-                            )}
+                                    ),
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

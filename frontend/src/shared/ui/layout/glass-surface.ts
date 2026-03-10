@@ -132,6 +132,10 @@ const SURFACE_TOOLTIP = {
 } as const;
 const MAP_OVERLAY_SURFACE = `${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.overlay}`;
 const MAP_OVERLAY_RADIUS = GLASS_SURFACE_DIAL.radius.raised;
+const MAP_OVERLAY_CARD = `${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`;
+const MAP_OVERLAY_ANCHOR = "absolute bottom-panel z-panel";
+const MAP_OVERLAY_ANCHOR_LEFT = `${MAP_OVERLAY_ANCHOR} left-panel`;
+const MAP_OVERLAY_ANCHOR_RIGHT = `${MAP_OVERLAY_ANCHOR} right-panel`;
 const GLASS_SEMANTIC_CHROME = {
     dividerSoft: visuals.surface.border,
     headerBorder: MODAL_SURFACE_HEADER,
@@ -928,17 +932,11 @@ export const SPLIT = {
     sectionHeaderMeta: withOpacity(TEXT_ROLE.body, 60),
     sectionHeaderCaption: withOpacity(TEXT_ROLE.caption, 50),
     sectionHeaderIconButton: `text-foreground/60 ${visuals.interactive.textReveal}`,
-    mapToolbar: "flex items-start justify-between gap-panel",
-    mapStatsRow: `flex flex-wrap justify-between gap-panel ${withOpacity(TEXT_ROLE.body, 50)}`,
     mapStatsTrackingStyle: {
         letterSpacing: "var(--tt-tracking-wide)",
     } as const,
-    mapStatColumn: "flex flex-col gap-tight",
-    mapStatWarningCount: withColor(TEXT_ROLE.code, "warning"),
-    mapStatDangerCount: withColor(TEXT_ROLE.code, "danger"),
-    mapControls: "flex items-center gap-tight shrink-0",
     mapHud:
-        `absolute top-panel left-panel z-panel flex max-w-[min(100%-calc(var(--tt-panel)*2),56rem)] flex-wrap items-start gap-panel ${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`,
+        `${MAP_OVERLAY_ANCHOR_LEFT} flex max-w-[min(100%-calc(var(--tt-panel)*2),56rem)] flex-wrap items-start gap-panel ${MAP_OVERLAY_CARD}`,
     mapHudStat: "flex min-w-0 flex-col gap-tight",
     mapHudStatQuiet: "flex min-w-0 flex-col gap-tight opacity-60",
     mapHudLabel: withOpacity(TEXT_ROLE.caption, 45),
@@ -946,32 +944,22 @@ export const SPLIT = {
     mapHudValueQuiet: withOpacity(TEXT_ROLE.code, 55),
     mapHudValueWarning: withColor(TEXT_ROLE.code, "warning"),
     mapHudValueDanger: withColor(TEXT_ROLE.code, "danger"),
-    mapControlsFloat:
-        `absolute top-panel right-panel z-panel flex items-center gap-tight ${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-tight py-tight`,
-    mapZoomButton: "size-icon-btn rounded-full",
-    mapZoomValue: withOpacity(TEXT_ROLE.code, 60),
-    mapNoteStack: "flex flex-col gap-tight",
-    mapNote: withOpacity(TEXT_ROLE.body, 60),
-    mapFrame: `relative z-panel flex-1 min-h-0 ${SURFACE.surface.panelRaised} p-panel overflow-hidden`,
-    mapFrameInner: `relative h-full w-full overflow-hidden ${GLASS_SURFACE_DIAL.radius.raised} isolate`,
+    mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel",
+    mapLegendCell: "flex min-w-0 items-center gap-tight",
+    mapLegendCellPlaceholder: "invisible",
+    mapFrame: `relative z-panel flex-1 min-h-0 ${SURFACE.surface.panelRaised} p-tight overflow-hidden`,
+    mapFrameInner: "relative h-full w-full overflow-hidden isolate",
     mapCanvasLayer: "absolute inset-0 block h-full w-full",
     mapCanvasOverlayLayer: "absolute inset-0 block h-full w-full pointer-events-none",
     mapTooltip: `pointer-events-none absolute z-panel max-w-tooltip ${SURFACE.tooltip.content} ${TEXT_ROLE.body}`,
     mapTooltipPrimaryLine: "block whitespace-normal font-semibold",
     mapTooltipSecondaryLine: "block whitespace-normal text-foreground/70",
-    mapCornerStack:
-        "absolute bottom-panel right-panel z-panel flex max-w-[calc(100%-var(--tt-panel)*2)] flex-col items-end gap-tight",
-    mapHintWrap: "pointer-events-none",
-    mapHintChip: `${TEXT_ROLE.codeCaption} text-foreground/60 ${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`,
-    mapLegendRow: "mt-tight flex items-center gap-panel",
-    mapLegendItem: "flex items-center gap-tight",
+    mapTooltipSwatchGrid: "my-tight grid max-h-24 grid-cols-8 overflow-y-auto pr-tight",
+    mapTooltipInfoStack: "flex flex-col gap-tight",
+    mapTooltipSwatch: "inline-block",
+    mapLegendItem: "flex items-center gap-tight whitespace-nowrap leading-none min-w-0",
     mapLegendSwatch: "inline-block rounded-panel",
-    mapLegendFloat:
-        `absolute bottom-panel left-panel z-panel flex flex-wrap items-center gap-panel ${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`,
-    mapMinimap:
-        `pointer-events-auto flex w-48 flex-col gap-tight ${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} p-tight`,
-    mapMinimapLabel: withOpacity(TEXT_ROLE.caption, 60),
-    mapMinimapCanvas: "block h-32 w-full rounded-xl cursor-grab",
+    mapLegendFloat: `${MAP_OVERLAY_ANCHOR_RIGHT} ${MAP_OVERLAY_CARD}`,
     mapPanel: "flex flex-col h-full w-full",
     hudRow: "flex items-center justify-end gap-tools px-panel",
     hudLabel: `${withOpacity(TEXT_ROLE.label, 40)} mr-2`,
@@ -1042,16 +1030,28 @@ export const SPLIT = {
                 touchAction: "none",
                 pointerEvents: "auto",
             }) as const,
-        legendSwatchStyle: (params: { background: string; borderColor?: string; opacity?: number }) =>
+        legendSwatchStyle: (params: {
+            background: string;
+            borderColor?: string;
+            opacity?: number;
+            size?: number;
+            backgroundImage?: string;
+        }) =>
             ({
-                width: 14,
-                height: 14,
+                width: params.size ?? 14,
+                height: params.size ?? 14,
                 background: params.background,
+                backgroundImage: params.backgroundImage,
                 borderWidth: params.borderColor ? "var(--tt-divider-width)" : 0,
                 borderStyle: params.borderColor ? "solid" : "none",
                 borderColor: params.borderColor,
                 opacity: params.opacity,
                 display: "inline-block",
+            }) as const,
+        swatchGridStyle: (params: { gap: number }) =>
+            ({
+                columnGap: params.gap,
+                rowGap: params.gap,
             }) as const,
     } as const,
 } as const;

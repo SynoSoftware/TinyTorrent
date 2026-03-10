@@ -35,29 +35,6 @@ const designSystemAuthority = {
 
 // Design system: geometry is authoritative in CSS; JSON contains intent only.
 
-const defaultLayoutPieceMap = {
-    columns: 42,
-    base_rows: 6,
-    max_rows: 12,
-    cell_size: 10,
-    cell_gap: 2,
-} as const;
-
-const defaultLayoutHeatmap = {
-    sample_limit_multiplier: 6,
-    zoom_levels: [1, 1.5, 2, 2.5, 4, 6, 8],
-    cell_size: 6,
-    cell_gap: 3,
-} as const;
-
-const defaultLayoutPeerMap = {
-    drift_amplitude: 5,
-    drift_duration: {
-        min: 6,
-        max: 10,
-    },
-} as const;
-
 const defaultTableLayout = {
     // Geometry is CSS-driven; defaults here are CSS var references.
     row_height: "var(--tt-h-row)",
@@ -373,9 +350,6 @@ const resolveShellDomain = () => {
 };
 const { shell, statusChip } = resolveShellDomain();
 
-const pieceMapLayout = layoutConfig.piece_map ?? defaultLayoutPieceMap;
-const heatmapLayout = layoutConfig.heatmap ?? defaultLayoutHeatmap;
-const peerMapLayout = layoutConfig.peer_map ?? defaultLayoutPeerMap;
 const tableLayoutConfig = {
     ...defaultTableLayout,
     ...(layoutConfig.table ?? {}),
@@ -800,17 +774,6 @@ const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
 // Availability heatmap visual tokens (moved from hard-coded literals)
 const detailsAvailabilityHeatmap =
     detailsVisualizations.availability_heatmap;
-const heatmapShadowBlurMax =
-    detailsAvailabilityHeatmap.shadow_blur_max;
-const heatmapHoverStrokeWidth =
-    detailsAvailabilityHeatmap.hover_stroke_width;
-const heatmapHoverStrokeInset =
-    detailsAvailabilityHeatmap.hover_stroke_inset;
-const heatmapCellStrokeInset =
-    detailsAvailabilityHeatmap.cell_stroke_inset;
-const heatmapUseUiSamplingShim = Boolean(
-    detailsAvailabilityHeatmap.use_ui_sampling_shim,
-);
 
 const detailsSpeedChart = detailsVisualizations.speed_chart;
 
@@ -1022,26 +985,6 @@ const timing = resolvedTiming;
 ========================================= */
 const layout = {
     table: tableLayout,
-    pieceMap: {
-        columns: pieceMapLayout.columns,
-        baseRows: pieceMapLayout.base_rows,
-        maxRows: pieceMapLayout.max_rows,
-        cellSize: pieceMapLayout.cell_size,
-        cellGap: pieceMapLayout.cell_gap,
-    },
-    heatmap: {
-        sampleLimit:
-            pieceMapLayout.columns * heatmapLayout.sample_limit_multiplier,
-        zoomLevels: heatmapLayout.zoom_levels,
-        cellSize: heatmapLayout.cell_size,
-        cellGap: heatmapLayout.cell_gap,
-        shadowBlurMax: heatmapShadowBlurMax,
-        hoverStrokeWidth: heatmapHoverStrokeWidth,
-        hoverStrokeInset: heatmapHoverStrokeInset,
-        cellStrokeInset: heatmapCellStrokeInset,
-        useUiSamplingShim: heatmapUseUiSamplingShim,
-    },
-    peerMap: peerMapLayout,
 } as const;
 
 /* =========================================
