@@ -37,6 +37,49 @@ This document uses three rule tiers:
 - **Tier 2 — Enforced System Contracts:** boundary contracts for UI, RPC, ViewModel, runtime, and integration
 - **Tier 3 — Implementation Defaults & UX Standards:** current tools, interaction standards, and guidance
 
+## **Structural Change Definition**
+
+A **structural change** is any modification that affects system structure rather than only local implementation details.
+
+Structural changes include:
+
+- introducing or removing modules, hooks, services, components, helpers, or abstractions
+- altering command surfaces or public contracts
+- changing ownership boundaries
+- introducing or removing layers or wrappers
+- reorganizing responsibilities across modules
+- refactoring existing code
+- implementing new code that introduces structural patterns
+
+Structural changes include both **new implementation and refactoring**.
+
+All architectural rules governing abstraction, ownership, authority, and layering apply equally to all structural changes.
+
+## **Terminology (Canonical)**
+
+| Term | Meaning |
+| --- | --- |
+| Structural Change | any architectural modification including new code or refactoring |
+| Authority | the single source of truth for a decision |
+| Owner | the module responsible for state lifecycle |
+| Contract Surface | the public interface exposed to other layers |
+
+### **Canonical Terminology Requirement**
+
+Canonical architectural terms defined in this document must be used consistently in:
+
+- §21 architectural rules
+- change notes
+- structural change evidence blocks
+
+Synonyms or alternative phrasing for canonical terms are non-compliant.
+
+Examples:
+
+- `structural change` must not be replaced with `rewrite`, `restructure`, or `redesign`
+- `authority` must not be replaced with `owner-of-truth` or `source-of-truth`
+- `contract surface` must not be replaced with `API layer` or `interface boundary`
+
 ## **Rule Derivation Model**
 
 - §21 defines all foundational invariants (Tier 1).
@@ -116,6 +159,8 @@ If a change introduces a new module/hook/service/model/constant set that is inte
 - **Why new surface:** why extending the existing owner would violate single-responsibility or authority/lifecycle rules (§21)
 - **Consumers:** at least one immediate consumer in the same change (no speculative surfaces)
 
+When the change introduces a new structural surface or rejects reuse/generalization during a structural change, the change note must also include the §21.21 structural change evidence block.
+
 ## **0.3 Landing Gates (DoD)**
 
 A change is not eligible to land (or be treated as done) if it introduces any of the following:
@@ -126,6 +171,7 @@ A change is not eligible to land (or be treated as done) if it introduces any of
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
 - duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
 - a new surface without an Owner Extension Statement (§0.2)
+- a structural change that requires the §21.21 evidence block without that block
 - expected failures represented as exceptions instead of typed outcomes (§20.1)
 
 For UI/styling changes intended to land/review, the following command gates are mandatory and must be listed in the change note:
@@ -146,6 +192,91 @@ This repo is currently developed by a single person. Keep ceremony proportional:
 
 - **While iterating (WIP):** optimize for speed; keep the build green and obey Hard Rules, but you do not need to write change notes or produce diff artifacts.
 - **When landing a change (mainline/release/review):** provide a short change note, include any required artifacts, and list the commands you actually ran.
+
+## **0.5 Pre-Edit Workflow (Mandatory)**
+
+### **Authority Identification Requirement**
+
+Before implementing behavior that influences system decisions:
+
+- identify the authority responsible for the decision
+- confirm that the change extends that authority rather than bypassing it
+
+If the change introduces behavior controlled outside the declared authority, the design is invalid.
+
+### **Existing Owner Inspection Requirement**
+
+Before introducing new behavior, the implementer must inspect the current owner and any adjacent shared authorities that could already own the behavior.
+
+This inspection must answer:
+
+1. what existing owner currently handles the nearest equivalent behavior
+2. whether that owner can absorb the change
+3. whether the behavior expresses a shared invariant already present elsewhere
+
+If these questions are not answered, the structural change is incomplete.
+
+## **0.6 Codebase Familiarization Requirement (Mandatory)**
+
+Before writing or modifying implementation code, the implementer must first familiarize themselves with the existing codebase relevant to the change.
+
+This step exists to prevent re-implementation of logic that already exists and to ensure new work integrates with existing authorities, primitives, and services.
+
+The familiarization step must include:
+
+1. **Locate the Feature Owner**
+
+Identify the feature module or authority responsible for the domain being modified.
+
+Examples:
+
+- feature ViewModel in `modules/*/hooks.ts`
+- shared primitives in `shared/ui/`
+- shared hooks in `shared/hooks/`
+- domain logic in `services/`
+- control-plane authorities in `app/`
+
+If the owner is unclear, stop and determine it before writing code.
+
+2. **Inspect Existing Surfaces**
+
+Before introducing any new logic, the implementer must inspect the following locations for existing implementations:
+
+- the feature module being modified
+- shared UI primitives
+- shared hooks
+- shared utilities
+- service/domain logic
+- existing command surfaces
+- existing orchestrators
+
+The goal is to determine whether the required behavior already exists or can be extended.
+
+3. **Check for Shared Invariants**
+
+The implementer must determine whether the behavior already exists elsewhere in the codebase with the same invariant.
+
+Signals of an existing invariant include:
+
+- similar decision logic
+- similar command surfaces
+- similar contract shapes
+- repeated domain rules
+- repeated structural composition patterns
+
+If a shared invariant exists, the behavior must be generalized at the correct owner rather than duplicated locally.
+
+4. **Confirm Extension Path**
+
+Before creating a new module, helper, hook, service, or abstraction, the implementer must determine whether the existing owner can be extended safely.
+
+If extension is possible without violating §21 ownership or lifecycle rules, creating a new surface is forbidden.
+
+5. **Document Reuse Decision (Landing/Review)**
+
+If the change introduces a new structural surface or rejects reuse/generalization during a structural change, the change note must include the §0.2 Owner Extension Statement when applicable and the §21.21 structural change evidence block.
+
+Omitting a required evidence block, or omitting the Owner Extension Statement when a new surface is introduced, violates §21.21 and §0.2.
 
 # **1. Brand Identity**
 
@@ -521,7 +652,7 @@ Must not:
 
 ## **3. Migration Rule**
 
-During refactors:
+During structural changes:
 
 - If a container applies background + border + radius + blur -> replace with `Surface`.
 - If a container applies centering/max-width/stage padding -> replace with `Section`.
@@ -1100,33 +1231,13 @@ All agents operate as tool-UI engineers: behavior must be deterministic, traceab
 This section is a plain-language operational interpretation of §21 for day-to-day implementation.
 It does not introduce, redefine, or enforce architectural invariants.
 
-- **Keep control/shell boundaries explicit.**
-  Controls come from shared control surfaces; shell chrome remains authority-driven.
-  (Derived from §21.2 and §21.12.)
-
-- **Keep units cohesive.**
-  Split only when it removes duplication or clarifies ownership/lifecycle boundaries.
-  (Derived from §21.3 and §21.13.)
-
-- **Keep views pure.**
-  Views render and emit intents; domain decisions and IO stay outside view components.
-  (Derived from §21.2 and §21.12.)
-
-- **Keep layer flow one-way.**
-  Data flow is RPC/adapter → services/domain → viewmodel/state → components.
-  (Derived from §21.5 and §21.12.)
-
-- **Keep data contracts explicit.**
-  Typed data and validated boundaries are the default for runtime decisions.
-  (Derived from §21.5 and §21.12.)
-
-- **Keep state ownership intentional.**
-  Prefer local ownership until cross-feature authority is actually required.
-  (Derived from §21.3 and §21.8.)
-
-- **Keep tool choices pragmatic.**
-  Use established tools when they pay off; treat defaults as replaceable policy.
-  (Derived from Rule Tiers and Current Implementation Defaults.)
+- Control/shell boundaries must follow the Authority Rule (§21.2) and the Single Contract Surface Rule (§21.12).
+- Cohesion, ownership, and file introduction must follow the Ownership Rule (§21.3), Lifecycle Rule (§21.4), Integration-First & Ownership Gate (§21.13), and Authority File Split Rule (§21.17).
+- Views and UI-facing components must follow the Authority Rule (§21.2), Explicit Contract Rule (§21.5), and Single Contract Surface Rule (§21.12).
+- Layer flow and abstraction limits must follow the Traceability Rule (§21.10), Indirection Budget Rule (§21.11), and Authority File Layering Rule (§21.16).
+- Data contracts must follow the Explicit Contract Rule (§21.5) and the Single Contract Surface Rule (§21.12).
+- State placement must follow the Ownership Rule (§21.3), Lifecycle Rule (§21.4), and Context vs Parameter Rule (§21.8).
+- Tool choices remain Tier 3 defaults under Rule Tiers and Current Implementation Defaults; they are not architectural law.
 
 ## **View–ViewModel–Model (Operational Pattern)**
 
@@ -1233,11 +1344,22 @@ src/
 
 ### **5. No Empty Folders**
 
-- Avoid empty folders. Do not spend time on folder cleanup during WIP; keep the tree tidy when landing changes.
+- Avoid empty folders. Do not spend time on folder hygiene during WIP; keep the tree tidy when landing changes.
 
 ---
 
 # **16. Coding Standards**
+
+### **Coding Standards Scope**
+
+Coding standards apply to:
+
+- new code
+- modified code
+- refactored code
+
+Structural abstraction, ownership, and layering invariants are defined in §21.
+Coding standards and workflow rules in this section must follow and reference those invariants.
 
 ## **1. File Naming**
 
@@ -1293,9 +1415,9 @@ Relative paths like `../../../../../` are forbidden.
 ### **Rules:**
 
 1. All imports inside the project must use `@/...` instead of relative chains.
-2. The agent must automatically rewrite any deep relative imports to the correct alias.
+2. The agent must automatically convert any deep relative imports to the correct alias.
 3. When new files are created, they must always be imported via aliases.
-4. Directory moves or refactors must update import paths accordingly.
+4. Directory moves or structural changes affecting import paths must update paths accordingly.
 5. The agent must maintain `tsconfig.json` and `vite.config.ts` alias configuration.
 
 ### **Required Configuration:**
@@ -1307,7 +1429,8 @@ as they are, don't change pattern without permission from the user. ask if you n
 
 ## **5. Incremental Architecture & Naming Improvement Rule (Mandatory)**
 
-This rule enforces **local improvement**, not global refactoring.
+This rule enforces **local improvement**, not global scope changes.
+Structural authority, ownership, abstraction, and layering invariants are canonical in §21; this section provides operational implementation guidance only.
 
 **Scope:**
 Applies only to files and components that are **touched by the current change**.
@@ -1324,13 +1447,26 @@ then the agent must reduce the violation **only when responsibilities are reused
 
 **Required behavior:**
 
-- Extract **one** responsibility (hook, helper, subcomponent), or
+- Extract **one** responsibility (hook, helper, subcomponent) only when API tightening does not remove the need, or
 - Move logic closer to its correct layer (hook → service → adapter), or
 - Introduce a clearer boundary (split component, isolate effect, isolate selector)
 
+**API Tightening Before Extraction**
+
+Structural abstraction rules are defined in §21 (especially §21.13 and §21.19).  
+Before extracting a helper, hook, component, service, or module, the implementer must first evaluate whether the existing owner can be improved by:
+
+- reducing argument count
+- collapsing repeated branching
+- centralizing repeated rule construction
+- replacing boolean flags with typed inputs
+- narrowing the command surface
+
+If tightening the existing owner removes the need for extraction, extraction is forbidden.
+
 **Explicitly NOT required:**
 
-- Repo-wide refactors
+- Repo-wide structural changes
 - Large redesigns
 - Touching unrelated files
 
@@ -1410,7 +1546,7 @@ Boundary adapter rule (global):
 - Consumers must not re-interpret boundary data or apply secondary patchups.
 
 If typing is unclear, **the architecture is incomplete and must be fixed**.
-Refactors must preserve a buildable state unless performing an explicitly declared staged migration. Breaking type safety is not.
+Structural changes must preserve a buildable state unless performing an explicitly declared staged migration. Breaking type safety is not.
 
 ---
 
@@ -1427,7 +1563,7 @@ All code must be **fully statically typed** and **exhaustively checked**.
 If a change cannot be expressed without weakening the type system,
 **the architecture is incomplete and must be redesigned**.
 
-Refactors must preserve a buildable state unless performing an explicitly declared staged migration.
+Structural changes must preserve a buildable state unless performing an explicitly declared staged migration.
 Breaking type safety is not.
 
 ### **D. Identifier Quality & Rename Reporting**
@@ -1516,7 +1652,7 @@ The agent must do **at least one** of the following:
 - “It’s only one more case”
 
 If a change would result in a file becoming *more central, more implicit, or more overloaded*,
-the change **must be rejected or restructured**.
+the change **must be rejected or redesigned**.
 
 Failure to prevent god-object growth is a **spec violation**.
 
@@ -1626,6 +1762,12 @@ Before landing/reviewing, resolve placement (amend this document if needed).
 
 ---
 
+# **18. Reserved**
+
+This section number is intentionally reserved to preserve stable cross-references.
+
+---
+
 # **19. Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
@@ -1662,14 +1804,15 @@ These rules define the non-negotiable structural laws of the system.
 All subsequent sections (UI, tokens, runtime, RPC, components, hooks)
 are constrained by these invariants.
 
-## **21.0 Architecture Invariants (Hard Rules; Prevent Refactors)**
+## **21.0 Architecture Invariants (Hard Rules; Structural Change Governance)**
 
 These rules exist to prevent hidden coupling and accidental complexity.
 
 ### **21.1 Enforcement Clause (Hard)**
 
-Any landed/reviewed change that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
+Any landed/reviewed change that violates a Hard Rule must be rejected. Structural changes that introduce violations are regressions, not progress.
 Violations are regressions, not tradeoffs.
+Classifying work as "new code", "implementation", or "refactor" does not change rule applicability.
 
 If a rule blocks implementation, the rule must be amended first (in this document), not worked around.
 
@@ -1737,35 +1880,47 @@ Threading context-owned values through function parameters is forbidden except f
 - testing
 - boundary adapters
 
-### **21.9 Refactor Smell Indicators**
+### **21.9 Structural Change Invalidity Indicators**
 
-A refactor is likely wrong if it causes:
+The following conditions indicate architectural invalidity unless explicitly justified with evidence in the change note:
 
 - parameter lists to grow
 - orchestrators to pass more data
 - hooks to gain "environment" arguments
 - behavior to depend on caller position
 
-These indicate authority leakage.
+These conditions indicate authority leakage. Structural changes introducing these conditions are invalid unless the change note demonstrates that the change reduces duplication, ambiguity, or ownership violations elsewhere.
 
 ### **21.10 Traceability Rule (Hard)**
 
-A refactor is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without encountering redundant wrapper layers.
+A structural change is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without encountering redundant wrapper layers.
 
-### **Refactor Simplicity Gate**
+### **Structural Simplicity Gate**
 
-A refactor must reduce at least one of the following:
+A structural change that introduces or rearranges abstractions must reduce at least one of the following:
 
 - number of ownership boundaries crossed
 - number of wrapper layers
 - number of contract surfaces
 - duplicated behavioral logic
 
-If none are reduced, the refactor is invalid.
+If none are reduced, the structural change is invalid.
 
 ### **21.11 Indirection Budget Rule (Hard)**
 
 New abstraction layers (wrappers, adapters, forwarding hooks) are permitted only if they eliminate duplicated logic, duplicated contracts, duplicated state, or divergent error semantics. Abstractions created solely for structural purity are forbidden.
+
+### **Structural Regression Indicators**
+
+The following patterns indicate architectural regression even if local metrics appear improved:
+
+- local complexity decreases while total LOC increases significantly without improving ownership or boundaries
+- many single-use helpers are introduced without creating a real boundary
+- abstraction depth increases without reducing duplication or contract count
+- domain rules are distributed across many small helpers instead of centralized
+- public API width increases without improving clarity or ownership
+
+Structural changes that produce these outcomes are invalid unless the change note includes explicit evidence that the resulting structure reduces duplication, ambiguity, or responsibility overload.
 
 ### **21.12 Single Contract Surface Rule (Hard)**
 
@@ -1794,17 +1949,43 @@ Every newly introduced module must:
 - and document the integration attempt explaining why the existing owner could not be extended without violating ownership or lifecycle boundaries.
 
 Creation of parallel abstractions representing the same responsibility remains an architectural defect, and PRs introducing new surfaces without satisfying these conditions must be rejected.
+Decision sequencing for this gate is defined in §21.19.
 
 **Enforcement Clause:**
 Claims such as “cleaner,” “more modular,” or “better separation” are insufficient justification unless accompanied by explicit, verifiable evidence of duplication removal, ownership clarification, responsibility-surface reduction, or execution-path simplification.
+
+### **21.13a Existing Capability Reuse Rule (Hard)**
+
+Before introducing new logic, helpers, hooks, services, modules, or abstractions, the implementer must first determine whether an existing authority, primitive, utility, service, contract surface, or feature owner already provides the needed behavior.
+
+If the behavior already exists and can be extended without violating ownership or lifecycle rules, re-implementation is forbidden.
+
+Creating a second implementation of existing behavior is invalid unless the structural change evidence block includes explicit evidence that:
+
+1. the existing implementation cannot be extended without violating ownership, lifecycle, or authority boundaries, and
+2. the new implementation reduces duplication or ambiguity elsewhere.
 
 ## **21.14 Boundary Surface Leakage Rule (Hard)**
 
 Function signatures, prop surfaces, and forwarding layers must remain cohesive with ownership boundaries.
 
-- If a boundary accumulates parameter plumbing or pass-through props, ownership is leaking and must be redesigned at the authority.
+- If a boundary accumulates parameter plumbing or pass-through props, ownership is leaking and must be corrected at the authority.
 - Wrapper-only layers are forbidden unless they remove duplication, standardize contracts, or reduce ambiguity.
 - Control-plane behavior must not be encoded as boolean-flag construction in UI surfaces.
+
+### **21.14a Minimal API Surface Rule (Hard)**
+
+Public and cross-boundary APIs must be as narrow as possible while preserving clarity and ownership.
+
+The following are invalid unless explicitly justified in the structural change evidence block:
+
+- passing more data than the consumer needs
+- adding parameters that only forward existing context-owned values
+- exposing commands that are thin aliases over an existing public contract surface
+- creating multiple entry points for the same operation domain
+- exporting shapes that require downstream consumers to reshape or filter them before use
+
+API widening without a reduction in duplication, ambiguity, or ownership leakage is invalid.
 
 ## **21.15 No Redundant Law Rule (Hard)**
 
@@ -1836,4 +2017,88 @@ An authority file must not accumulate unrelated domains, orchestration logic, or
 
 - Authority files may define and compose their own domain semantics, but may not absorb orchestration/control-plane responsibilities from other owners.
 - Cross-domain additions are valid only when they are part of the same declared authority and lifecycle boundary.
-- If unrelated domains are added, the change is an architectural regression and must be restructured.
+- If unrelated domains are added, the change is an architectural regression and must be corrected before landing.
+
+## **21.19 Decision Order Rule (Hard)**
+
+When implementing a structural change, solutions must be evaluated in the following order:
+
+1. delete obsolete or duplicate logic
+2. extend the existing canonical owner
+3. tighten the existing API or contract surface
+4. generalize an existing authority only when at least two real consumers share the same invariant
+5. introduce a new abstraction only when the previous steps would violate ownership or lifecycle rules
+
+Skipping earlier steps without explicit evidence in the structural change evidence block is invalid.
+
+### **21.19a Structural Change Gate**
+
+Every structural change must pass the following gate before landing:
+
+1. Authority confirmed (§21.2)
+2. Ownership defined (§21.3)
+3. Lifecycle defined (§21.4)
+4. Decision order satisfied (§21.19)
+5. Compression-first rule satisfied (§21.20)
+6. Evidence block provided whenever required by §21.21
+
+Failure of any gate condition invalidates the structural change.
+
+### **21.19b Shared Invariant Generalization Rule (Hard)**
+
+When implementing a structural change, if the change introduces behavior that matches an invariant already present elsewhere, the implementer must generalize that behavior at the correct existing owner rather than duplicating it locally.
+
+Local duplication is invalid when:
+
+- the behavior expresses the same domain rule
+- the behavior constructs the same contract shape
+- the behavior performs the same decision logic
+- the behavior differs only by labels, local naming, or feature placement
+- the behavior differs only by minor argument reshaping, feature-specific wrapper functions, or local condition ordering that preserves the same decision outcome
+
+Generalization must occur at the lowest owner that can correctly own the shared invariant without violating lifecycle or authority boundaries.
+
+If no such owner exists, the new owner must be introduced under §21.13.
+
+Generalization is valid only when it improves the current codebase immediately by reducing duplicated domain rules, duplicated contract construction, duplicated structural composition, duplicated outcome semantics, or duplicated decision logic. Potential future reuse alone is insufficient justification.
+
+## **21.20 Compression-First Change Rule (Hard)**
+
+Structural changes must prioritize reducing system surface area before introducing additional structure.
+
+A structural change must not increase:
+
+- abstraction depth
+- number of helper functions
+- number of modules
+- wrapper layers
+- public contract surfaces
+
+unless one of the following is true:
+
+1. the change demonstrably reduces duplication, ambiguity, or responsibility overload, or
+2. the change is required to satisfy ownership or lifecycle constraints defined in §21.13.
+
+Ownership and lifecycle constraints take precedence over surface compression when both cannot be satisfied simultaneously.
+
+## **21.21 Structural Change Evidence Requirement**
+
+When a structural change increases surface area (modules, abstractions, wrappers, or public contract surfaces), rejects reuse of an existing capability, rejects generalization of a shared invariant, introduces materially similar logic inside an existing file, or keeps shared-invariant logic local, the change note must include a deterministic evidence block.
+
+The evidence block must include:
+
+- **Owner:** authority responsible for the decision domain
+- **Existing Owner Check:** which existing owner, primitive, service, or contract surface was evaluated first
+- **Reuse Outcome:** reused / extended / rejected
+- **Why Not Reused:** required only if reuse was rejected
+- **Shared Invariant Check:** whether the change matches an invariant already present elsewhere
+- **Generalization Outcome:** generalized / not applicable / rejected
+- **Why Not Generalized:** required only if generalization was rejected
+- **Lifecycle:** render / hook / session / application
+- **Surface Delta:** number of modules or abstractions added or removed
+- **Duplication Delta:** duplicated logic removed or introduced
+- **Contract Delta:** public contract surfaces added or removed
+- **Execution Path Depth Delta:** wrapper layers before vs after
+- **Justification:** explanation of why the change satisfies §21.20 or §21.13
+
+Structural changes that reject reuse, reject generalization, or increase surface area without this evidence block are invalid.
