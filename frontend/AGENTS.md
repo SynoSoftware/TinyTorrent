@@ -1,73 +1,134 @@
 
-# **AGENTS.md — TinyTorrent Frontend Mission Specification**
+# **AGENTS.md — TinyTorrent Mission Specification**
 
-Frontend rules for TinyTorrent. §21 is the only canonical architectural law; every other section is an implementation contract, default, or review gate that must comply with it.
-
-**Current defaults:** React 19, TypeScript, Vite, Tailwind v4, HeroUI, Framer Motion, react-dropzone, Lucide, Zod, `@tanstack/react-virtual`, `cmdk`, `react-resizable-panels`, React Context, and frameless window controls.
-
-**Rule tiers:**
-- **Tier 1:** foundational invariants in §21 only
-- **Tier 2:** enforced contracts and gates derived from §21
-- **Tier 3:** replaceable implementation defaults and UX guidance
-
-**Constitutional framing (hard):**
-- Only §21 defines architectural invariants.
-- Tier 2 operationalizes §21 for implementation and review.
-- Tier 3 is replaceable policy and defaults.
-- Non-§21 sections must not introduce parallel law surfaces.
+**Purpose:**
+Single authoritative reference for the architecture, UI/UX rules, design tokens, and development standards for **TinyTorrent** — a modern, world-class successor to µTorrent with a **VS Code–style workbench**.
 
 ---
 
-# **0. Quick Rules**
+# **North Star**
 
-- **Law source:** architecture is governed by §21.
-- **Authority-first:** use declared authorities; do not bypass them. See §0.1 and §3.
-- **Owner-extension-first:** extend existing owners before adding new surfaces. See §0.2 and §21.13.
-- **Outcome-first contracts:** expected failures are typed outcomes, not exception control flow. See §20 and §21.12.
-- **UI vs control plane:** UI may hide or disable capabilities, but boundary owners enforce outcomes.
-- **Diff-first for user-visible changes:** if behavior or UI output changes for landing/review, describe it explicitly and include the right diff artifact. See `frontend/TOKEN_CONTRACT.md`.
-- **List the commands you actually ran** in landing/review notes. If something was not run, say so and why.
+TinyTorrent optimizes for:
+
+- Structural integrity at system boundaries
+- Low friction inside feature scope
+- No cleanup debt later
+
+Hard invariants protect architecture.
+Feature implementation remains cohesive, human-readable, and minimally prescribed.
+The North Star guides decisions but does not override §21.
+
+If a rule increases ceremony without preventing architectural decay, it does not belong here.
+
+---
+
+## **Constitutional Source Of Law (Hard)**
+
+§21 is the only canonical source of architectural law.
+All other sections must comply with §21.
+If duplication or conflict exists, §21 governs.
+Other hard sections may define enforcement gates and workflows, but they may not define parallel architectural invariants.
+
+## **Rule Tiers**
+
+This document uses three rule tiers:
+
+- **Tier 1 — Foundational Invariants:** §21 only
+- **Tier 2 — Enforced System Contracts:** boundary contracts for UI, RPC, ViewModel, runtime, and integration
+- **Tier 3 — Implementation Defaults & UX Standards:** current tools, interaction standards, and guidance
+
+## **Rule Derivation Model**
+
+- §21 defines all foundational invariants (Tier 1).
+- Tier 2 sections define enforceable contracts derived from §21 for specific subsystems (UI, ViewModel, RPC, Runtime).
+- Tier 3 sections define replaceable implementation defaults and UX standards.
+- Tier 2 may operationalize §21 but may not redefine or contradict it.
+- Only §21 may introduce new architectural invariants.
+
+## **Architecture Invariants Index (Reference-Only)**
+
+Use this as a map; definitions and merge-gating law are in §21.
+
+1. Single authority per decision: see §21.2.
+2. State ownership and lifecycle: see §21.3 and §21.4.
+3. Explicit contract gating: see §21.5 and §21.6.
+4. Configuration authority: see §21.7.
+5. Context authority and parameter boundaries: see §21.8.
+6. Traceability and indirection budgets: see §21.10 and §21.11.
+7. Single public contract surface: see §21.12.
+8. Integration-first ownership gate: see §21.13.
+
+---
+
+## **Current Implementation Defaults (Replaceable)**
+
+The following represent the current chosen tools and patterns.
+They are defaults, not architectural invariants.
+
+They may change if replaced without violating the canonical Hard Invariants in §21.
+
+- React + TypeScript
+- Tailwind + HeroUI
+- Framer Motion for structural motion
+- react-resizable-panels for pane persistence
+- cmdk for command palette
+- Zod for boundary validation
+- @tanstack/react-virtual for virtualization
+
+Tooling is replaceable.
+Architecture invariants are not.
+
+---
+
+# **0. Quick Rules (Read This First)**
+
+If you’re unsure what to do, follow these rules first, then read the referenced section(s).
+
+- **Law source:** architectural decisions are governed by §21.
+- **Authority-first:** use declared authorities; do not bypass them. (See §0.1 and §3)
+- **Owner-extension-first:** extend existing owners before adding new surfaces. (See §0.2 and §21.13)
+- **Outcome contracts:** expected failures are typed outcomes, not exception control flow. (See §21.12 and §20)
+- **UI vs control plane:** UI may hide/disable capabilities, but boundary owners must enforce outcomes. (See §20 and §21)
+- **Diff-first for user-visible changes.** If behavior or UI output changes and the change is meant to land (or be reviewed), the change note must describe it explicitly and include the relevant diff artifact (screenshots/video for UI; surface-tree + guardrails for token/surface changes). (`frontend/TOKEN_CONTRACT.md`)
+- **Change note must list commands run (when landing/reviewing).** Include the exact `npm run ...` commands executed (lint/test/build + any relevant enforce/report scripts). If something cannot be run, state it explicitly and why.
 
 ## **0.1 Authority Registry (Hard)**
 
-New authorities are forbidden unless registered here first.
+Adding a new authority (a new “source of truth” surface) is forbidden unless it is registered here first.
 
 - **Surface token contract:** `frontend/TOKEN_CONTRACT.md`, `frontend/src/shared/ui/layout/glass-surface.ts`
 - **Token pipeline + global knobs:** `frontend/src/config/constants.json`, `frontend/src/index.css`
 - **Semantic UI logic/utilities:** `frontend/src/config/logic.ts`
 - **Text roles / typography roles:** `frontend/src/config/textRoles.ts`
-- **RPC schema validation:** `frontend/src/services/rpc/schemas.ts`
-- **RPC transport outcomes:** `frontend/src/services/transport.ts`
-- **Feature ViewModel authority:** one primary ViewModel per feature, owned inside that feature
-- **Cross-feature/global ViewModel authority:** `frontend/src/app/`
-- **Cross-feature orchestration:** `frontend/src/app/orchestrators/`
+- **RPC schema/validation authority:** `frontend/src/services/rpc/schemas.ts`
+- **RPC transport outcome semantics:** `frontend/src/services/transport.ts`
+- **Feature ViewModel Authority (primary):** each feature module owns exactly one primary ViewModel, defined inside that module (for example `frontend/src/modules/dashboard/hooks.ts`)
+- **Cross-feature/global ViewModel authority (optional):** `frontend/src/app/` (only when no single feature can own the concern)
+- **Orchestration owner (cross-feature coordination):** `frontend/src/app/orchestrators/`
 - **Shared UI primitives:** `frontend/src/shared/ui/`
 
 ## **0.2 Owner Extension Statement (Landing/Review Gate)**
 
-If a landing/review change adds a new module, hook, service, model, or constant set, the change note must state:
+If a change introduces a new module/hook/service/model/constant set that is intended to land (or be reviewed), the change note must include:
 
-- **Owner:** what existing owner was extended, or why that was invalid
-- **Lifecycle:** per render, per hook instance, per session, or per application
-- **Why new surface:** why extension would violate ownership, lifecycle, or authority rules
-- **Consumers:** at least one immediate consumer in the same change
-
-New surfaces are a last resort, not a neutral choice. "Cleaner" or "more modular" is not sufficient justification without measurable reduction in duplication, ambiguity, or boundary leakage.
+- **Owner:** what existing owner was extended or why it could not be
+- **Lifecycle:** per render / per hook instance / per session / per application
+- **Why new surface:** why extending the existing owner would violate single-responsibility or authority/lifecycle rules (§21)
+- **Consumers:** at least one immediate consumer in the same change (no speculative surfaces)
 
 ## **0.3 Landing Gates (DoD)**
 
-A change is not ready to land if it introduces any of the following:
+A change is not eligible to land (or be treated as done) if it introduces any of the following:
 
-- bypassed named authorities
-- feature-local styling authorities, inline visual styles, raw numbers, or bracket classes that violate §3
-- raw policy/timing/geometry literals outside a declared authority or explicit local algorithmic necessity
-- new local visual styling in feature files, or new shared tokens added without attempting reuse or consolidation first
+- bypassing named authorities (tokens/primitives/text roles/interactive recipes/config)
+- feature-local styling authorities (inline styles, raw numbers, bracket classes) — see §3.6 and §5 checklist
+- raw Tailwind utility authoring in feature UI files without qualifying under the Tailwind Exception Rule in §3.6
 - new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
-- duplicated decision logic across Component, Hook, ViewModel, or Orchestrator layers
-- a new surface without an Owner Extension Statement
-- expected failures represented as exceptions instead of typed outcomes
+- duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
+- a new surface without an Owner Extension Statement (§0.2)
+- expected failures represented as exceptions instead of typed outcomes (§20.1)
 
-For UI or styling changes intended to land/review, run and report:
+For UI/styling changes intended to land/review, the following command gates are mandatory and must be listed in the change note:
 
 - `npm run enforce:surface-foundation`
 - `npm run enforce:surface-churn`
@@ -79,384 +140,925 @@ For UI or styling changes intended to land/review, run and report:
 - `npm run report:surface-tree:all`
 - `npm run build`
 
-Landing/review gates enforce architecture and consistency; they do not create new architectural invariants.
-
 ## **0.4 Solo Dev Workflow (Low Ceremony)**
 
-- **WIP:** move fast, keep the build green, obey hard rules, skip landing artifacts.
-- **Landing/review:** provide a short change note, required artifacts, and the commands you actually ran.
+This repo is currently developed by a single person. Keep ceremony proportional:
 
-### **0.4a Targeted Quality Check (Non-Trivial Edits/Refactors)**
+- **While iterating (WIP):** optimize for speed; keep the build green and obey Hard Rules, but you do not need to write change notes or produce diff artifacts.
+- **When landing a change (mainline/release/review):** provide a short change note, include any required artifacts, and list the commands you actually ran.
 
-After each non-trivial edit or refactor, run targeted quality checks on touched files/scope and report them in the final response.
-
-- complexity check (minimum: `npx eslint <touched-file-or-scope> --rule "complexity:[2,14]" --format stylish`)
-- build/lint/test status as applicable (run, pass/fail, or not run)
-- whether LOC expansion or helper-sprawl concerns were introduced
-- any complexity alarms in touched files/scope that remain unresolved
-
-If the complexity check reports any alarm that was not fixed in the change, report it explicitly. For each unresolved alarm, include:
-
-- file/function or nearest identifiable scope
-- reported complexity value and threshold
-- why it was not fixed now
-- whether it is acceptable debt, follow-up work, or a refactor/Kaizen trigger
-
-Do not silently ignore unresolved complexity alarms.
-Do not treat lower complexity alone as success.
-Use complexity as a review signal, not a writing goal.
-
-## **0.5 Pre-Edit Workflow (Default)**
-
-Before editing:
-
-- identify the source of truth
-- list entry points: UI events, commands, effects, subscriptions, RPC calls
-- list outputs: UI, state updates, persistence, RPC side effects, feedback
-- compare 2-3 approaches and choose the smallest one that preserves ownership and contracts
-
-Before adding a new hook, component, helper, service, model, or constant:
-
-- search for an existing owner first
-- extend it when lifecycle and authority already match
-- do not add a layer whose main job is forwarding, renaming, or reshaping existing data
-- answer these five questions before adding a new surface:
-  1. who owns this decision?
-  2. who owns this state?
-  3. what is the lifecycle?
-  4. what is the single public contract surface?
-  5. why cannot the existing owner absorb this?
-
-This is workflow guidance. §21 still governs authority, ownership, lifecycle, and indirection.
-
-## **0.6 Spec Kaizen Note (Triggered, Non-Blocking)**
-
-At the end of a landed/reviewed iteration, include a short **Spec Kaizen Note** only when the work exposed a real **spec-level weakness** in `AGENTS.md`.
-
-A Spec Kaizen Note is about **spec friction**, not general code quality.
-
-Valid triggers include:
-
-- an ambiguity caused ownership, placement, or lifecycle confusion
-- a repeated failure mode was not covered by an existing rule
-- two sections overlapped, contradicted each other, or created false-law pressure
-- a review gate was too weak to catch real architectural drift
-- a rule caused repeated unnecessary ceremony without protecting maintainability
-- a refactor improved a local metric while maintainability worsened because extraction-granularity guidance was insufficient
-- complexity decreased while touched-file LOC rose significantly with no corresponding ownership or boundary gain
-- many single-use helpers were introduced in one authority file without creating a real boundary
-- abstraction depth increased without reducing duplication, ambiguity, or contract count
-- domain rules were duplicated across tiny helpers while metrics looked better
-- a non-§21 section started behaving like parallel law
-
-Invalid triggers include:
-
-- a one-off implementation mistake
-- code that could be cleaner without any spec ambiguity
-- local refactor opportunities
-- stylistic preferences
-- speculative rule ideas without evidence
-
-Output requirement:
-
-- If no real spec-level weakness was exposed, output: **Spec Kaizen Note: none**
-- If triggered, keep it short and include:
-  - **Observed gap:** what in `AGENTS.md` failed or was unclear
-  - **Impact:** why it matters for maintainability, clarity, or enforcement
-  - **Suggested change:** the smallest amendment that would improve the spec
-  - **Evidence level:** one-off, repeated, or systemic
-
-Promotion threshold:
-
-- **1 occurrence:** note it, but do not amend the spec unless the ambiguity is severe
-- **2-3 occurrences:** propose tightening or clarifying existing wording
-- **repeated/systemic pattern:** amend the spec
-
-Rules:
-
-- do not propose spec changes for one-off implementation mistakes
-- do not create new architectural law outside §21
-- prefer amending or tightening existing sections over adding new sections
-- fix local code problems in code; use the Kaizen Note only for spec problems
-
-# **1. Product Intent**
+# **1. Brand Identity**
 
 TinyTorrent is a fast, low-bloat desktop workbench for torrent control with deterministic behavior, native-grade interactions, and maintainable architecture.
 
-- Density comes from information design, not tiny targets.
-- Desktop feel means deterministic behavior, shortcuts, focus, and right-click authority, not shrunken controls.
-- HeroUI components should stay default or comfortable in size; do not neuter them to fake compactness.
-- If a choice shows more rows but feels cramped or fragile, it is a design error.
-
 ---
 
-# **2. Scaling & Surface Ownership**
+# **2. Absolute Clarification: Desktop Feel ≠ Compact UI**
+
+**Compact UI is explicitly NOT a goal.**
+
+### **The Density Rule**
+>
+> **Density is achieved through information design, not UI shrinkage.**
+
+- **Avoid Fragility:** No "precision clicking." If a design choice shows more rows but makes the UI feel cramped, it is a design error.
+- **Desktop Tool Feel:** This refers to **behavioral determinism** (shortcuts, selection, focus, right-click authority), not to the size of the buttons.
+- **HeroUI:** Its components must **never** be visually neutered or shrunk to appear "compact." Default or larger sizing is preferred.
+
+---
 
 ## **2a. UI Scale System**
 
-- Interactive sizes come from central config and must respect typography-vs-geometry ownership.
-- Do not use raw pixel sizing classes such as `w-5`, `h-6`, or `text-[14px]`.
-- Consume scale tokens or semantic utilities derived from config.
-
-## **2b. Typography vs Geometry Ownership**
-
-TinyTorrent uses two non-overlapping roots:
-
-- **Typography-owned (`--fz`):** body text, table text, numeric text, icons, labels, and row height
-- **Geometry-owned (`--u * --z`):** panel padding, gaps, bars, modal chrome, glass surfaces, borders, focus rings, scrollbars, and drag handles
-
-Rules:
-
-- A single dimension token must derive from one root only.
-- Components may combine typography-owned and geometry-owned tokens, but one token cannot be computed from both.
-- If a needed element genuinely requires both in one token, treat it as a missing semantic role and add the role instead of improvising.
-- Geometry-owned containers do not grow to fit overflowing text; text truncates or scrolls.
-
-## **2c. Surface Ownership (Surface Contract)**
-
-- **Surface owners** establish glass context, radius, and blur compatibility.
-- **Structural children** live inside a surface owner and assume that context already exists.
-- `surfaceStyle` belongs to surface owners only.
-- `outerStyle` belongs to shell chrome containers only.
-- Structural children, including headers, must not apply surface background, border, radius, blur, or other surface tokens.
+- All interactive element sizes are derived from central config and must respect Typography vs Geometry ownership (§2c).
+- Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
+- All sizing must reference scale tokens or semantic utility classes derived from config.
 
 ---
 
-# **3. Design System Contract**
+## **2c. Typography vs Geometry Ownership (Scaling Contract)**
 
-UI decisions must stay centralized and low-churn. This section defines styling authority; §5 is the review checklist and §21 remains the law.
+TinyTorrent uses two root scaling systems with non-overlapping responsibilities. This is hard policy, not style.
 
-## **3.1 Styling Authority Chain**
+### **Typography-Owned (Derived from `--fz`)**
 
-Design decisions flow through this chain:
+Typography tokens MUST be expressed as named CSS tokens in `@theme` (e.g. `--tt-text-body`, `--tt-icon`, `--tt-row`) and may use `--fz` in their arithmetic.
 
-1. root knobs
-2. token pipeline
-3. semantic authorities
-4. structural primitives
-5. local mechanical layout utilities
-6. enforcement
+The following MUST scale with font size:
 
-If a styling rule is outside this chain, it is guidance, not authority.
+- Body text
+- Table body text
+- Numeric text (speeds, sizes, counts)
+- Icon glyph size
+- Label text
+- Row height for data tables and lists
 
-## **3.2 Root Knobs and Token Pipeline**
+### **Geometry-Owned (Derived from `--u * --z`)**
 
-- Root knobs are `--u`, `--z`, and `--fz`.
-- Prefer existing knobs and tokens over adding new global dials.
-- New global knobs, if truly necessary, must enter through the token pipeline.
-- Design decisions flow through `config/constants.json` -> `index.css` -> `config/logic.ts` -> component usage.
+The following MUST scale with layout rhythm:
 
-Feature code must not invent new design or policy numbers locally.
+- Panel padding (`p-tight`, `p-panel`, `p-stage`)
+- Gaps (`gap-tools`, `gap-stage`)
+- Structural bars (`h-nav`, `h-status`)
+- Modal framing and chrome
+- Glass surfaces and borders
+- Divider/separator thickness (borders)
+- Focus ring thickness/offset
+- Scrollbar thickness
+- Resize/drag handle hit-target geometry
 
-- Raw literals for spacing, radii, opacity, blur, shadow, z-index, animation timing, polling, debounce, timeout, thresholds, and similar reusable UI/runtime policy are forbidden unless owned by an existing authority or introduced through the proper authority chain.
-- If a number affects shared behavior or shared presentation, it is not “just local”; move it to the correct authority instead of leaving it inline.
-- Trivial algorithmic literals with no shared semantic meaning, such as `0`, `1`, array indexing, and basic loop math, are allowed.
+### **Scaling Constraint**
+
+Composing typography tokens with geometry tokens in the same component is expected; the rule forbids deriving a single token from both systems.
+
+No single CSS dimension token (height/width/padding/gap/font-size/line-height/icon-size) may be computed from both systems.
+
+If an element requires both:
+
+- Do NOT implement it.
+- FLAG it as a missing semantic role.
+
+### **Constraint Directionality**
+
+Geometry-owned containers (Sidebars, Navs) impose layout constraints. If Typography content exceeds the Geometry container, the content must truncate or scroll—the container must **never** grow to fit the text. This preserves the "Command Center" layout stability.
+
+### **§2d. Surface Ownership (Surface Contract)**
+
+**Definitions**
+
+- **Surface owner**: a container responsible for glass context, radius, and blur compatibility.
+- **Structural child**: any component rendered inside a surface owner (headers, views, tables, scroll bodies, rows, tabs).
+- **`surfaceStyle`**: the token that establishes a glass surface context.
+- **`outerStyle`**: the token that establishes shell chrome geometry.
+
+**Rules**
+
+1. **`surfaceStyle` may be applied only by surface owners.**
+
+2. **Structural children must never apply `surfaceStyle`.**
+
+3. **Headers are structural children.**
+   Headers must be typography-only and must not apply background, border, radius, blur, or surface tokens.
+
+4. **`outerStyle` may be applied only by shell chrome containers.**
+
+5. **A structural child assumes a surface context is provided by an ancestor.**
+
+---
+
+# **3. Design System Contract (Principles)**
+
+This file is a **contract**, not a style guide. It defines *principles* that keep the UI consistent and prevent drift **without** requiring mass className churn.
+
+**UI authority boundary (explicit):**
+
+- Canonical UI authority rules live in **§3** and **§21**.
+- **§5** is checklist/enforcement guidance only and does not define new authorities.
+
+## **3.0 Styling Authority Chain (Tier 2 Contract)**
+
+All styling authority follows this chain:
+
+1. **Root Knobs:** §3.1
+2. **Token Pipeline:** §3.2
+3. **Semantic Authorities:** §3.6
+4. **Structural Primitives:** Structural Layout Primitives section
+5. **Feature Mechanics:** local utilities for layout mechanics only
+6. **Enforcement:** §5 checklist
+
+If a styling rule is not in this chain, it is guidance, not authority.
+
+## **3.1 Root Knobs Are the Only Global Dials**
+
+The UI must remain stable under the three global scale knobs:
+
+- `--u` (layout rhythm unit)
+- `--z` (layout scale multiplier)
+- `--fz` (readability / typography scale)
+
+Principles:
+
+- Prefer using existing knobs/tokens over introducing new global knobs.
+- If a new knob is truly required, it must be introduced intentionally through the design token pipeline (not ad-hoc in components).
+
+## **3.2 Use the Token Pipeline for Design Decisions**
+
+Feature components should not “decide” new numbers, opacities, radii, shadows, or blur values.
+
+Practical rule: when the decision is *design* (not pure layout composition), it must flow through the existing layers:
+
+1. **Intent** in `config/constants.json` (meaning, not CSS)
+2. **Arithmetic** in `index.css` (`@theme`, derived from the root knobs)
+3. **Role** in `config/logic.ts` (semantic exports / class utilities)
+4. **Usage** in `.tsx` (compose the semantic utilities)
+
+This keeps changes small, reviewable, and prevents “className changes for everything”.
 
 ## **3.3 Standard Elements Over Inline Recipes**
 
-- Prefer shared primitives, semantic components, and tokenized utilities over long inline Tailwind strings.
-- Centralize only when it removes churn or duplication.
-- Do not do classname sweeps for “consistency” unless you are fixing behavior, adopting an existing standard in touched code, or creating the missing standard element.
-- Current cleanup plans are working documents, not law: `SURFACE_CLEANUP_PLAN.md`, `TEXT_ROLE_MIGRATION.md`, `CONSISTENCY_AUDIT.md`.
+Prefer **standard elements** (shared primitives, semantic components, and tokenized utilities) over duplicating long Tailwind strings.
 
-## **3.4 Shared Surface Authority & Token Reduction (Hard)**
+Principle: *make the standard element once, then keep feature code boring.*
 
-`frontend/src/shared/ui/layout/glass-surface.ts` is the single authority for reusable UI presentation and structural layout contracts.
+Centralize only when it clearly pays off (shared pattern or repeated recipe). Avoid creating abstractions for one-offs. This does not permit local visual styling authorities; §3.6 still governs styling.
 
-Feature files must consume exported surfaces, layout primitives, builders, and class contracts from `glass-surface.ts`. Feature files must not define local visual systems through ad hoc `className` strings, local token sets, feature-prefixed style maps, or repeated utility recipes.
+## **3.4 Minimize Classname Churn (No Style Sweeps)**
 
-If a visual or structural pattern is reused, visually meaningful, or part of tab, panel, or layout composition, it belongs in `glass-surface.ts`, not in the feature file.
+Do not change classNames “for consistency” unless at least one is true:
 
-When editing existing UI, prefer reduction over addition:
+- You are fixing a functional/UX bug in that area, or
+- You are adopting an existing standard element in the code you touched, or
+- You are creating the missing standard element (token/component) that will reduce future churn.
 
-- reuse an existing shared token or contract if it is close enough
-- collapse near-duplicate shared tokens when semantics match
-- add a new shared token only when an existing one cannot express the intent cleanly
-- do not create a new token for one-off local preference
+Avoid repo-wide stylistic migrations unless explicitly requested.
 
-The direction of change must be toward fewer shared tokens, fewer parallel contracts, and less local styling authority.
+## **3.5 Plans Are Working Documents (Not a New Law)**
 
-Review gate:
+These documents describe the intended direction for reducing drift, but they are allowed to evolve as implementation proves what works:
 
-- reject changes that introduce new local visual styling in feature files
-- reject changes that add a new shared token when an existing one can absorb the need
-- prefer merging and deleting near-duplicate tokens over preserving them
+- `SURFACE_CLEANUP_PLAN.md`
+- `TEXT_ROLE_MIGRATION.md`
+- `CONSISTENCY_AUDIT.md`
 
-## **3.5 Tailwind Exception Rule (Hard)**
+When working *in those areas*, align with them. If they conflict with existing code or reality, prefer the smallest safe change and flag what needs to be amended in the plan.
 
-Inline Tailwind in feature files is allowed only for tiny one-element mechanical nudges with no visual semantics and no structural role.
+## **3.6 Feature Styling Ownership (Tier 2 Contract)**
 
-It must not be used for panels, tab roots, layout structure, spacing systems, surfaces, reusable patterns, or any visually meaningful styling.
+Feature code must consume shared semantic authorities for visual meaning. Tailwind utility authoring in feature files is disallowed by default and only permitted by the Tailwind Exception Rule below.
 
-## **3.6 Structural Layout Primitives**
+### **No Local Styling Authority Rule (Hard)**
 
-`glass-surface.ts` owns recurring structural layout and presentation contracts.
+Feature/UI files must not define styling authority.
 
-Shared primitives and contracts there must own recurring panel layouts, section headers, framed content areas, split layouts, grouped controls, canvas containers, legends, stats rows, and similar reusable structures.
+Forbidden:
 
-Feature code may compose those shared contracts, but must not invent parallel structural styling locally.
+- local style constants/maps (`const ...CLASS...`, `const ...ClassNames...`)
+- raw Tailwind visual recipes in feature files
+- feature-prefixed style namespaces as end-state authorities
+
+Allowed:
+
+- consuming shared style authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`)
+- minor mechanical utilities only when they satisfy the Tailwind Exception Rule
+- mechanical class composition when semantic meaning is owned by shared authorities
+
+### **Modal Styling Contract (Hard)**
+
+Applies to `**/*Modal*.tsx`.
+
+- Modal files are style consumers only.
+- Modal files must not introduce modal-local class recipes or style maps.
+- Modal visual/layout semantics must come from shared authorities.
+- If a modal needs a new visual role, extend shared authorities first; do not implement styling locally in the modal file.
+
+### **UI Surface Authority Rule (Hard; Tier 2 Contract)**
+
+- UI components must not define new surface semantics inline (surface background, blur, border, radius, elevation, layering).
+- Surface composition must originate from the declared surface authority or structural primitives. Feature modules may not assemble new composite surface recipes. (See §0.1 and Structural Layout Primitives.)
+- Repeated semantic composite patterns must be promoted into the surface authority; feature modules must not copy/paste near-identical surface recipes.
+- This does not apply to mechanical layout utilities (spacing/alignment/sizing) that do not create new visual semantics.
+- Small mechanical adjustments that sit on top of parent layout/surface tokens (for example `justify-end`, `items-end`, `text-right`, `ml-auto`) must remain local composition and must not trigger new token creation.
+
+**Semantic authority locations:**
+
+- `frontend/src/shared/ui/layout/glass-surface.ts`
+- `frontend/src/config/textRoles.ts`
+- `frontend/src/config/logic.ts`
+
+**Forbidden in feature/UI components:**
+
+- ad-hoc semantic surface recipes (`bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`) used as local semantic systems
+- feature-local semantic styling authorities (feature-prefixed token maps/constants)
+- duplicate semantic systems that parallel shared authorities
+
+**Allowed in feature/UI components:**
+
+- compose semantic classes from shared authorities
+- minor mechanical utilities only when they qualify under the Tailwind Exception Rule
+- third-party `classNames` composition only when semantic meaning still comes from shared authorities and Tailwind exceptions are not exceeded
+
+**Promotion rule:**
+
+- Promote to shared utilities/primitives when reuse is stable and semantic meaning exists.
+- If a semantic role is missing, extend the authority chain instead of creating local semantic rules.
+
+### **Tailwind Exception Rule (Hard)**
+
+Tailwind utilities are permitted in feature/UI files only when **all** conditions are true:
+
+1. The utilities are strictly mechanical (`flex`/alignment/spacing/flow) and do not encode visual semantics (no color, border, shadow, blur, radius, opacity, typography, transitions, or effects).
+2. The usage is minor and local (single element, short utility list), and creating a new shared token/role would be disproportionate.
+3. The same utility recipe is not repeated across components. On second reuse, promote to shared authority.
+4. No local style authority is introduced (`const ...ClassNames`, `const ...CLASS...`, feature-local styling maps).
+
+If any condition fails, move styling to shared authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`) before landing.
+
+### **Styling Exception Procedure (Hard)**
+
+If a shared style authority is missing:
+
+1. Stop local styling work.
+2. Add/extend the shared authority in `glass-surface.ts`, `textRoles.ts`, or `logic.ts`.
+3. Consume that authority from feature code.
+
+Direct local styling exceptions require explicit user approval in-thread. Silent or implied exceptions are forbidden.
+
+# **Structural Layout Primitives (Authority Scope)**
+
+Structural primitives own shared layout/surface patterns with clear intent.
+Use them where they add consistency and reuse value; do not force them for every local layout decision.
+
+This rule exists to ensure deterministic surface semantics and reduce repetition where it is real.
+
+**Layout Authority Rule**
+
+Semantic visual framing must be owned by structural primitives or semantic roles.
+Mechanical layout spacing/grouping/alignment may be authored locally with utilities.
+Repeated layout recipes become candidates for extraction when reuse is stable and semantic meaning exists.
+
+---
+
+## **1. Approved Structural Primitives**
+
+### **Surface**
+
+Owns:
+
+- background
+- blur
+- elevation/shadow
+- border
+- radius
+- surface padding
+
+Responsibilities:
+
+- defines the visual surface container for panels, cards, inspectors, tool areas, and modal bodies
+- may not define page centering or max-width behavior
+
+Prohibited inside features:
+
+- direct glass recipes
+- direct blur/shadow/radius application
+- ad-hoc card/panel surface construction
+
+---
+
+### **Section**
+
+Owns:
+
+- page/stage centering
+- horizontal alignment rhythm
+- max-width governance
+- stage padding
+
+Responsibilities:
+
+- defines top-level page/workbench stage containers
+- establishes horizontal rhythm and alignment for contained surfaces
+
+Must not:
+
+- define background, blur, elevation, or card framing
+
+---
+
+### **Stack**
+
+Owns:
+
+- vertical spacing between children
+
+Responsibilities:
+
+- replaces `space-y-*` and manual vertical spacing patterns
+- defines deterministic vertical rhythm
+
+Must not:
+
+- define surfaces
+- define horizontal layout or centering
+
+---
+
+### **Cluster**
+
+Owns:
+
+- horizontal grouping rhythm
+- toolbar/button/chip grouping spacing
+
+Responsibilities:
+
+- replaces ad-hoc `flex gap-*` clusters
+- defines deterministic horizontal spacing
+
+Must not:
+
+- define surfaces
+- define vertical spacing rules
+
+---
+
+## **2. Usage Rules**
+
+1. Any container that visually frames content (panel, modal body, inspector block, card, table shell) **must use `Surface`**.
+
+2. Any container responsible for page/workbench centering or stage padding **must use `Section`**.
+
+3. `Stack`/`Cluster` are preferred for repeated grouping patterns and stable UI motifs. Local `flex`/`gap` utilities are acceptable for one-off or low-reuse layout mechanics only when they satisfy the Tailwind Exception Rule (§3.6).
+
+4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
+
+5. Promotion rule: extract to a shared semantic utility/primitive when reuse is stable and semantic meaning exists.
+
+6. Surface/Section/Stack/Cluster primitives must live in shared UI primitives (single authority location) and be reused across the application.
+   Feature modules must never define local variants.
+
+7. Feature code must not stack multiple Surface recipes for the same intent (double borders/shadows). If nested surfaces are required (e.g., modal shell + inner pane), each layer must have a distinct declared intent (Shell / Pane / Card) and use the corresponding primitive.
+
+---
+
+## **3. Migration Rule**
+
+During refactors:
+
+- If a container applies background + border + radius + blur -> replace with `Surface`.
+- If a container applies centering/max-width/stage padding -> replace with `Section`.
+- Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster` when reuse is stable and semantic meaning exists.
+
+Incremental migration is allowed; primitives must be used for all newly written UI.
+
+---
+
+## **4. Architectural Intent**
+
+Layout ownership must be deterministic:
+
+- **Surface** controls visual framing
+- **Section** controls page alignment
+- **Stack** controls vertical rhythm
+- **Cluster** controls horizontal rhythm
+
+No other component may assume these responsibilities.
 
 ---
 
 # **4. Theming & Semantic Tokens**
 
-Use HeroUI semantic tokens, not raw colors.
+This section defines theme defaults and semantic mappings inside the §3 styling authority chain.
 
-- **Layer 0:** app shell background with centrally configured noise and fallbacks
-- **Layer 1:** panels and tables
-- **Layer 2:** modals, popovers, and floating surfaces
-- Keep subtle semantic borders on glass layers so edges stay readable in every theme.
-- Status semantics are repo-wide: `success` = completed/seeding, `warning` = paused/checking, `danger` = errors/deletes, `primary` = CTA/progress, `default` = borders/inactive text.
-- No hex, named Tailwind colors, inline `rgba()`, or hand-picked light/dark border colors.
-- Shell-level visual constants live in `config/constants.json`.
-- Default visual direction: automatic theme/language detection with Dark/English fallbacks, glass for floating surfaces, comfortable controls, strong typography, and restrained depth.
+Use **HeroUI semantic tokens** for semantic color meaning.
 
-Reference mappings (authority-owned; consume through shared authorities/primitives, do not inline in feature files):
-- **Layer 0 shell:** `bg-background` with subtle configured noise
-- **Layer 1 panels/tables:** `backdrop-blur-md bg-background/60 border-default/10`
-- **Layer 2 floating surfaces:** `backdrop-blur-xl bg-content1/80 shadow-medium border-default/20`
+### **The Layered Depth System (Semantic Glass)**
+
+We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves semantic color (light/dark aware) while applying glass transparency.
+
+| Layer       | Surface                      | Tokens                                                                        |
+| :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
+| **Layer 0** | App Background (Shell)       | `bg-background` + subtle noise texture (2–4% opacity), defined via config     |
+| **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
+| **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
+
+Every glass layer (Layers 1 and 2) should keep a subtle semantic border (`border-default/xx`) so edges remain readable across themes.
+
+- **Layer 0 (App Shell):**
+
+  - Transparency should allow OS window material to show through if supported (Mica-like effect).
+  - Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
+  - The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
+
+### **Semantic Status Mapping**
+
+These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
+
+| Token     | Usage                  |
+| --------- | ---------------------- |
+| `success` | Seeding, Completed     |
+| `warning` | Paused, Checking       |
+| `danger`  | Deletes, Errors        |
+| `primary` | CTAs, Progress Accents |
+| `default` | Borders, Inactive Text |
+
+---
+
+## **Color Rules**
+
+**Use:**
+
+- `var(--heroui-background)`
+- `var(--heroui-content1)`
+- `var(--heroui-foreground)`
+- `var(--heroui-primary)`
+- `var(--heroui-default)` (for borders/dividers)
+- Tailwind visual utilities belong in shared authorities. Feature files must follow §3.6 (Tailwind Exception Rule) and may not define local visual semantics.
+
+**Avoid:**
+
+- Custom hex / rgb colors in JSX/TSX
+- Tailwind named colors (`bg-slate-900`, etc.)
+- Hard-coded `border-white` / `border-black` (breaks theme switching)
+- Manual `rgba()` color calculations
+
+All shell-level constants (fallback grays, noise strength, etc.) live in `config/constants.json`, never inline.
+
+### **Aesthetic**
+
+- Detect system dark/light mode and use it automatically; fallback = Dark.
+- Detect system/browser language and use it; fallback = English.
+- Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
+- Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
+- Strong typography hierarchy (Swiss style).
+- Layered shadows used sparingly for depth — never decoration.
 
 ---
 
 # **5. UI Consistency Enforcement Checklist**
 
-This section enforces §3 and §21; it does not create new UI authority.
+**Applies to all UI, including §§2, 3, 4, and 8**
+This section enforces §3 + §21 during implementation/review.
+It does not introduce new UI authority rules.
 
-- UI must remain stable under knob changes: `--u`, `--z`, and `--fz`.
-- Matching surfaces use matching semantic padding, gap, and row-height roles.
-- Similar controls must not drift due to local tweaks.
-- Before landing UI work, verify the token pipeline, semantic authority usage, structural primitives, theme consistency, stable scroll behavior, and absence of duplicated semantic recipe strings.
-- Landing/review notes for UI work must include a short token-mapping note: roles used, whether a new token was added, and any missing token that was flagged instead of hacked.
+## **A. Consistency Contract**
 
----
+UI must remain stable under knob changes. Agents must treat the design system like an API.
 
-# **6. Runtime & Control Plane**
+If a change causes any of these, it is a failure:
 
-TinyTorrent is a local UI controlling a local daemon. Remote connections are secondary and must not change capability or UX.
+- One view scales differently than another when `--u`, `--z`, or `--fz` changes.
+- Two panels that should match use different padding/gap/row height semantics.
+- Similar controls look “nearly the same” but differ due to local class tweaks.
 
-- Local vs remote runtime must not change product behavior.
-- Web technology is an implementation detail for footprint/runtime goals, not the product model.
-- Browser limits are not product limits. If a native Windows UI could reasonably do it, TinyTorrent must be able to do it.
-- System topology is local-first: tray/native shell, daemon, hosted UI. The daemon owns torrent state; the UI owns rendering and typed intents.
-- State defaults to React hooks/context; add Zustand only when it clearly pays off.
+## **B. Pre-Commit Checklist (Mandatory)**
 
-## **6a. Native Bridge**
+Before claiming UI work is done, verify:
 
-- Desktop mode bypasses browser limits through the native bridge.
-- Focus ownership belongs to the native shell.
-- System services go through `window.chrome.webview.postMessage`; fall back to daemon/RPC paths when native services are unavailable.
-- Closing the window hides it. Termination belongs to tray/exit flow.
+- Root knobs and token pipeline are respected (§3.1, §3.2).
+- Semantic meaning comes from declared authorities, not feature-local semantic systems (§3.6).
+- Structural framing uses shared primitives where applicable (Structural Layout Primitives).
+- Local utilities are mechanical only, and promotions follow stable semantic reuse (§3.6).
+- Theme semantics remain consistent across light/dark and status mappings (§4).
+- Scroll behavior does not introduce layout shift in pane workflows (§7).
+- No duplicate semantic recipe strings were introduced where a shared authority exists.
 
-## **6b. UIActions**
+## **C. Agent Output Requirement**
 
-- UIActions change UI identity participation, not engine truth.
-- They run synchronously in the same tick and do not await engine, RPC, or filesystem work.
-- Engine data stays canonical; UIActions do not build shadow lists or mirrored engine state.
-- They may clear selection/detail state immediately, remove identity from UI participation, and fire engine intents fire-and-forget.
-- Rollback is explicit, user-visible, and only on engine failure.
-- All UIActions go through the orchestrator control plane.
+When UI changes are intended to land (or be reviewed), include a short “Token Mapping” note in the change note:
 
-## **6c. State & Heartbeat Strategy**
-
-- One central heartbeat loop only. Components must not create fetch intervals.
-- Adaptive polling is the current default; future push mode may replace it without changing UI contracts.
-- Current config-owned polling defaults are defined in `constants.json` / `logic.ts`; leaf UI must not hardcode polling intervals.
-- Current defaults currently resolve to table `1500ms`, details `500ms`, background `5000ms`.
-- Subscriptions stay selective: the table listens to list deltas, the inspector listens to the active torrent.
-- Torrent mutations go through `dispatch()` in `frontend/src/app/actions/torrentDispatch.ts`.
-- UI helpers, modals, hooks, and ViewModels must not call mutation methods on `EngineAdapter` directly.
-- Forbidden direct UI calls include `verify`, `resume`, `pause`, `remove`, `setTorrentLocation`, queue moves, tracker mutations, and file-selection mutations.
+- Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
+- Whether any new token was required
+- If required but missing → must be flagged, not hacked
 
 ---
 
-# **7. Interaction & Workbench**
+# **6. Architecture**
 
-Structural state changes should be motion-authored with Framer Motion. Use shared `TRANSITION.*` tokens for simple hover, focus, and active fades rather than decorating every tiny state change.
+TinyTorrent is a local UI controlling a local daemon.  
+Remote connections exist only for debugging/convenience and must not alter feature behavior or UX.
 
-## **7a. Tool Interaction Model**
+## **§6a. Frontend Runtime Model (Hard)**
 
-- Selection is OS-style: click single, Ctrl/Cmd add, Shift range, right-click acts on the selection.
-- `body` and `#root` stay fullscreen with no window scrollbar; only panes and lists scroll internally.
-- Default root utility for fullscreen shell mode is `h-screen w-screen overflow-hidden` on `body` and `#root`; equivalent authority-owned implementation is allowed.
-- Internal scroll areas must not cause layout shift.
-- Default to tool behavior over document behavior: `user-select: none` except for explicit copy-required text.
-- I-beam cursor is only for editable text fields.
-- Optimistic UI feedback is immediate and rolls back only on explicit engine failure.
+- Local vs remote runtime must never change capability or UX behavior.
+- Web technology is an implementation detail used for footprint/runtime goals, not the product model.
+- TinyTorrent must not be designed as a browser-constrained client.
+- Browser-layer limitations must not remove native-grade capabilities.
+- If a native Windows UI can do it, TinyTorrent must be able to do it.
 
-## **7b. Interaction Contracts**
+### **Stack:**
 
-- Keyboard-first operation is required for core navigation and commands.
-- Context menus are required on action-bearing surfaces and must expose the same command authority as toolbar and shortcut paths.
-- Interactive actions must give immediate feedback and must not produce silent dead states.
-- Workspace interactions such as selection, resize, drag, and focus transitions must stay deterministic and reversible.
-- Drag-and-drop must provide full-window detection, a standardized overlay surface, and immediate cancel on drag-out.
-- Motion should communicate structure and state changes, not decoration.
+- **Frontend:** React 19 + TypeScript + Vite
+- **Styling:** TailwindCSS v4 + HeroUI (Premium Control Layer)
+- **Motion:** Structural state changes must be motion-authored. Current default: Framer Motion.
+- **Drag & Drop:** `react-dropzone` (full-window detection)
+- **Icons:** Lucide (tree-shaken)
+- **State:** React Hooks; Zustand only when truly necessary
+- **Data/Validation:** RPC boundaries must be schema-validated. Current default: **Zod**. Never trust the backend blindly.
+- **Virtualization:** Large lists must be virtualized. Current default: `@tanstack/react-virtual`.
+- **Command Palette:** Keyboard-driven command navigation (for example `Cmd+K`) must exist. Current default: `cmdk`.
+- **Pane Engine:** Panes must preserve mount continuity and support size=`0` collapse semantics. Current default: `react-resizable-panels`.
+- **Window Controls:** Custom Titlebar implementation (frameless window).
+- **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
 
-## **7c. Focus Model**
+---
 
-- Only one Part, Main or Inspector, holds active focus at a time.
-- Arrow keys, PageUp/PageDown, Home/End operate on the active Part only.
+### **System Topology**
+
+TinyTorrent is a **local three-part system**:
+
+1. **Tray / Native Shell**
+
+   - Native Windows dialogs
+   - **WebView2 Window Host** (Zero-bloat native shell)
+
+2. **Daemon**
+
+   - Minimal memory footprint
+   - Runs in background
+   - Owns all torrent state
+
+3. **UI (Managed Native Window)**
+
+   - React-driven workbench hosted in the Native Shell
+   - No business logic
+   - Uses **Native Message Bridge** for OS-level features (Focus, Dialogs)
+
+This architecture exists to achieve **smallest possible size and overhead**, not to emulate a web client–server product.
+
+---
+
+## **§6b. The Native Bridge (WebView2 Rules)**
+
+When running as a desktop app, the UI must bypass browser-layer limitations:
+
+1. **Deterministic Focus**
+ The Native Shell owns the window handle (`HWND`). Standard Win32 `SetForegroundWindow` is used for activation. The "Title Swap Handshake" is deprecated.
+
+2. **System Services**
+   The UI communicates with the Native Shell via `window.chrome.webview.postMessage`.
+    - **Native Path:** UI → Native Shell (C++) → Win32 API.
+    - **Fallback Path:** UI → Daemon (RPC) → Logic (for remote/standard browser use).
+
+3. **Window Lifecycle**
+ The window is a "View." Closing the window must **Hide** the window, not terminate the process. Termination is only handled via the Tray's "Exit".
+
+---
+
+### **Design Constraint**
+
+All frontend decisions must pass this test:
+
+> *Would a native Windows UI reasonably be allowed to do this?*
+
+- Yes → allowed
+- No → reject
+- “Web limitation” → redesign
+
+**Purpose overrides tooling.**
+
+---
+
+## UIActions — Hard Rules
+
+1. UIActions change **UI identity participation**, not data.
+2. UIActions execute **synchronously in the same tick**.
+3. UIActions **must not await** engine / RPC / filesystem work.
+4. Engine data remains the **only canonical source of truth**.
+5. UIActions **must not**:
+   - create filtered or “visible” data lists
+   - maintain shadow copies of engine data
+   - rely on cleanup effects or reconciliation
+6. UIActions **must**:
+   - clear selection and detail state immediately
+   - remove the identity from UI participation
+   - fire engine intents **fire-and-forget**
+7. Rollback is explicit:
+   - only on engine failure
+   - with a user-visible toast
+   - never via silent resurrection
+8. All UIActions funnel through the orchestrator control plane.
+
+---
+
+## **State & Heartbeat Strategy (CRITICAL)**
+
+To prevent "Slow Table / Fast CPU Burn":
+
+1. **Single Heartbeat Source**
+   The app must have **one** central heartbeat loop (managed by `EngineAdapter`).
+   Components must **never** set their own `setInterval` for fetching.
+
+2. **Adaptive Modes**
+
+    - **Polling Mode (Current):**
+
+        - Table View: fetch every ~1500 ms
+        - Detail/Graph View: fetch every ~500 ms
+        - Background: throttle to 5000 ms
+
+    - **Push Mode (Future):**
+
+        - Polling stops. Heartbeat is used only to check connection health (Ping/Pong).
+        - Data is driven by incoming server events.
+
+3. **Selective Subscriptions (Selector Pattern)**
+
+    - The **Table** subscribes to the **List Hash/Delta**. It only re-renders rows that changed.
+    - The **Inspector** subscribes **only** to `state.torrents[activeId]`.
+    - If the list updates but `activeId` data hasn't changed, the Inspector **must not re-render**.
+
+4. **Torrent Mutation Authority**
+
+    - All torrent-mutating UI work must go through the single command authority: `dispatch()` in `frontend/src/app/actions/torrentDispatch.ts`.
+    - UI helpers, modals, hooks, and view models must not call `EngineAdapter` torrent mutation methods directly (`verify`, `resume`, `pause`, `remove`, `setTorrentLocation`, queue moves, tracker mutations, file selection, etc.).
+    - Long-running torrent workflows such as move, locate, verify, and resume chaining belong to `torrentDispatch.ts` and may use helper watchers there.
+    - `EngineAdapter` direct calls are allowed only inside the transport/RPC layer, the dispatch authority itself, or read-only/query domains.
+
+---
+
+# **7. UI/UX Philosophy**
+
+Structural state changes must be motion-authored (layout, reorder, open/close, drag).
+Current default: Framer Motion.
+Do not require motion for every small visual state; use the shared `TRANSITION.*` authority for simple hover/focus/active fades.
+
+### **The "Tool" Interaction Model**
+
+1. **OS-Style Selection**
+
+    - Click = Select single
+    - Ctrl/Cmd + Click = Add to selection
+    - Shift + Click = Range selection
+    - Right Click = Context Menu (acting on **all** selected items)
+
+2. **The "Viewport" Rule**
+
+    - `body` and `#root` must be `h-screen w-screen overflow-hidden`.
+    - The window **never** has a scrollbar.
+    - Only specific panels (Table, Inspector, long lists) have internal scrollbars.
+    - **Scrollbar Rule (Landing Gate):** Internal scroll areas must not cause layout shifts when content length changes. Prefer `overlay-scrollbar` for panes; native scrollbars are acceptable during iteration or when the overlay primitive is not suitable, but the final UX must be stable and consistent.
+
+3. **Selection vs Text**
+
+    - Global default: `user-select: none;` (tool behavior over document behavior).
+    - Exceptions: explicit `select-text` only for copy-required fields (hashes, paths, logs, tracker URLs).
+
+4. **Cursor Discipline**
+
+    - I-beam cursor is allowed only over editable inputs/textarea.
+    - Non-editable interaction zones must use `cursor-default` or `cursor-pointer`.
+
+5. **Optimistic UI Action Feedback**
+
+    - UI actions reflect immediately; rollback only on explicit engine failure. UIActions must follow the UIActions — Hard Rules contract.
+
+### **Interaction Behavioral Contracts (Hard)**
+
+- Keyboard-first operation is required for core navigation and commands; pointer interaction must not be the only path.
+- Context menus are required on action-bearing surfaces and must expose the same command authority as toolbar/shortcut paths.
+- Interactive actions must provide immediate feedback (state, motion, or status) and must not produce silent dead states.
+- Workspace interactions (selection, resize, drag, focus transitions) must remain deterministic and reversible.
+- Drag-and-drop must provide full-window detection with explicit overlay affordance and immediate cancel on drag-out.
+- Motion must communicate structure/state changes (layout, reorder, open/close, selection), not decorative animation.
+
+---
+
+### **Focus Model (VS Code–Style)**
+
+- Only **one Part** (Main, Inspector) holds "active focus" at a time.
+- Arrow keys, PageUp/PageDown, Home/End operate on the **active Part** only.
 - Switching Parts updates the global `FocusContext`.
-- The active Part shows a subtle HeroUI-token focus border.
-- `Escape` clears selection within the active Part and does not change the active Part.
-
-## **7d. Components, Modals, and Workbench**
-
-- Core control defaults: HeroUI controls, sticky blurred headers, monospace numerics, sans labels, minimal progress bars, optional sparklines, no row flicker, row-level motion for selection, hover, and reorder.
-- Primary action buttons use the designated primary variant.
-- Toolbar commands are icon-first unless text is required for clarity.
-- Icons use semantic status colors.
-- Dashboard grid is the heavy virtualized grid with reorder, marquee selection, and optional sparklines.
-- Detail grids are lighter virtualized tables for files and peers with sorting only.
-- Do not build god components.
-- Modals autofocus the primary field, use Layer 2 visuals and Framer Motion, feel like floating HUD panels, and are reserved for blocking actions such as add torrent, settings, and destructive confirmation.
-- Passive data belongs in the inspector, not a modal.
-- TinyTorrent uses a master-detail workbench, not details modals: main pane = torrent grid, inspector pane = active torrent details.
-- Selection updates the inspector immediately.
-- Inspector defaults to collapsed (`size = 0`) and opens through double-click or shortcut.
-- Inspector size, orientation, and open state persist locally.
-- Use `react-resizable-panels` for splits, thin semantic drag handles, and no heavy gutters.
-- Prefer `overlay-scrollbar` for pane/list scroll regions when suitable.
-- Split handles should use a semantic hit-target class/token such as `h-handle-hit` (or current equivalent authority token).
-- Main and inspector panes stay mounted when collapsed to preserve focus, selection, scroll state, and continuity.
-- Context menus must be custom and flip/reposition rather than overflow the window.
-- Workbench model: `Part -> Container -> Pane -> View`. Parts never unmount, containers always exist, views may swap, and pane-level resizing/collapse handles continuity.
+- The active Part must show a subtle focus border using HeroUI tokens (no custom colors).
+- `Escape` clears selection within the active Part but does **not** change which Part is active.
 
 ---
 
-# **8. RPC & Data Contracts**
+# **8. Component System**
 
-TinyTorrent is moving from stock `transmission-daemon` toward a custom `libtorrent` daemon that preserves the Transmission RPC contract and adds extensions.
+### **Core**
 
-- Baseline transport is adaptive HTTP polling against `/transmission/rpc`, fully compatible with stock Transmission.
-- If the backend identifies as TinyTorrent, upgrade to push or WebSocket transport and native bridge features when available.
-- Transmission RPC remains the law for base operations.
-- Zod validates incoming data before it reaches UI code.
-- The UI stays backend-agnostic behind `EngineAdapter`; transport can change without changing the UI contract.
-- Use `transmission-rpc-typescript` types, or equivalent, as the source of truth.
-- Even over HTTP polling, use `ids` to request only changed torrents and prefer delta updates.
+- HeroUI for controls (Confident sizing, no shrinking)
+- Sticky blurred header
+- Monospace font for numbers/speeds
+- Sans-serif for names/labels
+- Thin, minimal progress bars
+- Optional sparkline SVGs allowed
+- No row flicker on updates
+- Row-level motion for selection, hover, reorder
 
-## **8a. Connection & Authentication UI**
+### **Control & Icon Contracts (Hard)**
 
-- Before a connection attempt completes, show only server address and port.
-- After the attempt completes, detect whether the server is standard Transmission or TinyTorrent.
-- Then render the correct credential UI:
-  - Transmission server -> username + password
-  - TinyTorrent server -> authorization token
-- Always attempt auto-connect with saved credentials; if none are saved, try anonymous connection.
-- The user can always edit credentials and reconnect.
+- Primary action buttons must use the designated primary control variant.
+- Toolbar commands must be icon-first unless text is required for clarity.
+- Icons must use semantic status colors via theme tokens.
+- Drag-and-drop must provide full-window detection with a standardized overlay surface.
+
+---
+
+### **Tables & Grids (Implementation Strategy)**
+
+Do not build a "God Component".
+
+- **Dashboard Grid (`Dashboard_Grid.tsx`)**
+
+  - Heavy
+  - Virtualized
+  - Supports row drag & drop (queue management)
+  - Marquee selection
+  - Optional sparklines
+
+- **Details Grid (`SimpleVirtualTable.tsx`)**
+
+  - Light
+  - Virtualized
+  - Sorting only
+  - Used for Files/Peers
+
+---
+
+### **Modals**
+
+- Instant autofocus on primary field
+- Layer 2 visuals (blur + depth shadow)
+- Framer Motion transitions
+- Must feel like floating panels inside a HUD
+- No heavy chrome, no wasted margins
+
+**Usage Rule:**
+
+- Modals are **only** for blocking actions:
+
+  - Add Torrent
+  - Settings
+  - Confirm Delete (and similar destructive actions)
+
+- **Never** use modals for passive data viewing (details, peers, files). These belong in the **Inspector Pane**.
+
+---
+
+## **8a. The Workbench Layout (Panel Strategy)**
+
+Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench**.
+
+1. **One/two-Pane Layout**
+
+    - **Main (Center)** — Torrent grid; flexible, primary focus area.
+    - **Inspector (Bottom, Right, full screen configurable)** — Details for the active torrent (tabs for Summary, Files, Peers, Trackers); resizable, collapsible.
+
+2. **The "Pinning" Logic (Interaction Model)**
+
+    - **Selection:** Clicking a row updates the Inspector data immediately.
+    - **Visibility:**
+
+        - Default: Inspector collapsed (size = 0).
+        - Active: double-click row OR keyboard shortcut (e.g., `Cmd+I`) expands the Inspector pane and focuses it.
+
+    - **Persistence:** Inspector state (size, orientation, open/collapsed) is saved to local storage and restored on next launch.
+
+3. **Visuals**
+
+    - `react-resizable-panels` for all splits.
+    - Drag handles:
+
+        - Invisible drag-handle hit target (`h-handle-hit` or equivalent semantic token)
+        - On hover/drag, show a 1 px separator line using `border-default` semantics.
+
+    - No thick gutters; everything feels sharp and minimal like VS Code.
+
+4. **Panel Mounting Rule (IDE-Grade Continuity)**
+
+    - Panels (Main, Inspector) are **never** conditionally mounted.
+    - Collapsing = set panel size to `0`.
+    - Expanding = restore previous size.
+    - DOM nodes must remain mounted to preserve:
+
+        - scroll state
+        - focus
+        - selection
+        - perceived native continuity
+
+5. **Context Menus**
+
+    - Must be custom (HeroUI menu / Radix-style).
+    - Must not overflow window boundaries.
+    - If they would overflow, they must flip or reposition.
+
+---
+
+## **8b. Workbench Model (VS Code Architecture)**
+
+TinyTorrent adopts a simplified VS Code workbench structure:
+
+- **Part** → major region (Main, Inspector)
+- **Container** → persistent layout node that holds one or more panes
+- **Pane** → resizable element managed by `react-resizable-panels`
+- **View** → React component rendered inside a pane (e.g., TorrentGridView, FilesView, PeersView)
+
+**Rules:**
+
+- Parts never unmount.
+- Containers always exist, even when collapsed to size 0.
+- Views may change or be swapped, but their hosting pane stays mounted.
+- All resizing, collapsing, and restoring happens at the **Pane** level.
+
+This model guarantees IDE-like continuity: stable scroll state, predictable focus, and zero layout pop-in.
+
+---
+
+# **9. RPC Layer (Protocol Strategy)**
+
+TinyTorrent is in a **Transition Phase**.
+
+1. **Current Backend:** Standard `transmission-daemon` (official).
+2. **Target Backend:** Custom `libtorrent`-based daemon that mimics the Transmission RPC interface exactly, plus extensions.
+
+---
+
+## **Connection Strategy: "The Adaptive Client"**
+
+The frontend runs on a **dual transport**:
+
+1. **Baseline (HTTP Polling)**
+
+    - Fallback for remote debugging or standard Transmission compatibility.
+    - The app must fully function using standard HTTP RPC calls (POST to `/transmission/rpc`).
+    - Compatible with stock Transmission.
+    - Polling interval is adaptive (e.g., 2s in table view, 5s in background).
+
+2. **Upgrade Path (Server-Push / WebSocket)**
+
+    - If backend identifies as "Standard Transmission", client stays in **HTTP Polling** mode.
+    - If backend identifies as "TinyTorrent", client upgrades to **Server-Push** and activates the **Native Bridge** (if available).
+    - In push mode, client stops polling; server pushes state deltas via WebSocket.
+
+---
+
+## **Connection & Authentication UI (Hard Rules)**
+
+- Before a connection attempt completes, show only server address + port (no credential fields).
+- After the attempt completes (success or error), detect whether the server is a standard Transmission server or a TinyTorrent server.
+- Only then render the correct credential UI:
+  - Transmission server → username + password
+  - TinyTorrent server → authorization token
+- Always attempt to connect automatically using saved credentials; if none are saved, attempt an anonymous connection.
+- Regardless of the result, the user can edit credentials and reconnect.
+
+---
+
+## **Design Rules**
+
+- **Transmission RPC is the Law**
+    Use Transmission RPC spec for everything (Session, Stats, Torrent Get/Set). No custom protocol for base operations.
+
+- **Zod at the Gate**
+    All incoming data is validated. If the future libtorrent daemon sends malformed Transmission DTOs, Zod must catch it before it reaches UI.
+
+- **EngineAdapter Interface**
+    UI components are backend-agnostic and call `adapter.getTorrents()`, `adapter.getDetails(id)`, etc.
+
+  - Now: adapter uses `fetch('/transmission/rpc')`.
+  - Future: adapter may receive pushed frames, but the UI contract is unchanged.
+
+---
+
+## **Data Handling**
+
+- Strictly typed — use `transmission-rpc-typescript` types (or equivalent) as source of truth.
+- Even over HTTP polling, use `ids` to request only changed torrents.
+- Prefer **delta updates** to keep standard daemon load minimal.
 
 ---
 
 # **10. Internationalization (Stack Level)**
 
-- Use i18next.
+- i18next
 - Only `en.json` is required for MVP.
-- All user-visible text must come from translation keys.
+- All text must come from translation keys — no exceptions.
 
 ---
 
 # **11. Quality & Performance Standards**
+
+### Requirements
 
 - Large lists must be virtualized.
 - No console noise.
@@ -465,6 +1067,9 @@ TinyTorrent is moving from stock `transmission-daemon` toward a custom `libtorre
 - Minimal bundle size.
 - Clean build: `npm run build` must pass before landing/release.
 - Visually consistent, dark-mode-first UI with correct light mode.
+
+### Rendering
+
 - Efficient row-level updates (selectors + fine-grained subscriptions).
 - Minimized unnecessary React re-renders.
 - No layout thrash (no repeated sync `measure → mutate` chains).
@@ -473,59 +1078,127 @@ TinyTorrent is moving from stock `transmission-daemon` toward a custom `libtorre
 
 # **12. MVP Deliverables**
 
-Core product targets: glass app shell, virtual dashboard grid, virtual detail tables, hybrid RPC layer, add-torrent modal, context menus, command palette, and tray integration stubs.
+1. Glass App Shell (Layered Depth System).
+2. Dashboard Grid (Virtual, Sortable, Queue-Draggable).
+3. Details Tables (Virtual, Sortable — Files/Peers).
+4. Hybrid RPC Layer (Transmission Base + Zod + WS-ready adapter).
+5. Add Torrent Modal (Magnet/File/Text).
+6. Context Menus (Start, Pause, Delete, "Open Folder", etc.).
+7. Command Palette (Cmd+K).
+8. Tray Integration Stub (UI triggers to native daemon/tray).
 
 ---
 
 # **13. UX Excellence Directive**
 
-Build tool-grade UI: deterministic, traceable, and maintainable.
+All agents operate as tool-UI engineers: behavior must be deterministic, traceable, and maintainable.
 
 ---
 
 # **14. Architectural Principles (Operational Summary)**
 
-Plain-language summary of §21:
+This section is a plain-language operational interpretation of §21 for day-to-day implementation.
+It does not introduce, redefine, or enforce architectural invariants.
 
-- keep control and shell boundaries explicit
-- split only when it removes duplication or clarifies ownership/lifecycle
-- keep views pure
-- keep layer flow one-way
-- keep data contracts explicit
-- keep state ownership intentional
-- keep tool choices pragmatic
+- **Keep control/shell boundaries explicit.**
+  Controls come from shared control surfaces; shell chrome remains authority-driven.
+  (Derived from §21.2 and §21.12.)
 
-## **View–ViewModel–Model**
+- **Keep units cohesive.**
+  Split only when it removes duplication or clarifies ownership/lifecycle boundaries.
+  (Derived from §21.3 and §21.13.)
 
-- Views render UI, hold only local visual state, and emit typed intents.
-- Model, domain, and services own business logic and IO.
-- ViewModels expose one primary feature surface, translate outcomes into UI state, and expose commands consumed by views.
-- Avoid wrapper-viewmodel fragmentation unless it removes duplication or establishes a real boundary.
-- Cross-feature UI authority belongs under `src/app/`.
-- Read context-owned values from Context at point of use instead of pass-through threading.
-- Use feature ViewModel commands for feature scope and app/context command surfaces for cross-feature scope.
+- **Keep views pure.**
+  Views render and emit intents; domain decisions and IO stay outside view components.
+  (Derived from §21.2 and §21.12.)
 
+- **Keep layer flow one-way.**
+  Data flow is RPC/adapter → services/domain → viewmodel/state → components.
+  (Derived from §21.5 and §21.12.)
+
+- **Keep data contracts explicit.**
+  Typed data and validated boundaries are the default for runtime decisions.
+  (Derived from §21.5 and §21.12.)
+
+- **Keep state ownership intentional.**
+  Prefer local ownership until cross-feature authority is actually required.
+  (Derived from §21.3 and §21.8.)
+
+- **Keep tool choices pragmatic.**
+  Use established tools when they pay off; treat defaults as replaceable policy.
+  (Derived from Rule Tiers and Current Implementation Defaults.)
+
+## **View–ViewModel–Model (Operational Pattern)**
+
+This pattern operationalizes §21 for frontend feature design.
+
+### **View**
+
+- Render UI and maintain local visual state.
+- Emit typed intents to command surfaces.
+- Route workflow and side effects through ViewModel commands.
+
+### **Model / Domain / Services**
+
+- Own business logic and engine/IO interaction.
+- Avoid UI state and UI-specific branching.
+
+### **ViewModel Role**
+
+1. Expose one primary feature ViewModel surface, owned inside the feature module.
+2. Translate service/domain outcomes into UI-facing state.
+3. Expose command surfaces consumed by views.
+4. Avoid wrapper-viewmodel fragmentation unless it removes duplication or establishes a reusable boundary.
+5. Place truly cross-feature UI authority under `src/app/`.
+
+### **Context And Command Routing**
+
+- Read context-owned values from Context at point of use.
+- Avoid pass-through command props across unrelated component branches.
+- Use feature ViewModel commands for feature scope and context/app command surfaces for cross-feature scope.
 
 # **15. Project Structure (Optimized for Single Developer)**
 
-Flat, co-located structure optimized for speed:
+Flat, high-maintenance structure optimized for speed and co-location.
 
-- `src/app/`: app shell, providers, routes, global UI authority
-- `src/config/`: `constants.json` and `logic.ts`
-- `src/modules/`: feature areas with flat local structure
-- `src/services/`: external integrations, especially RPC
-- `src/shared/`: reusable UI, hooks, and utilities
-- `src/i18n/en.json`: source-of-truth locale file
-
-Reference tree:
 ```txt
 src/
-|-- app/
-|-- config/
-|-- modules/
-|-- services/
-|-- shared/
-\-- i18n/en.json
+|-- app/                      # App shell: providers, routes, main.tsx
+|
+|-- config/                   # THE TWO CONFIG FILES
+|   |-- constants.json        # 1. Literals (colors, magic numbers, defaults)
+|   \-- logic.ts              # 2. Logic (types, computed config, maps)
+|
+|-- modules/                  # Feature Areas
+|   |-- dashboard/            # Flat structure - no internal folders
+|   |-- dashboard/
+|   |   |-- DashboardView.tsx
+|   |   |-- Dashboard_Grid.tsx
+|   |   |-- Dashboard_Row.tsx
+|   |   |-- Inspector_Panel.tsx      # The Resizable Details Pane
+|   |   |-- Inspector_Files.tsx      # Uses Shared SimpleTable
+|   |   |-- Inspector_Peers.tsx      # Uses Shared SimpleTable
+|   |   \-- hooks.ts                 # Primary feature ViewModel + local hooks
+|   |
+|   \-- settings/
+|       |-- SettingsModal.tsx
+|       \-- hooks.ts                 # Primary feature ViewModel + local hooks
+|
+|-- services/                 # External Integrations
+|   |-- rpc/
+|   |   |-- engine-adapter.ts      # The Hybrid Client (HTTP + WS)
+|   |   |-- schemas.ts             # Zod Schemas (Validation)
+|   |   \-- types.ts               # Inferred TypeScript Types
+|
+|-- shared/                   # Generic Reusables
+|   |-- ui/                   # Reusable UI primitives (Buttons, Inputs)
+|   |-- components/           # Complex shared components
+|   |   \-- SimpleVirtualTable.tsx  # Light Grid (Files/Peers)
+|   |-- hooks/                # Generic hooks
+|   \-- utils/                # Generic logic
+|
+\-- i18n/
+    \-- en.json
 ```
 
 ---
@@ -541,8 +1214,10 @@ src/
 ### **2. Configuration (`config/`)**
 
 - Two-file rule:
-  1. `constants.json` for literals
-  2. `logic.ts` for types and computed logic
+
+  1. `constants.json` — literals only.
+  2. `logic.ts` — types and computed logic.
+
 - No other files in root `config/`.
 
 ### **3. Services (`services/`)**
@@ -560,236 +1235,443 @@ src/
 
 - Avoid empty folders. Do not spend time on folder cleanup during WIP; keep the tree tidy when landing changes.
 
+---
+
 # **16. Coding Standards**
 
-## **16.1 Naming, Config, and Imports**
+## **1. File Naming**
 
-- Components use PascalCase; grouped siblings may use underscores such as `Dashboard_Grid.tsx`.
-- Hooks and logic files use camelCase.
-- Services use kebab-case.
-- Never hardcode semantic numbers or colors in code.
-- Route visual and runtime-policy literals through their authority:
-  - design/presentation numbers -> token pipeline and shared UI authorities
-  - behavioral/timing numbers -> config/control-plane authority
-  - feature-local thresholds only when they are truly local, non-reusable, and not part of shared UX policy
-- If a raw number would need a name in review, it should usually not be inline.
-- UI must never call `fetch` directly. Flow stays `UI -> hooks/viewmodels -> services/adapters -> schemas -> network/native boundary`.
-- Internal imports use the `@/` alias: `@/app`, `@/modules`, `@/shared`, `@/services`, `@/config`, `@/i18n`.
-- Rewrite deep relative imports to aliases when touched. Do not change alias config in `tsconfig.json` or `vite.config.ts` unless approved.
-Alias map:
-```txt
-@/app      -> src/app
-@/modules  -> src/modules
-@/shared   -> src/shared
-@/services -> src/services
-@/config   -> src/config
-@/i18n     -> src/i18n
+**Components → PascalCase (with underscores for siblings)**
+
+- `DashboardView.tsx`
+- `Dashboard_Grid.tsx`
+
+**Hooks & Logic → camelCase**
+
+- `hooks.ts`
+- `useVirtualGrid.ts`
+
+**Services → kebab-case**
+
+- `engine-adapter.ts`
+
+---
+
+## **2. Configuration Access**
+
+- Never hardcode numbers or colors in code.
+- Import literals from `@/config/constants.json`.
+- Import config logic from `@/config/logic.ts`.
+
+---
+
+## **3. Service Isolation (Mandatory)**
+
+- UI must never call `fetch` directly.
+- Data flow must remain: UI -> hooks/viewmodels -> services/adapters -> schemas -> network/native boundary.
+
+---
+
+## **4. Absolute Import Policy (Mandatory)**
+
+All internal imports must use the `@/` alias.
+Relative paths like `../../../../../` are forbidden.
+
+### **Aliases:**
+
 ```
 
-## **16.2 Incremental Improvement**
+@/app        → src/app
+@/modules    → src/modules
+@/shared     → src/shared
+@/services   → src/services
+@/config     → src/config
+@/i18n       → src/i18n
 
-This applies to touched files only, not repo-wide cleanup.
+```
 
-- If a touched file mixes responsibilities, mixes UI with fetching/orchestration/shaping, or behaves like a god component, reduce the problem at least a little.
-- Valid responses: extract one responsibility, move logic closer to its correct layer, or introduce a clearer boundary.
-- Large redesigns and unrelated-file cleanup are not required.
-- Leaving a touched file in the same or worse architectural state is a violation.
+### **Rules:**
 
-## **16.3 Typed Control Plane**
+1. All imports inside the project must use `@/...` instead of relative chains.
+2. The agent must automatically rewrite any deep relative imports to the correct alias.
+3. When new files are created, they must always be imported via aliases.
+4. Directory moves or refactors must update import paths accordingly.
+5. The agent must maintain `tsconfig.json` and `vite.config.ts` alias configuration.
 
-Control vocabularies such as intents, actions, commands, events, and orchestration switches must:
+### **Required Configuration:**
 
-- be statically typed, finite, and exhaustively checked
-- use typed identifiers instead of raw string literals
-- be owned by one canonical authority per domain
-- be imported as tokens or factories, not respelled across labels, keymaps, handlers, or metadata
-- avoid runtime enums, ALL_CAPS pseudo-enums, and transitional dual-path logic
-- use PascalCase authorities and namespace objects for closed vocabularies
-- stay out of UI components except for consumption
-- use `never` guards for exhaustive branches
-- avoid `typeof SOME_CONST.X` typing in consumer code when a domain alias/union expresses intent more directly
+**tsconfig.json**
+**vite.config.ts**
 
-Closed-vocabulary rules:
+as they are, don't change pattern without permission from the user. ask if you need tochange.
 
-- each closed vocabulary must have exactly one canonical authority module; downstream consumers may project from it but must not restate members
-- keep each closed vocabulary locally enumerable from one authority surface
-- do not maintain parallel literal unions, manual re-enumerations, or string-concatenated expansion
-- derive projections and membership checks from the authority surface, for example via `Object.values(...)` or an equivalent helper
-- explicitly document domains that are open or protocol-driven rather than closed
-- hoist repeated literals or member paths instead of creating second maintenance points
+## **5. Incremental Architecture & Naming Improvement Rule (Mandatory)**
 
-Boundary rules:
+This rule enforces **local improvement**, not global refactoring.
 
-- resolve config once at the boundary owner
-- leaf code must not parse config or apply local defaults
-- runtime policy modules must not define control-plane identifiers
-- normalize and validate external shapes once at the boundary owner
-- export complete internal shapes in camelCase
-- keep boundary outputs grouped by domain where reasonable and immutable after resolution
-- consumers must not reinterpret or patch boundary data downstream
-- prefer shared resolution helpers over ad-hoc readers when such helpers already exist
-- keep cross-domain dependencies explicit and one-way
-- use explicit time suffixes such as `Ms` and `Sec` in app-facing exports
-- do not mix config resolution, vocabulary ownership, and presentation recipes unless the module is a declared multi-domain authority
+**Scope:**
+Applies only to files and components that are **touched by the current change**.
 
-If typing is unclear, the architecture is incomplete and must be fixed. Refactors must stay buildable unless a staged migration is explicitly declared.
+### **A. Incremental Architecture Improvement**
 
-## **16.4 Strict Typing**
+If an edited file already violates any of the following:
 
-In all new or modified code:
+- multiple responsibilities
+- mixed concerns (UI + data shaping, UI + fetching, UI + layout orchestration)
+- god-components (too many unrelated props, effects, or render branches)
 
-- `any` is forbidden
-- `unknown` is allowed only at IO, adapter, transport, or native boundaries and must be narrowed immediately
-- untyped string identifiers are forbidden
-- code must stay fully statically typed and exhaustively checked
+then the agent must reduce the violation **only when responsibilities are reused independently or when duplication exists**. Cohesive logic that changes together must remain together.
 
-If a change requires weakening the type system, redesign it.
+**Required behavior:**
 
-## **16.5 Identifier Quality & Rename Reporting**
+- Extract **one** responsibility (hook, helper, subcomponent), or
+- Move logic closer to its correct layer (hook → service → adapter), or
+- Introduce a clearer boundary (split component, isolate effect, isolate selector)
 
-When editing UI code, evaluate identifier quality. If a name is misleading, generic, historically wrong, or drifting from its role, report it rather than silently renaming it.
+**Explicitly NOT required:**
 
-Landing/review notes must include **Rename Candidates** when relevant:
+- Repo-wide refactors
+- Large redesigns
+- Touching unrelated files
 
-- `currentName` -> `recommendedName`
-- one-line reason
+Leaving the file in the same or worse architectural state is a spec violation.
 
-Do not rename unless explicitly instructed.
+### **B. Typed Control Plane (Specialization)**
 
-## **16.6 Human-First Code**
+All control flow (intents, actions, commands, events, orchestration switches):
 
-Write code so a human can read and edit it quickly.
+- must be **statically typed**
+- must use **typed identifiers** (no string literals)
+- must be **exhaustively checked**
+- must not contain transitional, fallback, or dual-path logic
+- must not be constructed directly by UI components
 
-- Prefer the simplest implementation that preserves contracts.
-- Prefer short, explicit names; if a name keeps growing, split responsibility instead.
-- Prefer small local functions and straight-line control flow with early returns when that is clearer.
-- Prefer predictable data shapes such as discriminated unions over ad-hoc flag mixes.
-- Avoid unnecessary TypeScript cleverness, gratuitous `useMemo`/`useCallback`, and speculative abstractions.
-- Do not add wrapper hooks, components, or ViewModels whose main job is forwarding, renaming, or re-packing existing state or actions.
-- Keep one owner for mutable UI state. Local state is for transient UI mechanics, not mirrored domain/ViewModel state.
-- Prefer explicit duplication over wrong sharing when owners, lifecycles, or semantics differ.
-- Design for deletion: each file and abstraction must have a clear reason to exist and an obvious deletion test.
-- If argument or prop surfaces show boundary leakage, redesign the boundary.
-- Comments are allowed only for short, non-obvious rationale tied to an invariant or contract.
+Typed vocabulary contract for closed, cross-cutting domains (status/reason/outcome/intent IDs):
 
-### **16.6a React Data Flow & Render Cost**
+- Define one canonical vocabulary authority per domain:
+  literal-union types, or a small token/factory surface, or config-derived unions (`constants.json`).
+- Closed vocabularies must be finite and locally enumerable; adding a member must trigger compile-time exhaustiveness failures in affected switches/branches.
+- Closed vocabularies must be fully enumerable from one authority surface (for example `Object.values(Vocabulary)`), with no parallel literal unions or implicit string-concatenated expansion.
+- Open/dynamic domains (plugin registries, protocol-driven dynamic keys, remote flag namespaces) are not closed vocabularies and must be explicitly documented as open.
+- Consumers must import vocabulary/constructors; do not re-spell raw literals at call sites.
+- Prefer literal unions + discriminated unions + small factories for ergonomics.
+- Do not introduce runtime enums or ALL_CAPS pseudo-enum objects for TypeScript control-plane vocabularies.
+- Naming convention: enum-like control-plane vocabulary authorities and members use PascalCase. camelCase is reserved for non-vocabulary runtime values/functions. ALL_CAPS enum-style naming is forbidden unless required by an external protocol, third-party API, or platform contract.
+- Namespace objects that group vocabulary authorities (for example `Shortcuts`, `TorrentActions`) also use PascalCase.
+- Avoid `typeof SOME_CONST.X` type plumbing in consumer code when a domain alias/union can express intent directly.
+- Exhaustive branching over closed vocabularies must use a `never` guard in the unreachable/default path.
 
-- Use **props by default** when data is owned by the parent and consumed by an immediate child or a small adjacent subtree.
-- Do **not** thread props across multiple layers just to reach distant consumers; extend the real owner, redesign the boundary, or promote the value to Context only when the owner and lifecycle are truly shared.
-- Use **Context** for cross-cutting, non-adjacent, authority-owned values with multiple consumers. Do not use Context as a dumping ground for leaf-local state or convenience wiring.
-- High-churn Context values must be split or otherwise constrained so unrelated consumers do not re-render on every update.
-- Use **`useMemo` / `useCallback` only when they pay for themselves**: preserving referential stability for memoized children, preventing expensive recalculation, or satisfying a library contract that depends on stable identity.
-- Do not memoize trivial expressions, wrapper objects, or pass-through callbacks by default. If a memo exists, it should defend either correctness or measurable render cost.
+Preferred readability pattern (default for new/edited control-plane vocab):
 
-### **16.6b Extraction Granularity**
+- Hoist vocabulary members as local `const` values, then compose the authority object/map from those members.
+- Keep `typeof` union derivation localized to the authority module only.
+- Prefer membership checks that derive from the authority surface (for example `Object.values(vocabulary).includes(value as Member)` or an equivalent helper) so adding a member does not require editing multiple branch checks.
+- Keep call sites short: consume imported tokens/factories, not repeated string literals.
 
-- Do not treat lower complexity alone as success.
-- Do not extract helpers only to satisfy complexity metrics.
-- Do not create 1-2 line helpers unless they are reused, define a real domain term, or centralize an invariant.
-- Single-use micro-helpers are a code smell by default, not a cleanliness win.
-- Extract only when at least one is true:
-  - logic is reused
-  - substantial branch complexity is removed from the owner
-  - a stable boundary is created
-  - a domain invariant is centralized
-- Keep one-off linear shaping local to the owner.
-- Avoid pass-through wrappers, trivial selectors, trivial normalizers, and other single-use micro-helpers unless they carry meaningful semantic weight.
-- If complexity improves while readability, traceability, or maintainability worsens, treat that as a refactor regression.
-- Prefer centralizing a domain rule once over repeating it across small “clean” helpers.
-- Prefer one compact local block over multiple tiny helpers when the logic is single-use and easy to read inline.
+Vocabulary projection rule (global):
 
-## **16.7 God Objects, Patterns, and Placement**
+- Define each closed vocabulary once as the canonical authority (`const Vocabulary = { ... } as const`).
+- Do not manually re-enumerate vocabulary members in downstream projections (keymaps, labels, handlers, metadata).
+- Cross-vocabulary relationships (for example `action -> shortcut intent`) must be declared at the source authority that owns the source member; resolver/consumer modules may resolve them but must not restate mapping tables.
+- If projection shape is already compatible, cast once at the boundary (`as Record<VocabUnion, T>`) instead of per-member mapping.
+- If per-key fallback/normalization is needed, derive programmatically from `Object.values(Vocabulary)`; never duplicate members manually.
+- Adding a new vocabulary member must require editing the authority definition only, not multiple projection blocks.
+- Consumers must depend on exported projected surfaces and must not reconstruct vocabulary projections locally.
 
-Do not create or enlarge god files. If a touched file is already overloaded, reduce its responsibility surface at least a little.
+Local repetition rule (global):
 
-Approved extraction targets:
+- In new/edited code, repeated literals, member paths, or mapping fragments across nearby lines are forbidden when they create a second maintenance point.
+- Hoist repeated values once (destructure/`const`) or derive programmatically from the authority surface.
+- Allowed exception: tiny repetition only when it is strictly clearer and does not introduce drift risk.
 
-- **Orchestrator hook:** sequencing, retries, deduplication, gating, multi-step workflows
-- **Domain hook:** one domain concern with minimal coordination
-- **Service:** business or domain logic independent of React
-- **Adapter:** RPC, filesystem, native host, browser APIs, or other edge IO
-- **UI component:** presentation, local UI state, visual conditionals, typed intents
+Runtime policy resolution contract (config boundary modules such as `config/logic.ts`):
 
-Placement rules:
+- Resolve knobs once at the boundary module. Leaf code must not parse config, call readers, or apply local defaults.
+- Runtime policy modules must not define or resolve control-plane identifiers (status/reason/outcome/intent IDs).
+- A module should stay in one architectural layer: do not mix control-plane authority, runtime policy resolution, and presentation recipes unless explicitly declared as a multi-domain authority.
+- Runtime policy modules normalize configuration values; feature-specific shaping/derivation belongs in the owning feature/domain module.
+- Export grouped domain surfaces, not flat export sprawl. One top-level object per domain is the default.
+- Structured resolution must fallback per-key; never replace an entire resolved domain object because one key is invalid.
+- Boundary outputs must be complete, validated, and normalized. Do not export raw/partial shapes and do not require downstream fixups.
+- Keep external naming at the boundary. Read snake_case externally; expose camelCase app-facing keys.
+- Resolved surfaces are immutable (`as const` / `Readonly`) and must not be mutated at runtime.
+- Use shared resolution helpers (`readNumber`, `readString`, `readBool`, `clamp`, `readEnum`, `readStringArray`, `mergeKnownKeys`) instead of ad-hoc readers.
+- Cross-domain dependencies must be explicit and one-way (no cyclic reads).
+- Each domain exposes one canonical access surface. Parallel grouped + flat exports are forbidden except temporary `/** @deprecated */` migration aliases.
+- Time values in app-facing exports use explicit suffixes (`Ms`, `Sec`, etc.) consistently.
+- Domain blocks should start with a short header comment: owned scope, source path, and enforced invariants.
+- Module names must match their primary authority; side effects unrelated to that authority are forbidden.
 
-- sequencing, retries, gating, and cross-cutting decisions -> orchestrator
-- business rules -> service
-- IO, RPC, and native calls -> adapter
-- view state -> UI component
+Boundary adapter rule (global):
 
-UI components do not orchestrate, call engines directly, build control flow vocabularies, or run multi-step workflows.
+- Any external→internal transformation (JSON config, RPC payloads, env flags, host capabilities) must normalize once and validate once at its boundary owner.
+- Boundary adapters must export complete internal types and must not leak external naming conventions.
+- Casting external data directly (`as InternalType`) is forbidden unless preceded by validation or guarded normalization.
+- Consumers must not re-interpret boundary data or apply secondary patchups.
 
-If logic does not fit a category, the architecture is incomplete. During WIP, park it in the nearest owner with `TODO(arch)`; before landing/review, resolve placement or amend this document.
+If typing is unclear, **the architecture is incomplete and must be fixed**.
+Refactors must preserve a buildable state unless performing an explicitly declared staged migration. Breaking type safety is not.
 
-## **16.8 Anti-Patterns & Rethink Conditions**
+---
 
-Forbidden:
+### **C. Strict Typing (Hard Rule — Global)**
 
-- smart components
-- hooks that return flags instead of commands
-- boolean-driven control flow
-- files that both decide and execute
-- helper files that grow indefinitely
-- callbacks that close over engine state
-- 1-5 line single-use helpers created only to lower reported complexity
+In all **new or modified code**, without exception:
 
-Pause and rethink if a change reveals:
+- `Any` is **forbidden**
+- `unknown` is forbidden inside application logic but **required/allowed at IO, adapter, transport, or native boundaries** and must be narrowed immediately using schema validation (e.g., Zod).
+- untyped string identifiers are **forbidden**
 
-- duplicated source of truth
-- pass-through props growing across component boundaries
-- wrapper layers with no ownership or contract value
-- a hook that mostly forwards another owner
-- a new file that exists only to rename or reshape data
-- a component that both decides and executes workflow logic
-- growing parameter plumbing
-- the same operation now has two callable contract surfaces
-- feature code introducing local policy/config defaults
-- raw payload or raw config data reaching feature code
-- feature state mirrored locally instead of read from its owner
-- a small helper turning into a dumping ground
-- a new abstraction that reduces no duplication, ambiguity, or contract count
+All code must be **fully statically typed** and **exhaustively checked**.
 
-Prefer a better minimal solution over layering on another workaround.
+If a change cannot be expressed without weakening the type system,
+**the architecture is incomplete and must be redesigned**.
+
+Refactors must preserve a buildable state unless performing an explicitly declared staged migration.
+Breaking type safety is not.
+
+### **D. Identifier Quality & Rename Reporting**
+
+When editing UI code, the agent must actively evaluate **identifier quality**.
+
+If any variable, function, hook, component, or file name is:
+
+- misleading
+- overly generic
+- lying about responsibility
+- historically incorrect
+- or drifting from its current role
+
+the agent must **report it**, not silently rename it.
+
+**Output (when landing/reviewing):**
+Include a short section titled **“Rename Candidates”** containing:
+
+- `currentName` → `recommendedName`
+- One-line reason (scope drift, unclear intent, overloaded meaning, legacy name)
+
+**Rules:**
+
+- Do NOT perform renames unless explicitly instructed.
+- Reporting is mandatory; renaming is optional and user-controlled.
+- Missing obvious rename candidates in a landed/reviewed change is a spec violation.
+
+This enables fast, safe batch renames by the user (VS Code / IDE).
+
+---
+
+### **Human-First Code**
+
+Code must be written so a human can understand and edit it quickly.
+Enforcement for structural constraints lives in §21, §0.3, and §5.
+
+**Human Coding Guidelines (Default):**
+
+- Prefer the simplest implementation that preserves established contracts.
+- Prefer explicit names; keep identifiers short but not cryptic.
+- Prefer small local functions and straight-line code with early returns when it improves readability.
+- Prefer predictable data shapes (for example discriminated unions) over ad-hoc flag combinations.
+- Avoid unnecessary TypeScript cleverness unless it prevents a real bug with a clearer contract.
+- Avoid default/gratuitous `useMemo` / `useCallback` without a measured reason.
+- Avoid speculative abstractions when a local implementation is clearer.
+- If argument or prop surfaces indicate boundary leakage, redesign the boundary at the owning authority.
+
+**Rationale comments (allowed, minimal):**
+
+- Add short comments only when a decision is non-obvious and ties to an invariant/contract (“why”, not “what”).
+
+### **E. God Object / God Component Prohibition (Hard Stop)**
+
+Creation or expansion of **god objects, god components, or god modules** is **forbidden**.
+
+A file is considered a god object/component if it:
+
+- owns **multiple unrelated responsibilities**
+- coordinates **orchestration + execution + presentation**
+- grows by **accumulating logic instead of shedding it**
+- becomes the default place to “just put one more thing”
+- exposes a wide surface area that is not conceptually cohesive
+
+**Mandatory constraints:**
+
+- A change **may not increase** the responsibility surface of an already-large file.
+- If a touched file is already overloaded, the change **must reduce** responsibility, even minimally.
+- “We’ll clean it later” is **not permitted**.
+- Replacing one large block with another large block in the same file is **not improvement**.
+
+**Required behavior when risk is detected:**
+
+The agent must do **at least one** of the following:
+
+- Extract a responsibility into a hook, helper, or service
+- Move orchestration out of the file
+- Split the component/module along responsibility boundaries
+- Narrow the public interface (fewer props, fewer exports, fewer effects)
+
+**Explicitly forbidden justifications:**
+
+- “This file already does a lot”
+- “It’s the entry point”
+- “Refactoring is out of scope”
+- “It’s only one more case”
+
+If a change would result in a file becoming *more central, more implicit, or more overloaded*,
+the change **must be rejected or restructured**.
+
+Failure to prevent god-object growth is a **spec violation**.
+
+---
+
+### **F. Approved Design Patterns & Placement Rules (Mandatory)**
+
+When reducing responsibility or extracting logic, the agent **must use one of the approved patterns below**.
+Inventing new architectural shapes or hybrid patterns is **not allowed** without explicit instruction.
+
+#### **1. Orchestrator Hook (Control Plane)**
+
+**Purpose:**
+Owns **sequencing, retries, deduplication, gating, and multi-step workflows**.
+
+---
+
+#### **2. Domain Hook (Single Responsibility)**
+
+**Purpose:**
+Encapsulates **one domain concern** with minimal coordination.
+
+---
+
+#### **3. Service (Pure or Effectful, Non-React)**
+
+**Purpose:**
+Implements **business or domain logic** independent of React.
+
+---
+
+#### **4. Adapter (Edge / IO Boundary)**
+
+**Purpose:**
+Owns **external system interaction** (RPC, filesystem, native host, browser APIs).
+
+---
+
+#### **5. UI Component (Presentation Only)**
+
+**Purpose:**
+Render UI and forward **typed intents**.
+
+**Rules:**
+
+- No orchestration
+- No engine calls
+- No multi-step logic
+- No control flow construction
+- Emits intents, never effects
+
+**Allowed:**
+
+- local UI state
+- visual conditionals
+- calling orchestrator commands
+
+---
+
+### **Placement Rule (Hard)**
+
+When extracting code:
+
+| Logic Type                    | Must Go To   |
+| ----------------------------- | ------------ |
+| Sequencing / retries / gating | Orchestrator |
+| Business rules                | Service      |
+| IO / RPC / native calls       | Adapter      |
+| View state                    | UI component |
+| Cross-cutting decisions       | Orchestrator |
+
+If logic does not clearly fit one category, **the architecture is incomplete**.
+During WIP, park the code in the nearest owner (usually ViewModel/Orchestrator) with a `TODO(arch)` note.
+Before landing/reviewing, resolve placement (amend this document if needed).
+
+---
+
+### **Anti-Patterns (Explicitly Forbidden)**
+
+- “Smart components”
+- Hooks that return flags instead of commands
+- Boolean-driven control flow
+- Files that both **decide** and **execute**
+- “Helper” files that grow indefinitely
+- Passing callbacks that close over engine state
+
+---
 
 ---
 
 # **17. Internationalization (Enforcement)**
 
 - CI must fail if user-visible strings exist in UI code without `TODO(i18n)` or `t("…")`.
-- All visible UI text must go through `t("…")`.
-- Work with `en.json` only, even if other translation files exist.
-- When adding UI text:
-  1. add the key to `en.json`
-  2. use `t("key")` in the component
-- Inline English is allowed during iteration only as `TODO(i18n)` placeholders.
-- Before landing/review, replace all placeholders with real `en.json` keys.
+
+- All visible UI text must be referenced through `t("…")`.
+
+- Work with `en.json` only. Ignore other translation files even if they exist.
+
+- When a new UI string is needed:
+
+  1. Add key/value to `en.json`.
+  2. Use `t("key")` in the component.
+
+- During iteration, inline English is allowed only as a temporary placeholder and must be prefixed with `TODO(i18n)` so it is easy to find.
+
+- Before landing/reviewing, all inline placeholders must be moved to `en.json` and replaced with `t("…")`.
 
 ---
 
 # **19. Other Rules**
 
-- Before reporting completion, review the code and fix important issues until satisfied.
-- Before landing/review, run `npm run build` and fix build errors when possible.
-- Never run `git restore`, `git reset`, `git clean`, or `checkout --` without explicit confirmation. Preserve local changes.
-- Unresolved quality alarms in touched code must be reported explicitly; passing build/test does not waive reporting.
+1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
+
+2. Before landing/reviewing a change, run `npm run build` and fix build errors if possible.
+
+ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
 
 # **20. Enforced Operational Contracts (Tier 2)**
 
-This section restates daily implementation contracts derived from §21. If anything conflicts with §21, §21 governs.
+This section defines operational contracts derived from §21 for daily implementation.
+If anything here conflicts with §21, §21 governs.
 
-- **Outcome-first public actions:** public command surfaces return typed outcomes; expected failures are data, not exception control flow.
-- **Capability resolution in control plane:** detect capabilities once in control-plane owners and publish explicit state.
-- **Completed contract surfaces:** public contracts define success, failure, unsupported, and cancel/no-op outcomes.
-- **Shared UI state arbitration:** multi-surface UI state needs explicit ownership, conflict handling, and rejection semantics.
+1. **Outcome-First Public Actions**  
+   Public command surfaces return typed outcomes. Expected failures are data, not exception control flow.  
+   See §21.12.
 
+2. **Capability Resolution In Control Plane**  
+   Capability detection happens once in control-plane owners and is published as explicit state.  
+   See §21.2 and §21.5.
+
+3. **Completed Contract Surfaces**  
+   Public contracts must define success, failure, unsupported, and cancel/no-op outcomes.  
+   Partial or silent contracts are invalid.  
+   See §21.5 and §21.12.
+
+4. **Shared UI State Arbitration**  
+   Multi-surface UI state requires explicit ownership, conflict handling, and rejection semantics.  
+   See §21.2, §21.3, and §21.12.
 
 # **21. Architecture Invariants (Foundational — Hard Rules)**
 
-These rules are the non-negotiable structural laws of the system. All other sections must comply with them.
+These rules define the non-negotiable structural laws of the system.
+All subsequent sections (UI, tokens, runtime, RPC, components, hooks)
+are constrained by these invariants.
+
+## **21.0 Architecture Invariants (Hard Rules; Prevent Refactors)**
+
+These rules exist to prevent hidden coupling and accidental complexity.
 
 ### **21.1 Enforcement Clause (Hard)**
 
-Any landed/reviewed change that violates a Hard Rule must be rejected. If a rule blocks implementation, amend the rule first; do not work around it.
+Any landed/reviewed change that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
+Violations are regressions, not tradeoffs.
+
+If a rule blocks implementation, the rule must be amended first (in this document), not worked around.
 
 ### **21.2 Authority Rule (Hard)**
 
@@ -801,7 +1683,7 @@ Every decision in the system must have exactly one authority.
 
 ### **21.3 Ownership Rule (Hard)**
 
-All mutable state must declare an owner responsible for creating, updating, resetting, and destroying it.
+All mutable state must declare an owner. The owner is responsible for creating, updating, resetting, and destroying that state.
 
 - State without a declared owner is forbidden.
 - Module-level mutable state is forbidden unless the owner is explicit.
@@ -826,7 +1708,9 @@ Behavior must be gated by explicit contracts, not inferred properties.
 
 ### **21.6 No Implicit Knowledge Rule**
 
-Code must not "just know" things. Request knowledge from its authority, scope it to a lifecycle, and express it through a contract.
+If a piece of code "just knows" something, that knowledge is wrong.
+
+- All knowledge must be requested from its authority, scoped to a lifecycle, and expressed via a contract.
 
 ### **21.7 System Configuration Consistency Rule (Hard)**
 
@@ -834,30 +1718,47 @@ The system has exactly one configuration authority.
 
 - All components, hooks, and controllers must read configuration from the same validated source (Context).
 - Configuration is immutable after load.
-- Reading config files outside the provider, diverging local defaults, inferred behavior, and environment-based branching inside components are forbidden.
-- If two components answer the same question differently, the architecture is already broken.
+
+Forbidden:
+
+- Reading config files outside the provider
+- Local defaults that diverge from the config authority
+- Inferred behavior
+- Environment-based branching inside components
+
+If two components answer the same question differently, the architecture is already broken.
 
 ### **21.8 Context vs Parameter Rule (Hard)**
 
 If a value has a Context owner, it must be read from Context at the point of use.
 
-Threading context-owned values through function parameters is forbidden except for testing and boundary adapters.
+Threading context-owned values through function parameters is forbidden except for:
+
+- testing
+- boundary adapters
 
 ### **21.9 Refactor Smell Indicators**
 
-A refactor is likely wrong if it grows parameter lists, makes orchestrators pass more data, adds "environment" arguments to hooks, or makes behavior depend on caller position. These indicate authority leakage.
+A refactor is likely wrong if it causes:
+
+- parameter lists to grow
+- orchestrators to pass more data
+- hooks to gain "environment" arguments
+- behavior to depend on caller position
+
+These indicate authority leakage.
 
 ### **21.10 Traceability Rule (Hard)**
 
-A refactor is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without redundant wrapper layers.
+A refactor is invalid if it increases execution-path indirection without reducing duplication, authority ambiguity, or contract duplication. A developer must be able to trace a user action across layers without encountering redundant wrapper layers.
 
 ### **Refactor Simplicity Gate**
 
 A refactor must reduce at least one of the following:
 
-- ownership boundaries crossed
-- wrapper layers
-- contract surfaces
+- number of ownership boundaries crossed
+- number of wrapper layers
+- number of contract surfaces
 - duplicated behavioral logic
 
 If none are reduced, the refactor is invalid.
@@ -870,27 +1771,32 @@ New abstraction layers (wrappers, adapters, forwarding hooks) are permitted only
 
 For any operation domain there must be exactly one public contract surface exposed to the UI/control plane.
 
-UI-facing command surfaces must return typed outcomes. Exceptions may exist only internally and must be converted once at the boundary owner. Parallel "throw" and "outcome" variants for the same operation are forbidden.
+UI-facing command surfaces MUST return typed outcomes (per §20.1).
+Exceptions may exist only internally and must be converted once at the boundary owner (ViewModel / orchestrator / service).
 
+Providing parallel “throw” and “outcome” variants for the same operations is forbidden.
 
 ## **21.13 Integration-First & Ownership Gate (Hard)**
 
-Before creating any new file, module, hook, service, model, constant set, or configuration surface, identify the canonical owner and extend it whenever lifecycle and authority match.
+Before creating any new file, module, hook, service, model, constant set, or configuration surface, the implementer must first identify the canonical owner of the responsibility and extend that owner whenever the responsibility belongs to its lifecycle and authority.
 
-New surfaces are allowed only when:
+A new file or module may be introduced only when:
 
-- no valid ownership surface exists
-- the responsibility is lifecycle-independent, such as pure domain logic, reusable primitives, or cross-feature algorithms
-- extending the current owner would create multi-responsibility ownership or materially increase authority-surface complexity
+- no valid ownership surface exists, **or**
+- the responsibility is lifecycle-independent (pure domain logic, reusable primitive, or cross-feature algorithm), **or**
+- extending the existing owner would create multi-responsibility ownership or materially increase authority-surface complexity.
 
-Every new module must:
+Every newly introduced module must:
 
-- declare explicit ownership and lifecycle
-- have at least one immediate consumer
-- reduce duplication, responsibility overload, or execution-path complexity
-- document why the existing owner could not be extended
+- declare explicit ownership and lifecycle consistent with §21 rules,
+- have at least one immediate consumer at the time of introduction,
+- demonstrably reduce duplication, responsibility overload, or execution-path complexity,
+- and document the integration attempt explaining why the existing owner could not be extended without violating ownership or lifecycle boundaries.
 
-Parallel abstractions for the same responsibility are defects. Claims such as "cleaner" or "more modular" are insufficient without explicit evidence of duplication removal, ownership clarification, responsibility-surface reduction, or execution-path simplification.
+Creation of parallel abstractions representing the same responsibility remains an architectural defect, and PRs introducing new surfaces without satisfying these conditions must be rejected.
+
+**Enforcement Clause:**
+Claims such as “cleaner,” “more modular,” or “better separation” are insufficient justification unless accompanied by explicit, verifiable evidence of duplication removal, ownership clarification, responsibility-surface reduction, or execution-path simplification.
 
 ## **21.14 Boundary Surface Leakage Rule (Hard)**
 
