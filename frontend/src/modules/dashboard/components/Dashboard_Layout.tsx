@@ -274,12 +274,6 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                                 borderRadius: `${shellTokens.innerRadius}px`,
                             }}
                         >
-                            {tableWatermarkEnabled && (
-                                <div
-                                    aria-hidden="true"
-                                    className={DASHBOARD.tableWatermark}
-                                />
-                            )}
                             <div
                                 className={DASHBOARD.tableContent}
                                 style={{ borderRadius: "inherit" }}
@@ -393,6 +387,12 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
 
     return (
         <Section className={DASHBOARD.section}>
+            {tableWatermarkEnabled && (
+                <div
+                    aria-hidden="true"
+                    className={DASHBOARD.desktopWatermark}
+                />
+            )}
             {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
