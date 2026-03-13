@@ -11,6 +11,8 @@ interface UseTorrentDetailsTrackersViewModelParams {
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     serverTime?: number;
+    showAddEditor: boolean;
+    onCloseAddEditor: () => void;
     addTrackers: (
         targetIds: Array<string | number>,
         trackers: string[],
@@ -49,12 +51,10 @@ export interface TorrentDetailsTrackersViewModel {
     };
     labels: {
         emptyMessage: string;
-        title: string;
         hostnameHeader: string;
         nextAnnounceHeader: string;
         peersHeader: string;
         statusHeader: string;
-        toggleAddAriaLabel: string;
         addTitle: string;
         addPlaceholder: string;
         cancelLabel: string;
@@ -67,7 +67,6 @@ export interface TorrentDetailsTrackersViewModel {
         rows: TrackerRowViewModel[];
     };
     actions: {
-        toggleAdd: () => void;
         closeAdd: () => void;
         setNewTrackers: (value: string) => void;
         submitAdd: () => void;
@@ -138,12 +137,13 @@ export const useTorrentDetailsTrackersViewModel = ({
     trackers,
     emptyMessage,
     serverTime,
+    showAddEditor,
+    onCloseAddEditor,
     addTrackers,
     replaceTrackers,
     removeTrackers,
 }: UseTorrentDetailsTrackersViewModelParams): TorrentDetailsTrackersViewModel => {
     const { t } = useTranslation();
-    const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");
     const [isMutating, setIsMutating] = useState(false);
     const [optimisticTrackers, setOptimisticTrackers] = useState<
@@ -234,12 +234,8 @@ export const useTorrentDetailsTrackersViewModel = ({
     );
 
     const closeAdd = useCallback(() => {
-        setShowAdd(false);
-    }, []);
-
-    const toggleAdd = useCallback(() => {
-        setShowAdd((previous) => !previous);
-    }, []);
+        onCloseAddEditor();
+    }, [onCloseAddEditor]);
 
     const submitAdd = useCallback(() => {
         const newTrackerUrls = parseTrackersInput(newTrackers);
@@ -251,7 +247,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             (trackerUrl) => !existingTrackerUrls.has(trackerUrl),
         );
         if (!trackersToAdd.length) {
-            setShowAdd(false);
+            onCloseAddEditor();
             setNewTrackers("");
             return;
         }
@@ -263,7 +259,7 @@ export const useTorrentDetailsTrackersViewModel = ({
                 buildOptimisticTracker(announce, nowSeed - index),
             ),
         ];
-        setShowAdd(false);
+        onCloseAddEditor();
         setNewTrackers("");
         void executeMutation(nextTrackers, () =>
             addTrackers(targetIds, trackersToAdd),
@@ -273,6 +269,7 @@ export const useTorrentDetailsTrackersViewModel = ({
         executeMutation,
         isMutating,
         newTrackers,
+        onCloseAddEditor,
         targetIds,
         visibleTrackers,
     ]);
@@ -286,7 +283,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             buildOptimisticTracker(announce, nowSeed - index),
         );
 
-        setShowAdd(false);
+        onCloseAddEditor();
         setNewTrackers("");
         void executeMutation(nextTrackers, () =>
             replaceTrackers(targetIds, replacementTrackers),
@@ -295,6 +292,7 @@ export const useTorrentDetailsTrackersViewModel = ({
         executeMutation,
         isMutating,
         newTrackers,
+        onCloseAddEditor,
         replaceTrackers,
         targetIds,
     ]);
@@ -317,19 +315,17 @@ export const useTorrentDetailsTrackersViewModel = ({
     return {
         state: {
             isEmpty,
-            showAdd,
+            showAdd: showAddEditor,
             newTrackers,
             isMutating,
             scope,
         },
         labels: {
             emptyMessage,
-            title: t("torrent_modal.trackers.title"),
             hostnameHeader: t("torrent_modal.trackers.hostname"),
             nextAnnounceHeader: t("torrent_modal.trackers.next_announce"),
             peersHeader: t("torrent_modal.trackers.peers_label"),
             statusHeader: t("torrent_modal.trackers.status"),
-            toggleAddAriaLabel: t("torrent_modal.trackers.toggle_add"),
             addTitle: t("torrent_modal.trackers.add"),
             addPlaceholder: t("torrent_modal.trackers.add_placeholder"),
             cancelLabel: t("toolbar.close"),
@@ -342,7 +338,6 @@ export const useTorrentDetailsTrackersViewModel = ({
             rows,
         },
         actions: {
-            toggleAdd,
             closeAdd,
             setNewTrackers,
             submitAdd,

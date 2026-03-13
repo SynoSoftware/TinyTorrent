@@ -935,7 +935,7 @@ export const SPLIT = {
     mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel",
     mapLegendCell: "flex min-w-0 items-center gap-tight",
     mapLegendCellPlaceholder: "invisible",
-    mapFrame: "relative z-panel flex-1 min-h-0 overflow-hidden",
+    mapFrame: "relative z-panel flex-1 min-h-0 overflow-hidden mt-panel",
     mapFrameInner: "relative h-full w-full overflow-hidden isolate",
     mapCanvasLayer: "absolute inset-0 block h-full w-full",
     mapCanvasOverlayLayer: "absolute inset-0 block h-full w-full pointer-events-none",
@@ -948,7 +948,7 @@ export const SPLIT = {
     mapLegendItem: "flex items-center gap-tight whitespace-nowrap leading-none min-w-0",
     mapLegendSwatch: "inline-block rounded-panel",
     mapLegendFloat: `shrink-0 ${MAP_OVERLAY_CARD}`,
-    mapHudDockRow: "flex flex-wrap items-end justify-between gap-panel pt-tight",
+    mapHudDockRow: "flex flex-wrap items-end justify-between gap-panel pb-tight",
     mapPanel: "flex flex-col h-full w-full p-tight",
     hudRow: "flex items-center justify-end gap-tools px-panel",
     hudLabel: `${withOpacity(TEXT_ROLE.label, 40)} mr-2`,
@@ -1230,22 +1230,32 @@ export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${SURFACE.atom.glassBlock} ${SURFACE.atom.shadowBlock}`,
     rootStandalone: "overflow-y-auto",
     body: "flex-1 min-h-0 bg-transparent py-tight",
-    headerRoot: `flex items-center h-row ${visuals.typography.headerBase}`,
+    headerRoot: "grid items-center h-row",
     headerRootEmbedded: "bg-content1/80 border-b border-default/10",
     headerTrackingStyle: {
-        letterSpacing: "var(--tt-tracking-wide)",
+        gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
     } as const,
-    headerLeft: "flex items-center w-full gap-tight px-tight",
-    headerInfoIcon: "text-foreground/50 shrink-0 toolbar-icon-size-md",
+    headerLeft: "flex flex-1 min-w-0 items-center gap-tight px-tight",
+    headerInfoIcon: "text-foreground/50 shrink-0",
     headerTitle: "truncate min-w-0 text-foreground font-semibold",
     headerStatus: `${TEXT_ROLE.caption} block`,
     headerPrimaryHint: withOpacity(TEXT_ROLE.caption, 50),
-    headerCenter: "flex items-center w-full gap-panel",
-    headerTabs: "flex items-center gap-tight",
-    headerTabBase: `py-tight rounded-full border ${TEXT_ROLE.buttonText} font-bold ${transition.fast} px-panel`,
-    headerTabActive: "text-foreground",
-    headerTabInactive: `text-foreground/60 ${visuals.interactive.navItem}`,
-    headerRight: "flex items-center gap-tight min-w-max px-tight",
+    headerCenter: "flex min-w-0 items-center justify-center px-panel overflow-hidden",
+    headerTabs: "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-hidden px-panel",
+    headerTabBase: `group text-navbar font-semibold relative flex h-full shrink-0 items-center px-panel py-panel text-foreground/60 ${transition.fast}`,
+    headerTabActive: "text-foreground/85 font-semibold",
+    headerTabInactive: "bg-transparent hover:text-foreground/85",
+    headerTabHoverGlow:
+        "pointer-events-none absolute left-0 right-0 rounded-full bg-foreground/10 blur-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100",
+    headerTabLightBloom:
+        "pointer-events-none absolute left-0 right-0 rounded-full bg-primary/30 blur-lg opacity-100",
+    headerTabLightSource:
+        "pointer-events-none absolute left-0 right-0 rounded-full bg-primary",
+    headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
+    headerContextActions: "flex shrink-0 items-center gap-tight",
+    headerContextActionButton:
+        "border border-primary/25 bg-primary/5 text-foreground/70 hover:border-primary/40 hover:bg-primary/10 hover:text-foreground",
+    headerContextDivider: "h-status-chip w-px bg-foreground/12 mx-tight",
     speedRoot: "h-full flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
     speedEmbeddedSurface: "flex-1 h-full p-stage flex flex-col min-h-0",
@@ -1278,6 +1288,33 @@ export const DETAILS = {
             isActive
                 ? `${DETAILS.headerTabBase} ${DETAILS.headerTabActive}`
                 : `${DETAILS.headerTabBase} ${DETAILS.headerTabInactive}`,
+        headerTabHoverGlowStyle: () =>
+            ({
+                left: "var(--spacing-tight)",
+                right: "var(--spacing-tight)",
+                bottom: "calc(var(--spacing-tight) * 0.35)",
+                height: "calc(var(--spacing-panel) * 0.9)",
+            }) as const,
+        headerTabLightBloomStyle: () =>
+            ({
+                left: "var(--spacing-tight)",
+                right: "var(--spacing-tight)",
+                bottom: "calc(var(--spacing-tight) * 0.15)",
+                height: "calc(var(--spacing-panel) * 1.05)",
+                boxShadow:
+                    "0 calc(var(--tt-divider-width) * 1.5) calc(var(--spacing-panel) * 0.7) rgba(var(--heroui-primary-500), 0.22)",
+            }) as const,
+        headerTabLightSourceStyle: () =>
+            ({
+                left: "var(--spacing-tight)",
+                right: "var(--spacing-tight)",
+                bottom: "calc(var(--spacing-tight) * 0.7)",
+                height: "calc(var(--tt-divider-width) * 1.25)",
+                opacity: 0.98,
+                filter: "blur(0.4px)",
+                boxShadow:
+                    "0 0 calc(var(--tt-divider-width) * 1.8) rgba(var(--heroui-primary-500), 0.9), 0 0 calc(var(--spacing-tight) * 0.65) rgba(var(--heroui-primary-500), 0.36)",
+            }) as const,
     } as const,
 } as const;
 

@@ -166,12 +166,10 @@ const resolveTooltipAvailabilityLine = (params: {
 const buildTooltipTitle = (block: DisplayBlock, t: TranslateFn) => {
     const titlePrefix =
         block.pieceCount === 1
-            ? t("torrent_modal.piece_map.tooltip_piece_with_count", {
-                  count: block.pieceCount,
+            ? t("torrent_modal.piece_map.tooltip_piece", {
                   piece: block.startPieceIndex + 1,
               })
-            : t("torrent_modal.piece_map.tooltip_piece_range_with_count", {
-                  count: block.pieceCount,
+            : t("torrent_modal.piece_map.tooltip_piece_range", {
                   start: block.startPieceIndex + 1,
                   end: block.endPieceIndex + 1,
               });
@@ -217,10 +215,12 @@ const buildTooltipSummary = (
                 (availabilityMissing || part.key !== "missing"),
         )
         .map((part) =>
-            t("torrent_modal.piece_map.tooltip_state_count", {
-                count: part.count,
-                state: part.stateLabel,
-            }),
+            part.count === 1
+                ? part.stateLabel
+                : t("torrent_modal.piece_map.tooltip_state_count", {
+                      count: part.count,
+                      state: part.stateLabel,
+                  }),
         )
         .join(" · ");
 };
@@ -756,7 +756,7 @@ const scheduleDrawFrames = (params: {
             return;
         }
 
-        const { cssW, cssH } = fitCanvasToContainer(
+        const { cssW, cssH, dpr } = fitCanvasToContainer(
             canvas,
             params.rootRef.current,
             MIN_DRAW_DIMENSION,
@@ -781,7 +781,10 @@ const scheduleDrawFrames = (params: {
             return;
         }
 
-        ctx.clearRect(0, 0, cssW, cssH);
+        // Draw in CSS-space coordinates after fitting the high-DPI backing store.
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawDisplayBlocksToCanvas({
             ctx,
             displayBlocks: params.displayBlocks,
@@ -805,13 +808,19 @@ const scheduleDrawFrames = (params: {
             return;
         }
 
-        fitCanvasToContainer(overlay, params.rootRef.current, MIN_DRAW_DIMENSION);
+        const { dpr } = fitCanvasToContainer(
+            overlay,
+            params.rootRef.current,
+            MIN_DRAW_DIMENSION,
+        );
         const ctx = overlay.getContext("2d");
         if (!ctx) {
             return;
         }
 
-        ctx.clearRect(0, 0, drawState.viewportWidth, drawState.viewportHeight);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawHoveredBlockOverlay({
             ctx,
             hoveredBlock: params.hoveredBlock,

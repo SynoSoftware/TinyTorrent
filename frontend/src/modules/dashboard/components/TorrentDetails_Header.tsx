@@ -1,10 +1,16 @@
 import { useTranslation } from "react-i18next";
-import { Pin, PinOff, X, Info } from "lucide-react";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { Pin, PinOff, X, Info, type LucideIcon } from "lucide-react";
+import {
+    ICON_SIZE_CLASSES,
+    ToolbarIconButton,
+} from "@/shared/ui/layout/toolbar-button";
 import { registry } from "@/config/logic";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { DetailTab } from "@/modules/dashboard/types/contracts";
-import type { TorrentDetailTabDefinition } from "@/modules/dashboard/hooks/useDetailTabs";
+import type {
+    TorrentDetailHeaderAction,
+    TorrentDetailTabDefinition,
+} from "@/modules/dashboard/hooks/useDetailTabs";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
@@ -22,6 +28,12 @@ const truncateTorrentName = (value?: string, fallback?: string) => {
     return `${trimmed.slice(0, half)}~${trimmed.slice(trimmed.length - half)}`;
 };
 
+type GlobalHeaderAction = {
+    icon: LucideIcon;
+    ariaLabel: string;
+    onClick: () => void;
+};
+
 interface TorrentDetailHeaderProps {
     torrent?: TorrentDetail | null;
     isDetailFullscreen?: boolean;
@@ -32,6 +44,7 @@ interface TorrentDetailHeaderProps {
     activeTab: DetailTab;
     onTabChange: (tab: DetailTab) => void;
     tabs: Array<Pick<TorrentDetailTabDefinition, "id" | "labelKey">>;
+    headerActions?: TorrentDetailHeaderAction[];
     statusLabel?: string | null;
     statusTooltip?: string | null;
     primaryHint?: string | null;
@@ -48,6 +61,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         activeTab,
         onTabChange,
         tabs,
+        headerActions = [],
         statusLabel,
         statusTooltip,
         primaryHint,
@@ -62,94 +76,141 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         String(torrent?.id ?? torrent?.hash ?? "inspector"),
     );
 
-    const hasStatus = Boolean(statusLabel);
+    const globalActions: GlobalHeaderAction[] = [];
+    if (!isDetailFullscreen && onPopout) {
+        globalActions.push({
+            icon: PinOff,
+            ariaLabel: t("torrent_modal.actions.popout"),
+            onClick: onPopout,
+        });
+    }
+    if (isDetailFullscreen && onDock) {
+        globalActions.push({
+            icon: Pin,
+            ariaLabel: t("torrent_modal.actions.dock"),
+            onClick: onDock,
+        });
+    }
+    if (onClose) {
+        globalActions.push({
+            icon: X,
+            ariaLabel: t("torrent_modal.actions.close"),
+            onClick: onClose,
+        });
+    }
 
     return (
         <div
             className={DETAILS.builder.headerClass(isStandalone)}
             style={DETAILS.headerTrackingStyle}
         >
-            {/* LEFT */}
             <div className={DETAILS.headerLeft}>
                 <Info
                     strokeWidth={visuals.icon.strokeWidth}
-                    className={DETAILS.headerInfoIcon}
+                    className={`${DETAILS.headerInfoIcon} ${ICON_SIZE_CLASSES.lg}`}
                 />
                 <span className={DETAILS.headerTitle}>
                     {renderedName}
-                    {hasStatus ? (
+                    {statusLabel ? (
                         <span
                             className={DETAILS.headerStatus}
                             title={statusTooltip ?? undefined}
                         >
                             {statusLabel}
-                            {primaryHint && (
+                            {primaryHint ? (
                                 <em className={DETAILS.headerPrimaryHint}>
                                     - {primaryHint}
                                 </em>
-                            )}
+                            ) : null}
                         </span>
                     ) : null}
                 </span>
             </div>
 
-            {/* CENTER */}
             <div className={DETAILS.headerCenter}>
                 <div
                     className={DETAILS.headerTabs}
                     role="tablist"
                     aria-label={t("inspector.panel_label")}
                 >
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            id={`${tabDomIdPrefix}-tab-${tab.id}`}
-                            role="tab"
-                            aria-selected={activeTab === tab.id}
-                            aria-controls={`${tabDomIdPrefix}-panel-${tab.id}`}
-                            tabIndex={activeTab === tab.id ? 0 : -1}
-                            onClick={() => onTabChange(tab.id)}
-                            className={DETAILS.builder.headerTabButtonClass(
-                                activeTab === tab.id,
-                            )}
-                        >
-                            {t(tab.labelKey)}
-                        </button>
-                    ))}
+                    {tabs.map((tab) => {
+                        const isActive = activeTab === tab.id;
+
+                        return (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                id={`${tabDomIdPrefix}-tab-${tab.id}`}
+                                role="tab"
+                                aria-selected={isActive}
+                                aria-controls={`${tabDomIdPrefix}-panel-${tab.id}`}
+                                tabIndex={isActive ? 0 : -1}
+                                onClick={() => onTabChange(tab.id)}
+                                className={DETAILS.builder.headerTabButtonClass(
+                                    isActive,
+                                )}
+                            >
+                                {!isActive && (
+                                    <span
+                                        aria-hidden="true"
+                                        className={DETAILS.headerTabHoverGlow}
+                                        style={DETAILS.builder.headerTabHoverGlowStyle()}
+                                    />
+                                )}
+                                {isActive && (
+                                    <span
+                                        aria-hidden="true"
+                                        className={DETAILS.headerTabLightBloom}
+                                        style={DETAILS.builder.headerTabLightBloomStyle()}
+                                    />
+                                )}
+                                <span>{t(tab.labelKey)}</span>
+                                {isActive && (
+                                    <span
+                                        aria-hidden="true"
+                                        className={DETAILS.headerTabLightSource}
+                                        style={DETAILS.builder.headerTabLightSourceStyle()}
+                                    />
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* RIGHT */}
             <div className={DETAILS.headerRight}>
-                {!isDetailFullscreen && onPopout && (
+                {headerActions.length > 0 && (
+                    <>
+                        <div className={DETAILS.headerContextActions}>
+                            {headerActions.map((action, index) => (
+                                <ToolbarIconButton
+                                    key={`tab-header-action-${index}`}
+                                    Icon={action.icon}
+                                    ariaLabel={action.ariaLabel}
+                                    onPress={action.onPress}
+                                    className={DETAILS.headerContextActionButton}
+                                    iconSize="md"
+                                />
+                            ))}
+                        </div>
+                        {globalActions.length > 0 && (
+                            <div
+                                className={DETAILS.headerContextDivider}
+                                aria-hidden="true"
+                            />
+                        )}
+                    </>
+                )}
+                {globalActions.map((action, index) => (
                     <ToolbarIconButton
-                        Icon={PinOff}
-                        ariaLabel={t("torrent_modal.actions.popout")}
-                        onClick={onPopout}
+                        key={`global-header-action-${index}`}
+                        Icon={action.icon}
+                        ariaLabel={action.ariaLabel}
+                        onClick={action.onClick}
                         iconSize="md"
                     />
-                )}
-                {isDetailFullscreen && onDock && (
-                    <ToolbarIconButton
-                        Icon={Pin}
-                        ariaLabel={t("torrent_modal.actions.dock")}
-                        onClick={onDock}
-                        iconSize="md"
-                    />
-                )}
-                {onClose && (
-                    <ToolbarIconButton
-                        Icon={X}
-                        ariaLabel={t("torrent_modal.actions.close")}
-                        onClick={onClose}
-                        iconSize="md"
-                    />
-                )}
+                ))}
             </div>
         </div>
     );
 };
-
-
-

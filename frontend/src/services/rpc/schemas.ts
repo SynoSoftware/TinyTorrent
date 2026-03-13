@@ -122,7 +122,8 @@ const decodePieceStates = (encoded: unknown, pieceCount?: number) => {
         const byteIndex = Math.floor(i / 8);
         const bitIndex = i % 8;
         const byte = byteIndex < bytes.length ? bytes[byteIndex] : 0;
-        states.push((byte >> bitIndex) & 1 ? 1 : 0);
+        // Transmission bitfields are MSB-first within each byte.
+        states.push((byte & (1 << (7 - bitIndex))) !== 0 ? 1 : 0);
     }
     return states;
 };

@@ -3,9 +3,11 @@ import {
     useCallback,
     useEffect,
     useMemo,
+    useState,
     type KeyboardEvent,
     type ReactNode,
 } from "react";
+import { Eye, EyeOff, Plus, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 import { usePreferences } from "@/app/context/PreferencesContext";
@@ -121,6 +123,7 @@ export interface TorrentDetailTabSurfaces {
         pieceSize?: number;
         pieceStates?: number[];
         pieceAvailability?: number[];
+        showPersistentHud: boolean;
     } | null;
     trackers: {
         targetIds: Array<string | number>;
@@ -130,6 +133,9 @@ export interface TorrentDetailTabSurfaces {
         >;
         emptyMessage: string;
         isStandalone?: boolean;
+        showAddEditor: boolean;
+        onToggleAddEditor: () => void;
+        onCloseAddEditor: () => void;
         addTrackers: DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"];
         replaceTrackers: DashboardDetailViewModel["tabs"]["trackers"]["replaceTrackers"];
         removeTrackers: DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"];
@@ -156,6 +162,12 @@ export interface TorrentDetailTabDefinition {
     labelKey: string;
     isVisible?: (surfaces: TorrentDetailTabSurfaces) => boolean;
     render: (surfaces: TorrentDetailTabSurfaces) => ReactNode;
+}
+
+export interface TorrentDetailHeaderAction {
+    icon: LucideIcon;
+    onPress: () => void;
+    ariaLabel: string;
 }
 
 export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
@@ -216,6 +228,7 @@ interface UseTorrentDetailTabCoordinatorResult {
     handleKeyDown: (event: KeyboardEvent) => void;
     activeSurface: ReactNode;
     tabs: Array<Pick<TorrentDetailTabDefinition, "id" | "labelKey">>;
+    headerActions: TorrentDetailHeaderAction[];
 }
 
 export const useTorrentDetailTabCoordinator = ({
@@ -224,6 +237,8 @@ export const useTorrentDetailTabCoordinator = ({
 }: UseTorrentDetailTabCoordinatorParams): UseTorrentDetailTabCoordinatorResult => {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
+    const [showPiecesHud, setShowPiecesHud] = useState(true);
+    const [showTrackersAddEditor, setShowTrackersAddEditor] = useState(false);
     const torrent = viewModel.detailData;
     const {
         active,
@@ -307,6 +322,7 @@ export const useTorrentDetailTabCoordinator = ({
                 pieceSize: torrent.pieceSize,
                 pieceStates: torrent.pieceStates,
                 pieceAvailability: torrent.pieceAvailability,
+                showPersistentHud: showPiecesHud,
             },
             trackers: {
                 targetIds: viewModel.tabs.trackers.targetIds,
@@ -316,6 +332,10 @@ export const useTorrentDetailTabCoordinator = ({
                     ? t("torrent_modal.loading")
                     : t("torrent_modal.trackers.empty_backend"),
                 isStandalone,
+                showAddEditor: showTrackersAddEditor,
+                onToggleAddEditor: () =>
+                    setShowTrackersAddEditor((current) => !current),
+                onCloseAddEditor: () => setShowTrackersAddEditor(false),
                 addTrackers,
                 replaceTrackers,
                 removeTrackers,
@@ -347,6 +367,8 @@ export const useTorrentDetailTabCoordinator = ({
         isStandalone,
         removeTrackers,
         replaceTrackers,
+        showPiecesHud,
+        showTrackersAddEditor,
         t,
         torrent,
         viewModel.tabs.content.handleFileSelectionChange,
@@ -446,11 +468,36 @@ export const useTorrentDetailTabCoordinator = ({
         return activeDefinition ? activeDefinition.render(surfaces) : null;
     }, [active, surfaces, visibleTabDefs]);
 
+    const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
+        if (active === "pieces" && surfaces.pieces) {
+            return [
+                {
+                    icon: showPiecesHud ? EyeOff : Eye,
+                    onPress: () => setShowPiecesHud((current) => !current),
+                    ariaLabel: showPiecesHud
+                        ? t("torrent_modal.piece_map.hide_hud")
+                        : t("torrent_modal.piece_map.show_hud"),
+                },
+            ];
+        }
+        if (active === "trackers" && surfaces.trackers) {
+            return [
+                {
+                    icon: Plus,
+                    onPress: surfaces.trackers.onToggleAddEditor,
+                    ariaLabel: t("torrent_modal.trackers.add"),
+                },
+            ];
+        }
+        return [];
+    }, [active, showPiecesHud, surfaces.pieces, surfaces.trackers, t]);
+
     return {
         active,
         setActive,
         handleKeyDown,
         activeSurface,
+        headerActions,
         tabs: visibleTabDefs.map(({ id, labelKey }) => ({
             id,
             labelKey,

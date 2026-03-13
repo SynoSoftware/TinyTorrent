@@ -161,10 +161,7 @@ const PiecesMapHud = ({
     availabilityMissing: boolean;
     t: Translate;
 }) => (
-    <div
-        className={SPLIT.mapHud}
-        style={SPLIT.mapStatsTrackingStyle}
-    >
+    <div className={SPLIT.mapHud} style={SPLIT.mapStatsTrackingStyle}>
         {renderHudStat({
             label: t("torrent_modal.stats.pieces"),
             value: totalPieces,
@@ -217,14 +214,8 @@ const PiecesMapTooltip = ({
     }
 
     return (
-        <div
-            ref={tooltipRef}
-            className={SPLIT.mapTooltip}
-            style={tooltipStyle ?? HIDDEN_TOOLTIP_STYLE}
-        >
-            <span className={SPLIT.mapTooltipPrimaryLine}>
-                {tooltipDetail.title}
-            </span>
+        <div ref={tooltipRef} className={SPLIT.mapTooltip} style={tooltipStyle ?? HIDDEN_TOOLTIP_STYLE}>
+            <span className={SPLIT.mapTooltipPrimaryLine}>{tooltipDetail.title}</span>
             {tooltipDetail.swatches.length > 0 && (
                 <div
                     className={SPLIT.mapTooltipSwatchGrid}
@@ -251,13 +242,10 @@ const PiecesMapTooltip = ({
                 </div>
             )}
             <div className={SPLIT.mapTooltipInfoStack}>
-                <span className={SPLIT.mapTooltipSecondaryLine}>
-                    {tooltipDetail.summary}
-                </span>
+                <span className={SPLIT.mapTooltipSecondaryLine}>{tooltipDetail.summary}</span>
                 {tooltipDetail.availabilityLine && (
                     <span className={SPLIT.mapTooltipSecondaryLine}>
-                        {t("torrent_modal.stats.availability")}:{" "}
-                        {tooltipDetail.availabilityLine}
+                        {t("torrent_modal.stats.availability")}: {tooltipDetail.availabilityLine}
                     </span>
                 )}
             </div>
@@ -265,27 +253,18 @@ const PiecesMapTooltip = ({
     );
 };
 
-const PiecesMapLegend = ({
-    legendCells,
-}: {
-    legendCells: Array<LegendCell | null>;
-}) => (
+const PiecesMapLegend = ({ legendCells }: { legendCells: Array<LegendCell | null> }) => (
     <div className={SPLIT.mapLegendFloat}>
         <div className={SPLIT.mapLegendGrid}>
             {legendCells.map((cell, index) =>
                 cell ? (
-                    <span
-                        key={`piece-map-legend-${cell.key}`}
-                        className={SPLIT.mapLegendCell}
-                    >
+                    <span key={`piece-map-legend-${cell.key}`} className={SPLIT.mapLegendCell}>
                         <span className={SPLIT.mapLegendItem}>
                             <span
                                 className={SPLIT.mapLegendSwatch}
                                 style={SPLIT.builder.legendSwatchStyle(cell.swatch)}
                             />
-                            <span className={TEXT_ROLE.bodyMuted}>
-                                {cell.label}
-                            </span>
+                            <span className={TEXT_ROLE.bodyMuted}>{cell.label}</span>
                         </span>
                     </span>
                 ) : (
@@ -302,10 +281,7 @@ const PiecesMapLegend = ({
     </div>
 );
 
-const PiecesMapView = ({
-    viewModel,
-    showPersistentHud,
-}: PiecesMapViewProps) => {
+const PiecesMapView = ({ viewModel, showPersistentHud }: PiecesMapViewProps) => {
     const { t } = useTranslation();
     const {
         refs: { rootRef, canvasRef, overlayRef, tooltipRef },
@@ -326,31 +302,6 @@ const PiecesMapView = ({
 
     return (
         <div className={SPLIT.mapPanel}>
-            <div
-                ref={rootRef}
-                className={`${SPLIT.mapFrame} ${SPLIT.mapFrameInner}`}
-            >
-                <canvas
-                    ref={canvasRef}
-                    className={SPLIT.mapCanvasLayer}
-                    onMouseMove={handlers.onMouseMove}
-                    onMouseLeave={handlers.onMouseLeave}
-                    style={SPLIT.builder.canvasInteractionStyle("default")}
-                />
-                <canvas
-                    ref={overlayRef}
-                    className={SPLIT.mapCanvasOverlayLayer}
-                />
-
-                <PiecesMapTooltip
-                    tooltipDetail={tooltipDetail}
-                    tooltipRef={tooltipRef}
-                    tooltipStyle={tooltipStyle}
-                    palette={palette}
-                    t={t}
-                />
-            </div>
-
             {showPersistentHud && (
                 <div className={SPLIT.mapHudDockRow}>
                     <PiecesMapHud
@@ -367,6 +318,24 @@ const PiecesMapView = ({
                     <PiecesMapLegend legendCells={legendCells} />
                 </div>
             )}
+            <div ref={rootRef} className={`${SPLIT.mapFrame} ${SPLIT.mapFrameInner}`}>
+                <canvas
+                    ref={canvasRef}
+                    className={SPLIT.mapCanvasLayer}
+                    onMouseMove={handlers.onMouseMove}
+                    onMouseLeave={handlers.onMouseLeave}
+                    style={SPLIT.builder.canvasInteractionStyle("default")}
+                />
+                <canvas ref={overlayRef} className={SPLIT.mapCanvasOverlayLayer} />
+
+                <PiecesMapTooltip
+                    tooltipDetail={tooltipDetail}
+                    tooltipRef={tooltipRef}
+                    tooltipStyle={tooltipStyle}
+                    palette={palette}
+                    t={t}
+                />
+            </div>
         </div>
     );
 };
@@ -375,15 +344,7 @@ type PiecesMapComponentProps = PiecesMapProps & {
     showPersistentHud?: boolean;
 };
 
-export const PiecesMap = ({
-    showPersistentHud = true,
-    ...props
-}: PiecesMapComponentProps) => {
+export const PiecesMap = ({ showPersistentHud = true, ...props }: PiecesMapComponentProps) => {
     const viewModel = usePiecesMapViewModel(props);
-    return (
-        <PiecesMapView
-            viewModel={viewModel}
-            showPersistentHud={showPersistentHud}
-        />
-    );
+    return <PiecesMapView viewModel={viewModel} showPersistentHud={showPersistentHud} />;
 };

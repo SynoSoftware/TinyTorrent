@@ -7,6 +7,7 @@ import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 const addTrackersMock = vi.fn();
 const replaceTrackersMock = vi.fn();
 const removeTrackersMock = vi.fn();
+const closeAddEditorMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
     useTranslation: () => ({
@@ -46,6 +47,8 @@ const ViewModelHarness = forwardRef<HarnessRef, { trackers: TorrentTrackerEntity
             trackers,
             emptyMessage: "empty",
             serverTime: 0,
+            showAddEditor: false,
+            onCloseAddEditor: closeAddEditorMock,
             addTrackers: addTrackersMock,
             replaceTrackers: replaceTrackersMock,
             removeTrackers: removeTrackersMock,
@@ -118,6 +121,7 @@ describe("useTorrentDetailsTrackersViewModel", () => {
         addTrackersMock.mockReset();
         replaceTrackersMock.mockReset();
         removeTrackersMock.mockReset();
+        closeAddEditorMock.mockReset();
         addTrackersMock.mockResolvedValue({ status: "applied" });
         replaceTrackersMock.mockResolvedValue({ status: "applied" });
         removeTrackersMock.mockResolvedValue({ status: "applied" });

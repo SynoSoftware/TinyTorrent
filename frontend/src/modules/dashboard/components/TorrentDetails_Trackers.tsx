@@ -1,9 +1,8 @@
 import React from "react";
-import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
+import { Activity, Timer, Users, X, Check } from "lucide-react";
 import { Button, Textarea } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
-import { TEXT_ROLE } from "@/config/textRoles";
 import {
     DETAILS,
     SURFACE,
@@ -22,6 +21,8 @@ interface TrackersTabProps {
     emptyMessage: string;
     serverTime?: number;
     isStandalone?: boolean;
+    showAddEditor: boolean;
+    onCloseAddEditor: () => void;
     addTrackers: (
         targetIds: Array<string | number>,
         trackers: string[],
@@ -42,6 +43,8 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     trackers,
     emptyMessage,
     serverTime,
+    showAddEditor,
+    onCloseAddEditor,
     addTrackers,
     replaceTrackers,
     removeTrackers,
@@ -53,6 +56,8 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
         trackers,
         emptyMessage,
         serverTime,
+        showAddEditor,
+        onCloseAddEditor,
         addTrackers,
         replaceTrackers,
         removeTrackers,
@@ -173,27 +178,6 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
 
     return (
         <div className={DETAILS.table.root}>
-            <div className={DETAILS.table.toolbar}>
-                <div className={DETAILS.table.toolbarGroup}>
-                    <StatusIcon
-                        Icon={Activity}
-                        size="md"
-                        className={DETAILS.table.toolbarIconPrimary}
-                    />
-                    <span className={TEXT_ROLE.label}>
-                        {viewModel.labels.title}
-                    </span>
-                </div>
-
-                <div className={DETAILS.table.toolbarGroup}>
-                    <ToolbarIconButton
-                        Icon={Plus}
-                        ariaLabel={viewModel.labels.toggleAddAriaLabel}
-                        onPress={viewModel.actions.toggleAdd}
-                    />
-                </div>
-            </div>
-
             <div className={DETAILS.table.body}>
                 {isStandalone ? (
                     <GlassPanel className={DETAILS.table.panel}>

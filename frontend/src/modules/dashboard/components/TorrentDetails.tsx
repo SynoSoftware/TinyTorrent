@@ -43,7 +43,14 @@ export function TorrentDetails({
     const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
         torrent,
     });
-    const { active, setActive, handleKeyDown, activeSurface, tabs } =
+    const {
+        active,
+        setActive,
+        handleKeyDown,
+        activeSurface,
+        tabs,
+        headerActions,
+    } =
         useTorrentDetailTabCoordinator({
             viewModel,
             isStandalone,
@@ -70,6 +77,7 @@ export function TorrentDetails({
                 activeTab={active}
                 onTabChange={setActive}
                 tabs={tabs}
+                headerActions={headerActions}
                 statusLabel={statusLabel}
                 statusTooltip={tooltip}
                 primaryHint={primaryHint}
