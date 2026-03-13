@@ -314,6 +314,11 @@ const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEn
     seederCount: Number.isFinite(Number(tracker.seederCount)) ? Number(tracker.seederCount) : NaN,
     leecherCount: Number.isFinite(Number(tracker.leecherCount)) ? Number(tracker.leecherCount) : NaN,
     scrapeState: tracker.scrapeState,
+    nextAnnounceTime:
+        Number.isFinite(Number(tracker.nextAnnounceTime))
+            ? Number(tracker.nextAnnounceTime)
+            : undefined,
+    isBackup: tracker.isBackup ?? false,
 });
 
 const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
@@ -361,8 +366,8 @@ export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity =>
         peerSummary: {
             connected: numOr(torrent.peersConnected, 0),
             total: numOr(torrent.peersConnected, 0),
-            sending: numOr(torrent.peersSendingToUs, 0),
-            getting: numOr(torrent.peersGettingFromUs, 0),
+            sending: numOr(torrent.peersGettingFromUs, 0),
+            getting: numOr(torrent.peersSendingToUs, 0),
             seeds: numOr(torrent.peersSendingToUs, 0),
         },
         totalSize: numOr(torrent.totalSize, 0),
@@ -410,6 +415,42 @@ export const normalizeTorrentDetail = (detail: TransmissionTorrentDetail): Torre
         pieceStates: detail.pieceStates,
         pieceAvailability: detail.pieceAvailability,
         downloadDir: detail.downloadDir,
+        activityDate:
+            typeof detail.activityDate === "number"
+                ? detail.activityDate
+                : undefined,
+        comment:
+            typeof detail.comment === "string" ? detail.comment : undefined,
+        corruptEver:
+            typeof detail.corruptEver === "number"
+                ? detail.corruptEver
+                : undefined,
+        creator:
+            typeof detail.creator === "string" ? detail.creator : undefined,
+        dateCreated:
+            typeof detail.dateCreated === "number"
+                ? detail.dateCreated
+                : undefined,
+        downloadLimit:
+            typeof detail.downloadLimit === "number"
+                ? detail.downloadLimit
+                : undefined,
+        downloadLimited:
+            typeof detail.downloadLimited === "boolean"
+                ? detail.downloadLimited
+                : undefined,
+        isPrivate:
+            typeof detail.isPrivate === "boolean"
+                ? detail.isPrivate
+                : undefined,
+        uploadLimit:
+            typeof detail.uploadLimit === "number"
+                ? detail.uploadLimit
+                : undefined,
+        uploadLimited:
+            typeof detail.uploadLimited === "boolean"
+                ? detail.uploadLimited
+                : undefined,
     };
 };
 

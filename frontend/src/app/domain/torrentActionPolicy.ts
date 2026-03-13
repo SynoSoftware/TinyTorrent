@@ -32,9 +32,13 @@ const getOptimisticStateForAction = (
         case "recheck":
             return isCheckingLike(torrent) ? undefined : status.torrent.checking;
         case "resume":
-            // Transmission may queue resume while verifying or queue-limited.
-            // Do not project a deterministic running state here.
-            return undefined;
+            if (isCheckingLike(torrent) || torrent.state !== status.torrent.paused) {
+                return undefined;
+            }
+            // Resume is not guaranteed to become active immediately.
+            // Project the safest non-paused state so UI responds instantly
+            // without claiming download/seeding certainty.
+            return status.torrent.queued;
     }
 };
 

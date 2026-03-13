@@ -40,6 +40,8 @@ export interface TorrentTrackerEntity {
     seederCount: number;
     leecherCount: number;
     scrapeState?: number;
+    nextAnnounceTime?: number;
+    isBackup?: boolean;
 }
 
 export interface TorrentPeerEntity {
@@ -107,6 +109,16 @@ export interface TorrentDetailEntity extends TorrentEntity {
     pieceStates?: number[];
     pieceAvailability?: number[];
     downloadDir?: string;
+    activityDate?: number;
+    comment?: string;
+    corruptEver?: number;
+    creator?: string;
+    dateCreated?: number;
+    downloadLimit?: number;
+    downloadLimited?: boolean;
+    isPrivate?: boolean;
+    uploadLimit?: number;
+    uploadLimited?: boolean;
 }
 
 export interface AddTorrentPayload {

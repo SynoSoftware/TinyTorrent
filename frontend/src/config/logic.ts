@@ -683,6 +683,10 @@ const detailsLayoutSchema = {
         configKey: "tab_content_max_height",
         fallback: defaultLayoutDetails.tab_content_max_height,
     },
+    inspectorBreakpointPx: {
+        configKey: "inspector_breakpoint_px",
+        fallback: 1024,
+    },
 } as const;
 const detailsLayoutResolved = readNumberDomainFromSchema(
     detailsLayoutConfig,
@@ -690,6 +694,8 @@ const detailsLayoutResolved = readNumberDomainFromSchema(
 );
 const detailsTabContentMaxHeight =
     detailsLayoutResolved.tabContentMaxHeight;
+const detailsInspectorBreakpointPx =
+    detailsLayoutResolved.inspectorBreakpointPx;
 
 const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
     piece_map: {
@@ -985,6 +991,10 @@ const timing = resolvedTiming;
 ========================================= */
 const layout = {
     table: tableLayout,
+    details: {
+        tabContentMaxHeight: detailsTabContentMaxHeight,
+        inspectorBreakpointPx: detailsInspectorBreakpointPx,
+    },
 } as const;
 
 /* =========================================

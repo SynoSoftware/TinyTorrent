@@ -1,3 +1,4 @@
+import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info, type LucideIcon } from "lucide-react";
 import {
@@ -11,13 +12,11 @@ import type {
     TorrentDetailHeaderAction,
     TorrentDetailTabDefinition,
 } from "@/modules/dashboard/hooks/useDetailTabs";
-import { DETAILS } from "@/shared/ui/layout/glass-surface";
+import { DETAILS, WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { sanitizeDomIdToken } from "@/shared/utils/dom";
 const { visuals } = registry;
 
 const NAME_MAX_LENGTH = 56;
-
-const sanitizeDomIdToken = (value: string) =>
-    value.replace(/[^A-Za-z0-9_-]+/g, "-");
 
 const truncateTorrentName = (value?: string, fallback?: string) => {
     if (!value && fallback) return fallback;
@@ -68,6 +67,22 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     } = props;
 
     const { t } = useTranslation();
+    const toneButtonClass = {
+        success:
+            visuals.status.recipes[visuals.status.keys.tone.success]?.button ??
+            WORKBENCH.nav.toneButtonFallback.success,
+        warning:
+            visuals.status.recipes[visuals.status.keys.tone.warning]?.button ??
+            WORKBENCH.nav.toneButtonFallback.warning,
+        danger:
+            visuals.status.recipes[visuals.status.keys.tone.danger]?.button ??
+            WORKBENCH.nav.toneButtonFallback.danger,
+        neutral:
+            visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ??
+            WORKBENCH.nav.toneButtonFallback.neutral,
+        default:
+            WORKBENCH.nav.ghostAction,
+    } as const;
     const renderedName = truncateTorrentName(
         torrent?.name,
         t("general.unknown"),
@@ -187,8 +202,12 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                     key={`tab-header-action-${index}`}
                                     Icon={action.icon}
                                     ariaLabel={action.ariaLabel}
+                                    title={action.ariaLabel}
                                     onPress={action.onPress}
-                                    className={DETAILS.headerContextActionButton}
+                                    className={cn(
+                                        DETAILS.headerContextActionButton,
+                                        toneButtonClass[action.tone],
+                                    )}
                                     iconSize="md"
                                 />
                             ))}
@@ -206,6 +225,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                         key={`global-header-action-${index}`}
                         Icon={action.icon}
                         ariaLabel={action.ariaLabel}
+                        title={action.ariaLabel}
                         onClick={action.onClick}
                         iconSize="md"
                     />

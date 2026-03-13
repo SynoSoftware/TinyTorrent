@@ -32,6 +32,16 @@ export interface TransmissionTorrent {
     isFinished?: boolean;
     sequentialDownload?: boolean;
     superSeeding?: boolean;
+    activityDate?: number;
+    comment?: string;
+    corruptEver?: number;
+    creator?: string;
+    dateCreated?: number;
+    downloadLimit?: number;
+    downloadLimited?: boolean;
+    isPrivate?: boolean;
+    uploadLimit?: number;
+    uploadLimited?: boolean;
 }
 
 export interface TransmissionTorrentFile {
@@ -59,6 +69,8 @@ export interface TransmissionTorrentTracker {
     seederCount: number;
     leecherCount: number;
     scrapeState?: number;
+    nextAnnounceTime?: number;
+    isBackup?: boolean;
 }
 
 export interface TransmissionTorrentPeer {

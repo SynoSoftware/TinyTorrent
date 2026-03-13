@@ -852,14 +852,65 @@
         "files_empty": "No files are available.",
         "files_title": "Contents",
         "general": {
-            "download": "Download",
-            "eta": "ETA",
-            "eta_unknown": "Unknown",
-            "peers": "Peers",
-            "progress": "Progress",
-            "size": "Total Size",
-            "status": "Status",
-            "upload": "Upload"
+            "actions": {
+                "copy_hash": "Copy info hash",
+                "hide_advanced": "Hide advanced details",
+                "show_advanced": "Show advanced details"
+            },
+            "feedback": {
+                "clipboard_unavailable": "Clipboard is unavailable.",
+                "hash_copied": "Info hash copied.",
+                "hash_copy_failed": "Failed to copy info hash."
+            },
+            "fields": {
+                "comment": "Comment",
+                "completed_on": "Completed on",
+                "connections": "Connections",
+                "created_by": "Created by",
+                "created_on": "Created on",
+                "download_limit": "Download limit",
+                "download_speed": "Download speed",
+                "downloaded": "Downloaded",
+                "eta": "ETA",
+                "info_hash": "Info hash",
+                "name": "Name",
+                "peers": "Peers",
+                "peers_downloading_from": "Peers downloading from",
+                "peers_uploading_to": "Peers uploading to",
+                "pieces": "Pieces",
+                "private": "Private",
+                "progress": "Progress",
+                "queue_position": "Queue position",
+                "reannounce_in": "Reannounce in",
+                "seeds": "Seeds",
+                "size": "Size",
+                "speed": "Speed",
+                "status": "Status",
+                "time_active": "Time active",
+                "time_added": "Time added",
+                "upload_limit": "Upload limit",
+                "upload_speed": "Upload speed",
+                "uploaded": "Uploaded",
+                "wasted": "Wasted"
+            },
+            "sections": {
+                "information": "Information",
+                "information_description": "Identity, storage, and origin metadata.",
+                "summary": "Summary",
+                "summary_description": "Table-replacement facts for fullscreen details.",
+                "transfer": "Transfer",
+                "transfer_description": "Current transfer state and live session metrics."
+            },
+            "values": {
+                "downloading_from_count": "{{count}} from",
+                "infinite": "Infinite",
+                "not_completed": "Not completed",
+                "pieces": "{{count}} x {{size}}",
+                "private": "Private",
+                "public": "Public",
+                "unavailable": "Unavailable",
+                "uploading_to_count": "{{count}} to"
+            }
         },
         "ghost_states": {
             "loading": "Adding torrent...",

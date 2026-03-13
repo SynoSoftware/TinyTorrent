@@ -4,9 +4,7 @@ import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDet
 import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
-
-const sanitizeDomIdToken = (value: string) =>
-    value.replace(/[^A-Za-z0-9_-]+/g, "-");
+import { sanitizeDomIdToken } from "@/shared/utils/dom";
 
 export interface TorrentDetailsProps {
     viewModel: DashboardDetailViewModel;
@@ -42,6 +40,7 @@ export function TorrentDetails({
     );
     const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
         torrent,
+        optimisticStatus: viewModel.optimisticStatus,
     });
     const {
         active,
@@ -54,6 +53,7 @@ export function TorrentDetails({
         useTorrentDetailTabCoordinator({
             viewModel,
             isStandalone,
+            isDetailFullscreen,
         });
 
     return (
@@ -64,6 +64,7 @@ export function TorrentDetails({
                 isStandalone ? DETAILS.rootStandalone : null,
             )}
             tabIndex={0}
+            data-detail-host="true"
             onKeyDown={handleKeyDown}
         >
             {/* Header Bar: Torrent identity + toolbar */}

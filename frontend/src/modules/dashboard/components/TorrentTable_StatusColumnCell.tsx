@@ -6,6 +6,7 @@ import { registry } from "@/config/logic";
 import { status } from "@/shared/status";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
+import { getEffectiveTorrentState, getTorrentStatusLabelKey } from "@/modules/dashboard/utils/torrentStatus";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 import { ArrowDown, ArrowUp, Bug, WifiOff, ListStart, Pause, RefreshCw, FolderSync } from "lucide-react";
@@ -16,7 +17,11 @@ type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" |
 type StatusMeta = {
     color: StatusColor;
     icon: LucideIcon;
-    labelKey: string;
+};
+
+const UNKNOWN_STATUS_META: StatusMeta = {
+    color: "danger",
+    icon: Bug,
 };
 
 const STATUS_CHIP_STYLE = {
@@ -31,37 +36,30 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
     [status.torrent.downloading]: {
         color: "success",
         icon: ArrowDown,
-        labelKey: "table.status_dl",
     },
     [status.torrent.seeding]: {
         color: "primary",
         icon: ArrowUp,
-        labelKey: "table.status_seed",
     },
     [status.torrent.paused]: {
         color: "warning",
         icon: Pause,
-        labelKey: "table.status_pause",
     },
     [status.torrent.checking]: {
         color: "warning",
         icon: RefreshCw,
-        labelKey: "table.status_checking",
     },
     [status.torrent.queued]: {
         color: "secondary",
         icon: ListStart,
-        labelKey: "table.status_queued",
     },
     [status.torrent.stalled]: {
         color: "secondary",
         icon: WifiOff,
-        labelKey: "table.status_stalled",
     },
     [status.torrent.error]: {
         color: "danger",
         icon: Bug,
-        labelKey: "table.status_error",
     },
 };
 
@@ -104,9 +102,16 @@ export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: Torren
         return renderChip(FolderSync, "primary", label, label);
     }
 
-    const conf = statusMap[torrent.state] ?? statusMap[status.torrent.paused];
+    const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
+    const conf = statusMap[effectiveState] ?? UNKNOWN_STATUS_META;
     const Icon = conf.icon;
-    const label = t(conf.labelKey);
+    const labelKey = getTorrentStatusLabelKey(effectiveState);
+    const label =
+        labelKey != null
+            ? t(labelKey)
+            : typeof effectiveState === "string" && effectiveState.length > 0
+              ? effectiveState
+              : t("table.status_error");
     const tooltip = torrent.errorString && torrent.errorString.trim().length > 0 ? torrent.errorString : label;
 
     return renderChip(Icon, conf.color, label, tooltip);

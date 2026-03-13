@@ -34,6 +34,16 @@ describe("torrentActionPolicy", () => {
         expect(updates).toEqual([]);
     });
 
+    it("projects queued for paused -> resume", () => {
+        const updates = buildOptimisticStatusUpdatesForAction("resume", [
+            makeTorrent({ state: status.torrent.paused }),
+        ]);
+
+        expect(updates).toEqual([
+            { id: "torrent-1", state: status.torrent.queued },
+        ]);
+    });
+
     it("projects paused for downloading state", () => {
         const pauseProjection = buildOptimisticStatusUpdatesForAction("pause", [
             makeTorrent({ state: status.torrent.downloading }),

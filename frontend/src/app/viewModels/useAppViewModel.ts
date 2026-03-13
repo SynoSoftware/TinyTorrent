@@ -16,6 +16,7 @@ import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter"
 import type {
     PeerSortStrategy,
     DetailTab,
+    OptimisticStatusEntry,
 } from "@/modules/dashboard/types/contracts";
 import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
@@ -49,6 +50,7 @@ export interface TorrentTableViewModel {
 
 export interface DashboardDetailViewModel {
     detailData: TorrentDetail | null;
+    optimisticStatus?: OptimisticStatusEntry;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
     tabs: {

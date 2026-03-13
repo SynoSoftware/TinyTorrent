@@ -216,6 +216,8 @@ const zTransmissionTorrentTrackerStat = z
         seederCount: zRpcOptionalNumberLike,
         leecherCount: zRpcOptionalNumberLike,
         scrapeState: z.number().optional(),
+        nextAnnounceTime: zRpcOptionalNumberLike,
+        isBackup: z.boolean().optional(),
     })
     .passthrough();
 
@@ -280,6 +282,16 @@ const zTransmissionTorrent = z
         isFinished: z.boolean().optional(),
         sequentialDownload: z.boolean().optional(),
         superSeeding: z.boolean().optional(),
+        activityDate: z.number().optional(),
+        comment: z.string().optional(),
+        corruptEver: z.number().optional(),
+        creator: z.string().optional(),
+        dateCreated: z.number().optional(),
+        downloadLimit: z.number().optional(),
+        downloadLimited: z.boolean().optional(),
+        isPrivate: z.boolean().optional(),
+        uploadLimit: z.number().optional(),
+        uploadLimited: z.boolean().optional(),
     })
     .passthrough();
 
@@ -321,6 +333,8 @@ const mergeTrackerRuntimeFields = (
         seederCount: trackerStat?.seederCount ?? NaN,
         leecherCount: trackerStat?.leecherCount ?? NaN,
         scrapeState: trackerStat?.scrapeState,
+        nextAnnounceTime: trackerStat?.nextAnnounceTime,
+        isBackup: trackerStat?.isBackup ?? false,
     });
 
     if (trackers.length > 0) {
@@ -375,6 +389,9 @@ const zTransmissionTorrentTrackerStatsArray = z.preprocess(
                 seederCount: raw.seederCount ?? raw.seeder_count,
                 leecherCount: raw.leecherCount ?? raw.leecher_count,
                 scrapeState: raw.scrapeState ?? raw.scrape_state,
+                nextAnnounceTime:
+                    raw.nextAnnounceTime ?? raw.next_announce_time,
+                isBackup: raw.isBackup ?? raw.is_backup,
             };
         });
     },

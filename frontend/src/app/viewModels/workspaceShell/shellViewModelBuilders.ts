@@ -113,6 +113,10 @@ export function useDashboardViewModel({
             },
             detail: {
                 detailData,
+                optimisticStatus:
+                    detailData != null
+                        ? optimisticStatuses[detailData.id]
+                        : undefined,
                 handleRequestDetails,
                 closeDetail,
                 tabs: {

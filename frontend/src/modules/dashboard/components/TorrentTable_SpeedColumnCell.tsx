@@ -24,6 +24,17 @@ interface TorrentTableSpeedColumnCellProps {
     table: Table<Torrent>;
 }
 
+export const getTorrentCompactSpeedValue = (torrent: Torrent) => {
+    const isDownloading = torrent.state === status.torrent.downloading;
+    const isSeeding = torrent.state === status.torrent.seeding;
+
+    return isDownloading
+        ? torrent.speed.down
+        : isSeeding
+          ? torrent.speed.up
+          : null;
+};
+
 export function TorrentTable_SpeedCell({
     torrent,
     table,
@@ -35,11 +46,7 @@ export function TorrentTable_SpeedCell({
     const isDownloading = torrent.state === status.torrent.downloading;
     const isSeeding = torrent.state === status.torrent.seeding;
 
-    const speedValue = isDownloading
-        ? torrent.speed.down
-        : isSeeding
-          ? torrent.speed.up
-          : null;
+    const speedValue = getTorrentCompactSpeedValue(torrent);
 
     const meta = table.options.meta as SpeedTableMeta | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];

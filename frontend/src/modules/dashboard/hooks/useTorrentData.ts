@@ -139,12 +139,16 @@ export function useTorrentData({
 
     const snapshotCacheRef = useRef<Map<string, Torrent>>(new Map());
     const snapshotOrderRef = useRef<string[]>([]);
+    const snapshotTimestampRef = useRef(0);
     const [ghosts, setGhosts] = useState<Torrent[]>([]);
     const ghostTimersRef = useRef<Map<string, () => void>>(new Map());
 
     const commitTorrentSnapshot = useCallback(
-        (data: Torrent[]) => {
+        (data: Torrent[], timestamp = Date.now()) => {
             if (!isMountedRef.current) return;
+            if (timestamp < snapshotTimestampRef.current) {
+                return;
+            }
             const nextCache = new Map<string, Torrent>();
             const previousCache = snapshotCacheRef.current;
             const previousOrder = snapshotOrderRef.current;
@@ -177,6 +181,7 @@ export function useTorrentData({
 
             snapshotCacheRef.current = nextCache;
             snapshotOrderRef.current = nextOrder;
+            snapshotTimestampRef.current = timestamp;
 
             // pushSpeeds removed: engine-owned history is canonical
             markTransportConnected?.();
@@ -272,9 +277,10 @@ export function useTorrentData({
     );
 
     const refresh = useCallback(async () => {
+        const requestStartedAt = Date.now();
         try {
             const data = await client.getTorrents();
-            commitTorrentSnapshot(data);
+            commitTorrentSnapshot(data, requestStartedAt);
         } catch (error) {
             if (isMountedRef.current && !isRpcCommandError(error)) {
                 reportReadError();
@@ -294,7 +300,7 @@ export function useTorrentData({
     }, [clearAllGhostTimers]);
 
     const handleHeartbeatUpdate = useCallback(
-        ({ torrents: heartbeatTorrents, changedIds }: HeartbeatPayload) => {
+        ({ torrents: heartbeatTorrents, changedIds, timestampMs }: HeartbeatPayload) => {
             if (!heartbeatTorrents) return;
 
             markTransportConnected?.();
@@ -340,6 +346,7 @@ export function useTorrentData({
 
             snapshotCacheRef.current = nextCache;
             snapshotOrderRef.current = nextOrder;
+            snapshotTimestampRef.current = timestampMs ?? Date.now();
 
             if (!initialLoadRef.current) {
                 initialLoadRef.current = true;

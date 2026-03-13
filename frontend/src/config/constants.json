@@ -51,7 +51,8 @@
             "immersive": {}
         },
         "details": {
-            "tab_content_max_height": 360
+            "tab_content_max_height": 360,
+            "inspector_breakpoint_px": 1024
         }
     },
     "iconography": {

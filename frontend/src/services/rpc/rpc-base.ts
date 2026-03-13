@@ -108,12 +108,22 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
 
 const DETAIL_BASE_FIELDS = [
     ...SUMMARY_FIELDS,
+    "activityDate",
+    "comment",
+    "corruptEver",
+    "creator",
+    "dateCreated",
+    "downloadLimit",
+    "downloadLimited",
     "files",
     "fileStats",
+    "isPrivate",
     "trackers",
     "peers",
     "pieceCount",
     "pieceSize",
+    "uploadLimit",
+    "uploadLimited",
 ];
 
 const DETAIL_TRACKER_FIELDS = [

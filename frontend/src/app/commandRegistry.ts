@@ -1,5 +1,6 @@
 import { Shortcuts } from "@/app/controlPlane/shortcuts";
 import { status } from "@/shared/status";
+import { isTorrentPausableState } from "@/modules/dashboard/utils/torrentStatus";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type {
     CommandAction,
@@ -367,9 +368,7 @@ export function createGlobalHotkeyBindings({
             controller.getState(),
         );
         if (!primaryTorrent) return;
-        const isActive =
-            primaryTorrent.state === status.torrent.downloading ||
-            primaryTorrent.state === status.torrent.seeding;
+        const isActive = isTorrentPausableState(primaryTorrent.state);
         const action: TorrentTableAction = isActive ? "pause" : "resume";
         void controller.handleTorrentAction(action, primaryTorrent);
     };

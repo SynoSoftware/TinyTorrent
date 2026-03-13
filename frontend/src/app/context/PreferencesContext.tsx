@@ -128,7 +128,7 @@ const removeLegacyPreferences = () => {
 //   workbenchScale, workspaceStyle, dismissedHudCardIds,
 //   theme, language,
 //   systemPreferences (preventSleep, autoUpdate, closeAction),
-//   inspectorTab, torrentTableState, speedChartLayoutMode,
+//   inspectorTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
 //   addTorrentDefaults, addTorrentHistory,
 //   connectionProfiles, activeConnectionProfileId.
 // This contract should never shrink without a documented migration path.
@@ -144,6 +144,7 @@ export interface PreferencesState {
     language: LanguageCode;
     systemPreferences: SystemPreferences;
     inspectorTab: DetailTab;
+    generalDetailsAdvanced: boolean;
     torrentTableState: TorrentTablePersistenceState | null;
     speedChartLayoutMode: SpeedChartLayoutMode | null;
     addTorrentDefaults: AddTorrentDefaultsState;
@@ -166,6 +167,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     language: getInitialLanguage(),
     systemPreferences: DEFAULT_SYSTEM_PREFERENCES,
     inspectorTab: DEFAULT_INSPECTOR_TAB,
+    generalDetailsAdvanced: false,
     torrentTableState: DEFAULT_TORRENT_TABLE_STATE,
     speedChartLayoutMode: DEFAULT_SPEED_CHART_LAYOUT,
     addTorrentDefaults: DEFAULT_ADD_TORRENT_DEFAULTS,
@@ -456,6 +458,10 @@ const sanitizePreferences = (
         inspectorTab: isDetailTabValue(value.inspectorTab)
             ? value.inspectorTab
             : DEFAULT_INSPECTOR_TAB,
+        generalDetailsAdvanced:
+            typeof value.generalDetailsAdvanced === "boolean"
+                ? value.generalDetailsAdvanced
+                : DEFAULT_PREFERENCES.generalDetailsAdvanced,
         torrentTableState: isTorrentTableState(value.torrentTableState)
             ? value.torrentTableState
             : DEFAULT_TORRENT_TABLE_STATE,

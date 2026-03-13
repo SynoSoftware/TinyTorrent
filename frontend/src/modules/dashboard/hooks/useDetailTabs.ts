@@ -7,7 +7,16 @@ import {
     type KeyboardEvent,
     type ReactNode,
 } from "react";
-import { Eye, EyeOff, Plus, type LucideIcon } from "lucide-react";
+import {
+    Eye,
+    EyeOff,
+    Pause,
+    Play,
+    Plus,
+    RotateCcw,
+    Trash2,
+    type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 import { usePreferences } from "@/app/context/PreferencesContext";
@@ -26,6 +35,11 @@ import { ShortcutIntents } from "@/shared/controlPlane/shortcutVocabulary";
 import {
     type TorrentDispatchOutcome,
 } from "@/app/actions/torrentDispatch";
+import {
+    getEffectiveTorrentState,
+    isTorrentPausableState,
+} from "@/modules/dashboard/utils/torrentStatus";
+import { isEditableKeyboardTarget } from "@/shared/utils/dom";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 
@@ -42,23 +56,6 @@ const detailTabNavigationIntents = [
     NavigateFirstTab,
     NavigateLastTab,
 ] as const;
-
-const isEditableKeyTarget = (target: EventTarget | null): boolean => {
-    if (!(target instanceof HTMLElement)) {
-        return false;
-    }
-
-    const tagName = target.tagName;
-    if (
-        tagName === "INPUT" ||
-        tagName === "TEXTAREA" ||
-        tagName === "SELECT"
-    ) {
-        return true;
-    }
-
-    return target.isContentEditable || target.closest("[contenteditable='true']") !== null;
-};
 
 interface UseDetailTabsParams {
     inspectorTabCommand?: DetailTab | null;
@@ -106,9 +103,11 @@ export const useDetailTabs = ({
 export interface TorrentDetailTabSurfaces {
     general: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
+        isDetailFullscreen: boolean;
         canSetLocation: boolean;
         onTorrentAction: DashboardDetailViewModel["tabs"]["general"]["handleTorrentAction"];
         setLocation: DashboardDetailViewModel["tabs"]["general"]["setLocation"];
+        optimisticStatus: DashboardDetailViewModel["optimisticStatus"];
     } | null;
     content: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
@@ -168,6 +167,7 @@ export interface TorrentDetailHeaderAction {
     icon: LucideIcon;
     onPress: () => void;
     ariaLabel: string;
+    tone: "success" | "warning" | "neutral" | "danger" | "default";
 }
 
 export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
@@ -220,6 +220,7 @@ export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
 interface UseTorrentDetailTabCoordinatorParams {
     viewModel: DashboardDetailViewModel;
     isStandalone?: boolean;
+    isDetailFullscreen?: boolean;
 }
 
 interface UseTorrentDetailTabCoordinatorResult {
@@ -234,6 +235,7 @@ interface UseTorrentDetailTabCoordinatorResult {
 export const useTorrentDetailTabCoordinator = ({
     viewModel,
     isStandalone = false,
+    isDetailFullscreen = false,
 }: UseTorrentDetailTabCoordinatorParams): UseTorrentDetailTabCoordinatorResult => {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
@@ -303,9 +305,11 @@ export const useTorrentDetailTabCoordinator = ({
         return {
             general: {
                 torrent,
+                isDetailFullscreen,
                 canSetLocation: viewModel.tabs.general.canSetLocation,
                 onTorrentAction: viewModel.tabs.general.handleTorrentAction,
                 setLocation: viewModel.tabs.general.setLocation,
+                optimisticStatus: viewModel.optimisticStatus,
             },
             content: {
                 torrent,
@@ -364,6 +368,7 @@ export const useTorrentDetailTabCoordinator = ({
         };
     }, [
         addTrackers,
+        isDetailFullscreen,
         isStandalone,
         removeTrackers,
         replaceTrackers,
@@ -375,6 +380,7 @@ export const useTorrentDetailTabCoordinator = ({
         viewModel.tabs.general.canSetLocation,
         viewModel.tabs.general.handleTorrentAction,
         viewModel.tabs.general.setLocation,
+        viewModel.optimisticStatus,
         viewModel.tabs.peers.handlePeerContextAction,
         viewModel.tabs.peers.peerSortStrategy,
         viewModel.tabs.trackers.scope,
@@ -416,7 +422,7 @@ export const useTorrentDetailTabCoordinator = ({
                 !(currentTarget instanceof HTMLElement) ||
                 !(target instanceof Node) ||
                 !currentTarget.contains(target) ||
-                isEditableKeyTarget(target)
+                isEditableKeyboardTarget(target)
             ) {
                 return;
             }
@@ -469,6 +475,55 @@ export const useTorrentDetailTabCoordinator = ({
     }, [active, surfaces, visibleTabDefs]);
 
     const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
+        if (active === "general" && surfaces.general) {
+            const generalSurface = surfaces.general;
+            const effectiveState = getEffectiveTorrentState(
+                generalSurface.torrent,
+                generalSurface.optimisticStatus,
+            );
+            const isActiveTorrent = isTorrentPausableState(effectiveState);
+            if (!isDetailFullscreen) {
+                return [];
+            }
+
+            return [
+                {
+                    icon: isActiveTorrent ? Pause : Play,
+                    onPress: () => {
+                        void generalSurface.onTorrentAction(
+                            isActiveTorrent ? "pause" : "resume",
+                            generalSurface.torrent,
+                        );
+                    },
+                    ariaLabel: isActiveTorrent
+                        ? t("toolbar.pause")
+                        : t("toolbar.resume"),
+                    tone: isActiveTorrent ? "warning" : "success",
+                },
+                {
+                    icon: RotateCcw,
+                    onPress: () => {
+                        void generalSurface.onTorrentAction(
+                            "recheck",
+                            generalSurface.torrent,
+                        );
+                    },
+                    ariaLabel: t("toolbar.recheck"),
+                    tone: "neutral",
+                },
+                {
+                    icon: Trash2,
+                    onPress: () => {
+                        void generalSurface.onTorrentAction(
+                            "remove",
+                            generalSurface.torrent,
+                        );
+                    },
+                    ariaLabel: t("toolbar.remove"),
+                    tone: "danger",
+                },
+            ];
+        }
         if (active === "pieces" && surfaces.pieces) {
             return [
                 {
@@ -477,6 +532,7 @@ export const useTorrentDetailTabCoordinator = ({
                     ariaLabel: showPiecesHud
                         ? t("torrent_modal.piece_map.hide_hud")
                         : t("torrent_modal.piece_map.show_hud"),
+                    tone: "default",
                 },
             ];
         }
@@ -486,11 +542,20 @@ export const useTorrentDetailTabCoordinator = ({
                     icon: Plus,
                     onPress: surfaces.trackers.onToggleAddEditor,
                     ariaLabel: t("torrent_modal.trackers.add"),
+                    tone: "default",
                 },
             ];
         }
         return [];
-    }, [active, showPiecesHud, surfaces.pieces, surfaces.trackers, t]);
+    }, [
+        active,
+        isDetailFullscreen,
+        showPiecesHud,
+        surfaces.general,
+        surfaces.pieces,
+        surfaces.trackers,
+        t,
+    ]);
 
     return {
         active,

@@ -1151,8 +1151,8 @@ const DASHBOARD_RESIZE_HANDLE_CLASS = (isHorizontalSplit: boolean) =>
         : `group relative z-panel ${transition.fast} focus:outline-none cursor-row-resize`;
 const DASHBOARD_INSPECTOR_PANEL_CLASS = (isHorizontalSplit: boolean) =>
     isHorizontalSplit
-        ? "hidden overflow-hidden lg:flex shadow-medium h-full"
-        : "hidden overflow-hidden lg:flex shadow-medium w-full";
+        ? "overflow-hidden shadow-medium h-full"
+        : "overflow-hidden shadow-medium w-full";
 export const DASHBOARD = {
     root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${transition.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
@@ -1229,7 +1229,7 @@ const DETAILS_TABLE = {
 export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${SURFACE.atom.glassBlock} ${SURFACE.atom.shadowBlock}`,
     rootStandalone: "overflow-y-auto",
-    body: "flex-1 min-h-0 bg-transparent py-tight",
+    body: "flex-1 min-h-0 overflow-y-auto bg-transparent py-tight overlay-scrollbar",
     headerRoot: "grid items-center h-row",
     headerRootEmbedded: "bg-content1/80 border-b border-default/10",
     headerTrackingStyle: {
@@ -1240,8 +1240,8 @@ export const DETAILS = {
     headerTitle: "truncate min-w-0 text-foreground font-semibold",
     headerStatus: `${TEXT_ROLE.caption} block`,
     headerPrimaryHint: withOpacity(TEXT_ROLE.caption, 50),
-    headerCenter: "flex min-w-0 items-center justify-center px-panel overflow-hidden",
-    headerTabs: "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-hidden px-panel",
+    headerCenter: "flex min-w-0 items-center justify-center px-tight overflow-hidden",
+    headerTabs: "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-x-auto overflow-y-hidden px-tight scrollbar-hide",
     headerTabBase: `group text-navbar font-semibold relative flex h-full shrink-0 items-center px-panel py-panel text-foreground/60 ${transition.fast}`,
     headerTabActive: "text-foreground/85 font-semibold",
     headerTabInactive: "bg-transparent hover:text-foreground/85",
@@ -1254,7 +1254,7 @@ export const DETAILS = {
     headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
     headerContextActions: "flex shrink-0 items-center gap-tight",
     headerContextActionButton:
-        "border border-primary/25 bg-primary/5 text-foreground/70 hover:border-primary/40 hover:bg-primary/10 hover:text-foreground",
+        "border border-default/20 bg-content1/10 text-foreground/70 hover:border-default/30 hover:bg-content2/15 hover:text-foreground",
     headerContextDivider: "h-status-chip w-px bg-foreground/12 mx-tight",
     speedRoot: "h-full flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
@@ -1262,24 +1262,37 @@ export const DETAILS = {
     speedChartHost: "flex-1 min-h-0",
     speedCheckingAlert: `${withColor(TEXT_ROLE.body, "warning")} mb-tight shrink-0`,
     speedCollectingPanel: `mb-tight shrink-0 rounded-2xl border ${visuals.surface.border} bg-background/20 p-panel ${withOpacity(TEXT_ROLE.body, 50)}`,
-    generalRoot: "space-y-stage",
-    generalCard: `p-panel flex flex-col gap-tools ${SURFACE.surface.panelInfo}`,
-    generalHeaderRow: "flex items-center justify-between",
-    generalPathCode: `${TEXT_ROLE.codeMuted} ${SURFACE.atom.codeInline} wrap-break-word mt-2`,
-    generalPrimaryCol: "flex-1",
-    generalVerifyCol: "w-1/3 pl-4",
-    generalVerifyWrap: "mt-2",
-    generalWarningStack: "flex flex-col gap-tools",
-    generalProbeStack: `flex flex-col gap-tight ${TEXT_ROLE.codeMuted} text-warning/80`,
-    generalRecoveryHint: `${withColor(TEXT_ROLE.caption, "warning")} text-warning/80`,
-    generalControlsGrid: "grid gap-tools sm:grid-cols-2",
-    generalControlsSpan: "col-span-2",
-    generalControlsMeta: "flex flex-col gap-tight",
-    generalControlsActions: "flex items-center gap-tools",
-    generalControlsDescription: withOpacity(TEXT_ROLE.body, 50),
-    generalButtonIcon: "mr-2",
-    generalVerificationTrack: "h-3 bg-transparent",
-    generalVerificationIndicator: "h-3 bg-gradient-to-r from-primary to-success",
+    generalRoot: "flex flex-col gap-stage px-stage pb-stage",
+    generalSection: `flex flex-col gap-panel p-panel ${SURFACE.surface.panelInfo}`,
+    generalSectionHeader: "flex items-center justify-between gap-tools",
+    generalSectionHeading: "min-w-0",
+    generalSectionTitle: TEXT_ROLE.headingSection,
+    generalSectionDescription: withOpacity(TEXT_ROLE.bodySmall, 55),
+    generalSummaryGrid: "grid gap-tools md:grid-cols-2 xl:grid-cols-3",
+    generalMetricGrid: "grid gap-tools md:grid-cols-2",
+    generalMetricRow:
+        "flex min-w-0 items-start justify-between gap-panel rounded-panel border border-default/10 surface-layer-1 px-panel py-panel",
+    generalMetricRowBlock:
+        "flex min-w-0 flex-col gap-tight rounded-panel border border-default/10 surface-layer-1 px-panel py-panel",
+    generalMetricContent: "min-w-0 flex-1",
+    generalMetricLabel: `${TEXT_ROLE.caption} text-foreground/55 uppercase tracking-wide`,
+    generalMetricValue: `${TEXT_ROLE.bodyStrong} min-w-0 text-right`,
+    generalMetricValueBlock: `${TEXT_ROLE.bodyStrong} min-w-0`,
+    generalMetricMuted: `${TEXT_ROLE.body} text-foreground/55`,
+    generalMetricCode: `${TEXT_ROLE.codeMuted} break-all`,
+    generalMetricPair: "flex items-center gap-tight text-foreground/75",
+    generalMetricActions: "flex shrink-0 items-center gap-tight self-start sm:self-center",
+    generalCommentValue: `${TEXT_ROLE.body} whitespace-pre-wrap break-words text-foreground/80`,
+    generalUnavailable: `${TEXT_ROLE.body} text-foreground/45 italic`,
+    generalSummaryName: `${TEXT_ROLE.bodyStrong} truncate`,
+    generalSummaryStatus: "min-w-0",
+    generalProgressWrap: "flex min-w-0 flex-col gap-tight",
+    generalProgressMetrics: "flex items-center justify-between gap-tools tabular-nums",
+    generalProgressBar: "h-track",
+    generalProgressTrack: TABLE.columnDefs.progressTrack,
+    generalProgressIndicatorPaused: TABLE.columnDefs.progressIndicatorPaused,
+    generalProgressIndicatorSeeding: TABLE.columnDefs.progressIndicatorSeeding,
+    generalProgressIndicatorActive: TABLE.columnDefs.progressIndicatorActive,
     table: DETAILS_TABLE,
     builder: {
         headerClass: (isStandalone: boolean) =>

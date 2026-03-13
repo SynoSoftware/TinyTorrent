@@ -21,13 +21,14 @@ import { type TFunction } from "i18next";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { type ReactNode, type RefObject } from "react";
 import { registry } from "@/config/logic";
-import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
-import { formatBytes, formatDate, formatEtaAbsolute, formatRelativeTime, formatTime } from "@/shared/utils/format";
+import { formatBytes, formatDate, formatRelativeTime } from "@/shared/utils/format";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import { getTorrentEtaDisplay, getTorrentEtaSortValue } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
+import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 const { layout, visuals, ui } = registry;
 
@@ -74,21 +75,10 @@ export interface ColumnDefinition {
     headerIcon?: LucideIcon;
 }
 
-const ratioValue = (torrent: Torrent) => {
+export const ratioValue = (torrent: Torrent) => {
     if (typeof torrent.ratio === "number") return torrent.ratio;
     if (torrent.downloaded > 0) return torrent.uploaded / torrent.downloaded;
     return torrent.uploaded === 0 ? 0 : torrent.uploaded;
-};
-
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
-const getEffectiveProgress = (torrent: Torrent) => {
-    const normalizedProgress = clamp01(torrent.progress ?? torrent.verificationProgress ?? 0);
-    if (torrent.state === status.torrent.checking) {
-        return clamp01(torrent.verificationProgress ?? normalizedProgress);
-    }
-
-    return normalizedProgress;
 };
 
 const DENSE_TEXT = `${layout.table.fontSize} ${layout.table.fontMono} leading-none cap-height-text`;
@@ -112,7 +102,7 @@ const getOrdinalSuffix = (value: number) => {
     }
 };
 
-const formatQueueOrdinal = (queuePosition?: number) => {
+export const formatQueueOrdinal = (queuePosition?: number) => {
     if (queuePosition === undefined || queuePosition === null) {
         return "-";
     }
@@ -156,31 +146,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: getEffectiveProgress,
         headerIcon: Percent,
-        render: ({ torrent }) => {
-            const displayProgress = getEffectiveProgress(torrent);
-            const progressIndicatorClass =
-                torrent.state === status.torrent.paused
-                    ? TABLE.columnDefs.progressIndicatorPaused
-                    : torrent.state === status.torrent.seeding
-                      ? TABLE.columnDefs.progressIndicatorSeeding
-                      : TABLE.columnDefs.progressIndicatorActive;
-            return (
-                <div className={TABLE.columnDefs.progressCell}>
-                    <div className={cn(TABLE.columnDefs.progressMetricsRow, DENSE_NUMERIC)}>
-                        <span>{(displayProgress * 100).toFixed(1)}%</span>
-                        <span className={TABLE.columnDefs.progressSecondary}>
-                            {formatBytes(torrent.totalSize * displayProgress)}
-                        </span>
-                    </div>
-                    <SmoothProgressBar
-                        value={displayProgress * 100}
-                        className={TABLE.columnDefs.progressBar}
-                        trackClassName={TABLE.columnDefs.progressTrack}
-                        indicatorClassName={progressIndicatorClass}
-                    />
-                </div>
-            );
-        },
+        render: ({ torrent, optimisticStatus }) => (
+            <TorrentProgressDisplay
+                torrent={torrent}
+                optimisticStatus={optimisticStatus}
+            />
+        ),
     },
 
     status: {
@@ -222,26 +193,13 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         rpcField: "eta",
         descriptionKey: "table.column_desc_eta",
-        sortAccessor: (torrent) => (torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta),
+        sortAccessor: getTorrentEtaSortValue,
         headerIcon: Timer,
         render: ({ torrent, t }) => {
-            const isChecking = torrent.state === status.torrent.checking;
-            if (isChecking) {
-                return (
-                    <span
-                        className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}
-                        title={t("labels.status.torrent.checking")}
-                    >
-                        -
-                    </span>
-                );
-            }
-            const relativeLabel = torrent.eta < 0 ? t("table.eta_unknown") : formatTime(torrent.eta);
-            const absoluteLabel = torrent.eta < 0 ? "-" : formatEtaAbsolute(torrent.eta);
-            const tooltip = torrent.eta < 0 ? relativeLabel : t("table.eta", { time: relativeLabel });
+            const eta = getTorrentEtaDisplay(torrent, t);
             return (
-                <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)} title={tooltip}>
-                    {absoluteLabel}
+                <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)} title={eta.tooltip}>
+                    {eta.value}
                 </span>
             );
         },

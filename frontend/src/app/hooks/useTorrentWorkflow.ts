@@ -13,6 +13,7 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import { getEffectiveTorrentState } from "@/modules/dashboard/utils/torrentStatus";
 import { status } from "@/shared/status";
 import {
     evaluateRelocationMoveVerification,
@@ -102,6 +103,23 @@ const isSuccessfulOutcome = (
     status: "success";
     reason?: SuccessReason;
 } => isCommandSuccess(outcome);
+
+const applyOptimisticState = (
+    torrent: Torrent,
+    optimisticStatuses: OptimisticStatusMap,
+): Torrent => {
+    const effectiveState = getEffectiveTorrentState(
+        torrent,
+        optimisticStatuses[torrent.id],
+    );
+    if (effectiveState === torrent.state) {
+        return torrent;
+    }
+    return {
+        ...torrent,
+        state: effectiveState,
+    };
+};
 
 export function useTorrentWorkflow({
     torrents,
@@ -341,21 +359,24 @@ export function useTorrentWorkflow({
             action: TorrentTableAction,
             torrentsToUpdate: Torrent[],
         ): Promise<TorrentCommandOutcome> => {
+            const effectiveTargets = torrentsToUpdate.map((torrent) =>
+                applyOptimisticState(torrent, optimisticStatuses),
+            );
             if (action === "recheck") {
                 onVerificationStart?.();
             }
             const optimisticTargets = buildOptimisticStatusUpdatesForAction(
                 action,
-                torrentsToUpdate,
+                effectiveTargets,
             );
             if (optimisticTargets.length) {
                 updateOptimisticStatuses(optimisticTargets);
             }
 
             const outcome =
-                torrentsToUpdate.length > 1
-                    ? await executeSelectionAction(action, torrentsToUpdate)
-                    : await executeTorrentAction(action, torrentsToUpdate[0]);
+                effectiveTargets.length > 1
+                    ? await executeSelectionAction(action, effectiveTargets)
+                    : await executeTorrentAction(action, effectiveTargets[0]);
 
             if (isSuccessfulOutcome(outcome)) {
                 return outcome;
@@ -378,6 +399,7 @@ export function useTorrentWorkflow({
             executeSelectionAction,
             t,
             updateOptimisticStatuses,
+            optimisticStatuses,
         ],
     );
 
