@@ -81,19 +81,17 @@ export interface DashboardDetailViewModel {
             ) => Promise<void>;
         };
         trackers: {
-            scope: "inspected" | "selection";
-            targetIds: Array<string | number>;
+            torrentId: string | number | null;
             addTrackers: (
-                targetIds: Array<string | number>,
-                trackers: string[]
-            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
-            replaceTrackers: (
-                targetIds: Array<string | number>,
+                torrentId: string | number,
                 trackers: string[]
             ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
             removeTrackers: (
-                targetIds: Array<string | number>,
+                torrentId: string | number,
                 trackerIds: number[]
+            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
+            reannounce: (
+                torrentId: string | number
             ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
         };
         peers: {

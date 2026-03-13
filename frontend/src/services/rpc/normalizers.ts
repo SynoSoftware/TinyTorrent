@@ -302,12 +302,38 @@ const zipFileEntities = (detail: TransmissionTorrentDetail): TorrentFileEntity[]
 const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEntity => ({
     id: Number.isFinite(Number(tracker.id)) ? Number(tracker.id) : tracker.tier,
     announce: tracker.announce,
+    scrape: tracker.scrape,
     tier: tracker.tier,
     announceState: tracker.announceState,
+    downloadCount:
+        Number.isFinite(Number(tracker.downloadCount))
+            ? Number(tracker.downloadCount)
+            : undefined,
+    downloaderCount:
+        Number.isFinite(Number(tracker.downloaderCount))
+            ? Number(tracker.downloaderCount)
+            : undefined,
+    hasAnnounced: tracker.hasAnnounced,
+    hasScraped: tracker.hasScraped,
+    host: tracker.host,
+    lastAnnouncePeerCount:
+        Number.isFinite(Number(tracker.lastAnnouncePeerCount))
+            ? Number(tracker.lastAnnouncePeerCount)
+            : undefined,
+    lastAnnounceStartTime:
+        Number.isFinite(Number(tracker.lastAnnounceStartTime))
+            ? Number(tracker.lastAnnounceStartTime)
+            : undefined,
     lastAnnounceTime: tracker.lastAnnounceTime,
+    lastAnnounceTimedOut: tracker.lastAnnounceTimedOut ?? false,
     lastAnnounceResult: tracker.lastAnnounceResult,
     lastAnnounceSucceeded: tracker.lastAnnounceSucceeded,
+    lastScrapeStartTime:
+        Number.isFinite(Number(tracker.lastScrapeStartTime))
+            ? Number(tracker.lastScrapeStartTime)
+            : undefined,
     lastScrapeTime: tracker.lastScrapeTime,
+    lastScrapeTimedOut: tracker.lastScrapeTimedOut ?? false,
     lastScrapeResult: tracker.lastScrapeResult,
     lastScrapeSucceeded: tracker.lastScrapeSucceeded,
     // Preserve missing data as NaN so the UI can render "unknown".
@@ -318,7 +344,12 @@ const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEn
         Number.isFinite(Number(tracker.nextAnnounceTime))
             ? Number(tracker.nextAnnounceTime)
             : undefined,
+    nextScrapeTime:
+        Number.isFinite(Number(tracker.nextScrapeTime))
+            ? Number(tracker.nextScrapeTime)
+            : undefined,
     isBackup: tracker.isBackup ?? false,
+    sitename: tracker.sitename,
 });
 
 const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({

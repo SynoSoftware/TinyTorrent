@@ -198,6 +198,7 @@ const zTransmissionTorrentTracker = z
         tier: zRpcNumberLikeWithDefault(0),
         scrape: z.string().optional(),
         sitename: z.string().optional(),
+        host: z.string().optional(),
     })
     .passthrough();
 
@@ -205,19 +206,32 @@ const zTransmissionTorrentTrackerStat = z
     .object({
         id: zRpcOptionalNumberLike,
         announce: z.string(),
+        scrape: z.string().optional(),
         tier: zRpcOptionalNumberLike,
         announceState: z.number().optional(),
+        downloadCount: zRpcOptionalNumberLike,
+        downloaderCount: zRpcOptionalNumberLike,
+        hasAnnounced: z.boolean().optional(),
+        hasScraped: z.boolean().optional(),
+        host: z.string().optional(),
+        lastAnnouncePeerCount: zRpcOptionalNumberLike,
+        lastAnnounceStartTime: zRpcOptionalNumberLike,
         lastAnnounceTime: z.number().optional(),
+        lastAnnounceTimedOut: z.boolean().optional(),
         lastAnnounceResult: z.string().optional(),
         lastAnnounceSucceeded: z.boolean().optional(),
+        lastScrapeStartTime: zRpcOptionalNumberLike,
         lastScrapeTime: z.number().optional(),
+        lastScrapeTimedOut: z.boolean().optional(),
         lastScrapeResult: z.string().optional(),
         lastScrapeSucceeded: z.boolean().optional(),
         seederCount: zRpcOptionalNumberLike,
         leecherCount: zRpcOptionalNumberLike,
         scrapeState: z.number().optional(),
         nextAnnounceTime: zRpcOptionalNumberLike,
+        nextScrapeTime: zRpcOptionalNumberLike,
         isBackup: z.boolean().optional(),
+        sitename: z.string().optional(),
     })
     .passthrough();
 
@@ -322,19 +336,32 @@ const mergeTrackerRuntimeFields = (
     ) => ({
         id: tracker.id ?? trackerStat?.id,
         announce: tracker.announce ?? trackerStat?.announce ?? "",
+        scrape: tracker.scrape ?? trackerStat?.scrape,
         tier: tracker.tier ?? trackerStat?.tier ?? 0,
         announceState: trackerStat?.announceState,
+        downloadCount: trackerStat?.downloadCount,
+        downloaderCount: trackerStat?.downloaderCount,
+        hasAnnounced: trackerStat?.hasAnnounced,
+        hasScraped: trackerStat?.hasScraped,
+        host: tracker.host ?? trackerStat?.host,
+        lastAnnouncePeerCount: trackerStat?.lastAnnouncePeerCount,
+        lastAnnounceStartTime: trackerStat?.lastAnnounceStartTime,
         lastAnnounceTime: trackerStat?.lastAnnounceTime ?? 0,
+        lastAnnounceTimedOut: trackerStat?.lastAnnounceTimedOut ?? false,
         lastAnnounceResult: trackerStat?.lastAnnounceResult ?? "",
         lastAnnounceSucceeded: trackerStat?.lastAnnounceSucceeded ?? false,
+        lastScrapeStartTime: trackerStat?.lastScrapeStartTime,
         lastScrapeTime: trackerStat?.lastScrapeTime ?? 0,
+        lastScrapeTimedOut: trackerStat?.lastScrapeTimedOut ?? false,
         lastScrapeResult: trackerStat?.lastScrapeResult ?? "",
         lastScrapeSucceeded: trackerStat?.lastScrapeSucceeded ?? false,
         seederCount: trackerStat?.seederCount ?? NaN,
         leecherCount: trackerStat?.leecherCount ?? NaN,
         scrapeState: trackerStat?.scrapeState,
         nextAnnounceTime: trackerStat?.nextAnnounceTime,
+        nextScrapeTime: trackerStat?.nextScrapeTime,
         isBackup: trackerStat?.isBackup ?? false,
+        sitename: tracker.sitename ?? trackerStat?.sitename,
     });
 
     if (trackers.length > 0) {
@@ -375,23 +402,43 @@ const zTransmissionTorrentTrackerStatsArray = z.preprocess(
             return {
                 ...raw,
                 announceState: raw.announceState ?? raw.announce_state,
+                downloadCount: raw.downloadCount ?? raw.download_count,
+                downloaderCount:
+                    raw.downloaderCount ?? raw.downloader_count,
+                hasAnnounced: raw.hasAnnounced ?? raw.has_announced,
+                hasScraped: raw.hasScraped ?? raw.has_scraped,
+                host: raw.host,
+                lastAnnouncePeerCount:
+                    raw.lastAnnouncePeerCount ?? raw.last_announce_peer_count,
+                lastAnnounceStartTime:
+                    raw.lastAnnounceStartTime ?? raw.last_announce_start_time,
                 lastAnnounceTime:
                     raw.lastAnnounceTime ?? raw.last_announce_time,
+                lastAnnounceTimedOut:
+                    raw.lastAnnounceTimedOut ?? raw.last_announce_timed_out,
                 lastAnnounceResult:
                     raw.lastAnnounceResult ?? raw.last_announce_result,
                 lastAnnounceSucceeded:
                     raw.lastAnnounceSucceeded ?? raw.last_announce_succeeded,
+                lastScrapeStartTime:
+                    raw.lastScrapeStartTime ?? raw.last_scrape_start_time,
                 lastScrapeTime: raw.lastScrapeTime ?? raw.last_scrape_time,
+                lastScrapeTimedOut:
+                    raw.lastScrapeTimedOut ?? raw.last_scrape_timed_out,
                 lastScrapeResult:
                     raw.lastScrapeResult ?? raw.last_scrape_result,
                 lastScrapeSucceeded:
                     raw.lastScrapeSucceeded ?? raw.last_scrape_succeeded,
                 seederCount: raw.seederCount ?? raw.seeder_count,
                 leecherCount: raw.leecherCount ?? raw.leecher_count,
+                scrape: raw.scrape,
                 scrapeState: raw.scrapeState ?? raw.scrape_state,
                 nextAnnounceTime:
                     raw.nextAnnounceTime ?? raw.next_announce_time,
+                nextScrapeTime:
+                    raw.nextScrapeTime ?? raw.next_scrape_time,
                 isBackup: raw.isBackup ?? raw.is_backup,
+                sitename: raw.sitename,
             };
         });
     },
@@ -411,6 +458,7 @@ const zTransmissionTorrentTrackersArray = z.preprocess(
             return {
                 ...raw,
                 sitename: raw.sitename,
+                host: raw.host,
             };
         });
     },

@@ -43,6 +43,7 @@ import { normalizeTorrent, normalizeTorrentDetail } from "@/services/rpc/normali
 import { RpcCommandError } from "@/services/rpc/errors";
 import { TransmissionRpcTransport } from "@/services/transport";
 import type { NetworkTelemetry } from "@/services/rpc/entities";
+import { normalizeTrackerUrls } from "@/shared/domain/trackers";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
 const { performance, ui } = registry;
@@ -1408,7 +1409,7 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public async addTrackers(ids: string[], trackers: string[]): Promise<void> {
         if (!ids.length) return;
-        const trackerAdd = trackers.map((tracker) => tracker.trim()).filter((tracker) => tracker.length > 0);
+        const trackerAdd = normalizeTrackerUrls(trackers);
         if (!trackerAdd.length) return;
         const rpcIds = await this.resolveIds(ids);
         await this.mutate("torrent-set", {
@@ -1425,17 +1426,6 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate("torrent-set", {
             ids: rpcIds,
             trackerRemove,
-        });
-    }
-
-    public async replaceTrackers(ids: string[], trackers: string[]): Promise<void> {
-        if (!ids.length) return;
-        const trackerList = trackers.map((tracker) => tracker.trim()).filter((tracker) => tracker.length > 0).join("\n");
-        if (!trackerList.length) return;
-        const rpcIds = await this.resolveIds(ids);
-        await this.mutate("torrent-set", {
-            ids: rpcIds,
-            trackerList,
         });
     }
 

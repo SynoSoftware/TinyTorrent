@@ -47,7 +47,7 @@ type DispatchableIntentType =
     | "ENSURE_TORRENT_VALID"
     | "TORRENT_ADD_TRACKER"
     | "TORRENT_REMOVE_TRACKER"
-    | "TORRENT_REPLACE_TRACKERS"
+    | "TORRENT_REANNOUNCE"
     | "SET_TORRENT_FILES_WANTED"
     | "SET_TORRENT_SEQUENTIAL"
     | "SET_TORRENT_SUPERSEEDING"
@@ -301,20 +301,16 @@ const dispatchHandlers: DispatchHandlerTable = {
             refreshDetail: true,
         },
     },
-    TORRENT_REPLACE_TRACKERS: {
+    TORRENT_REANNOUNCE: {
         run: async (intent, context) => {
-            const replaceTrackers = requireClientMethod(
+            const reannounce = requireClientMethod(
                 context.client,
-                "replaceTrackers",
+                "forceTrackerReannounce",
             );
-            if (typeof replaceTrackers !== "function") {
+            if (typeof reannounce !== "function") {
                 return dispatchOutcome.methodMissing();
             }
-            await replaceTrackers
-                .bind(context.client)(
-                    (intent.torrentIds || []).map(String),
-                    intent.trackers,
-                );
+            await reannounce.bind(context.client)(String(intent.torrentId));
             return dispatchOutcome.applied();
         },
         refresh: {

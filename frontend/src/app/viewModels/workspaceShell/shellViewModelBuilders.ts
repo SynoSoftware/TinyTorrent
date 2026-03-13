@@ -60,8 +60,8 @@ export interface DashboardViewModelParams {
         wanted: boolean,
     ) => Promise<void>;
     addTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["addTrackers"];
-    replaceTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["replaceTrackers"];
     removeTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["removeTrackers"];
+    reannounceTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["reannounce"];
     setInspectorTabCommand: (value: DetailTab | null) => void;
     capabilities: CapabilityStore;
 }
@@ -88,8 +88,8 @@ export function useDashboardViewModel({
     handleTorrentAction,
     handleFileSelectionChange,
     addTrackers,
-    replaceTrackers,
     removeTrackers,
+    reannounceTrackers,
     setInspectorTabCommand,
     capabilities,
 }: DashboardViewModelParams): DashboardViewModel {
@@ -135,34 +135,11 @@ export function useDashboardViewModel({
                     },
                     trackers: (() => {
                         const inspectedId = detailData?.id ?? detailData?.hash;
-                        if (inspectedId == null) {
-                            return {
-                                scope: "inspected" as const,
-                                targetIds: [] as Array<string | number>,
-                                addTrackers,
-                                replaceTrackers,
-                                removeTrackers,
-                            };
-                        }
-                        const inspectedKey = String(inspectedId);
-                        if (
-                            selectedIds.length > 1 &&
-                            selectedIds.includes(inspectedKey)
-                        ) {
-                            return {
-                                scope: "selection" as const,
-                                targetIds: selectedIds,
-                                addTrackers,
-                                replaceTrackers,
-                                removeTrackers,
-                            };
-                        }
                         return {
-                            scope: "inspected" as const,
-                            targetIds: [inspectedId],
+                            torrentId: inspectedId ?? null,
                             addTrackers,
-                            replaceTrackers,
                             removeTrackers,
+                            reannounce: reannounceTrackers,
                         };
                     })(),
                     peers: {
@@ -195,8 +172,8 @@ export function useDashboardViewModel({
             handleTorrentAction,
             handleFileSelectionChange,
             addTrackers,
-            replaceTrackers,
             removeTrackers,
+            reannounceTrackers,
             peerSortStrategy,
         ],
     );

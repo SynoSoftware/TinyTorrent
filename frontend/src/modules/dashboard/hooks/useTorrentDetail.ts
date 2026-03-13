@@ -30,6 +30,17 @@ interface UseTorrentDetailResult {
     ) => void;
 }
 
+const cloneDetail = (detail: TorrentDetail): TorrentDetail => ({
+    ...detail,
+    files: detail.files ? [...detail.files] : detail.files,
+    trackers: detail.trackers ? [...detail.trackers] : detail.trackers,
+    peers: detail.peers ? [...detail.peers] : detail.peers,
+    pieceStates: detail.pieceStates ? [...detail.pieceStates] : detail.pieceStates,
+    pieceAvailability: detail.pieceAvailability
+        ? [...detail.pieceAvailability]
+        : detail.pieceAvailability,
+});
+
 export function useTorrentDetail({
     torrentClient,
     isMountedRef,
@@ -46,25 +57,31 @@ export function useTorrentDetail({
     const detailIdentityRef = useRef<{ id: string; hash: string } | null>(null);
     const detailRequestRef = useRef(0);
     const detailProfile = inspectorTab === "pieces" ? "pieces" : "standard";
-    const includeTrackerStats = inspectorTab === "trackers";
+    // Preload tracker data as soon as details open so the Trackers tab can
+    // render immediately when selected. Keep this on the existing detail
+    // heartbeat path instead of introducing a tab-owned fetch/poll cycle.
+    const includeTrackerStats = true;
 
     const commitDetailState = useCallback(
         (detail: TorrentDetail | null, timestamp = Date.now()) => {
             if (!isMountedRef.current) return;
-            setDetailData(detail);
-            detailTimestampRef.current = detail ? timestamp : 0;
+            const nextDetail = detail ? cloneDetail(detail) : null;
+            setDetailData(nextDetail);
+            detailTimestampRef.current = nextDetail ? timestamp : 0;
             detailIdentityRef.current =
-                detail && typeof detail.hash === "string" && detail.hash.length > 0
-                    ? { id: detail.id, hash: detail.hash }
+                nextDetail &&
+                typeof nextDetail.hash === "string" &&
+                nextDetail.hash.length > 0
+                    ? { id: nextDetail.id, hash: nextDetail.hash }
                     : null;
         },
         [isMountedRef],
     );
 
-    // FIX: Removed the direct RPC call.
-    // This forces the data loading to go through the Heartbeat subscription,
-    // which is protected by the global 500ms/1000ms throttle.
-    // This stops the "Row Thrashing" storm.
+    // Detail reads stay on the heartbeat owner instead of making a second
+    // ad-hoc RPC path here. The heartbeat still controls cadence, but it now
+    // performs an immediate detail fetch when a detail view opens without a
+    // usable cached payload.
     const loadDetail = useCallback(
         async (torrentId: string, placeholder?: TorrentDetail) => {
             activeDetailIdRef.current = torrentId;
@@ -93,11 +110,12 @@ export function useTorrentDetail({
             setDetailData((prev) => {
                 if (!prev) return prev;
                 const next = updater(prev);
-                detailTimestampRef.current = next ? Date.now() : 0;
-                detailIdentityRef.current = next
-                    ? { id: next.id, hash: next.hash }
+                const committed = next ? cloneDetail(next) : null;
+                detailTimestampRef.current = committed ? Date.now() : 0;
+                detailIdentityRef.current = committed
+                    ? { id: committed.id, hash: committed.hash }
                     : null;
-                return next;
+                return committed;
             });
         },
         [isMountedRef],

@@ -284,26 +284,24 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     );
 
     const addTrackers = useCallback(
-        (targetIds: Array<string | number>, trackers: string[]) =>
+        (torrentId: string | number, trackers: string[]) =>
             executeTrackerMutation(
-                TorrentIntents.torrentAddTracker(targetIds, trackers),
-            ),
-        [executeTrackerMutation],
-    );
-
-    const replaceTrackers = useCallback(
-        (targetIds: Array<string | number>, trackers: string[]) =>
-            executeTrackerMutation(
-                TorrentIntents.torrentReplaceTrackers(targetIds, trackers),
+                TorrentIntents.torrentAddTracker([torrentId], trackers),
             ),
         [executeTrackerMutation],
     );
 
     const removeTrackers = useCallback(
-        (targetIds: Array<string | number>, trackerIds: number[]) =>
+        (torrentId: string | number, trackerIds: number[]) =>
             executeTrackerMutation(
-                TorrentIntents.torrentRemoveTracker(targetIds, trackerIds),
+                TorrentIntents.torrentRemoveTracker([torrentId], trackerIds),
             ),
+        [executeTrackerMutation],
+    );
+
+    const reannounceTrackers = useCallback(
+        (torrentId: string | number) =>
+            executeTrackerMutation(TorrentIntents.torrentReannounce(torrentId)),
         [executeTrackerMutation],
     );
 
@@ -422,8 +420,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleTorrentAction,
         handleFileSelectionChange,
         addTrackers,
-        replaceTrackers,
         removeTrackers,
+        reannounceTrackers,
         setInspectorTabCommand,
         capabilities,
     });

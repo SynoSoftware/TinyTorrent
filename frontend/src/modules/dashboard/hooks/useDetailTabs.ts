@@ -12,7 +12,6 @@ import {
     EyeOff,
     Pause,
     Play,
-    Plus,
     RotateCcw,
     Trash2,
     type LucideIcon,
@@ -125,19 +124,16 @@ export interface TorrentDetailTabSurfaces {
         showPersistentHud: boolean;
     } | null;
     trackers: {
-        targetIds: Array<string | number>;
-        scope: DashboardDetailViewModel["tabs"]["trackers"]["scope"];
+        torrentId: DashboardDetailViewModel["tabs"]["trackers"]["torrentId"];
+        torrentName: string;
         trackers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["trackers"]
         >;
         emptyMessage: string;
         isStandalone?: boolean;
-        showAddEditor: boolean;
-        onToggleAddEditor: () => void;
-        onCloseAddEditor: () => void;
         addTrackers: DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"];
-        replaceTrackers: DashboardDetailViewModel["tabs"]["trackers"]["replaceTrackers"];
         removeTrackers: DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"];
+        reannounce: DashboardDetailViewModel["tabs"]["trackers"]["reannounce"];
     } | null;
     peers: {
         peers: NonNullable<
@@ -240,7 +236,6 @@ export const useTorrentDetailTabCoordinator = ({
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
     const [showPiecesHud, setShowPiecesHud] = useState(true);
-    const [showTrackersAddEditor, setShowTrackersAddEditor] = useState(false);
     const torrent = viewModel.detailData;
     const {
         active,
@@ -267,125 +262,99 @@ export const useTorrentDetailTabCoordinator = ({
     );
 
     const addTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"]>(
-        (targetIds, trackers) =>
+        (torrentId, trackers) =>
             runTrackerMutation(() =>
-                viewModel.tabs.trackers.addTrackers(targetIds, trackers),
-            ),
-        [runTrackerMutation, viewModel.tabs.trackers],
-    );
-
-    const replaceTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["replaceTrackers"]>(
-        (targetIds, trackers) =>
-            runTrackerMutation(() =>
-                viewModel.tabs.trackers.replaceTrackers(targetIds, trackers),
+                viewModel.tabs.trackers.addTrackers(torrentId, trackers),
             ),
         [runTrackerMutation, viewModel.tabs.trackers],
     );
 
     const removeTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"]>(
-        (targetIds, trackerIds) =>
+        (torrentId, trackerIds) =>
             runTrackerMutation(() =>
-                viewModel.tabs.trackers.removeTrackers(targetIds, trackerIds),
+                viewModel.tabs.trackers.removeTrackers(torrentId, trackerIds),
             ),
         [runTrackerMutation, viewModel.tabs.trackers],
     );
 
-    const surfaces = useMemo<TorrentDetailTabSurfaces>(() => {
-        if (!torrent) {
-            return {
-                general: null,
-                content: null,
-                pieces: null,
-                trackers: null,
-                peers: null,
-                speed: null,
-            };
-        }
+    const reannounceTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["reannounce"]>(
+        (torrentId) =>
+            runTrackerMutation(() =>
+                viewModel.tabs.trackers.reannounce(torrentId),
+            ),
+        [runTrackerMutation, viewModel.tabs.trackers],
+    );
 
-        return {
-            general: {
-                torrent,
-                isDetailFullscreen,
-                canSetLocation: viewModel.tabs.general.canSetLocation,
-                onTorrentAction: viewModel.tabs.general.handleTorrentAction,
-                setLocation: viewModel.tabs.general.setLocation,
-                optimisticStatus: viewModel.optimisticStatus,
-            },
-            content: {
-                torrent,
-                files: torrent.files ?? [],
-                emptyMessage: torrent.files == null
-                    ? t("torrent_modal.loading")
-                    : t("torrent_modal.files_empty"),
-                onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
-                isStandalone,
-            },
-            pieces: {
-                piecePercent: torrent.progress ?? 0,
-                pieceCount: torrent.pieceCount,
-                pieceSize: torrent.pieceSize,
-                pieceStates: torrent.pieceStates,
-                pieceAvailability: torrent.pieceAvailability,
-                showPersistentHud: showPiecesHud,
-            },
-            trackers: {
-                targetIds: viewModel.tabs.trackers.targetIds,
-                scope: viewModel.tabs.trackers.scope,
-                trackers: torrent.trackers ?? [],
-                emptyMessage: torrent.trackers == null
-                    ? t("torrent_modal.loading")
-                    : t("torrent_modal.trackers.empty_backend"),
-                isStandalone,
-                showAddEditor: showTrackersAddEditor,
-                onToggleAddEditor: () =>
-                    setShowTrackersAddEditor((current) => !current),
-                onCloseAddEditor: () => setShowTrackersAddEditor(false),
-                addTrackers,
-                replaceTrackers,
-                removeTrackers,
-            },
-            peers: {
-                peers: torrent.peers ?? [],
-                emptyMessage: torrent.peers == null
-                    ? t("torrent_modal.loading")
-                    : t("torrent_modal.peers.empty_backend"),
-                onPeerContextAction: viewModel.tabs.peers.handlePeerContextAction,
-                torrentProgress: torrent.progress ?? 0,
-                sortBySpeed: viewModel.tabs.peers.peerSortStrategy === "speed",
-                isStandalone,
-            },
-            speed:
-                torrent.id ?? torrent.hash
-                    ? {
-                          torrentId: torrent.id ?? torrent.hash,
-                          torrentState:
-                              typeof torrent.state === "string"
-                                  ? torrent.state
-                                  : undefined,
-                          isStandalone,
-                      }
-                    : null,
-        };
-    }, [
-        addTrackers,
-        isDetailFullscreen,
-        isStandalone,
-        removeTrackers,
-        replaceTrackers,
-        showPiecesHud,
-        showTrackersAddEditor,
-        t,
-        torrent,
-        viewModel.tabs.content.handleFileSelectionChange,
-        viewModel.tabs.general.canSetLocation,
-        viewModel.tabs.general.handleTorrentAction,
-        viewModel.tabs.general.setLocation,
-        viewModel.optimisticStatus,
-        viewModel.tabs.peers.handlePeerContextAction,
-        viewModel.tabs.peers.peerSortStrategy,
-        viewModel.tabs.trackers.scope,
-        viewModel.tabs.trackers.targetIds,
-    ]);
+    const surfaces: TorrentDetailTabSurfaces = !torrent
+        ? {
+              general: null,
+              content: null,
+              pieces: null,
+              trackers: null,
+              peers: null,
+              speed: null,
+          }
+        : {
+              general: {
+                  torrent,
+                  isDetailFullscreen,
+                  canSetLocation: viewModel.tabs.general.canSetLocation,
+                  onTorrentAction: viewModel.tabs.general.handleTorrentAction,
+                  setLocation: viewModel.tabs.general.setLocation,
+                  optimisticStatus: viewModel.optimisticStatus,
+              },
+              content: {
+                  torrent,
+                  files: torrent.files ?? [],
+                  emptyMessage: torrent.files == null
+                      ? t("torrent_modal.loading")
+                      : t("torrent_modal.files_empty"),
+                  onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
+                  isStandalone,
+              },
+              pieces: {
+                  piecePercent: torrent.progress ?? 0,
+                  pieceCount: torrent.pieceCount,
+                  pieceSize: torrent.pieceSize,
+                  pieceStates: torrent.pieceStates,
+                  pieceAvailability: torrent.pieceAvailability,
+                  showPersistentHud: showPiecesHud,
+              },
+              trackers: {
+                  torrentId: viewModel.tabs.trackers.torrentId,
+                  torrentName: torrent.name,
+                  trackers: torrent.trackers ?? [],
+                  emptyMessage: torrent.trackers == null
+                      ? t("torrent_modal.loading")
+                      : t("torrent_modal.trackers.empty_backend"),
+                  isStandalone,
+                  addTrackers,
+                  removeTrackers,
+                  reannounce: reannounceTrackers,
+              },
+              peers: {
+                  peers: torrent.peers ?? [],
+                  emptyMessage: torrent.peers == null
+                      ? t("torrent_modal.loading")
+                      : t("torrent_modal.peers.empty_backend"),
+                  onPeerContextAction:
+                      viewModel.tabs.peers.handlePeerContextAction,
+                  torrentProgress: torrent.progress ?? 0,
+                  sortBySpeed: viewModel.tabs.peers.peerSortStrategy === "speed",
+                  isStandalone,
+              },
+              speed:
+                  torrent.id ?? torrent.hash
+                      ? {
+                            torrentId: torrent.id ?? torrent.hash,
+                            torrentState:
+                                typeof torrent.state === "string"
+                                    ? torrent.state
+                                    : undefined,
+                            isStandalone,
+                        }
+                      : null,
+          };
 
     const visibleTabDefs = useMemo(
         () =>
@@ -467,12 +436,12 @@ export const useTorrentDetailTabCoordinator = ({
         [active, setActive, visibleTabIds],
     );
 
-    const activeSurface = useMemo(() => {
-        const activeDefinition =
-            visibleTabDefs.find((definition) => definition.id === active) ??
-            visibleTabDefs[0];
-        return activeDefinition ? activeDefinition.render(surfaces) : null;
-    }, [active, surfaces, visibleTabDefs]);
+    const activeDefinition =
+        visibleTabDefs.find((definition) => definition.id === active) ??
+        visibleTabDefs[0];
+    const activeSurface = activeDefinition
+        ? activeDefinition.render(surfaces)
+        : null;
 
     const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
         if (active === "general" && surfaces.general) {
@@ -536,16 +505,6 @@ export const useTorrentDetailTabCoordinator = ({
                 },
             ];
         }
-        if (active === "trackers" && surfaces.trackers) {
-            return [
-                {
-                    icon: Plus,
-                    onPress: surfaces.trackers.onToggleAddEditor,
-                    ariaLabel: t("torrent_modal.trackers.add"),
-                    tone: "default",
-                },
-            ];
-        }
         return [];
     }, [
         active,
@@ -553,7 +512,6 @@ export const useTorrentDetailTabCoordinator = ({
         showPiecesHud,
         surfaces.general,
         surfaces.pieces,
-        surfaces.trackers,
         t,
     ]);
 

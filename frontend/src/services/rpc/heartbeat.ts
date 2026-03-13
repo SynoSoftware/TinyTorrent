@@ -435,6 +435,27 @@ export class HeartbeatManager {
         return entry.detail;
     }
 
+    private hasUsableCachedDetail(params: HeartbeatSubscriberParams) {
+        const detailId = params.detailId;
+        if (!detailId) {
+            return true;
+        }
+
+        const detail = this.getCachedDetail(detailId);
+        if (!detail) {
+            return false;
+        }
+
+        if (
+            params.detailProfile === "pieces" &&
+            (!detail.pieceStates || !detail.pieceAvailability)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
     private pruneDetailCache(torrents: TorrentEntity[]) {
         const existingHashes = new Map<string, string>();
         for (const torrent of torrents) {
@@ -462,6 +483,8 @@ export class HeartbeatManager {
         this.rescheduleLoop();
         if (!this.hasInitialData()) {
             void this.triggerImmediateTick();
+        } else if (!this.hasUsableCachedDetail(params)) {
+            void this.triggerImmediateTick(true);
         }
         return {
             unsubscribe: () => this.unsubscribe(id),
@@ -551,11 +574,19 @@ export class HeartbeatManager {
         }
     }
 
-    private triggerImmediateTick() {
-        if (this.isRunning) return;
+    private triggerImmediateTick(force = false) {
+        if (this.isRunning) {
+            if (force) {
+                this.immediateTickPending = true;
+            }
+            return;
+        }
         if (this.immediateTickPending) return;
         const now = Date.now();
-        if (now - this.lastImmediateTriggerMs < this.MIN_IMMEDIATE_TRIGGER_MS) {
+        if (
+            !force &&
+            now - this.lastImmediateTriggerMs < this.MIN_IMMEDIATE_TRIGGER_MS
+        ) {
             return;
         }
         this.immediateTickPending = true;
@@ -1119,6 +1150,10 @@ export class HeartbeatManager {
         } finally {
             this.isRunning = false;
             if (this.subscribers.size > 0) {
+                if (this.immediateTickPending) {
+                    void this.tick();
+                    return;
+                }
                 this.rescheduleLoop();
             }
         }

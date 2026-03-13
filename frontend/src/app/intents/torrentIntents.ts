@@ -52,10 +52,9 @@ export type TorrentRemoveTracker = {
     trackerIds: number[];
 };
 
-export type TorrentReplaceTrackers = {
-    type: "TORRENT_REPLACE_TRACKERS";
-    torrentIds: Array<string | number>;
-    trackers: string[];
+export type TorrentReannounce = {
+    type: "TORRENT_REANNOUNCE";
+    torrentId: string | number;
 };
 
 export type EnsureSelectionActive = {
@@ -140,7 +139,7 @@ export type TorrentIntent =
     | EnsureTorrentAtLocation
     | TorrentAddTracker
     | TorrentRemoveTracker
-    | TorrentReplaceTrackers
+    | TorrentReannounce
     | EnsureSelectionActive
     | EnsureSelectionActiveNow
     | EnsureSelectionRemoved
@@ -206,10 +205,9 @@ export const TorrentIntents = {
         torrentIds,
         trackerIds,
     }),
-    torrentReplaceTrackers: (torrentIds: Array<string | number>, trackers: string[]): TorrentReplaceTrackers => ({
-        type: "TORRENT_REPLACE_TRACKERS",
-        torrentIds,
-        trackers,
+    torrentReannounce: (torrentId: string | number): TorrentReannounce => ({
+        type: "TORRENT_REANNOUNCE",
+        torrentId,
     }),
     ensureSelectionActive: (torrentIds: Array<string | number>): EnsureSelectionActive => ({
         type: "ENSURE_SELECTION_ACTIVE",

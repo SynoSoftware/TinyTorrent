@@ -59,10 +59,8 @@ const createMockClient = (commandLog: string[]): EngineAdapter => ({
             `tracker-remove:${ids.join(",")}:${trackerIds.join("|")}`,
         );
     }),
-    replaceTrackers: vi.fn(async (ids: string[], trackers: string[]) => {
-        commandLog.push(
-            `tracker-replace:${ids.join(",")}:${trackers.join("|")}`,
-        );
+    forceTrackerReannounce: vi.fn(async (id: string) => {
+        commandLog.push(`tracker-reannounce:${id}`);
     }),
     moveToTop: vi.fn(async () => {}),
     moveUp: vi.fn(async () => {}),
@@ -369,7 +367,7 @@ describe("torrentDispatch command flow", () => {
         expect(commandLog).toEqual(["tracker-remove:t-1:11|22"]);
     });
 
-    it("dispatches replace trackers mutation through adapter", async () => {
+    it("dispatches tracker reannounce through adapter", async () => {
         const commandLog: string[] = [];
         const dispatch = createTorrentDispatch({
             client: createMockClient(commandLog),
@@ -379,13 +377,11 @@ describe("torrentDispatch command flow", () => {
         });
 
         const outcome = await dispatch(
-            TorrentIntents.torrentReplaceTrackers(["t-7"], [
-                "https://tracker-c/announce",
-            ]),
+            TorrentIntents.torrentReannounce("t-9"),
         );
 
         expect(outcome).toEqual({ status: "applied" });
-        expect(commandLog).toEqual(["tracker-replace:t-7:https://tracker-c/announce"]);
+        expect(commandLog).toEqual(["tracker-reannounce:t-9"]);
     });
 
     it("returns unsupported when tracker remove method is missing", async () => {

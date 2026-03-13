@@ -29,19 +29,32 @@ export interface TorrentFileEntity {
 export interface TorrentTrackerEntity {
     id?: number;
     announce: string;
+    scrape?: string;
     tier: number;
     announceState?: number;
+    downloadCount?: number;
+    downloaderCount?: number;
+    hasAnnounced?: boolean;
+    hasScraped?: boolean;
+    host?: string;
+    lastAnnouncePeerCount?: number;
+    lastAnnounceStartTime?: number;
     lastAnnounceTime: number;
+    lastAnnounceTimedOut?: boolean;
     lastAnnounceResult: string;
     lastAnnounceSucceeded: boolean;
+    lastScrapeStartTime?: number;
     lastScrapeTime: number;
+    lastScrapeTimedOut?: boolean;
     lastScrapeResult: string;
     lastScrapeSucceeded: boolean;
     seederCount: number;
     leecherCount: number;
     scrapeState?: number;
     nextAnnounceTime?: number;
+    nextScrapeTime?: number;
     isBackup?: boolean;
+    sitename?: string;
 }
 
 export interface TorrentPeerEntity {
