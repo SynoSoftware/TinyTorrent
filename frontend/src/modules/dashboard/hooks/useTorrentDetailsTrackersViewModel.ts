@@ -410,78 +410,80 @@ export const useTorrentDetailsTrackersViewModel = ({
     const unknownLabel = t("labels.unknown");
     const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
 
-    const baseRows: TrackerRuntimeRow[] = safeTrackers.map(
-        (tracker, originalIndex) => {
-            const key = `${String(tracker.id ?? `${tracker.tier}-${originalIndex}`)}|${tracker.announce}`;
-            const status = deriveTrackerStatus(tracker, t);
-            const lastAnnounceTime =
-                typeof tracker.lastAnnounceTime === "number" &&
-                tracker.lastAnnounceTime > 0
-                    ? tracker.lastAnnounceTime
-                    : undefined;
-            const nextAnnounceTime =
-                typeof tracker.nextAnnounceTime === "number" &&
-                tracker.nextAnnounceTime > 0
-                    ? tracker.nextAnnounceTime
-                    : undefined;
+    const baseRows = useMemo<TrackerRuntimeRow[]>(
+        () =>
+            safeTrackers.map((tracker, originalIndex) => {
+                const key = `${String(tracker.id ?? `${tracker.tier}-${originalIndex}`)}|${tracker.announce}`;
+                const status = deriveTrackerStatus(tracker, t);
+                const lastAnnounceTime =
+                    typeof tracker.lastAnnounceTime === "number" &&
+                    tracker.lastAnnounceTime > 0
+                        ? tracker.lastAnnounceTime
+                        : undefined;
+                const nextAnnounceTime =
+                    typeof tracker.nextAnnounceTime === "number" &&
+                    tracker.nextAnnounceTime > 0
+                        ? tracker.nextAnnounceTime
+                        : undefined;
 
-            let nextAnnounceLabel = "-";
-            let nextAnnounceTooltip = t(
-                "torrent_modal.trackers.message_not_scheduled",
-            );
-            if (tracker.announceState === 3) {
-                nextAnnounceLabel = t(
-                    "torrent_modal.trackers.message_announcing",
+                let nextAnnounceLabel = "-";
+                let nextAnnounceTooltip = t(
+                    "torrent_modal.trackers.message_not_scheduled",
                 );
-                nextAnnounceTooltip = nextAnnounceLabel;
-            } else if (nextAnnounceTime) {
-                nextAnnounceLabel = formatRelativeTime(nextAnnounceTime);
-                nextAnnounceTooltip = formatDateTime(nextAnnounceTime);
-            } else if (tracker.isBackup) {
-                nextAnnounceLabel = t("torrent_modal.trackers.message_backup");
-                nextAnnounceTooltip = nextAnnounceLabel;
-            }
+                if (tracker.announceState === 3) {
+                    nextAnnounceLabel = t(
+                        "torrent_modal.trackers.message_announcing",
+                    );
+                    nextAnnounceTooltip = nextAnnounceLabel;
+                } else if (nextAnnounceTime) {
+                    nextAnnounceLabel = formatRelativeTime(nextAnnounceTime);
+                    nextAnnounceTooltip = formatDateTime(nextAnnounceTime);
+                } else if (tracker.isBackup) {
+                    nextAnnounceLabel = t("torrent_modal.trackers.message_backup");
+                    nextAnnounceTooltip = nextAnnounceLabel;
+                }
 
-            return {
-                key,
-                originalIndex,
-                trackerId:
-                    typeof tracker.id === "number" &&
-                    Number.isFinite(tracker.id)
-                        ? tracker.id
-                        : null,
-                announce: tracker.announce,
-                host: parseTrackerHost(tracker, unknownLabel),
-                tier: tracker.tier,
-                removable:
-                    typeof tracker.id === "number" &&
-                    Number.isFinite(tracker.id),
-                seederCount:
-                    typeof tracker.seederCount === "number" &&
-                    Number.isFinite(tracker.seederCount)
-                        ? tracker.seederCount
-                        : undefined,
-                leecherCount:
-                    typeof tracker.leecherCount === "number" &&
-                    Number.isFinite(tracker.leecherCount)
-                        ? tracker.leecherCount
-                        : undefined,
-                downloadCount:
-                    typeof tracker.downloadCount === "number" &&
-                    Number.isFinite(tracker.downloadCount)
-                        ? tracker.downloadCount
-                        : undefined,
-                lastAnnounceTime,
-                nextAnnounceTime,
-                statusTone: status.tone,
-                statusLabel: status.statusLabel,
-                nextAnnounceLabel,
-                messageText: status.messageText,
-                lastAnnounceTooltip: formatDateTime(lastAnnounceTime),
-                nextAnnounceTooltip,
-                messageTooltip: status.messageText,
-            };
-        },
+                return {
+                    key,
+                    originalIndex,
+                    trackerId:
+                        typeof tracker.id === "number" &&
+                        Number.isFinite(tracker.id)
+                            ? tracker.id
+                            : null,
+                    announce: tracker.announce,
+                    host: parseTrackerHost(tracker, unknownLabel),
+                    tier: tracker.tier,
+                    removable:
+                        typeof tracker.id === "number" &&
+                        Number.isFinite(tracker.id),
+                    seederCount:
+                        typeof tracker.seederCount === "number" &&
+                        Number.isFinite(tracker.seederCount)
+                            ? tracker.seederCount
+                            : undefined,
+                    leecherCount:
+                        typeof tracker.leecherCount === "number" &&
+                        Number.isFinite(tracker.leecherCount)
+                            ? tracker.leecherCount
+                            : undefined,
+                    downloadCount:
+                        typeof tracker.downloadCount === "number" &&
+                        Number.isFinite(tracker.downloadCount)
+                            ? tracker.downloadCount
+                            : undefined,
+                    lastAnnounceTime,
+                    nextAnnounceTime,
+                    statusTone: status.tone,
+                    statusLabel: status.statusLabel,
+                    nextAnnounceLabel,
+                    messageText: status.messageText,
+                    lastAnnounceTooltip: formatDateTime(lastAnnounceTime),
+                    nextAnnounceTooltip,
+                    messageTooltip: status.messageText,
+                };
+            }),
+        [safeTrackers, t, unknownLabel],
     );
 
     const columns = useMemo(() => createTrackerColumns(t), [t]);
@@ -512,7 +514,7 @@ export const useTorrentDetailsTrackersViewModel = ({
                     ? formatRelativeTime(row.original.lastAnnounceTime)
                     : "-",
             })),
-        [selectedKeySet, table],
+        [baseRows, selectedKeySet, sorting, table],
     );
 
     useEffect(() => {

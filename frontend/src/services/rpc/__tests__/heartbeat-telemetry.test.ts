@@ -126,7 +126,7 @@ describe("Heartbeat telemetry", () => {
         const hb = new HeartbeatManager(client);
         const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
-            mode: "table",
+            mode: "background",
             onUpdate: (p) => updates.push(p),
         });
         await waitForSnapshot(updates);
@@ -184,7 +184,7 @@ describe("Heartbeat telemetry", () => {
         const hb = new HeartbeatManager(client);
         const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
-            mode: "table",
+            mode: "background",
             onUpdate: (p) => updates.push(p),
         });
         await waitForSnapshot(updates);
@@ -197,6 +197,122 @@ describe("Heartbeat telemetry", () => {
 
         const history = hbInternals.getSpeedHistory(last!.id);
         expect(history.down[history.down.length - 1]).toBe(0);
+
+        sub.unsubscribe();
+    });
+
+    it("falls back to a full summary fetch when an active transfer gets an empty delta", async () => {
+        const initialTorrent = makeTorrent({
+            id: "torrent-3",
+            hash: "hash-3",
+            rpcId: 33,
+            state: status.torrent.downloading,
+            speed: { down: 128, up: 16 },
+            progress: 0.1,
+        });
+        const refreshedTorrent = makeTorrent({
+            ...initialTorrent,
+            speed: { down: 512, up: 32 },
+            progress: 0.2,
+        });
+
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValueOnce([initialTorrent])
+                .mockResolvedValueOnce([refreshedTorrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(initialTorrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({ torrents: [], removed: [] }),
+        };
+
+        const updates: HeartbeatPayload[] = [];
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: (payload) => updates.push(payload),
+        });
+        await waitForSnapshot(updates);
+
+        await hbInternals.tick();
+
+        expect(client.getRecentlyActive).not.toHaveBeenCalled();
+        expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        expect(hbInternals.lastTorrents?.[0]?.speed.down).toBe(512);
+
+        sub.unsubscribe();
+    });
+
+    it("prefers full summary polling for active table sessions instead of recently-active deltas", async () => {
+        const initialTorrent = makeTorrent({
+            id: "torrent-4",
+            hash: "hash-4",
+            rpcId: 44,
+            state: status.torrent.downloading,
+            speed: { down: 128, up: 8 },
+            progress: 0.1,
+        });
+        const refreshedTorrent = makeTorrent({
+            ...initialTorrent,
+            speed: { down: 768, up: 64 },
+            progress: 0.3,
+        });
+        const staleDeltaTorrent = makeTorrent({
+            ...initialTorrent,
+            speed: { down: 128, up: 8 },
+            progress: 0.1,
+        });
+
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValueOnce([initialTorrent])
+                .mockResolvedValueOnce([refreshedTorrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(initialTorrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({
+                    torrents: [staleDeltaTorrent],
+                    removed: [],
+                }),
+        };
+
+        const updates: HeartbeatPayload[] = [];
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: (payload) => updates.push(payload),
+        });
+        await waitForSnapshot(updates);
+
+        await hbInternals.tick();
+
+        expect(client.getRecentlyActive).not.toHaveBeenCalled();
+        expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        expect(hbInternals.lastTorrents?.[0]?.speed.down).toBe(768);
 
         sub.unsubscribe();
     });
@@ -235,7 +351,7 @@ describe("Heartbeat telemetry", () => {
         const hb = new HeartbeatManager(client);
         const hbInternals = hb as unknown as HeartbeatInternals;
         const sub = hb.subscribe({
-            mode: "table",
+            mode: "background",
             onUpdate: (p) => updates.push(p),
         });
         await waitForSnapshot(updates);

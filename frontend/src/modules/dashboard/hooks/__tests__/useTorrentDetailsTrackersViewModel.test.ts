@@ -48,6 +48,8 @@ vi.mock("@/modules/dashboard/hooks/useTorrentClipboard", () => ({
 }));
 
 type HarnessRef = {
+    getRowCount: () => number;
+    getRowAnnounce: (index: number) => string;
     getRowStatusLabel: (index: number) => string;
     getRowDownloadedLabel: (index: number) => string;
     getSelectionCount: () => number;
@@ -105,6 +107,9 @@ const ViewModelHarness = forwardRef<
         useImperativeHandle(
             ref,
             () => ({
+                getRowCount: () => viewModelRef.current.data.rows.length,
+                getRowAnnounce: (index: number) =>
+                    viewModelRef.current.data.rows[index]?.announce ?? "",
                 getRowStatusLabel: (index: number) =>
                     viewModelRef.current.data.rows[index]?.statusLabel ?? "",
                 getRowDownloadedLabel: (index: number) =>
@@ -265,6 +270,35 @@ describe("useTorrentDetailsTrackersViewModel", () => {
                 "torrent_modal.trackers.status_timeout",
             );
             expect(harness.getRowDownloadedLabel(0)).toBe("7");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("rebuilds tracker rows when tracker data arrives while the same tab instance stays mounted", async () => {
+        const mounted = await mountHarness([]);
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            expect(harness.getRowCount()).toBe(0);
+
+            mounted.rerender([
+                makeTracker({
+                    id: 7,
+                    announce: "https://tracker-live.example/announce",
+                    downloadCount: 12,
+                }),
+            ]);
+
+            await waitForCondition(() => harness.getRowCount() === 1);
+
+            expect(harness.getRowAnnounce(0)).toBe(
+                "https://tracker-live.example/announce",
+            );
+            expect(harness.getRowDownloadedLabel(0)).toBe("12");
         } finally {
             mounted.cleanup();
         }

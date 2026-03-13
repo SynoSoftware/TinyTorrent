@@ -482,7 +482,7 @@ export class HeartbeatManager {
         }
         this.rescheduleLoop();
         if (!this.hasInitialData()) {
-            void this.triggerImmediateTick();
+            void this.triggerImmediateTick(true);
         } else if (!this.hasUsableCachedDetail(params)) {
             void this.triggerImmediateTick(true);
         }
@@ -695,6 +695,9 @@ export class HeartbeatManager {
         }
         const detailRequests = Array.from(detailRequestMap.values());
         const hasDetailSubscribers = detailRequests.length > 0;
+        const hasTableSubscribers = snapshot.some(
+            ({ params }) => params.mode === "table",
+        );
         const shouldFetchSummary =
             this.pollingEnabled || !this.hasInitialData();
         if (!shouldFetchSummary && !hasDetailSubscribers) {
@@ -714,10 +717,10 @@ export class HeartbeatManager {
                 let fetchedSessionStats: SessionStats;
                 let fetchedTelemetry: NetworkTelemetry | undefined = undefined;
 
-                // If we already have an initial snapshot and the client
-                // exposes `getRecentlyActive`, prefer the lightweight delta
-                // fetch to avoid pulling the entire torrent list every tick.
-                // Decide whether to use delta or force a full fetch.
+                // Table subscribers need authoritative live summary values
+                // (speeds/progress/ETA), so they always stay on full summary
+                // fetches. The delta path remains for lighter non-table
+                // polling where recently-active omissions are acceptable.
                 const clientDelta = this
                     .client as HeartbeatClientWithTelemetry & {
                         getRecentlyActive?: unknown;
@@ -732,15 +735,16 @@ export class HeartbeatManager {
                               torrent.state === status.torrent.checking,
                       )
                     : false;
-                const forceFull =
+                const shouldUseFullSummaryFetch =
                     this.hasFullFetchPriority() ||
                     hasChecking ||
+                    hasTableSubscribers ||
                     this.cycleCount >= this.MAX_DELTA_CYCLES;
 
                 // --- 1. Fetch Global Stats ---
                 const sessionStatsCall = this.client.getSessionStats();
 
-                if (supportsDelta && !forceFull) {
+                if (supportsDelta && !shouldUseFullSummaryFetch) {
                     try {
                         const telemetryClient = this
                             .client as HeartbeatClientWithTelemetry;
@@ -763,12 +767,14 @@ export class HeartbeatManager {
                                 sessionStatsCall,
                                 telemetryCall,
                             ]);
-                        fetchedSessionStats = stats;
-
-                        // --- 2. Structural Merge (Delta) ---
                         const prevTorrents = this.lastTorrents ?? [];
+
+                        fetchedSessionStats = stats;
+                        // --- 2. Structural Merge (Delta) ---
                         const map = new Map<string, TorrentEntity>();
-                        for (const t of prevTorrents) map.set(String(t.id), t);
+                        for (const t of prevTorrents) {
+                            map.set(String(t.id), t);
+                        }
                         let shouldDiag = false;
                         try {
                             if (
@@ -917,92 +923,92 @@ export class HeartbeatManager {
                             }
                         }
 
-                        const deltaSnapshot = Array.from(map.values());
-                        fetchedTorrents = deltaSnapshot;
+                            const deltaSnapshot = Array.from(map.values());
+                            fetchedTorrents = deltaSnapshot;
 
-                        if (
-                            delta &&
-                            Array.isArray(delta.removed) &&
-                            delta.removed.length > 0
-                        ) {
-                            const keySet = new Set<string>(
-                                Array.from(map.keys())
-                            );
-                            const rpcIdSet = new Set<string>();
-                            for (const v of map.values()) {
-                                if (v.rpcId != null)
-                                    rpcIdSet.add(String(v.rpcId));
-                            }
-                            const leftover = delta.removed.filter((rid) => {
-                                const s = String(rid);
-                                return keySet.has(s) || rpcIdSet.has(s);
-                            });
-                            if (leftover.length > 0) {
-                                if (shouldDiag) {
-                                    infraLogger.debug({
-                                        scope: "heartbeat",
-                                        event: "removed_leftover",
-                                        message:
-                                            "Found leftover removed ids after delta merge",
-                                        details: { leftover },
-                                    });
+                            if (
+                                delta &&
+                                Array.isArray(delta.removed) &&
+                                delta.removed.length > 0
+                            ) {
+                                const keySet = new Set<string>(
+                                    Array.from(map.keys())
+                                );
+                                const rpcIdSet = new Set<string>();
+                                for (const v of map.values()) {
+                                    if (v.rpcId != null)
+                                        rpcIdSet.add(String(v.rpcId));
                                 }
-                                const nowResync = Date.now();
-                                if (
-                                    nowResync - this.lastResyncAt >
-                                    timing.wsReconnect.maxDelayMs
-                                ) {
-                                    try {
-                                        if (shouldDiag) {
-                                            infraLogger.debug({
-                                                scope: "heartbeat",
-                                                event: "leftover_resync",
-                                                message:
-                                                    "Triggering full resync due to leftover removed ids",
-                                                details: { leftover },
-                                            });
-                                        }
-                                        const [all, stats] = await Promise.all([
-                                            this.client.getTorrents(),
-                                            this.client.getSessionStats(),
-                                        ]);
-                                        fetchedTorrents = all;
-                                        fetchedSessionStats = stats;
-                                        this.cycleCount = 0;
-                                        this.lastResyncAt = nowResync;
-                                    } catch (err) {
-                                        infraLogger.error(
-                                            {
-                                                scope: "heartbeat",
-                                                event: "leftover_resync_failed",
-                                                message:
-                                                    "Full resync failed after leftover removed ids were detected",
-                                                details: { leftover },
-                                            },
-                                            err,
-                                        );
+                                const leftover = delta.removed.filter((rid) => {
+                                    const s = String(rid);
+                                    return keySet.has(s) || rpcIdSet.has(s);
+                                });
+                                if (leftover.length > 0) {
+                                    if (shouldDiag) {
+                                        infraLogger.debug({
+                                            scope: "heartbeat",
+                                            event: "removed_leftover",
+                                            message:
+                                                "Found leftover removed ids after delta merge",
+                                            details: { leftover },
+                                        });
                                     }
-                                } else if (shouldDiag) {
-                                    infraLogger.debug({
-                                        scope: "heartbeat",
-                                        event: "leftover_resync_skipped",
-                                        message:
-                                            "Skipped leftover-triggered resync due to cooldown",
-                                        details: {
-                                            leftover,
-                                            lastResyncAt: this.lastResyncAt,
-                                        },
-                                    });
+                                    const nowResync = Date.now();
+                                    if (
+                                        nowResync - this.lastResyncAt >
+                                        timing.wsReconnect.maxDelayMs
+                                    ) {
+                                        try {
+                                            if (shouldDiag) {
+                                                infraLogger.debug({
+                                                    scope: "heartbeat",
+                                                    event: "leftover_resync",
+                                                    message:
+                                                        "Triggering full resync due to leftover removed ids",
+                                                    details: { leftover },
+                                                });
+                                            }
+                                            const [all, stats] = await Promise.all([
+                                                this.client.getTorrents(),
+                                                this.client.getSessionStats(),
+                                            ]);
+                                            fetchedTorrents = all;
+                                            fetchedSessionStats = stats;
+                                            this.cycleCount = 0;
+                                            this.lastResyncAt = nowResync;
+                                        } catch (err) {
+                                            infraLogger.error(
+                                                {
+                                                    scope: "heartbeat",
+                                                    event: "leftover_resync_failed",
+                                                    message:
+                                                        "Full resync failed after leftover removed ids were detected",
+                                                    details: { leftover },
+                                                },
+                                                err,
+                                            );
+                                        }
+                                    } else if (shouldDiag) {
+                                        infraLogger.debug({
+                                            scope: "heartbeat",
+                                            event: "leftover_resync_skipped",
+                                            message:
+                                                "Skipped leftover-triggered resync due to cooldown",
+                                            details: {
+                                                leftover,
+                                                lastResyncAt: this.lastResyncAt,
+                                            },
+                                        });
+                                    }
                                 }
                             }
-                        }
 
 
-                        if (maybeTelemetry) {
-                            fetchedTelemetry =
-                                maybeTelemetry as NetworkTelemetry;
-                        }
-                        this.cycleCount += 1;
+                            if (maybeTelemetry) {
+                                fetchedTelemetry =
+                                    maybeTelemetry as NetworkTelemetry;
+                            }
+                            this.cycleCount += 1;
                     } catch {
                         const [all, stats] = await Promise.all([
                             this.client.getTorrents(),

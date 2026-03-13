@@ -61,6 +61,60 @@ type HeartbeatInternals = {
 };
 
 describe("HeartbeatManager detail preload", () => {
+    it("queues a follow-up immediate tick when another subscriber mounts during the initial hydration tick", async () => {
+        const initialResolvers: Array<(value: TorrentEntity[]) => void> = [];
+        const initialTorrents = new Promise<TorrentEntity[]>((resolve) => {
+            initialResolvers.push(resolve);
+        });
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockImplementationOnce(() => initialTorrents)
+                .mockResolvedValue([makeTorrent("torrent-startup")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(makeTorrent("torrent-startup")),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const firstUpdates: number[] = [];
+        const secondUpdates: number[] = [];
+
+        const first = hb.subscribe({
+            mode: "table",
+            onUpdate: () => {
+                firstUpdates.push(Date.now());
+            },
+        });
+
+        const second = hb.subscribe({
+            mode: "table",
+            onUpdate: () => {
+                secondUpdates.push(Date.now());
+            },
+        });
+
+        try {
+            const resolveInitialTorrents = initialResolvers[0];
+            if (!resolveInitialTorrents) {
+                throw new Error("initial_torrents_resolver_missing");
+            }
+            resolveInitialTorrents([makeTorrent("torrent-startup")]);
+
+            await waitForCondition(() => firstUpdates.length >= 1);
+            await waitForCondition(() => secondUpdates.length >= 1);
+
+            expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        } finally {
+            first.unsubscribe();
+            second.unsubscribe();
+            hb.dispose();
+        }
+    });
+
     it("triggers an immediate detail fetch when opening details without cached detail data", async () => {
         const client: HeartbeatClientLike = {
             getTorrents: vi
