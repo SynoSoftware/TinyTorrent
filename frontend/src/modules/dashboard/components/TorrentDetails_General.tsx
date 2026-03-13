@@ -5,24 +5,20 @@ import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel"
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
-import {
-    formatQueueOrdinal,
-} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
+import { formatQueueOrdinal } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { getTorrentEtaDisplay } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { getTorrentCompactSpeedValue } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import type { TorrentDetailEntity, TorrentTrackerEntity } from "@/services/rpc/entities";
+import {
+    torrentHeadlineFields,
+    torrentHeadlineOrder,
+    type TorrentHeadlineFieldId,
+} from "@/modules/dashboard/utils/torrentHeadlineFields";
 import { DETAILS } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { status } from "@/shared/status";
-import {
-    formatBytes,
-    formatDate,
-    formatRelativeTime,
-    formatSpeed,
-    formatTime,
-} from "@/shared/utils/format";
+import { formatBytes, formatDate, formatRelativeTime, formatSpeed, formatTime } from "@/shared/utils/format";
 
 interface GeneralTabProps {
     torrent: TorrentDetailEntity;
@@ -47,22 +43,22 @@ type SectionProps = {
     rows: DisplayRow[];
 };
 
-const findPrimaryTracker = (
-    trackers?: TorrentTrackerEntity[],
-): TorrentTrackerEntity | null => {
+const findPrimaryTracker = (trackers?: TorrentTrackerEntity[]): TorrentTrackerEntity | null => {
     if (!trackers?.length) {
         return null;
     }
 
-    return [...trackers].sort((left, right) => {
-        if (left.tier !== right.tier) {
-            return left.tier - right.tier;
-        }
-        if (Boolean(left.isBackup) !== Boolean(right.isBackup)) {
-            return left.isBackup ? 1 : -1;
-        }
-        return (left.id ?? Number.MAX_SAFE_INTEGER) - (right.id ?? Number.MAX_SAFE_INTEGER);
-    })[0] ?? null;
+    return (
+        [...trackers].sort((left, right) => {
+            if (left.tier !== right.tier) {
+                return left.tier - right.tier;
+            }
+            if (Boolean(left.isBackup) !== Boolean(right.isBackup)) {
+                return left.isBackup ? 1 : -1;
+            }
+            return (left.id ?? Number.MAX_SAFE_INTEGER) - (right.id ?? Number.MAX_SAFE_INTEGER);
+        })[0] ?? null
+    );
 };
 
 const formatLimitValue = (
@@ -113,79 +109,39 @@ const SummarySection = ({
     optimisticStatus?: DashboardDetailViewModel["optimisticStatus"];
     t: ReturnType<typeof useTranslation>["t"];
 }) => {
-    const speedValue = getTorrentCompactSpeedValue(torrent);
     const eta = getTorrentEtaDisplay(torrent, t);
+    const speedValue = getTorrentCompactSpeedValue(torrent);
 
-    const rows: DisplayRow[] = [
-        {
-            key: "name",
-            label: t("torrent_modal.general.fields.name"),
-            value: <span className={DETAILS.generalSummaryName}>{torrent.name}</span>,
-        },
-        {
-            key: "speed",
-            label: t("torrent_modal.general.fields.speed"),
-            value: speedValue !== null ? formatSpeed(speedValue) : t("labels.unknown"),
-        },
-        {
-            key: "queue",
-            label: t("torrent_modal.general.fields.queue_position"),
-            value: formatQueueOrdinal(torrent.queuePosition),
-        },
-        {
-            key: "peers",
-            label: t("torrent_modal.general.fields.peers"),
-            value: String(torrent.peerSummary.connected ?? 0),
-        },
-        {
-            key: "uploadingTo",
-            label: t("torrent_modal.general.fields.peers_uploading_to"),
-            value: String(torrent.peerSummary.sending ?? 0),
-        },
-        {
-            key: "downloadingFrom",
-            label: t("torrent_modal.general.fields.peers_downloading_from"),
-            value: String(torrent.peerSummary.getting ?? 0),
-        },
-        {
-            key: "size",
-            label: t("torrent_modal.general.fields.size"),
-            value: formatBytes(torrent.totalSize),
-        },
-        {
-            key: "status",
-            label: t("torrent_modal.general.fields.status"),
-            value: (
+    const rows = useMemo<DisplayRow[]>(() => {
+        const renderValueByFieldId: Record<TorrentHeadlineFieldId, ReactNode> = {
+            name: <span className={DETAILS.generalSummaryName}>{torrent.name}</span>,
+            speed: speedValue !== null ? formatSpeed(speedValue) : t("labels.unknown"),
+            queue: formatQueueOrdinal(torrent.queuePosition),
+            peers: String(torrent.peerSummary.connected ?? 0),
+            uploadingTo: String(torrent.peerSummary.sending ?? 0),
+            downloadingFrom: String(torrent.peerSummary.getting ?? 0),
+            size: formatBytes(torrent.totalSize),
+            status: (
                 <div className={DETAILS.generalSummaryStatus}>
-                    <TorrentTable_StatusCell
-                        torrent={torrent}
-                        t={t}
-                        optimisticStatus={optimisticStatus}
-                    />
+                    <TorrentTable_StatusCell torrent={torrent} t={t} optimisticStatus={optimisticStatus} />
                 </div>
             ),
-        },
-        {
-            key: "eta",
-            label: t("torrent_modal.general.fields.eta"),
-            value: <span title={eta.tooltip}>{eta.value}</span>,
-        },
-        {
-            key: "progress",
-            label: t("torrent_modal.general.fields.progress"),
-            value: <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />,
-            block: true,
-        },
-        {
-            key: "added",
-            label: t("torrent_modal.general.fields.time_added"),
-            value: (
-                <span title={formatDate(torrent.added)}>
-                    {formatRelativeTime(torrent.added)}
-                </span>
+            eta: <span title={eta.tooltip}>{eta.value}</span>,
+            progress: <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />,
+            added: <span title={formatDate(torrent.added)}>{formatRelativeTime(torrent.added)}</span>,
+        };
+
+        return torrentHeadlineOrder.map((fieldId) => ({
+            key: fieldId,
+            label: t(
+                torrentHeadlineFields[fieldId].summaryLabelKey ??
+                    torrentHeadlineFields[fieldId].tableLabelKey ??
+                    "labels.unknown",
             ),
-        },
-    ];
+            value: renderValueByFieldId[fieldId],
+            block: fieldId === "progress",
+        }));
+    }, [eta.tooltip, eta.value, optimisticStatus, speedValue, t, torrent]);
 
     return (
         <SectionBlock
@@ -197,41 +153,25 @@ const SummarySection = ({
     );
 };
 
-function SectionBlock({
-    title,
-    description,
-    rows,
-    summary = false,
-}: SectionProps & { summary?: boolean }) {
+function SectionBlock({ title, description, rows, summary = false }: SectionProps & { summary?: boolean }) {
     return (
         <section className={DETAILS.generalSection}>
             <div className={DETAILS.generalSectionHeader}>
                 <div className={DETAILS.generalSectionHeading}>
                     <h3 className={DETAILS.generalSectionTitle}>{title}</h3>
-                    {description ? (
-                        <p className={DETAILS.generalSectionDescription}>
-                            {description}
-                        </p>
-                    ) : null}
+                    {description ? <p className={DETAILS.generalSectionDescription}>{description}</p> : null}
                 </div>
             </div>
             <div className={summary ? DETAILS.generalSummaryGrid : DETAILS.generalMetricGrid}>
                 {rows.map((row) => (
-                    <div
-                        key={row.key}
-                        className={row.block ? DETAILS.generalMetricRowBlock : DETAILS.generalMetricRow}
-                    >
+                    <div key={row.key} className={row.block ? DETAILS.generalMetricRowBlock : DETAILS.generalMetricRow}>
                         <div className={DETAILS.generalMetricContent}>
                             <div className={DETAILS.generalMetricLabel}>{row.label}</div>
-                            <div
-                                className={row.block ? DETAILS.generalMetricValueBlock : DETAILS.generalMetricValue}
-                            >
+                            <div className={row.block ? DETAILS.generalMetricValueBlock : DETAILS.generalMetricValue}>
                                 {row.value}
                             </div>
                         </div>
-                        {row.actions ? (
-                            <div className={DETAILS.generalMetricActions}>{row.actions}</div>
-                        ) : null}
+                        {row.actions ? <div className={DETAILS.generalMetricActions}>{row.actions}</div> : null}
                     </div>
                 ))}
             </div>
@@ -249,13 +189,9 @@ export const GeneralTab = ({
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
     const { copyToClipboard } = useTorrentClipboard();
-    const [showSetDownloadPathModal, setShowSetDownloadPathModal] =
-        useState(false);
+    const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
 
-    const primaryTracker = useMemo(
-        () => findPrimaryTracker(torrent.trackers),
-        [torrent.trackers],
-    );
+    const primaryTracker = useMemo(() => findPrimaryTracker(torrent.trackers), [torrent.trackers]);
 
     const unavailableLabel = t("torrent_modal.general.values.unavailable");
     const unknownLabel = t("labels.unknown");
@@ -291,9 +227,7 @@ export const GeneralTab = ({
             {
                 key: "time-active",
                 label: t("torrent_modal.general.fields.time_active"),
-                value: formatTime(
-                    (torrent.secondsDownloading ?? 0) + (torrent.secondsSeeding ?? 0),
-                ),
+                value: formatTime((torrent.secondsDownloading ?? 0) + (torrent.secondsSeeding ?? 0)),
             },
             {
                 key: "connections",
@@ -333,34 +267,21 @@ export const GeneralTab = ({
                 key: "seeds",
                 label: t("torrent_modal.general.fields.seeds"),
                 value:
-                    typeof primaryTracker?.seederCount === "number" &&
-                    primaryTracker.seederCount >= 0 ? (
+                    typeof primaryTracker?.seederCount === "number" && primaryTracker.seederCount >= 0 ? (
                         String(primaryTracker.seederCount)
                     ) : (
-                        <span className={DETAILS.generalUnavailable}>
-                            {unavailableLabel}
-                        </span>
+                        <span className={DETAILS.generalUnavailable}>{unavailableLabel}</span>
                     ),
             },
             {
                 key: "download-limit",
                 label: t("torrent_modal.general.fields.download_limit"),
-                value: formatLimitValue(
-                    torrent.downloadLimited,
-                    torrent.downloadLimit,
-                    infiniteLabel,
-                    unknownLabel,
-                ),
+                value: formatLimitValue(torrent.downloadLimited, torrent.downloadLimit, infiniteLabel, unknownLabel),
             },
             {
                 key: "upload-limit",
                 label: t("torrent_modal.general.fields.upload_limit"),
-                value: formatLimitValue(
-                    torrent.uploadLimited,
-                    torrent.uploadLimit,
-                    infiniteLabel,
-                    unknownLabel,
-                ),
+                value: formatLimitValue(torrent.uploadLimited, torrent.uploadLimit, infiniteLabel, unknownLabel),
             },
         ];
 
@@ -385,9 +306,7 @@ export const GeneralTab = ({
             rows.push({
                 key: "reannounce-in",
                 label: t("torrent_modal.general.fields.reannounce_in"),
-                value: formatTime(
-                    primaryTracker.nextAnnounceTime - Math.floor(Date.now() / 1000),
-                ),
+                value: formatTime(primaryTracker.nextAnnounceTime - Math.floor(Date.now() / 1000)),
             });
         }
 
@@ -423,8 +342,7 @@ export const GeneralTab = ({
                 key: "pieces",
                 label: t("torrent_modal.general.fields.pieces"),
                 value:
-                    typeof torrent.pieceCount === "number" &&
-                    typeof torrent.pieceSize === "number"
+                    typeof torrent.pieceCount === "number" && typeof torrent.pieceSize === "number"
                         ? t("torrent_modal.general.values.pieces", {
                               count: torrent.pieceCount,
                               size: formatBytes(torrent.pieceSize),
@@ -449,11 +367,7 @@ export const GeneralTab = ({
             {
                 key: "save-path",
                 label: t("torrent_modal.labels.save_path"),
-                value: (
-                    <span className={DETAILS.generalMetricCode}>
-                        {setLocation.currentPath}
-                    </span>
-                ),
+                value: <span className={DETAILS.generalMetricCode}>{setLocation.currentPath}</span>,
                 actions: (
                     <ToolbarIconButton
                         Icon={Folder}
@@ -472,11 +386,7 @@ export const GeneralTab = ({
             rows.push({
                 key: "comment",
                 label: t("torrent_modal.general.fields.comment"),
-                value: (
-                    <div className={DETAILS.generalCommentValue}>
-                        {torrent.comment}
-                    </div>
-                ),
+                value: <div className={DETAILS.generalCommentValue}>{torrent.comment}</div>,
                 block: true,
             });
         }
@@ -537,13 +447,7 @@ export const GeneralTab = ({
 
     return (
         <div className={DETAILS.generalRoot}>
-            {isDetailFullscreen ? (
-                <SummarySection
-                    torrent={torrent}
-                    optimisticStatus={optimisticStatus}
-                    t={t}
-                />
-            ) : null}
+            {isDetailFullscreen ? <SummarySection torrent={torrent} optimisticStatus={optimisticStatus} t={t} /> : null}
             <SectionBlock
                 title={t("torrent_modal.general.sections.transfer")}
                 description={t("torrent_modal.general.sections.transfer_description")}

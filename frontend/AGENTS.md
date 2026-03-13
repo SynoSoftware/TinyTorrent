@@ -1494,6 +1494,9 @@ Typed vocabulary contract for closed, cross-cutting domains (status/reason/outco
 - Do not introduce runtime enums or ALL_CAPS pseudo-enum objects for TypeScript control-plane vocabularies.
 - Naming convention: enum-like control-plane vocabulary authorities and members use PascalCase. camelCase is reserved for non-vocabulary runtime values/functions. ALL_CAPS enum-style naming is forbidden unless required by an external protocol, third-party API, or platform contract.
 - Namespace objects that group vocabulary authorities (for example `Shortcuts`, `TorrentActions`) also use PascalCase.
+- New non-vocabulary runtime/data authorities (descriptor maps, field registries, metadata objects, helper registries, local authority records) must use camelCase, not ALL_CAPS.
+- Existing ALL_CAPS UI/token/style authorities in older shared files are legacy precedent, not the default naming pattern for new runtime/domain structures.
+- Prefer short, explicit camelCase names for new authority/data structures so the owner is correctly cased, uncomplicated, manageable, and future-safe.
 - Avoid `typeof SOME_CONST.X` type plumbing in consumer code when a domain alias/union can express intent directly.
 - Exhaustive branching over closed vocabularies must use a `never` guard in the unreachable/default path.
 

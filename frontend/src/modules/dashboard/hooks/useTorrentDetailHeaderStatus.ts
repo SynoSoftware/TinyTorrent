@@ -2,10 +2,7 @@ import { useMemo } from "react";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
 import { useTranslation } from "react-i18next";
-import {
-    getEffectiveTorrentState,
-    getTorrentStatusLabelKey,
-} from "@/modules/dashboard/utils/torrentStatus";
+import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentStatus";
 
 interface UseTorrentDetailHeaderStatusParams {
     torrent?: TorrentDetail | null;
@@ -32,37 +29,22 @@ export function useTorrentDetailHeaderStatus({
             };
         }
 
-        if (optimisticStatus?.operation === "moving") {
-            const label = t("table.status_moving");
-            return {
-                statusLabel: label,
-                tooltip: label,
-                primaryHint: null,
-            };
-        }
-
-        const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
-        const statusLabelKey = getTorrentStatusLabelKey(effectiveState);
-        const statusLabel =
-            statusLabelKey != null
-                ? t(statusLabelKey)
-                : typeof effectiveState === "string" && effectiveState.length > 0
-                  ? effectiveState
-                : null;
-        if (!statusLabel) {
+        const presentation = getTorrentStatusPresentation(
+            torrent,
+            t,
+            optimisticStatus,
+        );
+        if (!presentation.label) {
             return {
                 statusLabel: null,
                 tooltip: null,
                 primaryHint: null,
             };
         }
-        const tooltip = torrent.errorString && torrent.errorString.trim().length > 0
-            ? torrent.errorString
-            : statusLabel;
 
         return {
-            statusLabel,
-            tooltip,
+            statusLabel: presentation.label,
+            tooltip: presentation.tooltip,
             primaryHint: null,
         };
     }, [optimisticStatus, t, torrent]);

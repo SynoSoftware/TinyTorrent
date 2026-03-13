@@ -14,7 +14,8 @@ import {
     HardDrive, // size
     TrendingUp, // ratio
     Clock, // added
-    Users, } from "lucide-react";
+    Users,
+} from "lucide-react";
 
 import { status } from "@/shared/status";
 import { type TFunction } from "i18next";
@@ -30,6 +31,7 @@ import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTa
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
 const { layout, visuals, ui } = registry;
 
 // --- TYPES ---
@@ -113,7 +115,7 @@ export const formatQueueOrdinal = (queuePosition?: number) => {
 export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
     name: {
         id: "name",
-        labelKey: "table.header_name",
+        labelKey: torrentHeadlineFields.name.tableLabelKey,
         minSize: 90,
         sortable: true,
         rpcField: "name",
@@ -138,7 +140,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     progress: {
         id: "progress",
-        labelKey: "table.header_progress",
+        labelKey: torrentHeadlineFields.progress.tableLabelKey,
         width: 220,
         minSize: 110,
         sortable: true,
@@ -147,16 +149,13 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: getEffectiveProgress,
         headerIcon: Percent,
         render: ({ torrent, optimisticStatus }) => (
-            <TorrentProgressDisplay
-                torrent={torrent}
-                optimisticStatus={optimisticStatus}
-            />
+            <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />
         ),
     },
 
     status: {
         id: "status",
-        labelKey: "table.header_status",
+        labelKey: torrentHeadlineFields.status.tableLabelKey,
         width: 110,
         minSize: 95,
         sortable: true,
@@ -171,7 +170,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     queue: {
         id: "queue",
-        labelKey: "table.header_queue",
+        labelKey: torrentHeadlineFields.queue.tableLabelKey,
         width: 80,
         align: "center",
         sortable: true,
@@ -188,7 +187,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     eta: {
         id: "eta",
-        labelKey: "table.header_eta",
+        labelKey: torrentHeadlineFields.eta.tableLabelKey,
         width: 110,
         sortable: true,
         rpcField: "eta",
@@ -207,7 +206,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     speed: {
         id: "speed",
-        labelKey: "table.header_speed",
+        labelKey: torrentHeadlineFields.speed.tableLabelKey,
         width: 180,
         minSize: 160,
         align: "end",
@@ -221,7 +220,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     peers: {
         id: "peers",
-        labelKey: "table.header_peers",
+        labelKey: torrentHeadlineFields.peers.tableLabelKey,
         width: 100,
         align: "end",
         sortable: true,
@@ -245,7 +244,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     size: {
         id: "size",
-        labelKey: "table.header_size",
+        labelKey: torrentHeadlineFields.size.tableLabelKey,
         width: 100,
         align: "end",
         sortable: true,
@@ -275,7 +274,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
     added: {
         id: "added",
-        labelKey: "table.header_added",
+        labelKey: torrentHeadlineFields.added.tableLabelKey,
         width: 100,
         align: "end",
         sortable: true,
@@ -307,6 +306,3 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
 export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "queue", "speed", "peers", "size"];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(TORRENTTABLE_COLUMN_DEFS) as ColumnId[];
-
-
-

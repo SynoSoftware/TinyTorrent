@@ -6,7 +6,7 @@ import { registry } from "@/config/logic";
 import { status } from "@/shared/status";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
-import { getEffectiveTorrentState, getTorrentStatusLabelKey } from "@/modules/dashboard/utils/torrentStatus";
+import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentStatus";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 import { ArrowDown, ArrowUp, Bug, WifiOff, ListStart, Pause, RefreshCw, FolderSync } from "lucide-react";
@@ -96,23 +96,28 @@ export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: Torren
         );
     };
 
-    const isMoving = optimisticStatus?.operation === "moving";
-    if (isMoving) {
-        const label = t("table.status_moving");
-        return renderChip(FolderSync, "primary", label, label);
+    const presentation = getTorrentStatusPresentation(
+        torrent,
+        t,
+        optimisticStatus,
+    );
+
+    if (presentation.isOptimisticMoving && presentation.label) {
+        return renderChip(
+            FolderSync,
+            "primary",
+            presentation.label,
+            presentation.tooltip ?? presentation.label,
+        );
     }
 
-    const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
-    const conf = statusMap[effectiveState] ?? UNKNOWN_STATUS_META;
+    const label = presentation.label ?? t("table.status_error");
+    const tooltip = presentation.tooltip ?? label;
+    const conf =
+        (presentation.effectiveState
+            ? statusMap[presentation.effectiveState]
+            : undefined) ?? UNKNOWN_STATUS_META;
     const Icon = conf.icon;
-    const labelKey = getTorrentStatusLabelKey(effectiveState);
-    const label =
-        labelKey != null
-            ? t(labelKey)
-            : typeof effectiveState === "string" && effectiveState.length > 0
-              ? effectiveState
-              : t("table.status_error");
-    const tooltip = torrent.errorString && torrent.errorString.trim().length > 0 ? torrent.errorString : label;
 
     return renderChip(Icon, conf.color, label, tooltip);
 }

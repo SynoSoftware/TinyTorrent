@@ -13,8 +13,10 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { getEffectiveTorrentState } from "@/modules/dashboard/utils/torrentStatus";
-import { status } from "@/shared/status";
+import {
+    getEffectiveTorrentState,
+    isTorrentPausableState,
+} from "@/modules/dashboard/utils/torrentStatus";
 import {
     evaluateRelocationMoveVerification,
     resolveSetDownloadLocationMode,
@@ -526,12 +528,7 @@ export function useTorrentWorkflow({
             path: string;
         }): Promise<TorrentCommandOutcome> => {
             const locationMode = resolveSetDownloadLocationMode(torrent);
-            const shouldResumeAfter =
-                torrent.state === status.torrent.downloading ||
-                torrent.state === status.torrent.seeding ||
-                torrent.state === status.torrent.checking ||
-                torrent.state === status.torrent.queued ||
-                torrent.state === status.torrent.stalled;
+            const shouldResumeAfter = isTorrentPausableState(torrent.state);
             if (locationMode === "locate") {
                 onVerificationStart?.();
             }

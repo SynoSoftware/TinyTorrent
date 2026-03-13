@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { TorrentEntity as Torrent, TorrentStatus } from "@/services/rpc/entities";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
 import { status } from "@/shared/status";
@@ -33,4 +34,55 @@ export const getTorrentStatusLabelKey = (torrentState?: TorrentStatus | null) =>
         default:
             return null;
     }
+};
+
+export interface TorrentStatusPresentation {
+    effectiveState: TorrentStatus | null;
+    isOptimisticMoving: boolean;
+    label: string | null;
+    tooltip: string | null;
+}
+
+export const getTorrentStatusPresentation = (
+    torrent: Pick<Torrent, "state" | "errorString">,
+    t: TFunction,
+    optimisticStatus?: OptimisticStatusEntry,
+): TorrentStatusPresentation => {
+    if (optimisticStatus?.operation === "moving") {
+        const label = t("table.status_moving");
+        return {
+            effectiveState: null,
+            isOptimisticMoving: true,
+            label,
+            tooltip: label,
+        };
+    }
+
+    const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
+    const statusLabelKey = getTorrentStatusLabelKey(effectiveState);
+    const label =
+        statusLabelKey != null
+            ? t(statusLabelKey)
+            : typeof effectiveState === "string" && effectiveState.length > 0
+              ? effectiveState
+              : null;
+
+    if (!label) {
+        return {
+            effectiveState,
+            isOptimisticMoving: false,
+            label: null,
+            tooltip: null,
+        };
+    }
+
+    return {
+        effectiveState,
+        isOptimisticMoving: false,
+        label,
+        tooltip:
+            torrent.errorString && torrent.errorString.trim().length > 0
+                ? torrent.errorString
+                : label,
+    };
 };
