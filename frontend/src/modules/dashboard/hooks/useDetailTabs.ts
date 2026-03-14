@@ -39,6 +39,7 @@ import {
     isTorrentPausableState,
 } from "@/modules/dashboard/utils/torrentStatus";
 import { isEditableKeyboardTarget } from "@/shared/utils/dom";
+import type { TorrentDetailHeaderAction } from "@/modules/dashboard/types/torrentDetailHeader";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 
@@ -134,6 +135,7 @@ export interface TorrentDetailTabSurfaces {
         addTrackers: DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"];
         removeTrackers: DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"];
         reannounce: DashboardDetailViewModel["tabs"]["trackers"]["reannounce"];
+        registerHeaderActions?: (actions: TorrentDetailHeaderAction[]) => void;
     } | null;
     peers: {
         peers: NonNullable<
@@ -157,13 +159,6 @@ export interface TorrentDetailTabDefinition {
     labelKey: string;
     isVisible?: (surfaces: TorrentDetailTabSurfaces) => boolean;
     render: (surfaces: TorrentDetailTabSurfaces) => ReactNode;
-}
-
-export interface TorrentDetailHeaderAction {
-    icon: LucideIcon;
-    onPress: () => void;
-    ariaLabel: string;
-    tone: "success" | "warning" | "neutral" | "danger" | "default";
 }
 
 export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
@@ -236,6 +231,7 @@ export const useTorrentDetailTabCoordinator = ({
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
     const [showPiecesHud, setShowPiecesHud] = useState(true);
+    const [trackersHeaderActions, setTrackersHeaderActions] = useState<TorrentDetailHeaderAction[]>([]);
     const torrent = viewModel.detailData;
     const {
         active,
@@ -331,6 +327,7 @@ export const useTorrentDetailTabCoordinator = ({
                   addTrackers,
                   removeTrackers,
                   reannounce: reannounceTrackers,
+                  registerHeaderActions: setTrackersHeaderActions,
               },
               peers: {
                   peers: torrent.peers ?? [],
@@ -505,6 +502,9 @@ export const useTorrentDetailTabCoordinator = ({
                 },
             ];
         }
+        if (active === "trackers") {
+            return trackersHeaderActions;
+        }
         return [];
     }, [
         active,
@@ -513,6 +513,7 @@ export const useTorrentDetailTabCoordinator = ({
         surfaces.general,
         surfaces.pieces,
         t,
+        trackersHeaderActions,
     ]);
 
     return {

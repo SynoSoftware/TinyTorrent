@@ -269,7 +269,9 @@ describe("useTorrentDetailsTrackersViewModel", () => {
             expect(harness.getRowStatusLabel(0)).toBe(
                 "torrent_modal.trackers.status_timeout",
             );
-            expect(harness.getRowDownloadedLabel(0)).toBe("7");
+            expect(harness.getRowDownloadedLabel(0)).toBe(
+                "7 blocks (112 KB)",
+            );
         } finally {
             mounted.cleanup();
         }
@@ -298,7 +300,9 @@ describe("useTorrentDetailsTrackersViewModel", () => {
             expect(harness.getRowAnnounce(0)).toBe(
                 "https://tracker-live.example/announce",
             );
-            expect(harness.getRowDownloadedLabel(0)).toBe("12");
+            expect(harness.getRowDownloadedLabel(0)).toBe(
+                "12 blocks (192 KB)",
+            );
         } finally {
             mounted.cleanup();
         }

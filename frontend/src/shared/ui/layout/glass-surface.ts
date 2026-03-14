@@ -797,7 +797,7 @@ const WORKBENCH_NAV = {
         success: `text-success ${visuals.interactive.buttonDefault}`,
         warning: `text-warning ${visuals.interactive.buttonDefault}`,
         danger: visuals.interactive.buttonDanger,
-        neutral: `text-default-500 ${visuals.interactive.buttonGhost}`,
+        neutral: `text-foreground ${visuals.interactive.buttonPrimary}`,
     } as const,
     filterTabsClassNames: {
         base: "",
@@ -1150,9 +1150,7 @@ const DASHBOARD_RESIZE_HANDLE_CLASS = (isHorizontalSplit: boolean) =>
         ? `group relative z-panel ${transition.fast} focus:outline-none cursor-col-resize`
         : `group relative z-panel ${transition.fast} focus:outline-none cursor-row-resize`;
 const DASHBOARD_INSPECTOR_PANEL_CLASS = (isHorizontalSplit: boolean) =>
-    isHorizontalSplit
-        ? "overflow-hidden shadow-medium h-full"
-        : "overflow-hidden shadow-medium w-full";
+    isHorizontalSplit ? "overflow-hidden shadow-medium h-full" : "overflow-hidden shadow-medium w-full";
 export const DASHBOARD = {
     root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${transition.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
@@ -1164,8 +1162,7 @@ export const DASHBOARD = {
     panelGroup: "flex-1 min-h-0 h-full w-full relative overflow-hidden rounded-2xl",
     mainPanel: "relative flex-1 min-h-0 shadow-medium",
     tableHost: "relative z-panel h-full min-h-0 overflow-hidden",
-    desktopWatermark:
-        "torrent-table-watermark absolute inset-0 z-floor pointer-events-none",
+    desktopWatermark: "torrent-table-watermark absolute inset-0 z-floor pointer-events-none",
     tableContent: "relative z-panel h-full min-h-0",
     resizeHandleInner: "absolute inset-0 flex items-center justify-center",
     resizeHandleBar: `${transition.fast} bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50`,
@@ -1242,16 +1239,15 @@ export const DETAILS = {
     headerStatus: `${TEXT_ROLE.caption} block`,
     headerPrimaryHint: withOpacity(TEXT_ROLE.caption, 50),
     headerCenter: "flex min-w-0 items-center justify-center px-tight overflow-hidden",
-    headerTabs: "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-x-auto overflow-y-hidden px-tight scrollbar-hide",
+    headerTabs:
+        "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-x-auto overflow-y-hidden px-tight scrollbar-hide",
     headerTabBase: `group text-navbar font-semibold relative flex h-full shrink-0 items-center px-panel py-panel text-foreground/60 ${transition.fast}`,
     headerTabActive: "text-foreground/85 font-semibold",
     headerTabInactive: "bg-transparent hover:text-foreground/85",
     headerTabHoverGlow:
         "pointer-events-none absolute left-0 right-0 rounded-full bg-foreground/10 blur-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100",
-    headerTabLightBloom:
-        "pointer-events-none absolute left-0 right-0 rounded-full bg-primary/30 blur-lg opacity-100",
-    headerTabLightSource:
-        "pointer-events-none absolute left-0 right-0 rounded-full bg-primary",
+    headerTabLightBloom: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary/30 blur-lg opacity-100",
+    headerTabLightSource: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary",
     headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
     headerContextActions: "flex shrink-0 items-center gap-tight",
     headerContextActionButton:

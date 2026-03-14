@@ -1028,6 +1028,8 @@
             "copy_host_action": "Copy Host",
             "copy_url_action": "Copy URL",
             "downloaded": "Downloaded",
+            "downloaded_blocks": "Blocks",
+            "downloaded_size": "Size",
             "next_announce": "Next Announce",
             "empty_backend": "No trackers configured.",
             "last_announce": "Last Announce",

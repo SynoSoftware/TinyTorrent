@@ -8,10 +8,11 @@ import {
 import { registry } from "@/config/logic";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { DetailTab } from "@/modules/dashboard/types/contracts";
+import type { TorrentDetailTabDefinition } from "@/modules/dashboard/hooks/useDetailTabs";
 import type {
     TorrentDetailHeaderAction,
-    TorrentDetailTabDefinition,
-} from "@/modules/dashboard/hooks/useDetailTabs";
+    TorrentDetailHeaderActionTone,
+} from "@/modules/dashboard/types/torrentDetailHeader";
 import { DETAILS, WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import { sanitizeDomIdToken } from "@/shared/utils/dom";
 const { visuals } = registry;
@@ -67,7 +68,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     } = props;
 
     const { t } = useTranslation();
-    const toneButtonClass = {
+    const toneButtonClass: Record<TorrentDetailHeaderActionTone, string> = {
         success:
             visuals.status.recipes[visuals.status.keys.tone.success]?.button ??
             WORKBENCH.nav.toneButtonFallback.success,

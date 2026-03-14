@@ -25,7 +25,7 @@ import {
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
-import { formatRelativeTime } from "@/shared/utils/format";
+import { formatBytes, formatRelativeTime } from "@/shared/utils/format";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 type TrackerStatusTone = "neutral" | "success" | "warning" | "danger";
@@ -96,6 +96,8 @@ export interface TrackerRowViewModel extends TrackerRuntimeRow {
     seedsLabel: string;
     leechesLabel: string;
     downloadedLabel: string;
+    downloadedBlocksLabel: string;
+    downloadedSizeLabel: string;
     lastAnnounceLabel: string;
 }
 
@@ -176,6 +178,27 @@ const formatMetric = (value?: number) =>
     typeof value === "number" && Number.isFinite(value) && value >= 0
         ? String(value)
         : "-";
+
+const TRACKER_BLOCK_SIZE_BYTES = 16 * 1024;
+
+const formatBlockCountLabel = (value?: number) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+        ? value.toLocaleString()
+        : "-";
+
+const formatDownloadedSizeLabel = (value?: number) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0
+        ? formatBytes(value * TRACKER_BLOCK_SIZE_BYTES)
+        : "-";
+
+const formatDownloadedTrackerLabel = (value?: number) => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+        return "-";
+    }
+    const blocks = value;
+    const bytes = blocks * TRACKER_BLOCK_SIZE_BYTES;
+    return `${blocks.toLocaleString()} ${blocks === 1 ? "block" : "blocks"} (${formatBytes(bytes)})`;
+};
 
 const parseTrackerHost = (
     tracker: Pick<TorrentTrackerEntity, "announce" | "host" | "sitename">,
@@ -344,8 +367,18 @@ const createTrackerColumns = (
             ) || compareTrackerFallback(left.original, right.original),
     },
     {
-        id: "downloaded",
-        header: t("torrent_modal.trackers.downloaded"),
+        id: "downloadedBlocks",
+        header: t("torrent_modal.trackers.downloaded_blocks"),
+        accessorFn: (row) => row.downloadCount,
+        sortingFn: (left, right) =>
+            compareNumbersAscending(
+                left.original.downloadCount,
+                right.original.downloadCount,
+            ) || compareTrackerFallback(left.original, right.original),
+    },
+    {
+        id: "downloadedSize",
+        header: t("torrent_modal.trackers.downloaded_size"),
         accessorFn: (row) => row.downloadCount,
         sortingFn: (left, right) =>
             compareNumbersAscending(
@@ -509,7 +542,9 @@ export const useTorrentDetailsTrackersViewModel = ({
                 tierLabel: String(row.original.tier),
                 seedsLabel: formatMetric(row.original.seederCount),
                 leechesLabel: formatMetric(row.original.leecherCount),
-                downloadedLabel: formatMetric(row.original.downloadCount),
+                downloadedLabel: formatDownloadedTrackerLabel(row.original.downloadCount),
+                downloadedBlocksLabel: formatBlockCountLabel(row.original.downloadCount),
+                downloadedSizeLabel: formatDownloadedSizeLabel(row.original.downloadCount),
                 lastAnnounceLabel: row.original.lastAnnounceTime
                     ? formatRelativeTime(row.original.lastAnnounceTime)
                     : "-",
