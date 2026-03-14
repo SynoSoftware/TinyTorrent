@@ -21,7 +21,7 @@ import { normalizeTrackerInputText, normalizeTrackerUrls, serializeTrackerList }
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
-import { formatBytes, formatRelativeTime } from "@/shared/utils/format";
+import { formatRelativeTime } from "@/shared/utils/format";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 type TrackerStatusTone = "neutral" | "success" | "warning" | "danger";
@@ -78,9 +78,8 @@ export interface TrackerRowViewModel extends TrackerRuntimeRow {
     tierLabel: string;
     seedsLabel: string;
     leechesLabel: string;
-    downloadedLabel: string;
-    downloadedBlocksLabel: string;
-    downloadedSizeLabel: string;
+    downloadCountLabel: string;
+    downloadersLabel: string;
     lastAnnounceLabel: string;
 }
 
@@ -150,22 +149,6 @@ const formatDateTime = (timestamp?: number) => {
 const formatMetric = (value?: number) =>
     typeof value === "number" && Number.isFinite(value) && value >= 0 ? String(value) : "-";
 
-const trackerBlockSizeBytes = 16 * 1024;
-
-const formatBlockCountLabel = (value?: number) =>
-    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value.toLocaleString() : "-";
-
-const formatDownloadedSizeLabel = (value?: number) =>
-    typeof value === "number" && Number.isFinite(value) && value > 0 ? formatBytes(value * trackerBlockSizeBytes) : "-";
-
-const formatDownloadedTrackerLabel = (value?: number) => {
-    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-        return "-";
-    }
-    const blocks = value;
-    const bytes = blocks * trackerBlockSizeBytes;
-    return `${blocks.toLocaleString()} ${blocks === 1 ? "block" : "blocks"} (${formatBytes(bytes)})`;
-};
 
 const parseTrackerHost = (tracker: Pick<TorrentTrackerEntity, "announce" | "host" | "sitename">, fallback: string) => {
     try {
@@ -306,19 +289,19 @@ const createTrackerColumns = (t: ReturnType<typeof useTranslation>["t"]): Column
             compareTrackerFallback(left.original, right.original),
     },
     {
-        id: "downloadedBlocks",
-        header: t("torrent_modal.trackers.downloaded_blocks"),
+        id: "downloadedCount",
+        header: t("torrent_modal.trackers.downloaded_count"),
         accessorFn: (row) => row.downloadCount,
         sortingFn: (left, right) =>
             compareNumbersAscending(left.original.downloadCount, right.original.downloadCount) ||
             compareTrackerFallback(left.original, right.original),
     },
     {
-        id: "downloadedSize",
-        header: t("torrent_modal.trackers.downloaded_size"),
-        accessorFn: (row) => row.downloadCount,
+        id: "downloaders",
+        header: t("torrent_modal.trackers.downloaders"),
+        accessorFn: (row) => row.downloaderCount,
         sortingFn: (left, right) =>
-            compareNumbersAscending(left.original.downloadCount, right.original.downloadCount) ||
+            compareNumbersAscending(left.original.downloaderCount, right.original.downloaderCount) ||
             compareTrackerFallback(left.original, right.original),
     },
     {
@@ -454,9 +437,8 @@ export const useTorrentDetailsTrackersViewModel = ({
                 tierLabel: String(row.original.tier),
                 seedsLabel: formatMetric(row.original.seederCount),
                 leechesLabel: formatMetric(row.original.leecherCount),
-                downloadedLabel: formatDownloadedTrackerLabel(row.original.downloadCount),
-                downloadedBlocksLabel: formatBlockCountLabel(row.original.downloadCount),
-                downloadedSizeLabel: formatDownloadedSizeLabel(row.original.downloadCount),
+                downloadCountLabel: formatMetric(row.original.downloadCount),
+                downloadersLabel: formatMetric(row.original.downloaderCount),
                 lastAnnounceLabel: row.original.lastAnnounceTime
                     ? formatRelativeTime(row.original.lastAnnounceTime)
                     : "-",

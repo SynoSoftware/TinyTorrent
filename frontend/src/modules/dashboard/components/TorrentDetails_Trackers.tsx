@@ -107,8 +107,8 @@ const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: T
         </td>
         <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.seedsLabel}</td>
         <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.leechesLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadedBlocksLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadedSizeLabel}</td>
+        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadCountLabel}</td>
+        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadersLabel}</td>
         <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.timeCell)}>
             <Tooltip content={row.lastAnnounceTooltip} classNames={SURFACE.tooltip} delay={500}>
                 <span className="truncate">{row.lastAnnounceLabel}</span>
@@ -264,8 +264,8 @@ export const TrackersTab = ({
                                             const alignEnd =
                                                 header.column.id === "seeders" ||
                                                 header.column.id === "leechers" ||
-                                                header.column.id === "downloadedBlocks" ||
-                                                header.column.id === "downloadedSize" ||
+                                                header.column.id === "downloadedCount" ||
+                                                header.column.id === "downloaders" ||
                                                 header.column.id === "lastAnnounce" ||
                                                 header.column.id === "nextAnnounce";
 
