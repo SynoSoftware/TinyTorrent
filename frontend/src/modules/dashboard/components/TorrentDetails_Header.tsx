@@ -1,10 +1,7 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info, type LucideIcon } from "lucide-react";
-import {
-    ICON_SIZE_CLASSES,
-    ToolbarIconButton,
-} from "@/shared/ui/layout/toolbar-button";
+import { ICON_SIZE_CLASSES, ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { registry } from "@/config/logic";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { DetailTab } from "@/modules/dashboard/types/contracts";
@@ -68,29 +65,37 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     } = props;
 
     const { t } = useTranslation();
+    const toneRecipe = visuals.status.recipes;
+    const toneKeys = visuals.status.keys.tone;
     const toneButtonClass: Record<TorrentDetailHeaderActionTone, string> = {
-        success:
-            visuals.status.recipes[visuals.status.keys.tone.success]?.button ??
+        success: cn(
+            toneRecipe[toneKeys.success]?.text,
+            toneRecipe[toneKeys.success]?.button,
             WORKBENCH.nav.toneButtonFallback.success,
-        warning:
-            visuals.status.recipes[visuals.status.keys.tone.warning]?.button ??
+        ),
+        warning: cn(
+            toneRecipe[toneKeys.warning]?.text,
+            toneRecipe[toneKeys.warning]?.button,
             WORKBENCH.nav.toneButtonFallback.warning,
-        danger:
-            visuals.status.recipes[visuals.status.keys.tone.danger]?.button ??
+        ),
+        danger: cn(
+            toneRecipe[toneKeys.danger]?.text,
+            toneRecipe[toneKeys.danger]?.button,
             WORKBENCH.nav.toneButtonFallback.danger,
-        neutral:
-            visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ??
+        ),
+        neutral: cn(
+            toneRecipe[toneKeys.neutral]?.text,
+            toneRecipe[toneKeys.neutral]?.button,
             WORKBENCH.nav.toneButtonFallback.neutral,
-        default:
-            WORKBENCH.nav.ghostAction,
+        ),
+        default: cn(
+            toneRecipe[toneKeys.neutral]?.text,
+            toneRecipe[toneKeys.neutral]?.button,
+            WORKBENCH.nav.toneButtonFallback.neutral,
+        ),
     } as const;
-    const renderedName = truncateTorrentName(
-        torrent?.name,
-        t("general.unknown"),
-    );
-    const tabDomIdPrefix = sanitizeDomIdToken(
-        String(torrent?.id ?? torrent?.hash ?? "inspector"),
-    );
+    const renderedName = truncateTorrentName(torrent?.name, t("general.unknown"));
+    const tabDomIdPrefix = sanitizeDomIdToken(String(torrent?.id ?? torrent?.hash ?? "inspector"));
 
     const globalActions: GlobalHeaderAction[] = [];
     if (!isDetailFullscreen && onPopout) {
@@ -116,10 +121,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     }
 
     return (
-        <div
-            className={DETAILS.builder.headerClass(isStandalone)}
-            style={DETAILS.headerTrackingStyle}
-        >
+        <div className={DETAILS.builder.headerClass(isStandalone)} style={DETAILS.headerTrackingStyle}>
             <div className={DETAILS.headerLeft}>
                 <Info
                     strokeWidth={visuals.icon.strokeWidth}
@@ -128,27 +130,16 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 <span className={DETAILS.headerTitle}>
                     {renderedName}
                     {statusLabel ? (
-                        <span
-                            className={DETAILS.headerStatus}
-                            title={statusTooltip ?? undefined}
-                        >
+                        <span className={DETAILS.headerStatus} title={statusTooltip ?? undefined}>
                             {statusLabel}
-                            {primaryHint ? (
-                                <em className={DETAILS.headerPrimaryHint}>
-                                    - {primaryHint}
-                                </em>
-                            ) : null}
+                            {primaryHint ? <em className={DETAILS.headerPrimaryHint}>- {primaryHint}</em> : null}
                         </span>
                     ) : null}
                 </span>
             </div>
 
             <div className={DETAILS.headerCenter}>
-                <div
-                    className={DETAILS.headerTabs}
-                    role="tablist"
-                    aria-label={t("inspector.panel_label")}
-                >
+                <div className={DETAILS.headerTabs} role="tablist" aria-label={t("inspector.panel_label")}>
                     {tabs.map((tab) => {
                         const isActive = activeTab === tab.id;
 
@@ -162,9 +153,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                 aria-controls={`${tabDomIdPrefix}-panel-${tab.id}`}
                                 tabIndex={isActive ? 0 : -1}
                                 onClick={() => onTabChange(tab.id)}
-                                className={DETAILS.builder.headerTabButtonClass(
-                                    isActive,
-                                )}
+                                className={DETAILS.builder.headerTabButtonClass(isActive)}
                             >
                                 {!isActive && (
                                     <span
@@ -205,19 +194,13 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                     ariaLabel={action.ariaLabel}
                                     title={action.ariaLabel}
                                     onPress={action.onPress}
-                                    className={cn(
-                                        DETAILS.headerContextActionButton,
-                                        toneButtonClass[action.tone],
-                                    )}
+                                    className={cn(DETAILS.headerContextActionButton, toneButtonClass[action.tone])}
                                     iconSize="md"
                                 />
                             ))}
                         </div>
                         {globalActions.length > 0 && (
-                            <div
-                                className={DETAILS.headerContextDivider}
-                                aria-hidden="true"
-                            />
+                            <div className={DETAILS.headerContextDivider} aria-hidden="true" />
                         )}
                     </>
                 )}

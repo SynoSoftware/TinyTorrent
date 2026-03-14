@@ -17,11 +17,7 @@ import {
     useReactTable,
 } from "@tanstack/react-table";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import {
-    normalizeTrackerInputText,
-    normalizeTrackerUrls,
-    serializeTrackerList,
-} from "@/shared/domain/trackers";
+import { normalizeTrackerInputText, normalizeTrackerUrls, serializeTrackerList } from "@/shared/domain/trackers";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
@@ -29,12 +25,7 @@ import { formatBytes, formatRelativeTime } from "@/shared/utils/format";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 type TrackerStatusTone = "neutral" | "success" | "warning" | "danger";
-type TrackerContextAction =
-    | "remove"
-    | "copy_url"
-    | "copy_host"
-    | "copy_all"
-    | "reannounce";
+type TrackerContextAction = "remove" | "copy_url" | "copy_host" | "copy_all" | "reannounce";
 
 interface TrackerContextMenuState {
     rowKey: string;
@@ -54,17 +45,9 @@ interface UseTorrentDetailsTrackersViewModelParams {
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     listRef: RefObject<HTMLDivElement | null>;
-    addTrackers: (
-        torrentId: string | number,
-        trackers: string[],
-    ) => Promise<TrackerMutationOutcome>;
-    removeTrackers: (
-        torrentId: string | number,
-        trackerIds: number[],
-    ) => Promise<TrackerMutationOutcome>;
-    reannounce: (
-        torrentId: string | number,
-    ) => Promise<TrackerMutationOutcome>;
+    addTrackers: (torrentId: string | number, trackers: string[]) => Promise<TrackerMutationOutcome>;
+    removeTrackers: (torrentId: string | number, trackerIds: number[]) => Promise<TrackerMutationOutcome>;
+    reannounce: (torrentId: string | number) => Promise<TrackerMutationOutcome>;
 }
 
 interface TrackerRuntimeRow {
@@ -138,21 +121,11 @@ export interface TorrentDetailsTrackersViewModel {
         removeSelected: () => Promise<void>;
         reannounceTorrent: () => Promise<void>;
         copyAllTrackers: () => Promise<void>;
-        handleRowClick: (
-            event: ReactMouseEvent<HTMLElement>,
-            rowKey: string,
-            index: number,
-        ) => void;
-        openContextMenu: (
-            event: ReactMouseEvent<HTMLElement>,
-            rowKey: string,
-            index: number,
-        ) => void;
+        handleRowClick: (event: ReactMouseEvent<HTMLElement>, rowKey: string, index: number) => void;
+        openContextMenu: (event: ReactMouseEvent<HTMLElement>, rowKey: string, index: number) => void;
         closeContextMenu: () => void;
         runContextAction: (action: TrackerContextAction) => Promise<void>;
-        handleListKeyDown: (
-            event: ReactKeyboardEvent<HTMLDivElement>,
-        ) => void;
+        handleListKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     };
 }
 
@@ -175,51 +148,34 @@ const formatDateTime = (timestamp?: number) => {
 };
 
 const formatMetric = (value?: number) =>
-    typeof value === "number" && Number.isFinite(value) && value >= 0
-        ? String(value)
-        : "-";
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? String(value) : "-";
 
-const TRACKER_BLOCK_SIZE_BYTES = 16 * 1024;
+const trackerBlockSizeBytes = 16 * 1024;
 
 const formatBlockCountLabel = (value?: number) =>
-    typeof value === "number" && Number.isFinite(value) && value >= 0
-        ? value.toLocaleString()
-        : "-";
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value.toLocaleString() : "-";
 
 const formatDownloadedSizeLabel = (value?: number) =>
-    typeof value === "number" && Number.isFinite(value) && value > 0
-        ? formatBytes(value * TRACKER_BLOCK_SIZE_BYTES)
-        : "-";
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? formatBytes(value * trackerBlockSizeBytes) : "-";
 
 const formatDownloadedTrackerLabel = (value?: number) => {
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
         return "-";
     }
     const blocks = value;
-    const bytes = blocks * TRACKER_BLOCK_SIZE_BYTES;
+    const bytes = blocks * trackerBlockSizeBytes;
     return `${blocks.toLocaleString()} ${blocks === 1 ? "block" : "blocks"} (${formatBytes(bytes)})`;
 };
 
-const parseTrackerHost = (
-    tracker: Pick<TorrentTrackerEntity, "announce" | "host" | "sitename">,
-    fallback: string,
-) => {
+const parseTrackerHost = (tracker: Pick<TorrentTrackerEntity, "announce" | "host" | "sitename">, fallback: string) => {
     try {
-        return (
-            new URL(tracker.announce).hostname ||
-            tracker.host ||
-            tracker.sitename ||
-            fallback
-        );
+        return new URL(tracker.announce).hostname || tracker.host || tracker.sitename || fallback;
     } catch {
         return tracker.host || tracker.sitename || tracker.announce || fallback;
     }
 };
 
-const compareNumbersAscending = (
-    left: number | undefined,
-    right: number | undefined,
-) => {
+const compareNumbersAscending = (left: number | undefined, right: number | undefined) => {
     const leftFinite = typeof left === "number" && Number.isFinite(left);
     const rightFinite = typeof right === "number" && Number.isFinite(right);
 
@@ -240,18 +196,12 @@ const compareStringsAscending = (left: string, right: string) =>
         sensitivity: "base",
     });
 
-const compareTrackerFallback = (
-    left: TrackerRuntimeRow,
-    right: TrackerRuntimeRow,
-) =>
+const compareTrackerFallback = (left: TrackerRuntimeRow, right: TrackerRuntimeRow) =>
     compareStringsAscending(left.announce, right.announce) ||
     compareNumbersAscending(left.tier, right.tier) ||
     left.originalIndex - right.originalIndex;
 
-const deriveTrackerStatus = (
-    tracker: TorrentTrackerEntity,
-    t: ReturnType<typeof useTranslation>["t"],
-) => {
+const deriveTrackerStatus = (tracker: TorrentTrackerEntity, t: ReturnType<typeof useTranslation>["t"]) => {
     // Contract:
     // success => green, timed out/failed => red,
     // active/queued/waiting/inactive backup => yellow,
@@ -263,8 +213,7 @@ const deriveTrackerStatus = (
         return {
             tone: "danger" as const,
             statusLabel: t("torrent_modal.trackers.status_timeout"),
-            messageText:
-                lastResult || t("torrent_modal.trackers.reannounce_timeout"),
+            messageText: lastResult || t("torrent_modal.trackers.reannounce_timeout"),
         };
     }
     if (hasAnnounced && tracker.lastAnnounceSucceeded === false) {
@@ -306,8 +255,7 @@ const deriveTrackerStatus = (
         return {
             tone: "success" as const,
             statusLabel: t("torrent_modal.trackers.status_working"),
-            messageText:
-                lastResult || t("torrent_modal.trackers.reannounce_completed"),
+            messageText: lastResult || t("torrent_modal.trackers.reannounce_completed"),
         };
     }
     return {
@@ -317,9 +265,7 @@ const deriveTrackerStatus = (
     };
 };
 
-const createTrackerColumns = (
-    t: ReturnType<typeof useTranslation>["t"],
-): ColumnDef<TrackerRuntimeRow>[] => [
+const createTrackerColumns = (t: ReturnType<typeof useTranslation>["t"]): ColumnDef<TrackerRuntimeRow>[] => [
     {
         id: "status",
         header: t("torrent_modal.trackers.status"),
@@ -331,10 +277,7 @@ const createTrackerColumns = (
         header: t("torrent_modal.trackers.tracker"),
         accessorFn: (row) => row.announce,
         sortingFn: (left, right) =>
-            compareStringsAscending(
-                left.original.announce,
-                right.original.announce,
-            ) ||
+            compareStringsAscending(left.original.announce, right.original.announce) ||
             compareNumbersAscending(left.original.tier, right.original.tier) ||
             left.original.originalIndex - right.original.originalIndex,
     },
@@ -351,60 +294,48 @@ const createTrackerColumns = (
         header: t("torrent_modal.trackers.seeds"),
         accessorFn: (row) => row.seederCount,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.seederCount,
-                right.original.seederCount,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.seederCount, right.original.seederCount) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "leechers",
         header: t("torrent_modal.trackers.leeches"),
         accessorFn: (row) => row.leecherCount,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.leecherCount,
-                right.original.leecherCount,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.leecherCount, right.original.leecherCount) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "downloadedBlocks",
         header: t("torrent_modal.trackers.downloaded_blocks"),
         accessorFn: (row) => row.downloadCount,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.downloadCount,
-                right.original.downloadCount,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.downloadCount, right.original.downloadCount) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "downloadedSize",
         header: t("torrent_modal.trackers.downloaded_size"),
         accessorFn: (row) => row.downloadCount,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.downloadCount,
-                right.original.downloadCount,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.downloadCount, right.original.downloadCount) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "lastAnnounce",
         header: t("torrent_modal.trackers.last_announce"),
         accessorFn: (row) => row.lastAnnounceTime,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.lastAnnounceTime,
-                right.original.lastAnnounceTime,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.lastAnnounceTime, right.original.lastAnnounceTime) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "nextAnnounce",
         header: t("torrent_modal.trackers.next_announce"),
         accessorFn: (row) => row.nextAnnounceTime,
         sortingFn: (left, right) =>
-            compareNumbersAscending(
-                left.original.nextAnnounceTime,
-                right.original.nextAnnounceTime,
-            ) || compareTrackerFallback(left.original, right.original),
+            compareNumbersAscending(left.original.nextAnnounceTime, right.original.nextAnnounceTime) ||
+            compareTrackerFallback(left.original, right.original),
     },
     {
         id: "message",
@@ -426,17 +357,13 @@ export const useTorrentDetailsTrackersViewModel = ({
 }: UseTorrentDetailsTrackersViewModelParams): TorrentDetailsTrackersViewModel => {
     const { t } = useTranslation();
     const { copyToClipboard } = useTorrentClipboard();
-    const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
-        useLayoutMetrics();
-    const [sorting, setSorting] = useState<SortingState>([
-        { id: "tier", desc: false },
-    ]);
+    const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } = useLayoutMetrics();
+    const [sorting, setSorting] = useState<SortingState>([{ id: "tier", desc: false }]);
     const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
     const [anchorKey, setAnchorKey] = useState<string | null>(null);
     const [isMutating, setIsMutating] = useState(false);
     const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
-    const [contextMenu, setContextMenu] =
-        useState<TrackerContextMenuState | null>(null);
+    const [contextMenu, setContextMenu] = useState<TrackerContextMenuState | null>(null);
 
     const safeTrackers = trackers ?? [];
     const isEmpty = safeTrackers.length === 0;
@@ -449,24 +376,18 @@ export const useTorrentDetailsTrackersViewModel = ({
                 const key = `${String(tracker.id ?? `${tracker.tier}-${originalIndex}`)}|${tracker.announce}`;
                 const status = deriveTrackerStatus(tracker, t);
                 const lastAnnounceTime =
-                    typeof tracker.lastAnnounceTime === "number" &&
-                    tracker.lastAnnounceTime > 0
+                    typeof tracker.lastAnnounceTime === "number" && tracker.lastAnnounceTime > 0
                         ? tracker.lastAnnounceTime
                         : undefined;
                 const nextAnnounceTime =
-                    typeof tracker.nextAnnounceTime === "number" &&
-                    tracker.nextAnnounceTime > 0
+                    typeof tracker.nextAnnounceTime === "number" && tracker.nextAnnounceTime > 0
                         ? tracker.nextAnnounceTime
                         : undefined;
 
                 let nextAnnounceLabel = "-";
-                let nextAnnounceTooltip = t(
-                    "torrent_modal.trackers.message_not_scheduled",
-                );
+                let nextAnnounceTooltip = t("torrent_modal.trackers.message_not_scheduled");
                 if (tracker.announceState === 3) {
-                    nextAnnounceLabel = t(
-                        "torrent_modal.trackers.message_announcing",
-                    );
+                    nextAnnounceLabel = t("torrent_modal.trackers.message_announcing");
                     nextAnnounceTooltip = nextAnnounceLabel;
                 } else if (nextAnnounceTime) {
                     nextAnnounceLabel = formatRelativeTime(nextAnnounceTime);
@@ -479,30 +400,21 @@ export const useTorrentDetailsTrackersViewModel = ({
                 return {
                     key,
                     originalIndex,
-                    trackerId:
-                        typeof tracker.id === "number" &&
-                        Number.isFinite(tracker.id)
-                            ? tracker.id
-                            : null,
+                    trackerId: typeof tracker.id === "number" && Number.isFinite(tracker.id) ? tracker.id : null,
                     announce: tracker.announce,
                     host: parseTrackerHost(tracker, unknownLabel),
                     tier: tracker.tier,
-                    removable:
-                        typeof tracker.id === "number" &&
-                        Number.isFinite(tracker.id),
+                    removable: typeof tracker.id === "number" && Number.isFinite(tracker.id),
                     seederCount:
-                        typeof tracker.seederCount === "number" &&
-                        Number.isFinite(tracker.seederCount)
+                        typeof tracker.seederCount === "number" && Number.isFinite(tracker.seederCount)
                             ? tracker.seederCount
                             : undefined,
                     leecherCount:
-                        typeof tracker.leecherCount === "number" &&
-                        Number.isFinite(tracker.leecherCount)
+                        typeof tracker.leecherCount === "number" && Number.isFinite(tracker.leecherCount)
                             ? tracker.leecherCount
                             : undefined,
                     downloadCount:
-                        typeof tracker.downloadCount === "number" &&
-                        Number.isFinite(tracker.downloadCount)
+                        typeof tracker.downloadCount === "number" && Number.isFinite(tracker.downloadCount)
                             ? tracker.downloadCount
                             : undefined,
                     lastAnnounceTime,
@@ -560,9 +472,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     }, [torrentId]);
 
     useEffect(() => {
-        const nextSelected = selectedKeys.filter((key) =>
-            rows.some((row) => row.key === key),
-        );
+        const nextSelected = selectedKeys.filter((key) => rows.some((row) => row.key === key));
         if (nextSelected.length !== selectedKeys.length) {
             setSelectedKeys(nextSelected);
         }
@@ -571,10 +481,7 @@ export const useTorrentDetailsTrackersViewModel = ({
         }
     }, [anchorKey, rows, selectedKeys]);
 
-    const selectedRows = useMemo(
-        () => rows.filter((row) => selectedKeySet.has(row.key)),
-        [rows, selectedKeySet],
-    );
+    const selectedRows = useMemo(() => rows.filter((row) => selectedKeySet.has(row.key)), [rows, selectedKeySet]);
     const activeRow = useMemo(() => {
         if (anchorKey) {
             return rows.find((row) => row.key === anchorKey) ?? null;
@@ -583,16 +490,11 @@ export const useTorrentDetailsTrackersViewModel = ({
     }, [anchorKey, rows, selectedRows]);
     const selectedRemovableIds = useMemo(
         () =>
-            selectedRows
-                .filter((row) => row.removable && row.trackerId != null)
-                .map((row) => row.trackerId as number),
+            selectedRows.filter((row) => row.removable && row.trackerId != null).map((row) => row.trackerId as number),
         [selectedRows],
     );
 
-    const getRowByKey = useCallback(
-        (rowKey: string) => rows.find((row) => row.key === rowKey) ?? null,
-        [rows],
-    );
+    const getRowByKey = useCallback((rowKey: string) => rows.find((row) => row.key === rowKey) ?? null, [rows]);
 
     const getAnchorIndex = useCallback(() => {
         if (!anchorKey) {
@@ -678,19 +580,11 @@ export const useTorrentDetailsTrackersViewModel = ({
             return;
         }
         setContextMenu(null);
-        const outcome = await executeMutation(() =>
-            removeTrackers(torrentId, selectedRemovableIds),
-        );
+        const outcome = await executeMutation(() => removeTrackers(torrentId, selectedRemovableIds));
         if (outcome.status === "applied") {
             setSelectedKeys([]);
         }
-    }, [
-        executeMutation,
-        isMutating,
-        removeTrackers,
-        selectedRemovableIds,
-        torrentId,
-    ]);
+    }, [executeMutation, isMutating, removeTrackers, selectedRemovableIds, torrentId]);
 
     const reannounceTorrent = useCallback(async () => {
         if (!torrentId || isMutating) {
@@ -729,11 +623,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             return;
         }
 
-        const existing = new Set(
-            normalizeTrackerUrls(
-                safeTrackers.map((tracker) => tracker.announce),
-            ),
-        );
+        const existing = new Set(normalizeTrackerUrls(safeTrackers.map((tracker) => tracker.announce)));
         const nextTrackers = normalized.filter((tracker) => !existing.has(tracker));
         if (nextTrackers.length === 0) {
             setEditor((current) => ({
@@ -743,9 +633,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             return;
         }
 
-        const outcome = await executeMutation(() =>
-            addTrackers(torrentId, nextTrackers),
-        );
+        const outcome = await executeMutation(() => addTrackers(torrentId, nextTrackers));
         if (outcome.status === "applied") {
             setEditor(EMPTY_EDITOR);
             return;
@@ -754,15 +642,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             ...current,
             error: t("toolbar.feedback.failed"),
         }));
-    }, [
-        addTrackers,
-        editor.value,
-        executeMutation,
-        isMutating,
-        safeTrackers,
-        t,
-        torrentId,
-    ]);
+    }, [addTrackers, editor.value, executeMutation, isMutating, safeTrackers, t, torrentId]);
 
     const copyActiveTrackerUrl = useCallback(async () => {
         if (!activeRow) {
@@ -772,11 +652,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     }, [activeRow, copyToClipboard]);
 
     const handleRowClick = useCallback(
-        (
-            event: ReactMouseEvent<HTMLElement>,
-            rowKey: string,
-            index: number,
-        ) => {
+        (event: ReactMouseEvent<HTMLElement>, rowKey: string, index: number) => {
             if (event.shiftKey) {
                 selectRange(rowKey, index);
                 return;
@@ -791,11 +667,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     );
 
     const openContextMenu = useCallback(
-        (
-            event: ReactMouseEvent<HTMLElement>,
-            rowKey: string,
-            index: number,
-        ) => {
+        (event: ReactMouseEvent<HTMLElement>, rowKey: string, index: number) => {
             event.preventDefault();
             if (!selectedKeySet.has(rowKey)) {
                 selectOnly(rowKey);
@@ -812,27 +684,13 @@ export const useTorrentDetailsTrackersViewModel = ({
             const margin = fileContextMenuMargin;
             const menuWidth = fileContextMenuWidth || 220;
             const estimatedMenuHeight = (rowHeight || 34) * 7;
-            const boundedX = Math.min(
-                Math.max(x, margin),
-                rect.width - menuWidth - margin,
-            );
-            const maxY = Math.max(
-                margin,
-                rect.height - estimatedMenuHeight - margin,
-            );
+            const boundedX = Math.min(Math.max(x, margin), rect.width - menuWidth - margin);
+            const maxY = Math.max(margin, rect.height - estimatedMenuHeight - margin);
             const boundedY = Math.min(Math.max(y, margin), maxY);
             setContextMenu({ rowKey, x: boundedX, y: boundedY });
             setAnchorKey(rows[index]?.key ?? rowKey);
         },
-        [
-            fileContextMenuMargin,
-            fileContextMenuWidth,
-            listRef,
-            rowHeight,
-            rows,
-            selectOnly,
-            selectedKeySet,
-        ],
+        [fileContextMenuMargin, fileContextMenuWidth, listRef, rowHeight, rows, selectOnly, selectedKeySet],
     );
 
     const runContextAction = useCallback(
@@ -861,14 +719,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             }
             await reannounceTorrent();
         },
-        [
-            contextMenu,
-            copyAllTrackers,
-            copyToClipboard,
-            getRowByKey,
-            reannounceTorrent,
-            removeSelected,
-        ],
+        [contextMenu, copyAllTrackers, copyToClipboard, getRowByKey, reannounceTorrent, removeSelected],
     );
 
     const handleListKeyDown = useCallback(
@@ -878,10 +729,7 @@ export const useTorrentDetailsTrackersViewModel = ({
                 void removeSelected();
                 return;
             }
-            if (
-                (event.ctrlKey || event.metaKey) &&
-                event.key.toLowerCase() === "c"
-            ) {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
                 event.preventDefault();
                 void copyActiveTrackerUrl();
                 return;
@@ -901,13 +749,7 @@ export const useTorrentDetailsTrackersViewModel = ({
                 }
             }
         },
-        [
-            closeEditor,
-            contextMenu,
-            copyActiveTrackerUrl,
-            editor.isOpen,
-            removeSelected,
-        ],
+        [closeEditor, contextMenu, copyActiveTrackerUrl, editor.isOpen, removeSelected],
     );
 
     return {

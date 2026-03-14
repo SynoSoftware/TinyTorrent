@@ -1251,7 +1251,7 @@ export const DETAILS = {
     headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
     headerContextActions: "flex shrink-0 items-center gap-tight",
     headerContextActionButton:
-        "border border-default/20 bg-content1/10 text-foreground/70 hover:border-default/30 hover:bg-content2/15 hover:text-foreground",
+        "border border-primary/30 bg-transparent text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0",
     headerContextDivider: "h-status-chip w-px bg-foreground/12 mx-tight",
     speedRoot: "h-full flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
