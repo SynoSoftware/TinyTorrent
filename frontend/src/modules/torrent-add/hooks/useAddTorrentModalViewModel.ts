@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { ImperativePanelHandle } from "react-resizable-panels";
+import type { RowSelectionState } from "@tanstack/react-table";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { useSession } from "@/app/context/SessionContext";
@@ -88,6 +89,10 @@ export interface UseAddTorrentModalViewModelResult {
         uiMode: "Full" | "Rpc";
         updateDestinationDraft: (value: string) => void;
     };
+    magnet: {
+        value: string;
+        setValue: (value: string) => void;
+    };
     dragDrop: {
         applyDroppedPath: (path?: string) => void;
         dropActive: boolean;
@@ -100,13 +105,14 @@ export interface UseAddTorrentModalViewModelResult {
         onSetPriority: (index: number, value: "low" | "normal" | "high") => void;
         onRowSelectionChange: (
             next:
-                | import("@tanstack/react-table").RowSelectionState
-                | ((prev: import("@tanstack/react-table").RowSelectionState) => import("@tanstack/react-table").RowSelectionState)
+                | RowSelectionState
+                | ((prev: RowSelectionState) => RowSelectionState)
         ) => void;
         priorities: Map<number, "low" | "normal" | "high">;
-        rowSelection: import("@tanstack/react-table").RowSelectionState;
+        rowSelection: RowSelectionState;
     };
     settings: {
+        autoFocusDestination: boolean;
         canCollapseSettings: boolean;
         isPanelResizeActive: boolean;
         isSettingsCollapsed: boolean;
@@ -180,7 +186,17 @@ export function useAddTorrentModalViewModel({
     const [destinationGateTried, setDestinationGateTried] = useState(false);
     const [isTouchingDirectory, setIsTouchingDirectory] = useState(false);
     const [dropActive, setDropActive] = useState(false);
+    const [magnetLink, setMagnetLink] = useState(
+        source?.kind === "magnet" ? source.magnetLink : "",
+    );
     const dropActiveRef = useRef(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+        setMagnetLink(source?.kind === "magnet" ? source.magnetLink : "");
+    }, [isOpen, source]);
 
     const updateDestinationDraft = useCallback((value: string) => {
         setDestinationDraft(value);
@@ -321,7 +337,10 @@ export function useAddTorrentModalViewModel({
         isOpen,
     ]);
 
-    const files = useMemo(() => buildFiles(source?.metadata), [source?.metadata]);
+    const files = useMemo(
+        () => buildFiles(source?.kind === "file" ? source.metadata : undefined),
+        [source],
+    );
     const {
         rowSelection,
         selectedIndexes,
@@ -341,8 +360,13 @@ export function useAddTorrentModalViewModel({
     });
 
     const resolvedState = useMemo(
-        () => resolveAddTorrentResolvedState({ source, fileCount: files.length }),
-        [files.length, source],
+        () =>
+            resolveAddTorrentResolvedState({
+                source,
+                fileCount: files.length,
+                magnetLink,
+            }),
+        [files.length, magnetLink, source],
     );
 
     const destinationDecision = useMemo(
@@ -417,11 +441,17 @@ export function useAddTorrentModalViewModel({
     const submissionDecision = useMemo(
         () =>
             resolveAddTorrentSubmissionDecision({
+                requiresFileSelection: source?.kind === "file",
                 isSelectionEmpty,
                 isDestinationValid: destinationState.isDestinationValid,
                 resolvedState,
             }),
-        [destinationState.isDestinationValid, isSelectionEmpty, resolvedState],
+        [
+            destinationState.isDestinationValid,
+            isSelectionEmpty,
+            resolvedState,
+            source?.kind,
+        ],
     );
     const submitSelection = useCallback(async () => {
         if (!submissionDecision.canConfirm) {
@@ -440,6 +470,7 @@ export function useAddTorrentModalViewModel({
             const outcome = await onConfirm({
                 downloadDir: submitDir,
                 commitMode,
+                magnetLink: source?.kind === "magnet" ? magnetLink.trim() : undefined,
                 filesUnwanted,
                 priorityHigh,
                 priorityNormal,
@@ -466,6 +497,8 @@ export function useAddTorrentModalViewModel({
         sequentialDownload,
         skipHashCheck,
         submissionDecision.canConfirm,
+        magnetLink,
+        source,
     ]);
 
     const modalSize = resolveAddTorrentModalSize({
@@ -549,6 +582,10 @@ export function useAddTorrentModalViewModel({
             uiMode,
             updateDestinationDraft,
         },
+        magnet: {
+            value: magnetLink,
+            setValue: setMagnetLink,
+        },
         dragDrop: {
             applyDroppedPath,
             dropActive,
@@ -564,6 +601,7 @@ export function useAddTorrentModalViewModel({
             rowSelection,
         },
         settings: {
+            autoFocusDestination: source?.kind !== "magnet",
             canCollapseSettings: true,
             isPanelResizeActive,
             isSettingsCollapsed,

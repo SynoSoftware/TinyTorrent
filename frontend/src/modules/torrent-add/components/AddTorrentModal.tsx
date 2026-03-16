@@ -1,6 +1,6 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
-import { useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
@@ -9,10 +9,11 @@ const SETTINGS_PANEL_DEFAULT = 40;
 const SETTINGS_PANEL_MIN = 25;
 const FILE_PANEL_DEFAULT = 60;
 const FILE_PANEL_MIN = 30;
+const DESTINATION_INPUT_ID = "add-torrent-settings-destination";
 
-import { FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
+import { FolderOpen, HardDrive, Magnet, type LucideIcon } from "lucide-react";
 
-import { MODAL } from "@/shared/ui/layout/glass-surface";
+import { FORM, INPUT, MODAL } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommitMode, AddTorrentSelection, AddTorrentSource } from "@/modules/torrent-add/types";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
@@ -80,6 +81,7 @@ export function AddTorrentModal({
     const {
         modal,
         destination,
+        magnet,
         dragDrop,
         table,
         settings,
@@ -95,6 +97,7 @@ export function AddTorrentModal({
         requestSubmit,
     } = modal;
     const { hasDestination, showDestinationGate, uiMode } = destination;
+    const isMagnetMode = source?.kind === "magnet";
     const { dropActive, handleDragLeave, handleDragOver, handleDrop } = dragDrop;
     const {
         canCollapseSettings,
@@ -108,6 +111,45 @@ export function AddTorrentModal({
     const { canConfirm } = submission;
     const { sourceLabel } = sourceViewModel;
     const TitleIcon = titleIcon;
+    const magnetInputRef = useRef<HTMLTextAreaElement | null>(null);
+    const focusDestinationInput = useCallback(() => {
+        const destinationInput = document.querySelector<HTMLInputElement>(
+            `[data-destination-editor-root-id="${DESTINATION_INPUT_ID}"] input`,
+        );
+        if (!destinationInput) {
+            return;
+        }
+        destinationInput.focus();
+        destinationInput.select();
+    }, []);
+
+    useEffect(() => {
+        if (!isOpen || showDestinationGate) {
+            return;
+        }
+        const frame = window.requestAnimationFrame(() => {
+            if (isMagnetMode) {
+                magnetInputRef.current?.focus();
+                return;
+            }
+            focusDestinationInput();
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [focusDestinationInput, isMagnetMode, isOpen, showDestinationGate]);
+    const handleMagnetInputKeyDown = useCallback(
+        (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+            if (event.key === "Tab" && !event.shiftKey) {
+                event.preventDefault();
+                focusDestinationInput();
+                return;
+            }
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                requestSubmit();
+            }
+        },
+        [focusDestinationInput, requestSubmit],
+    );
     const modalTitle = showDestinationGate
         ? t("modals.add_torrent.destination_prompt_title")
         : t("modals.add_torrent.title");
@@ -186,7 +228,8 @@ export function AddTorrentModal({
             startPaused: commitMode === "paused",
             setStartPaused: (next: boolean) =>
                 onCommitModeChange(next ? "paused" : "start"),
-            showTransferFlags: source?.kind === "file",
+            showTransferFlags: true,
+            autoFocusDestination: source?.kind !== "magnet",
             sequential: settings.sequential,
             skipHashCheck: settings.skipHashCheck,
             setSequential: settings.setSequential,
@@ -337,7 +380,34 @@ export function AddTorrentModal({
                                             className={MODAL.workflow.filePanel}
                                         >
                                             <div className={MODAL.workflow.filePanelContent}>
-                                                <AddTorrentFileTable />
+                                                {isMagnetMode ? (
+                                                    <div className={FORM.workflow.fillRoot}>
+                                                        <div className={FORM.workflow.fillSection}>
+                                                            <label className={FORM.workflow.label}>
+                                                                <Magnet className={FORM.workflow.labelIcon} />
+                                                                {t("modals.magnet_label")}
+                                                            </label>
+                                                            <div className={FORM.workflow.fillBody}>
+                                                                <div className={INPUT.fillCodeTextareaFrame}>
+                                                                    <textarea
+                                                                        ref={magnetInputRef}
+                                                                        autoFocus
+                                                                        value={magnet.value}
+                                                                        onChange={(event) =>
+                                                                            magnet.setValue(event.target.value)
+                                                                        }
+                                                                        placeholder={t("modals.add_magnet.placeholder")}
+                                                                        className={INPUT.fillCodeTextarea}
+                                                                        spellCheck={false}
+                                                                        onKeyDown={handleMagnetInputKeyDown}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <AddTorrentFileTable />
+                                                )}
                                             </div>
                                         </Panel>
                                     </PanelGroup>

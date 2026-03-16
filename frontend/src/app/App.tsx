@@ -6,7 +6,6 @@ import { CommandPalette } from "@/app/components/CommandPalette";
 import { WorkspaceShell } from "@/app/components/WorkspaceShell";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
-import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
 import { useAppViewModel } from "@/app/viewModels/useAppViewModel";
 import { AppCommandProvider } from "@/app/context/AppCommandContext";
@@ -16,7 +15,7 @@ const buildAddTorrentModalKey = (source: AddTorrentSource): string => {
     if (source.kind === "file") {
         return `file:${source.file.name}:${source.file.size}:${source.file.lastModified}`;
     }
-    return `magnet:${source.magnetLink}:${source.status}:${source.torrentId ?? ""}:${source.metadata?.name ?? ""}`;
+    return `magnet:${source.magnetLink}`;
 };
 
 function AppContent() {
@@ -44,7 +43,6 @@ function AppContent() {
                 actions={viewModel.workspace.commandPalette.actions}
                 getContextActions={viewModel.workspace.commandPalette.getContextActions}
             />
-            <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
             {controller.addTorrent.addTorrentModalProps && (
                 <AddTorrentModal
                     key={buildAddTorrentModalKey(

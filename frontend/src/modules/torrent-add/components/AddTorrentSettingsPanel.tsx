@@ -1,5 +1,4 @@
 import {
-    Button,
     Checkbox,
     Divider,
     Tooltip,
@@ -27,7 +26,7 @@ export function AddTorrentSettingsPanel() {
     return (
         <div className={FORM.workflow.root}>
             <div
-                className={FORM.workflow.group}
+                className={FORM.workflow.section}
                 onDrop={settings.onDrop}
                 onDragOver={settings.onDragOver}
                 onDragLeave={settings.onDragLeave}
@@ -58,7 +57,7 @@ export function AddTorrentSettingsPanel() {
                     onBlur={destinationInput.onBlur}
                     onEnter={settings.onEnter}
                     onEscape={destinationInput.onEscape}
-                    autoFocus
+                    autoFocus={settings.autoFocusDestination}
                     inputClassNames={FORM.locationEditorInputClassNames}
                     inputTextClassName={TEXT_ROLE.codeMuted}
                     feedback={settings.feedback}
@@ -83,7 +82,7 @@ export function AddTorrentSettingsPanel() {
                         className={FORM.workflow.flagsDivider}
                         aria-hidden="true"
                     />
-                    <div className={FORM.workflow.flagsGroup}>
+                    <div className={FORM.workflow.section}>
                         <label className={FORM.workflow.label}>
                             <Hash className={FORM.workflow.labelIcon} />{" "}
                             {t("modals.add_torrent.transfer_flags")}

@@ -22,7 +22,7 @@ import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { registry } from "@/config/logic";
-const { timing, ui } = registry;
+const { timing } = registry;
 
 export interface UseAddTorrentControllerParams {
     dispatch: (
@@ -39,13 +39,11 @@ export type AddTorrentCommandOutcome =
     | { status: "opened" }
     | { status: "queued" }
     | { status: "added" }
-    | { status: "finalized" }
     | {
           status: "invalid_input";
           reason:
               | "invalid_magnet_link"
-              | "invalid_destination"
-              | "missing_target";
+              | "invalid_destination";
       }
     | { status: "blocked_pending_delete" }
     | { status: "blocked_in_flight" }
@@ -66,15 +64,11 @@ export interface UseAddTorrentControllerResult {
     addTorrentDefaults: AddTorrentDefaultsViewModel;
     openAddTorrentPicker: () => AddTorrentCommandOutcome;
     openAddMagnet: (magnetLink?: string) => AddTorrentCommandOutcome;
-    handleMagnetModalClose: () => void;
-    handleMagnetSubmit: (link: string) => Promise<AddTorrentCommandOutcome>;
     handleTorrentWindowConfirm: (
         selection: AddTorrentSelection,
     ) => Promise<AddTorrentCommandOutcome>;
     closeAddTorrentWindow: () => void;
     setAddSource: (source: AddTorrentSource | null) => void;
-    isMagnetModalOpen: boolean;
-    magnetModalInitialValue: string;
 }
 
 export interface AddTorrentDefaultsViewModel {
@@ -90,11 +84,9 @@ export interface AddTorrentDefaultsViewModel {
 type AddSubmissionPayload = {
     label: string;
     sourceName: string | null;
-    targetTorrentId?: string;
     targetInfoHash?: string;
     execute: () => Promise<TorrentDispatchOutcome>;
-    successStatus: "added" | "finalized";
-    failureReason: "magnet_add_failed" | "metainfo_read_failed" | "add_file_failed" | "finalize_failed";
+    failureReason: "magnet_add_failed" | "metainfo_read_failed" | "add_file_failed";
 };
 
 type ActiveAddSubmission = {
@@ -121,13 +113,11 @@ export function useAddTorrentController({
         setAddTorrentDefaults,
     } = usePreferences();
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
-    const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
-    const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
     const activeSubmissionRef = useRef<ActiveAddSubmission | null>(null);
     const submissionSeqRef = useRef(0);
     const torrentsRef = useRef<Array<Torrent | TorrentDetail>>(torrents);
 
-    const { current, remember } = useDownloadPaths();
+    const { current } = useDownloadPaths();
     const currentDownloadDir = current || settingsConfig.download_dir || "";
 
     const setCommitMode = useCallback(
@@ -212,8 +202,11 @@ export function useAddTorrentController({
                 typeof magnetLink === "string"
                     ? normalizeMagnetLink(magnetLink)
                     : undefined;
-            setMagnetModalInitialValue(normalized ?? "");
-            setMagnetModalOpen(true);
+            setAddSource({
+                kind: "magnet",
+                label: t("modals.add_source_magnet"),
+                magnetLink: normalized ?? "",
+            });
         },
         onOpenAddTorrentFromFile: async (file) => {
             if (activeSubmissionRef.current) {
@@ -247,14 +240,6 @@ export function useAddTorrentController({
 
     const findMatchedTorrent = useCallback((submission: ActiveAddSubmission) => {
         const currentTorrents = torrentsRef.current;
-        const targetTorrentId = submission.payload.targetTorrentId;
-        if (targetTorrentId) {
-            return (
-                currentTorrents.find(
-                    (torrent) => String(torrent.id) === targetTorrentId,
-                ) ?? null
-            );
-        }
         const targetInfoHash = submission.payload.targetInfoHash?.toLowerCase();
         if (targetInfoHash) {
             return (
@@ -366,10 +351,7 @@ export function useAddTorrentController({
                 activeSubmissionRef.current = null;
                 const matchedTorrent = findMatchedTorrent(active);
                 addToast({
-                    title:
-                        active.payload.successStatus === "finalized"
-                            ? t("toolbar.feedback.location_updated")
-                            : t("toolbar.feedback.added"),
+                    title: t("toolbar.feedback.added"),
                     color: "success",
                     severity: "success",
                     timeout: timing.ui.toastMs,
@@ -553,74 +535,14 @@ export function useAddTorrentController({
                 typeof magnetLink === "string"
                     ? normalizeMagnetLink(magnetLink)
                     : undefined;
-            setMagnetModalInitialValue(normalized ?? "");
-            setMagnetModalOpen(true);
+            setAddSource({
+                kind: "magnet",
+                label: t("modals.add_source_magnet"),
+                magnetLink: normalized ?? "",
+            });
             return { status: "opened" };
         },
-        [showInFlightStatus],
-    );
-
-    const handleMagnetModalClose = useCallback(() => {
-        setMagnetModalOpen(false);
-        setMagnetModalInitialValue("");
-    }, []);
-
-    const handleMagnetSubmit = useCallback(
-        async (link: string): Promise<AddTorrentCommandOutcome> => {
-            if (activeSubmissionRef.current) {
-                showInFlightStatus();
-                return { status: "blocked_in_flight" };
-            }
-            const normalized = normalizeMagnetLink(link);
-            if (!normalized) {
-                showFeedback(t("modals.add_torrent.magnet_error"), "warning");
-                return {
-                    status: "invalid_input",
-                    reason: "invalid_magnet_link",
-                };
-            }
-            const infoHash = normalizeInfoHashCandidate(normalized);
-            if (infoHash && pendingDeletionHashesRef.current.has(infoHash)) {
-                showFeedback(t("toolbar.feedback.pending_delete"), "warning");
-                return { status: "blocked_pending_delete" };
-            }
-
-            const startNow = Boolean(settingsConfig.start_added_torrents);
-            const defaultDir = currentDownloadDir;
-            const submissionOutcome = beginSubmission({
-                label: normalized,
-                sourceName: null,
-                targetInfoHash: infoHash ?? undefined,
-                successStatus: "added",
-                failureReason: "magnet_add_failed",
-                execute: () =>
-                    dispatch(
-                        TorrentIntents.addMagnetTorrent(
-                            normalized,
-                            defaultDir,
-                            !startNow,
-                        ),
-                    ),
-            });
-            if (submissionOutcome.status === "queued") {
-                remember(defaultDir);
-                handleMagnetModalClose();
-            }
-            return submissionOutcome;
-        },
-        [
-            beginSubmission,
-            currentDownloadDir,
-            dispatch,
-            handleMagnetModalClose,
-            remember,
-            showInFlightStatus,
-            activeSubmissionRef,
-            showFeedback,
-            t,
-            settingsConfig,
-            pendingDeletionHashesRef,
-        ],
+        [showInFlightStatus, t],
     );
 
     const closeAddTorrentWindow = useCallback(() => {
@@ -660,7 +582,6 @@ export function useAddTorrentController({
                 const submissionOutcome = beginSubmission({
                     label: addSource.label,
                     sourceName: addSource.metadata.name ?? addSource.label ?? null,
-                    successStatus: "added",
                     failureReason: "add_file_failed",
                     execute: () =>
                         dispatch(
@@ -683,25 +604,32 @@ export function useAddTorrentController({
                 return submissionOutcome;
             }
 
-            const targetId = addSource.torrentId;
-            if (!targetId) {
-                showFeedback(t("modals.add_error_source_missing"), "warning");
-                closeAddTorrentWindow();
-                return { status: "invalid_input", reason: "missing_target" };
+            const normalized = normalizeMagnetLink(selection.magnetLink);
+            if (!normalized) {
+                showFeedback(t("modals.add_torrent.magnet_error"), "warning");
+                return {
+                    status: "invalid_input",
+                    reason: "invalid_magnet_link",
+                };
+            }
+            const infoHash = normalizeInfoHashCandidate(normalized);
+            if (infoHash && pendingDeletionHashesRef.current.has(infoHash)) {
+                showFeedback(t("toolbar.feedback.pending_delete"), "warning");
+                return { status: "blocked_pending_delete" };
             }
             const submissionOutcome = beginSubmission({
-                label: addSource.label,
-                sourceName: addSource.label ?? null,
-                targetTorrentId: targetId,
-                successStatus: "finalized",
-                failureReason: "finalize_failed",
+                label: normalized,
+                sourceName: null,
+                targetInfoHash: infoHash ?? undefined,
+                failureReason: "magnet_add_failed",
                 execute: () =>
                     dispatch(
-                        TorrentIntents.finalizeExistingTorrent(
-                            targetId,
+                        TorrentIntents.addMagnetTorrent(
+                            normalized,
                             downloadDir,
-                            selection.filesUnwanted,
-                            startNow,
+                            !startNow,
+                            selection.options.sequential,
+                            selection.options.skipHashCheck,
                         ),
                     ),
             });
@@ -716,6 +644,7 @@ export function useAddTorrentController({
             beginSubmission,
             closeAddTorrentWindow,
             dispatch,
+            pendingDeletionHashesRef,
             showInFlightStatus,
             showFeedback,
             t,
@@ -752,13 +681,9 @@ export function useAddTorrentController({
         addTorrentDefaults,
         openAddTorrentPicker,
         openAddMagnet,
-        handleMagnetModalClose,
-        handleMagnetSubmit,
         handleTorrentWindowConfirm,
         closeAddTorrentWindow,
         setAddSource,
-        isMagnetModalOpen,
-        magnetModalInitialValue,
     };
 }
 

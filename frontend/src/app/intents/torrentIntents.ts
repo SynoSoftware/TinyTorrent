@@ -107,6 +107,8 @@ export type AddMagnetTorrent = {
     magnetLink: string;
     downloadDir: string;
     paused: boolean;
+    sequentialDownload?: boolean;
+    skipHashCheck?: boolean;
 };
 
 export type AddTorrentFromFile = {
@@ -256,11 +258,19 @@ export const TorrentIntents = {
         direction,
         steps,
     }),
-    addMagnetTorrent: (magnetLink: string, downloadDir: string, paused: boolean): AddMagnetTorrent => ({
+    addMagnetTorrent: (
+        magnetLink: string,
+        downloadDir: string,
+        paused: boolean,
+        sequentialDownload?: boolean,
+        skipHashCheck?: boolean,
+    ): AddMagnetTorrent => ({
         type: "ADD_MAGNET_TORRENT",
         magnetLink,
         downloadDir,
         paused,
+        sequentialDownload,
+        skipHashCheck,
     }),
     addTorrentFromFile: (
         metainfoBase64: string,

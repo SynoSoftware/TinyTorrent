@@ -36,8 +36,6 @@ const GLASS_SURFACE_DIAL = {
 } as const;
 
 const GLASS_PANE_SURFACE = `flex flex-col min-h-0 overflow-hidden ${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.elevation.panel} ${GLASS_SURFACE_DIAL.opacity.pane}`;
-const GLASS_MENU_SURFACE = `glass-panel surface-layer-2 text-foreground outline-none ring-0 ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal}`;
-const GLASS_MENU_FRAME = `overflow-hidden ${GLASS_SURFACE_DIAL.border.strong} p-tight`;
 const GLASS_OVERLAY_SURFACE = `${GLASS_SURFACE_DIAL.border.strong} ${GLASS_SURFACE_DIAL.opacity.overlay} ${GLASS_SURFACE_DIAL.blur.floating} ${GLASS_SURFACE_DIAL.elevation.overlay}`;
 
 const GLASS_ROLE_CORE = {
@@ -47,7 +45,7 @@ const GLASS_ROLE_CORE = {
         pane: GLASS_PANE_SURFACE,
         modal: `glass-panel surface-layer-2 text-foreground ${GLASS_SURFACE_DIAL.elevation.floating} ${GLASS_SURFACE_DIAL.radius.modal} flex flex-col overflow-hidden ${GLASS_SURFACE_DIAL.border.strong}`,
         inset: `surface-layer-1 ${GLASS_SURFACE_DIAL.radius.panel} p-tight`,
-        menu: `${GLASS_MENU_SURFACE} ${GLASS_MENU_FRAME}`,
+        menu: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${GLASS_SURFACE_DIAL.elevation.menu} ${GLASS_SURFACE_DIAL.radius.modal} ${GLASS_SURFACE_DIAL.border.strong} p-tight`,
         overlay: GLASS_OVERLAY_SURFACE,
     },
     chrome: {
@@ -72,8 +70,6 @@ const GLASS_ROLE_CORE = {
     },
 } as const;
 
-const MODAL_SURFACE_HEADER = GLASS_ROLE_CORE.chrome.edgeBottom;
-const MODAL_SURFACE_FOOTER = GLASS_ROLE_CORE.chrome.edgeTop;
 const MENU_SURFACE_LIST = "overflow-hidden outline-none ring-0";
 export const MENU_ITEM_SURFACE =
     "rounded-panel px-panel py-tight text-scaled font-medium cursor-pointer " +
@@ -135,14 +131,10 @@ const MAP_OVERLAY_RADIUS = GLASS_SURFACE_DIAL.radius.raised;
 const MAP_OVERLAY_CARD = `${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`;
 const GLASS_SEMANTIC_CHROME = {
     dividerSoft: visuals.surface.border,
-    headerBorder: MODAL_SURFACE_HEADER,
-    footerBorder: MODAL_SURFACE_FOOTER,
-    dialogHeader: `${MODAL_SURFACE_HEADER} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
-    dialogFooter: `${MODAL_SURFACE_FOOTER} flex items-center justify-between gap-tools px-panel py-tight`,
-    workflowFooter: `${MODAL_SURFACE_FOOTER} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
-    headerPassive: `${MODAL_SURFACE_HEADER} select-none`,
-    footerEnd: `${MODAL_SURFACE_FOOTER} flex justify-end gap-tools`,
-    footerActionsPadded: `${MODAL_SURFACE_FOOTER} px-stage py-panel flex items-center justify-end gap-tools`,
+    dialogHeader: `${GLASS_ROLE_CORE.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
+    dialogFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
+    workflowFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
+    footerEnd: `${GLASS_ROLE_CORE.chrome.edgeTop} flex justify-end gap-tools`,
 } as const;
 const SURFACE_MODAL = {
     baseClassNames: MODAL_BASE_CLASSNAMES,
@@ -191,8 +183,7 @@ const SURFACE_ATOM = {
     glassBlock: "acrylic shadow-inner",
 } as const;
 const ROLE_PANEL_INSET_BASE = `${PANEL_SURFACE_INSET_FRAME} ${GLASS_SURFACE_DIAL.opacity.panel}`;
-const ROLE_PANEL_RAISED = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel}`;
-const ROLE_PANEL_MUTED = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel}`;
+const ROLE_PANEL_BORDERED = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel}`;
 const ROLE_PANEL_INFO = `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.workbench}`;
 const GLASS_ROLE_SEMANTIC = {
     surface: {
@@ -200,8 +191,8 @@ const GLASS_ROLE_SEMANTIC = {
         panelInset: ROLE_PANEL_INSET_BASE,
         tooltip: SURFACE_TOOLTIP.content,
         statusModule: `${GLASS_SURFACE_DIAL.radius.modal} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.panel} ${GLASS_SURFACE_DIAL.blur.soft}`,
-        panelRaised: ROLE_PANEL_RAISED,
-        panelMuted: ROLE_PANEL_MUTED,
+        panelRaised: ROLE_PANEL_BORDERED,
+        panelMuted: ROLE_PANEL_BORDERED,
         panelInfo: ROLE_PANEL_INFO,
         panelWorkflow: `${GLASS_SURFACE_DIAL.radius.raised} border ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.pane}`,
         sidebarPanel: `flex flex-col border-r ${visuals.surface.border} ${GLASS_SURFACE_DIAL.opacity.pane} ${GLASS_SURFACE_DIAL.blur.panel}`,
@@ -241,9 +232,7 @@ export const MODAL = {
     iconMd: "toolbar-icon-size-md",
     iconSm: "toolbar-icon-size-sm shrink-0",
     iconLg: "toolbar-icon-size-lg",
-    headerPassive: SURFACE.chromeEx.headerPassive,
     footerEnd: SURFACE.chromeEx.footerEnd,
-    footerActionsPadded: SURFACE.chromeEx.footerActionsPadded,
     sidebarCloseButton: "sm:hidden text-foreground/50",
     sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
     tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel rounded-panel ${transition.medium} group relative`,
@@ -255,7 +244,7 @@ export const MODAL = {
     tabIndicator: "absolute settings-tab-indicator bg-primary rounded-r-pill",
     versionWrapper: "p-panel border-t border-content1/10 shrink-0",
     versionText: `${TEXT_ROLE.codeCaption} text-foreground/30`,
-    header: `${SURFACE.chromeEx.headerBorder} ${SURFACE.chrome.sticky} shrink-0 h-modal-header flex items-center justify-between px-stage`,
+    header: `${SURFACE.chrome.edgeBottom} ${SURFACE.chrome.sticky} shrink-0 h-modal-header flex items-center justify-between px-stage`,
     headerLead: "flex items-center gap-tools",
     headerLeadPrimaryIcon: "text-primary",
     hintText: `${TEXT_ROLE.bodyMuted} leading-relaxed`,
@@ -268,7 +257,7 @@ export const MODAL = {
     alert: "mb-panel px-panel py-tight",
     inlineAlert: "px-panel py-tight",
     connectionStack: "space-y-stage",
-    footer: `${SURFACE.chromeEx.footerBorder} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
+    footer: `${SURFACE.chrome.edgeTop} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
     footerConfirmContent: "w-full flex items-center gap-panel",
     footerTextWrap: "flex flex-col min-w-0",
     footerWarningTitle: `${TEXT_ROLE.bodyStrong} text-warning`,
@@ -497,8 +486,11 @@ export const FORM = {
     locationEditorFeedbackSlot: "overflow-hidden",
     workflow: {
         root: "p-panel flex flex-col flex-1 min-h-0 overflow-y-auto overlay-scrollbar",
-        group: "flex flex-col gap-panel mb-panel",
-        label: `${TEXT_ROLE_EXTENDED.settingsLabel} mb-panel flex items-center gap-tools`,
+        fillRoot: "p-panel flex flex-1 min-h-0 flex-col overflow-hidden",
+        section: "flex flex-col gap-panel",
+        fillSection: "flex min-h-0 flex-1 flex-col gap-panel",
+        fillBody: "flex min-h-0 flex-1 flex-col",
+        label: `${TEXT_ROLE_EXTENDED.settingsLabel} flex items-center gap-tools`,
         labelIcon: "toolbar-icon-size-md",
         gatePanel: `p-panel flex flex-col gap-panel ${SURFACE.role.panel}`,
         gatePromptRow: `flex items-center gap-tools ${withOpacity(TEXT_ROLE.codeCaption, 40)}`,
@@ -515,7 +507,6 @@ export const FORM = {
         gateActionsRow: "flex justify-end",
         gateConfirmButton: "font-bold",
         flagsDivider: "my-panel bg-foreground/25",
-        flagsGroup: "flex flex-col gap-tools",
         flagsCheckboxes: "flex flex-col gap-tools",
         flagsItemLabel: "flex items-center",
         flagsItemDivider: "bg-content1/5",
@@ -1382,8 +1373,15 @@ export const INPUT = {
         input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
     } as const,
     codeTextareaClassNames: {
-        input: TEXT_ROLE.code,
+        ...FORM.locationEditorInputClassNames,
+        base: "w-full",
+        innerWrapper: "w-full",
+        input: `${TEXT_ROLE.code} bg-transparent p-panel text-foreground placeholder:text-foreground/30`,
     } as const,
+    fillCodeTextareaFrame:
+        `${FORM.locationEditorInputClassNames.inputWrapper} flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-panel`,
+    fillCodeTextarea:
+        `${TEXT_ROLE.code} overlay-scrollbar box-border block h-full min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent p-panel leading-tight text-foreground placeholder:text-foreground/30 outline-none`,
 } as const;
 export const FILE_BROWSER = {
     container: "flex flex-col h-full min-h-0",

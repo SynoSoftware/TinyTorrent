@@ -24,6 +24,7 @@ export interface AddTorrentDestinationGateState {
 }
 
 export interface AddTorrentSettingsState {
+    autoFocusDestination: boolean;
     onDrop: (event: DragEvent<HTMLDivElement>) => void;
     onDragOver: (event: DragEvent) => void;
     onDragLeave: () => void;

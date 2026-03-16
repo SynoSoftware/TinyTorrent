@@ -13,7 +13,6 @@ import {
 } from "@/app/commandRegistry";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { AddTorrentModalProps } from "@/modules/torrent-add/components/AddTorrentModal";
-import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import {
     useDashboardViewModel,
     useDeletionViewModel,
@@ -90,7 +89,6 @@ export interface WorkspaceShellController {
         };
     };
     addTorrent: {
-        addMagnetModalProps: AddMagnetModalProps;
         addTorrentModalProps: AddTorrentModalProps | null;
     };
 }
@@ -196,10 +194,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         addModalState,
         openAddTorrentPicker,
         openAddMagnet,
-        isMagnetModalOpen,
-        magnetModalInitialValue,
-        handleMagnetModalClose,
-        handleMagnetSubmit,
         addSource,
         addTorrentDefaults,
         closeAddTorrentWindow,
@@ -568,21 +562,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         commandPalette: commandPaletteModel,
     });
 
-    const addMagnetModalProps = useMemo<AddMagnetModalProps>(
-        () => ({
-            isOpen: isMagnetModalOpen,
-            initialValue: magnetModalInitialValue,
-            onClose: handleMagnetModalClose,
-            onSubmit: handleMagnetSubmit,
-        }),
-        [
-            handleMagnetModalClose,
-            handleMagnetSubmit,
-            isMagnetModalOpen,
-            magnetModalInitialValue,
-        ],
-    );
-
     const addTorrentModalProps = useMemo<AddTorrentModalProps | null>(() => {
         if (!addSource) {
             return null;
@@ -629,7 +608,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             },
         },
         addTorrent: {
-            addMagnetModalProps,
             addTorrentModalProps,
         },
     };

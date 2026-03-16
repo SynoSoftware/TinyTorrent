@@ -19,15 +19,12 @@ export type AddTorrentSource =
           kind: "magnet";
           label: string;
           magnetLink: string;
-          status: "resolving" | "ready" | "error";
-          metadata?: TorrentMetadata;
-          torrentId?: string;
-          errorMessage?: string | null;
       };
 
 export type AddTorrentSelection = {
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
+    magnetLink?: string;
     filesUnwanted: number[];
     priorityHigh: number[];
     priorityNormal: number[];

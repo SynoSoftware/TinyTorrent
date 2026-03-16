@@ -172,6 +172,30 @@ const runAddTorrentFromFile = async (intent: DispatchIntentByType<"ADD_TORRENT_F
     return dispatchOutcome.applied();
 };
 
+const runAddMagnetTorrent = async (intent: DispatchIntentByType<"ADD_MAGNET_TORRENT">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
+    const shouldStart = !intent.paused;
+    const verifyBeforeStart = shouldStart && intent.skipHashCheck === false;
+    const addPaused = verifyBeforeStart ? true : intent.paused;
+
+    const result = await context.client.addTorrent({
+        magnetLink: intent.magnetLink,
+        paused: addPaused,
+        downloadDir: intent.downloadDir,
+    });
+
+    if (intent.sequentialDownload && context.client.setSequentialDownload) {
+        await context.client.setSequentialDownload(result.id, true);
+    }
+
+    if (verifyBeforeStart) {
+        await context.client.verify([result.id]);
+        await watchVerifyCompletion(context.client, String(result.id));
+        await context.client.resume([result.id]);
+    }
+
+    return dispatchOutcome.applied();
+};
+
 const runFinalizeExistingTorrent = async (intent: DispatchIntentByType<"FINALIZE_EXISTING_TORRENT">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
     const setTorrentLocation = requireClientMethod(context.client, "setTorrentLocation");
     if (typeof setTorrentLocation !== "function") {
@@ -423,14 +447,7 @@ const dispatchHandlers: DispatchHandlerTable = {
         },
     },
     ADD_MAGNET_TORRENT: {
-        run: async (intent, context) => {
-            await context.client.addTorrent({
-                magnetLink: intent.magnetLink,
-                paused: intent.paused,
-                downloadDir: intent.downloadDir,
-            });
-            return dispatchOutcome.applied();
-        },
+        run: runAddMagnetTorrent,
         refresh: {
             refreshTorrents: true,
             refreshDetail: false,

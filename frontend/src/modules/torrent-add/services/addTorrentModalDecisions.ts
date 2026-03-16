@@ -20,12 +20,14 @@ export interface AddTorrentDestinationDecision {
 export const resolveAddTorrentResolvedState = ({
     source,
     fileCount,
+    magnetLink,
 }: {
     source: AddTorrentSource | null;
     fileCount: number;
+    magnetLink?: string;
 }): AddTorrentResolvedState => {
-    if (source?.kind === "magnet" && !source.metadata) {
-        return source.status === "error" ? "error" : "pending";
+    if (source?.kind === "magnet") {
+        return magnetLink?.trim() ? "ready" : "pending";
     }
     return fileCount > 0 ? "ready" : "pending";
 };
@@ -69,16 +71,18 @@ export const resolveAddTorrentDestinationDecision = ({
 };
 
 export const resolveAddTorrentSubmissionDecision = ({
+    requiresFileSelection,
     isSelectionEmpty,
     isDestinationValid,
     resolvedState,
 }: {
+    requiresFileSelection: boolean;
     isSelectionEmpty: boolean;
     isDestinationValid: boolean;
     resolvedState: AddTorrentResolvedState;
 }): AddTorrentSubmissionDecision => {
     const canConfirm =
-        !isSelectionEmpty &&
+        (!requiresFileSelection || !isSelectionEmpty) &&
         isDestinationValid &&
         resolvedState === "ready";
 

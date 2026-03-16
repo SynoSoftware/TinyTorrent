@@ -8,15 +8,29 @@ import {
 
 describe("add torrent modal decisions", () => {
     describe("resolved state slice", () => {
-        it("resolves magnet without metadata as pending", () => {
+        it("resolves magnet with a link as ready", () => {
             const state = resolveAddTorrentResolvedState({
                 source: {
                     kind: "magnet",
                     label: "magnet",
                     magnetLink: "magnet:?xt=urn:btih:abc",
-                    status: "resolving",
                 },
                 fileCount: 0,
+                magnetLink: "magnet:?xt=urn:btih:abc",
+            });
+
+            expect(state).toBe("ready");
+        });
+
+        it("resolves empty magnet input as pending", () => {
+            const state = resolveAddTorrentResolvedState({
+                source: {
+                    kind: "magnet",
+                    label: "magnet",
+                    magnetLink: "magnet:?xt=urn:btih:abc",
+                },
+                fileCount: 0,
+                magnetLink: " ",
             });
 
             expect(state).toBe("pending");
@@ -65,6 +79,7 @@ describe("add torrent modal decisions", () => {
     describe("submission slice", () => {
         it("allows confirmation only when all gating conditions pass", () => {
             const decision = resolveAddTorrentSubmissionDecision({
+                requiresFileSelection: true,
                 isSelectionEmpty: false,
                 isDestinationValid: true,
                 resolvedState: "ready",
@@ -75,12 +90,24 @@ describe("add torrent modal decisions", () => {
 
         it("blocks confirmation when destination is invalid", () => {
             const decision = resolveAddTorrentSubmissionDecision({
+                requiresFileSelection: true,
                 isSelectionEmpty: false,
                 isDestinationValid: false,
                 resolvedState: "ready",
             });
 
             expect(decision.canConfirm).toBe(false);
+        });
+
+        it("allows magnet confirmation without file selection", () => {
+            const decision = resolveAddTorrentSubmissionDecision({
+                requiresFileSelection: false,
+                isSelectionEmpty: true,
+                isDestinationValid: true,
+                resolvedState: "ready",
+            });
+
+            expect(decision.canConfirm).toBe(true);
         });
     });
 

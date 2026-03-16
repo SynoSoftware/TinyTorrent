@@ -278,7 +278,7 @@ export function DestinationPathEditor({
     );
 
     return (
-        <div className={FORM.locationEditorRow}>
+        <div className={FORM.locationEditorRow} data-destination-editor-root-id={id}>
             <div className={FORM.locationEditorField}>
                 <div className={FORM.locationEditorPathRow}>
                     {currentPathValue ? (
