@@ -92,6 +92,10 @@ export const useMeasuredColumnWidths = (
         columnIds.forEach((columnId) => {
             const headerWidth = headerWidths[columnId];
             const cellWidth = cellWidths[columnId];
+            if (columnId === "name" && Number.isFinite(headerWidth)) {
+                nextMinWidths[columnId] = headerWidth;
+                return;
+            }
             if (Number.isFinite(headerWidth) && Number.isFinite(cellWidth)) {
                 nextMinWidths[columnId] = Math.max(headerWidth, cellWidth);
                 return;
