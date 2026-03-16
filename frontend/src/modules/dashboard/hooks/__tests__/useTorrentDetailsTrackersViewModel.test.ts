@@ -51,7 +51,7 @@ type HarnessRef = {
     getRowCount: () => number;
     getRowAnnounce: (index: number) => string;
     getRowStatusLabel: (index: number) => string;
-    getRowDownloadedLabel: (index: number) => string;
+    getRowDownloadCountLabel: (index: number) => string;
     getSelectionCount: () => number;
     getCanRemove: () => boolean;
     clickRow: (
@@ -112,8 +112,8 @@ const ViewModelHarness = forwardRef<
                     viewModelRef.current.data.rows[index]?.announce ?? "",
                 getRowStatusLabel: (index: number) =>
                     viewModelRef.current.data.rows[index]?.statusLabel ?? "",
-                getRowDownloadedLabel: (index: number) =>
-                    viewModelRef.current.data.rows[index]?.downloadedLabel ?? "",
+                getRowDownloadCountLabel: (index: number) =>
+                    viewModelRef.current.data.rows[index]?.downloadCountLabel ?? "",
                 getSelectionCount: () => viewModelRef.current.state.selectedCount,
                 getCanRemove: () => viewModelRef.current.state.canRemove,
                 clickRow: (index, modifiers) => {
@@ -269,9 +269,7 @@ describe("useTorrentDetailsTrackersViewModel", () => {
             expect(harness.getRowStatusLabel(0)).toBe(
                 "torrent_modal.trackers.status_timeout",
             );
-            expect(harness.getRowDownloadedLabel(0)).toBe(
-                "7 blocks (112 KB)",
-            );
+            expect(harness.getRowDownloadCountLabel(0)).toBe("7");
         } finally {
             mounted.cleanup();
         }
@@ -300,9 +298,7 @@ describe("useTorrentDetailsTrackersViewModel", () => {
             expect(harness.getRowAnnounce(0)).toBe(
                 "https://tracker-live.example/announce",
             );
-            expect(harness.getRowDownloadedLabel(0)).toBe(
-                "12 blocks (192 KB)",
-            );
+            expect(harness.getRowDownloadCountLabel(0)).toBe("12");
         } finally {
             mounted.cleanup();
         }

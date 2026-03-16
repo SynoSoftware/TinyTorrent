@@ -1,16 +1,20 @@
-import { createElement, useCallback, useEffect, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { addToast, closeToast } from "@heroui/toast";
+import type { AddTorrentDefaultsState } from "@/app/context/PreferencesContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
-import { useAddTorrentDefaults } from "@/app/hooks/useAddTorrentDefaults";
+import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type {
-    AddTorrentSelection, AddTorrentSource, } from "@/modules/torrent-add/types";
+    AddTorrentSelection,
+    AddTorrentSource,
+} from "@/modules/torrent-add/types";
 import { parseTorrentFile } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
@@ -59,7 +63,7 @@ export type AddTorrentCommandOutcome =
 export interface UseAddTorrentControllerResult {
     addModalState: ReturnType<typeof useAddModalState>;
     addSource: AddTorrentSource | null;
-    addTorrentDefaults: ReturnType<typeof useAddTorrentDefaults>;
+    addTorrentDefaults: AddTorrentDefaultsViewModel;
     openAddTorrentPicker: () => AddTorrentCommandOutcome;
     openAddMagnet: (magnetLink?: string) => AddTorrentCommandOutcome;
     handleMagnetModalClose: () => void;
@@ -71,6 +75,16 @@ export interface UseAddTorrentControllerResult {
     setAddSource: (source: AddTorrentSource | null) => void;
     isMagnetModalOpen: boolean;
     magnetModalInitialValue: string;
+}
+
+export interface AddTorrentDefaultsViewModel {
+    downloadDir: string;
+    commitMode: AddTorrentDefaultsState["commitMode"];
+    sequentialDownload: AddTorrentDefaultsState["sequentialDownload"];
+    skipHashCheck: AddTorrentDefaultsState["skipHashCheck"];
+    setCommitMode: (value: AddTorrentDefaultsState["commitMode"]) => void;
+    setSequentialDownload: (value: boolean) => void;
+    setSkipHashCheck: (value: boolean) => void;
 }
 
 type AddSubmissionPayload = {
@@ -92,9 +106,6 @@ type ActiveAddSubmission = {
     toastKey: string | null;
 };
 
-const ADD_TIMEOUT_MULTIPLIER = 2;
-const ADD_TIMEOUT_MIN_MS = 2000;
-
 export function useAddTorrentController({
     dispatch,
     settingsConfig,
@@ -105,6 +116,10 @@ export function useAddTorrentController({
 }: UseAddTorrentControllerParams): UseAddTorrentControllerResult {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
+    const {
+        preferences: { addTorrentDefaults: addTorrentDefaultsState },
+        setAddTorrentDefaults,
+    } = usePreferences();
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
     const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
     const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
@@ -112,19 +127,59 @@ export function useAddTorrentController({
     const submissionSeqRef = useRef(0);
     const torrentsRef = useRef<Array<Torrent | TorrentDetail>>(torrents);
 
-    const fallbackCommitMode = settingsConfig.start_added_torrents
-        ? "start"
-        : "paused";
-    const addTorrentDefaults = useAddTorrentDefaults({
-        fallbackDownloadDir: settingsConfig.download_dir,
-        fallbackCommitMode,
-        fallbackSequentialDownload: false,
-        fallbackSkipHashCheck: true,
-    });
-    const {
-        downloadDir: addTorrentDownloadDir,
-        setDownloadDir: setAddTorrentDownloadDir,
-    } = addTorrentDefaults;
+    const { current, remember } = useDownloadPaths();
+    const currentDownloadDir = current || settingsConfig.download_dir || "";
+
+    const setCommitMode = useCallback(
+        (value: AddTorrentDefaultsState["commitMode"]) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaultsState,
+                commitMode: value,
+            });
+        },
+        [addTorrentDefaultsState, setAddTorrentDefaults],
+    );
+
+    const setSequentialDownload = useCallback(
+        (value: boolean) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaultsState,
+                sequentialDownload: value,
+            });
+        },
+        [addTorrentDefaultsState, setAddTorrentDefaults],
+    );
+
+    const setSkipHashCheck = useCallback(
+        (value: boolean) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaultsState,
+                skipHashCheck: value,
+            });
+        },
+        [addTorrentDefaultsState, setAddTorrentDefaults],
+    );
+
+    const addTorrentDefaults = useMemo<AddTorrentDefaultsViewModel>(
+        () => ({
+            downloadDir: currentDownloadDir,
+            commitMode: addTorrentDefaultsState.commitMode,
+            sequentialDownload: addTorrentDefaultsState.sequentialDownload,
+            skipHashCheck: addTorrentDefaultsState.skipHashCheck,
+            setCommitMode,
+            setSequentialDownload,
+            setSkipHashCheck,
+        }),
+        [
+            addTorrentDefaultsState.commitMode,
+            addTorrentDefaultsState.sequentialDownload,
+            addTorrentDefaultsState.skipHashCheck,
+            currentDownloadDir,
+            setCommitMode,
+            setSequentialDownload,
+            setSkipHashCheck,
+        ],
+    );
 
     const showInFlightStatus = useCallback(() => {
         const active = activeSubmissionRef.current;
@@ -239,8 +294,9 @@ export function useAddTorrentController({
 
             const startedAtMs = Date.now();
             const requestTimeoutMs = Math.max(
-                ADD_TIMEOUT_MIN_MS,
-                settingsConfig.request_timeout_ms * ADD_TIMEOUT_MULTIPLIER,
+                timing.timeouts.addSubmitTimeoutMinMs,
+                settingsConfig.request_timeout_ms *
+                    timing.timeouts.addSubmitTimeoutMultiplier,
             );
             const knownHashesBefore = new Set(
                 torrentsRef.current
@@ -530,7 +586,7 @@ export function useAddTorrentController({
             }
 
             const startNow = Boolean(settingsConfig.start_added_torrents);
-            const defaultDir = addTorrentDownloadDir;
+            const defaultDir = currentDownloadDir;
             const submissionOutcome = beginSubmission({
                 label: normalized,
                 sourceName: null,
@@ -547,15 +603,17 @@ export function useAddTorrentController({
                     ),
             });
             if (submissionOutcome.status === "queued") {
+                remember(defaultDir);
                 handleMagnetModalClose();
             }
             return submissionOutcome;
         },
         [
-            addTorrentDownloadDir,
             beginSubmission,
+            currentDownloadDir,
             dispatch,
             handleMagnetModalClose,
+            remember,
             showInFlightStatus,
             activeSubmissionRef,
             showFeedback,
@@ -591,8 +649,6 @@ export function useAddTorrentController({
                     reason: "invalid_destination",
                 };
             }
-            setAddTorrentDownloadDir(downloadDir);
-
             const startNow = selection.commitMode !== "paused";
 
             if (addSource.kind === "file") {
@@ -660,7 +716,6 @@ export function useAddTorrentController({
             beginSubmission,
             closeAddTorrentWindow,
             dispatch,
-            setAddTorrentDownloadDir,
             showInFlightStatus,
             showFeedback,
             t,
@@ -716,14 +771,14 @@ function normalizeInfoHashCandidate(value: string): string | null {
     return decoded.toLowerCase();
 }
 
-const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 function base32ToHex(value: string): string | null {
     let buffer = 0;
     let bitsInBuffer = 0;
     const bytes: number[] = [];
     for (const char of value.toUpperCase()) {
-        const index = BASE32_ALPHABET.indexOf(char);
+        const index = base32Alphabet.indexOf(char);
         if (index === -1) {
             return null;
         }

@@ -96,22 +96,6 @@ export function RemoveConfirmationModal({
         }
     }, [deleteData, loading, resolvedOnClose, resolvedOnConfirm]);
 
-    // Keyboard shortcuts for deterministic confirm/cancel behavior.
-    useEffect(() => {
-        if (!resolvedIsOpen) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                e.preventDefault();
-                handleClose();
-            } else if (e.key === "Enter") {
-                e.preventDefault();
-                void handleConfirm();
-            }
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [handleClose, handleConfirm, resolvedIsOpen]);
-
     return (
         <ModalEx
             open={resolvedIsOpen}
@@ -147,6 +131,13 @@ export function RemoveConfirmationModal({
                       }
                     : undefined
             }
+            onKeyDownCapture={(event) => {
+                if (event.key !== "Enter" || event.defaultPrevented) {
+                    return;
+                }
+                event.preventDefault();
+                void handleConfirm();
+            }}
         >
             <div className={FORM.stackTools}>
                 <p>

@@ -418,6 +418,15 @@ const TrackerEditorModal = ({ viewModel }: { viewModel: TorrentDetailsTrackersVi
                     placeholder={viewModel.labels.modalPlaceholder}
                     variant="bordered"
                     classNames={INPUT.codeTextareaClassNames}
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === "Enter" &&
+                            (event.ctrlKey || event.metaKey)
+                        ) {
+                            event.preventDefault();
+                            void viewModel.actions.submitEditor();
+                        }
+                    }}
                 />
                 {viewModel.state.editor.error ? (
                     <p className={TRACKER_UI.modalError}>{viewModel.state.editor.error}</p>

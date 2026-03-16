@@ -15,10 +15,6 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 import type { AddTorrentModalProps } from "@/modules/torrent-add/components/AddTorrentModal";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import {
-    useAddMagnetModalProps,
-    useAddTorrentModalProps,
-} from "@/app/viewModels/workspaceShell/addTorrentModalViewModels";
-import {
     useDashboardViewModel,
     useDeletionViewModel,
     useHudViewModel,
@@ -572,19 +568,45 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         commandPalette: commandPaletteModel,
     });
 
-    const addMagnetModalProps = useAddMagnetModalProps({
-        isOpen: isMagnetModalOpen,
-        initialValue: magnetModalInitialValue,
-        onClose: handleMagnetModalClose,
-        onSubmit: handleMagnetSubmit,
-    });
+    const addMagnetModalProps = useMemo<AddMagnetModalProps>(
+        () => ({
+            isOpen: isMagnetModalOpen,
+            initialValue: magnetModalInitialValue,
+            onClose: handleMagnetModalClose,
+            onSubmit: handleMagnetSubmit,
+        }),
+        [
+            handleMagnetModalClose,
+            handleMagnetSubmit,
+            isMagnetModalOpen,
+            magnetModalInitialValue,
+        ],
+    );
 
-    const addTorrentModalProps = useAddTorrentModalProps({
+    const addTorrentModalProps = useMemo<AddTorrentModalProps | null>(() => {
+        if (!addSource) {
+            return null;
+        }
+
+        return {
+            isOpen: true,
+            source: addSource,
+            downloadDir: addTorrentDefaults.downloadDir,
+            commitMode: addTorrentDefaults.commitMode,
+            sequentialDownload: addTorrentDefaults.sequentialDownload,
+            skipHashCheck: addTorrentDefaults.skipHashCheck,
+            onCommitModeChange: addTorrentDefaults.setCommitMode,
+            onSequentialDownloadChange: addTorrentDefaults.setSequentialDownload,
+            onSkipHashCheckChange: addTorrentDefaults.setSkipHashCheck,
+            onCancel: closeAddTorrentWindow,
+            onConfirm: handleTorrentWindowConfirm,
+        };
+    }, [
         addSource,
         addTorrentDefaults,
-        onCancel: closeAddTorrentWindow,
-        onConfirm: handleTorrentWindowConfirm,
-    });
+        closeAddTorrentWindow,
+        handleTorrentWindowConfirm,
+    ]);
 
     return {
         shell: {

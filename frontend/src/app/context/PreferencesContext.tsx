@@ -28,6 +28,7 @@ import type { DetailTab } from "@/modules/dashboard/types/contracts";
 import type { VisibilityState, SortingState } from "@tanstack/react-table";
 import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
+import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
 
 type SpeedChartLayoutMode = "combined" | "split";
 
@@ -42,7 +43,6 @@ export interface SystemPreferences {
 }
 
 export interface AddTorrentDefaultsState {
-    downloadDir: string;
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
     skipHashCheck: boolean;
@@ -78,6 +78,7 @@ export const ZOOM_EVENT_NAME = "tt-zoom-change";
 const clampScale = (value: number) => Math.max(0.7, Math.min(1.5, value));
 export { clampScale };
 export const DEFAULT_WORKBENCH_SCALE = clampScale(registry.ui.scaleBases.zoom);
+const downloadPathHistoryLimit = registry.defaults.downloadPathHistoryLimit;
 
 const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
     preventSleep: true,
@@ -89,7 +90,6 @@ const DEFAULT_INSPECTOR_TAB: DetailTab = "general";
 const DEFAULT_TORRENT_TABLE_STATE: TorrentTablePersistenceState | null = null;
 const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
-    downloadDir: "",
     commitMode: "paused",
     sequentialDownload: false,
     skipHashCheck: true,
@@ -218,6 +218,26 @@ const isSpeedChartLayoutMode = (
 const isValidCommitMode = (value: unknown): value is AddTorrentCommitMode =>
     value === "start" || value === "paused" || value === "top";
 
+const sanitizePathHistory = (paths: unknown[]): string[] => {
+    return sanitizeDownloadPathHistory(paths, downloadPathHistoryLimit);
+};
+
+const sanitizeAddTorrentDefaults = (
+    defaults?: Partial<AddTorrentDefaultsState> | null,
+): AddTorrentDefaultsState => ({
+    commitMode: isValidCommitMode(defaults?.commitMode)
+        ? defaults.commitMode
+        : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
+    sequentialDownload:
+        typeof defaults?.sequentialDownload === "boolean"
+            ? defaults.sequentialDownload
+            : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
+    skipHashCheck:
+        typeof defaults?.skipHashCheck === "boolean"
+            ? defaults.skipHashCheck
+            : DEFAULT_ADD_TORRENT_DEFAULTS.skipHashCheck,
+});
+
 const isConnectionProfileValue = (
     value: unknown,
 ): value is ConnectionProfile => {
@@ -341,45 +361,23 @@ const readLegacyPreferences = (): PreferencesState => {
         next.speedChartLayoutMode = storedLayout;
     }
 
-    const storedAddTorrentDefaults = parseJson<
-        Partial<AddTorrentDefaultsState>
-    >(window.localStorage.getItem(ADD_TORRENT_DEFAULTS_KEY));
-    if (storedAddTorrentDefaults) {
-        if (typeof storedAddTorrentDefaults.downloadDir === "string") {
-            next.addTorrentDefaults.downloadDir =
-                storedAddTorrentDefaults.downloadDir;
-        }
-        if (isValidCommitMode(storedAddTorrentDefaults.commitMode)) {
-            next.addTorrentDefaults.commitMode =
-                storedAddTorrentDefaults.commitMode;
-        }
-        if (
-            typeof storedAddTorrentDefaults.sequentialDownload === "boolean"
-        ) {
-            next.addTorrentDefaults.sequentialDownload =
-                storedAddTorrentDefaults.sequentialDownload;
-        }
-        if (typeof storedAddTorrentDefaults.skipHashCheck === "boolean") {
-            next.addTorrentDefaults.skipHashCheck =
-                storedAddTorrentDefaults.skipHashCheck;
-        }
-    }
-
-    const legacyAddDir = window.localStorage.getItem(
-        ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
+    const storedAddTorrentDefaults = parseJson<Partial<AddTorrentDefaultsState>>(
+        window.localStorage.getItem(ADD_TORRENT_DEFAULTS_KEY),
     );
-    if (legacyAddDir && !next.addTorrentDefaults.downloadDir) {
-        next.addTorrentDefaults.downloadDir = legacyAddDir;
-    }
+    next.addTorrentDefaults = sanitizeAddTorrentDefaults(storedAddTorrentDefaults);
+
+    const legacyAddDir =
+        window.localStorage.getItem(
+        ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
+    ) ?? "";
 
     const storedHistory = parseJson<unknown[]>(
         window.localStorage.getItem(ADD_TORRENT_HISTORY_KEY),
     );
-    if (Array.isArray(storedHistory)) {
-        next.addTorrentHistory = storedHistory.filter(
-            (entry): entry is string => typeof entry === "string",
-        );
-    }
+    next.addTorrentHistory = sanitizePathHistory([
+        ...(Array.isArray(storedHistory) ? storedHistory : []),
+        legacyAddDir,
+    ]);
 
     const storedProfiles = parseJson<unknown[]>(
         window.localStorage.getItem(CONNECTION_PROFILES_KEY),
@@ -407,6 +405,11 @@ const sanitizePreferences = (
     if (!value) {
         return DEFAULT_PREFERENCES;
     }
+    const addTorrentDefaults = sanitizeAddTorrentDefaults(value.addTorrentDefaults);
+    const addTorrentHistory = sanitizePathHistory([
+        ...(Array.isArray(value.addTorrentHistory) ? value.addTorrentHistory : []),
+    ]);
+
     return {
         version: CURRENT_PREFERENCES_VERSION,
         refreshIntervalMs:
@@ -468,29 +471,8 @@ const sanitizePreferences = (
         speedChartLayoutMode: isSpeedChartLayoutMode(value.speedChartLayoutMode)
             ? value.speedChartLayoutMode
             : DEFAULT_SPEED_CHART_LAYOUT,
-        addTorrentDefaults: {
-            downloadDir:
-                typeof value.addTorrentDefaults?.downloadDir === "string"
-                    ? value.addTorrentDefaults.downloadDir
-                    : DEFAULT_ADD_TORRENT_DEFAULTS.downloadDir,
-            commitMode: isValidCommitMode(value.addTorrentDefaults?.commitMode)
-                ? value.addTorrentDefaults?.commitMode
-                : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
-            sequentialDownload:
-                typeof value.addTorrentDefaults?.sequentialDownload ===
-                "boolean"
-                    ? value.addTorrentDefaults.sequentialDownload
-                    : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
-            skipHashCheck:
-                typeof value.addTorrentDefaults?.skipHashCheck === "boolean"
-                    ? value.addTorrentDefaults.skipHashCheck
-                    : DEFAULT_ADD_TORRENT_DEFAULTS.skipHashCheck,
-        },
-        addTorrentHistory: Array.isArray(value.addTorrentHistory)
-            ? value.addTorrentHistory.filter(
-                  (entry): entry is string => typeof entry === "string",
-              )
-            : DEFAULT_ADD_TORRENT_HISTORY,
+        addTorrentDefaults,
+        addTorrentHistory,
         connectionProfiles: Array.isArray(value.connectionProfiles)
             ? value.connectionProfiles.filter(
                   (entry): entry is ConnectionProfile =>
@@ -510,7 +492,11 @@ const readStoredPreferences = (): PreferencesState => {
         const serialized = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
         if (serialized) {
             const parsed = JSON.parse(serialized) as Partial<PreferencesState>;
-            return sanitizePreferences(parsed);
+            const sanitized = sanitizePreferences(parsed);
+            if (JSON.stringify(sanitized) !== serialized) {
+                persistPreferences(sanitized);
+            }
+            return sanitized;
         }
     } catch {
         /* ignore */
@@ -684,7 +670,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
     const setAddTorrentHistory = useCallback(
         (history: string[]) => {
-            updatePreferences({ addTorrentHistory: history });
+            updatePreferences({
+                addTorrentHistory: sanitizePathHistory(history),
+            });
         },
         [updatePreferences],
     );

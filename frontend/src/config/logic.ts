@@ -73,6 +73,7 @@ const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
 const defaultDefaults = {
     rpc_endpoint: "/transmission/rpc",
     magnet_protocol_prefix: "magnet:?",
+    download_path_history_limit: 6,
 } as const;
 
 const nonEmpty = (value: unknown, fallback: string) =>
@@ -100,6 +101,8 @@ const defaultHeartbeats = {
 } as const;
 
 const defaultTimers = {
+    add_submit_timeout_min_ms: 2000,
+    add_submit_timeout_multiplier: 2,
     clipboard_badge_duration_ms: 1500,
     focus_restore_delay_ms: 500,
     magnet_event_dedup_window_ms: 1000,
@@ -123,6 +126,13 @@ const defaults = {
     magnetProtocolPrefix: nonEmpty(
         defaultsConfig.magnet_protocol_prefix,
         defaultDefaults.magnet_protocol_prefix,
+    ),
+    downloadPathHistoryLimit: Math.max(
+        1,
+        Math.floor(
+            readOptionalNumber(defaultsConfig.download_path_history_limit) ??
+                defaultDefaults.download_path_history_limit,
+        ),
     ),
 } as const;
 
@@ -571,6 +581,14 @@ const timingSchemas = {
         ),
     },
     timeouts: {
+        addSubmitTimeoutMinMs: n(
+            "add_submit_timeout_min_ms",
+            defaultTimers.add_submit_timeout_min_ms,
+        ),
+        addSubmitTimeoutMultiplier: n(
+            "add_submit_timeout_multiplier",
+            defaultTimers.add_submit_timeout_multiplier,
+        ),
         ghostMs: n("ghost_timeout_ms", defaultTimers.ghost_timeout_ms),
         setLocationMoveMs: n(
             "set_location_move_timeout_ms",

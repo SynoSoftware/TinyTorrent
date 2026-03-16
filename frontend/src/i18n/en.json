@@ -233,6 +233,8 @@
         },
         "set_download_location": {
             "title": "Set Download Location",
+            "current_path": "Current path",
+            "new_path": "New path",
             "location_label": "Location",
             "mode_label": "Mode",
             "browse": "Browse",

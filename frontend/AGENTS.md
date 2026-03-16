@@ -1372,6 +1372,7 @@ Coding standards and workflow rules in this section must follow and reference th
 
 - `hooks.ts`
 - `useVirtualGrid.ts`
+- local constants must also use `camelCase`; `ALL_CAPS` / screaming-snake names are forbidden in frontend source
 
 **Services → kebab-case**
 
@@ -1384,6 +1385,13 @@ Coding standards and workflow rules in this section must follow and reference th
 - Never hardcode numbers or colors in code.
 - Import literals from `@/config/constants.json`.
 - Import config logic from `@/config/logic.ts`.
+- Reusable defaults, limits, timings, debounce windows, retention periods, queue/history caps, and similar product knobs must live in `constants.json` and be exposed through `logic.ts`, not spread across hooks/components/orchestrators.
+- Local literals are allowed only when they are intrinsic to a tiny algorithm and not a configurable product decision.
+
+## **2a. Config Compression**
+
+- Prefer extending `constants.json` / `logic.ts` over creating new config surfaces.
+- `logic.ts` must stay a thin config registry: derive, normalize, and expose values, but must not absorb feature workflows, back-compat branches, or duplicated fallback objects that belong in source config or domain modules.
 
 ---
 

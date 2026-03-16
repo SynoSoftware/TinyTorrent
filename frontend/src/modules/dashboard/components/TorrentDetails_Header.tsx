@@ -25,6 +25,8 @@ const truncateTorrentName = (value?: string, fallback?: string) => {
     return `${trimmed.slice(0, half)}~${trimmed.slice(trimmed.length - half)}`;
 };
 
+const joinClassNames = (...values: Array<string | undefined>) => cn(values) ?? "";
+
 type GlobalHeaderAction = {
     icon: LucideIcon;
     ariaLabel: string;
@@ -68,27 +70,27 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     const toneRecipe = visuals.status.recipes;
     const toneKeys = visuals.status.keys.tone;
     const toneButtonClass: Record<TorrentDetailHeaderActionTone, string> = {
-        success: cn(
+        success: joinClassNames(
             toneRecipe[toneKeys.success]?.text,
             toneRecipe[toneKeys.success]?.button,
             WORKBENCH.nav.toneButtonFallback.success,
         ),
-        warning: cn(
+        warning: joinClassNames(
             toneRecipe[toneKeys.warning]?.text,
             toneRecipe[toneKeys.warning]?.button,
             WORKBENCH.nav.toneButtonFallback.warning,
         ),
-        danger: cn(
+        danger: joinClassNames(
             toneRecipe[toneKeys.danger]?.text,
             toneRecipe[toneKeys.danger]?.button,
             WORKBENCH.nav.toneButtonFallback.danger,
         ),
-        neutral: cn(
+        neutral: joinClassNames(
             toneRecipe[toneKeys.neutral]?.text,
             toneRecipe[toneKeys.neutral]?.button,
             WORKBENCH.nav.toneButtonFallback.neutral,
         ),
-        default: cn(
+        default: joinClassNames(
             toneRecipe[toneKeys.neutral]?.text,
             toneRecipe[toneKeys.neutral]?.button,
             WORKBENCH.nav.toneButtonFallback.neutral,

@@ -94,6 +94,14 @@ vi.mock("@/app/hooks/useDirectoryPicker", () => ({
     }),
 }));
 
+vi.mock("@/app/hooks/useDownloadPaths", () => ({
+    useDownloadPaths: () => ({
+        current: "",
+        history: [],
+        remember: vi.fn(),
+    }),
+}));
+
 type SetDownloadModalProps = {
     isOpen: boolean;
     allowCreatePath: boolean;

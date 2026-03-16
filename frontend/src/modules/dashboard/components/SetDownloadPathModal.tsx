@@ -1,9 +1,11 @@
-import { Button, Input } from "@heroui/react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Autocomplete, AutocompleteItem, Button } from "@heroui/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Key, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { HardDrive, type LucideIcon } from "lucide-react";
+import { FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
+import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { useSession } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
+import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
 import { normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
 import { registry } from "@/config/logic";
@@ -13,7 +15,7 @@ import { TEXT_ROLE } from "@/config/textRoles";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
-const { timing, layout, ui } = registry;
+const { timing } = registry;
 
 export interface SetDownloadPathModalProps {
     isOpen: boolean;
@@ -124,16 +126,48 @@ export default function SetDownloadPathModal({
     const { t } = useTranslation();
     const { daemonPathStyle } = useSession();
     const { checkFreeSpace } = useTorrentCommands();
+    const { history: downloadHistory } = useDownloadPaths();
     const [path, setPath] = useState(initialPath);
+    const [selectedHistoryKey, setSelectedHistoryKey] = useState<
+        string | number | null
+    >(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
+    const wasOpenRef = useRef(false);
+    const allowSuggestionCommitRef = useRef(false);
+    const currentPath = useMemo(
+        () => normalizeDestinationPathForDaemon(initialPath, daemonPathStyle),
+        [daemonPathStyle, initialPath],
+    );
+    const historyItems = useMemo(
+        () =>
+            sanitizeDownloadPathHistory(
+                downloadHistory,
+                downloadHistory.length,
+            ).map((value) => ({
+                key: value,
+                label: value,
+            })),
+        [downloadHistory],
+    );
 
     useEffect(() => {
         if (!isOpen) {
+            wasOpenRef.current = false;
             return;
         }
-        setPath(normalizeDestinationPathForDaemon(initialPath, daemonPathStyle));
+        if (wasOpenRef.current) {
+            return;
+        }
+        wasOpenRef.current = true;
+        const nextPath = normalizeDestinationPathForDaemon(
+            initialPath,
+            daemonPathStyle,
+        );
+        setPath(nextPath);
+        setSelectedHistoryKey(null);
+        allowSuggestionCommitRef.current = false;
         setIsSubmitting(false);
         setSubmitError(null);
     }, [daemonPathStyle, initialPath, isOpen]);
@@ -170,6 +204,8 @@ export default function SetDownloadPathModal({
     const handlePathChange = useCallback(
         (value: string) => {
             setPath(value);
+            setSelectedHistoryKey(null);
+            allowSuggestionCommitRef.current = false;
             if (submitError) {
                 setSubmitError(null);
             }
@@ -197,6 +233,21 @@ export default function SetDownloadPathModal({
     });
     const isInputInvalid =
         Boolean(submitError) || applyDecision.blockReason === "invalid";
+
+    const handleHistorySelectionChange = useCallback(
+        (selection: Key | null) => {
+            if (typeof selection !== "string") {
+                return;
+            }
+            setPath(selection);
+            setSelectedHistoryKey(selection);
+            allowSuggestionCommitRef.current = false;
+            if (submitError) {
+                setSubmitError(null);
+            }
+        },
+        [submitError],
+    );
 
     const handleApply = useCallback(async () => {
         if (isSubmitting) return;
@@ -234,11 +285,33 @@ export default function SetDownloadPathModal({
     }, [isSubmitting, onClose]);
     const handlePathInputKeyDown = useCallback(
         (event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                handleClose();
+                return;
+            }
+            if (
+                event.key === "ArrowDown" ||
+                event.key === "ArrowUp" ||
+                event.key === "Home" ||
+                event.key === "End" ||
+                event.key === "PageDown" ||
+                event.key === "PageUp"
+            ) {
+                allowSuggestionCommitRef.current = true;
+                return;
+            }
             if (event.key !== "Enter") return;
+            if (
+                event.currentTarget.getAttribute("aria-expanded") === "true" &&
+                allowSuggestionCommitRef.current
+            ) {
+                return;
+            }
             event.preventDefault();
             void handleApply();
         },
-        [handleApply],
+        [handleApply, handleClose],
     );
 
     if (!isOpen) {
@@ -271,42 +344,88 @@ export default function SetDownloadPathModal({
                 <div className={FORM.locationEditorRow}>
                     <div className={FORM.locationEditorField}>
                         <div className={FORM.locationEditorPathRow}>
-                            <div className={FORM.locationEditorHeader}>
-                                <label htmlFor="set-download-location-path" className={TEXT_ROLE.caption}>
-                                    {t("directory_browser.path_label")}
-                                </label>
-                            </div>
-                            <div className={FORM.locationEditorInputWrap}>
-                                <Input
-                                    id="set-download-location-path"
-                                    className={TEXT_ROLE.codeMuted}
-                                    classNames={FORM.locationEditorInputClassNames}
-                                    value={path}
-                                    onValueChange={handlePathChange}
-                                    isDisabled={isSubmitting}
-                                    isInvalid={isInputInvalid}
-                                    variant="flat"
-                                    placeholder={t("directory_browser.enter_path")}
-                                    spellCheck="false"
-                                    autoComplete="off"
-                                    aria-label={t("directory_browser.path_label")}
-                                    title={manualEntryPrompt}
-                                    onKeyDown={handlePathInputKeyDown}
-                                />
-                            </div>
-                            {canPickDirectory ? (
-                                <div className={FORM.locationEditorBrowseWrap}>
-                                    <Button
-                                        variant="flat"
-                                        onPress={() => {
-                                            void handleBrowse();
-                                        }}
-                                        isDisabled={isSubmitting}
-                                    >
-                                        {t("modals.set_download_location.browse")}
-                                    </Button>
+                            {currentPath ? (
+                                <div className={FORM.locationEditorInlineRow}>
+                                    <div className={FORM.locationEditorLabelColumn}>
+                                        <span className={FORM.locationEditorInlineLabel}>
+                                            {t("modals.set_download_location.current_path")}
+                                        </span>
+                                    </div>
+                                    <div className={FORM.locationEditorValueColumn}>
+                                        <span className={FORM.locationEditorInlineValue}>
+                                            {currentPath}
+                                        </span>
+                                    </div>
                                 </div>
                             ) : null}
+                            <div className={FORM.locationEditorLabelInputRow}>
+                                <div className={FORM.locationEditorLabelColumn}>
+                                    <label htmlFor="set-download-location-path" className={TEXT_ROLE.caption}>
+                                        {t(
+                                            currentPath
+                                                ? "modals.set_download_location.new_path"
+                                                : "directory_browser.path_label",
+                                        )}
+                                    </label>
+                                </div>
+                                <div className={FORM.locationEditorValueColumn}>
+                                    <Autocomplete
+                                        id="set-download-location-path"
+                                        aria-label={t("directory_browser.path_label")}
+                                        className={TEXT_ROLE.codeMuted}
+                                        defaultItems={historyItems}
+                                        inputValue={path}
+                                        selectedKey={selectedHistoryKey}
+                                        inputProps={{
+                                            classNames: FORM.locationEditorInputClassNames,
+                                            startContent: (
+                                                <FolderOpen
+                                                    className={
+                                                        FORM.locationEditorInputLeadingIcon
+                                                    }
+                                                />
+                                            ),
+                                        }}
+                                        onInputChange={handlePathChange}
+                                        onSelectionChange={
+                                            handleHistorySelectionChange
+                                        }
+                                        allowsCustomValue
+                                        isDisabled={isSubmitting}
+                                        isInvalid={isInputInvalid}
+                                        variant="flat"
+                                        placeholder={t(
+                                            "directory_browser.enter_path",
+                                        )}
+                                        spellCheck="false"
+                                        autoComplete="off"
+                                        menuTrigger="input"
+                                        title={manualEntryPrompt}
+                                        onKeyDown={handlePathInputKeyDown}
+                                    >
+                                        {(item) => (
+                                            <AutocompleteItem key={item.key}>
+                                                {item.label}
+                                            </AutocompleteItem>
+                                        )}
+                                    </Autocomplete>
+                                </div>
+                            </div>
+                            <div className={FORM.locationEditorActionRow}>
+                                {canPickDirectory ? (
+                                    <div className={FORM.locationEditorBrowseWrap}>
+                                        <Button
+                                            variant="flat"
+                                            onPress={() => {
+                                                void handleBrowse();
+                                            }}
+                                            isDisabled={isSubmitting}
+                                        >
+                                            {t("modals.set_download_location.browse")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </div>
                         </div>
                         <div className={FORM.locationEditorFeedbackSlot}>
                             {pathFeedbackState.kind === "gauge" ? (

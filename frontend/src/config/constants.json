@@ -12,7 +12,8 @@
     },
     "defaults": {
         "rpc_endpoint": "/transmission/rpc",
-        "magnet_protocol_prefix": "magnet:?"
+        "magnet_protocol_prefix": "magnet:?",
+        "download_path_history_limit": 6
     },
     "layout": {
         "piece_map": {
@@ -288,6 +289,8 @@
         }
     },
     "timers": {
+        "add_submit_timeout_min_ms": 2000,
+        "add_submit_timeout_multiplier": 2,
         "clipboard_badge_duration_ms": 1500,
         "focus_restore_delay_ms": 500,
         "magnet_event_dedup_window_ms": 1000,

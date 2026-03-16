@@ -10,6 +10,7 @@ import {
 } from "@heroui/react";
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import type {
+    KeyboardEvent as ReactKeyboardEvent,
     ReactNode,
 } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -45,6 +46,7 @@ interface ModalExProps {
     maximize?: boolean;
     disableClose?: boolean;
     bodyVariant?: ModalExBodyVariant;
+    onKeyDownCapture?: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     children: ReactNode;
 }
 
@@ -60,6 +62,7 @@ export function ModalEx({
     maximize = false,
     disableClose = false,
     bodyVariant = "padded",
+    onKeyDownCapture,
     children,
 }: ModalExProps) {
     const { t } = useTranslation();
@@ -84,6 +87,23 @@ export function ModalEx({
         if (!nextOpen && !disableClose) {
             onClose();
         }
+    };
+
+    const handleContentKeyDownCapture = (
+        event: ReactKeyboardEvent<HTMLDivElement>,
+    ) => {
+        if (
+            event.key === "Escape" &&
+            !event.defaultPrevented &&
+            !disableClose
+        ) {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+            return;
+        }
+
+        onKeyDownCapture?.(event);
     };
 
     const headerControls = (
@@ -138,7 +158,7 @@ export function ModalEx({
             isDismissable={!disableClose}
             isKeyboardDismissDisabled={disableClose}
         >
-            <ModalContent>
+            <ModalContent onKeyDownCapture={handleContentKeyDownCapture}>
                 <ModalHeader className={MODAL.dialogHeader}>
                     <div className={MODAL.dialogHeaderLead}>
                         {TitleIcon ? (

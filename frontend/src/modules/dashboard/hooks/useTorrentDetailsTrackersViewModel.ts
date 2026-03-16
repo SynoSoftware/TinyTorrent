@@ -61,6 +61,7 @@ interface TrackerRuntimeRow {
     seederCount?: number;
     leecherCount?: number;
     downloadCount?: number;
+    downloaderCount?: number;
     lastAnnounceTime?: number;
     nextAnnounceTime?: number;
     statusTone: TrackerStatusTone;
@@ -399,6 +400,10 @@ export const useTorrentDetailsTrackersViewModel = ({
                     downloadCount:
                         typeof tracker.downloadCount === "number" && Number.isFinite(tracker.downloadCount)
                             ? tracker.downloadCount
+                            : undefined,
+                    downloaderCount:
+                        typeof tracker.downloaderCount === "number" && Number.isFinite(tracker.downloaderCount)
+                            ? tracker.downloaderCount
                             : undefined,
                     lastAnnounceTime,
                     nextAnnounceTime,

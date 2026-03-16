@@ -3,25 +3,26 @@ import {
     useEffect,
     useMemo,
     useRef,
+    useState,
+    type DragEvent as ReactDragEvent,
     type FormEvent,
     type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
-import { usePreferences } from "@/app/context/PreferencesContext";
+import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { useSession } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { registry } from "@/config/logic";
 import { KeyboardScope } from "@/app/controlPlane/shortcuts";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
-import { useAddTorrentDestinationViewModel } from "@/modules/torrent-add/hooks/useAddTorrentDestinationViewModel";
 import { useAddTorrentFileSelectionViewModel } from "@/modules/torrent-add/hooks/useAddTorrentFileSelectionViewModel";
-import { useAddTorrentSubmissionFlow } from "@/modules/torrent-add/hooks/useAddTorrentSubmissionFlow";
 import { useAddTorrentViewportViewModel } from "@/modules/torrent-add/hooks/useAddTorrentViewportViewModel";
 import {
     buildFiles,
+    buildSelectionCommit,
 } from "@/modules/torrent-add/services/fileSelection";
 import {
     resolveAddTorrentDestinationDecision,
@@ -39,7 +40,12 @@ import type {
     AddTorrentSelection,
     AddTorrentSource,
 } from "@/modules/torrent-add/types";
+import { describePathKind } from "@/modules/torrent-add/utils/destination";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
+import {
+    evaluateDestinationPathCandidate,
+    normalizeDestinationPathForDaemon,
+} from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
 const { timing, shell } = registry;
 
@@ -53,7 +59,6 @@ export interface UseAddTorrentModalViewModelParams {
     onConfirm: (
         selection: AddTorrentSelection
     ) => Promise<AddTorrentCommandOutcome>;
-    onDownloadDirChange: (value: string) => void;
     onSequentialDownloadChange: (value: boolean) => void;
     onSkipHashCheckChange: (value: boolean) => void;
     source: AddTorrentSource | null;
@@ -136,7 +141,6 @@ export function useAddTorrentModalViewModel({
     isOpen,
     onCancel,
     onConfirm,
-    onDownloadDirChange,
     onSequentialDownloadChange,
     onSkipHashCheckChange,
     source,
@@ -147,7 +151,7 @@ export function useAddTorrentModalViewModel({
         daemonPathStyle,
         uiCapabilities: { uiMode, canBrowse },
     } = useSession();
-    const { preferences: { addTorrentHistory }, setAddTorrentHistory } = usePreferences();
+    const { history: recentPaths, remember } = useDownloadPaths();
 
     const formRef = useRef<HTMLFormElement | null>(null);
     const settingsPanelRef = useRef<ImperativePanelHandle | null>(null);
@@ -160,40 +164,147 @@ export function useAddTorrentModalViewModel({
         handleSettingsPanelCollapse,
         handleSettingsPanelExpand,
     } = useAddTorrentViewportViewModel(settingsPanelRef);
-    const destinationCapabilityPlane = useMemo(
-        () => ({
-            daemonPathStyle,
-            dropEnabled: uiMode === "Full",
-            browseDirectory: canBrowse
-                ? async (startPath?: string) =>
-                      (await shellAgent.browseDirectory(startPath)) ?? null
-                : undefined,
-        }),
-        [canBrowse, daemonPathStyle, uiMode],
-    );
+    const dropEnabled = uiMode === "Full";
     const showBrowseAction = canBrowse;
-
-    const {
-        destinationDraft,
-        updateDestinationDraft,
-        destinationGateCompleted,
-        destinationGateTried,
-        markGateTried,
-        completeGate,
-        dropActive,
-        isTouchingDirectory,
-        handleDrop,
-        handleDragOver,
-        handleDragLeave,
-        handleBrowse,
-        pushRecentPath,
-        applyDroppedPath,
-    } = useAddTorrentDestinationViewModel({
+    const normalizedDownloadDir = normalizeDestinationPathForDaemon(
         downloadDir,
-        addTorrentHistory,
-        setAddTorrentHistory,
-        capabilityPlane: destinationCapabilityPlane,
-    });
+        daemonPathStyle,
+    );
+    const initialDestination = evaluateDestinationPathCandidate(
+        normalizedDownloadDir,
+        daemonPathStyle,
+    );
+    const isInitialDestinationValid =
+        initialDestination.hasValue && initialDestination.reason === null;
+
+    const [destinationDraft, setDestinationDraft] = useState(() =>
+        isInitialDestinationValid ? normalizedDownloadDir : "",
+    );
+    const [destinationGateCompleted, setDestinationGateCompleted] = useState(
+        isInitialDestinationValid,
+    );
+    const [destinationGateTried, setDestinationGateTried] = useState(false);
+    const [isTouchingDirectory, setIsTouchingDirectory] = useState(false);
+    const [dropActive, setDropActive] = useState(false);
+    const dropActiveRef = useRef(false);
+
+    const updateDestinationDraft = useCallback((value: string) => {
+        setDestinationDraft(value);
+    }, []);
+
+    const markGateTried = useCallback(() => {
+        setDestinationGateTried(true);
+    }, []);
+
+    const completeGate = useCallback(() => {
+        setDestinationGateCompleted(true);
+    }, []);
+
+    const applyDroppedPath = useCallback(
+        (path?: string) => {
+            const trimmed = path?.trim();
+            if (!trimmed) {
+                return;
+            }
+            setDestinationDraft(trimmed);
+        },
+        [],
+    );
+
+    const handleDrop = useCallback(
+        (event: ReactDragEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            setDropActive(false);
+            dropActiveRef.current = false;
+            if (!dropEnabled) {
+                return;
+            }
+
+            const droppedFiles = Array.from(event.dataTransfer?.files ?? []);
+            let path: string | undefined;
+
+            if (droppedFiles.length > 0) {
+                const file = droppedFiles[0] as File & {
+                    path?: string;
+                    webkitRelativePath?: string;
+                };
+                path = file.path || file.webkitRelativePath;
+            }
+
+            if (!path) {
+                path = event.dataTransfer?.getData("text/plain")?.trim();
+            }
+            if (!path || /^[a-zA-Z]:[\\/]fakepath[\\/]/i.test(path)) {
+                return;
+            }
+            if (describePathKind(path).kind === "unknown") {
+                return;
+            }
+
+            if (droppedFiles.length > 0) {
+                const droppedName = droppedFiles[0]?.name?.trim();
+                const normalizedPath = path.replace(/\//g, "\\");
+                const droppedLooksLikeFile = Boolean(
+                    droppedName && /\.[^\\/.]+$/.test(droppedName),
+                );
+                if (
+                    droppedLooksLikeFile &&
+                    droppedName &&
+                    normalizedPath
+                        .toLowerCase()
+                        .endsWith(`\\${droppedName.toLowerCase()}`)
+                ) {
+                    const parent = normalizedPath.replace(/[\\][^\\]+$/, "");
+                    if (parent) {
+                        path = /^[a-zA-Z]:$/i.test(parent)
+                            ? `${parent}\\`
+                            : parent;
+                    }
+                }
+            }
+
+            applyDroppedPath(path);
+        },
+        [applyDroppedPath, dropEnabled],
+    );
+
+    const handleDragOver = useCallback(
+        (event: ReactDragEvent) => {
+            event.preventDefault();
+            if (!dropEnabled || dropActiveRef.current) {
+                return;
+            }
+            dropActiveRef.current = true;
+            setDropActive(true);
+        },
+        [dropEnabled],
+    );
+
+    const handleDragLeave = useCallback(() => {
+        dropActiveRef.current = false;
+        setDropActive(false);
+    }, []);
+
+    const handleBrowse = useCallback(async () => {
+        if (!canBrowse) {
+            return { status: "unsupported" } as const;
+        }
+
+        setIsTouchingDirectory(true);
+        try {
+            const start = destinationDraft.trim() || downloadDir;
+            const next = (await shellAgent.browseDirectory(start)) ?? null;
+            if (!next) {
+                return { status: "cancelled" } as const;
+            }
+            applyDroppedPath(next);
+            return { status: "picked", path: next } as const;
+        } catch {
+            return { status: "failed" } as const;
+        } finally {
+            setIsTouchingDirectory(false);
+        }
+    }, [applyDroppedPath, canBrowse, destinationDraft, downloadDir]);
 
     const { activate: activateModal, deactivate: deactivateModal } =
         useKeyboardScope(KeyboardScope.Modal);
@@ -303,22 +414,50 @@ export function useAddTorrentModalViewModel({
             }),
         [destinationState.isDestinationValid, isSelectionEmpty, resolvedState],
     );
-    const {
-        submit: submitSelection,
-    } = useAddTorrentSubmissionFlow({
-        canSubmit: submissionDecision.canConfirm,
-        destinationPath: destinationDecision.normalizedPath,
-        downloadDir,
+    const submitSelection = useCallback(async () => {
+        if (!submissionDecision.canConfirm) {
+            return;
+        }
+
+        const submitDir = destinationDecision.normalizedPath.trim();
+        const { filesUnwanted, priorityHigh, priorityLow, priorityNormal } =
+            buildSelectionCommit({
+                files,
+                selected: selectedIndexes,
+                priorities,
+            });
+
+        try {
+            const outcome = await onConfirm({
+                downloadDir: submitDir,
+                commitMode,
+                filesUnwanted,
+                priorityHigh,
+                priorityNormal,
+                priorityLow,
+                options: {
+                    sequential: sequentialDownload,
+                    skipHashCheck,
+                },
+            });
+            if (outcome.status === "queued") {
+                remember(submitDir);
+            }
+        } catch {
+            // no-op: command layer owns user-facing error feedback
+        }
+    }, [
         commitMode,
+        destinationDecision.normalizedPath,
         files,
-        selectedIndexes,
+        onConfirm,
         priorities,
+        remember,
+        selectedIndexes,
         sequentialDownload,
         skipHashCheck,
-        onConfirm,
-        onDownloadDirChange,
-        onSubmitSuccess: pushRecentPath,
-    });
+        submissionDecision.canConfirm,
+    ]);
 
     const modalSize = resolveAddTorrentModalSize({
         showDestinationGate: destinationState.showDestinationGate,
@@ -332,17 +471,11 @@ export function useAddTorrentModalViewModel({
     const handleDestinationGateContinue = useCallback(() => {
         markGateTried();
         if (!destinationState.isDestinationValid) return;
-        const committed = destinationDecision.normalizedPath.trim();
-        onDownloadDirChange(committed);
-        pushRecentPath(committed);
         completeGate();
     }, [
         completeGate,
         destinationState.isDestinationValid,
-        destinationDecision.normalizedPath,
         markGateTried,
-        onDownloadDirChange,
-        pushRecentPath,
     ]);
 
     const handleDestinationInputBlur = useCallback(() => {
@@ -350,15 +483,9 @@ export function useAddTorrentModalViewModel({
             markGateTried();
             return;
         }
-        if (!destinationState.isDestinationValid) return;
-        const committed = destinationDecision.normalizedPath.trim();
-        onDownloadDirChange(committed);
     }, [
-        destinationState.isDestinationValid,
         destinationState.showDestinationGate,
-        destinationDecision.normalizedPath,
         markGateTried,
-        onDownloadDirChange,
     ]);
 
     const handleDestinationInputKeyDown = useCallback(
@@ -429,7 +556,7 @@ export function useAddTorrentModalViewModel({
             handleDestinationInputKeyDown,
             hasDestination: destinationState.isDestinationValid,
             isTouchingDirectory,
-            recentPaths: addTorrentHistory,
+            recentPaths,
             showBrowseAction,
             showDestinationGate: destinationState.showDestinationGate,
             step1DestinationMessage: destinationStatus.step1StatusMessage,

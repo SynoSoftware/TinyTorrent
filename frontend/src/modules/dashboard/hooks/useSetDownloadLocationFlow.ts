@@ -10,6 +10,7 @@ import {
     resolveSetDownloadLocationPolicy,
     type SetDownloadLocationPolicy,
 } from "@/modules/dashboard/domain/torrentRelocation";
+import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { useDirectoryPicker } from "@/app/hooks/useDirectoryPicker";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 
@@ -35,6 +36,7 @@ export function useSetDownloadLocationFlow({
 }: UseSetDownloadLocationFlowParams): UseSetDownloadLocationFlowResult {
     const { t } = useTranslation();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
+    const { remember } = useDownloadPaths();
 
     const policy = useMemo(
         () => resolveSetDownloadLocationPolicy(torrent ?? {}),
@@ -67,8 +69,10 @@ export function useSetDownloadLocationFlow({
                 setDownloadLocation,
                 t,
             });
+            remember(path);
         },
         [
+            remember,
             setDownloadLocation,
             t,
             torrent,

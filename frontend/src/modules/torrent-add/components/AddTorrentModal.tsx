@@ -31,7 +31,6 @@ export interface AddTorrentModalProps {
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
     skipHashCheck: boolean;
-    onDownloadDirChange: (value: string) => void;
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     onSequentialDownloadChange: (value: boolean) => void;
     onSkipHashCheckChange: (value: boolean) => void;
@@ -59,7 +58,6 @@ export function AddTorrentModal({
     commitMode,
     sequentialDownload,
     skipHashCheck,
-    onDownloadDirChange,
     onCommitModeChange,
     onSequentialDownloadChange,
     onSkipHashCheckChange,
@@ -77,7 +75,6 @@ export function AddTorrentModal({
         onConfirm,
         onSequentialDownloadChange,
         onSkipHashCheckChange,
-        onDownloadDirChange,
         source,
     });
     const {
