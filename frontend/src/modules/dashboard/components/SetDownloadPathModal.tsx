@@ -1,18 +1,16 @@
-import { Autocomplete, AutocompleteItem, Button } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type Key, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
+import { HardDrive, type LucideIcon } from "lucide-react";
 import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { useSession } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
-import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
 import { normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
 import { registry } from "@/config/logic";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
+import { DestinationPathEditor, type DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
 const { timing } = registry;
@@ -39,17 +37,6 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
     return fallback;
 };
 
-type PathFeedbackState =
-    | {
-          kind: "gauge";
-          freeSpace: { path: string; sizeBytes: number; totalSize: number };
-      }
-    | {
-          kind: "message";
-          message: string;
-          className: string;
-      };
-
 const resolvePathFeedbackState = ({
     submitError,
     hasValue,
@@ -60,12 +47,12 @@ const resolvePathFeedbackState = ({
     hasValue: boolean;
     applyDecision: ReturnType<typeof resolveDestinationValidationDecision>;
     t: ReturnType<typeof useTranslation>["t"];
-}): PathFeedbackState => {
+}): DestinationPathFeedback => {
     if (submitError) {
         return {
             kind: "message",
             message: submitError,
-            className: FORM.locationEditorValidationWarning,
+            tone: "warning",
         };
     }
 
@@ -73,7 +60,7 @@ const resolvePathFeedbackState = ({
         return {
             kind: "message",
             message: "\u00A0",
-            className: FORM.locationEditorValidationHint,
+            tone: "hint",
         };
     }
 
@@ -84,7 +71,7 @@ const resolvePathFeedbackState = ({
         return {
             kind: "message",
             message: t(applyDecision.blockMessageKey),
-            className: FORM.locationEditorValidationWarning,
+            tone: "warning",
         };
     }
 
@@ -101,14 +88,14 @@ const resolvePathFeedbackState = ({
             message: t("set_location.reason.available_space", {
                 size: formatBytes(applyDecision.availableSpaceBytes),
             }),
-            className: FORM.locationEditorValidationHint,
+            tone: "hint",
         };
     }
 
     return {
         kind: "message",
         message: "\u00A0",
-        className: FORM.locationEditorValidationHint,
+        tone: "hint",
     };
 };
 
@@ -128,28 +115,13 @@ export default function SetDownloadPathModal({
     const { checkFreeSpace } = useTorrentCommands();
     const { history: downloadHistory } = useDownloadPaths();
     const [path, setPath] = useState(initialPath);
-    const [selectedHistoryKey, setSelectedHistoryKey] = useState<
-        string | number | null
-    >(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
-    const contentRef = useRef<HTMLDivElement | null>(null);
+    const formRef = useRef<HTMLFormElement | null>(null);
     const wasOpenRef = useRef(false);
-    const allowSuggestionCommitRef = useRef(false);
     const currentPath = useMemo(
         () => normalizeDestinationPathForDaemon(initialPath, daemonPathStyle),
         [daemonPathStyle, initialPath],
-    );
-    const historyItems = useMemo(
-        () =>
-            sanitizeDownloadPathHistory(
-                downloadHistory,
-                downloadHistory.length,
-            ).map((value) => ({
-                key: value,
-                label: value,
-            })),
-        [downloadHistory],
     );
 
     useEffect(() => {
@@ -166,8 +138,6 @@ export default function SetDownloadPathModal({
             daemonPathStyle,
         );
         setPath(nextPath);
-        setSelectedHistoryKey(null);
-        allowSuggestionCommitRef.current = false;
         setIsSubmitting(false);
         setSubmitError(null);
     }, [daemonPathStyle, initialPath, isOpen]);
@@ -179,17 +149,6 @@ export default function SetDownloadPathModal({
         checkFreeSpace,
         debounceMs: timing.debounce.setLocationValidationMs,
     });
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const frame = window.requestAnimationFrame(() => {
-            const input = contentRef.current?.querySelector("input");
-            if (!input) return;
-            input.focus();
-            input.select();
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [isOpen]);
 
     const manualEntryPromptKey = allowCreatePath
         ? "directory_browser.manual_entry_prompt_move"
@@ -204,8 +163,6 @@ export default function SetDownloadPathModal({
     const handlePathChange = useCallback(
         (value: string) => {
             setPath(value);
-            setSelectedHistoryKey(null);
-            allowSuggestionCommitRef.current = false;
             if (submitError) {
                 setSubmitError(null);
             }
@@ -234,24 +191,12 @@ export default function SetDownloadPathModal({
     const isInputInvalid =
         Boolean(submitError) || applyDecision.blockReason === "invalid";
 
-    const handleHistorySelectionChange = useCallback(
-        (selection: Key | null) => {
-            if (typeof selection !== "string") {
-                return;
-            }
-            setPath(selection);
-            setSelectedHistoryKey(selection);
-            allowSuggestionCommitRef.current = false;
-            if (submitError) {
-                setSubmitError(null);
-            }
-        },
-        [submitError],
-    );
-
     const handleApply = useCallback(async () => {
         if (isSubmitting) return;
         if (!applyDecision.canProceed) {
+            if (applyDecision.blockReason === "pending") {
+                return;
+            }
             setSubmitError(
                 applyDecision.blockMessageKey
                     ? t(applyDecision.blockMessageKey)
@@ -283,36 +228,16 @@ export default function SetDownloadPathModal({
         if (isSubmitting) return;
         onClose();
     }, [isSubmitting, onClose]);
-    const handlePathInputKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLInputElement>) => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                handleClose();
-                return;
-            }
-            if (
-                event.key === "ArrowDown" ||
-                event.key === "ArrowUp" ||
-                event.key === "Home" ||
-                event.key === "End" ||
-                event.key === "PageDown" ||
-                event.key === "PageUp"
-            ) {
-                allowSuggestionCommitRef.current = true;
-                return;
-            }
-            if (event.key !== "Enter") return;
-            if (
-                event.currentTarget.getAttribute("aria-expanded") === "true" &&
-                allowSuggestionCommitRef.current
-            ) {
-                return;
-            }
+    const handleFormSubmit = useCallback(
+        async (event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            void handleApply();
+            await handleApply();
         },
-        [handleApply, handleClose],
+        [handleApply],
     );
+    const requestSubmit = useCallback(() => {
+        formRef.current?.requestSubmit();
+    }, []);
 
     if (!isOpen) {
         return null;
@@ -333,118 +258,51 @@ export default function SetDownloadPathModal({
             }}
             primaryAction={{
                 label: t("modals.set_download_location.apply"),
-                onPress: () => {
-                    void handleApply();
-                },
+                onPress: requestSubmit,
                 loading: isSubmitting,
                 disabled: !canApply,
             }}
         >
-            <div ref={contentRef} className={FORM.locationEditorRoot}>
-                <div className={FORM.locationEditorRow}>
-                    <div className={FORM.locationEditorField}>
-                        <div className={FORM.locationEditorPathRow}>
-                            {currentPath ? (
-                                <div className={FORM.locationEditorInlineRow}>
-                                    <div className={FORM.locationEditorLabelColumn}>
-                                        <span className={FORM.locationEditorInlineLabel}>
-                                            {t("modals.set_download_location.current_path")}
-                                        </span>
-                                    </div>
-                                    <div className={FORM.locationEditorValueColumn}>
-                                        <span className={FORM.locationEditorInlineValue}>
-                                            {currentPath}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : null}
-                            <div className={FORM.locationEditorLabelInputRow}>
-                                <div className={FORM.locationEditorLabelColumn}>
-                                    <label htmlFor="set-download-location-path" className={TEXT_ROLE.caption}>
-                                        {t(
-                                            currentPath
-                                                ? "modals.set_download_location.new_path"
-                                                : "directory_browser.path_label",
-                                        )}
-                                    </label>
-                                </div>
-                                <div className={FORM.locationEditorValueColumn}>
-                                    <Autocomplete
-                                        id="set-download-location-path"
-                                        aria-label={t("directory_browser.path_label")}
-                                        className={TEXT_ROLE.codeMuted}
-                                        defaultItems={historyItems}
-                                        inputValue={path}
-                                        selectedKey={selectedHistoryKey}
-                                        inputProps={{
-                                            classNames: FORM.locationEditorInputClassNames,
-                                            startContent: (
-                                                <FolderOpen
-                                                    className={
-                                                        FORM.locationEditorInputLeadingIcon
-                                                    }
-                                                />
-                                            ),
-                                        }}
-                                        onInputChange={handlePathChange}
-                                        onSelectionChange={
-                                            handleHistorySelectionChange
-                                        }
-                                        allowsCustomValue
-                                        isDisabled={isSubmitting}
-                                        isInvalid={isInputInvalid}
-                                        variant="flat"
-                                        placeholder={t(
-                                            "directory_browser.enter_path",
-                                        )}
-                                        spellCheck="false"
-                                        autoComplete="off"
-                                        menuTrigger="input"
-                                        title={manualEntryPrompt}
-                                        onKeyDown={handlePathInputKeyDown}
-                                    >
-                                        {(item) => (
-                                            <AutocompleteItem key={item.key}>
-                                                {item.label}
-                                            </AutocompleteItem>
-                                        )}
-                                    </Autocomplete>
-                                </div>
-                            </div>
-                            <div className={FORM.locationEditorActionRow}>
-                                {canPickDirectory ? (
-                                    <div className={FORM.locationEditorBrowseWrap}>
-                                        <Button
-                                            variant="flat"
-                                            onPress={() => {
-                                                void handleBrowse();
-                                            }}
-                                            isDisabled={isSubmitting}
-                                        >
-                                            {t("modals.set_download_location.browse")}
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                        <div className={FORM.locationEditorFeedbackSlot}>
-                            {pathFeedbackState.kind === "gauge" ? (
-                                <DiskSpaceGauge
-                                    path={pathFeedbackState.freeSpace.path}
-                                    freeBytes={pathFeedbackState.freeSpace.sizeBytes}
-                                    totalBytes={pathFeedbackState.freeSpace.totalSize}
-                                />
-                            ) : (
-                                <div className={FORM.locationEditorValidationRow}>
-                                    <span className={pathFeedbackState.className}>
-                                        {pathFeedbackState.message}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+            <form ref={formRef} onSubmit={handleFormSubmit}>
+                <div className={FORM.locationEditorRoot}>
+                    <DestinationPathEditor
+                        id="set-download-location-path"
+                        label={t(
+                            currentPath
+                                ? "modals.set_download_location.new_path"
+                                : "directory_browser.path_label",
+                        )}
+                        labelClassName={TEXT_ROLE.caption}
+                        currentPathLabel={t("modals.set_download_location.current_path")}
+                        currentPathValue={currentPath}
+                        value={path}
+                        history={downloadHistory}
+                        ariaLabel={t("directory_browser.path_label")}
+                        placeholder={t("directory_browser.enter_path")}
+                        onValueChange={handlePathChange}
+                        onEnter={requestSubmit}
+                        onEscape={handleClose}
+                        autoFocus
+                        isDisabled={isSubmitting}
+                        isInvalid={isInputInvalid}
+                        manualEntryPrompt={manualEntryPrompt}
+                        inputClassNames={FORM.locationEditorInputClassNames}
+                        inputTextClassName={TEXT_ROLE.codeMuted}
+                        feedback={pathFeedbackState}
+                        browseAction={
+                            canPickDirectory
+                                ? {
+                                      ariaLabel: t("modals.set_download_location.browse"),
+                                      label: t("modals.set_download_location.browse"),
+                                      onPress: () => {
+                                          void handleBrowse();
+                                      },
+                                  }
+                                : undefined
+                        }
+                    />
                 </div>
-            </div>
+            </form>
         </ModalEx>
     );
 }

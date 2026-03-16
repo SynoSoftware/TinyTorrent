@@ -109,8 +109,8 @@ export const useDestinationFreeSpaceProbe = ({
                     daemonPathStyle,
                     normalizedPath,
                     probeRoot: null,
-                })
-              : null;
+              })
+            : null;
 
     // Probe cache lifetime is scoped to probe strategy identity.
     // Keep cache across modal open/close, but reset when strategy changes.

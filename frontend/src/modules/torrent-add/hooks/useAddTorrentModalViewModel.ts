@@ -32,7 +32,6 @@ import {
 } from "@/modules/torrent-add/services/addTorrentModalDecisions";
 import {
     getAddTorrentDestinationStatus,
-    type AddTorrentDestinationStatusKind,
 } from "@/modules/torrent-add/utils/destinationStatus";
 import type {
     AddTorrentBrowseOutcome,
@@ -47,7 +46,8 @@ import {
     normalizeDestinationPathForDaemon,
 } from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
-const { timing, shell } = registry;
+import type { DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
+const { timing } = registry;
 
 export interface UseAddTorrentModalViewModelParams {
     commitMode: AddTorrentCommitMode;
@@ -78,19 +78,13 @@ export interface UseAddTorrentModalViewModelResult {
         handleBrowse: () => Promise<AddTorrentBrowseOutcome>;
         handleDestinationGateContinue: () => void;
         handleDestinationInputBlur: () => void;
-        handleDestinationInputKeyDown: (
-            event: ReactKeyboardEvent<HTMLInputElement>
-        ) => void;
         hasDestination: boolean;
         isTouchingDirectory: boolean;
         recentPaths: string[];
         showBrowseAction: boolean;
         showDestinationGate: boolean;
-        step1DestinationMessage: string;
-        step1StatusKind: AddTorrentDestinationStatusKind;
-        step2StatusKind: AddTorrentDestinationStatusKind;
-        step2StatusMessage: string;
-        spaceErrorDetail: string | null;
+        step1Feedback: DestinationPathFeedback;
+        step2Feedback: DestinationPathFeedback;
         uiMode: "Full" | "Rpc";
         updateDestinationDraft: (value: string) => void;
     };
@@ -377,7 +371,6 @@ export function useAddTorrentModalViewModel({
         ],
     );
     const freeSpace = destinationValidation.freeSpace;
-    const spaceErrorDetail = null;
 
     const destinationStatus = useMemo(
         () =>
@@ -403,6 +396,22 @@ export function useAddTorrentModalViewModel({
             t,
             uiMode,
         ]
+    );
+    const step1Feedback = useMemo<DestinationPathFeedback>(
+        () => ({
+            kind: "message",
+            message: destinationStatus.step1StatusMessage,
+            tone: destinationStatus.step1StatusKind,
+        }),
+        [destinationStatus.step1StatusKind, destinationStatus.step1StatusMessage],
+    );
+    const step2Feedback = useMemo<DestinationPathFeedback>(
+        () => ({
+            kind: "message",
+            message: destinationStatus.step2StatusMessage,
+            tone: destinationStatus.step2StatusKind,
+        }),
+        [destinationStatus.step2StatusKind, destinationStatus.step2StatusMessage],
     );
 
     const submissionDecision = useMemo(
@@ -488,29 +497,6 @@ export function useAddTorrentModalViewModel({
         markGateTried,
     ]);
 
-    const handleDestinationInputKeyDown = useCallback(
-        (event: ReactKeyboardEvent<HTMLInputElement>) => {
-            if (destinationState.showDestinationGate && event.key === "Enter") {
-                event.preventDefault();
-                event.stopPropagation();
-                handleDestinationGateContinue();
-                return;
-            }
-            if (
-                !destinationState.showDestinationGate &&
-                event.key === "Enter" &&
-                !submissionDecision.canConfirm
-            ) {
-                event.preventDefault();
-            }
-        },
-        [
-            destinationState.showDestinationGate,
-            handleDestinationGateContinue,
-            submissionDecision.canConfirm,
-        ]
-    );
-
     const handleFormSubmit = useCallback(
         async (event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
@@ -553,17 +539,13 @@ export function useAddTorrentModalViewModel({
             handleBrowse,
             handleDestinationGateContinue,
             handleDestinationInputBlur,
-            handleDestinationInputKeyDown,
             hasDestination: destinationState.isDestinationValid,
             isTouchingDirectory,
             recentPaths,
             showBrowseAction,
             showDestinationGate: destinationState.showDestinationGate,
-            step1DestinationMessage: destinationStatus.step1StatusMessage,
-            step1StatusKind: destinationStatus.step1StatusKind,
-            step2StatusKind: destinationStatus.step2StatusKind,
-            step2StatusMessage: destinationStatus.step2StatusMessage,
-            spaceErrorDetail,
+            step1Feedback,
+            step2Feedback,
             uiMode,
             updateDestinationDraft,
         },

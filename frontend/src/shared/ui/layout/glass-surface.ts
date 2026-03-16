@@ -483,6 +483,7 @@ export const FORM = {
     locationEditorHeader: "shrink-0 min-w-0",
     locationEditorLabelInputRow: "flex items-center gap-tools min-w-0",
     locationEditorLabelColumn: "shrink-0 w-24",
+    locationEditorCompactLabelColumn: "shrink-0 w-auto",
     locationEditorValueColumn: "flex-1 min-w-0",
     locationEditorInlineRow: "flex flex-wrap items-baseline gap-tight min-w-0",
     locationEditorInlineLabel: withOpacity(SURFACE.text.caption, 55),

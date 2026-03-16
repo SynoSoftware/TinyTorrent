@@ -1,36 +1,34 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { AddTorrentBrowseOutcome } from "@/modules/torrent-add/types";
-import type { AddTorrentDestinationStatusKind } from "@/modules/torrent-add/utils/destinationStatus";
 import type { FilePriority, FileRow } from "@/modules/torrent-add/services/fileSelection";
 import type { RowSelectionState } from "@tanstack/react-table";
-import type { DragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
+import type { DragEvent } from "react";
 
 export interface AddTorrentDestinationInputState {
     value: string;
+    history: string[];
     onChange: (next: string) => void;
     onBlur: () => void;
-    onKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
+    onEscape: () => void;
 }
 
 export interface AddTorrentDestinationGateState {
-    statusKind: AddTorrentDestinationStatusKind;
-    statusMessage: string;
     isDestinationValid: boolean;
     isTouchingDirectory: boolean;
     showBrowseAction: boolean;
     onConfirm: () => void;
+    onEnter: () => void;
     onBrowse: () => Promise<AddTorrentBrowseOutcome>;
+    feedback: DestinationPathFeedback;
 }
 
 export interface AddTorrentSettingsState {
     onDrop: (event: DragEvent<HTMLDivElement>) => void;
     onDragOver: (event: DragEvent) => void;
     onDragLeave: () => void;
-    recentPaths: string[];
-    applyRecentPath: (path?: string) => void;
-    statusKind: AddTorrentDestinationStatusKind;
-    statusMessage: string;
-    spaceErrorDetail: string | null;
+    onEnter: () => void;
+    feedback: DestinationPathFeedback;
     startPaused: boolean;
     setStartPaused: (next: boolean) => void;
     showTransferFlags: boolean;

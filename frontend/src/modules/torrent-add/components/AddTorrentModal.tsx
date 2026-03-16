@@ -129,51 +129,51 @@ export function AddTorrentModal({
         commitMode === "paused" ? t("modals.add_torrent.add_paused") : t("modals.add_torrent.add_and_start");
     const handleDestinationGateKeyDown = useCallback(
         (event: ReactKeyboardEvent<HTMLDivElement>) => {
+            if (event.defaultPrevented) {
+                return;
+            }
             if (event.key === "Escape") {
                 event.preventDefault();
                 handleModalCancel();
                 return;
             }
-            if (event.key === "Enter") {
-                event.preventDefault();
-                destination.handleDestinationGateContinue();
-            }
         },
-        [destination.handleDestinationGateContinue, handleModalCancel],
+        [handleModalCancel],
     );
 
     const destinationInput = useMemo(
         () => ({
             value: destination.destinationDraft,
+            history: destination.recentPaths,
             onBlur: destination.handleDestinationInputBlur,
             onChange: destination.updateDestinationDraft,
-            onKeyDown: destination.handleDestinationInputKeyDown,
+            onEscape: handleModalCancel,
         }),
         [
             destination.destinationDraft,
+            destination.recentPaths,
             destination.handleDestinationInputBlur,
             destination.updateDestinationDraft,
-            destination.handleDestinationInputKeyDown,
+            handleModalCancel,
         ],
     );
     const destinationGate = useMemo(
         () => ({
-            statusKind: destination.step1StatusKind,
-            statusMessage: destination.step1DestinationMessage,
             isDestinationValid: destination.hasDestination,
             isTouchingDirectory: destination.isTouchingDirectory,
             showBrowseAction: destination.showBrowseAction,
             onConfirm: destination.handleDestinationGateContinue,
+            onEnter: destination.handleDestinationGateContinue,
             onBrowse: destination.handleBrowse,
+            feedback: destination.step1Feedback,
         }),
         [
-            destination.step1StatusKind,
-            destination.step1DestinationMessage,
             destination.hasDestination,
             destination.isTouchingDirectory,
             destination.showBrowseAction,
             destination.handleDestinationGateContinue,
             destination.handleBrowse,
+            destination.step1Feedback,
         ],
     );
     const settingsPanel = useMemo(
@@ -181,11 +181,8 @@ export function AddTorrentModal({
             onDrop: dragDrop.handleDrop,
             onDragOver: dragDrop.handleDragOver,
             onDragLeave: dragDrop.handleDragLeave,
-            recentPaths: destination.recentPaths,
-            applyRecentPath: dragDrop.applyDroppedPath,
-            statusKind: destination.step2StatusKind,
-            statusMessage: destination.step2StatusMessage,
-            spaceErrorDetail: destination.spaceErrorDetail,
+            onEnter: requestSubmit,
+            feedback: destination.step2Feedback,
             startPaused: commitMode === "paused",
             setStartPaused: (next: boolean) =>
                 onCommitModeChange(next ? "paused" : "start"),
@@ -199,11 +196,8 @@ export function AddTorrentModal({
             dragDrop.handleDrop,
             dragDrop.handleDragOver,
             dragDrop.handleDragLeave,
-            destination.recentPaths,
-            dragDrop.applyDroppedPath,
-            destination.step2StatusKind,
-            destination.step2StatusMessage,
-            destination.spaceErrorDetail,
+            requestSubmit,
+            destination.step2Feedback,
             commitMode,
             onCommitModeChange,
             source?.kind,

@@ -1,21 +1,11 @@
-import { Button, Input, Tooltip, cn } from "@heroui/react";
-import { motion } from "framer-motion";
+import { Button, Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import {
-    AlertTriangle,
-    CheckCircle2,
-    FolderOpen,
-    HardDrive,
-    Info,
-} from "lucide-react";
+import { HardDrive } from "lucide-react";
+import { TEXT_ROLE } from "@/config/textRoles";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import {
-    FORM,
-    INPUT,
-    SURFACE,
-} from "@/shared/ui/layout/glass-surface";
+import { FORM } from "@/shared/ui/layout/glass-surface";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-export const DESTINATION_INPUT_LAYOUT_ID = "add-torrent-destination-input";
+import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEditor";
 
 export function AddTorrentDestinationGatePanel() {
     const { t } = useTranslation();
@@ -32,77 +22,36 @@ export function AddTorrentDestinationGatePanel() {
                 </div>
             </Tooltip>
 
-            <div className={FORM.workflow.destinationRow}>
-                <motion.div
-                    layout
-                    layoutId={DESTINATION_INPUT_LAYOUT_ID}
-                    className={FORM.workflow.destinationInputWrap}
-                >
-                    <Input
-                        autoFocus
-                        value={destinationInput.value}
-                        onChange={(e) =>
-                            destinationInput.onChange(e.target.value)
-                        }
-                        onBlur={destinationInput.onBlur}
-                        onKeyDown={destinationInput.onKeyDown}
-                        aria-label={t(
-                            "modals.add_torrent.destination_input_aria",
-                        )}
-                        placeholder={t(
-                            "modals.add_torrent.destination_placeholder",
-                        )}
-                        variant="flat"
-                        autoComplete="off"
-                        classNames={INPUT.monoEmphasized}
-                        startContent={
-                            <FolderOpen
-                                className={FORM.workflow.destinationInputIcon}
-                            />
-                        }
-                    />
-                </motion.div>
-                {destinationGate.showBrowseAction && (
-                    <Tooltip
-                        content={t(
-                            "modals.add_torrent.destination_prompt_browse",
-                        )}
-                    >
-                        <Button
-                            onPress={destinationGate.onBrowse}
-                            isIconOnly
-                            size="md"
-                            variant="flat"
-                            isLoading={destinationGate.isTouchingDirectory}
-                            aria-label={t(
-                                "modals.add_torrent.destination_prompt_browse",
-                            )}
-                            className={SURFACE.atom.iconButton}
-                        >
-                            <FolderOpen className={FORM.workflow.actionIcon} />
-                        </Button>
-                    </Tooltip>
-                )}
-            </div>
-
-            <div
-                className={cn(
-                    FORM.workflow.status,
-                    FORM.builder.statusToneClass(destinationGate.statusKind),
-                )}
-            >
-                {destinationGate.statusKind === "danger" ||
-                destinationGate.statusKind === "warning" ? (
-                    <AlertTriangle className={FORM.workflow.statusIcon} />
-                ) : destinationGate.statusKind === "ok" ? (
-                    <CheckCircle2 className={FORM.workflow.statusSuccessIcon} />
-                ) : (
-                    <Info className={FORM.workflow.statusInfoIcon} />
-                )}
-                <span className={FORM.workflow.statusMessage}>
-                    {destinationGate.statusMessage}
-                </span>
-            </div>
+            <DestinationPathEditor
+                id="add-torrent-gate-destination"
+                label={t("directory_browser.path_label")}
+                labelClassName={TEXT_ROLE.caption}
+                labelColumnClassName={FORM.locationEditorCompactLabelColumn}
+                value={destinationInput.value}
+                history={destinationInput.history}
+                ariaLabel={t("modals.add_torrent.destination_input_aria")}
+                placeholder={t("modals.add_torrent.destination_placeholder")}
+                onValueChange={destinationInput.onChange}
+                onBlur={destinationInput.onBlur}
+                onEnter={destinationGate.onEnter}
+                onEscape={destinationInput.onEscape}
+                autoFocus
+                inputClassNames={FORM.locationEditorInputClassNames}
+                inputTextClassName={TEXT_ROLE.codeMuted}
+                feedback={destinationGate.feedback}
+                browseAction={
+                    destinationGate.showBrowseAction
+                        ? {
+                              ariaLabel: t("modals.add_torrent.destination_prompt_browse"),
+                              label: t("modals.set_download_location.browse"),
+                              onPress: () => {
+                                  void destinationGate.onBrowse();
+                              },
+                              isLoading: destinationGate.isTouchingDirectory,
+                          }
+                        : undefined
+                }
+            />
 
             <div className={FORM.workflow.gateActionsRow}>
                 <Button
