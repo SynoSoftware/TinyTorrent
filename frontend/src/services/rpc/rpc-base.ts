@@ -983,6 +983,10 @@ export class TransmissionAdapter implements EngineAdapter {
         return this.heartbeat.subscribe(params);
     }
 
+    public requestTableConvergence(durationMs: number): void {
+        this.heartbeat.requestTableConvergence(durationMs);
+    }
+
     /**
      * Return the engine-owned speed history for a torrent.
      * This delegates to the internal HeartbeatManager which maintains fixed-length buffers.

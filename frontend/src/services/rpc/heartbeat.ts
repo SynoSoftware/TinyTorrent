@@ -25,6 +25,9 @@ export interface HeartbeatErrorEvent {
 }
 
 export interface HeartbeatPayload {
+    // Contract: `torrents` is always the current full heartbeat snapshot after
+    // any recently-active delta merge has been applied. It is never a
+    // delta-only subset.
     torrents: TorrentEntity[];
     sessionStats: SessionStats;
     timestampMs: number;
@@ -41,7 +44,6 @@ export interface HeartbeatSubscriberParams {
     detailProfile?: HeartbeatDetailProfile;
     includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
-    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError?: (event: HeartbeatErrorEvent) => void;
 }
@@ -92,6 +94,10 @@ const MODE_INTERVALS: Record<HeartbeatMode, number> = {
     table: timing.heartbeat.tableMs,
     detail: timing.heartbeat.detailMs,
 };
+const MIN_HEARTBEAT_INTERVAL_MS = Math.max(
+    1,
+    Math.min(...Object.values(MODE_INTERVALS)),
+);
 
 const DETAIL_FETCH_CONCURRENCY = 3;
 
@@ -145,6 +151,8 @@ export class HeartbeatManager {
     private recentRemoved = new Map<string, number>();
     private visibilityMultiplier = 1;
     private visibilityHandler?: () => void;
+    private resumeTickHandler?: () => void;
+    private tableConvergenceUntilMs = 0;
 
     // Per-torrent speed history: true O(1) circular buffer (no shift/push, no leaks)
     private readonly speedHistory = new Map<
@@ -219,22 +227,43 @@ export class HeartbeatManager {
             if (typeof document !== "undefined") {
                 const applyVisibility = () => {
                     try {
-                        if (
-                            (document as Document & { hidden?: boolean }).hidden
-                        ) {
+                        const isHidden =
+                            (document as Document & { hidden?: boolean }).hidden ===
+                            true;
+                        if (isHidden) {
                             this.visibilityMultiplier = 15; // hidden -> slower
                         } else {
                             this.visibilityMultiplier = 1; // visible -> normal
                         }
                         this.rescheduleLoop();
+                        if (!isHidden) {
+                            void this.triggerImmediateTick(true);
+                        }
                     } catch {
                         // ignore visibility read/scheduling failures
                     }
                 };
+                const requestResumeTick = () => {
+                    try {
+                        const isHidden =
+                            (document as Document & { hidden?: boolean }).hidden ===
+                            true;
+                        if (!isHidden) {
+                            void this.triggerImmediateTick(true);
+                        }
+                    } catch {
+                        // ignore visibility read failures
+                    }
+                };
                 // store handler so we can remove it later to avoid leaks
                 this.visibilityHandler = applyVisibility;
+                this.resumeTickHandler = requestResumeTick;
                 applyVisibility();
                 document.addEventListener("visibilitychange", applyVisibility);
+                if (typeof window !== "undefined") {
+                    window.addEventListener("focus", requestResumeTick);
+                    window.addEventListener("pageshow", requestResumeTick);
+                }
             }
         } catch {
             // ignore environment without document
@@ -275,6 +304,19 @@ export class HeartbeatManager {
                     this.visibilityHandler
                 );
                 this.visibilityHandler = undefined;
+            }
+            if (this.resumeTickHandler && typeof document !== "undefined") {
+                if (typeof window !== "undefined") {
+                    window.removeEventListener(
+                        "focus",
+                        this.resumeTickHandler
+                    );
+                    window.removeEventListener(
+                        "pageshow",
+                        this.resumeTickHandler
+                    );
+                }
+                this.resumeTickHandler = undefined;
             }
         } catch {
             // ignore
@@ -504,6 +546,16 @@ export class HeartbeatManager {
         return Boolean(this.lastTorrents && this.lastSessionStats);
     }
 
+    public requestTableConvergence(durationMs: number) {
+        const safeDurationMs = Math.max(0, durationMs);
+        const nextUntilMs = Date.now() + safeDurationMs;
+        if (nextUntilMs > this.tableConvergenceUntilMs) {
+            this.tableConvergenceUntilMs = nextUntilMs;
+        }
+        this.rescheduleLoop();
+        void this.triggerImmediateTick(true);
+    }
+
     private emitCachedData(params: HeartbeatSubscriberParams) {
         if (!this.lastTorrents || !this.lastSessionStats) return;
         const detailId = params.detailId;
@@ -575,6 +627,9 @@ export class HeartbeatManager {
     }
 
     private triggerImmediateTick(force = false) {
+        // Forced triggers still coalesce: if a tick is already running we only
+        // set the pending flag once, and if a forced tick was already queued we
+        // do not queue another.
         if (this.isRunning) {
             if (force) {
                 this.immediateTickPending = true;
@@ -628,33 +683,81 @@ export class HeartbeatManager {
         return Number.isFinite(interval) ? interval : MODE_INTERVALS.table;
     }
 
+    private hasTableConvergenceWindowActive(nowMs = Date.now()) {
+        return nowMs < this.tableConvergenceUntilMs;
+    }
+
+    private hasObservedLiveTransferActivity(
+        torrents: readonly TorrentEntity[] = []
+    ) {
+        return torrents.some(
+            (torrent) => torrent.speed.down > 0 || torrent.speed.up > 0,
+        );
+    }
+
+    // Heartbeat transport contract:
+    // - HeartbeatManager is the single owner of polling cadence and fetch shape.
+    // - Fast cadence is driven only by daemon-grounded, transport-relevant
+    //   evidence: active/checking/queued states and observed live transfer rates.
+    // - Full summary fetch is driven only by explicit convergence windows or
+    //   daemon states/live-transfer evidence where delta data is insufficient
+    //   for correct table truth.
+    // - UI-derived presentation states must never affect cadence or fetch shape.
+    private requiresResponsiveTableCadence(
+        torrents: readonly TorrentEntity[] = []
+    ) {
+        return (
+            this.hasObservedLiveTransferActivity(torrents) ||
+            torrents.some(
+            (torrent) =>
+                torrent.state === status.torrent.checking ||
+                torrent.state === status.torrent.downloading ||
+                torrent.state === status.torrent.seeding ||
+                torrent.state === status.torrent.queued,
+            )
+        );
+    }
+
+    private requiresAuthoritativeTableSummary(
+        torrents: readonly TorrentEntity[] = []
+    ) {
+        return (
+            this.hasObservedLiveTransferActivity(torrents) ||
+            torrents.some(
+            (torrent) =>
+                torrent.state === status.torrent.checking ||
+                torrent.state === status.torrent.downloading ||
+                torrent.state === status.torrent.seeding,
+            )
+        );
+    }
+
     private getIntervalForParams(params: HeartbeatSubscriberParams) {
         let interval: number;
-        if (params.mode === "table" && params.pollingIntervalMs !== undefined) {
-            interval = Math.max(1000, params.pollingIntervalMs);
+        if (params.mode === "table") {
+            const requestedInterval =
+                params.pollingIntervalMs ?? MODE_INTERVALS.table;
+            const shouldUseDetailCadence =
+                this.hasTableConvergenceWindowActive() ||
+                this.requiresResponsiveTableCadence(
+                    this.lastTorrents ?? []
+                );
+            interval = shouldUseDetailCadence
+                ? Math.min(requestedInterval, MODE_INTERVALS.detail)
+                : requestedInterval;
         } else {
             interval = MODE_INTERVALS[params.mode];
         }
 
-        interval = interval * this.visibilityMultiplier;
+        if (params.mode === "background") {
+            interval = interval * this.visibilityMultiplier;
+        }
 
         if (!Number.isFinite(interval)) {
-            return 2000;
+            return MODE_INTERVALS.table;
         }
 
-        // Enforce a sensible floor to prevent extremely fast polling from
-        // mis-configured clients or NaN propagation. Use 500ms to avoid
-        // sub-500ms polling unless explicitly configured.
-        return Math.max(500, interval);
-    }
-
-    private hasFullFetchPriority() {
-        for (const { params } of this.subscribers.values()) {
-            if (params.preferFullFetch) {
-                return true;
-            }
-        }
-        return false;
+        return Math.max(MIN_HEARTBEAT_INTERVAL_MS, interval);
     }
 
     private async tick() {
@@ -720,10 +823,12 @@ export class HeartbeatManager {
 
                 // Prefer the cheaper recently-active delta path whenever we
                 // already have a hydrated snapshot and no higher-priority
-                // condition requires a full resync. Table sessions switch
-                // back to full summary polling only when the existing rows
-                // contain live-transfer states where stale delta data would
-                // misreport speed/progress/ETA.
+                // condition requires a full resync. Fast cadence and fetch
+                // authority are separate concerns:
+                // - queued/checking/downloading/seeding keep the table on the
+                //   fast clock for desktop-like responsiveness.
+                // - only states whose table values are time/live-stat derived
+                //   from the daemon force an authoritative full summary fetch.
                 const clientDelta = this
                     .client as HeartbeatClientWithTelemetry & {
                         getRecentlyActive?: unknown;
@@ -732,27 +837,12 @@ export class HeartbeatManager {
                     Array.isArray(torrents) &&
                     torrents.length > 0 &&
                     typeof clientDelta.getRecentlyActive === "function";
-                const hasChecking = Array.isArray(torrents)
-                    ? torrents.some(
-                          (torrent) =>
-                              torrent.state === status.torrent.checking,
-                      )
-                    : false;
-                const hasActiveTableTransfer =
-                    hasTableSubscribers && Array.isArray(torrents)
-                        ? torrents.some(
-                              (torrent) =>
-                                  torrent.state ===
-                                      status.torrent.downloading ||
-                                  torrent.state === status.torrent.seeding ||
-                                  torrent.state === status.torrent.queued ||
-                                  torrent.state === status.torrent.stalled,
-                          )
-                        : false;
+                const requiresAuthoritativeSummary =
+                    hasTableSubscribers &&
+                    this.requiresAuthoritativeTableSummary(torrents ?? []);
                 const shouldUseFullSummaryFetch =
-                    this.hasFullFetchPriority() ||
-                    hasChecking ||
-                    hasActiveTableTransfer ||
+                    this.hasTableConvergenceWindowActive() ||
+                    requiresAuthoritativeSummary ||
                     this.cycleCount >= this.MAX_DELTA_CYCLES;
 
                 // --- 1. Fetch Global Stats ---

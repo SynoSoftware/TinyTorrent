@@ -174,7 +174,7 @@ describe("HeartbeatManager delta integration", () => {
         sub.unsubscribe();
     });
 
-    it("forces a full fetch when a subscriber requires authoritative convergence", async () => {
+    it("forces a full fetch during a requested table convergence window", async () => {
         const client: HeartbeatClientLike = {
             getTorrents: vi
                 .fn<() => Promise<TorrentEntity[]>>()
@@ -201,7 +201,6 @@ describe("HeartbeatManager delta integration", () => {
             mode: "table",
             onUpdate: (p) => updates.push(p),
             pollingIntervalMs: 1000,
-            preferFullFetch: true,
         });
 
         await new Promise<void>((resolve, reject) => {
@@ -220,10 +219,206 @@ describe("HeartbeatManager delta integration", () => {
 
         expect(client.getTorrents).toHaveBeenCalledTimes(1);
 
+        hb.requestTableConvergence(1000);
+
+        await new Promise<void>((resolve, reject) => {
+            const to = setTimeout(
+                () => reject(new Error("timeout convergence tick")),
+                2000
+            );
+            const i = setInterval(() => {
+                if (client.getTorrents.mock.calls.length >= 2) {
+                    clearInterval(i);
+                    clearTimeout(to);
+                    resolve();
+                }
+            }, 10);
+        });
+
+        expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        expect(client.getRecentlyActive).not.toHaveBeenCalled();
+
+        sub.unsubscribe();
+    });
+
+    it("ignores presentation-only stalled values for full-fetch selection", async () => {
+        const stalledTorrent = {
+            ...makeTorrent("1"),
+            state: "stalled" as const,
+        };
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([stalledTorrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue({
+                    ...dummyStats,
+                    torrentCount: 1,
+                }),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(stalledTorrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({ torrents: [stalledTorrent], removed: [] }),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: () => undefined,
+            pollingIntervalMs: 1000,
+        });
+
+        await new Promise<void>((resolve, reject) => {
+            const to = setTimeout(
+                () => reject(new Error("timeout initial")),
+                2000
+            );
+            const i = setInterval(() => {
+                if (client.getTorrents.mock.calls.length >= 1) {
+                    clearInterval(i);
+                    clearTimeout(to);
+                    resolve();
+                }
+            }, 10);
+        });
+
+        await hbInternals.tick();
+
+        expect(client.getTorrents).toHaveBeenCalledTimes(1);
+        expect(client.getRecentlyActive).toHaveBeenCalledTimes(1);
+
+        sub.unsubscribe();
+    });
+
+    it("forces a full summary fetch when live transfer rates are present even if the state label lags", async () => {
+        const liveTransferTorrent = {
+            ...makeTorrent("1"),
+            state: "queued" as const,
+            speed: { down: 0, up: 256 },
+            peerSummary: { connected: 2 },
+        };
+        const refreshedTorrent = {
+            ...liveTransferTorrent,
+            uploaded: 1024,
+        };
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValueOnce([liveTransferTorrent])
+                .mockResolvedValueOnce([refreshedTorrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue({
+                    ...dummyStats,
+                    torrentCount: 1,
+                }),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(liveTransferTorrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({ torrents: [liveTransferTorrent], removed: [] }),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: () => undefined,
+            pollingIntervalMs: 1000,
+        });
+
+        await new Promise<void>((resolve, reject) => {
+            const to = setTimeout(
+                () => reject(new Error("timeout initial")),
+                2000
+            );
+            const i = setInterval(() => {
+                if (client.getTorrents.mock.calls.length >= 1) {
+                    clearInterval(i);
+                    clearTimeout(to);
+                    resolve();
+                }
+            }, 10);
+        });
+
         await hbInternals.tick();
 
         expect(client.getTorrents).toHaveBeenCalledTimes(2);
         expect(client.getRecentlyActive).not.toHaveBeenCalled();
+
+        sub.unsubscribe();
+    });
+
+    it("keeps queued torrents on the fast path without forcing full summary when no live rates are present", async () => {
+        const queuedTorrent = {
+            ...makeTorrent("1"),
+            state: "queued" as const,
+            speed: { down: 0, up: 0 },
+        };
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([queuedTorrent]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue({
+                    ...dummyStats,
+                    torrentCount: 1,
+                }),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue(queuedTorrent),
+            getRecentlyActive: vi
+                .fn<
+                    () => Promise<{
+                        torrents: TorrentEntity[];
+                        removed?: number[];
+                    }>
+                >()
+                .mockResolvedValue({ torrents: [queuedTorrent], removed: [] }),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const hbInternals = hb as unknown as HeartbeatInternals;
+        const sub = hb.subscribe({
+            mode: "table",
+            onUpdate: () => undefined,
+            pollingIntervalMs: 1000,
+        });
+
+        await new Promise<void>((resolve, reject) => {
+            const to = setTimeout(
+                () => reject(new Error("timeout initial")),
+                2000
+            );
+            const i = setInterval(() => {
+                if (client.getTorrents.mock.calls.length >= 1) {
+                    clearInterval(i);
+                    clearTimeout(to);
+                    resolve();
+                }
+            }, 10);
+        });
+
+        await hbInternals.tick();
+
+        expect(client.getTorrents).toHaveBeenCalledTimes(1);
+        expect(client.getRecentlyActive).toHaveBeenCalledTimes(1);
 
         sub.unsubscribe();
     });

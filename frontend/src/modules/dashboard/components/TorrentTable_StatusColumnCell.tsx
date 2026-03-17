@@ -1,4 +1,5 @@
 import { Chip } from "@heroui/react";
+import type { Table } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 import { type TFunction } from "i18next";
 import type { TorrentStatus } from "@/services/rpc/entities";
@@ -65,11 +66,16 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
 
 interface TorrentTableStatusColumnCellProps {
     torrent: Torrent;
+    table?: Table<Torrent>;
     t: TFunction;
     optimisticStatus?: OptimisticStatusEntry;
 }
 
-export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: TorrentTableStatusColumnCellProps) {
+type StatusTableMeta = {
+    speedHistoryRef?: { current: Record<string, Array<number | null>> };
+};
+
+export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }: TorrentTableStatusColumnCellProps) {
     const renderChip = (icon: LucideIcon, color: StatusColor, label: string, tooltip: string) => {
         return (
             <div className={FORM_CONTROL.statusChipContainer}>
@@ -96,10 +102,20 @@ export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: Torren
         );
     };
 
+    const meta = table?.options.meta as StatusTableMeta | undefined;
+    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
+    const sanitizedHistory = rawHistory.filter(
+        (value): value is number => Number.isFinite(value),
+    );
+    const speedHistory =
+        torrent.state === status.torrent.seeding
+            ? { down: [], up: sanitizedHistory }
+            : { down: sanitizedHistory, up: [] };
     const presentation = getTorrentStatusPresentation(
         torrent,
         t,
         optimisticStatus,
+        speedHistory,
     );
 
     if (presentation.isOptimisticMoving && presentation.label) {
@@ -114,8 +130,8 @@ export function TorrentTable_StatusCell({ torrent, t, optimisticStatus }: Torren
     const label = presentation.label ?? t("table.status_error");
     const tooltip = presentation.tooltip ?? label;
     const conf =
-        (presentation.effectiveState
-            ? statusMap[presentation.effectiveState]
+        (presentation.visualState
+            ? statusMap[presentation.visualState]
             : undefined) ?? UNKNOWN_STATUS_META;
     const Icon = conf.icon;
 

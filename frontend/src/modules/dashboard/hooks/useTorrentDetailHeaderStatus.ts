@@ -3,6 +3,7 @@ import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entiti
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
 import { useTranslation } from "react-i18next";
 import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentStatus";
+import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 
 interface UseTorrentDetailHeaderStatusParams {
     torrent?: TorrentDetail | null;
@@ -20,6 +21,7 @@ export function useTorrentDetailHeaderStatus({
     optimisticStatus,
 }: UseTorrentDetailHeaderStatusParams): TorrentDetailHeaderStatus {
     const { t } = useTranslation();
+    const speedHistory = useEngineSpeedHistory(torrent?.id);
     return useMemo(() => {
         if (!torrent) {
             return {
@@ -33,6 +35,7 @@ export function useTorrentDetailHeaderStatus({
             torrent,
             t,
             optimisticStatus,
+            speedHistory,
         );
         if (!presentation.label) {
             return {
@@ -47,6 +50,6 @@ export function useTorrentDetailHeaderStatus({
             tooltip: presentation.tooltip,
             primaryHint: null,
         };
-    }, [optimisticStatus, t, torrent]);
+    }, [optimisticStatus, speedHistory, t, torrent]);
 }
 

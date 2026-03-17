@@ -92,6 +92,7 @@ const performanceSchema = {
 
 const defaultUi = {
     toast_display_duration_ms: 3000,
+    stalled_activity_history_window: 10,
 } as const;
 
 const defaultHeartbeats = {
@@ -650,6 +651,10 @@ const timingSchemas = {
     },
     ui: {
         toastMs: n("toast_display_duration_ms", defaultUi.toast_display_duration_ms),
+        stalledActivityHistoryWindow: n(
+            "stalled_activity_history_window",
+            defaultUi.stalled_activity_history_window,
+        ),
         clipboardBadgeMs: n(
             "clipboard_badge_duration_ms",
             defaultTimers.clipboard_badge_duration_ms,

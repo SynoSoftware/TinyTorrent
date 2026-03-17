@@ -163,8 +163,13 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
-        render: ({ torrent, t, optimisticStatus }) => (
-            <TorrentTable_StatusCell torrent={torrent} t={t} optimisticStatus={optimisticStatus} />
+        render: ({ torrent, t, optimisticStatus, table }) => (
+            <TorrentTable_StatusCell
+                torrent={torrent}
+                table={table}
+                t={t}
+                optimisticStatus={optimisticStatus}
+            />
         ),
     },
 

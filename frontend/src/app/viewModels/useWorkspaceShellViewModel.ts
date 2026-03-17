@@ -171,10 +171,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         isMountedRef: settingsMountedRef,
     });
 
-    const pollingIntervalMs = Math.max(
-        1000,
-        settingsFlow.settingsConfig.refresh_interval_ms,
-    );
+    const pollingIntervalMs = settingsFlow.settingsConfig.refresh_interval_ms;
 
     const torrentDomain = useWorkspaceTorrentDomain({
         torrentClient,

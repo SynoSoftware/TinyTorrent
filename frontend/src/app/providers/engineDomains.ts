@@ -13,7 +13,6 @@ import type { TransmissionSessionSettings } from "@/services/rpc/types";
 
 type TableSubscriptionParams = {
     pollingIntervalMs?: number;
-    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError: (event: HeartbeatErrorEvent) => void;
 };
@@ -24,7 +23,6 @@ type NonTableSubscriptionParams = {
     detailProfile?: HeartbeatDetailProfile;
     includeTrackerStats?: boolean;
     pollingIntervalMs?: number;
-    preferFullFetch?: boolean;
     onUpdate: (payload: HeartbeatPayload) => void;
     onError: (event: HeartbeatErrorEvent) => void;
 };
@@ -60,6 +58,7 @@ export interface EngineHeartbeatDomain {
     subscribeNonTable: (params: NonTableSubscriptionParams) => {
         unsubscribe: () => void;
     };
+    requestTableConvergence: (durationMs: number) => void;
 }
 
 const getClient = (client?: EngineAdapter) => client;
@@ -155,14 +154,12 @@ export function useEngineHeartbeatDomain(
         () => ({
             subscribeTable: ({
                 pollingIntervalMs,
-                preferFullFetch,
                 onUpdate,
                 onError,
             }) =>
                 client.subscribeToHeartbeat({
                     mode: "table",
                     pollingIntervalMs,
-                    preferFullFetch,
                     onUpdate,
                     onError,
                 }),
@@ -172,7 +169,6 @@ export function useEngineHeartbeatDomain(
                 detailProfile,
                 includeTrackerStats,
                 pollingIntervalMs,
-                preferFullFetch,
                 onUpdate,
                 onError,
             }) =>
@@ -182,10 +178,12 @@ export function useEngineHeartbeatDomain(
                     detailProfile,
                     includeTrackerStats,
                     pollingIntervalMs,
-                    preferFullFetch,
                     onUpdate,
                     onError,
                 }),
+            requestTableConvergence: (durationMs: number) => {
+                client.requestTableConvergence(durationMs);
+            },
         }),
         [client],
     );

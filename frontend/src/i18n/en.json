@@ -731,10 +731,13 @@
         "status_checking": "Checking",
         "status_moving": "Moving",
         "status_error": "Error",
-        "status_relocating": "Relocating...",
+        "status_relocating": "Relocating",
         "status_queued": "Queued",
         "status_seed": "Seeding",
-        "status_stalled": "Stalled"
+        "status_stalled": "Stalled",
+        "status_waiting_for_peers": "Waiting for peers",
+        "status_no_active_connections": "No active connections",
+        "status_no_data_transfer": "No data transfer"
     },
     "theme": {
         "dark": "Dark",

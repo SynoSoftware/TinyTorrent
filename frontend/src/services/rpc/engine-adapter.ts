@@ -103,6 +103,7 @@ export interface EngineAdapter {
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
+    requestTableConvergence(durationMs: number): void;
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     destroy(): void;
     resetConnection?(): void;

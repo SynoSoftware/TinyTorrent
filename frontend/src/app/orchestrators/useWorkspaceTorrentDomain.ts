@@ -9,12 +9,12 @@ import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
 import { useSelection } from "@/app/context/AppShellStateContext";
 import { useTorrentWorkflow } from "@/app/hooks/useTorrentWorkflow";
-import type { RecheckRefreshOutcome } from "@/app/hooks/useTorrentWorkflow";
 import { useOptimisticStatuses } from "@/app/hooks/useOptimisticStatuses";
 import { dispatchTorrentAction, dispatchTorrentSelectionAction } from "@/app/utils/torrentActionDispatcher";
 import { TorrentIntents, type TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import { useTorrentOrchestrator } from "@/app/orchestrators/useTorrentOrchestrator";
+import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 import type { UseTorrentOrchestratorResult } from "@/app/orchestrators/useTorrentOrchestrator";
 import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
@@ -113,9 +113,7 @@ export function useWorkspaceTorrentDomain({
     capabilities,
 }: UseWorkspaceTorrentDomainParams): WorkspaceTorrentDomain {
     const isMountedRef = useRef(false);
-    const [isRecheckPollingBoostActive, setIsRecheckPollingBoostActive] =
-        useState(false);
-    const recheckPollingBoostTimerRef = useRef<number | undefined>(undefined);
+    const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -123,30 +121,6 @@ export function useWorkspaceTorrentDomain({
             isMountedRef.current = false;
         };
     }, []);
-
-    const clearRecheckPollingBoostTimer = useCallback(() => {
-        if (recheckPollingBoostTimerRef.current !== undefined) {
-            window.clearTimeout(recheckPollingBoostTimerRef.current);
-            recheckPollingBoostTimerRef.current = undefined;
-        }
-    }, []);
-
-    useEffect(() => clearRecheckPollingBoostTimer, [clearRecheckPollingBoostTimer]);
-
-    const triggerRecheckPollingBoost = useCallback(() => {
-        setIsRecheckPollingBoostActive(true);
-        clearRecheckPollingBoostTimer();
-        recheckPollingBoostTimerRef.current = window.setTimeout(() => {
-            setIsRecheckPollingBoostActive(false);
-            recheckPollingBoostTimerRef.current = undefined;
-        }, timing.ui.optimisticCheckingGraceMs);
-    }, [clearRecheckPollingBoostTimer]);
-
-    const effectiveTablePollingIntervalMs =
-        isRecheckPollingBoostActive
-            ? Math.min(pollingIntervalMs, timing.heartbeat.detailMs)
-            : pollingIntervalMs;
-    const preferFullFetch = isRecheckPollingBoostActive;
 
     const {
         torrents,
@@ -158,8 +132,7 @@ export function useWorkspaceTorrentDomain({
     } = useTorrentData({
         client: torrentClient,
         sessionReady: rpcStatus === status.connection.connected,
-        pollingIntervalMs: effectiveTablePollingIntervalMs,
-        preferFullFetch,
+        pollingIntervalMs,
         markTransportConnected,
     });
 
@@ -416,17 +389,11 @@ export function useWorkspaceTorrentDomain({
         return commandOutcome.failed("execution_failed");
     };
 
-    const refreshAfterRecheck = useCallback(async (): Promise<RecheckRefreshOutcome> => {
-        if (rpcStatus !== status.connection.connected) {
-            return commandReason.refreshSkipped;
-        }
-        try {
-            await refreshTorrents();
-            return "success";
-        } catch {
-            return commandReason.refreshFailed;
-        }
-    }, [refreshTorrents, rpcStatus]);
+    const requestVerificationConvergence = useCallback(() => {
+        heartbeatDomain.requestTableConvergence(
+            timing.ui.optimisticCheckingGraceMs,
+        );
+    }, [heartbeatDomain]);
 
     const { pendingDelete, confirmDelete, clearPendingDelete, handleTorrentAction, handleBulkAction, handleSetDownloadLocation, removedIds } =
         useTorrentWorkflow({
@@ -436,8 +403,7 @@ export function useWorkspaceTorrentDomain({
             executeTorrentAction: executeTorrentActionViaDispatch,
             executeBulkRemove: executeBulkRemoveViaDispatch,
             executeSetDownloadLocation: executeSetDownloadLocationViaDispatch,
-            onVerificationStart: triggerRecheckPollingBoost,
-            onRecheckComplete: refreshAfterRecheck,
+            onVerificationStart: requestVerificationConvergence,
             executeSelectionAction: async (action, targets) => {
                 const ids = targets
                     .map((torrent) => torrent.id ?? torrent.hash)

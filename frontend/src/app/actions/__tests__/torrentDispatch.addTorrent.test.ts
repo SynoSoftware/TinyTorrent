@@ -31,6 +31,7 @@ const createMockClient = (): EngineAdapter => ({
     subscribeToHeartbeat: vi.fn(() => ({
         unsubscribe: () => undefined,
     })),
+    requestTableConvergence: vi.fn(),
     destroy: vi.fn(),
 });
 

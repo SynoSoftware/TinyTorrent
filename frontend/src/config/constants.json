@@ -8,7 +8,8 @@
         "bulk_resume_concurrency": 6
     },
     "ui": {
-        "toast_display_duration_ms": 3000
+        "toast_display_duration_ms": 3000,
+        "stalled_activity_history_window": 10
     },
     "defaults": {
         "rpc_endpoint": "/transmission/rpc",

@@ -28,9 +28,6 @@ const STATUS_MAP: Record<number, TorrentStatus> = {
     7: status.torrent.paused,
 };
 
-// qBittorrent’s “Stalled torrent timeout” defaults to 60 seconds, so keep the grace window identical.
-const STALLED_GRACE_SECONDS = 60;
-
 const normalizeStatus = (
     rawStatus: number | TorrentStatus | undefined,
 ): TorrentStatus => {
@@ -56,82 +53,13 @@ const normalizeErrorString = (value: unknown) => {
 const numOr = (value: unknown, fallback: number) =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
-type VerifyStateEntry = {
-    wasVerifying: boolean;
-    lastVerifyCompletedAt?: number;
-    lastDownloadStartedAt?: number;
-    lastDerivedState?: TorrentStatus;
-    noTrafficSince?: number;
-};
-
-// Session-scoped runtime cache.
-const verifyStateMap = new Map<string, VerifyStateEntry>();
-
 export function resetNormalizerRuntimeState() {
-    verifyStateMap.clear();
+    // No-op by contract.
+    // RPC normalization is limited to daemon-grounded truth only.
+    // UI-derived presentation states such as "stalled" are owned elsewhere.
 }
 
 const isCheckingStatusNum = (statusNum: unknown) => statusNum === 1 || statusNum === 2;
-
-const updateVerifyState = (idKey: string | null, currentlyVerifying: boolean, nowSeconds: number) => {
-    if (!idKey) return;
-    const entry = verifyStateMap.get(idKey) ?? {
-        wasVerifying: false,
-    };
-    const previouslyVerifying = entry.wasVerifying;
-    entry.wasVerifying = currentlyVerifying;
-    if (!entry.wasVerifying && previouslyVerifying) {
-        entry.lastVerifyCompletedAt = nowSeconds;
-    }
-    verifyStateMap.set(idKey, entry);
-};
-
-const hasRecentVerifyCompletion = (idKey: string | null, nowSeconds: number) => {
-    if (!idKey) return false;
-    const entry = verifyStateMap.get(idKey);
-    if (!entry || entry.lastVerifyCompletedAt === undefined) return false;
-    return nowSeconds - entry.lastVerifyCompletedAt < STALLED_GRACE_SECONDS;
-};
-
-/**
- * Stateless “post-verify grace” detection using Transmission truth.
- *
- * We avoid any local caches/maps. Instead, we treat "recent activity" as a grace window.
- * Transmission updates `activityDate` when meaningful torrent activity happens (including verify completion),
- * so we can delay STALLED classification shortly after that moment.
- *
- * If activityDate is missing/0, we fall back to addedDate-based grace (new torrents).
- */
-type ActivityInfo = {
-    activityDate?: number;
-    addedDate?: number;
-};
-
-const isWithinStallGraceWindow = (torrent: ActivityInfo) => {
-    const nowSeconds = Math.floor(Date.now() / 1000);
-
-    const activityDate =
-        typeof torrent.activityDate === "number" && Number.isFinite(torrent.activityDate)
-            ? Math.max(0, Math.floor(torrent.activityDate))
-            : undefined;
-
-    const addedDate =
-        typeof torrent.addedDate === "number" && Number.isFinite(torrent.addedDate)
-            ? Math.max(0, Math.floor(torrent.addedDate))
-            : undefined;
-
-    // Primary: grace after recent activity (covers “verify just completed” without stateful tracking)
-    if (typeof activityDate === "number") {
-        return nowSeconds - activityDate < STALLED_GRACE_SECONDS;
-    }
-
-    // Fallback: grace for newly added torrents
-    if (typeof addedDate === "number") {
-        return nowSeconds - addedDate < STALLED_GRACE_SECONDS;
-    }
-
-    return false;
-};
 
 export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTorrent): TorrentStatus => {
     const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
@@ -156,80 +84,11 @@ export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTor
         return base;
     }
 
-    // 🔒 4) Completed torrents are NEVER stalled
-    if (torrent.percentDone === 1) {
-        return status.torrent.seeding;
-    }
-
-    const down = numOr(torrent.rateDownload, 0);
-    const sendingToUs = numOr(torrent.peersSendingToUs, 0);
-
-    const idKey = torrent.hashString ?? String(torrent.id ?? "");
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    updateVerifyState(idKey || null, currentlyVerifying, nowSeconds);
-    const justCompletedVerify = hasRecentVerifyCompletion(idKey || null, nowSeconds);
-
-    const entry = idKey ? verifyStateMap.get(idKey) : undefined;
-    const lastDownloadStartedAt = entry?.lastDownloadStartedAt;
-    const justStartedDownloading =
-        typeof lastDownloadStartedAt === "number" && nowSeconds - lastDownloadStartedAt < STALLED_GRACE_SECONDS;
-
-    const isWithinGrace = isWithinStallGraceWindow(torrent) || justCompletedVerify || justStartedDownloading;
-
-    let derived = base;
-
-    if (base === status.torrent.downloading) {
-        const noTraffic = down === 0;
-        const noUploadingPeers = sendingToUs === 0;
-
-        // Strongly recommended: don’t call it “stalled” if there are zero peers.
-        // That’s not “stalled”; it’s “waiting / no peers”.
-        const peersConnected = numOr(torrent.peersConnected, 0);
-        const stallEligible = peersConnected > 0;
-
-        // Reset noTrafficSince whenever we have any sign of life or we’re in a protected window.
-        const shouldResetNoTraffic =
-            !noTraffic ||
-            !noUploadingPeers ||
-            statusIndicatesChecking ||
-            isVerifying ||
-            isWithinGrace ||
-            !stallEligible;
-
-        if (idKey) {
-            const e =
-                entry ??
-                ({
-                    wasVerifying: currentlyVerifying,
-                } as VerifyStateEntry);
-
-            if (shouldResetNoTraffic) {
-                e.noTrafficSince = undefined;
-                derived = status.torrent.downloading;
-            } else {
-                // Start timer on first observation, only emit STALLED if it persists long enough.
-                e.noTrafficSince ??= nowSeconds;
-
-                derived =
-                    nowSeconds - e.noTrafficSince >= STALLED_GRACE_SECONDS
-                        ? status.torrent.stalled
-                        : status.torrent.downloading;
-            }
-
-            // Keep your existing “download just started” marker if you still want it.
-            if (derived === status.torrent.downloading && e.lastDerivedState !== status.torrent.downloading) {
-                e.lastDownloadStartedAt = nowSeconds;
-            }
-
-            e.lastDerivedState = derived;
-            verifyStateMap.set(idKey, e);
-        } else {
-            // No idKey: be conservative
-            derived = status.torrent.downloading;
-        }
-    }
-
-    return derived;
+    // Contract:
+    // - RPC normalization exposes daemon-grounded state only.
+    // - UI-derived presentation states such as "stalled" are not assigned here.
+    // - Heartbeat transport policy may depend on these normalized states.
+    return torrent.percentDone === 1 ? status.torrent.seeding : base;
 };
 
 const mapPriority = (priority?: number): LibtorrentPriority => {

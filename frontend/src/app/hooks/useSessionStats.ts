@@ -1,8 +1,8 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { SessionStats } from "@/services/rpc/entities";
+import type { SessionStats, TorrentEntity } from "@/services/rpc/entities";
 import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import { isRpcCommandError } from "@/services/rpc/errors";
@@ -18,6 +18,39 @@ interface UseSessionStatsParams {
     sessionReady: boolean;
 }
 
+export const deriveLiveTransferRates = (
+    stats: SessionStats,
+    torrents: TorrentEntity[] | undefined,
+): SessionStats => {
+    if (!Array.isArray(torrents) || torrents.length === 0) {
+        return stats;
+    }
+
+    let downloadSpeed = 0;
+    let uploadSpeed = 0;
+
+    for (const torrent of torrents) {
+        if (torrent.isGhost) {
+            continue;
+        }
+        downloadSpeed += Math.max(0, torrent.speed.down);
+        uploadSpeed += Math.max(0, torrent.speed.up);
+    }
+
+    if (
+        downloadSpeed === stats.downloadSpeed &&
+        uploadSpeed === stats.uploadSpeed
+    ) {
+        return stats;
+    }
+
+    return {
+        ...stats,
+        downloadSpeed,
+        uploadSpeed,
+    };
+};
+
 export function useSessionStats({
     torrentClient,
     reportReadError,
@@ -29,6 +62,9 @@ export function useSessionStats({
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
     const [liveTransportStatus, setLiveTransportStatus] =
         useState<HeartbeatSource>("polling");
+    const lastHeartbeatTorrentsRef = useRef<TorrentEntity[] | undefined>(
+        undefined
+    );
     // TODO: With “RPC extensions: NONE”, HeartbeatSource must collapse to polling-only. Update this hook to:
     // TODO: - remove websocket-related source variants from the type
     // TODO: - avoid logging transport status transitions as an app concern
@@ -38,7 +74,12 @@ export function useSessionStats({
         try {
             const stats = await sessionDomain.getSessionStats();
             if (isMountedRef.current) {
-                setSessionStats(stats);
+                setSessionStats(
+                    deriveLiveTransferRates(
+                        stats,
+                        lastHeartbeatTorrentsRef.current
+                    )
+                );
             }
         } catch (error) {
             if (isMountedRef.current && !isRpcCommandError(error)) {
@@ -50,9 +91,10 @@ export function useSessionStats({
     useEffect(() => {
         if (!sessionReady) return;
         const subscription = heartbeatDomain.subscribeTable({
-            onUpdate: ({ sessionStats: stats, source }) => {
+            onUpdate: ({ sessionStats: stats, torrents, source }) => {
                 if (!isMountedRef.current || !stats) return;
-                setSessionStats(stats);
+                lastHeartbeatTorrentsRef.current = torrents;
+                setSessionStats(deriveLiveTransferRates(stats, torrents));
                 if (source) {
                     setLiveTransportStatus(source);
                 }
@@ -66,6 +108,13 @@ export function useSessionStats({
             subscription.unsubscribe();
         };
     }, [heartbeatDomain, isMountedRef, reportReadError, sessionReady]);
+
+    useEffect(() => {
+        if (sessionReady) {
+            return;
+        }
+        lastHeartbeatTorrentsRef.current = undefined;
+    }, [sessionReady]);
 
     return {
         sessionStats,
