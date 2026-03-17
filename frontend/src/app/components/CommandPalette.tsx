@@ -8,7 +8,7 @@ import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-import { registry } from "@/config/logic";
+import { getStatusRecipeText, registry } from "@/config/logic";
 import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
 import {
     commandReason,
@@ -18,14 +18,6 @@ const { visuals, visualizations } = registry;
 
 const commandActionExceptionReason = "exception" as const;
 type StatusRecipeKey = keyof typeof visuals.status.recipes;
-
-const getStatusRecipeText = (
-    key: StatusRecipeKey,
-    fallbackKey: StatusRecipeKey,
-) =>
-    visuals.status.recipes[key]?.text ??
-    visuals.status.recipes[fallbackKey]?.text ??
-    "";
 
 export type CommandActionOutcome =
     | TorrentCommandOutcome

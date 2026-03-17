@@ -15,6 +15,7 @@ import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import {
+    getVersionGatedSessionValue,
     getVersionGatedSettingsSupport,
     removeUnsupportedVersionGatedSettings,
 } from "@/services/rpc/version-support";
@@ -123,14 +124,13 @@ const mapSessionToConfig = (
         session["start-added-torrents"] ??
         DEFAULT_SETTINGS_CONFIG.start_added_torrents,
     sequential_download:
-        session["sequential_download"] ??
-        session.sequentialDownload ??
+        getVersionGatedSessionValue(session, "sequential_download") ??
         DEFAULT_SETTINGS_CONFIG.sequential_download,
     torrent_added_verify_mode:
-        session["torrent_added_verify_mode"] ??
+        getVersionGatedSessionValue(session, "torrent_added_verify_mode") ??
         DEFAULT_SETTINGS_CONFIG.torrent_added_verify_mode,
     torrent_complete_verify_enabled:
-        session["torrent_complete_verify_enabled"] ??
+        getVersionGatedSessionValue(session, "torrent_complete_verify_enabled") ??
         DEFAULT_SETTINGS_CONFIG.torrent_complete_verify_enabled,
     auto_open_ui: session.ui?.autoOpen ?? DEFAULT_SETTINGS_CONFIG.auto_open_ui,
     autorun_hidden:

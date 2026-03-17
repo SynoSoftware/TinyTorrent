@@ -9,7 +9,10 @@ import {
     cn,
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
-import type { CapabilityState } from "@/app/types/capabilities";
+import {
+    getCapabilityUiState,
+    type CapabilityState,
+} from "@/app/types/capabilities";
 import {
     CONTEXT_MENU as contextMenuStyles,
     FORM_CONTROL as formControlStyles,
@@ -147,6 +150,9 @@ function TorrentTable_RowMenuInner({
     const { clipboardWriteSupported, canOpenFolder } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
     const shouldShowOpenFolder = canOpenFolder;
+    const sequentialUiState = getCapabilityUiState(
+        sequentialDownloadCapability,
+    );
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
@@ -229,7 +235,7 @@ function TorrentTable_RowMenuInner({
             )),
         );
 
-        if (sequentialDownloadCapability === "supported") {
+        if (sequentialUiState.supported) {
             const sequentialEnabled = Boolean(
                 contextTorrent.sequentialDownload,
             );
@@ -374,7 +380,7 @@ function TorrentTable_RowMenuInner({
         getContextMenuShortcut,
         handleMenuActionPress,
         contextTorrent.sequentialDownload,
-        sequentialDownloadCapability,
+        sequentialUiState.supported,
         setLocationPolicy.actionLabelKey,
         t,
     ]);

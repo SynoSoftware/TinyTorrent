@@ -9,7 +9,7 @@ import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
-import { registry } from "@/config/logic";
+import { getStatusRecipeText, registry } from "@/config/logic";
 import { status as appStatus } from "@/shared/status";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
@@ -42,14 +42,6 @@ const RPC_STATUS_LABEL: Record<string, string> = {
     [appStatus.connection.error]: "status_bar.rpc_error",
 };
 type StatusRecipeKey = keyof typeof visuals.status.recipes;
-
-const getStatusRecipeText = (
-    key: StatusRecipeKey,
-    fallbackKey: StatusRecipeKey,
-) =>
-    visuals.status.recipes[key]?.text ??
-    visuals.status.recipes[fallbackKey]?.text ??
-    "";
 
 /* ------------------------------------------------------------------ */
 /* TYPES */

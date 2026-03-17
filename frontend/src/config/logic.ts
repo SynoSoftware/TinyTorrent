@@ -1040,6 +1040,11 @@ const statusVisuals = {
     StatusVisualRecipe
 >;
 
+export const getStatusRecipeText = (
+    key: keyof typeof statusVisuals,
+    fallbackKey: keyof typeof statusVisuals,
+) => statusVisuals[key]?.text ?? statusVisuals[fallbackKey]?.text ?? "";
+
 /* =========================================
    DOMAIN: PERFORMANCE
 ========================================= */

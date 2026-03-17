@@ -1,13 +1,11 @@
-const isWindowsDriveRoot = (value: string) => /^[a-zA-Z]:[/\\]?$/.test(value);
-
-const isUncRoot = (value: string) => /^\\\\[^/\\]+\\[^/\\]+[/\\]?$/.test(value);
+import { isWindowsRootPath } from "@/shared/utils/pathUtils";
 
 export const normalizeDownloadPathHistoryEntry = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
         return "";
     }
-    if (trimmed === "/" || isWindowsDriveRoot(trimmed) || isUncRoot(trimmed)) {
+    if (trimmed === "/" || isWindowsRootPath(trimmed)) {
         return trimmed.replace(/\//g, "\\");
     }
 

@@ -76,23 +76,6 @@ const READ_ONLY_RPC_METHODS = new Set([
 ]);
 const READ_ONLY_RPC_RESPONSE_TTL_MS = performance.readRpcCacheTtlMs;
 
-const supportsTransmissionSequentialDownload = (
-    settings: TransmissionSessionSettings,
-    torrents?: TransmissionTorrent[] | null,
-) =>
-    getSequentialDownloadCapabilityState({
-        session: settings,
-        torrents,
-    }) === "supported";
-
-const filterSequentialDownloadPayload = (
-    settings: TransmissionSessionSettings,
-    payload: AddTorrentPayload,
-) =>
-    isVersionGatedSettingSupported(settings, "sequential_download")
-        ? payload
-        : { ...payload, sequentialDownload: undefined };
-
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
 
@@ -888,10 +871,10 @@ export class TransmissionAdapter implements EngineAdapter {
             name: "Transmission",
             version,
             capabilities: {
-                sequentialDownload: supportsTransmissionSequentialDownload(
-                    settings,
-                    null,
-                ),
+                sequentialDownload:
+                    getSequentialDownloadCapabilityState({
+                        session: settings,
+                    }) === "supported",
                 superSeeding: false,
                 trackerReannounce: true,
             },
@@ -1285,40 +1268,42 @@ export class TransmissionAdapter implements EngineAdapter {
     ): Promise<AddTorrentResult> {
         const currentSettings =
             this.sessionSettingsCache ?? (await this.fetchSessionSettings());
-        const nextPayload = filterSequentialDownloadPayload(
+        const sequentialDownload = isVersionGatedSettingSupported(
             currentSettings,
-            payload,
-        );
+            "sequential_download",
+        )
+            ? payload.sequentialDownload
+            : undefined;
         const args: Record<string, unknown> = {
-            paused: nextPayload.paused,
+            paused: payload.paused,
         };
-        if (typeof nextPayload.sequentialDownload === "boolean") {
-            args.sequential_download = nextPayload.sequentialDownload;
+        if (typeof sequentialDownload === "boolean") {
+            args.sequential_download = sequentialDownload;
         }
-        if (nextPayload.downloadDir?.trim()) {
-            args["download-dir"] = nextPayload.downloadDir;
+        if (payload.downloadDir?.trim()) {
+            args["download-dir"] = payload.downloadDir;
         }
-        if (nextPayload.metainfoPath) {
-            args["metainfo-path"] = nextPayload.metainfoPath;
-        } else if (nextPayload.metainfo) {
-            args.metainfo = nextPayload.metainfo;
-        } else if (nextPayload.magnetLink) {
-            args.filename = nextPayload.magnetLink;
+        if (payload.metainfoPath) {
+            args["metainfo-path"] = payload.metainfoPath;
+        } else if (payload.metainfo) {
+            args.metainfo = payload.metainfo;
+        } else if (payload.magnetLink) {
+            args.filename = payload.magnetLink;
         } else {
             throw new Error("No torrent source provided");
         }
-        if (nextPayload.filesUnwanted?.length) {
-            args["files-unwanted"] = nextPayload.filesUnwanted;
+        if (payload.filesUnwanted?.length) {
+            args["files-unwanted"] = payload.filesUnwanted;
         }
 
-        if (nextPayload.priorityHigh?.length) {
-            args["priority-high"] = nextPayload.priorityHigh;
+        if (payload.priorityHigh?.length) {
+            args["priority-high"] = payload.priorityHigh;
         }
-        if (nextPayload.priorityNormal?.length) {
-            args["priority-normal"] = nextPayload.priorityNormal;
+        if (payload.priorityNormal?.length) {
+            args["priority-normal"] = payload.priorityNormal;
         }
-        if (nextPayload.priorityLow?.length) {
-            args["priority-low"] = nextPayload.priorityLow;
+        if (payload.priorityLow?.length) {
+            args["priority-low"] = payload.priorityLow;
         }
 
         const response = await this.send(

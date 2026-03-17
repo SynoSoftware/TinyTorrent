@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
 import type { Table } from "@tanstack/react-table";
 import { useMemo, type RefObject } from "react";
-import { registry } from "@/config/logic";
+import { getStatusRecipeText, registry } from "@/config/logic";
 import { status } from "@/shared/status";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -98,11 +98,10 @@ export function TorrentTable_SpeedCell({
             : speedState === "seed"
               ? visuals.status.keys.speed.seed
               : visuals.status.keys.speed.idle;
-    const idleSpeedColorClass =
-        visuals.status.recipes[visuals.status.keys.speed.idle]!.text;
-    const speedColorClass =
-        visuals.status.recipes[speedColorKey]?.text ??
-        idleSpeedColorClass;
+    const speedColorClass = getStatusRecipeText(
+        speedColorKey,
+        visuals.status.keys.speed.idle,
+    );
 
     return (
         <div className={TABLE.speedCell.root}>

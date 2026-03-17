@@ -3,7 +3,7 @@ import type { TransmissionSessionSettings, TransmissionTorrent } from "@/service
 // Single authority for protocol feature support resolution.
 // Future Transmission RPC feature changes must be modeled here by:
 // 1. adding the feature key to `VersionGatedSettingKey`
-// 2. adding its minimum-version fallback to `versionGatedSettings`
+// 2. adding its minimum-version fallback to `versionGatedSettingsSpecs`
 // 3. adding explicit evidence collection before version fallback where possible
 // No UI/component/view-model layer may introduce parallel version or field checks.
 
@@ -56,13 +56,9 @@ const versionGatedSettingsSpecs = {
     }
 >;
 
-export const versionGatedSettings: Record<VersionGatedSettingKey, VersionRequirement> = Object.fromEntries(
-    Object.entries(versionGatedSettingsSpecs).map(([key, spec]) => [key, { minimum: spec.minimum }]),
-) as Record<VersionGatedSettingKey, VersionRequirement>;
-
 type CapabilityEvidence = boolean | null | undefined;
 
-type SequentialDownloadEvidenceParams = {
+type VersionGatedSupportParams = {
     session: TransmissionSessionSettings | null | undefined;
     torrents?: Array<Pick<TransmissionTorrent, "sequentialDownload" | "sequential_download">> | null;
 };
@@ -130,9 +126,26 @@ const hasAnyAlias = <TObject extends object>(
     return aliases.some((alias) => alias in value);
 };
 
+const getAliasedValue = <TObject extends object>(
+    value: TObject | null | undefined,
+    aliases: readonly (keyof TObject)[],
+) => {
+    if (!value) {
+        return undefined;
+    }
+
+    for (const alias of aliases) {
+        if (alias in value) {
+            return value[alias];
+        }
+    }
+
+    return undefined;
+};
+
 const getVersionGatedSettingState = (
     key: VersionGatedSettingKey,
-    params: SequentialDownloadEvidenceParams,
+    params: VersionGatedSupportParams,
 ): VersionSupportState => {
     const spec = versionGatedSettingsSpecs[key];
     return resolveCapability({
@@ -146,7 +159,26 @@ const getVersionGatedSettingState = (
     });
 };
 
-export const getSequentialDownloadCapabilityState = (params: SequentialDownloadEvidenceParams) =>
+export function getVersionGatedSessionValue(
+    session: TransmissionSessionSettings | null | undefined,
+    key: "sequential_download",
+): boolean | undefined;
+export function getVersionGatedSessionValue(
+    session: TransmissionSessionSettings | null | undefined,
+    key: "torrent_added_verify_mode",
+): "fast" | "full" | undefined;
+export function getVersionGatedSessionValue(
+    session: TransmissionSessionSettings | null | undefined,
+    key: "torrent_complete_verify_enabled",
+): boolean | undefined;
+export function getVersionGatedSessionValue(
+    session: TransmissionSessionSettings | null | undefined,
+    key: VersionGatedSettingKey,
+) {
+    return getAliasedValue(session, versionGatedSettingsSpecs[key].aliases);
+}
+
+export const getSequentialDownloadCapabilityState = (params: VersionGatedSupportParams) =>
     getVersionGatedSettingState("sequential_download", params);
 
 export const isVersionGatedSettingSupported = (
@@ -160,13 +192,15 @@ export const isVersionGatedSettingSupported = (
 
 export const getVersionGatedSettingsSupport = (
     session: TransmissionSessionSettings | null | undefined,
-): VersionGatedSettingSupport =>
-    Object.fromEntries(
+): VersionGatedSettingSupport => {
+    const detectedVersion = getDetectedSessionVersion(session);
+
+    return Object.fromEntries(
         (Object.keys(versionGatedSettingsSpecs) as VersionGatedSettingKey[]).map((key) => [
             key,
             {
                 minimum: versionGatedSettingsSpecs[key].minimum,
-                detectedVersion: getDetectedSessionVersion(session),
+                detectedVersion,
                 state: getVersionGatedSettingState(key, {
                     session,
                     torrents: null,
@@ -174,6 +208,7 @@ export const getVersionGatedSettingsSupport = (
             },
         ]),
     ) as VersionGatedSettingSupport;
+};
 
 export const removeUnsupportedVersionGatedSettings = (
     settings: Partial<TransmissionSessionSettings>,

@@ -317,10 +317,7 @@ export const useTorrentDetailTabCoordinator = ({
         [surfaces],
     );
 
-    const visibleTabIds = useMemo(
-        () => visibleTabDefs.map(({ id }) => id),
-        [visibleTabDefs],
-    );
+    const visibleTabIds = visibleTabDefs.map(({ id }) => id);
 
     useEffect(() => {
         if (!visibleTabIds.length) {

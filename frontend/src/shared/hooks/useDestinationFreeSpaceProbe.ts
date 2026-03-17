@@ -36,6 +36,15 @@ export interface UseDestinationFreeSpaceProbeParams {
     debounceMs: number;
 }
 
+const IDLE_SNAPSHOT: DestinationFreeSpaceProbeSnapshot = {
+    key: null,
+    status: "idle",
+    reason: null,
+    freeSpace: null,
+    probeWarning: null,
+    isFresh: false,
+};
+
 const resolvePosixProbeResult = async (
     normalizedPath: string,
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>,
@@ -87,15 +96,15 @@ export const useDestinationFreeSpaceProbe = ({
     const probeEpochRef = useRef(0);
     const probeRunIdRef = useRef(0);
     const [snapshot, setSnapshot] = useState<DestinationFreeSpaceProbeSnapshot>(
-        {
-            key: null,
-            status: "idle",
-            reason: null,
-            freeSpace: null,
-            probeWarning: null,
-            isFresh: false,
-        },
+        IDLE_SNAPSHOT,
     );
+
+    const setIdleSnapshot = (fresh: boolean) => {
+        setSnapshot({
+            ...IDLE_SNAPSHOT,
+            isFresh: fresh,
+        });
+    };
 
     const probeKey =
         shouldProbe && probeRoot
@@ -125,14 +134,7 @@ export const useDestinationFreeSpaceProbe = ({
                 probeRunIdRef.current += 1;
             }
             return scheduler.scheduleTimeout(() => {
-                setSnapshot({
-                    key: null,
-                    status: "idle",
-                    reason: null,
-                    freeSpace: null,
-                    probeWarning: null,
-                    isFresh: isOpen,
-                });
+                setIdleSnapshot(isOpen);
             }, 0);
         }
 

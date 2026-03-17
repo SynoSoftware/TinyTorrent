@@ -47,24 +47,23 @@ export interface DashboardViewModelParams {
     isInitialLoadFinished: boolean;
     optimisticStatuses: OptimisticStatusMap;
     removedIds: Set<string>;
-    selectedIds: string[];
     detailData: TorrentDetail | null;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
-    sequentialDownloadCapability: DashboardViewModel["detail"]["tabs"]["general"]["sequentialDownloadCapability"];
-    generalSetLocation: DashboardViewModel["detail"]["tabs"]["general"]["setLocation"];
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
-    handleTorrentAction: DashboardViewModel["detail"]["tabs"]["general"]["handleTorrentAction"];
-    handleSequentialToggle: DashboardViewModel["detail"]["tabs"]["general"]["handleSequentialToggle"];
+    generalTab: Omit<
+        DashboardViewModel["detail"]["tabs"]["general"],
+        "sequentialDownloadCapability"
+    >;
     handleFileSelectionChange: (
         indexes: number[],
         wanted: boolean,
     ) => Promise<void>;
-    addTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["addTrackers"];
-    removeTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["removeTrackers"];
-    setTrackerList: DashboardViewModel["detail"]["tabs"]["trackers"]["setTrackerList"];
-    reannounceTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["reannounce"];
+    trackerCommands: Omit<
+        DashboardViewModel["detail"]["tabs"]["trackers"],
+        "torrentId"
+    >;
     setInspectorTabCommand: (value: DetailTab | null) => void;
     capabilities: CapabilityStore;
 }
@@ -83,20 +82,16 @@ export function useDashboardViewModel({
     detailData,
     peerSortStrategy,
     inspectorTabCommand,
-    sequentialDownloadCapability,
-    generalSetLocation,
     handleRequestDetails,
     closeDetail,
-    handleTorrentAction,
-    handleSequentialToggle,
+    generalTab,
     handleFileSelectionChange,
-    addTrackers,
-    removeTrackers,
-    setTrackerList,
-    reannounceTrackers,
+    trackerCommands,
     setInspectorTabCommand,
     capabilities,
 }: DashboardViewModelParams): DashboardViewModel {
+    const detailTrackerId = detailData?.id ?? detailData?.hash ?? null;
+
     return useMemo(
         () => ({
             workspaceStyle,
@@ -130,24 +125,17 @@ export function useDashboardViewModel({
                             setInspectorTabCommand(null),
                     },
                     general: {
-                        sequentialDownloadCapability,
-                        handleTorrentAction,
-                        handleSequentialToggle,
-                        setLocation: generalSetLocation,
+                        sequentialDownloadCapability:
+                            capabilities.sequentialDownload,
+                        ...generalTab,
                     },
                     content: {
                         handleFileSelectionChange,
                     },
-                    trackers: (() => {
-                        const inspectedId = detailData?.id ?? detailData?.hash;
-                        return {
-                            torrentId: inspectedId ?? null,
-                            addTrackers,
-                            removeTrackers,
-                            setTrackerList,
-                            reannounce: reannounceTrackers,
-                        };
-                    })(),
+                    trackers: {
+                        torrentId: detailTrackerId,
+                        ...trackerCommands,
+                    },
                     peers: {
                         peerSortStrategy,
                         handlePeerContextAction: undefined,
@@ -172,15 +160,10 @@ export function useDashboardViewModel({
             closeDetail,
             inspectorTabCommand,
             setInspectorTabCommand,
-            sequentialDownloadCapability,
-            generalSetLocation,
-            handleTorrentAction,
-            handleSequentialToggle,
+            generalTab,
             handleFileSelectionChange,
-            addTrackers,
-            removeTrackers,
-            setTrackerList,
-            reannounceTrackers,
+            detailTrackerId,
+            trackerCommands,
             peerSortStrategy,
         ],
     );

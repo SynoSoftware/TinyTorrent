@@ -120,6 +120,20 @@ export const extractWindowsRoot = (path: string): string | null => {
     return `\\\\${segments[0].toLowerCase()}\\${segments[1].toLowerCase()}`;
 };
 
+export const isWindowsRootPath = (path: string): boolean => {
+    const trimmed = path.trim();
+    if (!trimmed) {
+        return false;
+    }
+
+    const root = extractWindowsRoot(trimmed);
+    if (!root) {
+        return false;
+    }
+
+    return trimmed.replace(/\//g, "\\").toLowerCase() === root.toLowerCase();
+};
+
 const isWindowsSegmentSyntacticallyValid = (segment: string): boolean => {
     if (!segment || segment === "." || segment === "..") {
         return true;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    getVersionGatedSessionValue,
     getSequentialDownloadCapabilityState,
     getVersionGatedSettingsSupport,
     removeUnsupportedVersionGatedSettings,
@@ -84,5 +85,25 @@ describe("version support resolver", () => {
         );
 
         expect(filtered).toEqual({});
+    });
+
+    it("reads aliased sequential session fields from one authority", () => {
+        expect(
+            getVersionGatedSessionValue(
+                {
+                    sequentialDownload: true,
+                },
+                "sequential_download",
+            ),
+        ).toBe(true);
+
+        expect(
+            getVersionGatedSessionValue(
+                {
+                    "sequential_download": false,
+                },
+                "sequential_download",
+            ),
+        ).toBe(false);
     });
 });

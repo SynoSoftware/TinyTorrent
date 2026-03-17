@@ -1,5 +1,8 @@
 import { useCallback } from "react";
-import type { CapabilityState } from "@/app/types/capabilities";
+import {
+    getCapabilityUiState,
+    type CapabilityState,
+} from "@/app/types/capabilities";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import {
     isQueueTableAction,
@@ -76,6 +79,9 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
     const { selectedIds } = useSelection();
     const { canOpenFolder } = useUiModeCapabilities();
     const handleOpenFolder = useOpenTorrentFolder();
+    const sequentialUiState = getCapabilityUiState(
+        sequentialDownloadCapability,
+    );
 
     const executeTableAction = useCallback(
         async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
@@ -128,7 +134,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
                     );
                 }
                 if (key === rowMenuKey.toggleSequentialDownload) {
-                    if (sequentialDownloadCapability !== "supported") {
+                    if (!sequentialUiState.supported) {
                         return closeWithOutcome(commandOutcome.unsupported());
                     }
                     const outcome = await setSequentialDownload(
@@ -213,7 +219,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             canOpenFolder,
             handleOpenFolder,
             executeTableAction,
-            sequentialDownloadCapability,
+            sequentialUiState.supported,
             setSequentialDownload,
         ],
     );
