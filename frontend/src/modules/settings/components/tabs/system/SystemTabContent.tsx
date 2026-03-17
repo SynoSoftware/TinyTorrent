@@ -11,7 +11,7 @@ import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { FORM } from "@/shared/ui/layout/glass-surface";
-const { layout, shell, visuals, ui } = registry;
+const { visuals } = registry;
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).

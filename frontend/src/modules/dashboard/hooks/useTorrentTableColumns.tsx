@@ -9,7 +9,7 @@ import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentT
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { RefObject } from "react";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 export function useTorrentTableColumns({
     t,

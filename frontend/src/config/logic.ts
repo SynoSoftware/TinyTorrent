@@ -534,6 +534,52 @@ const textRoleTokens = {
     helper: "text-label text-foreground/60",
 } as const;
 
+const workspaceHudVisuals = {
+    drop: {
+        active: {
+            surface: "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent",
+            iconBg: "bg-primary/15 text-primary",
+        },
+        idle: {
+            surface: "bg-gradient-to-br from-content1/10 via-content1/5 to-transparent",
+            iconBg: "bg-foreground/10 text-foreground/60",
+        },
+    },
+    deepLink: {
+        idle: {
+            surface: "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent",
+            iconBg: "bg-foreground/10 text-foreground/60",
+        },
+    },
+} as const;
+
+const trackerTableVisuals = {
+    headerCell: "bg-content1/80 backdrop-blur-sm",
+    headerButton:
+        "text-inherit transition-colors hover:text-foreground/80 whitespace-normal break-words",
+    rowSelected: "surface-layer-1 outline outline-1 -outline-offset-1 outline-primary/20",
+    bodyCell: "border-b border-default/5",
+    trackerCell: "font-medium text-foreground/85",
+    tierCell: "text-foreground/60",
+    metricCell: "text-foreground/70",
+    timeCell: "text-foreground/60",
+    messageCell: "text-foreground/55",
+    tierBadge: "text-label font-semibold text-foreground/65",
+    modalError: "text-danger",
+    statusDot: {
+        success: "size-dot rounded-full shadow-dot bg-success shadow-success/50",
+        warning: "size-dot rounded-full shadow-dot bg-warning shadow-warning/50",
+        danger: "size-dot rounded-full surface-layer-1 border border-danger/45",
+        neutral: "size-dot rounded-full surface-layer-1 border border-default/20",
+    },
+} as const;
+
+const addTorrentFileIconVisuals = {
+    video: "text-primary",
+    text: "text-foreground/40",
+    generic: "text-foreground/40",
+} as const;
+
 const statusChipStyle = {
     width: "var(--tt-status-chip-w)",
     minWidth: "var(--tt-status-chip-w)",
@@ -1065,6 +1111,11 @@ const visuals = {
         strokeWidth: iconTokens.strokeWidth,
         strokeWidthDense: iconTokens.strokeWidthDense,
     },
+    workspace: {
+        hud: workspaceHudVisuals,
+    },
+    trackerTable: trackerTableVisuals,
+    fileIcons: addTorrentFileIconVisuals,
 } as const;
 
 /* =========================================

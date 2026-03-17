@@ -30,6 +30,7 @@ export interface TransmissionTorrent {
     peersSendingToUs?: number;
     peersGettingFromUs?: number;
     isFinished?: boolean;
+    "sequential_download"?: boolean;
     sequentialDownload?: boolean;
     superSeeding?: boolean;
     activityDate?: number;
@@ -143,13 +144,18 @@ export interface TransmissionSessionSettings {
     "incomplete-dir"?: string;
     "rename-partial-files"?: boolean;
     "start-added-torrents"?: boolean;
+    "torrent_added_verify_mode"?: "fast" | "full";
+    "torrent_complete_verify_enabled"?: boolean;
     seedRatioLimit?: number;
     seedRatioLimited?: boolean;
     "idle-seeding-limit"?: number;
     "idle-seeding-limit-enabled"?: boolean;
+    "sequential_download"?: boolean;
+    sequentialDownload?: boolean;
     version?: string;
     platform?: string;
     "rpc-version"?: number;
+    "rpc-version-semver"?: string;
     ui?: {
         autoOpen?: boolean;
         autorunHidden?: boolean;

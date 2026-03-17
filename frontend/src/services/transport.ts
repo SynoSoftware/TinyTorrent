@@ -1,7 +1,7 @@
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
 import { registry } from "@/config/logic";
-const { performance, ui } = registry;
+const { performance } = registry;
 
 export type TransportOutcomeKind =
     | "ok"

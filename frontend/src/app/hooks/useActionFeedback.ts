@@ -4,7 +4,7 @@ import { addToast, closeToast } from "@heroui/toast";
 
 import type { FeedbackTone } from "@/shared/types/feedback";
 import { registry } from "@/config/logic";
-const { timing, ui } = registry;
+const { timing } = registry;
 
 type FeedbackDescriptor = {
     key: string;

@@ -1,5 +1,4 @@
 import { Shortcuts } from "@/app/controlPlane/shortcuts";
-import { status } from "@/shared/status";
 import { isTorrentPausableState } from "@/modules/dashboard/utils/torrentStatus";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type {

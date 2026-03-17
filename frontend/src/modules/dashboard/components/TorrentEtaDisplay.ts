@@ -11,7 +11,7 @@ const hasMeaningfulEta = (torrent: Torrent) =>
 export const getTorrentEtaSortValue = (torrent: Torrent) =>
     hasMeaningfulEta(torrent) ? torrent.eta : Number.MAX_SAFE_INTEGER;
 
-export const getTorrentEtaDisplay = (torrent: Torrent, t: TFunction) => {
+const getUnavailableEtaDisplay = (torrent: Torrent, t: TFunction) => {
     if (torrent.state === status.torrent.checking) {
         return {
             value: "-",
@@ -33,9 +33,31 @@ export const getTorrentEtaDisplay = (torrent: Torrent, t: TFunction) => {
         } as const;
     }
 
+    return null;
+};
+
+export const getTorrentEtaDisplay = (torrent: Torrent, t: TFunction) => {
+    const unavailable = getUnavailableEtaDisplay(torrent, t);
+    if (unavailable) {
+        return unavailable;
+    }
+
     const relativeLabel = formatTime(torrent.eta);
     return {
         value: formatEtaAbsolute(torrent.eta),
         tooltip: t("table.eta", { time: relativeLabel }),
+    } as const;
+};
+
+export const getTorrentEtaTableDisplay = (torrent: Torrent, t: TFunction) => {
+    const unavailable = getUnavailableEtaDisplay(torrent, t);
+    if (unavailable) {
+        return unavailable;
+    }
+
+    const absoluteLabel = formatEtaAbsolute(torrent.eta);
+    return {
+        value: formatTime(torrent.eta),
+        tooltip: t("table.eta", { time: absoluteLabel }),
     } as const;
 };

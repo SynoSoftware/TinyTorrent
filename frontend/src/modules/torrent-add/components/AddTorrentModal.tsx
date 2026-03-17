@@ -2,6 +2,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
@@ -31,10 +32,9 @@ export interface AddTorrentModalProps {
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
-    skipHashCheck: boolean;
+    sequentialDownloadCapability: CapabilityState;
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     onSequentialDownloadChange: (value: boolean) => void;
-    onSkipHashCheckChange: (value: boolean) => void;
     onCancel: () => void;
     onConfirm: (selection: AddTorrentSelection) => Promise<AddTorrentCommandOutcome>;
 }
@@ -58,10 +58,9 @@ export function AddTorrentModal({
     downloadDir,
     commitMode,
     sequentialDownload,
-    skipHashCheck,
+    sequentialDownloadCapability,
     onCommitModeChange,
     onSequentialDownloadChange,
-    onSkipHashCheckChange,
     onCancel,
     onConfirm,
 }: AddTorrentModalProps) {
@@ -70,12 +69,10 @@ export function AddTorrentModal({
         commitMode,
         downloadDir,
         sequentialDownload,
-        skipHashCheck,
         isOpen,
         onCancel,
         onConfirm,
         onSequentialDownloadChange,
-        onSkipHashCheckChange,
         source,
     });
     const {
@@ -229,11 +226,10 @@ export function AddTorrentModal({
             setStartPaused: (next: boolean) =>
                 onCommitModeChange(next ? "paused" : "start"),
             showTransferFlags: true,
+            sequentialDownloadCapability,
             autoFocusDestination: source?.kind !== "magnet",
             sequential: settings.sequential,
-            skipHashCheck: settings.skipHashCheck,
             setSequential: settings.setSequential,
-            setSkipHashCheck: settings.setSkipHashCheck,
         }),
         [
             dragDrop.handleDrop,
@@ -243,11 +239,10 @@ export function AddTorrentModal({
             destination.step2Feedback,
             commitMode,
             onCommitModeChange,
+            sequentialDownloadCapability,
             source?.kind,
             settings.sequential,
-            settings.skipHashCheck,
             settings.setSequential,
-            settings.setSkipHashCheck,
         ],
     );
     const fileTable = useMemo(

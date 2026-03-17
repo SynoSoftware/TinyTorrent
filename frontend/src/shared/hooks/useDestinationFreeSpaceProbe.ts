@@ -124,15 +124,16 @@ export const useDestinationFreeSpaceProbe = ({
             if (!isOpen) {
                 probeRunIdRef.current += 1;
             }
-            setSnapshot({
-                key: null,
-                status: "idle",
-                reason: null,
-                freeSpace: null,
-                probeWarning: null,
-                isFresh: !isOpen ? false : true,
-            });
-            return;
+            return scheduler.scheduleTimeout(() => {
+                setSnapshot({
+                    key: null,
+                    status: "idle",
+                    reason: null,
+                    freeSpace: null,
+                    probeWarning: null,
+                    isFresh: isOpen,
+                });
+            }, 0);
         }
 
         const runId = probeRunIdRef.current + 1;

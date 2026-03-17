@@ -47,6 +47,7 @@ type DispatchableIntentType =
     | "ENSURE_TORRENT_VALID"
     | "TORRENT_ADD_TRACKER"
     | "TORRENT_REMOVE_TRACKER"
+    | "TORRENT_SET_TRACKER_LIST"
     | "TORRENT_REANNOUNCE"
     | "SET_TORRENT_FILES_WANTED"
     | "SET_TORRENT_SEQUENTIAL"
@@ -143,55 +144,26 @@ const runQueueMove = async (intent: QueueMoveIntent, context: DispatchContext): 
 };
 
 const runAddTorrentFromFile = async (intent: DispatchIntentByType<"ADD_TORRENT_FROM_FILE">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
-    const shouldStart = !intent.paused;
-    const verifyBeforeStart = shouldStart && intent.skipHashCheck === false;
-    const addPaused = verifyBeforeStart ? true : intent.paused;
-
-    const result = await context.client.addTorrent({
+    await context.client.addTorrent({
         metainfo: intent.metainfoBase64,
         downloadDir: intent.downloadDir,
-        paused: addPaused,
+        paused: intent.paused,
+        sequentialDownload: intent.sequentialDownload,
         filesUnwanted: intent.filesUnwanted,
         priorityHigh: intent.priorityHigh,
         priorityNormal: intent.priorityNormal,
         priorityLow: intent.priorityLow,
     });
-
-    if (intent.sequentialDownload && context.client.setSequentialDownload) {
-        await context.client.setSequentialDownload(result.id, true);
-    }
-
-    if (verifyBeforeStart) {
-        await context.client.verify([result.id]);
-        // Wait for the hash check to finish before resuming.
-        // Without this, torrent-start fires while Transmission is
-        // still verifying and can abort the recheck.
-        await watchVerifyCompletion(context.client, String(result.id));
-        await context.client.resume([result.id]);
-    }
     return dispatchOutcome.applied();
 };
 
 const runAddMagnetTorrent = async (intent: DispatchIntentByType<"ADD_MAGNET_TORRENT">, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
-    const shouldStart = !intent.paused;
-    const verifyBeforeStart = shouldStart && intent.skipHashCheck === false;
-    const addPaused = verifyBeforeStart ? true : intent.paused;
-
-    const result = await context.client.addTorrent({
+    await context.client.addTorrent({
         magnetLink: intent.magnetLink,
-        paused: addPaused,
+        paused: intent.paused,
         downloadDir: intent.downloadDir,
+        sequentialDownload: intent.sequentialDownload,
     });
-
-    if (intent.sequentialDownload && context.client.setSequentialDownload) {
-        await context.client.setSequentialDownload(result.id, true);
-    }
-
-    if (verifyBeforeStart) {
-        await context.client.verify([result.id]);
-        await watchVerifyCompletion(context.client, String(result.id));
-        await context.client.resume([result.id]);
-    }
 
     return dispatchOutcome.applied();
 };
@@ -335,6 +307,26 @@ const dispatchHandlers: DispatchHandlerTable = {
                 return dispatchOutcome.methodMissing();
             }
             await reannounce.bind(context.client)(String(intent.torrentId));
+            return dispatchOutcome.applied();
+        },
+        refresh: {
+            refreshDetail: true,
+        },
+    },
+    TORRENT_SET_TRACKER_LIST: {
+        run: async (intent, context) => {
+            const setTrackerList = requireClientMethod(
+                context.client,
+                "setTrackerList",
+            );
+            if (typeof setTrackerList !== "function") {
+                return dispatchOutcome.methodMissing();
+            }
+            await setTrackerList
+                .bind(context.client)(
+                    String(intent.torrentId),
+                    intent.trackerList,
+                );
             return dispatchOutcome.applied();
         },
         refresh: {

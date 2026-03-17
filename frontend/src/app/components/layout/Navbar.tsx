@@ -16,7 +16,7 @@ import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
-const { layout, shell, visuals, ui } = registry;
+const { shell, visuals } = registry;
 
 interface NavbarProps {
     viewModel: NavbarViewModel;

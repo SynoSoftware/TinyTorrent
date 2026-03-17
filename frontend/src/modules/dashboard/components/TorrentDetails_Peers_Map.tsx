@@ -13,7 +13,7 @@ import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-const { layout, visuals, visualizations, ui } = registry;
+const { visuals, visualizations } = registry;
 
 // Scheduling: the shared scheduler now drives `useUiClock()` so redraw cadence updates stay centralized and predictable.
 

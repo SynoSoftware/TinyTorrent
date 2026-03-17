@@ -140,6 +140,7 @@ export interface AddTorrentPayload {
     metainfoPath?: string;
     downloadDir?: string;
     paused?: boolean;
+    sequentialDownload?: boolean;
     filesUnwanted?: number[];
     priorityHigh?: number[];
     priorityNormal?: number[];

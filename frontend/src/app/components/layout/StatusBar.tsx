@@ -22,7 +22,7 @@ import type {
     StatusBarViewModel,
 } from "@/app/viewModels/useAppViewModel";
 import type { StatusIconProps } from "@/shared/ui/components/StatusIcon";
-const { layout, shell, visuals, ui } = registry;
+const { shell, visuals, ui } = registry;
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -41,6 +41,15 @@ const RPC_STATUS_LABEL: Record<string, string> = {
     [appStatus.connection.idle]: "status_bar.rpc_idle",
     [appStatus.connection.error]: "status_bar.rpc_error",
 };
+type StatusRecipeKey = keyof typeof visuals.status.recipes;
+
+const getStatusRecipeText = (
+    key: StatusRecipeKey,
+    fallbackKey: StatusRecipeKey,
+) =>
+    visuals.status.recipes[key]?.text ??
+    visuals.status.recipes[fallbackKey]?.text ??
+    "";
 
 /* ------------------------------------------------------------------ */
 /* TYPES */
@@ -112,7 +121,7 @@ function TelemetryIcon({
                 ? appStatus.connection.error
                 : visuals.status.keys.tone.muted;
     const toneClass =
-        visuals.status.recipes[toneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.muted]?.text ?? "text-foreground/30";
+        getStatusRecipeText(toneKey, visuals.status.keys.tone.muted);
 
     return (
         <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)} title={title}>
@@ -143,7 +152,10 @@ function SpeedModule({
     const { t } = useTranslation();
     const iconToneKey = tone === "success" ? visuals.status.keys.tone.success : visuals.status.keys.tone.primary;
     const iconToneClass =
-        visuals.status.recipes[iconToneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.primary]?.text ?? "text-primary";
+        getStatusRecipeText(
+            iconToneKey,
+            visuals.status.keys.tone.primary,
+        );
 
     return (
         <>

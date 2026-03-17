@@ -14,9 +14,18 @@ import {
     commandReason,
     type TorrentCommandOutcome,
 } from "@/app/context/AppCommandContext";
-const { layout, visuals, visualizations, ui } = registry;
+const { visuals, visualizations } = registry;
 
 const commandActionExceptionReason = "exception" as const;
+type StatusRecipeKey = keyof typeof visuals.status.recipes;
+
+const getStatusRecipeText = (
+    key: StatusRecipeKey,
+    fallbackKey: StatusRecipeKey,
+) =>
+    visuals.status.recipes[key]?.text ??
+    visuals.status.recipes[fallbackKey]?.text ??
+    "";
 
 export type CommandActionOutcome =
     | TorrentCommandOutcome
@@ -131,7 +140,16 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
             lastOutcome.status === "failed"
                 ? visuals.status.keys.tone.danger
                 : visuals.status.keys.tone.warning;
-        return visuals.status.recipes[toneKey]?.text ?? visuals.status.recipes[visuals.status.keys.tone.warning]?.text ?? "text-warning";
+        return (
+            getStatusRecipeText(
+                toneKey,
+                visuals.status.keys.tone.warning,
+            ) ||
+            getStatusRecipeText(
+                visuals.status.keys.tone.muted,
+                visuals.status.keys.tone.warning,
+            )
+        );
     }, [lastOutcome]);
 
     return (

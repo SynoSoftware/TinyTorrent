@@ -31,6 +31,9 @@ const createCommandContextValue = (): AppCommandContextValue => {
             setDownloadLocation: vi.fn().mockResolvedValue({
                 status: "success",
             }),
+            setSequentialDownload: vi.fn().mockResolvedValue({
+                status: "success",
+            }),
             openAddTorrentPicker: vi.fn().mockResolvedValue({
                 status: "success",
             }),

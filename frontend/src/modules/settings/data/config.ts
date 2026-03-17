@@ -27,6 +27,9 @@ export interface SettingsConfig {
     incomplete_dir: string;
     rename_partial_files: boolean;
     start_added_torrents: boolean;
+    sequential_download: boolean;
+    torrent_added_verify_mode: "fast" | "full";
+    torrent_complete_verify_enabled: boolean;
     auto_open_ui: boolean;
     autorun_hidden: boolean;
     show_splash: boolean;

@@ -70,13 +70,14 @@ interface SessionProviderProps {
     children: ReactNode;
 }
 
-const WINDOWS_DRIVE_ABSOLUTE_PATTERN = /^[a-zA-Z]:[\\/]/;
-const WINDOWS_UNC_ABSOLUTE_PATTERN = /^\\\\[^\\\/]+[\\\/][^\\\/]+(?:[\\\/].*)?$/;
+const WINDOWS_DRIVE_ABSOLUTE_PATTERN = /^[a-zA-Z]:[/\\]/;
+const WINDOWS_UNC_ABSOLUTE_PATTERN = /^\\\\[^/\\]+[/\\][^/\\]+(?:[/\\].*)?$/;
 
 const resolveDaemonPathStyle = (
-    sessionSettings: TransmissionSessionSettings | null,
+    platform: string | null | undefined,
+    downloadDir: string | null | undefined,
 ): DaemonPathStyle => {
-    const rawPlatform = sessionSettings?.platform?.trim().toLowerCase();
+    const rawPlatform = platform?.trim().toLowerCase();
     if (rawPlatform) {
         if (
             rawPlatform.includes("windows") ||
@@ -87,17 +88,17 @@ const resolveDaemonPathStyle = (
         return "posix";
     }
 
-    const downloadDir = sessionSettings?.["download-dir"]?.trim();
-    if (!downloadDir) {
+    const trimmedDownloadDir = downloadDir?.trim();
+    if (!trimmedDownloadDir) {
         return "unknown";
     }
     if (
-        WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(downloadDir) ||
-        WINDOWS_UNC_ABSOLUTE_PATTERN.test(downloadDir)
+        WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(trimmedDownloadDir) ||
+        WINDOWS_UNC_ABSOLUTE_PATTERN.test(trimmedDownloadDir)
     ) {
         return "windows";
     }
-    if (downloadDir.startsWith("/")) {
+    if (trimmedDownloadDir.startsWith("/")) {
         return "posix";
     }
     return "unknown";
@@ -156,6 +157,12 @@ export function SessionProvider({ children }: SessionProviderProps) {
         () => torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
         [torrentClient],
     );
+    const sessionPlatform = sessionSettings?.platform;
+    const sessionDownloadDir = sessionSettings?.["download-dir"];
+    const daemonPathStyle = useMemo(
+        () => resolveDaemonPathStyle(sessionPlatform, sessionDownloadDir),
+        [sessionDownloadDir, sessionPlatform],
+    );
 
     const sessionSpeedHistoryStore = useMemo(
         () => {
@@ -184,7 +191,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
-            daemonPathStyle: resolveDaemonPathStyle(sessionSettings),
+            daemonPathStyle,
             uiCapabilities,
             engineCapabilities,
         }),
@@ -200,8 +207,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
-            sessionSettings?.platform,
-            sessionSettings?.["download-dir"],
+            daemonPathStyle,
             uiCapabilities,
             engineCapabilities,
         ],

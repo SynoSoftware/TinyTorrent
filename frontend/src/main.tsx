@@ -14,7 +14,7 @@ import { ConnectionConfigProvider } from "@/app/context/ConnectionConfigContext"
 import { SessionProvider } from "@/app/context/SessionContext";
 import { PreferencesProvider } from "@/app/context/PreferencesContext";
 import { AppShellStateProvider } from "@/app/context/AppShellStateContext";
-const { timing, ui } = registry;
+const { timing } = registry;
 
 // Apply CSS variable bases from constants.json before rendering.
 applyCssTokenBases();

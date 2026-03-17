@@ -2,6 +2,7 @@ import React, {
     createElement,
     forwardRef,
     useImperativeHandle,
+    useLayoutEffect,
     useRef,
 } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,7 @@ import { serializeTrackerList } from "@/shared/domain/trackers";
 
 const addTrackersMock = vi.fn();
 const removeTrackersMock = vi.fn();
+const setTrackerListMock = vi.fn();
 const reannounceMock = vi.fn();
 const copyToClipboardMock = vi.fn();
 
@@ -54,6 +56,7 @@ type HarnessRef = {
     getRowDownloadCountLabel: (index: number) => string;
     getSelectionCount: () => number;
     getCanRemove: () => boolean;
+    getCanEdit: () => boolean;
     clickRow: (
         index: number,
         modifiers?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean },
@@ -63,6 +66,7 @@ type HarnessRef = {
         modifiers?: { ctrlKey?: boolean; metaKey?: boolean },
     ) => void;
     openAddModal: () => void;
+    openEditModal: () => void;
     isEditorOpen: () => boolean;
     setEditorValue: (value: string) => void;
     submitEditor: () => Promise<void>;
@@ -97,12 +101,16 @@ const ViewModelHarness = forwardRef<
             trackers,
             emptyMessage: "empty",
             listRef,
-            addTrackers: addTrackersMock,
-            removeTrackers: removeTrackersMock,
-            reannounce: reannounceMock,
+            addTrackers: (nextTrackers) => addTrackersMock("torrent-1", nextTrackers),
+            removeTrackers: (trackerIds) => removeTrackersMock("torrent-1", trackerIds),
+            setTrackerList: (trackerList) => setTrackerListMock("torrent-1", trackerList),
+            reannounce: () => reannounceMock("torrent-1"),
         });
         const viewModelRef = useRef(viewModel);
-        viewModelRef.current = viewModel;
+
+        useLayoutEffect(() => {
+            viewModelRef.current = viewModel;
+        }, [viewModel]);
 
         useImperativeHandle(
             ref,
@@ -116,6 +124,7 @@ const ViewModelHarness = forwardRef<
                     viewModelRef.current.data.rows[index]?.downloadCountLabel ?? "",
                 getSelectionCount: () => viewModelRef.current.state.selectedCount,
                 getCanRemove: () => viewModelRef.current.state.canRemove,
+                getCanEdit: () => viewModelRef.current.state.canEdit,
                 clickRow: (index, modifiers) => {
                     const row = viewModelRef.current.data.rows[index];
                     if (!row) {
@@ -148,6 +157,11 @@ const ViewModelHarness = forwardRef<
                         viewModelRef.current.actions.openAddModal();
                     });
                 },
+                openEditModal: () => {
+                    flushSync(() => {
+                        viewModelRef.current.actions.openEditModal();
+                    });
+                },
                 isEditorOpen: () => viewModelRef.current.state.editor.isOpen,
                 setEditorValue: (value: string) => {
                     flushSync(() => {
@@ -156,13 +170,12 @@ const ViewModelHarness = forwardRef<
                 },
                 submitEditor: () => viewModelRef.current.actions.submitEditor(),
                 getEditorError: () => viewModelRef.current.state.editor.error,
-                copyAllTrackers: () =>
-                    viewModelRef.current.actions.copyAllTrackers(),
+                copyAllTrackers: () => viewModelRef.current.actions.copyAllTrackers(),
             }),
             [],
         );
 
-        return createElement("div", { ref: listRef });
+        return createElement("div");
     },
 );
 
@@ -242,10 +255,12 @@ describe("useTorrentDetailsTrackersViewModel", () => {
     beforeEach(() => {
         addTrackersMock.mockReset();
         removeTrackersMock.mockReset();
+        setTrackerListMock.mockReset();
         reannounceMock.mockReset();
         copyToClipboardMock.mockReset();
         addTrackersMock.mockResolvedValue({ status: "applied" });
         removeTrackersMock.mockResolvedValue({ status: "applied" });
+        setTrackerListMock.mockResolvedValue({ status: "applied" });
         reannounceMock.mockResolvedValue({ status: "applied" });
         copyToClipboardMock.mockResolvedValue(undefined);
     });
@@ -477,6 +492,66 @@ describe("useTorrentDetailsTrackersViewModel", () => {
                 "https://tracker-a/announce",
                 "https://tracker-b/announce",
             ]);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("edits a single tracker through trackerList while preserving tier grouping order", async () => {
+        const mounted = await mountHarness([
+            makeTracker({
+                id: 1,
+                announce: "https://tracker-a/announce",
+                tier: 0,
+            }),
+            makeTracker({
+                id: 2,
+                announce: "https://tracker-b/announce",
+                tier: 1,
+            }),
+            makeTracker({
+                id: 3,
+                announce: "https://tracker-c/announce",
+                tier: 1,
+            }),
+        ]);
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            harness.clickRow(1);
+            await waitForCondition(() => harness.getCanEdit());
+
+            harness.openEditModal();
+            await waitForCondition(() => harness.isEditorOpen());
+            harness.setEditorValue("https://tracker-b-updated/announce");
+            await harness.submitEditor();
+            await waitForCondition(() => setTrackerListMock.mock.calls.length === 1);
+
+            expect(setTrackerListMock).toHaveBeenCalledWith(
+                "torrent-1",
+                serializeTrackerList([
+                    makeTracker({
+                        id: 1,
+                        announce: "https://tracker-a/announce",
+                        tier: 0,
+                    }),
+                    makeTracker({
+                        id: 2,
+                        announce: "https://tracker-b-updated/announce",
+                        tier: 1,
+                    }),
+                    makeTracker({
+                        id: 3,
+                        announce: "https://tracker-c/announce",
+                        tier: 1,
+                    }),
+                ]),
+            );
+            expect(addTrackersMock).not.toHaveBeenCalled();
+            expect(removeTrackersMock).not.toHaveBeenCalled();
         } finally {
             mounted.cleanup();
         }

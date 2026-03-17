@@ -18,7 +18,7 @@ import { TEXT_ROLE } from "@/config/textRoles";
 import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
-const { layout, interaction, visuals, visualizations, ui } = registry;
+const { interaction, visuals, visualizations } = registry;
 
 interface SettingsModalViewProps {
     controller: SettingsModalController;
@@ -343,7 +343,7 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             placement="center"
             size="5xl"
             hideCloseButton
-            isDismissable
+            isDismissable={false}
             isKeyboardDismissDisabled={false}
             classNames={MODAL.builder.settingsModalClassNames(uiMode === "Full")}
             motionProps={interaction.config.modalBloom}

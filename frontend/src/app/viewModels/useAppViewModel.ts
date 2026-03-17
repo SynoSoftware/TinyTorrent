@@ -28,6 +28,8 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { SetDownloadLocationPolicy } from "@/modules/dashboard/domain/torrentRelocation";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import type { CapabilityState } from "@/app/types/capabilities";
+import type { VersionGatedSettingSupport } from "@/services/rpc/version-support";
 
 /**
  * View models describe **what** a view renders and **what** actions it exposes.
@@ -59,11 +61,12 @@ export interface DashboardDetailViewModel {
             onInspectorTabCommandHandled: () => void;
         };
         general: {
-            canSetLocation: boolean;
+            sequentialDownloadCapability: CapabilityState;
             handleTorrentAction: (
                 action: TorrentTableAction,
                 torrent: Torrent
             ) => Promise<TorrentCommandOutcome>;
+            handleSequentialToggle: (enabled: boolean) => Promise<void>;
             setLocation: {
                 policy: SetDownloadLocationPolicy;
                 currentPath: string;
@@ -89,6 +92,10 @@ export interface DashboardDetailViewModel {
             removeTrackers: (
                 torrentId: string | number,
                 trackerIds: number[]
+            ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
+            setTrackerList: (
+                torrentId: string | number,
+                trackerList: string
             ) => Promise<Pick<TorrentDispatchOutcome, "status">>;
             reannounce: (
                 torrentId: string | number
@@ -123,6 +130,7 @@ export interface SettingsModalViewModel {
     onTestPort?: () => Promise<EngineTestPortOutcome>;
     capabilities: {
         blocklistSupported: boolean;
+        versionGatedSettings: VersionGatedSettingSupport;
     };
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;

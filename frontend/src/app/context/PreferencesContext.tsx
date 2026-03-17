@@ -45,7 +45,6 @@ export interface SystemPreferences {
 export interface AddTorrentDefaultsState {
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
-    skipHashCheck: boolean;
 }
 
 export interface TorrentTablePersistenceState {
@@ -92,7 +91,6 @@ const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
     commitMode: "paused",
     sequentialDownload: false,
-    skipHashCheck: true,
 };
 const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
@@ -232,10 +230,6 @@ const sanitizeAddTorrentDefaults = (
         typeof defaults?.sequentialDownload === "boolean"
             ? defaults.sequentialDownload
             : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
-    skipHashCheck:
-        typeof defaults?.skipHashCheck === "boolean"
-            ? defaults.skipHashCheck
-            : DEFAULT_ADD_TORRENT_DEFAULTS.skipHashCheck,
 });
 
 const isConnectionProfileValue = (

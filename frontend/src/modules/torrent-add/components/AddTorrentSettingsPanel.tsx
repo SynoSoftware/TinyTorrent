@@ -5,12 +5,15 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    CheckCircle2,
     HardDrive,
     Hash,
     ListOrdered,
     PauseCircle,
 } from "lucide-react";
+import {
+    getCapabilityHintKey,
+    getCapabilityUiState,
+} from "@/app/types/capabilities";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import {
@@ -22,6 +25,38 @@ import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEdit
 export function AddTorrentSettingsPanel() {
     const { t } = useTranslation();
     const { destinationInput, destinationGate, settings } = useAddTorrentModalContext();
+    const sequentialUiState = getCapabilityUiState(
+        settings.sequentialDownloadCapability,
+    );
+    const sequentialHint = t(
+        getCapabilityHintKey(settings.sequentialDownloadCapability),
+    );
+    const sequentialCheckbox = (
+        <Checkbox
+            isSelected={settings.sequential}
+            onValueChange={settings.setSequential}
+            isDisabled={sequentialUiState.disabled}
+            classNames={
+                FORM_CONTROL.checkboxLabelBodySmallClassNames
+            }
+        >
+            <span className={FORM.workflow.flagsItemLabel}>
+                <ListOrdered
+                    className={FORM.workflow.flagsIcon}
+                />
+                {t(
+                    "modals.add_torrent.sequential_download",
+                )}
+            </span>
+        </Checkbox>
+    );
+    const sequentialControl = sequentialUiState.disabled ? (
+        <Tooltip content={sequentialHint}>
+            <span>{sequentialCheckbox}</span>
+        </Tooltip>
+    ) : (
+        sequentialCheckbox
+    );
 
     return (
         <div className={FORM.workflow.root}>
@@ -105,39 +140,7 @@ export function AddTorrentSettingsPanel() {
                             <Divider
                                 className={FORM.workflow.flagsItemDivider}
                             />
-                            <Checkbox
-                                isSelected={settings.sequential}
-                                onValueChange={settings.setSequential}
-                                classNames={
-                                    FORM_CONTROL.checkboxLabelBodySmallClassNames
-                                }
-                            >
-                                <span className={FORM.workflow.flagsItemLabel}>
-                                    <ListOrdered
-                                        className={FORM.workflow.flagsIcon}
-                                    />
-                                    {t(
-                                        "modals.add_torrent.sequential_download",
-                                    )}
-                                </span>
-                            </Checkbox>
-                            <Divider
-                                className={FORM.workflow.flagsItemDivider}
-                            />
-                            <Checkbox
-                                isSelected={settings.skipHashCheck}
-                                onValueChange={settings.setSkipHashCheck}
-                                classNames={
-                                    FORM_CONTROL.checkboxLabelBodySmallClassNames
-                                }
-                            >
-                                <span className={FORM.workflow.flagsItemLabel}>
-                                    <CheckCircle2
-                                        className={FORM.workflow.flagsIcon}
-                                    />
-                                    {t("modals.add_torrent.skip_hash_check")}
-                                </span>
-                            </Checkbox>
+                            {sequentialControl}
                         </div>
                     </div>
                 </>

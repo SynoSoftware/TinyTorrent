@@ -1,11 +1,11 @@
 import { useCallback } from "react";
+import type { CapabilityState } from "@/app/types/capabilities";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import {
     isQueueTableAction,
     torrentTableActions,
     type TorrentTableAction,
 } from "@/modules/dashboard/types/torrentTable";
-import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import {
     commandReason,
     commandOutcome,
@@ -52,32 +52,33 @@ const mapOpenFolderOutcome = (
 
 // Hook: context-menu action handler for the torrent table.
 type UseTorrentTableContextParams = {
-    contextMenu: {
-        virtualElement: ContextMenuVirtualElement;
-        torrent: Torrent;
-    } | null;
+    contextTorrent: Torrent | null;
     copyToClipboard: (s: string) => Promise<ClipboardWriteOutcome>;
     buildMagnetLink: (t: Torrent) => string;
-    setContextMenu: React.Dispatch<
-        React.SetStateAction<{
-            virtualElement: ContextMenuVirtualElement;
-            torrent: Torrent;
-        } | null>
-    >;
+    closeContextMenu: () => void;
+    sequentialDownloadCapability: CapabilityState;
 };
 
 export const useTorrentTableContextActions = (params: UseTorrentTableContextParams) => {
-    const { contextMenu, copyToClipboard, buildMagnetLink, setContextMenu } = params;
+    const {
+        contextTorrent,
+        copyToClipboard,
+        buildMagnetLink,
+        closeContextMenu,
+        sequentialDownloadCapability,
+    } = params;
 
-    const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
+    const {
+        handleTorrentAction,
+        handleBulkAction,
+        setSequentialDownload,
+    } = useTorrentCommands();
     const { selectedIds } = useSelection();
     const { canOpenFolder } = useUiModeCapabilities();
     const handleOpenFolder = useOpenTorrentFolder();
 
     const executeTableAction = useCallback(
         async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
-            if (!contextMenu) return commandOutcome.noSelection();
-            const contextTorrent = contextMenu.torrent;
             if (!contextTorrent) return commandOutcome.noSelection();
             const shouldRunBulkAction =
                 !isQueueTableAction(action) &&
@@ -88,23 +89,21 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             }
             return handleTorrentAction(action, contextTorrent);
         },
-        [contextMenu, handleBulkAction, handleTorrentAction, selectedIds],
+        [contextTorrent, handleBulkAction, handleTorrentAction, selectedIds],
     );
 
     const handleContextMenuAction = useCallback(
         async (key: RowContextMenuKey): Promise<TorrentCommandOutcome> => {
-            if (!contextMenu) return commandOutcome.noSelection();
-            const torrent = contextMenu.torrent;
-            if (!torrent) return commandOutcome.noSelection();
+            if (!contextTorrent) return commandOutcome.noSelection();
 
             const closeWithOutcome = (outcome: TorrentCommandOutcome) => {
-                setContextMenu(null);
+                closeContextMenu();
                 return outcome;
             };
 
             try {
                 if (key === rowMenuKey.openFolder) {
-                    const path = resolveTorrentPath(torrent);
+                    const path = resolveTorrentPath(contextTorrent);
                     if (!canOpenFolder) {
                         return closeWithOutcome(commandOutcome.unsupported());
                     }
@@ -114,15 +113,32 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
                 }
                 if (key === rowMenuKey.copyHash) {
                     return closeWithOutcome(
-                        mapClipboardOutcome(await copyToClipboard(torrent.hash)),
+                        mapClipboardOutcome(
+                            await copyToClipboard(contextTorrent.hash),
+                        ),
                     );
                 }
                 if (key === rowMenuKey.copyMagnet) {
                     return closeWithOutcome(
                         mapClipboardOutcome(
-                            await copyToClipboard(buildMagnetLink(torrent)),
+                            await copyToClipboard(
+                                buildMagnetLink(contextTorrent),
+                            ),
                         ),
                     );
+                }
+                if (key === rowMenuKey.toggleSequentialDownload) {
+                    if (sequentialDownloadCapability !== "supported") {
+                        return closeWithOutcome(commandOutcome.unsupported());
+                    }
+                    const outcome = await setSequentialDownload(
+                        contextTorrent,
+                        !contextTorrent.sequentialDownload,
+                    );
+                    if (outcome.status !== "success") {
+                        closeContextMenu();
+                    }
+                    return outcome;
                 }
 
                 switch (key) {
@@ -190,13 +206,15 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             }
         },
         [
-            contextMenu,
+            contextTorrent,
             copyToClipboard,
             buildMagnetLink,
-            setContextMenu,
+            closeContextMenu,
             canOpenFolder,
             handleOpenFolder,
             executeTableAction,
+            sequentialDownloadCapability,
+            setSequentialDownload,
         ],
     );
 

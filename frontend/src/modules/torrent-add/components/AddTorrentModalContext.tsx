@@ -4,6 +4,7 @@ import type { FilePriority, FileRow } from "@/modules/torrent-add/services/fileS
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
 import type { DragEvent } from "react";
+import type { CapabilityState } from "@/app/types/capabilities";
 
 export interface AddTorrentDestinationInputState {
     value: string;
@@ -33,10 +34,9 @@ export interface AddTorrentSettingsState {
     startPaused: boolean;
     setStartPaused: (next: boolean) => void;
     showTransferFlags: boolean;
+    sequentialDownloadCapability: CapabilityState;
     sequential: boolean;
-    skipHashCheck: boolean;
     setSequential: (next: boolean) => void;
-    setSkipHashCheck: (next: boolean) => void;
 }
 
 export interface AddTorrentFileTableState {

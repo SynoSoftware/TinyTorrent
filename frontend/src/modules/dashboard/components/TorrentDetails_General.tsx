@@ -1,6 +1,12 @@
+import { Checkbox } from "@heroui/react";
 import { Copy, Folder } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import {
+    getCapabilityHintKey,
+    getCapabilityUiState,
+    type CapabilityState,
+} from "@/app/types/capabilities";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
@@ -16,15 +22,20 @@ import {
     torrentHeadlineOrder,
     type TorrentHeadlineFieldId,
 } from "@/modules/dashboard/utils/torrentHeadlineFields";
-import { DETAILS } from "@/shared/ui/layout/glass-surface";
+import {
+    DETAILS,
+    FORM_CONTROL,
+} from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 import { formatBytes, formatDate, formatRelativeTime, formatSpeed, formatTime } from "@/shared/utils/format";
 
 interface GeneralTabProps {
     torrent: TorrentDetailEntity;
     isDetailFullscreen: boolean;
-    canSetLocation: boolean;
+    sequentialDownloadCapability: CapabilityState;
     onTorrentAction: DashboardDetailViewModel["tabs"]["general"]["handleTorrentAction"];
+    onSequentialToggle: DashboardDetailViewModel["tabs"]["general"]["handleSequentialToggle"];
     setLocation: DashboardDetailViewModel["tabs"]["general"]["setLocation"];
     optimisticStatus?: DashboardDetailViewModel["optimisticStatus"];
 }
@@ -182,7 +193,8 @@ function SectionBlock({ title, description, rows, summary = false }: SectionProp
 export const GeneralTab = ({
     torrent,
     isDetailFullscreen,
-    canSetLocation,
+    sequentialDownloadCapability,
+    onSequentialToggle,
     setLocation,
     optimisticStatus,
 }: GeneralTabProps) => {
@@ -190,6 +202,8 @@ export const GeneralTab = ({
     const { showFeedback } = useActionFeedback();
     const { copyToClipboard } = useTorrentClipboard();
     const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
+    const { lastTickAt } = useUiClock();
+    const nowSeconds = Math.floor(lastTickAt / 1000);
 
     const primaryTracker = useMemo(() => findPrimaryTracker(torrent.trackers), [torrent.trackers]);
 
@@ -197,6 +211,12 @@ export const GeneralTab = ({
     const unknownLabel = t("labels.unknown");
     const infiniteLabel = t("torrent_modal.general.values.infinite");
     const notCompletedLabel = t("torrent_modal.general.values.not_completed");
+    const sequentialUiState = getCapabilityUiState(
+        sequentialDownloadCapability,
+    );
+    const sequentialHelperText = t(
+        getCapabilityHintKey(sequentialDownloadCapability),
+    );
 
     const handleCopyHash = useCallback(async () => {
         const outcome = await copyToClipboard(torrent.hash);
@@ -212,11 +232,8 @@ export const GeneralTab = ({
     }, [copyToClipboard, showFeedback, t, torrent.hash]);
 
     const openSetDownloadPathModal = useCallback(() => {
-        if (!canSetLocation) {
-            return;
-        }
         setShowSetDownloadPathModal(true);
-    }, [canSetLocation]);
+    }, []);
 
     const closeSetDownloadPathModal = useCallback(() => {
         setShowSetDownloadPathModal(false);
@@ -301,37 +318,49 @@ export const GeneralTab = ({
 
         if (
             typeof primaryTracker?.nextAnnounceTime === "number" &&
-            primaryTracker.nextAnnounceTime > Math.floor(Date.now() / 1000)
+            primaryTracker.nextAnnounceTime > nowSeconds
         ) {
             rows.push({
                 key: "reannounce-in",
                 label: t("torrent_modal.general.fields.reannounce_in"),
-                value: formatTime(primaryTracker.nextAnnounceTime - Math.floor(Date.now() / 1000)),
+                value: formatTime(primaryTracker.nextAnnounceTime - nowSeconds),
             });
         }
+
+        rows.push({
+            key: "sequential-download",
+            label: t("torrent_modal.controls.title"),
+            value: (
+                <div className={DETAILS.generalProgressWrap}>
+                    <Checkbox
+                        isSelected={Boolean(torrent.sequentialDownload)}
+                        isDisabled={sequentialUiState.disabled}
+                        onValueChange={(enabled) => {
+                            void onSequentialToggle(enabled);
+                        }}
+                        classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                    >
+                        {t("torrent_modal.controls.sequential")}
+                    </Checkbox>
+                    <span className={DETAILS.generalMetricMuted}>
+                        {sequentialHelperText}
+                    </span>
+                </div>
+            ),
+            block: true,
+        });
 
         return rows;
     }, [
         infiniteLabel,
         isDetailFullscreen,
+        nowSeconds,
+        onSequentialToggle,
         primaryTracker,
+        sequentialHelperText,
+        sequentialUiState.disabled,
         t,
-        torrent.corruptEver,
-        torrent.downloadLimit,
-        torrent.downloadLimited,
-        torrent.downloaded,
-        torrent.eta,
-        torrent.peerSummary.connected,
-        torrent.peerSummary.getting,
-        torrent.peerSummary.sending,
-        torrent.secondsDownloading,
-        torrent.secondsSeeding,
-        torrent.speed.down,
-        torrent.speed.up,
-        torrent.state,
-        torrent.uploadLimit,
-        torrent.uploadLimited,
-        torrent.uploaded,
+        torrent,
         unavailableLabel,
         unknownLabel,
     ]);
@@ -374,7 +403,6 @@ export const GeneralTab = ({
                         ariaLabel={t(setLocation.policy.actionLabelKey)}
                         title={t(setLocation.policy.actionLabelKey)}
                         onPress={openSetDownloadPathModal}
-                        disabled={!canSetLocation}
                         iconSize="md"
                     />
                 ),
@@ -427,7 +455,6 @@ export const GeneralTab = ({
 
         return rows;
     }, [
-        canSetLocation,
         handleCopyHash,
         notCompletedLabel,
         openSetDownloadPathModal,

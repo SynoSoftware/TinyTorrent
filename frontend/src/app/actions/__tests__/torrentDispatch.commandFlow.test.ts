@@ -59,6 +59,9 @@ const createMockClient = (commandLog: string[]): EngineAdapter => ({
             `tracker-remove:${ids.join(",")}:${trackerIds.join("|")}`,
         );
     }),
+    setTrackerList: vi.fn(async (id: string, trackerList: string) => {
+        commandLog.push(`tracker-set:${id}:${trackerList}`);
+    }),
     forceTrackerReannounce: vi.fn(async (id: string) => {
         commandLog.push(`tracker-reannounce:${id}`);
     }),
@@ -67,6 +70,9 @@ const createMockClient = (commandLog: string[]): EngineAdapter => ({
     moveDown: vi.fn(async () => {}),
     moveToBottom: vi.fn(async () => {}),
     updateFileSelection: vi.fn(async () => {}),
+    setSequentialDownload: vi.fn(async (id: string, enabled: boolean) => {
+        commandLog.push(`set-sequential:${id}:${String(enabled)}`);
+    }),
     setTorrentLocation: vi.fn(
         async (id: string, location: string, moveData?: boolean) => {
             commandLog.push(
@@ -384,6 +390,45 @@ describe("torrentDispatch command flow", () => {
         expect(commandLog).toEqual(["tracker-reannounce:t-9"]);
     });
 
+    it("dispatches tracker edit through adapter trackerList support", async () => {
+        const commandLog: string[] = [];
+        const dispatch = createTorrentDispatch({
+            client: createMockClient(commandLog),
+            refreshTorrents: async () => {},
+            refreshSessionStatsData: async () => {},
+            refreshDetailData: async () => {},
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.torrentSetTrackerList(
+                "t-10",
+                "https://tracker-a/announce\n\nhttps://tracker-b/announce",
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual([
+            "tracker-set:t-10:https://tracker-a/announce\n\nhttps://tracker-b/announce",
+        ]);
+    });
+
+    it("dispatches sequential download toggle through adapter", async () => {
+        const commandLog: string[] = [];
+        const dispatch = createTorrentDispatch({
+            client: createMockClient(commandLog),
+            refreshTorrents: async () => {},
+            refreshSessionStatsData: async () => {},
+            refreshDetailData: async () => {},
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.setSequentialDownload("t-seq-1", true),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual(["set-sequential:t-seq-1:true"]);
+    });
+
     it("returns unsupported when tracker remove method is missing", async () => {
         const commandLog: string[] = [];
         const client = createMockClient(commandLog);
@@ -399,6 +444,57 @@ describe("torrentDispatch command flow", () => {
 
         const outcome = await dispatch(
             TorrentIntents.torrentRemoveTracker(["t-1"], [99]),
+        );
+
+        expect(outcome).toEqual({
+            status: "unsupported",
+            reason: "method_missing",
+        });
+    });
+
+    it("returns unsupported when tracker edit method is missing", async () => {
+        const commandLog: string[] = [];
+        const client = createMockClient(commandLog);
+        delete (
+            client as { setTrackerList?: EngineAdapter["setTrackerList"] }
+        ).setTrackerList;
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents: async () => {},
+            refreshSessionStatsData: async () => {},
+            refreshDetailData: async () => {},
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.torrentSetTrackerList(
+                "t-11",
+                "https://tracker-edit/announce",
+            ),
+        );
+
+        expect(outcome).toEqual({
+            status: "unsupported",
+            reason: "method_missing",
+        });
+    });
+
+    it("returns unsupported when sequential toggle method is missing", async () => {
+        const commandLog: string[] = [];
+        const client = createMockClient(commandLog);
+        delete (
+            client as {
+                setSequentialDownload?: EngineAdapter["setSequentialDownload"];
+            }
+        ).setSequentialDownload;
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents: async () => {},
+            refreshSessionStatsData: async () => {},
+            refreshDetailData: async () => {},
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.setSequentialDownload("t-seq-2", false),
         );
 
         expect(outcome).toEqual({

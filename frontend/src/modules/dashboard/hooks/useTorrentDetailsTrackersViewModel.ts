@@ -2,6 +2,7 @@ import {
     useCallback,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type KeyboardEvent as ReactKeyboardEvent,
     type MouseEvent as ReactMouseEvent,
@@ -25,7 +26,7 @@ import { formatRelativeTime } from "@/shared/utils/format";
 
 type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 type TrackerStatusTone = "neutral" | "success" | "warning" | "danger";
-type TrackerContextAction = "remove" | "copy_url" | "copy_host" | "copy_all" | "reannounce";
+type TrackerContextAction = "edit" | "remove" | "copy_url" | "copy_host" | "copy_all" | "reannounce";
 
 interface TrackerContextMenuState {
     rowKey: string;
@@ -35,6 +36,8 @@ interface TrackerContextMenuState {
 
 interface EditorState {
     isOpen: boolean;
+    mode: "add" | "edit";
+    targetRowKey: string | null;
     value: string;
     error: string | null;
 }
@@ -45,9 +48,10 @@ interface UseTorrentDetailsTrackersViewModelParams {
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     listRef: RefObject<HTMLDivElement | null>;
-    addTrackers: (torrentId: string | number, trackers: string[]) => Promise<TrackerMutationOutcome>;
-    removeTrackers: (torrentId: string | number, trackerIds: number[]) => Promise<TrackerMutationOutcome>;
-    reannounce: (torrentId: string | number) => Promise<TrackerMutationOutcome>;
+    addTrackers: (trackers: string[]) => Promise<TrackerMutationOutcome>;
+    removeTrackers: (trackerIds: number[]) => Promise<TrackerMutationOutcome>;
+    setTrackerList: (trackerList: string) => Promise<TrackerMutationOutcome>;
+    reannounce: () => Promise<TrackerMutationOutcome>;
 }
 
 interface TrackerRuntimeRow {
@@ -92,11 +96,13 @@ export interface TorrentDetailsTrackersViewModel {
         contextMenu: TrackerContextMenuState | null;
         selectedCount: number;
         canRemove: boolean;
+        canEdit: boolean;
         canCopySelection: boolean;
     };
     labels: {
         emptyMessage: string;
         addLabel: string;
+        editLabel: string;
         removeLabel: string;
         removeManyLabel: string;
         reannounceLabel: string;
@@ -106,6 +112,7 @@ export interface TorrentDetailsTrackersViewModel {
         selectionSummary: string;
         modalTitle: string;
         modalPlaceholder: string;
+        modalFieldLabel: string;
     };
     table: {
         headerGroups: HeaderGroup<TrackerRuntimeRow>[];
@@ -113,8 +120,12 @@ export interface TorrentDetailsTrackersViewModel {
     data: {
         rows: TrackerRowViewModel[];
     };
+    refs: {
+        trackerInputRef: RefObject<HTMLTextAreaElement | null>;
+    };
     actions: {
         openAddModal: () => void;
+        openEditModal: () => void;
         closeEditor: () => void;
         setEditorValue: (value: string) => void;
         submitEditor: () => Promise<void>;
@@ -131,6 +142,8 @@ export interface TorrentDetailsTrackersViewModel {
 
 const EMPTY_EDITOR: EditorState = {
     isOpen: false,
+    mode: "add",
+    targetRowKey: null,
     value: "",
     error: null,
 };
@@ -337,6 +350,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     listRef,
     addTrackers,
     removeTrackers,
+    setTrackerList,
     reannounce,
 }: UseTorrentDetailsTrackersViewModelParams): TorrentDetailsTrackersViewModel => {
     const { t } = useTranslation();
@@ -348,6 +362,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     const [isMutating, setIsMutating] = useState(false);
     const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
     const [contextMenu, setContextMenu] = useState<TrackerContextMenuState | null>(null);
+    const trackerInputRef = useRef<HTMLTextAreaElement | null>(null);
 
     const safeTrackers = trackers ?? [];
     const isEmpty = safeTrackers.length === 0;
@@ -421,7 +436,6 @@ export const useTorrentDetailsTrackersViewModel = ({
 
     const columns = useMemo(() => createTrackerColumns(t), [t]);
 
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: baseRows,
         columns,
@@ -433,7 +447,7 @@ export const useTorrentDetailsTrackersViewModel = ({
         getSortedRowModel: getSortedRowModel(),
     });
 
-    const rows = useMemo<TrackerRowViewModel[]>(
+    const rows: TrackerRowViewModel[] = useMemo(
         () =>
             table.getRowModel().rows.map((row) => ({
                 ...row.original,
@@ -475,6 +489,12 @@ export const useTorrentDetailsTrackersViewModel = ({
         }
         return selectedRows[0] ?? null;
     }, [anchorKey, rows, selectedRows]);
+    const activeEditableRow = useMemo(() => {
+        if (selectedRows.length !== 1) {
+            return null;
+        }
+        return activeRow;
+    }, [activeRow, selectedRows.length]);
     const selectedRemovableIds = useMemo(
         () =>
             selectedRows.filter((row) => row.removable && row.trackerId != null).map((row) => row.trackerId as number),
@@ -525,11 +545,27 @@ export const useTorrentDetailsTrackersViewModel = ({
     const openAddModal = useCallback(() => {
         setEditor({
             isOpen: true,
+            mode: "add",
+            targetRowKey: null,
             value: "",
             error: null,
         });
         setContextMenu(null);
     }, []);
+
+    const openEditModal = useCallback(() => {
+        if (!activeEditableRow) {
+            return;
+        }
+        setEditor({
+            isOpen: true,
+            mode: "edit",
+            targetRowKey: activeEditableRow.key,
+            value: activeEditableRow.announce,
+            error: null,
+        });
+        setContextMenu(null);
+    }, [activeEditableRow]);
 
     const closeEditor = useCallback(() => {
         if (isMutating) {
@@ -547,11 +583,19 @@ export const useTorrentDetailsTrackersViewModel = ({
         return () => window.removeEventListener("pointerdown", closeContextMenu);
     }, [closeContextMenu]);
 
+    useEffect(() => {
+        if (!editor.isOpen) {
+            return;
+        }
+        const frame = window.requestAnimationFrame(() => {
+            trackerInputRef.current?.focus();
+            trackerInputRef.current?.select();
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [editor.isOpen]);
+
     const executeMutation = useCallback(
         async (mutation: () => Promise<TrackerMutationOutcome>) => {
-            if (!torrentId) {
-                return { status: "failed" } as const;
-            }
             setIsMutating(true);
             try {
                 return await mutation();
@@ -559,77 +603,203 @@ export const useTorrentDetailsTrackersViewModel = ({
                 setIsMutating(false);
             }
         },
-        [torrentId],
+        [],
     );
 
     const removeSelected = useCallback(async () => {
-        if (!torrentId || !selectedRemovableIds.length || isMutating) {
+        if (!selectedRemovableIds.length || isMutating) {
             return;
         }
         setContextMenu(null);
-        const outcome = await executeMutation(() => removeTrackers(torrentId, selectedRemovableIds));
+        const outcome = await executeMutation(() =>
+            removeTrackers(selectedRemovableIds),
+        );
         if (outcome.status === "applied") {
             setSelectedKeys([]);
         }
-    }, [executeMutation, isMutating, removeTrackers, selectedRemovableIds, torrentId]);
+    }, [executeMutation, isMutating, removeTrackers, selectedRemovableIds]);
 
     const reannounceTorrent = useCallback(async () => {
-        if (!torrentId || isMutating) {
+        if (isMutating) {
             return;
         }
         setContextMenu(null);
-        await executeMutation(() => reannounce(torrentId));
-    }, [executeMutation, isMutating, reannounce, torrentId]);
+        await executeMutation(reannounce);
+    }, [executeMutation, isMutating, reannounce]);
 
     const copyAllTrackers = useCallback(async () => {
         await copyToClipboard(serializeTrackerList(safeTrackers));
         setContextMenu(null);
     }, [copyToClipboard, safeTrackers]);
 
+    const setEditorError = useCallback(
+        (error: string) => {
+            setEditor((current) => ({
+                ...current,
+                error,
+            }));
+        },
+        [],
+    );
+
+    const findEditableTrackerIndex = useCallback(
+        (targetRow: TrackerRowViewModel) => {
+            if (targetRow.trackerId != null) {
+                const trackerId = targetRow.trackerId;
+                const trackerIndex = safeTrackers.findIndex(
+                    (tracker) => tracker.id === trackerId,
+                );
+                if (trackerIndex >= 0) {
+                    return trackerIndex;
+                }
+            }
+
+            return safeTrackers.findIndex(
+                (tracker, index) =>
+                    index === targetRow.originalIndex &&
+                    tracker.announce === targetRow.announce,
+            );
+        },
+        [safeTrackers],
+    );
+
+    const submitAddTrackers = useCallback(
+        async (normalized: string[]) => {
+            const existing = new Set(
+                normalizeTrackerUrls(
+                    safeTrackers.map((tracker) => tracker.announce),
+                ),
+            );
+            const nextTrackers = normalized.filter(
+                (tracker) => !existing.has(tracker),
+            );
+            if (nextTrackers.length === 0) {
+                setEditorError(t("torrent_modal.trackers.modal_no_new"));
+                return;
+            }
+
+            const outcome = await executeMutation(() =>
+                addTrackers(nextTrackers),
+            );
+            if (outcome.status === "applied") {
+                setEditor(EMPTY_EDITOR);
+                return;
+            }
+            setEditorError(t("toolbar.feedback.failed"));
+        },
+        [
+            addTrackers,
+            executeMutation,
+            safeTrackers,
+            setEditorError,
+            t,
+        ],
+    );
+
+    const submitEditedTracker = useCallback(
+        async (normalized: string[]) => {
+            if (normalized.length !== 1) {
+                setEditorError(t("torrent_modal.trackers.edit_modal_single"));
+                return;
+            }
+
+            const targetRow = editor.targetRowKey
+                ? getRowByKey(editor.targetRowKey)
+                : activeEditableRow;
+            if (!targetRow) {
+                setEditorError(t("torrent_modal.trackers.selection_none"));
+                return;
+            }
+
+            const nextAnnounce = normalized[0];
+            if (nextAnnounce === targetRow.announce) {
+                setEditor(EMPTY_EDITOR);
+                return;
+            }
+
+            const duplicateExists = normalizeTrackerUrls(
+                baseRows
+                    .filter((row) => row.key !== targetRow.key)
+                    .map((row) => row.announce),
+            ).includes(nextAnnounce);
+            if (duplicateExists) {
+                setEditorError(
+                    t("torrent_modal.trackers.edit_modal_duplicate"),
+                );
+                return;
+            }
+
+            const targetIndex = findEditableTrackerIndex(targetRow);
+            if (targetIndex < 0) {
+                setEditorError(t("torrent_modal.trackers.selection_none"));
+                return;
+            }
+
+            const trackerList = serializeTrackerList(
+                safeTrackers.map((tracker, index) =>
+                    index === targetIndex
+                        ? { ...tracker, announce: nextAnnounce }
+                        : tracker,
+                ),
+            );
+            const outcome = await executeMutation(() =>
+                setTrackerList(trackerList),
+            );
+            if (outcome.status === "applied") {
+                setEditor(EMPTY_EDITOR);
+                return;
+            }
+            setEditorError(t("toolbar.feedback.failed"));
+        },
+        [
+            activeEditableRow,
+            baseRows,
+            editor.targetRowKey,
+            executeMutation,
+            findEditableTrackerIndex,
+            getRowByKey,
+            safeTrackers,
+            setEditorError,
+            setTrackerList,
+            t,
+        ],
+    );
+
     const submitEditor = useCallback(async () => {
-        if (!torrentId || isMutating) {
+        if (isMutating) {
             return;
         }
 
         const { normalized, invalid } = normalizeTrackerInputText(editor.value);
         if (invalid.length > 0) {
-            setEditor((current) => ({
-                ...current,
-                error: t("torrent_modal.trackers.modal_invalid_url", {
+            setEditorError(
+                t("torrent_modal.trackers.modal_invalid_url", {
                     value: invalid[0],
                 }),
-            }));
+            );
             return;
         }
 
         if (normalized.length === 0) {
-            setEditor((current) => ({
-                ...current,
-                error: t("torrent_modal.trackers.modal_empty"),
-            }));
+            setEditorError(t("torrent_modal.trackers.modal_empty"));
             return;
         }
 
-        const existing = new Set(normalizeTrackerUrls(safeTrackers.map((tracker) => tracker.announce)));
-        const nextTrackers = normalized.filter((tracker) => !existing.has(tracker));
-        if (nextTrackers.length === 0) {
-            setEditor((current) => ({
-                ...current,
-                error: t("torrent_modal.trackers.modal_no_new"),
-            }));
+        if (editor.mode === "edit") {
+            await submitEditedTracker(normalized);
             return;
         }
 
-        const outcome = await executeMutation(() => addTrackers(torrentId, nextTrackers));
-        if (outcome.status === "applied") {
-            setEditor(EMPTY_EDITOR);
-            return;
-        }
-        setEditor((current) => ({
-            ...current,
-            error: t("toolbar.feedback.failed"),
-        }));
-    }, [addTrackers, editor.value, executeMutation, isMutating, safeTrackers, t, torrentId]);
+        await submitAddTrackers(normalized);
+    }, [
+        editor.mode,
+        editor.value,
+        isMutating,
+        setEditorError,
+        submitAddTrackers,
+        submitEditedTracker,
+        t,
+    ]);
 
     const copyActiveTrackerUrl = useCallback(async () => {
         if (!activeRow) {
@@ -695,6 +865,10 @@ export const useTorrentDetailsTrackersViewModel = ({
                 setContextMenu(null);
                 return;
             }
+            if (action === "edit") {
+                openEditModal();
+                return;
+            }
             if (action === "copy_host") {
                 await copyToClipboard(row.host);
                 setContextMenu(null);
@@ -706,7 +880,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             }
             await reannounceTorrent();
         },
-        [contextMenu, copyAllTrackers, copyToClipboard, getRowByKey, reannounceTorrent, removeSelected],
+        [contextMenu, copyAllTrackers, copyToClipboard, getRowByKey, openEditModal, reannounceTorrent, removeSelected],
     );
 
     const handleListKeyDown = useCallback(
@@ -747,11 +921,13 @@ export const useTorrentDetailsTrackersViewModel = ({
             contextMenu,
             selectedCount: selectedRows.length,
             canRemove: selectedRemovableIds.length > 0,
+            canEdit: activeEditableRow != null,
             canCopySelection: activeRow != null,
         },
         labels: {
             emptyMessage,
             addLabel: t("torrent_modal.trackers.add_action"),
+            editLabel: t("torrent_modal.trackers.edit_action"),
             removeLabel: t("torrent_modal.trackers.remove_action"),
             removeManyLabel: t("torrent_modal.trackers.remove_many_action"),
             reannounceLabel: t("torrent_modal.trackers.reannounce_action"),
@@ -764,10 +940,16 @@ export const useTorrentDetailsTrackersViewModel = ({
                           count: selectedRows.length,
                       })
                     : t("torrent_modal.trackers.selection_none"),
-            modalTitle: t("torrent_modal.trackers.add_modal_title", {
-                name: torrentName,
-            }),
+            modalTitle: t(
+                editor.mode === "edit"
+                    ? "torrent_modal.trackers.edit_modal_title"
+                    : "torrent_modal.trackers.add_modal_title",
+                {
+                    name: torrentName,
+                },
+            ),
             modalPlaceholder: t("torrent_modal.trackers.add_placeholder"),
+            modalFieldLabel: t("torrent_modal.trackers.tracker"),
         },
         table: {
             headerGroups: table.getHeaderGroups(),
@@ -777,6 +959,7 @@ export const useTorrentDetailsTrackersViewModel = ({
         },
         actions: {
             openAddModal,
+            openEditModal,
             closeEditor,
             setEditorValue: (value: string) =>
                 setEditor((current) => ({
@@ -793,6 +976,9 @@ export const useTorrentDetailsTrackersViewModel = ({
             closeContextMenu,
             runContextAction,
             handleListKeyDown,
+        },
+        refs: {
+            trackerInputRef,
         },
     };
 };

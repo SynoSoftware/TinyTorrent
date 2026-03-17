@@ -4,7 +4,7 @@ import type {
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { scheduler } from "@/app/services/scheduler";
 import { registry } from "@/config/logic";
-const { timing, layout } = registry;
+const { timing } = registry;
 
 // Persist table layout state via the Preferences provider.
 // Extracted from `TorrentTable.tsx` to keep persistence concerns isolated.

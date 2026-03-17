@@ -10,7 +10,7 @@ import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentS
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 import { ArrowDown, ArrowUp, Bug, WifiOff, ListStart, Pause, RefreshCw, FolderSync } from "lucide-react";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" | "danger";
 

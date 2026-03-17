@@ -86,7 +86,7 @@ describe("torrentActionDispatcher", () => {
 
     it("returns unsupported when no torrent key exists", async () => {
         const dispatch = vi.fn(
-            async (_intent: unknown): Promise<TorrentDispatchOutcome> => ({
+            async (): Promise<TorrentDispatchOutcome> => ({
                 status: "applied",
             }),
         );

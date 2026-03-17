@@ -9,7 +9,7 @@ import { registry } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
 

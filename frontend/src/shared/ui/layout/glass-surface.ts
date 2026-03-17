@@ -131,10 +131,14 @@ const MAP_OVERLAY_RADIUS = GLASS_SURFACE_DIAL.radius.raised;
 const MAP_OVERLAY_CARD = `${MAP_OVERLAY_SURFACE} ${MAP_OVERLAY_RADIUS} px-panel py-tight`;
 const GLASS_SEMANTIC_CHROME = {
     dividerSoft: visuals.surface.border,
+    headerBorder: GLASS_ROLE_CORE.chrome.edgeBottom,
+    footerBorder: GLASS_ROLE_CORE.chrome.edgeTop,
     dialogHeader: `${GLASS_ROLE_CORE.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
     dialogFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
     workflowFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
+    headerPassive: `${GLASS_ROLE_CORE.chrome.edgeBottom} select-none`,
     footerEnd: `${GLASS_ROLE_CORE.chrome.edgeTop} flex justify-end gap-tools`,
+    footerActionsPadded: `${GLASS_ROLE_CORE.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
 } as const;
 const SURFACE_MODAL = {
     baseClassNames: MODAL_BASE_CLASSNAMES,
@@ -212,6 +216,7 @@ export const SURFACE = {
     menu: SURFACE_MENU,
     atom: SURFACE_ATOM,
 } as const;
+const MODAL_FOOTER_BACKGROUND = "bg-content1/40";
 const WORKBENCH_SHELL = `${SURFACE.surface.workbenchShell} surface-layer-2 border border-default/35`;
 
 export const MODAL = {
@@ -257,7 +262,7 @@ export const MODAL = {
     alert: "mb-panel px-panel py-tight",
     inlineAlert: "px-panel py-tight",
     connectionStack: "space-y-stage",
-    footer: `${SURFACE.chrome.edgeTop} sticky bottom-0 z-panel shrink-0 bg-content1/40 blur-glass px-stage py-stage flex items-center justify-between`,
+    footer: `${SURFACE.chrome.edgeTop} sticky bottom-0 z-panel shrink-0 ${MODAL_FOOTER_BACKGROUND} blur-glass px-stage py-stage flex items-center justify-between`,
     footerConfirmContent: "w-full flex items-center gap-panel",
     footerTextWrap: "flex flex-col min-w-0",
     footerWarningTitle: `${TEXT_ROLE.bodyStrong} text-warning`,

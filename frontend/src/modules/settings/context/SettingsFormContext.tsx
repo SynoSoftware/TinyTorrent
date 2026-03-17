@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import type { SettingsConfig, ConfigKey } from "@/modules/settings/data/config";
 import type { ButtonActionKey } from "@/modules/settings/data/settings-tabs";
+import type { VersionGatedSettingSupport } from "@/services/rpc/version-support";
 
 export type SettingsFormActionOutcome =
     | { status: "applied" }
@@ -23,6 +24,7 @@ export interface SettingsFormStateContextValue {
 export interface SettingsFormActionsContextValue {
     capabilities: {
         blocklistSupported: boolean;
+        versionGatedSettings: VersionGatedSettingSupport;
     };
     interfaceTab: {
         isImmersive: boolean;

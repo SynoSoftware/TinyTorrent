@@ -8,7 +8,7 @@ import {
     ICON_SIZE_CLASSES,
     type ToolbarIconSize,
 } from "@/shared/ui/layout/toolbar-button";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 export type WindowControlButtonVariant = "neutral" | "danger";
 

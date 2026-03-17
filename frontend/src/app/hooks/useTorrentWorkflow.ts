@@ -12,6 +12,7 @@ import { buildOptimisticStatusUpdatesForAction } from "@/app/domain/torrentActio
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
+import { scheduler } from "@/app/services/scheduler";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
 import {
     getEffectiveTorrentState,
@@ -345,9 +346,13 @@ export function useTorrentWorkflow({
             }
         });
 
-        if (resolvedIds.length) {
-            clearMoveOperations(resolvedIds);
+        if (!resolvedIds.length) {
+            return;
         }
+
+        return scheduler.scheduleTimeout(() => {
+            clearMoveOperations(resolvedIds);
+        }, 0);
     }, [
         clearMoveOperations,
         pendingMoveOperations,

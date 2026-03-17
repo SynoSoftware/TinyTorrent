@@ -46,7 +46,13 @@ import type { NetworkTelemetry } from "@/services/rpc/entities";
 import { normalizeTrackerUrls } from "@/shared/domain/trackers";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
-const { performance, ui } = registry;
+import {
+    getSequentialDownloadCapabilityState,
+    isVersionGatedSettingSupported,
+    getVersionGatedSettingsSupport,
+    removeUnsupportedVersionGatedSettings,
+} from "@/services/rpc/version-support";
+const { performance } = registry;
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -70,10 +76,27 @@ const READ_ONLY_RPC_METHODS = new Set([
 ]);
 const READ_ONLY_RPC_RESPONSE_TTL_MS = performance.readRpcCacheTtlMs;
 
+const supportsTransmissionSequentialDownload = (
+    settings: TransmissionSessionSettings,
+    torrents?: TransmissionTorrent[] | null,
+) =>
+    getSequentialDownloadCapabilityState({
+        session: settings,
+        torrents,
+    }) === "supported";
+
+const filterSequentialDownloadPayload = (
+    settings: TransmissionSessionSettings,
+    payload: AddTorrentPayload,
+) =>
+    isVersionGatedSettingSupported(settings, "sequential_download")
+        ? payload
+        : { ...payload, sequentialDownload: undefined };
+
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
 
-const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
+const SUMMARY_FIELDS = [
     "id",
     "hashString",
     "name",
@@ -101,11 +124,11 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "sizeWhenDone",
     "error",
     "errorString",
-    "sequentialDownload",
+    "sequential_download",
     "superSeeding",
     "isFinished",
     "downloadDir",
-];
+] as const satisfies readonly string[];
 
 const DETAIL_BASE_FIELDS = [
     ...SUMMARY_FIELDS,
@@ -125,7 +148,7 @@ const DETAIL_BASE_FIELDS = [
     "pieceSize",
     "uploadLimit",
     "uploadLimited",
-];
+] as const satisfies readonly string[];
 
 const DETAIL_TRACKER_FIELDS = [
     "trackerStats",
@@ -141,7 +164,7 @@ const buildDetailFields = (
 ): string[] => {
     const profile = options?.profile ?? "standard";
     const includeTrackerStats = options?.includeTrackerStats ?? true;
-    const fields = [...DETAIL_BASE_FIELDS];
+    const fields: string[] = [...DETAIL_BASE_FIELDS];
     if (includeTrackerStats) {
         fields.push(...DETAIL_TRACKER_FIELDS);
     }
@@ -865,7 +888,10 @@ export class TransmissionAdapter implements EngineAdapter {
             name: "Transmission",
             version,
             capabilities: {
-                sequentialDownload: false,
+                sequentialDownload: supportsTransmissionSequentialDownload(
+                    settings,
+                    null,
+                ),
                 superSeeding: false,
                 trackerReannounce: true,
             },
@@ -889,13 +915,22 @@ export class TransmissionAdapter implements EngineAdapter {
     public async updateSessionSettings(
         settings: Partial<TransmissionSessionSettings>,
     ): Promise<void> {
+        const currentSettings =
+            this.sessionSettingsCache ?? (await this.fetchSessionSettings());
+        const supportedSettings = removeUnsupportedVersionGatedSettings(
+            settings,
+            getVersionGatedSettingsSupport(currentSettings),
+        );
+        if (Object.keys(supportedSettings).length === 0) {
+            return;
+        }
         await this.send(
-            { method: "session-set", arguments: settings },
+            { method: "session-set", arguments: supportedSettings },
             zRpcSuccess,
         );
         this.sessionSettingsCache = {
             ...(this.sessionSettingsCache ?? {}),
-            ...settings,
+            ...supportedSettings,
         };
     }
 
@@ -1248,33 +1283,42 @@ export class TransmissionAdapter implements EngineAdapter {
     public async addTorrent(
         payload: AddTorrentPayload,
     ): Promise<AddTorrentResult> {
+        const currentSettings =
+            this.sessionSettingsCache ?? (await this.fetchSessionSettings());
+        const nextPayload = filterSequentialDownloadPayload(
+            currentSettings,
+            payload,
+        );
         const args: Record<string, unknown> = {
-            paused: payload.paused,
+            paused: nextPayload.paused,
         };
-        if (payload.downloadDir?.trim()) {
-            args["download-dir"] = payload.downloadDir;
+        if (typeof nextPayload.sequentialDownload === "boolean") {
+            args.sequential_download = nextPayload.sequentialDownload;
         }
-        if (payload.metainfoPath) {
-            args["metainfo-path"] = payload.metainfoPath;
-        } else if (payload.metainfo) {
-            args.metainfo = payload.metainfo;
-        } else if (payload.magnetLink) {
-            args.filename = payload.magnetLink;
+        if (nextPayload.downloadDir?.trim()) {
+            args["download-dir"] = nextPayload.downloadDir;
+        }
+        if (nextPayload.metainfoPath) {
+            args["metainfo-path"] = nextPayload.metainfoPath;
+        } else if (nextPayload.metainfo) {
+            args.metainfo = nextPayload.metainfo;
+        } else if (nextPayload.magnetLink) {
+            args.filename = nextPayload.magnetLink;
         } else {
             throw new Error("No torrent source provided");
         }
-        if (payload.filesUnwanted?.length) {
-            args["files-unwanted"] = payload.filesUnwanted;
+        if (nextPayload.filesUnwanted?.length) {
+            args["files-unwanted"] = nextPayload.filesUnwanted;
         }
 
-        if (payload.priorityHigh?.length) {
-            args["priority-high"] = payload.priorityHigh;
+        if (nextPayload.priorityHigh?.length) {
+            args["priority-high"] = nextPayload.priorityHigh;
         }
-        if (payload.priorityNormal?.length) {
-            args["priority-normal"] = payload.priorityNormal;
+        if (nextPayload.priorityNormal?.length) {
+            args["priority-normal"] = nextPayload.priorityNormal;
         }
-        if (payload.priorityLow?.length) {
-            args["priority-low"] = payload.priorityLow;
+        if (nextPayload.priorityLow?.length) {
+            args["priority-low"] = nextPayload.priorityLow;
         }
 
         const response = await this.send(
@@ -1392,10 +1436,20 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async setSequentialDownload(id: string, enabled: boolean): Promise<void> {
+        const currentSettings =
+            this.sessionSettingsCache ?? (await this.fetchSessionSettings());
+        if (
+            !isVersionGatedSettingSupported(
+                currentSettings,
+                "sequential_download",
+            )
+        ) {
+            return;
+        }
         const rpcId = await this.resolveRpcId(id);
         await this.mutate("torrent-set", {
             ids: [rpcId],
-            sequentialDownload: enabled,
+            sequential_download: enabled,
         });
     }
 
@@ -1426,6 +1480,14 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate("torrent-set", {
             ids: rpcIds,
             trackerRemove,
+        });
+    }
+
+    public async setTrackerList(id: string, trackerList: string): Promise<void> {
+        const rpcId = await this.resolveRpcId(id);
+        await this.mutate("torrent-set", {
+            ids: [rpcId],
+            trackerList,
         });
     }
 

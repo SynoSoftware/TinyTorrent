@@ -14,12 +14,10 @@ import {
     Play,
     RotateCcw,
     Trash2,
-    type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { GeneralTab } from "@/modules/dashboard/components/TorrentDetails_General";
 import { ContentTab } from "@/modules/dashboard/components/TorrentDetails_Content";
 import { PiecesTab } from "@/modules/dashboard/components/TorrentDetails_Pieces";
@@ -32,16 +30,11 @@ import {
 } from "@/app/controlPlane/shortcuts";
 import { ShortcutIntents } from "@/shared/controlPlane/shortcutVocabulary";
 import {
-    type TorrentDispatchOutcome,
-} from "@/app/actions/torrentDispatch";
-import {
     getEffectiveTorrentState,
     isTorrentPausableState,
 } from "@/modules/dashboard/utils/torrentStatus";
 import { isEditableKeyboardTarget } from "@/shared/utils/dom";
 import type { TorrentDetailHeaderAction } from "@/modules/dashboard/types/torrentDetailHeader";
-
-type TrackerMutationOutcome = Pick<TorrentDispatchOutcome, "status">;
 
 const {
     NavigateNextTab,
@@ -104,8 +97,9 @@ export interface TorrentDetailTabSurfaces {
     general: {
         torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
         isDetailFullscreen: boolean;
-        canSetLocation: boolean;
+        sequentialDownloadCapability: DashboardDetailViewModel["tabs"]["general"]["sequentialDownloadCapability"];
         onTorrentAction: DashboardDetailViewModel["tabs"]["general"]["handleTorrentAction"];
+        onSequentialToggle: DashboardDetailViewModel["tabs"]["general"]["handleSequentialToggle"];
         setLocation: DashboardDetailViewModel["tabs"]["general"]["setLocation"];
         optimisticStatus: DashboardDetailViewModel["optimisticStatus"];
     } | null;
@@ -125,16 +119,13 @@ export interface TorrentDetailTabSurfaces {
         showPersistentHud: boolean;
     } | null;
     trackers: {
-        torrentId: DashboardDetailViewModel["tabs"]["trackers"]["torrentId"];
         torrentName: string;
         trackers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["trackers"]
         >;
         emptyMessage: string;
         isStandalone?: boolean;
-        addTrackers: DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"];
-        removeTrackers: DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"];
-        reannounce: DashboardDetailViewModel["tabs"]["trackers"]["reannounce"];
+        commands: DashboardDetailViewModel["tabs"]["trackers"];
         registerHeaderActions?: (actions: TorrentDetailHeaderAction[]) => void;
     } | null;
     peers: {
@@ -229,7 +220,6 @@ export const useTorrentDetailTabCoordinator = ({
     isDetailFullscreen = false,
 }: UseTorrentDetailTabCoordinatorParams): UseTorrentDetailTabCoordinatorResult => {
     const { t } = useTranslation();
-    const { showFeedback } = useActionFeedback();
     const [showPiecesHud, setShowPiecesHud] = useState(true);
     const [trackersHeaderActions, setTrackersHeaderActions] = useState<TorrentDetailHeaderAction[]>([]);
     const torrent = viewModel.detailData;
@@ -241,46 +231,6 @@ export const useTorrentDetailTabCoordinator = ({
         onInspectorTabCommandHandled:
             viewModel.tabs.navigation.onInspectorTabCommandHandled,
     });
-
-    const runTrackerMutation = useCallback(
-        async (
-            mutate: () => Promise<TrackerMutationOutcome>,
-        ) => {
-            const outcome = await mutate();
-            if (outcome.status === "unsupported") {
-                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
-            } else if (outcome.status === "failed") {
-                showFeedback(t("toolbar.feedback.failed"), "danger");
-            }
-            return outcome;
-        },
-        [showFeedback, t],
-    );
-
-    const addTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["addTrackers"]>(
-        (torrentId, trackers) =>
-            runTrackerMutation(() =>
-                viewModel.tabs.trackers.addTrackers(torrentId, trackers),
-            ),
-        [runTrackerMutation, viewModel.tabs.trackers],
-    );
-
-    const removeTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["removeTrackers"]>(
-        (torrentId, trackerIds) =>
-            runTrackerMutation(() =>
-                viewModel.tabs.trackers.removeTrackers(torrentId, trackerIds),
-            ),
-        [runTrackerMutation, viewModel.tabs.trackers],
-    );
-
-    const reannounceTrackers = useCallback<DashboardDetailViewModel["tabs"]["trackers"]["reannounce"]>(
-        (torrentId) =>
-            runTrackerMutation(() =>
-                viewModel.tabs.trackers.reannounce(torrentId),
-            ),
-        [runTrackerMutation, viewModel.tabs.trackers],
-    );
-
     const surfaces: TorrentDetailTabSurfaces = !torrent
         ? {
               general: null,
@@ -294,18 +244,24 @@ export const useTorrentDetailTabCoordinator = ({
               general: {
                   torrent,
                   isDetailFullscreen,
-                  canSetLocation: viewModel.tabs.general.canSetLocation,
-                  onTorrentAction: viewModel.tabs.general.handleTorrentAction,
+                  sequentialDownloadCapability:
+                      viewModel.tabs.general.sequentialDownloadCapability,
+                  onTorrentAction:
+                      viewModel.tabs.general.handleTorrentAction,
+                  onSequentialToggle:
+                      viewModel.tabs.general.handleSequentialToggle,
                   setLocation: viewModel.tabs.general.setLocation,
                   optimisticStatus: viewModel.optimisticStatus,
               },
               content: {
                   torrent,
                   files: torrent.files ?? [],
-                  emptyMessage: torrent.files == null
-                      ? t("torrent_modal.loading")
-                      : t("torrent_modal.files_empty"),
-                  onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
+                  emptyMessage:
+                      torrent.files == null
+                          ? t("torrent_modal.loading")
+                          : t("torrent_modal.files_empty"),
+                  onFilesToggle:
+                      viewModel.tabs.content.handleFileSelectionChange,
                   isStandalone,
               },
               pieces: {
@@ -317,27 +273,27 @@ export const useTorrentDetailTabCoordinator = ({
                   showPersistentHud: showPiecesHud,
               },
               trackers: {
-                  torrentId: viewModel.tabs.trackers.torrentId,
                   torrentName: torrent.name,
                   trackers: torrent.trackers ?? [],
-                  emptyMessage: torrent.trackers == null
-                      ? t("torrent_modal.loading")
-                      : t("torrent_modal.trackers.empty_backend"),
+                  emptyMessage:
+                      torrent.trackers == null
+                          ? t("torrent_modal.loading")
+                          : t("torrent_modal.trackers.empty_backend"),
                   isStandalone,
-                  addTrackers,
-                  removeTrackers,
-                  reannounce: reannounceTrackers,
+                  commands: viewModel.tabs.trackers,
                   registerHeaderActions: setTrackersHeaderActions,
               },
               peers: {
                   peers: torrent.peers ?? [],
-                  emptyMessage: torrent.peers == null
-                      ? t("torrent_modal.loading")
-                      : t("torrent_modal.peers.empty_backend"),
+                  emptyMessage:
+                      torrent.peers == null
+                          ? t("torrent_modal.loading")
+                          : t("torrent_modal.peers.empty_backend"),
                   onPeerContextAction:
                       viewModel.tabs.peers.handlePeerContextAction,
                   torrentProgress: torrent.progress ?? 0,
-                  sortBySpeed: viewModel.tabs.peers.peerSortStrategy === "speed",
+                  sortBySpeed:
+                      viewModel.tabs.peers.peerSortStrategy === "speed",
                   isStandalone,
               },
               speed:

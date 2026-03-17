@@ -333,6 +333,10 @@
         "blocklist": {
             "unsupported": "Blocklist is not supported by the current engine."
         },
+        "version_gate": {
+            "detecting": "Checking server version support.",
+            "requires_server": "Requires Transmission {{version}} or newer."
+        },
         "button": {
             "browse": "Browse"
         },
@@ -482,6 +486,7 @@
             "dht": "DHT",
             "downloadFolder": "Default Download Folder",
             "downloadLimit": "Download Limit",
+            "defaultSequentialDownload": "Default Sequential Download",
             "encryption": "Encryption Level",
             "globalPeers": "Global Peer Limit",
             "idleSeedingLimit": "Minutes to Stop Seeding",
@@ -515,12 +520,14 @@
             "silentStartHelper": "Applies to system startup only. Manual launch always opens the window.",
             "splashMessage": "Splash screen message",
             "startAdded": "Start Added Torrents",
+            "addedVerifyMode": "Verify Added Torrents",
             "tableWatermark": "Show torrent table watermark",
             "turtleMode": "Turtle Mode",
             "updateChecks": "Automatically check for updates",
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",
-            "useIncompleteFolder": "Use Incomplete Folder"
+            "useIncompleteFolder": "Use Incomplete Folder",
+            "verifyOnComplete": "Verify When Download Completes"
         },
         "load_error": "Unable to load settings from server.",
         "modal": {
@@ -559,6 +566,10 @@
                 "preferred": "Prefer Encryption",
                 "required": "Require Encryption",
                 "tolerated": "Allow Unencrypted"
+            },
+            "addedVerifyMode": {
+                "fast": "Fast Add (verify on demand)",
+                "full": "Full Verify on Add"
             },
             "shellStyle": {
                 "classic": "Classic",
@@ -666,6 +677,8 @@
             "confirm_delete_data": "Delete downloaded data?",
             "copy_hash": "Copy Hash",
             "copy_magnet": "Copy Magnet Link",
+            "disable_sequential_download": "Disable Sequential Download",
+            "enable_sequential_download": "Enable Sequential Download",
             "fit_all_columns": "Fit All Columns",
             "hide_column": "Hide Column",
             "hide_column_named": "Hide {{column}}",
@@ -1034,6 +1047,10 @@
             "downloaded_size": "Size",
             "downloaded_count": "Downloads",
             "downloaders": "Downloaders",
+            "edit_action": "Edit Tracker",
+            "edit_modal_duplicate": "That tracker URL already exists on this torrent.",
+            "edit_modal_single": "Edit accepts exactly one tracker URL.",
+            "edit_modal_title": "Edit tracker for {{name}}",
             "next_announce": "Next Announce",
             "empty_backend": "No trackers configured.",
             "last_announce": "Last Announce",

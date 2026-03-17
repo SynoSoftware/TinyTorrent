@@ -144,6 +144,7 @@ Adding a new authority (a new “source of truth” surface) is forbidden unless
 - **Semantic UI logic/utilities:** `frontend/src/config/logic.ts`
 - **Text roles / typography roles:** `frontend/src/config/textRoles.ts`
 - **RPC schema/validation authority:** `frontend/src/services/rpc/schemas.ts`
+- **RPC protocol feature/version support authority:** `frontend/src/services/rpc/version-support.ts`
 - **RPC transport outcome semantics:** `frontend/src/services/transport.ts`
 - **Feature ViewModel Authority (primary):** each feature module owns exactly one primary ViewModel, defined inside that module (for example `frontend/src/modules/dashboard/hooks.ts`)
 - **Cross-feature/global ViewModel authority (optional):** `frontend/src/app/` (only when no single feature can own the concern)
@@ -1798,6 +1799,7 @@ If anything here conflicts with §21, §21 governs.
 
 2. **Capability Resolution In Control Plane**  
    Capability detection happens once in control-plane owners and is published as explicit state.  
+   Protocol feature/version support must be centralized in `frontend/src/services/rpc/version-support.ts`; scattered UI/view-model/adapter version checks are forbidden.  
    See §21.2 and §21.5.
 
 3. **Completed Contract Surfaces**  

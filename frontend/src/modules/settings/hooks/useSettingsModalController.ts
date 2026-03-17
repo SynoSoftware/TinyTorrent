@@ -28,7 +28,7 @@ import type {
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
 } from "@/modules/settings/context/SettingsFormContext";
-const { timing, shell, ui } = registry;
+const { timing } = registry;
 
 type LiveUserPreferencePatch = Partial<
     Pick<

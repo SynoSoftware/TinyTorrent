@@ -25,6 +25,12 @@ vi.mock("@/app/context/AppCommandContext", () => ({
     }),
 }));
 
+vi.mock("@/app/hooks/useDownloadPaths", () => ({
+    useDownloadPaths: () => ({
+        history: [],
+    }),
+}));
+
 vi.mock("@/shared/hooks/useDestinationPathValidation", () => ({
     useDestinationPathValidation: (...args: unknown[]) => validationHookMock(...args),
 }));

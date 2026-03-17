@@ -9,7 +9,7 @@ import { formatSpeed } from "@/shared/utils/format";
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { layout, visuals } = registry;
 
 const DENSE_TEXT = `${layout.table.fontSize} ${layout.table.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
@@ -24,6 +24,7 @@ interface TorrentTableSpeedColumnCellProps {
     table: Table<Torrent>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const getTorrentCompactSpeedValue = (torrent: Torrent) => {
     const isDownloading = torrent.state === status.torrent.downloading;
     const isSeeding = torrent.state === status.torrent.seeding;
@@ -97,10 +98,11 @@ export function TorrentTable_SpeedCell({
             : speedState === "seed"
               ? visuals.status.keys.speed.seed
               : visuals.status.keys.speed.idle;
+    const idleSpeedColorClass =
+        visuals.status.recipes[visuals.status.keys.speed.idle]!.text;
     const speedColorClass =
         visuals.status.recipes[speedColorKey]?.text ??
-        visuals.status.recipes[visuals.status.keys.speed.idle]?.text ??
-        "text-foreground/60";
+        idleSpeedColorClass;
 
     return (
         <div className={TABLE.speedCell.root}>

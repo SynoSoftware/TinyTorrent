@@ -9,6 +9,7 @@ import type { TorrentTableRowMenuViewModel } from "@/modules/dashboard/types/tor
 const setDownloadPathModalSpy = vi.hoisted(() => vi.fn());
 const showFeedbackMock = vi.fn();
 const setDownloadLocationMock = vi.fn();
+const setSequentialDownloadMock = vi.fn();
 const pickDirectoryMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
@@ -33,6 +34,16 @@ vi.mock("@heroui/react", () => ({
     DropdownMenu: ({ children }: { children: React.ReactNode }) => (
         React.createElement("div", null, children)
     ),
+    Checkbox: ({
+        isSelected,
+    }: {
+        isSelected?: boolean;
+    }) =>
+        React.createElement(
+            "span",
+            { "data-selected": Boolean(isSelected) },
+            "checkbox",
+        ),
     DropdownItem: ({
         children,
         onPress,
@@ -70,6 +81,7 @@ vi.mock("@/app/hooks/useActionFeedback", () => ({
 vi.mock("@/app/context/AppCommandContext", () => ({
     useTorrentCommands: () => ({
         setDownloadLocation: setDownloadLocationMock,
+        setSequentialDownload: setSequentialDownloadMock,
     }),
 }));
 
@@ -144,8 +156,11 @@ const makeViewModel = (torrent: Torrent): TorrentTableRowMenuViewModel => ({
             y: 10,
             getBoundingClientRect: () => new DOMRect(10, 10, 1, 1),
         },
-        torrent,
+        torrentId: torrent.id,
+        torrentHash: torrent.hash,
     },
+    contextTorrent: torrent,
+    sequentialDownloadCapability: "supported",
     onClose: vi.fn(),
     handleContextMenuAction: async () =>
         ({ status: "success" }) as const,
@@ -184,6 +199,7 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
         setDownloadPathModalSpy.mockReset();
         showFeedbackMock.mockReset();
         setDownloadLocationMock.mockReset();
+        setSequentialDownloadMock.mockReset();
         pickDirectoryMock.mockReset();
     });
 
@@ -241,5 +257,54 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
             mounted.cleanup();
         }
     });
+
+    it("shows a sequential toggle label for supported torrents", async () => {
+        const torrent = makeTorrent({
+            sequentialDownload: false,
+        });
+        const mounted = mountRowMenu(makeViewModel(torrent));
+        try {
+            await waitForCondition(
+                () => setDownloadPathModalSpy.mock.calls.length > 0,
+            );
+            const sequentialButton = Array.from(
+                mounted.container.querySelectorAll("button"),
+            ).find(
+                (button) =>
+                    button.textContent ===
+                    "table.actions.enable_sequential_download",
+            );
+            expect(sequentialButton).toBeTruthy();
+            expect(sequentialButton?.disabled).toBe(false);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("hides the sequential toggle when unsupported", async () => {
+        const torrent = makeTorrent({
+            sequentialDownload: false,
+        });
+        const mounted = mountRowMenu({
+            ...makeViewModel(torrent),
+            sequentialDownloadCapability: "unsupported",
+        });
+        try {
+            await waitForCondition(
+                () => setDownloadPathModalSpy.mock.calls.length > 0,
+            );
+            const sequentialButton = Array.from(
+                mounted.container.querySelectorAll("button"),
+            ).find(
+                (button) =>
+                    button.textContent ===
+                    "table.actions.enable_sequential_download",
+            );
+            expect(sequentialButton).toBeFalsy();
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
 });
 

@@ -1,4 +1,4 @@
-import React, { createElement } from "react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -55,17 +55,17 @@ vi.mock("@/modules/dashboard/components/TorrentDetails_Trackers", () => ({
     TrackersTab: ({
         trackers,
         emptyMessage,
-        torrentId,
+        commands,
     }: {
         trackers: TorrentTrackerEntity[];
         emptyMessage: string;
-        torrentId: string | number | null;
+        commands: DashboardDetailViewModel["tabs"]["trackers"];
     }) =>
         createElement(
             "div",
             {
                 "data-testid": "trackers-surface",
-                "data-torrent-id": String(torrentId ?? ""),
+                "data-torrent-id": String(commands.torrentId ?? ""),
             },
             trackers.length > 0
                 ? trackers.map((tracker) => tracker.announce).join(",")
@@ -101,8 +101,9 @@ const createViewModel = (
             onInspectorTabCommandHandled: () => undefined,
         },
         general: {
-            canSetLocation: false,
+            sequentialDownloadCapability: "supported",
             handleTorrentAction: async () => commandOutcome.noSelection(),
+            handleSequentialToggle: async () => undefined,
             setLocation: {
                 policy: {
                     actionLabelKey: "table.actions.set_download_path",
@@ -123,6 +124,7 @@ const createViewModel = (
             torrentId: detailData?.id ?? null,
             addTrackers: async () => ({ status: "applied" }),
             removeTrackers: async () => ({ status: "applied" }),
+            setTrackerList: async () => ({ status: "applied" }),
             reannounce: async () => ({ status: "applied" }),
         },
         peers: {

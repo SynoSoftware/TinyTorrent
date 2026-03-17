@@ -9,7 +9,7 @@ import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerpr
 import { enforceStateTransition } from "@/services/rpc/normalizers";
 import { status } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
-const { performance, timing, ui } = registry;
+const { performance, timing } = registry;
 
 export type HeartbeatMode = "background" | "table" | "detail";
 export type HeartbeatDetailProfile = "standard" | "pieces";
@@ -658,6 +658,7 @@ export class HeartbeatManager {
     }
 
     private async tick() {
+        let triggerImmediateFollowup = false;
         // Record the execution time of a real tick so throttling reflects
         // actual work, not just immediate trigger attempts.
         this.lastImmediateTriggerMs = Date.now();
@@ -717,10 +718,12 @@ export class HeartbeatManager {
                 let fetchedSessionStats: SessionStats;
                 let fetchedTelemetry: NetworkTelemetry | undefined = undefined;
 
-                // Table subscribers need authoritative live summary values
-                // (speeds/progress/ETA), so they always stay on full summary
-                // fetches. The delta path remains for lighter non-table
-                // polling where recently-active omissions are acceptable.
+                // Prefer the cheaper recently-active delta path whenever we
+                // already have a hydrated snapshot and no higher-priority
+                // condition requires a full resync. Table sessions switch
+                // back to full summary polling only when the existing rows
+                // contain live-transfer states where stale delta data would
+                // misreport speed/progress/ETA.
                 const clientDelta = this
                     .client as HeartbeatClientWithTelemetry & {
                         getRecentlyActive?: unknown;
@@ -735,10 +738,21 @@ export class HeartbeatManager {
                               torrent.state === status.torrent.checking,
                       )
                     : false;
+                const hasActiveTableTransfer =
+                    hasTableSubscribers && Array.isArray(torrents)
+                        ? torrents.some(
+                              (torrent) =>
+                                  torrent.state ===
+                                      status.torrent.downloading ||
+                                  torrent.state === status.torrent.seeding ||
+                                  torrent.state === status.torrent.queued ||
+                                  torrent.state === status.torrent.stalled,
+                          )
+                        : false;
                 const shouldUseFullSummaryFetch =
                     this.hasFullFetchPriority() ||
                     hasChecking ||
-                    hasTableSubscribers ||
+                    hasActiveTableTransfer ||
                     this.cycleCount >= this.MAX_DELTA_CYCLES;
 
                 // --- 1. Fetch Global Stats ---
@@ -1157,11 +1171,14 @@ export class HeartbeatManager {
             this.isRunning = false;
             if (this.subscribers.size > 0) {
                 if (this.immediateTickPending) {
-                    void this.tick();
-                    return;
+                    triggerImmediateFollowup = true;
+                } else {
+                    this.rescheduleLoop();
                 }
-                this.rescheduleLoop();
             }
+        }
+        if (triggerImmediateFollowup) {
+            void this.tick();
         }
     }
 

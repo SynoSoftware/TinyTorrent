@@ -52,7 +52,7 @@ import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { deriveVisibleHeaderOrder } from "@/modules/dashboard/viewModels/torrentTableColumnOrder";
-const { layout, interaction, ui } = registry;
+const { layout } = registry;
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
@@ -357,11 +357,28 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         clearSelection: selection.clearSelection,
     };
 
+    const closeContextMenu = useCallback(() => {
+        setContextMenu(null);
+    }, []);
+
+    const contextTorrent = useMemo(
+        () =>
+            contextMenu == null
+                ? null
+                : torrents.find(
+                      (torrent) =>
+                          torrent.id === contextMenu.torrentId ||
+                          torrent.hash === contextMenu.torrentHash,
+                  ) ?? null,
+        [contextMenu, torrents],
+    );
+
     const { handleContextMenuAction } = useTorrentTableContextActions({
-        contextMenu,
+        contextTorrent,
         copyToClipboard,
         buildMagnetLink,
-        setContextMenu,
+        closeContextMenu,
+        sequentialDownloadCapability: viewModel.capabilities.sequentialDownload,
     });
 
     const { activate: activateScope, deactivate: deactivateScope } =
@@ -454,7 +471,11 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             if (torrent.isGhost) return;
 
             const virtualElement = createVirtualElement(event.clientX, event.clientY, { margin: fileContextMenuMargin });
-            setContextMenu({ virtualElement, torrent });
+            setContextMenu({
+                virtualElement,
+                torrentId: torrent.id,
+                torrentHash: torrent.hash,
+            });
 
             const row = table.getRowModel().rows.find((candidate) => candidate.original.id === torrent.id);
             if (!row) return;
@@ -490,7 +511,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
                 columnOrder,
                 table.getVisibleLeafColumns().map((column) => column.id),
             ),
-        [columnOrder, columnVisibility, table],
+        [columnOrder, table],
     );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
@@ -542,24 +563,12 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         };
     }, [columnOrder]);
 
-    useEffect(() => {
-        if (!contextMenu) return;
-        const exists = torrents.some((torrent) => torrent.id === contextMenu.torrent.id);
-        if (!exists) {
-            setContextMenu(null);
-        }
-    }, [contextMenu, torrents]);
-
     const isAnimationSuppressed = isAnyColumnResizing || animationSuppressionActive;
 
     const headerMenuTriggerRect = headerContextMenu ? headerContextMenu.virtualElement.getBoundingClientRect() : null;
 
     const handleDropTargetChange = useCallback((id: string | null) => {
         setDropTargetRowId(id);
-    }, []);
-
-    const closeContextMenu = useCallback(() => {
-        setContextMenu(null);
     }, []);
 
     const closeHeaderMenu = useCallback(() => {
@@ -655,7 +664,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
                 activeDragRow,
             },
             rowInteraction: {
-                contextMenuTorrentId: contextMenu?.torrent.id ?? null,
+                contextMenuTorrentId: contextMenu?.torrentId ?? null,
                 onRowClick: selection.handleRowClick,
                 onRowDoubleClick: handleRowDoubleClick,
                 onRowContextMenu: handleContextMenu,
@@ -689,7 +698,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             rows,
             table,
             activeDragRow,
-            contextMenu?.torrent.id,
+            contextMenu?.torrentId,
             selection.handleRowClick,
             handleRowDoubleClick,
             handleContextMenu,
@@ -706,13 +715,23 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     );
     const rowMenuViewModel = useMemo<TorrentTableRowMenuViewModel>(
         () => ({
-            contextMenu,
+            contextMenu: contextTorrent ? contextMenu : null,
+            contextTorrent,
+            sequentialDownloadCapability:
+                viewModel.capabilities.sequentialDownload,
             onClose: closeContextMenu,
             handleContextMenuAction,
             queueMenuActions,
             getContextMenuShortcut,
         }),
-        [contextMenu, closeContextMenu, handleContextMenuAction, queueMenuActions],
+        [
+            contextMenu,
+            contextTorrent,
+            viewModel.capabilities.sequentialDownload,
+            closeContextMenu,
+            handleContextMenuAction,
+            queueMenuActions,
+        ],
     );
     const headerMenuViewModel = useMemo<TorrentTableHeaderMenuViewModel>(
         () => ({

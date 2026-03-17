@@ -105,6 +105,10 @@ export interface TorrentCommandAPI {
     handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<TorrentCommandOutcome>;
     handleBulkAction: (action: TorrentTableAction) => Promise<TorrentCommandOutcome>;
     setDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
+    setSequentialDownload: (
+        torrent: Torrent,
+        enabled: boolean,
+    ) => Promise<TorrentCommandOutcome>;
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     openAddTorrentPicker: () => Promise<TorrentCommandOutcome>;
     openAddMagnet: (magnetLink?: string) => Promise<TorrentCommandOutcome>;

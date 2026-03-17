@@ -43,6 +43,8 @@ export interface BlockBase {
     disabledWhenNotImmersive?: boolean;
 }
 
+export type SettingsSectionTone = "primary" | "success" | "warning" | "danger";
+
 export type ButtonActionKey = "testPort" | "restoreHud";
 
 type SwitchSliderBlock = {
@@ -142,7 +144,7 @@ export type SectionBlock =
 
 interface SectionDefinition {
     titleKey?: string;
-    cardClass?: string;
+    tone?: SettingsSectionTone;
     descriptionKey?: string;
     blocks: SectionBlock[];
 }
@@ -189,7 +191,7 @@ export const SETTINGS_TABS: TabDefinition[] = [
             },
             {
                 titleKey: "settings.sections.turtle",
-                cardClass: "border-warning/30 bg-warning/5",
+                tone: "warning",
                 blocks: [
                     {
                         type: "switch",
@@ -445,6 +447,33 @@ export const SETTINGS_TABS: TabDefinition[] = [
                         type: "switch",
                         labelKey: "settings.labels.startAdded",
                         stateKey: "start_added_torrents",
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.defaultSequentialDownload",
+                        stateKey: "sequential_download",
+                    },
+                    {
+                        type: "select",
+                        labelKey: "settings.labels.addedVerifyMode",
+                        stateKey: "torrent_added_verify_mode",
+                        options: [
+                            {
+                                key: "fast",
+                                labelKey:
+                                    "settings.options.addedVerifyMode.fast",
+                            },
+                            {
+                                key: "full",
+                                labelKey:
+                                    "settings.options.addedVerifyMode.full",
+                            },
+                        ],
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.verifyOnComplete",
+                        stateKey: "torrent_complete_verify_enabled",
                     },
                 ],
             },

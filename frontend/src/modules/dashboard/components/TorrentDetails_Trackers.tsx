@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Textarea, Tooltip, cn } from "@heroui/react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Tooltip, cn } from "@heroui/react";
 import { flexRender } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Pencil, Plus, RefreshCcw, Trash2, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
+import { registry } from "@/config/logic";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
-import { CONTEXT_MENU, DETAILS, INPUT, SURFACE } from "@/shared/ui/layout/glass-surface";
+import { CONTEXT_MENU, DETAILS, FORM, INPUT, SURFACE } from "@/shared/ui/layout/glass-surface";
 import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import type {
@@ -13,61 +16,23 @@ import type {
     TrackerRowViewModel,
 } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
 import type { TorrentDetailHeaderAction } from "@/modules/dashboard/types/torrentDetailHeader";
+const { visuals } = registry;
 
 interface TrackersTabProps {
-    torrentId: string | number | null;
     torrentName: string;
     trackers: TorrentTrackerEntity[];
     emptyMessage: string;
     isStandalone?: boolean;
-    addTrackers: (
-        torrentId: string | number,
-        trackers: string[],
-    ) => Promise<{ status: "applied" | "unsupported" | "failed" }>;
-    removeTrackers: (
-        torrentId: string | number,
-        trackerIds: number[],
-    ) => Promise<{ status: "applied" | "unsupported" | "failed" }>;
-    reannounce: (torrentId: string | number) => Promise<{ status: "applied" | "unsupported" | "failed" }>;
+    commands: DashboardDetailViewModel["tabs"]["trackers"];
     registerHeaderActions?: (actions: TorrentDetailHeaderAction[]) => void;
 }
 
 const TRACKER_COLUMN_WIDTHS = ["10%", "24%", "8%", "7%", "7%", "8%", "8%", "11%", "11%", "6%"] as const;
 
-const TRACKER_UI = {
-    scroll: `${DETAILS.table.scroll} relative outline-none`,
-    table: `${DETAILS.table.table} table-fixed`,
-    headerCell: `${DETAILS.table.tableHeadCell} ${SURFACE.chrome.sticky} top-0 z-sticky bg-content1/80 backdrop-blur-sm`,
-    headerButton:
-        "flex w-full items-center gap-tight text-left text-inherit transition-colors hover:text-foreground/80 whitespace-normal break-words",
-    headerButtonEnd: "justify-end",
-    row: `${DETAILS.table.tableRow} cursor-default`,
-    rowSelected: "surface-layer-1 outline outline-1 -outline-offset-1 outline-primary/20",
-    bodyCell: `${DETAILS.table.tableBody} border-b border-default/5 px-tight py-panel align-middle`,
-    statusCell: "flex items-center gap-tight min-w-0",
-    trackerCell: "min-w-0 truncate font-medium text-foreground/85",
-    trackerText: "truncate",
-    tierCell: "text-center text-foreground/60",
-    metricCell: "text-right tabular-nums text-foreground/70",
-    timeCell: "text-right tabular-nums text-foreground/60",
-    messageCell: "truncate text-foreground/55",
-    tierBadge: `${SURFACE.atom.insetRounded} inline-flex min-w-0 items-center px-tight py-tight text-label font-semibold text-foreground/65`,
-    modalPanel: `${SURFACE.surface.panelInfo} p-panel space-y-panel`,
-    modalError: "text-danger",
-};
-
-const getStatusDotClass = (tone: TrackerRowViewModel["statusTone"]) => {
-    if (tone === "success") {
-        return "size-dot rounded-full shadow-dot bg-success shadow-success/50";
-    }
-    if (tone === "warning") {
-        return "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
-    }
-    if (tone === "danger") {
-        return "size-dot rounded-full surface-layer-1 border border-danger/45";
-    }
-    return "size-dot rounded-full surface-layer-1 border border-default/20";
-};
+type TrackerState = TorrentDetailsTrackersViewModel["state"];
+type TrackerLabels = TorrentDetailsTrackersViewModel["labels"];
+type TrackerActions = TorrentDetailsTrackersViewModel["actions"];
+type TrackerRefs = TorrentDetailsTrackersViewModel["refs"];
 
 const sortIcon = (direction: false | "asc" | "desc") => {
     if (direction === "asc") {
@@ -85,69 +50,142 @@ const renderHeaderLabel = (value: unknown) =>
 const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: TorrentDetailsTrackersViewModel }) => (
     <tr
         key={row.key}
-        className={cn(TRACKER_UI.row, row.selected && TRACKER_UI.rowSelected)}
+        className={cn(
+            DETAILS.table.tableRow,
+            "cursor-default",
+            row.selected && visuals.trackerTable.rowSelected,
+        )}
         onClick={(event) => viewModel.actions.handleRowClick(event, row.key, row.index)}
         onContextMenu={(event) => viewModel.actions.openContextMenu(event, row.key, row.index)}
     >
-        <td className={TRACKER_UI.bodyCell}>
-            <div className={TRACKER_UI.statusCell}>
-                <div className={getStatusDotClass(row.statusTone)} />
+        <td
+            className={cn(
+                DETAILS.table.tableBody,
+                visuals.trackerTable.bodyCell,
+                "px-tight py-panel align-middle",
+            )}
+        >
+            <div className="flex min-w-0 items-center gap-tight">
+                <div className={visuals.trackerTable.statusDot[row.statusTone]} />
                 <span className="truncate">{row.statusLabel}</span>
             </div>
         </td>
-        <td className={TRACKER_UI.bodyCell}>
+        <td
+            className={cn(
+                DETAILS.table.tableBody,
+                visuals.trackerTable.bodyCell,
+                "px-tight py-panel align-middle",
+            )}
+        >
             <Tooltip content={row.announce} classNames={SURFACE.tooltip} delay={500}>
-                <div className={TRACKER_UI.trackerCell}>
-                    <span className={TRACKER_UI.trackerText}>{row.announce}</span>
+                <div className={cn("min-w-0 truncate", visuals.trackerTable.trackerCell)}>
+                    <span className="truncate">{row.announce}</span>
                 </div>
             </Tooltip>
         </td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.tierCell)}>
-            <span className={TRACKER_UI.tierBadge}>{row.tierLabel}</span>
+        <td
+            className={cn(
+                DETAILS.table.tableBody,
+                visuals.trackerTable.bodyCell,
+                visuals.trackerTable.tierCell,
+                "px-tight py-panel align-middle text-center",
+            )}
+        >
+                <span
+                    className={cn(
+                        SURFACE.atom.insetRounded,
+                        visuals.trackerTable.tierBadge,
+                        "inline-flex min-w-0 items-center px-tight py-tight",
+                    )}
+                >
+                {row.tierLabel}
+            </span>
         </td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.seedsLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.leechesLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadCountLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.metricCell)}>{row.downloadersLabel}</td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.timeCell)}>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.seedsLabel}</td>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.leechesLabel}</td>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadCountLabel}</td>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadersLabel}</td>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
             <Tooltip content={row.lastAnnounceTooltip} classNames={SURFACE.tooltip} delay={500}>
                 <span className="truncate">{row.lastAnnounceLabel}</span>
             </Tooltip>
         </td>
-        <td className={cn(TRACKER_UI.bodyCell, TRACKER_UI.timeCell)}>
+        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
             <Tooltip content={row.nextAnnounceTooltip} classNames={SURFACE.tooltip} delay={500}>
                 <span className="truncate">{row.nextAnnounceLabel}</span>
             </Tooltip>
         </td>
-        <td className={TRACKER_UI.bodyCell}>
+        <td
+            className={cn(
+                DETAILS.table.tableBody,
+                visuals.trackerTable.bodyCell,
+                "px-tight py-panel align-middle",
+            )}
+        >
             <Tooltip content={row.messageTooltip} classNames={SURFACE.tooltip} delay={500}>
-                <div className={TRACKER_UI.messageCell}>{row.messageText}</div>
+                <div className={cn("truncate", visuals.trackerTable.messageCell)}>{row.messageText}</div>
             </Tooltip>
         </td>
     </tr>
 );
 
 export const TrackersTab = ({
-    torrentId,
     torrentName,
     trackers,
     emptyMessage,
     isStandalone = false,
-    addTrackers,
-    removeTrackers,
-    reannounce,
+    commands,
     registerHeaderActions,
 }: TrackersTabProps) => {
+    const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const listRef = useRef<HTMLDivElement | null>(null);
+    const torrentId = commands.torrentId;
+    const runTrackerMutation = useCallback(
+        async (
+            mutate: () => Promise<{ status: "applied" | "unsupported" | "failed" }>,
+        ) => {
+            const outcome = await mutate();
+            if (outcome.status === "unsupported") {
+                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
+            } else if (outcome.status === "failed") {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+            }
+            return outcome;
+        },
+        [showFeedback, t],
+    );
+
     const viewModel = useTorrentDetailsTrackersViewModel({
-        torrentId,
+        torrentId: commands.torrentId,
         torrentName,
         trackers,
         emptyMessage,
         listRef,
-        addTrackers,
-        removeTrackers,
-        reannounce,
+        addTrackers: (nextTrackers) =>
+            torrentId == null
+                ? Promise.resolve({ status: "failed" as const })
+                : runTrackerMutation(() =>
+                      commands.addTrackers(torrentId, nextTrackers),
+                  ),
+        removeTrackers: (trackerIds) =>
+            torrentId == null
+                ? Promise.resolve({ status: "failed" as const })
+                : runTrackerMutation(() =>
+                      commands.removeTrackers(torrentId, trackerIds),
+                  ),
+        setTrackerList: (trackerList) =>
+            torrentId == null
+                ? Promise.resolve({ status: "failed" as const })
+                : runTrackerMutation(() =>
+                      commands.setTrackerList(torrentId, trackerList),
+                  ),
+        reannounce: () =>
+            torrentId == null
+                ? Promise.resolve({ status: "failed" as const })
+                : runTrackerMutation(() =>
+                      commands.reannounce(torrentId),
+                  ),
     });
 
     const shell = (content: ReactNode) =>
@@ -156,6 +194,9 @@ export const TrackersTab = ({
     const trackerActions = viewModel.actions;
     const trackerState = viewModel.state;
     const trackerLabels = viewModel.labels;
+    const trackerData = viewModel.data;
+    const trackerTable = viewModel.table;
+    const trackerRefs = viewModel.refs;
 
     const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
         if (!registerHeaderActions) {
@@ -166,12 +207,25 @@ export const TrackersTab = ({
         if (torrentId != null && canMutate) {
             actions.push({
                 icon: Plus,
-                ariaLabel: viewModel.labels.addLabel,
-                onPress: viewModel.actions.openAddModal,
+                ariaLabel: trackerLabels.addLabel,
+                onPress: trackerActions.openAddModal,
                 tone: "success",
             });
         }
-        if (torrentId != null && canMutate && trackerState.canRemove && trackerState.selectedCount > 0) {
+        if (torrentId != null && canMutate && trackerState.canEdit) {
+            actions.push({
+                icon: Pencil,
+                ariaLabel: trackerLabels.editLabel,
+                onPress: trackerActions.openEditModal,
+                tone: "default",
+            });
+        }
+        if (
+            torrentId != null &&
+            canMutate &&
+            trackerState.canRemove &&
+            trackerState.selectedCount > 0
+        ) {
             actions.push({
                 icon: Trash2,
                 ariaLabel: trackerState.selectedCount > 1 ? trackerLabels.removeManyLabel : trackerLabels.removeLabel,
@@ -205,18 +259,9 @@ export const TrackersTab = ({
     }, [
         registerHeaderActions,
         torrentId,
-        trackerState.isMutating,
-        trackerState.canRemove,
-        trackerState.selectedCount,
-        trackerLabels.addLabel,
-        trackerLabels.removeLabel,
-        trackerLabels.removeManyLabel,
-        trackerLabels.reannounceLabel,
-        trackerLabels.copyAllLabel,
-        trackerActions.openAddModal,
-        trackerActions.removeSelected,
-        trackerActions.reannounceTorrent,
-        trackerActions.copyAllTrackers,
+        trackerActions,
+        trackerLabels,
+        trackerState,
     ]);
 
     useEffect(() => {
@@ -227,11 +272,16 @@ export const TrackersTab = ({
         return () => registerHeaderActions([]);
     }, [headerActions, registerHeaderActions]);
 
-    if (viewModel.state.isEmpty) {
+    if (trackerState.isEmpty) {
         return shell(
             <div className={DETAILS.table.emptyPanel}>
-                <p className={DETAILS.table.emptyText}>{viewModel.labels.emptyMessage}</p>
-                <TrackerEditorModal viewModel={viewModel} />
+                <p className={DETAILS.table.emptyText}>{trackerLabels.emptyMessage}</p>
+                <TrackerEditorModal
+                    actions={trackerActions}
+                    labels={trackerLabels}
+                    trackerInputRef={trackerRefs.trackerInputRef}
+                    state={trackerState}
+                />
             </div>,
         );
     }
@@ -242,18 +292,18 @@ export const TrackersTab = ({
                 {shell(
                     <div
                         ref={listRef}
-                        className={TRACKER_UI.scroll}
+                        className={cn(DETAILS.table.scroll, "relative outline-none")}
                         tabIndex={0}
-                        onKeyDown={viewModel.actions.handleListKeyDown}
+                        onKeyDown={trackerActions.handleListKeyDown}
                     >
-                        <table className={TRACKER_UI.table}>
+                        <table className={cn(DETAILS.table.table, "table-fixed")}>
                             <colgroup>
                                 {TRACKER_COLUMN_WIDTHS.map((width, index) => (
                                     <col key={`${index}:${width}`} style={{ width }} />
                                 ))}
                             </colgroup>
                             <thead className={DETAILS.table.tableHeadRow}>
-                                {viewModel.table.headerGroups.map((headerGroup) => (
+                                {trackerTable.headerGroups.map((headerGroup) => (
                                     <tr key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
                                             const label = renderHeaderLabel(
@@ -270,13 +320,23 @@ export const TrackersTab = ({
                                                 header.column.id === "nextAnnounce";
 
                                             return (
-                                                <th key={header.id} scope="col" className={TRACKER_UI.headerCell}>
+                                                <th
+                                                    key={header.id}
+                                                    scope="col"
+                                                    className={cn(
+                                                        DETAILS.table.tableHeadCell,
+                                                        SURFACE.chrome.sticky,
+                                                        visuals.trackerTable.headerCell,
+                                                        "top-0 z-sticky",
+                                                    )}
+                                                >
                                                     {isSortable ? (
                                                         <button
                                                             type="button"
                                                             className={cn(
-                                                                TRACKER_UI.headerButton,
-                                                                alignEnd && TRACKER_UI.headerButtonEnd,
+                                                                "flex w-full items-center gap-tight text-left",
+                                                                visuals.trackerTable.headerButton,
+                                                                alignEnd && "justify-end",
                                                             )}
                                                             onClick={header.column.getToggleSortingHandler()}
                                                         >
@@ -297,22 +357,41 @@ export const TrackersTab = ({
                                 ))}
                             </thead>
                             <tbody>
-                                {viewModel.data.rows.map((row) => (
+                                {trackerData.rows.map((row) => (
                                     <TrackerRow key={row.key} row={row} viewModel={viewModel} />
                                 ))}
                             </tbody>
                         </table>
-                        {viewModel.state.contextMenu && <TrackerContextMenu viewModel={viewModel} />}
+                        {trackerState.contextMenu ? (
+                            <TrackerContextMenu
+                                actions={trackerActions}
+                                labels={trackerLabels}
+                                state={trackerState}
+                            />
+                        ) : null}
                     </div>,
                 )}
             </div>
-            <TrackerEditorModal viewModel={viewModel} />
+            <TrackerEditorModal
+                actions={trackerActions}
+                labels={trackerLabels}
+                trackerInputRef={trackerRefs.trackerInputRef}
+                state={trackerState}
+            />
         </div>
     );
 };
 
-const TrackerContextMenu = ({ viewModel }: { viewModel: TorrentDetailsTrackersViewModel }) => {
-    if (!viewModel.state.contextMenu) {
+const TrackerContextMenu = ({
+    actions,
+    labels,
+    state,
+}: {
+    actions: TrackerActions;
+    labels: TrackerLabels;
+    state: TrackerState;
+}) => {
+    if (!state.contextMenu) {
         return null;
     }
 
@@ -320,41 +399,52 @@ const TrackerContextMenu = ({ viewModel }: { viewModel: TorrentDetailsTrackersVi
         <div
             className={CONTEXT_MENU.panel}
             style={CONTEXT_MENU.builder.panelStyle({
-                x: viewModel.state.contextMenu.x,
-                y: viewModel.state.contextMenu.y,
+                x: state.contextMenu.x,
+                y: state.contextMenu.y,
             })}
             onPointerDown={(event) => event.stopPropagation()}
         >
             <div className={CONTEXT_MENU.header}>
                 <Link2 className={CONTEXT_MENU.headerIcon} />
-                <span className={CONTEXT_MENU.headerText}>{viewModel.labels.selectionSummary}</span>
+                <span className={CONTEXT_MENU.headerText}>{labels.selectionSummary}</span>
             </div>
             <ContextButton
+                label={labels.editLabel}
+                icon={Pencil}
+                onPress={() => actions.runContextAction("edit")}
+                disabled={!state.canEdit || state.isMutating}
+            />
+            <ContextButton
+                label={labels.copyUrlLabel}
+                icon={Link2}
+                onPress={() => actions.runContextAction("copy_url")}
+                disabled={!state.canCopySelection}
+            />
+            <ContextButton
+                label={labels.copyHostLabel}
+                icon={Copy}
+                onPress={() => actions.runContextAction("copy_host")}
+                disabled={!state.canCopySelection}
+            />
+            <ContextButton
+                label={labels.copyAllLabel}
+                icon={Copy}
+                onPress={() => actions.runContextAction("copy_all")}
+            />
+            <ContextButton
+                label={labels.reannounceLabel}
+                icon={RefreshCcw}
+                onPress={() => actions.runContextAction("reannounce")}
+                disabled={state.isMutating}
+            />
+            <ContextButton
                 label={
-                    viewModel.state.selectedCount > 1 ? viewModel.labels.removeManyLabel : viewModel.labels.removeLabel
+                    state.selectedCount > 1 ? labels.removeManyLabel : labels.removeLabel
                 }
-                onPress={() => viewModel.actions.runContextAction("remove")}
+                icon={Trash2}
+                onPress={() => actions.runContextAction("remove")}
                 danger
-                disabled={!viewModel.state.canRemove || viewModel.state.isMutating}
-            />
-            <ContextButton
-                label={viewModel.labels.copyUrlLabel}
-                onPress={() => viewModel.actions.runContextAction("copy_url")}
-                disabled={!viewModel.state.canCopySelection}
-            />
-            <ContextButton
-                label={viewModel.labels.copyHostLabel}
-                onPress={() => viewModel.actions.runContextAction("copy_host")}
-                disabled={!viewModel.state.canCopySelection}
-            />
-            <ContextButton
-                label={viewModel.labels.copyAllLabel}
-                onPress={() => viewModel.actions.runContextAction("copy_all")}
-            />
-            <ContextButton
-                label={viewModel.labels.reannounceLabel}
-                onPress={() => viewModel.actions.runContextAction("reannounce")}
-                disabled={viewModel.state.isMutating}
+                disabled={!state.canRemove || state.isMutating}
             />
         </div>
     );
@@ -362,11 +452,13 @@ const TrackerContextMenu = ({ viewModel }: { viewModel: TorrentDetailsTrackersVi
 
 const ContextButton = ({
     label,
+    icon: Icon,
     onPress,
     danger = false,
     disabled = false,
 }: {
     label: string;
+    icon: LucideIcon;
     onPress: () => Promise<void>;
     danger?: boolean;
     disabled?: boolean;
@@ -382,54 +474,79 @@ const ContextButton = ({
             void onPress();
         }}
     >
+        <Icon className="toolbar-icon-size-sm shrink-0" strokeWidth={visuals.icon.strokeWidth} />
         {label}
     </button>
 );
 
-const TrackerEditorModal = ({ viewModel }: { viewModel: TorrentDetailsTrackersViewModel }) => {
+const TrackerEditorModal = ({
+    actions,
+    labels,
+    trackerInputRef,
+    state,
+}: {
+    actions: TrackerActions;
+    labels: TrackerLabels;
+    trackerInputRef: TrackerRefs["trackerInputRef"];
+    state: TrackerState;
+}) => {
     const { t } = useTranslation();
+    const isEditing = state.editor.mode === "edit";
     return (
         <ModalEx
-            open={viewModel.state.editor.isOpen}
-            onClose={viewModel.actions.closeEditor}
-            title={viewModel.labels.modalTitle}
+            open={state.editor.isOpen}
+            onClose={actions.closeEditor}
+            title={labels.modalTitle}
             icon={Link2}
             size="sm"
-            disableClose={viewModel.state.isMutating}
+            disableClose={state.isMutating}
             secondaryAction={{
                 label: t("modals.cancel"),
-                onPress: viewModel.actions.closeEditor,
-                disabled: viewModel.state.isMutating,
+                onPress: actions.closeEditor,
+                disabled: state.isMutating,
             }}
             primaryAction={{
-                label: viewModel.labels.addLabel,
+                label: isEditing ? labels.editLabel : labels.addLabel,
                 onPress: () => {
-                    void viewModel.actions.submitEditor();
+                    void actions.submitEditor();
                 },
-                loading: viewModel.state.isMutating,
-                disabled: viewModel.state.isMutating,
+                loading: state.isMutating,
+                disabled: state.isMutating,
             }}
         >
-            <div className={TRACKER_UI.modalPanel}>
-                <Textarea
-                    value={viewModel.state.editor.value}
-                    onValueChange={viewModel.actions.setEditorValue}
-                    minRows={7}
-                    placeholder={viewModel.labels.modalPlaceholder}
-                    variant="bordered"
-                    classNames={INPUT.codeTextareaClassNames}
-                    onKeyDown={(event) => {
-                        if (
-                            event.key === "Enter" &&
-                            (event.ctrlKey || event.metaKey)
-                        ) {
-                            event.preventDefault();
-                            void viewModel.actions.submitEditor();
-                        }
-                    }}
-                />
-                {viewModel.state.editor.error ? (
-                    <p className={TRACKER_UI.modalError}>{viewModel.state.editor.error}</p>
+            <div className={FORM.workflow.fillRoot}>
+                <div className={FORM.workflow.fillSection}>
+                    <label className={FORM.workflow.label}>
+                        <Link2 className={FORM.workflow.labelIcon} />
+                        {labels.modalFieldLabel}
+                    </label>
+                    <div className={FORM.workflow.fillBody}>
+                        <div className={INPUT.fillCodeTextareaFrame}>
+                            <textarea
+                                ref={trackerInputRef}
+                                autoFocus
+                                value={state.editor.value}
+                                onChange={(event) => actions.setEditorValue(event.target.value)}
+                                placeholder={labels.modalPlaceholder}
+                                className={INPUT.fillCodeTextarea}
+                                spellCheck={false}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === "Enter" &&
+                                        (event.ctrlKey || event.metaKey)
+                                    ) {
+                                        event.preventDefault();
+                                        void actions.submitEditor();
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+                {state.editor.error ? (
+                    <p className={cn(visuals.typography.textRoles.helper, visuals.trackerTable.modalError)}>
+                        {state.editor.error}
+                    </p>
                 ) : null}
             </div>
         </ModalEx>

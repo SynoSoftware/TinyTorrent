@@ -15,7 +15,7 @@ import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
 import { useSettingsFormActions } from "@/modules/settings/context/SettingsFormContext";
 import { FORM } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)

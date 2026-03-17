@@ -15,6 +15,7 @@ const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const getEffectiveProgress = (
     torrent: Torrent,
     optimisticStatus?: OptimisticStatusEntry,

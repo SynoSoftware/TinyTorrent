@@ -31,6 +31,5 @@ export type AddTorrentSelection = {
     priorityLow: number[];
     options: {
         sequential: boolean;
-        skipHashCheck: boolean;
     };
 };

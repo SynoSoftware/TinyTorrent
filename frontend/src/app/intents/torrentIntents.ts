@@ -52,6 +52,12 @@ export type TorrentRemoveTracker = {
     trackerIds: number[];
 };
 
+export type TorrentSetTrackerList = {
+    type: "TORRENT_SET_TRACKER_LIST";
+    torrentId: string | number;
+    trackerList: string;
+};
+
 export type TorrentReannounce = {
     type: "TORRENT_REANNOUNCE";
     torrentId: string | number;
@@ -108,7 +114,6 @@ export type AddMagnetTorrent = {
     downloadDir: string;
     paused: boolean;
     sequentialDownload?: boolean;
-    skipHashCheck?: boolean;
 };
 
 export type AddTorrentFromFile = {
@@ -121,7 +126,6 @@ export type AddTorrentFromFile = {
     priorityNormal: number[];
     priorityLow: number[];
     sequentialDownload?: boolean;
-    skipHashCheck?: boolean;
 };
 
 export type FinalizeExistingTorrent = {
@@ -141,6 +145,7 @@ export type TorrentIntent =
     | EnsureTorrentAtLocation
     | TorrentAddTracker
     | TorrentRemoveTracker
+    | TorrentSetTrackerList
     | TorrentReannounce
     | EnsureSelectionActive
     | EnsureSelectionActiveNow
@@ -207,6 +212,11 @@ export const TorrentIntents = {
         torrentIds,
         trackerIds,
     }),
+    torrentSetTrackerList: (torrentId: string | number, trackerList: string): TorrentSetTrackerList => ({
+        type: "TORRENT_SET_TRACKER_LIST",
+        torrentId,
+        trackerList,
+    }),
     torrentReannounce: (torrentId: string | number): TorrentReannounce => ({
         type: "TORRENT_REANNOUNCE",
         torrentId,
@@ -263,14 +273,12 @@ export const TorrentIntents = {
         downloadDir: string,
         paused: boolean,
         sequentialDownload?: boolean,
-        skipHashCheck?: boolean,
     ): AddMagnetTorrent => ({
         type: "ADD_MAGNET_TORRENT",
         magnetLink,
         downloadDir,
         paused,
         sequentialDownload,
-        skipHashCheck,
     }),
     addTorrentFromFile: (
         metainfoBase64: string,
@@ -281,7 +289,6 @@ export const TorrentIntents = {
         priorityNormal: number[],
         priorityLow: number[],
         sequentialDownload?: boolean,
-        skipHashCheck?: boolean,
     ): AddTorrentFromFile => ({
         type: "ADD_TORRENT_FROM_FILE",
         metainfoBase64,
@@ -292,7 +299,6 @@ export const TorrentIntents = {
         priorityNormal,
         priorityLow,
         sequentialDownload,
-        skipHashCheck,
     }),
     finalizeExistingTorrent: (
         torrentId: string | number,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { registry } from "@/config/logic";
-const { layout, ui } = registry;
+const { ui } = registry;
 
 // Public, minimal metric surface. This hook is a reader only - it does NOT
 // define design tokens, colors, or magic numbers. Those live in

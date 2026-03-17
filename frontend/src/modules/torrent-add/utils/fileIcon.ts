@@ -4,7 +4,9 @@ import {
     FileVideo,
     type LucideIcon,
 } from "lucide-react";
+import { registry } from "@/config/logic";
 import { classifyFileKind } from "@/modules/torrent-add/services/fileSelection";
+const { visuals } = registry;
 
 export interface FileIconVisual {
     Icon: LucideIcon;
@@ -16,17 +18,17 @@ export function resolveFileIcon(path: string): FileIconVisual {
     if (kind === "video") {
         return {
             Icon: FileVideo,
-            toneClass: "text-primary",
+            toneClass: visuals.fileIcons.video,
         };
     }
     if (kind === "text") {
         return {
             Icon: FileText,
-            toneClass: "text-foreground/40",
+            toneClass: visuals.fileIcons.text,
         };
     }
     return {
         Icon: FileIcon,
-        toneClass: "text-foreground/40",
+        toneClass: visuals.fileIcons.generic,
     };
 }

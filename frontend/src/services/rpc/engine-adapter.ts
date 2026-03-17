@@ -96,6 +96,7 @@ export interface EngineAdapter {
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;
     addTrackers?(ids: string[], trackers: string[]): Promise<void>;
     removeTrackers?(ids: string[], trackerIds: number[]): Promise<void>;
+    setTrackerList?(id: string, trackerList: string): Promise<void>;
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
     updateRequestTimeout?(timeout: number): void;

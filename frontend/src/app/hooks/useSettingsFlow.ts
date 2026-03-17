@@ -14,6 +14,10 @@ import { useSession } from "@/app/context/SessionContext";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { infraLogger } from "@/shared/utils/infraLogger";
+import {
+    getVersionGatedSettingsSupport,
+    removeUnsupportedVersionGatedSettings,
+} from "@/services/rpc/version-support";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -118,6 +122,16 @@ const mapSessionToConfig = (
     start_added_torrents:
         session["start-added-torrents"] ??
         DEFAULT_SETTINGS_CONFIG.start_added_torrents,
+    sequential_download:
+        session["sequential_download"] ??
+        session.sequentialDownload ??
+        DEFAULT_SETTINGS_CONFIG.sequential_download,
+    torrent_added_verify_mode:
+        session["torrent_added_verify_mode"] ??
+        DEFAULT_SETTINGS_CONFIG.torrent_added_verify_mode,
+    torrent_complete_verify_enabled:
+        session["torrent_complete_verify_enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.torrent_complete_verify_enabled,
     auto_open_ui: session.ui?.autoOpen ?? DEFAULT_SETTINGS_CONFIG.auto_open_ui,
     autorun_hidden:
         session.ui?.autorunHidden ?? DEFAULT_SETTINGS_CONFIG.autorun_hidden,
@@ -142,7 +156,7 @@ const mapConfigToSession = (
     config: SettingsConfig,
     sessionSettings?: TransmissionSessionSettings | null,
 ): Partial<TransmissionSessionSettings> => {
-    const settings: Partial<TransmissionSessionSettings> = {
+    let settings: Partial<TransmissionSessionSettings> = {
         "peer-port": config.peer_port,
         "peer-port-random-on-start": config.peer_port_random_on_start,
         "port-forwarding-enabled": config.port_forwarding_enabled,
@@ -166,6 +180,10 @@ const mapConfigToSession = (
         "blocklist-enabled": config.blocklist_enabled,
         "rename-partial-files": config.rename_partial_files,
         "start-added-torrents": config.start_added_torrents,
+        "sequential_download": config.sequential_download,
+        "torrent_added_verify_mode": config.torrent_added_verify_mode,
+        "torrent_complete_verify_enabled":
+            config.torrent_complete_verify_enabled,
         seedRatioLimit: config.seedRatioLimit,
         seedRatioLimited: config.seedRatioLimited,
         "idle-seeding-limit": config.idleSeedingLimit,
@@ -181,6 +199,11 @@ const mapConfigToSession = (
         delete settings["blocklist-enabled"];
         delete settings["blocklist-url"];
     }
+
+    settings = removeUnsupportedVersionGatedSettings(
+        settings,
+        getVersionGatedSettingsSupport(sessionSettings),
+    );
 
     if (config.download_dir.trim()) {
         settings["download-dir"] = config.download_dir;
@@ -247,6 +270,10 @@ export function useSettingsFlow({
             "blocklist-url" in sessionSettings
         );
     }, [sessionSettings]);
+    const versionGatedSettings = useMemo(
+        () => getVersionGatedSettingsSupport(sessionSettings),
+        [sessionSettings],
+    );
 
     useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
@@ -395,5 +422,6 @@ export function useSettingsFlow({
         applyUserPreferencesPatch,
         settingsLoadError,
         blocklistSupported,
+        versionGatedSettings,
     };
 }

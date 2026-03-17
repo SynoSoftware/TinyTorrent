@@ -8,7 +8,7 @@ import { registry } from "@/config/logic";
 import type { TorrentTableRowProps } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
-const { layout, shell, interaction, visuals } = registry;
+const { visuals } = registry;
 
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const TorrentTable_Row = memo(

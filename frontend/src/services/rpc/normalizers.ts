@@ -423,7 +423,8 @@ export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity =>
         error: torrent.error,
         errorString: normalizeErrorString(torrent.errorString),
         isFinished: torrent.isFinished,
-        sequentialDownload: torrent.sequentialDownload,
+        sequentialDownload:
+            torrent.sequentialDownload ?? torrent["sequential_download"],
         superSeeding: torrent.superSeeding,
         added: numOr(torrent.addedDate, Math.floor(Date.now() / 1000)),
         savePath: torrent.downloadDir,

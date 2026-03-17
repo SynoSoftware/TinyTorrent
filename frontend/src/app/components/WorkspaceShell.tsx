@@ -20,7 +20,7 @@ import type {
     WorkspaceShellViewModel,
 } from "@/app/viewModels/useAppViewModel";
 import { TEXT_ROLE } from "@/config/textRoles";
-const { layout, shell, visuals, ui } = registry;
+const { shell } = registry;
 
 const TOAST_SPRING_TRANSITION: Transition = {
     type: "spring",

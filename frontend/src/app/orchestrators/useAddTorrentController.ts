@@ -8,7 +8,10 @@ import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
 import { useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { normalizeMagnetLink } from "@/app/utils/magnet";
+import {
+    extractMagnetInfoHashCandidate,
+    normalizeMagnetLink,
+} from "@/app/utils/magnet";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { TorrentEntity as Torrent, TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type {
@@ -75,10 +78,8 @@ export interface AddTorrentDefaultsViewModel {
     downloadDir: string;
     commitMode: AddTorrentDefaultsState["commitMode"];
     sequentialDownload: AddTorrentDefaultsState["sequentialDownload"];
-    skipHashCheck: AddTorrentDefaultsState["skipHashCheck"];
     setCommitMode: (value: AddTorrentDefaultsState["commitMode"]) => void;
     setSequentialDownload: (value: boolean) => void;
-    setSkipHashCheck: (value: boolean) => void;
 }
 
 type AddSubmissionPayload = {
@@ -140,34 +141,20 @@ export function useAddTorrentController({
         [addTorrentDefaultsState, setAddTorrentDefaults],
     );
 
-    const setSkipHashCheck = useCallback(
-        (value: boolean) => {
-            setAddTorrentDefaults({
-                ...addTorrentDefaultsState,
-                skipHashCheck: value,
-            });
-        },
-        [addTorrentDefaultsState, setAddTorrentDefaults],
-    );
-
     const addTorrentDefaults = useMemo<AddTorrentDefaultsViewModel>(
         () => ({
             downloadDir: currentDownloadDir,
             commitMode: addTorrentDefaultsState.commitMode,
             sequentialDownload: addTorrentDefaultsState.sequentialDownload,
-            skipHashCheck: addTorrentDefaultsState.skipHashCheck,
             setCommitMode,
             setSequentialDownload,
-            setSkipHashCheck,
         }),
         [
             addTorrentDefaultsState.commitMode,
             addTorrentDefaultsState.sequentialDownload,
-            addTorrentDefaultsState.skipHashCheck,
             currentDownloadDir,
             setCommitMode,
             setSequentialDownload,
-            setSkipHashCheck,
         ],
     );
 
@@ -594,7 +581,6 @@ export function useAddTorrentController({
                                 selection.priorityNormal,
                                 selection.priorityLow,
                                 selection.options.sequential,
-                                selection.options.skipHashCheck,
                             ),
                         ),
                 });
@@ -612,7 +598,7 @@ export function useAddTorrentController({
                     reason: "invalid_magnet_link",
                 };
             }
-            const infoHash = normalizeInfoHashCandidate(normalized);
+            const infoHash = extractMagnetInfoHashCandidate(normalized);
             if (infoHash && pendingDeletionHashesRef.current.has(infoHash)) {
                 showFeedback(t("toolbar.feedback.pending_delete"), "warning");
                 return { status: "blocked_pending_delete" };
@@ -629,7 +615,6 @@ export function useAddTorrentController({
                             downloadDir,
                             !startNow,
                             selection.options.sequential,
-                            selection.options.skipHashCheck,
                         ),
                     ),
             });
@@ -685,40 +670,6 @@ export function useAddTorrentController({
         closeAddTorrentWindow,
         setAddSource,
     };
-}
-
-function normalizeInfoHashCandidate(value: string): string | null {
-    if (/^[0-9a-fA-F]{40}$/.test(value)) {
-        return value.toLowerCase();
-    }
-    const decoded = base32ToHex(value);
-    if (!decoded) return null;
-    return decoded.toLowerCase();
-}
-
-const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-function base32ToHex(value: string): string | null {
-    let buffer = 0;
-    let bitsInBuffer = 0;
-    const bytes: number[] = [];
-    for (const char of value.toUpperCase()) {
-        const index = base32Alphabet.indexOf(char);
-        if (index === -1) {
-            return null;
-        }
-        buffer = (buffer << 5) | index;
-        bitsInBuffer += 5;
-        while (bitsInBuffer >= 8) {
-            bitsInBuffer -= 8;
-            const byte = (buffer >> bitsInBuffer) & 0xff;
-            bytes.push(byte);
-        }
-    }
-    if (bytes.length !== 20) {
-        return null;
-    }
-    return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 

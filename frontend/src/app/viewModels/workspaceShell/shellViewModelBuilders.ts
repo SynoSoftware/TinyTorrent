@@ -34,6 +34,7 @@ import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import type { CapabilityStore } from "@/app/types/capabilities";
+import type { VersionGatedSettingSupport } from "@/services/rpc/version-support";
 
 export interface DashboardViewModelParams {
     workspaceStyle: WorkspaceStyle;
@@ -50,17 +51,19 @@ export interface DashboardViewModelParams {
     detailData: TorrentDetail | null;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
-    canSetLocation: boolean;
+    sequentialDownloadCapability: DashboardViewModel["detail"]["tabs"]["general"]["sequentialDownloadCapability"];
     generalSetLocation: DashboardViewModel["detail"]["tabs"]["general"]["setLocation"];
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
     handleTorrentAction: DashboardViewModel["detail"]["tabs"]["general"]["handleTorrentAction"];
+    handleSequentialToggle: DashboardViewModel["detail"]["tabs"]["general"]["handleSequentialToggle"];
     handleFileSelectionChange: (
         indexes: number[],
         wanted: boolean,
     ) => Promise<void>;
     addTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["addTrackers"];
     removeTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["removeTrackers"];
+    setTrackerList: DashboardViewModel["detail"]["tabs"]["trackers"]["setTrackerList"];
     reannounceTrackers: DashboardViewModel["detail"]["tabs"]["trackers"]["reannounce"];
     setInspectorTabCommand: (value: DetailTab | null) => void;
     capabilities: CapabilityStore;
@@ -77,18 +80,19 @@ export function useDashboardViewModel({
     isInitialLoadFinished,
     optimisticStatuses,
     removedIds,
-    selectedIds,
     detailData,
     peerSortStrategy,
     inspectorTabCommand,
-    canSetLocation,
+    sequentialDownloadCapability,
     generalSetLocation,
     handleRequestDetails,
     closeDetail,
     handleTorrentAction,
+    handleSequentialToggle,
     handleFileSelectionChange,
     addTrackers,
     removeTrackers,
+    setTrackerList,
     reannounceTrackers,
     setInspectorTabCommand,
     capabilities,
@@ -126,8 +130,9 @@ export function useDashboardViewModel({
                             setInspectorTabCommand(null),
                     },
                     general: {
-                        canSetLocation,
+                        sequentialDownloadCapability,
                         handleTorrentAction,
+                        handleSequentialToggle,
                         setLocation: generalSetLocation,
                     },
                     content: {
@@ -139,6 +144,7 @@ export function useDashboardViewModel({
                             torrentId: inspectedId ?? null,
                             addTrackers,
                             removeTrackers,
+                            setTrackerList,
                             reannounce: reannounceTrackers,
                         };
                     })(),
@@ -161,18 +167,19 @@ export function useDashboardViewModel({
             tableWatermarkEnabled,
             isDragActive,
             removedIds,
-            selectedIds,
             detailData,
             handleRequestDetails,
             closeDetail,
             inspectorTabCommand,
             setInspectorTabCommand,
-            canSetLocation,
+            sequentialDownloadCapability,
             generalSetLocation,
             handleTorrentAction,
+            handleSequentialToggle,
             handleFileSelectionChange,
             addTrackers,
             removeTrackers,
+            setTrackerList,
             reannounceTrackers,
             peerSortStrategy,
         ],
@@ -304,6 +311,7 @@ export interface SettingsModalViewModelParams {
     loadError: boolean;
     capabilities: {
         blocklistSupported: boolean;
+        versionGatedSettings: VersionGatedSettingSupport;
     };
     handleSave: (config: SettingsConfig) => Promise<void>;
     handleTestPort: () => Promise<EngineTestPortOutcome>;

@@ -129,7 +129,6 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                 return (
                     <SettingsSection
                         key={idx}
-                        className={section.cardClass}
                         title={
                             section.titleKey ? t(section.titleKey) : undefined
                         }
@@ -138,6 +137,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                                 ? t(section.descriptionKey)
                                 : undefined
                         }
+                        tone={section.tone}
                     >
                         <div className={FORM.sectionContentOffsetStack}>
                             {visibleBlocks.map((block, blockIndex) =>

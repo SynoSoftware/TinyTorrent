@@ -65,6 +65,10 @@ export interface WorkspaceTorrentDomain {
         handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<TorrentCommandOutcome>;
         handleBulkAction: (action: TorrentTableAction) => Promise<TorrentCommandOutcome>;
         handleSetDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
+        handleSetSequentialDownload: (
+            torrent: Torrent,
+            enabled: boolean,
+        ) => Promise<TorrentCommandOutcome>;
         removedIds: Set<string>;
     };
     handlers: {
@@ -76,6 +80,27 @@ export interface WorkspaceTorrentDomain {
         handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
     };
 }
+
+const findMatchingTorrentByIdentity = <
+    TTarget extends Pick<Torrent, "id" | "hash">,
+>(
+    torrents: Torrent[],
+    target: TTarget | null,
+): Torrent | null => {
+    if (!target) {
+        return null;
+    }
+
+    const targetId = String(target.id);
+    const targetHash = target.hash;
+
+    return (
+        torrents.find(
+            (torrent) =>
+                String(torrent.id) === targetId || torrent.hash === targetHash,
+        ) ?? null
+    );
+};
 
 export function useWorkspaceTorrentDomain({
     torrentClient,
@@ -127,6 +152,7 @@ export function useWorkspaceTorrentDomain({
         torrents,
         isInitialLoadFinished,
         refresh: refreshTorrents,
+        mutateTorrents,
         runtimeSummary,
         ghostTorrents,
     } = useTorrentData({
@@ -195,12 +221,120 @@ export function useWorkspaceTorrentDomain({
 
     const { addTorrent } = orchestrator;
 
-    const { handleFileSelectionChange, handleSequentialToggle, handleSuperSeedingToggle } = useDetailControls({
+    const {
+        handleFileSelectionChange,
+        handleSuperSeedingToggle,
+    } = useDetailControls({
         detailData,
         mutateDetail,
         capabilities,
         dispatch,
     });
+
+    const mutateSequentialDownloadState = useCallback(
+        (
+            target: Pick<Torrent, "id" | "hash" | "sequentialDownload">,
+            enabled: boolean,
+        ) => {
+            const targetId = String(target.id);
+            const targetHash = target.hash;
+
+            mutateTorrents((current) => {
+                let changed = false;
+                const next = current.map((torrent) => {
+                    const matches =
+                        String(torrent.id) === targetId ||
+                        torrent.hash === targetHash;
+                    if (!matches || torrent.sequentialDownload === enabled) {
+                        return torrent;
+                    }
+                    changed = true;
+                    return {
+                        ...torrent,
+                        sequentialDownload: enabled,
+                    };
+                });
+                return changed ? next : current;
+            });
+
+            mutateDetail((current) => {
+                if (!current) {
+                    return current;
+                }
+                const matches =
+                    String(current.id) === targetId ||
+                    current.hash === targetHash;
+                if (!matches || current.sequentialDownload === enabled) {
+                    return current;
+                }
+                return {
+                    ...current,
+                    sequentialDownload: enabled,
+                };
+            });
+        },
+        [mutateDetail, mutateTorrents],
+    );
+
+    const resolvedDetailData = useMemo(() => {
+        if (!detailData) {
+            return null;
+        }
+
+        const liveTorrent = findMatchingTorrentByIdentity(torrents, detailData);
+        if (
+            !liveTorrent ||
+            liveTorrent.sequentialDownload === detailData.sequentialDownload
+        ) {
+            return detailData;
+        }
+
+        return {
+            ...detailData,
+            sequentialDownload: liveTorrent.sequentialDownload,
+        };
+    }, [detailData, torrents]);
+
+    const setSequentialDownloadOptimistically = useCallback(
+        async (
+            target: Pick<Torrent, "id" | "hash" | "sequentialDownload">,
+            enabled: boolean,
+        ): Promise<TorrentCommandOutcome> => {
+            if (capabilities.sequentialDownload !== "supported") {
+                return commandOutcome.unsupported();
+            }
+
+            const previous = Boolean(target.sequentialDownload);
+            mutateSequentialDownloadState(target, enabled);
+
+            const outcome = await dispatch(
+                TorrentIntents.setSequentialDownload(target.id, enabled),
+            );
+            if (outcome.status === "applied") {
+                return commandOutcome.success();
+            }
+
+            mutateSequentialDownloadState(target, previous);
+            if (outcome.status === "unsupported") {
+                return commandOutcome.unsupported();
+            }
+            return commandOutcome.failed(commandReason.executionFailed);
+        },
+        [capabilities.sequentialDownload, dispatch, mutateSequentialDownloadState],
+    );
+
+    const handleSequentialToggle = useCallback(
+        async (enabled: boolean) => {
+            if (!resolvedDetailData) {
+                return;
+            }
+            await setSequentialDownloadOptimistically(
+                resolvedDetailData,
+                enabled,
+            );
+        },
+        [resolvedDetailData, setSequentialDownloadOptimistically],
+    );
 
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
@@ -321,7 +455,7 @@ export function useWorkspaceTorrentDomain({
         ghostTorrents,
         runtimeSummary,
         isInitialLoadFinished,
-        detailData,
+        detailData: resolvedDetailData,
         refreshTorrents,
         dispatch,
         selectedIds,
@@ -335,6 +469,7 @@ export function useWorkspaceTorrentDomain({
             handleTorrentAction,
             handleBulkAction,
             handleSetDownloadLocation,
+            handleSetSequentialDownload: setSequentialDownloadOptimistically,
             removedIds,
         },
         handlers: {

@@ -4,7 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import { registry } from "@/config/logic";
-const { timing, shell, ui } = registry;
+const { timing } = registry;
 
 interface UseAddModalStateParams {
     onOpenAddMagnet: (magnetLink?: string) => void;

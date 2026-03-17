@@ -31,6 +31,23 @@ export function useHudCards({
         const engineVersionLabel = engineInfo?.version
             ? ` v${engineInfo.version}`
             : "";
+        const connectedVisual =
+            visuals.status.recipes[status.connection.connected];
+        const idleVisual = visuals.status.recipes[status.connection.idle];
+        const offlineVisual = visuals.status.recipes[status.connection.offline];
+        const errorVisual = visuals.status.recipes[status.connection.error];
+        const fallbackConnectionSurface =
+            connectedVisual?.hudSurface ??
+            idleVisual?.hudSurface ??
+            offlineVisual?.hudSurface ??
+            errorVisual?.hudSurface ??
+            visuals.workspace.hud.drop.idle.surface;
+        const fallbackConnectionIconBg =
+            connectedVisual?.hudIconBg ??
+            idleVisual?.hudIconBg ??
+            offlineVisual?.hudIconBg ??
+            errorVisual?.hudIconBg ??
+            visuals.workspace.hud.drop.idle.iconBg;
         let connectionTitle = "";
         let connectionDescription = "";
         let connectionSurface = "";
@@ -50,10 +67,9 @@ export function useHudCards({
                 },
             );
             connectionSurface =
-                connectionVisual?.hudSurface ??
-                "bg-gradient-to-br from-success/15 via-background/30 to-background/10";
+                connectionVisual?.hudSurface ?? fallbackConnectionSurface;
             connectionIconBg =
-                connectionVisual?.hudIconBg ?? "bg-success/15 text-success";
+                connectionVisual?.hudIconBg ?? fallbackConnectionIconBg;
         } else if (rpcStatus === status.connection.idle) {
             connectionTitle = isDetectingEngine
                 ? t("workspace.stage.connection_detecting_title")
@@ -62,20 +78,18 @@ export function useHudCards({
                 ? t("workspace.stage.connection_detecting_description")
                 : t("workspace.stage.connection_idle_description");
             connectionSurface =
-                connectionVisual?.hudSurface ??
-                "bg-gradient-to-br from-warning/15 via-background/30 to-background/5";
+                connectionVisual?.hudSurface ?? fallbackConnectionSurface;
             connectionIconBg =
-                connectionVisual?.hudIconBg ?? "bg-warning/15 text-warning";
+                connectionVisual?.hudIconBg ?? fallbackConnectionIconBg;
         } else {
             connectionTitle = t("workspace.stage.connection_error_title");
             connectionDescription = t(
                 "workspace.stage.connection_error_description",
             );
             connectionSurface =
-                connectionVisual?.hudSurface ??
-                "bg-gradient-to-br from-danger/20 via-background/25 to-background/5";
+                connectionVisual?.hudSurface ?? fallbackConnectionSurface;
             connectionIconBg =
-                connectionVisual?.hudIconBg ?? "bg-danger/15 text-danger";
+                connectionVisual?.hudIconBg ?? fallbackConnectionIconBg;
         }
 
         const dragTitle = isDragActive
@@ -84,20 +98,15 @@ export function useHudCards({
         const dragDescription = isDragActive
             ? t("workspace.stage.drop_active_description")
             : t("workspace.stage.drop_idle_description");
-        const dragSurface = isDragActive
-            ? "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent"
-            : "bg-gradient-to-br from-content1/10 via-content1/5 to-transparent";
-        const dragIconBg = isDragActive
-            ? "bg-primary/15 text-primary"
-            : "bg-foreground/10 text-foreground/60";
+        const dragVisual = isDragActive
+            ? visuals.workspace.hud.drop.active
+            : visuals.workspace.hud.drop.idle;
 
         const deepLinkTitle = t("workspace.stage.deeplink_idle_title");
         const deepLinkDescription = t(
             "workspace.stage.deeplink_idle_description",
         );
-        const deepSurface =
-            "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent";
-        const deepIconBg = "bg-foreground/10 text-foreground/60";
+        const deepLinkVisual = visuals.workspace.hud.deepLink.idle;
 
         return [
             {
@@ -114,8 +123,8 @@ export function useHudCards({
                 label: t("workspace.stage.drop_label"),
                 title: dragTitle,
                 description: dragDescription,
-                surfaceClass: dragSurface,
-                iconBgClass: dragIconBg,
+                surfaceClass: dragVisual.surface,
+                iconBgClass: dragVisual.iconBg,
                 icon: MousePointer,
             },
             {
@@ -123,8 +132,8 @@ export function useHudCards({
                 label: t("workspace.stage.deeplink_label"),
                 title: deepLinkTitle,
                 description: deepLinkDescription,
-                surfaceClass: deepSurface,
-                iconBgClass: deepIconBg,
+                surfaceClass: deepLinkVisual.surface,
+                iconBgClass: deepLinkVisual.iconBg,
                 icon: Link2,
             },
         ];

@@ -11,6 +11,7 @@ import type {
 } from "@tanstack/react-table";
 import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
 import type { MouseEvent, ReactNode, RefObject } from "react";
+import type { CapabilityState } from "@/app/types/capabilities";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
@@ -26,11 +27,13 @@ export const rowMenuKey = {
     copyMagnet: "copy-magnet",
     openFolder: "open-folder",
     setDownloadLocation: "set-download-location",
+    toggleSequentialDownload: "toggle-sequential-download",
 } as const;
 
 type RowMenuPrimitiveKey = (typeof rowMenuKey)[keyof typeof rowMenuKey];
-const rowMenuShortcutKeys = [rowMenuKey.copyHash, rowMenuKey.copyMagnet] as const;
-type RowMenuShortcutKey = (typeof rowMenuShortcutKeys)[number];
+type RowMenuShortcutKey =
+    | typeof rowMenuKey.copyHash
+    | typeof rowMenuKey.copyMagnet;
 
 export type ContextMenuKey = TorrentTableAction | RowMenuShortcutKey;
 
@@ -48,7 +51,8 @@ export type HeaderMenuItem = {
 
 export type TableContextMenu = {
     virtualElement: ContextMenuVirtualElement;
-    torrent: Torrent;
+    torrentId: string;
+    torrentHash: string;
 };
 
 export type HeaderContextMenu = {
@@ -162,6 +166,8 @@ export interface TorrentTableBodyViewModel {
 
 export interface TorrentTableRowMenuViewModel {
     contextMenu: TableContextMenu | null;
+    contextTorrent: Torrent | null;
+    sequentialDownloadCapability: CapabilityState;
     onClose: () => void;
     handleContextMenuAction: (
         key: RowContextMenuKey,

@@ -5,7 +5,7 @@ import { scheduler } from "@/app/services/scheduler";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import { registry } from "@/config/logic";
 import { status } from "@/shared/status";
-const { timing, ui } = registry;
+const { timing } = registry;
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
     state?: TorrentStatus;

@@ -7,7 +7,7 @@ import {
 import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-const { layout, visuals } = registry;
+const { visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 type TorrentTableCell = ReturnType<Row<Torrent>["getVisibleCells"]>[number];

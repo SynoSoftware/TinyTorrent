@@ -19,6 +19,8 @@ export const useFileExplorerTreeState = (
     files: FileExplorerEntry[],
     overrides?: FileExplorerTreeStateOverrides,
 ) => {
+    const wantedByIndexOverride = overrides?.wantedByIndex;
+    const priorityByIndexOverride = overrides?.priorityByIndex;
     const [searchQuery, setSearchQuery] = useState("");
     const [filterMode, setFilterMode] = useState<FileExplorerFilterMode>("all");
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -40,22 +42,22 @@ export const useFileExplorerTreeState = (
     }, [expandedIds, filterMode, rootNodes, searchQuery]);
 
     const fileWantedMap = useMemo(() => {
-        if (overrides?.wantedByIndex) {
-            return overrides.wantedByIndex;
+        if (wantedByIndexOverride) {
+            return wantedByIndexOverride;
         }
         const map = new Map<number, boolean>();
         files.forEach((file) => map.set(file.index, file.wanted ?? true));
         return map;
-    }, [files, overrides?.wantedByIndex]);
+    }, [files, wantedByIndexOverride]);
 
     const filePriorityMap = useMemo(() => {
-        if (overrides?.priorityByIndex) {
-            return overrides.priorityByIndex;
+        if (priorityByIndexOverride) {
+            return priorityByIndexOverride;
         }
         const map = new Map<number, number>();
         files.forEach((file) => map.set(file.index, file.priority ?? 4));
         return map;
-    }, [files, overrides?.priorityByIndex]);
+    }, [files, priorityByIndexOverride]);
 
     const allVisibleIndexes = useMemo(
         () => visibleNodes.flatMap((node) => node.descendantIndexes),

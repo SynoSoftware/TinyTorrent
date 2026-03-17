@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 import { ICON_SIZE_CLASSES } from "@/shared/ui/layout/toolbar-button";
-const { layout, visuals, ui } = registry;
+const { visuals } = registry;
 
 export type StatusIconSize = "sm" | "md" | "lg" | "xl";
 

@@ -8,7 +8,7 @@ import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
-const { layout, interaction, visuals, ui } = registry;
+const { visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 

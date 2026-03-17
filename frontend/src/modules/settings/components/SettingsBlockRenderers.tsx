@@ -15,7 +15,11 @@ import {
     useSettingsFormActions,
     useSettingsFormState,
 } from "@/modules/settings/context/SettingsFormContext";
-const { layout, visuals, ui } = registry;
+import type {
+    VersionGatedSettingKey,
+    VersionGatedSettingSupport,
+} from "@/services/rpc/version-support";
+const { visuals } = registry;
 
 // TODO: Architectural boundary: SettingsBlockRenderers must be view-only.
 // TODO: - No RPC calls, no ShellExtensions calls, no capability inference.
@@ -24,6 +28,38 @@ const { layout, visuals, ui } = registry;
 // TODO: This prevents “random feature gating” from spreading and makes Settings safe for AI edits.
 
 /* --- 1. Primitive Renderers --- */
+
+const getVersionGatedSettingStatus = (
+    stateKey: string,
+    versionGatedSettings: VersionGatedSettingSupport,
+) => {
+    if (!(stateKey in versionGatedSettings)) {
+        return null;
+    }
+
+    return versionGatedSettings[stateKey as VersionGatedSettingKey];
+};
+
+const getVersionGatedSettingHint = (
+    t: ReturnType<typeof useTranslation>["t"],
+    status: NonNullable<ReturnType<typeof getVersionGatedSettingStatus>>,
+) =>
+    status.state === "unknown"
+        ? t("settings.version_gate.detecting")
+        : t("settings.version_gate.requires_server", {
+              version: status.minimum,
+          });
+
+const getVersionGatedControlState = (
+    stateKey: string,
+    versionGatedSettings: VersionGatedSettingSupport,
+) => {
+    const status = getVersionGatedSettingStatus(stateKey, versionGatedSettings);
+    return {
+        status,
+        disabled: status != null && status.state !== "supported",
+    };
+};
 
 export function SwitchSliderRenderer({
     block,
@@ -94,8 +130,14 @@ export function SwitchRenderer({
     const blocklistUnsupported =
         block.stateKey === "blocklist_enabled" &&
         !capabilities.blocklistSupported;
+    const { status: versionGatedStatus, disabled: versionGatedDisabled } =
+        getVersionGatedControlState(
+        block.stateKey,
+        capabilities.versionGatedSettings,
+    );
     const isDisabled =
         blocklistUnsupported ||
+        versionGatedDisabled ||
         baseDisabled ||
         (block.disabledWhenNotImmersive && !isImmersive);
 
@@ -121,6 +163,11 @@ export function SwitchRenderer({
             {blocklistUnsupported && (
                 <p className={TEXT_ROLE.caption}>
                     {t("settings.blocklist.unsupported")}
+                </p>
+            )}
+            {!blocklistUnsupported && versionGatedStatus && isDisabled && (
+                <p className={TEXT_ROLE.caption}>
+                    {getVersionGatedSettingHint(t, versionGatedStatus)}
                 </p>
             )}
         </div>
@@ -358,28 +405,44 @@ export function SelectRenderer({
 }) {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsFormState();
+    const { capabilities } = useSettingsFormActions();
+    const {
+        status: versionGatedStatus,
+        disabled: isDisabled,
+    } = getVersionGatedControlState(
+        block.stateKey,
+        capabilities.versionGatedSettings,
+    );
 
     return (
-        <Select
-            label={t(block.labelKey)}
-            labelPlacement="outside"
-            size="md"
-            variant={block.variant ?? "bordered"}
-            selectedKeys={
-                config[block.stateKey] !== undefined
-                    ? [String(config[block.stateKey])]
-                    : []
-            }
-            classNames={FORM.selectClassNames}
-            onSelectionChange={(keys) => {
-                const [next] = [...keys];
-                if (next) updateConfig(block.stateKey, next);
-            }}
-        >
-            {block.options.map((opt) => (
-                <SelectItem key={opt.key}>{t(opt.labelKey)}</SelectItem>
-            ))}
-        </Select>
+        <div className={FORM.blockStackTight}>
+            <Select
+                label={t(block.labelKey)}
+                labelPlacement="outside"
+                size="md"
+                variant={block.variant ?? "bordered"}
+                selectedKeys={
+                    config[block.stateKey] !== undefined
+                        ? [String(config[block.stateKey])]
+                        : []
+                }
+                classNames={FORM.selectClassNames}
+                isDisabled={isDisabled}
+                onSelectionChange={(keys) => {
+                    const [next] = [...keys];
+                    if (next) updateConfig(block.stateKey, next);
+                }}
+            >
+                {block.options.map((opt) => (
+                    <SelectItem key={opt.key}>{t(opt.labelKey)}</SelectItem>
+                ))}
+            </Select>
+            {versionGatedStatus && isDisabled && (
+                <p className={TEXT_ROLE.caption}>
+                    {getVersionGatedSettingHint(t, versionGatedStatus)}
+                </p>
+            )}
+        </div>
     );
 }
 

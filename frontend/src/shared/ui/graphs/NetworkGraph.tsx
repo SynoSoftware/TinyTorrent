@@ -9,7 +9,7 @@ import {
 import { registry } from "@/config/logic";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-const { layout, interaction, visuals, ui } = registry;
+const { interaction, visuals } = registry;
 
 const { networkGraph } = interaction.config;
 const GRAPH_WIDTH = networkGraph.width;

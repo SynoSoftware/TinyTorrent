@@ -5,7 +5,7 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
 import { registry } from "@/config/logic";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-const { layout, visuals, ui } = registry;
+const { layout, visuals } = registry;
 
 interface Props {
     isLoading?: boolean;

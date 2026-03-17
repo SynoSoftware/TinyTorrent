@@ -26,13 +26,13 @@ import { formatBytes, formatDate, formatRelativeTime } from "@/shared/utils/form
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { getTorrentEtaDisplay, getTorrentEtaSortValue } from "@/modules/dashboard/components/TorrentEtaDisplay";
+import { getTorrentEtaSortValue, getTorrentEtaTableDisplay } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
-const { layout, visuals, ui } = registry;
+const { layout, visuals } = registry;
 
 // --- TYPES ---
 export type ColumnId =
@@ -195,7 +195,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: getTorrentEtaSortValue,
         headerIcon: Timer,
         render: ({ torrent, t }) => {
-            const eta = getTorrentEtaDisplay(torrent, t);
+            const eta = getTorrentEtaTableDisplay(torrent, t);
             return (
                 <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)} title={eta.tooltip}>
                     {eta.value}

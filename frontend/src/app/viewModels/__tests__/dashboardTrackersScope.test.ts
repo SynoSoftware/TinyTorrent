@@ -57,7 +57,7 @@ const ViewModelHarness = forwardRef<HarnessRef>((_, ref) => {
         detailData: detailTorrent,
         peerSortStrategy: "client",
         inspectorTabCommand: null,
-        canSetLocation: false,
+        sequentialDownloadCapability: "supported",
         generalSetLocation: {
             policy: {
                 actionLabelKey: "table.actions.set_download_path",
@@ -73,9 +73,11 @@ const ViewModelHarness = forwardRef<HarnessRef>((_, ref) => {
         handleRequestDetails: async () => undefined,
         closeDetail: () => undefined,
         handleTorrentAction: async () => commandOutcome.noSelection(),
+        handleSequentialToggle: async () => undefined,
         handleFileSelectionChange: async () => undefined,
         addTrackers: vi.fn(async () => ({ status: "applied" as const })),
         removeTrackers: vi.fn(async () => ({ status: "applied" as const })),
+        setTrackerList: vi.fn(async () => ({ status: "applied" as const })),
         reannounceTrackers: vi.fn(async () => ({ status: "applied" as const })),
         setInspectorTabCommand: () => undefined,
         capabilities: {} as never,

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { registry } from "@/config/logic";
-const { performance, layout } = registry;
+const { performance } = registry;
 // Layout metrics (unit/zoom/etc.) are provided by `useLayoutMetrics` when
 // needed; color tokens are a theme concern and are read directly from the
 // rendered CSS (HeroUI tokens). Avoid embedding literal colors here.

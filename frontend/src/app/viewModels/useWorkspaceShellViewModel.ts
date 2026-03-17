@@ -70,6 +70,10 @@ export interface WorkspaceShellController {
                 action: TorrentTableAction,
             ) => Promise<TorrentCommandOutcome>;
             setDownloadLocation: (params: { torrent: Torrent; path: string }) => Promise<TorrentCommandOutcome>;
+            setSequentialDownload: (
+                torrent: Torrent,
+                enabled: boolean,
+            ) => Promise<TorrentCommandOutcome>;
             checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
             openAddMagnet: (
                 magnetLink?: string,
@@ -101,6 +105,8 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         reconnect,
         markTransportConnected,
         uiCapabilities,
+        engineInfo,
+        isDetectingEngine,
         reportCommandError,
     } = useSession();
     const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
@@ -143,14 +149,20 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
 
     const capabilities = useMemo<CapabilityStore>(
         () => ({
-            sequentialDownload: torrentClient?.setSequentialDownload
+            sequentialDownload: engineInfo?.capabilities.sequentialDownload
                 ? "supported"
-                : "unsupported",
+                : engineInfo == null || isDetectingEngine
+                  ? "unknown"
+                  : "unsupported",
             superSeeding: torrentClient?.setSuperSeeding
                 ? "supported"
                 : "unsupported",
         }),
-        [torrentClient],
+        [
+            engineInfo,
+            isDetectingEngine,
+            torrentClient,
+        ],
     );
 
     const settingsFlow = useSettingsFlow({
@@ -208,6 +220,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleTorrentAction,
         handleBulkAction,
         handleSetDownloadLocation,
+        handleSetSequentialDownload,
         removedIds,
     } = workflow;
 
@@ -215,6 +228,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleRequestDetails,
         handleCloseDetail,
         handleFileSelectionChange,
+        handleSequentialToggle,
     } = handlers;
 
     const { getRootProps, getInputProps, isDragActive } = addModalState;
@@ -224,6 +238,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleTorrentAction,
             handleBulkAction,
             setDownloadLocation: handleSetDownloadLocation,
+            setSequentialDownload: handleSetSequentialDownload,
             checkFreeSpace: addTorrentCheckFreeSpace,
             openAddMagnet: async (magnetLink?: string) => {
                 const outcome = openAddMagnet(magnetLink);
@@ -244,16 +259,13 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             handleTorrentAction,
             handleBulkAction,
             handleSetDownloadLocation,
+            handleSetSequentialDownload,
             addTorrentCheckFreeSpace,
             openAddMagnet,
             openAddTorrentPicker,
         ],
     );
 
-    const canSetLocation = useMemo(
-        () => typeof torrentClient.setTorrentLocation === "function",
-        [torrentClient],
-    );
     const detailSetLocationFlow = useSetDownloadLocationFlow({
         torrent: detailData,
         setDownloadLocation: handleSetDownloadLocation,
@@ -285,6 +297,14 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         (torrentId: string | number, trackerIds: number[]) =>
             executeTrackerMutation(
                 TorrentIntents.torrentRemoveTracker([torrentId], trackerIds),
+            ),
+        [executeTrackerMutation],
+    );
+
+    const setTrackerList = useCallback(
+        (torrentId: string | number, trackerList: string) =>
+            executeTrackerMutation(
+                TorrentIntents.torrentSetTrackerList(torrentId, trackerList),
             ),
         [executeTrackerMutation],
     );
@@ -403,14 +423,16 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         detailData,
         peerSortStrategy,
         inspectorTabCommand,
-        canSetLocation,
         generalSetLocation: detailSetLocationFlow,
         handleRequestDetails,
         closeDetail: handleCloseDetail,
         handleTorrentAction,
+        sequentialDownloadCapability: capabilities.sequentialDownload,
+        handleSequentialToggle,
         handleFileSelectionChange,
         addTrackers,
         removeTrackers,
+        setTrackerList,
         reannounceTrackers,
         setInspectorTabCommand,
         capabilities,
@@ -466,6 +488,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         loadError: settingsFlow.settingsLoadError,
         capabilities: {
             blocklistSupported: settingsFlow.blocklistSupported,
+            versionGatedSettings: settingsFlow.versionGatedSettings,
         },
         handleSave: settingsFlow.handleSaveSettings,
         handleTestPort: settingsFlow.handleTestPort,
@@ -573,16 +596,16 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             downloadDir: addTorrentDefaults.downloadDir,
             commitMode: addTorrentDefaults.commitMode,
             sequentialDownload: addTorrentDefaults.sequentialDownload,
-            skipHashCheck: addTorrentDefaults.skipHashCheck,
+            sequentialDownloadCapability: capabilities.sequentialDownload,
             onCommitModeChange: addTorrentDefaults.setCommitMode,
             onSequentialDownloadChange: addTorrentDefaults.setSequentialDownload,
-            onSkipHashCheckChange: addTorrentDefaults.setSkipHashCheck,
             onCancel: closeAddTorrentWindow,
             onConfirm: handleTorrentWindowConfirm,
         };
     }, [
         addSource,
         addTorrentDefaults,
+        capabilities.sequentialDownload,
         closeAddTorrentWindow,
         handleTorrentWindowConfirm,
     ]);

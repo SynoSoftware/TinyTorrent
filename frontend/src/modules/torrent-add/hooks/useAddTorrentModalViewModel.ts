@@ -53,7 +53,6 @@ const { timing } = registry;
 export interface UseAddTorrentModalViewModelParams {
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
-    skipHashCheck: boolean;
     downloadDir: string;
     isOpen: boolean;
     onCancel: () => void;
@@ -61,7 +60,6 @@ export interface UseAddTorrentModalViewModelParams {
         selection: AddTorrentSelection
     ) => Promise<AddTorrentCommandOutcome>;
     onSequentialDownloadChange: (value: boolean) => void;
-    onSkipHashCheckChange: (value: boolean) => void;
     source: AddTorrentSource | null;
 }
 
@@ -119,9 +117,7 @@ export interface UseAddTorrentModalViewModelResult {
         sequential: boolean;
         setIsPanelResizeActive: (active: boolean) => void;
         setSequential: (next: boolean) => void;
-        setSkipHashCheck: (next: boolean) => void;
         settingsPanelRef: React.RefObject<ImperativePanelHandle | null>;
-        skipHashCheck: boolean;
         handleSettingsPanelCollapse: () => void;
         handleSettingsPanelExpand: () => void;
     };
@@ -136,13 +132,11 @@ export interface UseAddTorrentModalViewModelResult {
 export function useAddTorrentModalViewModel({
     commitMode,
     sequentialDownload,
-    skipHashCheck,
     downloadDir,
     isOpen,
     onCancel,
     onConfirm,
     onSequentialDownloadChange,
-    onSkipHashCheckChange,
     source,
 }: UseAddTorrentModalViewModelParams): UseAddTorrentModalViewModelResult {
     const { t } = useTranslation();
@@ -477,7 +471,6 @@ export function useAddTorrentModalViewModel({
                 priorityLow,
                 options: {
                     sequential: sequentialDownload,
-                    skipHashCheck,
                 },
             });
             if (outcome.status === "queued") {
@@ -495,7 +488,6 @@ export function useAddTorrentModalViewModel({
         remember,
         selectedIndexes,
         sequentialDownload,
-        skipHashCheck,
         submissionDecision.canConfirm,
         magnetLink,
         source,
@@ -608,9 +600,7 @@ export function useAddTorrentModalViewModel({
             sequential: sequentialDownload,
             setIsPanelResizeActive,
             setSequential: onSequentialDownloadChange,
-            setSkipHashCheck: onSkipHashCheckChange,
             settingsPanelRef,
-            skipHashCheck,
             handleSettingsPanelCollapse,
             handleSettingsPanelExpand,
         },

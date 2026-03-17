@@ -1,8 +1,20 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn } from "@heroui/react";
+import {
+    Checkbox,
+    Dropdown,
+    DropdownTrigger,
+    DropdownMenu,
+    DropdownItem,
+    cn,
+} from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
-import { SURFACE, CONTEXT_MENU } from "@/shared/ui/layout/glass-surface";
+import type { CapabilityState } from "@/app/types/capabilities";
+import {
+    CONTEXT_MENU as contextMenuStyles,
+    FORM_CONTROL as formControlStyles,
+    SURFACE as menuSurfaceStyles,
+} from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
     ContextMenuKey,
@@ -45,7 +57,15 @@ export interface TorrentTableRowMenuProps {
 }
 
 export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuProps) {
-    const { contextMenu, onClose, handleContextMenuAction, queueMenuActions, getContextMenuShortcut } = viewModel;
+    const {
+        contextMenu,
+        contextTorrent,
+        sequentialDownloadCapability,
+        onClose,
+        handleContextMenuAction,
+        queueMenuActions,
+        getContextMenuShortcut,
+    } = viewModel;
     const [setLocationTorrent, setSetLocationTorrent] = useState<Torrent | null>(null);
     const { setDownloadLocation } = useTorrentCommands();
     const setLocationFlow = useSetDownloadLocationFlow({
@@ -67,11 +87,15 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
     return (
         <>
             <AnimatePresence>
-                {contextMenu ? (
+                {contextMenu && contextTorrent ? (
                     <TorrentTable_RowMenuInner
                         contextMenu={contextMenu}
+                        contextTorrent={contextTorrent}
+                        sequentialDownloadCapability={
+                            sequentialDownloadCapability
+                        }
                         setLocationPolicy={resolveSetDownloadLocationPolicy(
-                            contextMenu.torrent,
+                            contextTorrent,
                         )}
                         onClose={onClose}
                         handleContextMenuAction={handleContextMenuAction}
@@ -98,6 +122,8 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
 
 function TorrentTable_RowMenuInner({
     contextMenu,
+    contextTorrent,
+    sequentialDownloadCapability,
     setLocationPolicy,
     onClose,
     handleContextMenuAction,
@@ -106,6 +132,8 @@ function TorrentTable_RowMenuInner({
     onRequestSetDownloadLocation,
 }: {
     contextMenu: TableContextMenu;
+    contextTorrent: Torrent;
+    sequentialDownloadCapability: CapabilityState;
     setLocationPolicy: ReturnType<typeof resolveSetDownloadLocationPolicy>;
     onClose: () => void;
     handleContextMenuAction: (
@@ -118,8 +146,6 @@ function TorrentTable_RowMenuInner({
     const { t } = useTranslation();
     const { clipboardWriteSupported, canOpenFolder } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
-
-    const contextTorrent = contextMenu.torrent;
     const shouldShowOpenFolder = canOpenFolder;
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
@@ -152,7 +178,14 @@ function TorrentTable_RowMenuInner({
             showOpenFolder: shouldShowOpenFolder,
             openFolderDisabled: !(contextTorrent.savePath || contextTorrent.downloadDir),
         };
-    }, [t, queueMenuActions, getContextMenuShortcut, shouldShowOpenFolder, contextTorrent]);
+    }, [
+        t,
+        queueMenuActions,
+        getContextMenuShortcut,
+        shouldShowOpenFolder,
+        contextTorrent,
+        sequentialDownloadCapability,
+    ]);
 
     const handleMenuClose = () => {
         onClose();
@@ -171,7 +204,13 @@ function TorrentTable_RowMenuInner({
                 showFeedback(t("toolbar.feedback.failed"), "danger");
             }
         },
-        [contextTorrent, handleContextMenuAction, onRequestSetDownloadLocation, showFeedback, t],
+        [
+            contextTorrent,
+            handleContextMenuAction,
+            onRequestSetDownloadLocation,
+            showFeedback,
+            t,
+        ],
     );
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
@@ -190,11 +229,43 @@ function TorrentTable_RowMenuInner({
             )),
         );
 
+        if (sequentialDownloadCapability === "supported") {
+            const sequentialEnabled = Boolean(
+                contextTorrent.sequentialDownload,
+            );
+            items.push(
+                <DropdownItem
+                    key={rowMenuKey.toggleSequentialDownload}
+                    closeOnSelect={false}
+                    onPress={() =>
+                        void handleMenuActionPress(
+                            rowMenuKey.toggleSequentialDownload,
+                        )
+                    }
+                    startContent={
+                        <Checkbox
+                            isSelected={sequentialEnabled}
+                            disableAnimation
+                            classNames={
+                                formControlStyles.checkboxMarginRightClassNames
+                            }
+                        />
+                    }
+                >
+                    {t(
+                        sequentialEnabled
+                            ? "table.actions.disable_sequential_download"
+                            : "table.actions.enable_sequential_download",
+                    )}
+                </DropdownItem>,
+            );
+        }
+
         items.push(
             <DropdownItem
                 key="queue-heading"
                 isDisabled
-                className={cn(CONTEXT_MENU.sectionHeading, SURFACE.menu.sectionHeading)}
+                className={cn(contextMenuStyles.sectionHeading, menuSurfaceStyles.menu.sectionHeading)}
             >
                 {rowMenuViewModel.dataTitle}
             </DropdownItem>,
@@ -204,7 +275,7 @@ function TorrentTable_RowMenuInner({
             ...rowMenuViewModel.queueActions.map((action) => (
                 <DropdownItem
                     key={action.key}
-                    className={CONTEXT_MENU.sectionNestedItem}
+                    className={contextMenuStyles.sectionNestedItem}
                     shortcut={getContextMenuShortcut(action.key)}
                     onPress={() => void handleMenuActionPress(action.key)}
                 >
@@ -217,8 +288,8 @@ function TorrentTable_RowMenuInner({
             <DropdownItem
                 key="data-title"
                 isDisabled
-                className={cn(CONTEXT_MENU.sectionHeadingStrong, SURFACE.menu.sectionHeading)}
-                style={CONTEXT_MENU.sectionHeadingTrackingStyle}
+                className={cn(contextMenuStyles.sectionHeadingStrong, menuSurfaceStyles.menu.sectionHeading)}
+                style={contextMenuStyles.sectionHeadingTrackingStyle}
             >
                 {t("table.data.title")}
             </DropdownItem>,
@@ -302,6 +373,8 @@ function TorrentTable_RowMenuInner({
         clipboardWriteSupported,
         getContextMenuShortcut,
         handleMenuActionPress,
+        contextTorrent.sequentialDownload,
+        sequentialDownloadCapability,
         setLocationPolicy.actionLabelKey,
         t,
     ]);
@@ -320,7 +393,7 @@ function TorrentTable_RowMenuInner({
         >
             <DropdownTrigger>
                 <div
-                    style={CONTEXT_MENU.builder.anchorStyle({
+                    style={contextMenuStyles.builder.anchorStyle({
                         top: rect.top,
                         left: rect.left,
                     })}
@@ -328,9 +401,9 @@ function TorrentTable_RowMenuInner({
             </DropdownTrigger>
             <DropdownMenu
                 variant="shadow"
-                className={SURFACE.menu.surface}
-                classNames={SURFACE.menu.listClassNames}
-                itemClasses={SURFACE.menu.itemClassNames}
+                className={menuSurfaceStyles.menu.surface}
+                classNames={menuSurfaceStyles.menu.listClassNames}
+                itemClasses={menuSurfaceStyles.menu.itemClassNames}
             >
                 {menuItems}
             </DropdownMenu>

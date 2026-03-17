@@ -1,7 +1,14 @@
 import type { DaemonPathStyle } from "@/services/rpc/types";
 
-const hasControlChars = (value: string): boolean => /[\u0000-\u001F]/.test(value);
-const WINDOWS_INVALID_SEGMENT_CHAR_PATTERN = /[<>:"|?*\u0000-\u001F]/;
+const hasControlChars = (value: string): boolean => {
+    for (let index = 0; index < value.length; index += 1) {
+        if (value.charCodeAt(index) <= 0x1f) {
+            return true;
+        }
+    }
+    return false;
+};
+const WINDOWS_INVALID_SEGMENT_CHAR_PATTERN = /[<>:"|?*]/;
 const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
     "CON",
     "PRN",
@@ -77,7 +84,7 @@ export const isAbsolutePath = (path: string, pathStyle: DaemonPathStyle): boolea
     if (pathStyle === "windows") {
         return (
             /^[a-zA-Z]:[\\/]/.test(trimmed) ||
-            /^\\\\[^\\\/]+[\\\/][^\\\/]+(?:[\\\/].*)?$/.test(trimmed)
+            /^\\\\[^/\\]+[/\\][^/\\]+(?:[/\\].*)?$/.test(trimmed)
         );
     }
     if (pathStyle === "posix") {
@@ -121,6 +128,9 @@ const isWindowsSegmentSyntacticallyValid = (segment: string): boolean => {
         return false;
     }
     if (WINDOWS_INVALID_SEGMENT_CHAR_PATTERN.test(segment)) {
+        return false;
+    }
+    if (hasControlChars(segment)) {
         return false;
     }
     const basename = segment.split(".")[0]?.toUpperCase() ?? "";

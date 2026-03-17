@@ -24,6 +24,9 @@ type UseTorrentDataResult = {
     torrents: Torrent[];
     isInitialLoadFinished: boolean;
     refresh: () => Promise<void>;
+    mutateTorrents: (
+        updater: (current: Torrent[]) => Torrent[],
+    ) => void;
     runtimeSummary: TorrentRuntimeSummary;
     ghostTorrents: Torrent[];
     addGhostTorrent: (options: GhostTorrentOptions) => string;
@@ -289,6 +292,30 @@ export function useTorrentData({
         }
     }, [client, commitTorrentSnapshot, reportReadError]);
 
+    const mutateTorrents = useCallback(
+        (updater: (current: Torrent[]) => Torrent[]) => {
+            if (!isMountedRef.current) {
+                return;
+            }
+
+            setTorrents((current) => {
+                const next = updater(current);
+                if (next === current) {
+                    return current;
+                }
+
+                snapshotCacheRef.current = new Map(
+                    next.map((torrent) => [torrent.id, torrent]),
+                );
+                snapshotOrderRef.current = next.map((torrent) => torrent.id);
+                snapshotTimestampRef.current = Date.now();
+
+                return next;
+            });
+        },
+        [],
+    );
+
     useEffect(() => {
         isMountedRef.current = true;
         return () => {
@@ -400,6 +427,7 @@ export function useTorrentData({
         torrents,
         isInitialLoadFinished,
         refresh,
+        mutateTorrents,
         runtimeSummary,
         ghostTorrents: ghosts,
         addGhostTorrent,

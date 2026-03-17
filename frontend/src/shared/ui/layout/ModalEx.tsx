@@ -13,7 +13,7 @@ import type {
     KeyboardEvent as ReactKeyboardEvent,
     ReactNode,
 } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MODAL } from "@/shared/ui/layout/glass-surface";
 import {
@@ -45,6 +45,7 @@ interface ModalExProps {
     size?: ModalExSize;
     maximize?: boolean;
     disableClose?: boolean;
+    allowOverlayDismiss?: boolean;
     bodyVariant?: ModalExBodyVariant;
     onKeyDownCapture?: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     children: ReactNode;
@@ -61,6 +62,7 @@ export function ModalEx({
     size,
     maximize = false,
     disableClose = false,
+    allowOverlayDismiss = false,
     bodyVariant = "padded",
     onKeyDownCapture,
     children,
@@ -82,10 +84,14 @@ export function ModalEx({
     const closeAriaLabel = t("torrent_modal.actions.close");
     const bodyClassName =
         bodyVariant === "flush" ? MODAL.dialogBodyFlush : MODAL.dialogBody;
+    const resetAndClose = () => {
+        setIsMaximized(false);
+        onClose();
+    };
 
     const handleOpenChange: ModalProps["onOpenChange"] = (nextOpen) => {
-        if (!nextOpen && !disableClose) {
-            onClose();
+        if (!nextOpen && !disableClose && allowOverlayDismiss) {
+            resetAndClose();
         }
     };
 
@@ -99,7 +105,7 @@ export function ModalEx({
         ) {
             event.preventDefault();
             event.stopPropagation();
-            onClose();
+            resetAndClose();
             return;
         }
 
@@ -116,13 +122,15 @@ export function ModalEx({
                             ? t("toolbar.minimize")
                             : t("toolbar.maximize")
                     }
-                    onPress={() => setIsMaximized((value) => !value)}
+                    onPress={() =>
+                        setIsMaximized((current) => !current)
+                    }
                 />
             ) : null}
             <ToolbarIconButton
                 Icon={X}
                 ariaLabel={closeAriaLabel}
-                onPress={onClose}
+                onPress={resetAndClose}
                 isDisabled={disableClose}
             />
         </div>
@@ -155,7 +163,7 @@ export function ModalEx({
                     ease: "easeOut",
                 },
             }}
-            isDismissable={!disableClose}
+            isDismissable={allowOverlayDismiss && !disableClose}
             isKeyboardDismissDisabled={disableClose}
         >
             <ModalContent onKeyDownCapture={handleContentKeyDownCapture}>

@@ -1,6 +1,6 @@
-const isWindowsDriveRoot = (value: string) => /^[a-zA-Z]:[\\/]?$/.test(value);
+const isWindowsDriveRoot = (value: string) => /^[a-zA-Z]:[/\\]?$/.test(value);
 
-const isUncRoot = (value: string) => /^\\\\[^\\\/]+\\[^\\\/]+[\\\/]?$/.test(value);
+const isUncRoot = (value: string) => /^\\\\[^/\\]+\\[^/\\]+[/\\]?$/.test(value);
 
 export const normalizeDownloadPathHistoryEntry = (value: string) => {
     const trimmed = value.trim();
@@ -11,7 +11,7 @@ export const normalizeDownloadPathHistoryEntry = (value: string) => {
         return trimmed.replace(/\//g, "\\");
     }
 
-    return trimmed.replace(/[\\\/]+$/, "");
+    return trimmed.replace(/[\\/]+$/, "");
 };
 
 export const sanitizeDownloadPathHistory = (
