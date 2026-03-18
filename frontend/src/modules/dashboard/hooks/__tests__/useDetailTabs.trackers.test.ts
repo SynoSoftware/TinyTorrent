@@ -4,10 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
-import type { TorrentDetailEntity, TorrentTrackerEntity } from "@/services/rpc/entities";
+import type {
+    TorrentDetailEntity,
+    TorrentPeerEntity,
+    TorrentTrackerEntity,
+} from "@/services/rpc/entities";
 import { commandOutcome } from "@/app/context/AppCommandContext";
 
-let inspectorTabMock: "general" | "pieces" | "trackers" = "trackers";
+let inspectorTabMock: "general" | "pieces" | "trackers" | "peers" = "trackers";
 const setInspectorTabMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
@@ -44,7 +48,22 @@ vi.mock("@/modules/dashboard/components/TorrentDetails_Pieces", () => ({
 }));
 
 vi.mock("@/modules/dashboard/components/TorrentDetails_Peers", () => ({
-    PeersTab: () => null,
+    PeersTab: ({
+        peers,
+        emptyMessage,
+    }: {
+        peers: TorrentPeerEntity[];
+        emptyMessage: string;
+    }) =>
+        createElement(
+            "div",
+            {
+                "data-testid": "peers-surface",
+            },
+            peers.length > 0
+                ? peers.map((peer) => peer.address).join(",")
+                : emptyMessage,
+        ),
 }));
 
 vi.mock("@/modules/dashboard/components/TorrentDetails_Speed", () => ({
@@ -194,5 +213,149 @@ describe("useTorrentDetailTabCoordinator trackers tab", () => {
             root.unmount();
             container.remove();
         }
+    });
+});
+
+describe("useTorrentDetailTabCoordinator peers tab", () => {
+    it("updates the active peers surface when peer data arrives without requiring a tab switch", () => {
+        inspectorTabMock = "peers";
+        const detail = makeDetail();
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(CoordinatorHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toContain("torrent_modal.loading");
+
+            detail.peers = [
+                {
+                    address: "203.0.113.8",
+                    port: 51413,
+                    clientIsChoking: false,
+                    clientIsInterested: true,
+                    peerIsChoking: false,
+                    peerIsInterested: true,
+                    isDownloadingFrom: true,
+                    isEncrypted: false,
+                    isIncoming: false,
+                    isUploadingTo: false,
+                    isUtp: true,
+                    clientName: "Transmission 4.0.6",
+                    bytesToClient: 0,
+                    bytesToPeer: 0,
+                    rateToClient: 0,
+                    rateToPeer: 0,
+                    progress: 0,
+                    flagStr: "T",
+                },
+            ];
+
+            flushSync(() => {
+                root.render(createElement(CoordinatorHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toContain("203.0.113.8");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("switches the active peers surface to the newly selected torrent", () => {
+        inspectorTabMock = "peers";
+        const detailA = {
+            ...makeDetail(),
+            id: "torrent-a",
+            hash: "hash-a",
+            peers: [
+                {
+                    address: "203.0.113.8",
+                    port: 51413,
+                    clientIsChoking: false,
+                    clientIsInterested: true,
+                    peerIsChoking: false,
+                    peerIsInterested: true,
+                    isDownloadingFrom: true,
+                    isEncrypted: false,
+                    isIncoming: false,
+                    isUploadingTo: false,
+                    isUtp: true,
+                    clientName: "Transmission 4.0.6",
+                    bytesToClient: 0,
+                    bytesToPeer: 0,
+                    rateToClient: 0,
+                    rateToPeer: 0,
+                    progress: 0,
+                    flagStr: "T",
+                },
+            ],
+        } satisfies TorrentDetailEntity;
+        const detailB = {
+            ...makeDetail(),
+            id: "torrent-b",
+            hash: "hash-b",
+            peers: [
+                {
+                    address: "198.51.100.19",
+                    port: 60000,
+                    clientIsChoking: false,
+                    clientIsInterested: true,
+                    peerIsChoking: false,
+                    peerIsInterested: true,
+                    isDownloadingFrom: true,
+                    isEncrypted: false,
+                    isIncoming: false,
+                    isUploadingTo: false,
+                    isUtp: true,
+                    clientName: "Transmission 4.0.6",
+                    bytesToClient: 0,
+                    bytesToPeer: 0,
+                    rateToClient: 0,
+                    rateToPeer: 0,
+                    progress: 0,
+                    flagStr: "T",
+                },
+            ],
+        } satisfies TorrentDetailEntity;
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(
+                    createElement(CoordinatorHarness, {
+                        viewModel: createViewModel(detailA),
+                    }),
+                );
+            });
+
+            expect(container.textContent).toContain("203.0.113.8");
+
+            flushSync(() => {
+                root.render(
+                    createElement(CoordinatorHarness, {
+                        viewModel: createViewModel(detailB),
+                    }),
+                );
+            });
+
+            expect(container.textContent).toContain("198.51.100.19");
+            expect(container.textContent).not.toContain("203.0.113.8");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+        setInspectorTabMock.mockReset();
+        inspectorTabMock = "peers";
     });
 });

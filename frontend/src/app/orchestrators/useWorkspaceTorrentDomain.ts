@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { status } from "@/shared/status";
 import { registry } from "@/config/logic";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";

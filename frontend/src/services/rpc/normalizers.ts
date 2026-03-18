@@ -213,20 +213,31 @@ const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEn
 
 const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
     address: peer.address,
+    port: Number.isFinite(Number(peer.port)) ? Number(peer.port) : 0,
     clientIsChoking: Boolean(peer.clientIsChoking),
     clientIsInterested: Boolean(peer.clientIsInterested),
     peerIsChoking: Boolean(peer.peerIsChoking),
     peerIsInterested: Boolean(peer.peerIsInterested),
+    isDownloadingFrom: Boolean(peer.isDownloadingFrom),
+    isEncrypted: Boolean(peer.isEncrypted),
+    isIncoming: Boolean(peer.isIncoming),
+    isUploadingTo: Boolean(peer.isUploadingTo),
+    isUtp: Boolean(peer.isUtp),
     // Keep clientName as-is (empty string allowed). For numeric fields,
     // preserve missing values as NaN so the UI can show "unknown" states
     // instead of fabricating zero values.
     clientName: peer.clientName ?? "",
+    bytesToClient: Number.isFinite(Number(peer.bytesToClient))
+        ? Number(peer.bytesToClient)
+        : NaN,
+    bytesToPeer: Number.isFinite(Number(peer.bytesToPeer))
+        ? Number(peer.bytesToPeer)
+        : NaN,
     rateToClient: Number.isFinite(Number(peer.rateToClient)) ? Number(peer.rateToClient) : NaN,
     rateToPeer: Number.isFinite(Number(peer.rateToPeer)) ? Number(peer.rateToPeer) : NaN,
     // Progress is safe to default to 0 for rendering geometry.
     progress: Number.isFinite(Number(peer.progress)) ? Number(peer.progress) : 0,
     flagStr: peer.flagStr ?? "",
-    country: peer.country,
 });
 
 export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => {
@@ -255,10 +266,10 @@ export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity =>
         },
         peerSummary: {
             connected: numOr(torrent.peersConnected, 0),
-            total: numOr(torrent.peersConnected, 0),
+            total: undefined,
             sending: numOr(torrent.peersGettingFromUs, 0),
             getting: numOr(torrent.peersSendingToUs, 0),
-            seeds: numOr(torrent.peersSendingToUs, 0),
+            seeds: undefined,
         },
         totalSize: numOr(torrent.totalSize, 0),
         eta: numOr(torrent.eta, -1),

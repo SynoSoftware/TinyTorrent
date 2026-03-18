@@ -30,13 +30,6 @@
             "cell_size": 6,
             "cell_gap": 3
         },
-        "peer_map": {
-            "drift_amplitude": 5,
-            "drift_duration": {
-                "min": 6,
-                "max": 10
-            }
-        },
         "table": {
             "font_mono": "font-mono",
             "overscan": 20
@@ -230,19 +223,6 @@
                 "rows": {
                     "base": 4,
                     "max": 16
-                }
-            },
-            "peer_map": {
-                "drift_amplitude": 8,
-                "drift_duration": {
-                    "min": 4,
-                    "max": 8
-                },
-                "layout": {
-                    "center": 90,
-                    "radius": 70,
-                    "base_node_size": 6,
-                    "progress_scale": 12
                 }
             },
             "scatter": {

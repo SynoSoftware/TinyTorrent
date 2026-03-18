@@ -954,69 +954,7 @@ export const SPLIT = {
     mapLegendFloat: `shrink-0 ${MAP_OVERLAY_CARD}`,
     mapHudDockRow: "flex flex-wrap items-end justify-between gap-panel pb-tight",
     mapPanel: "flex flex-col h-full w-full p-tight",
-    hudRow: "flex items-center justify-end gap-tools px-panel",
-    hudLabel: `${withOpacity(TEXT_ROLE.label, 40)} mr-2`,
-    mapCanvas: "h-full w-full",
-    resizeHandle: "h-sep cursor-row-resize flex items-center justify-center",
-    resizeBar: `w-24 h-0.5 rounded bg-content1/50 hover:bg-primary/50 ${transition.fast}`,
-    listSurface: `flex-1 min-h-0 relative flex flex-col ${SURFACE.surface.panelRaised}`,
-    header: `flex items-center gap-panel px-panel py-tight border-b border-content1/10 ${withOpacity(TEXT_ROLE.label, 30)}`,
-    headerFlagCol: "w-col-id",
-    headerEndpointCol: "flex-1",
-    headerClientCol: "w-col-client",
-    headerSpeedCol: "w-col-speed text-right",
-    listScroll: "flex-1 min-h-0 overflow-y-auto relative outline-none select-none",
-    flagsCol: `w-col-id ${TEXT_ROLE.codeMuted}`,
-    flagsWrap: "flex gap-tight",
-    flagToken: `cursor-help hover:text-primary ${transition.fast}`,
-    endpointCol: "flex-1 min-w-0 flex items-center gap-tools",
-    encryptedIcon: "text-success/50",
-    utpIcon: "text-primary/50",
-    clientCol: `w-col-client truncate ${withOpacity(TEXT_ROLE.caption, 40)}`,
-    downRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "success")}`,
-    upRateCol: `w-col-speed text-right tabular-nums ${withColor(TEXT_ROLE.code, "primary")}`,
-    peerMapRoot: `flex flex-col flex-1 ${SURFACE.surface.panelMuted} p-panel gap-tools overflow-hidden relative`,
-    peerMapHud: "flex items-center justify-between z-sticky pointer-events-none",
-    peerMapHudMeta: "flex flex-col",
-    peerMapHudStats: "flex items-center gap-tools",
-    peerMapNodeCount: `${TEXT_ROLE.codeMuted} text-foreground/40`,
-    peerMapInstrumentInfo: "flex items-center gap-tools",
-    peerMapAperture: `${TEXT_ROLE.codeCaption} text-foreground/40`,
-    peerMapCompassIcon: "text-primary/50",
-    peerMapCanvasWrap: "flex-1 min-h-0 relative",
-    peerMapSvg: "w-full h-full cursor-crosshair overflow-visible",
-    peerMapRing: `${transition.fast} opacity-03`,
-    peerMapGuides: "pointer-events-none",
-    peerMapGuideCircle: "text-foreground/5",
-    peerMapGuideAxis: "text-foreground/10",
-    peerMapActivityIcon: transition.reveal,
-    peerMapActivityIconActive: "opacity-100 text-primary",
-    peerMapActivityIconInactive: "opacity-0",
-    peerMapNodeMotion: transition.medium,
-    peerMapNodeGlow: "drop-shadow-primary-small",
     builder: {
-        addressClass: (isHostile: boolean) =>
-            isHostile ? `${TEXT_ROLE.code} truncate text-danger` : `${TEXT_ROLE.code} truncate text-foreground/90`,
-        peerActivityClass: (isInstrument: boolean) =>
-            isInstrument ? `${transition.reveal} opacity-100 text-primary` : `${transition.reveal} opacity-0`,
-        peerNodeClass: (isUTP: boolean) =>
-            isUTP ? `${transition.medium} drop-shadow-primary-small` : transition.medium,
-        rowClass: (params: { hovered: boolean; hostile: boolean }) =>
-            params.hostile
-                ? `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 bg-danger/5`
-                : params.hovered
-                  ? `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 bg-primary/10`
-                  : `absolute left-0 right-0 flex items-center px-panel ${transition.fast} border-b border-content1/5 hover:bg-content1/5`,
-        virtualCanvasStyle: (totalSize: number) =>
-            ({
-                height: totalSize,
-                position: "relative",
-            }) as const,
-        virtualRowStyle: (params: { top: number; height: number }) =>
-            ({
-                top: params.top,
-                height: params.height,
-            }) as const,
         canvasInteractionStyle: (cursor: string) =>
             ({
                 cursor,
@@ -1185,6 +1123,11 @@ const DETAIL_TABLE_AVAILABILITY_DOT_CLASS = (isOnline: boolean) =>
     isOnline
         ? "size-dot rounded-full shadow-dot bg-success shadow-success/50"
         : "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
+const DETAILS_TABLE_BODY_CELL = "px-tight py-panel align-middle";
+const DETAILS_TABLE_BODY_CELL_NUMERIC =
+    `${DETAILS_TABLE_BODY_CELL} text-right tabular-nums`;
+const DETAILS_TABLE_STATE_BADGE =
+    "inline-flex h-status-chip min-w-0 items-center rounded-panel border border-default/10 bg-content1/35 px-tight";
 const DETAILS_TABLE = {
     root: "flex h-full flex-col gap-panel",
     toolbar: `${SURFACE.chrome.sticky} flex items-center justify-between px-tight`,
@@ -1202,6 +1145,9 @@ const DETAILS_TABLE = {
     tableHeadCell: TABLE_HEADER_PATTERN.sectionDividerCell,
     tableHeadCellStatus: TABLE_HEADER_PATTERN.statusCell,
     tableBody: TEXT_ROLE.code,
+    bodyCell: DETAILS_TABLE_BODY_CELL,
+    bodyCellNumeric: DETAILS_TABLE_BODY_CELL_NUMERIC,
+    stateBadge: DETAILS_TABLE_STATE_BADGE,
     tableRow: "group hover:bg-primary/5",
     cellIcon: "border-b border-default/5 py-panel pl-panel pr-tight",
     cellHost: "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",

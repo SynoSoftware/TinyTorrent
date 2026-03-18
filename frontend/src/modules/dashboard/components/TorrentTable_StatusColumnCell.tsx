@@ -1,6 +1,5 @@
 import { Chip } from "@heroui/react";
 import type { Table } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
 import { type TFunction } from "i18next";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
@@ -10,7 +9,18 @@ import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts"
 import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentStatus";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
-import { ArrowDown, ArrowUp, Bug, WifiOff, ListStart, Pause, RefreshCw, FolderSync } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    Bug,
+    FolderSync,
+    ListStart,
+    Loader,
+    Pause,
+    RefreshCw,
+    WifiOff,
+    type LucideIcon,
+} from "lucide-react";
 const { visuals } = registry;
 
 type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" | "danger";
@@ -104,39 +114,33 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
 
     const meta = table?.options.meta as StatusTableMeta | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-    const sanitizedHistory = rawHistory.filter(
-        (value): value is number => Number.isFinite(value),
-    );
+    const sanitizedHistory = rawHistory.filter((value): value is number => Number.isFinite(value));
     const speedHistory =
         torrent.state === status.torrent.seeding
             ? { down: [], up: sanitizedHistory }
             : { down: sanitizedHistory, up: [] };
-    const presentation = getTorrentStatusPresentation(
-        torrent,
-        t,
-        optimisticStatus,
-        speedHistory,
-    );
+    const presentation = getTorrentStatusPresentation(torrent, t, optimisticStatus, speedHistory);
 
     if (presentation.isOptimisticMoving && presentation.label) {
-        return renderChip(
-            FolderSync,
-            "primary",
-            presentation.label,
-            presentation.tooltip ?? presentation.label,
-        );
+        return renderChip(FolderSync, "primary", presentation.label, presentation.tooltip ?? presentation.label);
     }
 
     const label = presentation.label ?? t("table.status_error");
     const tooltip = presentation.tooltip ?? label;
+    const seedingIdleMeta: StatusMeta | null =
+        presentation.transportState === status.torrent.seeding &&
+        presentation.overlayState === status.torrent.stalled
+            ? {
+                  color: "primary",
+                  icon: Loader,
+              }
+            : null;
     const conf =
-        (presentation.visualState
-            ? statusMap[presentation.visualState]
-            : undefined) ?? UNKNOWN_STATUS_META;
+        (seedingIdleMeta ??
+            (presentation.visualState
+              ? statusMap[presentation.visualState]
+              : undefined)) ?? UNKNOWN_STATUS_META;
     const Icon = conf.icon;
 
     return renderChip(Icon, conf.color, label, tooltip);
 }
-
-
-

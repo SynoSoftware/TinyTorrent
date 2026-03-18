@@ -77,7 +77,6 @@ describe("HeartbeatManager delta integration", () => {
 
         const hb = new HeartbeatManager(client);
         const hbInternals = hb as unknown as HeartbeatInternals;
-
         const updates: HeartbeatPayload[] = [];
         const sub = hb.subscribe({
             mode: "table",
@@ -194,7 +193,6 @@ describe("HeartbeatManager delta integration", () => {
             .mockResolvedValue({ torrents: [], removed: [] });
 
         const hb = new HeartbeatManager(client);
-        const hbInternals = hb as unknown as HeartbeatInternals;
 
         const updates: HeartbeatPayload[] = [];
         const sub = hb.subscribe({

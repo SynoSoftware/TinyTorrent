@@ -40,6 +40,35 @@ const zRpcOptionalNumberLike = z.preprocess(
     z.number().optional()
 );
 
+const toBooleanOrUndefined = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") {
+        return value;
+    }
+    if (typeof value === "number") {
+        if (value === 1) {
+            return true;
+        }
+        if (value === 0) {
+            return false;
+        }
+    }
+    if (typeof value === "string") {
+        const trimmed = value.trim().toLowerCase();
+        if (trimmed === "true" || trimmed === "1") {
+            return true;
+        }
+        if (trimmed === "false" || trimmed === "0") {
+            return false;
+        }
+    }
+    return undefined;
+};
+
+const zRpcOptionalBooleanLike = z.preprocess(
+    (value) => toBooleanOrUndefined(value),
+    z.boolean().optional()
+);
+
 const zRpcNumberLikeWithDefault = (fallback: number) =>
     z.preprocess(
         (value) => toFiniteNumberOrUndefined(value),
@@ -237,31 +266,107 @@ const zTransmissionTorrentTrackerStat = z
 
 const zTransmissionTorrentPeer = z
     .object({
-        address: z.string(),
-        clientIsChoking: z.boolean(),
-        clientIsInterested: z.boolean(),
-        peerIsChoking: z.boolean(),
-        peerIsInterested: z.boolean(),
-        clientName: z.string(),
-        rateToClient: z.number(),
-        rateToPeer: z.number(),
-        progress: z.number(),
-        flagStr: z.string(),
-        country: z.string().optional(),
+        address: z.preprocess(
+            (value) => (typeof value === "string" ? value.trim() : value),
+            z.string().min(1),
+        ),
+        port: zRpcOptionalNumberLike,
+        clientIsChoking: zRpcOptionalBooleanLike,
+        clientIsInterested: zRpcOptionalBooleanLike,
+        peerIsChoking: zRpcOptionalBooleanLike,
+        peerIsInterested: zRpcOptionalBooleanLike,
+        isDownloadingFrom: zRpcOptionalBooleanLike,
+        isEncrypted: zRpcOptionalBooleanLike,
+        isIncoming: zRpcOptionalBooleanLike,
+        isUploadingTo: zRpcOptionalBooleanLike,
+        isUtp: zRpcOptionalBooleanLike,
+        clientName: z.preprocess(
+            (value) => (typeof value === "string" ? value : ""),
+            z.string(),
+        ),
+        bytesToClient: zRpcOptionalNumberLike,
+        bytesToPeer: zRpcOptionalNumberLike,
+        rateToClient: zRpcOptionalNumberLike,
+        rateToPeer: zRpcOptionalNumberLike,
+        progress: zRpcOptionalNumberLike,
+        flagStr: z.preprocess(
+            (value) => (typeof value === "string" ? value : ""),
+            z.string(),
+        ),
     })
     .passthrough()
-    .catch({
-        address: "",
-        clientIsChoking: false,
-        clientIsInterested: false,
-        peerIsChoking: false,
-        peerIsInterested: false,
-        clientName: "",
-        rateToClient: 0,
-        rateToPeer: 0,
-        progress: 0,
-        flagStr: "",
-    });
+    .transform((peer) => ({
+        address: peer.address,
+        port: peer.port ?? 0,
+        clientIsChoking: peer.clientIsChoking ?? false,
+        clientIsInterested: peer.clientIsInterested ?? false,
+        peerIsChoking: peer.peerIsChoking ?? false,
+        peerIsInterested: peer.peerIsInterested ?? false,
+        isDownloadingFrom: peer.isDownloadingFrom ?? false,
+        isEncrypted: peer.isEncrypted ?? false,
+        isIncoming: peer.isIncoming ?? false,
+        isUploadingTo: peer.isUploadingTo ?? false,
+        isUtp: peer.isUtp ?? false,
+        clientName: peer.clientName,
+        bytesToClient: peer.bytesToClient ?? NaN,
+        bytesToPeer: peer.bytesToPeer ?? NaN,
+        rateToClient: peer.rateToClient ?? NaN,
+        rateToPeer: peer.rateToPeer ?? NaN,
+        progress: peer.progress ?? 0,
+        flagStr: peer.flagStr,
+    }));
+
+const normalizePeerRecord = (item: unknown) => {
+    if (!item || typeof item !== "object") {
+        return item;
+    }
+    const raw = item as Record<string, unknown>;
+    return {
+        ...raw,
+        port: raw.port,
+        clientIsChoking:
+            raw.clientIsChoking ??
+            raw.clientIsChoked ??
+            raw.client_is_choking ??
+            raw.client_is_choked,
+        clientIsInterested:
+            raw.clientIsInterested ?? raw.client_is_interested,
+        peerIsChoking:
+            raw.peerIsChoking ??
+            raw.peerIsChoked ??
+            raw.peer_is_choking ??
+            raw.peer_is_choked,
+        peerIsInterested:
+            raw.peerIsInterested ?? raw.peer_is_interested,
+        isDownloadingFrom:
+            raw.isDownloadingFrom ?? raw.is_downloading_from,
+        isEncrypted: raw.isEncrypted ?? raw.is_encrypted,
+        isIncoming: raw.isIncoming ?? raw.is_incoming,
+        isUploadingTo: raw.isUploadingTo ?? raw.is_uploading_to,
+        isUtp: raw.isUtp ?? raw.is_utp,
+        clientName: raw.clientName ?? raw.client_name,
+        bytesToClient: raw.bytesToClient ?? raw.bytes_to_client,
+        bytesToPeer: raw.bytesToPeer ?? raw.bytes_to_peer,
+        rateToClient: raw.rateToClient ?? raw.rate_to_client,
+        rateToPeer: raw.rateToPeer ?? raw.rate_to_peer,
+        flagStr: raw.flagStr ?? raw.flag_str,
+    };
+};
+
+const zTransmissionTorrentPeersArray = z.preprocess(
+    (value) => {
+        if (!Array.isArray(value)) {
+            return value;
+        }
+        return value.map(normalizePeerRecord);
+    },
+    z.array(z.unknown()).transform((items) =>
+        items.flatMap((item) => {
+            const parsed = zTransmissionTorrentPeer.safeParse(item);
+            return parsed.success ? [parsed.data] : [];
+        }),
+    ),
+);
 
 const zTransmissionTorrent = z
     .object({
@@ -472,7 +577,7 @@ const zTransmissionTorrentDetailBase = z.object({
     trackers: zTransmissionTorrentTrackersArray.default([]),
     trackerStats: zTransmissionTorrentTrackerStatsArray.default([]),
     tracker_stats: zTransmissionTorrentTrackerStatsArray.optional(),
-    peers: z.array(zTransmissionTorrentPeer).default([]),
+    peers: zTransmissionTorrentPeersArray.default([]),
     pieceCount: z.number().optional(),
     pieceSize: z.number().optional(),
     pieceStates: z.unknown().optional(),

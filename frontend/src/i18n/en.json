@@ -309,24 +309,58 @@
         "action_ban_ip": "Ban IP",
         "action_copy_ip": "Copy IP",
         "columns": {
-            "client_identification": "Client Identification",
-            "downstream": "Downstream",
-            "endpoint": "Endpoint",
-            "flags": "Flags",
-            "upstream": "Upstream"
+            "client": "Client",
+            "connection": "Connection",
+            "down_speed": "Down Speed",
+            "downloaded": "Downloaded",
+            "ip_address": "IP Address",
+            "port": "Port",
+            "progress": "Progress",
+            "state": "State",
+            "up_speed": "Up Speed",
+            "uploaded": "Uploaded"
         },
-        "diagnostic_radar": "Diagnostic Radar",
+        "connection": {
+            "direction": "Direction",
+            "discovery": "Discovery",
+            "encrypted": "Encrypted",
+            "encryption": "Encryption",
+            "incoming": "Incoming",
+            "outgoing": "Outgoing",
+            "transport": "Transport",
+            "unencrypted": "Unencrypted"
+        },
         "flags": {
-            "choked_remote": "Peer choked us",
-            "dex_discovery": "Discovered via PEX",
             "dht_discovery": "Discovered via DHT",
             "downloading": "Downloading from peer",
             "encrypted": "Encrypted connection",
-            "uninterested_local": "We are uninterested in peer",
-            "uninterested_remote": "Peer is uninterested in us",
+            "incoming": "Incoming connection",
+            "not_receiving": "Not receiving data from peer",
+            "not_sending": "Not sending data to peer",
+            "none": "No Transmission peer flags",
+            "optimistic": "Connection is temporarily prioritized",
+            "peer_requesting": "Peer is requesting data",
+            "peer_unchoked_us": "Peer has unchoked us, but we are not interested",
+            "pex_discovery": "Discovered via PEX",
+            "requesting": "Requesting data from peer",
             "unknown": "Unknown flag",
+            "we_unchoked_peer": "We unchoked this peer, but they are not interested",
+            "would_download": "We would download from this peer if they would let us",
+            "would_upload": "We would upload to this peer if they would ask",
             "uploading": "Uploading to peer",
             "utp": "uTP (Micro Transport Protocol)"
+        },
+        "state": {
+            "exchanging": "Exchanging data",
+            "no_active_transfer": "No active transfer",
+            "receiving": "Receiving data",
+            "sending": "Sending data"
+        },
+        "tooltip": {
+            "activity": "Activity",
+            "requests": "Requests",
+            "scheduling": "Scheduling",
+            "transfer_state": "Transfer state"
         }
     },
     "settings": {
@@ -717,6 +751,10 @@
         "header_size": "Size",
         "header_speed": "Speed",
         "header_status": "Status",
+        "peers_tooltip_connected": "Connected: {{connected}}",
+        "peers_tooltip_connected_seeds": "Connected seeds: {{seeds}}",
+        "peers_tooltip_downloading": "Downloading from: {{downloading}}",
+        "peers_tooltip_uploading": "Uploading to: {{uploading}}",
         "queue": {
             "move_bottom": "Move to Bottom",
             "move_down": "Move Down",
@@ -943,11 +981,6 @@
             "info_hash": "Info Hash",
             "save_path": "Save Path",
             "unknown": "Unknown"
-        },
-        "peer_map": {
-            "title": "Peer Map",
-            "tooltip": "{{address}} • {{dl}} {{download}} / {{ul}} {{upload}}",
-            "total": "{{count}} peers on swarm"
         },
         "peers": {
             "download": "DL",

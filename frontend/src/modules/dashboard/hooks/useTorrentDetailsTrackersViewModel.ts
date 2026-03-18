@@ -364,7 +364,7 @@ export const useTorrentDetailsTrackersViewModel = ({
     const [contextMenu, setContextMenu] = useState<TrackerContextMenuState | null>(null);
     const trackerInputRef = useRef<HTMLTextAreaElement | null>(null);
 
-    const safeTrackers = trackers ?? [];
+    const safeTrackers = useMemo(() => trackers ?? [], [trackers]);
     const isEmpty = safeTrackers.length === 0;
     const unknownLabel = t("labels.unknown");
     const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
@@ -462,7 +462,7 @@ export const useTorrentDetailsTrackersViewModel = ({
                     ? formatRelativeTime(row.original.lastAnnounceTime)
                     : "-",
             })),
-        [baseRows, selectedKeySet, sorting, table],
+        [selectedKeySet, table],
     );
 
     useEffect(() => {

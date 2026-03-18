@@ -129,12 +129,12 @@ export interface TorrentDetailTabSurfaces {
         registerHeaderActions?: (actions: TorrentDetailHeaderAction[]) => void;
     } | null;
     peers: {
+        torrentId: string | number | null;
         peers: NonNullable<
             NonNullable<DashboardDetailViewModel["detailData"]>["peers"]
         >;
         emptyMessage: string;
         onPeerContextAction?: DashboardDetailViewModel["tabs"]["peers"]["handlePeerContextAction"];
-        torrentProgress?: number;
         sortBySpeed?: boolean;
         isStandalone?: boolean;
     } | null;
@@ -188,7 +188,12 @@ export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
         labelKey: "inspector.tab.peers",
         isVisible: (surfaces) => surfaces.peers !== null,
         render: (surfaces) =>
-            surfaces.peers ? createElement(PeersTab, surfaces.peers) : null,
+            surfaces.peers
+                ? createElement(PeersTab, {
+                      key: String(surfaces.peers.torrentId ?? "peers"),
+                      ...surfaces.peers,
+                  })
+                : null,
     },
     {
         id: "speed",
@@ -231,83 +236,87 @@ export const useTorrentDetailTabCoordinator = ({
         onInspectorTabCommandHandled:
             viewModel.tabs.navigation.onInspectorTabCommandHandled,
     });
-    const surfaces: TorrentDetailTabSurfaces = !torrent
-        ? {
-              general: null,
-              content: null,
-              pieces: null,
-              trackers: null,
-              peers: null,
-              speed: null,
-          }
-        : {
-              general: {
-                  torrent,
-                  isDetailFullscreen,
-                  sequentialDownloadCapability:
-                      viewModel.tabs.general.sequentialDownloadCapability,
-                  onTorrentAction:
-                      viewModel.tabs.general.handleTorrentAction,
-                  onSequentialToggle:
-                      viewModel.tabs.general.handleSequentialToggle,
-                  setLocation: viewModel.tabs.general.setLocation,
-                  optimisticStatus: viewModel.optimisticStatus,
-              },
-              content: {
-                  torrent,
-                  files: torrent.files ?? [],
-                  emptyMessage:
-                      torrent.files == null
-                          ? t("torrent_modal.loading")
-                          : t("torrent_modal.files_empty"),
-                  onFilesToggle:
-                      viewModel.tabs.content.handleFileSelectionChange,
-                  isStandalone,
-              },
-              pieces: {
-                  piecePercent: torrent.progress ?? 0,
-                  pieceCount: torrent.pieceCount,
-                  pieceSize: torrent.pieceSize,
-                  pieceStates: torrent.pieceStates,
-                  pieceAvailability: torrent.pieceAvailability,
-                  showPersistentHud: showPiecesHud,
-              },
-              trackers: {
-                  torrentName: torrent.name,
-                  trackers: torrent.trackers ?? [],
-                  emptyMessage:
-                      torrent.trackers == null
-                          ? t("torrent_modal.loading")
-                          : t("torrent_modal.trackers.empty_backend"),
-                  isStandalone,
-                  commands: viewModel.tabs.trackers,
-                  registerHeaderActions: setTrackersHeaderActions,
-              },
-              peers: {
-                  peers: torrent.peers ?? [],
-                  emptyMessage:
-                      torrent.peers == null
-                          ? t("torrent_modal.loading")
-                          : t("torrent_modal.peers.empty_backend"),
-                  onPeerContextAction:
-                      viewModel.tabs.peers.handlePeerContextAction,
-                  torrentProgress: torrent.progress ?? 0,
-                  sortBySpeed:
-                      viewModel.tabs.peers.peerSortStrategy === "speed",
-                  isStandalone,
-              },
-              speed:
-                  torrent.id ?? torrent.hash
-                      ? {
-                            torrentId: torrent.id ?? torrent.hash,
-                            torrentState:
-                                typeof torrent.state === "string"
-                                    ? torrent.state
-                                    : undefined,
-                            isStandalone,
-                        }
-                      : null,
-          };
+    const surfaces = useMemo<TorrentDetailTabSurfaces>(
+        () =>
+            !torrent
+                ? {
+                      general: null,
+                      content: null,
+                      pieces: null,
+                      trackers: null,
+                      peers: null,
+                      speed: null,
+                  }
+                : {
+                      general: {
+                          torrent,
+                          isDetailFullscreen,
+                          sequentialDownloadCapability:
+                              viewModel.tabs.general.sequentialDownloadCapability,
+                          onTorrentAction:
+                              viewModel.tabs.general.handleTorrentAction,
+                          onSequentialToggle:
+                              viewModel.tabs.general.handleSequentialToggle,
+                          setLocation: viewModel.tabs.general.setLocation,
+                          optimisticStatus: viewModel.optimisticStatus,
+                      },
+                      content: {
+                          torrent,
+                          files: torrent.files ?? [],
+                          emptyMessage:
+                              torrent.files == null
+                                  ? t("torrent_modal.loading")
+                                  : t("torrent_modal.files_empty"),
+                          onFilesToggle:
+                              viewModel.tabs.content.handleFileSelectionChange,
+                          isStandalone,
+                      },
+                      pieces: {
+                          piecePercent: torrent.progress ?? 0,
+                          pieceCount: torrent.pieceCount,
+                          pieceSize: torrent.pieceSize,
+                          pieceStates: torrent.pieceStates,
+                          pieceAvailability: torrent.pieceAvailability,
+                          showPersistentHud: showPiecesHud,
+                      },
+                      trackers: {
+                          torrentName: torrent.name,
+                          trackers: torrent.trackers ?? [],
+                          emptyMessage:
+                              torrent.trackers == null
+                                  ? t("torrent_modal.loading")
+                                  : t("torrent_modal.trackers.empty_backend"),
+                          isStandalone,
+                          commands: viewModel.tabs.trackers,
+                          registerHeaderActions: setTrackersHeaderActions,
+                      },
+                      peers: {
+                          torrentId: torrent.id ?? torrent.hash ?? null,
+                          peers: torrent.peers ?? [],
+                          emptyMessage:
+                              torrent.peers == null
+                                  ? t("torrent_modal.loading")
+                                  : t("torrent_modal.peers.empty_backend"),
+                          onPeerContextAction:
+                              viewModel.tabs.peers.handlePeerContextAction,
+                          sortBySpeed:
+                              viewModel.tabs.peers.peerSortStrategy === "speed",
+                          isStandalone,
+                      },
+                      speed:
+                          torrent.id ?? torrent.hash
+                              ? {
+                                    torrentId: torrent.id ?? torrent.hash,
+                                    torrentState:
+                                        typeof torrent.state === "string"
+                                            ? torrent.state
+                                            : undefined,
+                                    isStandalone,
+                                }
+                              : null,
+                  },
+        [isDetailFullscreen, isStandalone, showPiecesHud, t, torrent, viewModel],
+    );
 
     const visibleTabDefs = useMemo(
         () =>

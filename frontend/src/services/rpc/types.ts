@@ -89,14 +89,21 @@ export interface TransmissionTorrentTracker {
 
 export interface TransmissionTorrentPeer {
     address: string;
+    port: number;
     clientIsChoking: boolean;
     clientIsInterested: boolean;
     clientName: string;
-    country?: string;
     flagStr: string;
+    isDownloadingFrom: boolean;
+    isEncrypted: boolean;
+    isIncoming: boolean;
+    isUploadingTo: boolean;
+    isUtp: boolean;
     peerIsChoking: boolean;
     peerIsInterested: boolean;
     progress: number;
+    bytesToClient: number;
+    bytesToPeer: number;
     rateToClient: number;
     rateToPeer: number;
 }

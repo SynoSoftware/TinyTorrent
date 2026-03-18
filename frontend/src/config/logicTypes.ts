@@ -57,20 +57,6 @@ export type DetailsPieceMapConfig = {
     chunk_interval?: number;
 };
 
-export type DetailsPeerMapConfig = {
-    drift_amplitude: number;
-    drift_duration: {
-        min: number;
-        max: number;
-    };
-    layout: {
-        center: number;
-        radius: number;
-        base_node_size: number;
-        progress_scale: number;
-    };
-};
-
 export type DetailsScatterConfig = {
     padding: {
         top: number;
@@ -101,7 +87,6 @@ export type DetailsSpeedChartConfig = {
 
 export type DetailsVisualizationsConfig = {
     piece_map: DetailsPieceMapConfig;
-    peer_map: DetailsPeerMapConfig;
     scatter: DetailsScatterConfig;
     availability_heatmap: DetailsAvailabilityHeatmapConfig;
     speed_chart: DetailsSpeedChartConfig;

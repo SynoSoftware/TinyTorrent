@@ -17,7 +17,6 @@ import {
 const { visuals, visualizations } = registry;
 
 const commandActionExceptionReason = "exception" as const;
-type StatusRecipeKey = keyof typeof visuals.status.recipes;
 
 export type CommandActionOutcome =
     | TorrentCommandOutcome

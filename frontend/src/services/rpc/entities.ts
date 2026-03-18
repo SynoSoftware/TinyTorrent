@@ -59,16 +59,23 @@ export interface TorrentTrackerEntity {
 
 export interface TorrentPeerEntity {
     address: string;
+    port: number;
     clientIsChoking: boolean;
     clientIsInterested: boolean;
     peerIsChoking: boolean;
     peerIsInterested: boolean;
+    isDownloadingFrom: boolean;
+    isEncrypted: boolean;
+    isIncoming: boolean;
+    isUploadingTo: boolean;
+    isUtp: boolean;
     clientName: string;
+    bytesToClient: number;
+    bytesToPeer: number;
     rateToClient: number;
     rateToPeer: number;
     progress: number;
     flagStr: string;
-    country?: string;
 }
 
 export interface TorrentEntity {

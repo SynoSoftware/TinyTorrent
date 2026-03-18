@@ -190,7 +190,6 @@ function TorrentTable_RowMenuInner({
         getContextMenuShortcut,
         shouldShowOpenFolder,
         contextTorrent,
-        sequentialDownloadCapability,
     ]);
 
     const handleMenuClose = () => {

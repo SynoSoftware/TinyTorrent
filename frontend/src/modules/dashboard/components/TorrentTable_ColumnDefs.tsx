@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 // FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
 
-import { cn } from "@heroui/react";
+import { Tooltip, cn } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
     FileText, // name
@@ -14,7 +14,6 @@ import {
     HardDrive, // size
     TrendingUp, // ratio
     Clock, // added
-    Users,
 } from "lucide-react";
 
 import { status } from "@/shared/status";
@@ -25,14 +24,13 @@ import { registry } from "@/config/logic";
 import { formatBytes, formatDate, formatRelativeTime } from "@/shared/utils/format";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
-import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { getTorrentEtaSortValue, getTorrentEtaTableDisplay } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { SURFACE, TABLE } from "@/shared/ui/layout/glass-surface";
 import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
-const { layout, visuals } = registry;
+const { layout } = registry;
 
 // --- TYPES ---
 export type ColumnId =
@@ -111,6 +109,14 @@ export const formatQueueOrdinal = (queuePosition?: number) => {
     const displayValue = queuePosition + 1;
     return `${displayValue}${getOrdinalSuffix(displayValue)}`;
 };
+
+const renderTooltipLines = (lines: string[]) => (
+    <div>
+        {lines.map((line) => (
+            <div key={line}>{line}</div>
+        ))}
+    </div>
+);
 
 export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
     name: {
@@ -226,25 +232,44 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
     peers: {
         id: "peers",
         labelKey: torrentHeadlineFields.peers.tableLabelKey,
-        width: 100,
+        width: 88,
         align: "end",
         sortable: true,
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.peerSummary.connected,
         headerIcon: Network,
-        render: ({ torrent }) => (
-            <div className={cn(TABLE.columnDefs.peersRow, DENSE_NUMERIC)}>
-                <StatusIcon
-                    Icon={Users}
-                    size="md"
-                    strokeWidth={visuals.icon.strokeWidthDense}
-                    className={TABLE.columnDefs.peersIcon}
-                />
-                <span>{torrent.peerSummary.connected}</span>
-                <span className={TABLE.columnDefs.peersDivider}>/</span>
-                <span className={TABLE.columnDefs.peersSeedCount}>{torrent.peerSummary.seeds ?? "-"}</span>
-            </div>
-        ),
+        render: ({ torrent, t }) => {
+            const tooltipLines = [
+                t("table.peers_tooltip_connected", {
+                    connected: torrent.peerSummary.connected,
+                }),
+                t("table.peers_tooltip_downloading", {
+                    downloading: torrent.peerSummary.getting ?? 0,
+                }),
+                t("table.peers_tooltip_uploading", {
+                    uploading: torrent.peerSummary.sending ?? 0,
+                }),
+                ...(typeof torrent.peerSummary.seeds === "number"
+                    ? [
+                          t("table.peers_tooltip_connected_seeds", {
+                              seeds: torrent.peerSummary.seeds,
+                          }),
+                      ]
+                    : []),
+            ];
+
+            return (
+                <Tooltip
+                    content={renderTooltipLines(tooltipLines)}
+                    classNames={SURFACE.tooltip}
+                    delay={500}
+                >
+                    <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
+                        {torrent.peerSummary.connected}
+                    </span>
+                </Tooltip>
+            );
+        },
     },
 
     size: {

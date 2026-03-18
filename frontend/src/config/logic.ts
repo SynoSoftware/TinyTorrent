@@ -1,5 +1,6 @@
 import constants from "@/config/constants.json";
 import { status } from "@/shared/status";
+import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import type {
     DragOverlayConfig,
     DetailsVisualizationsConfig,
@@ -575,6 +576,14 @@ const trackerTableVisuals = {
     },
 } as const;
 
+const detailsTableVisuals = {
+    valueStrong: "font-medium text-foreground/85",
+    valueSecondary: "font-medium text-foreground/75",
+    valueMuted: "text-foreground/70",
+    valueEmpty: "text-foreground/40",
+    stateBadgeText: `${TEXT_ROLE_EXTENDED.badge} text-foreground/75`,
+} as const;
+
 const addTorrentFileIconVisuals = {
     video: "text-primary",
     text: "text-foreground/40",
@@ -777,19 +786,6 @@ const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
         },
         chunk_interval: 10,
     },
-    peer_map: {
-        drift_amplitude: 8,
-        drift_duration: {
-            min: 4,
-            max: 8,
-        },
-        layout: {
-            center: 90,
-            radius: 70,
-            base_node_size: 6,
-            progress_scale: 12,
-        },
-    },
     scatter: {
         padding: {
             top: 24,
@@ -832,7 +828,6 @@ const detailsVisualizations = resolveDetailsVisualizations(
 );
 
 const detailsPieceMapConfig = detailsVisualizations.piece_map;
-const detailsPeerMapConfig = detailsVisualizations.peer_map;
 const detailsScatterConfig = detailsVisualizations.scatter;
 const detailsTooltipAnimation =
     detailsVisualizations.tooltip_animation;
@@ -1045,6 +1040,12 @@ const statusVisuals = {
     StatusVisualRecipe
 >;
 
+const detailsTableStatusVisuals = {
+    ...detailsTableVisuals,
+    rateDown: statusVisuals[statusVisualKeys.speed.down].text,
+    rateUp: statusVisuals[statusVisualKeys.speed.seed].text,
+} as const;
+
 export const getStatusRecipeText = (
     key: keyof typeof statusVisuals,
     fallbackKey: keyof typeof statusVisuals,
@@ -1124,6 +1125,7 @@ const visuals = {
     workspace: {
         hud: workspaceHudVisuals,
     },
+    detailsTable: detailsTableStatusVisuals,
     trackerTable: trackerTableVisuals,
     fileIcons: addTorrentFileIconVisuals,
 } as const;
@@ -1135,7 +1137,6 @@ const visualizations = {
     details: {
         tabContentMaxHeight: detailsTabContentMaxHeight,
         pieceMap: detailsPieceMapConfig,
-        peerMap: detailsPeerMapConfig,
         scatter: detailsScatterConfig,
         tooltipAnimation: detailsTooltipAnimation,
         tooltipOpacityAnimation: detailsTooltipOpacityAnimation,

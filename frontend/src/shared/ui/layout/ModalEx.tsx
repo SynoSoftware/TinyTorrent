@@ -71,10 +71,16 @@ export function ModalEx({
     const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
-        if (!open) {
-            setIsMaximized(false);
+        if (!open && isMaximized) {
+            const timeoutId = window.setTimeout(() => {
+                setIsMaximized(false);
+            }, 0);
+            return () => {
+                window.clearTimeout(timeoutId);
+            };
         }
-    }, [open]);
+        return undefined;
+    }, [isMaximized, open]);
 
     const resolvedSize: ModalExSize = isMaximized ? "full" : (size ?? "lg");
     const hasFooter = Boolean(secondaryAction || primaryAction || dangerAction);

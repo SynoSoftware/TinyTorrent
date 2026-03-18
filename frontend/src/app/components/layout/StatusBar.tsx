@@ -41,7 +41,6 @@ const RPC_STATUS_LABEL: Record<string, string> = {
     [appStatus.connection.idle]: "status_bar.rpc_idle",
     [appStatus.connection.error]: "status_bar.rpc_error",
 };
-type StatusRecipeKey = keyof typeof visuals.status.recipes;
 
 /* ------------------------------------------------------------------ */
 /* TYPES */
