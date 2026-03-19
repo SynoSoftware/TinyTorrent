@@ -13,6 +13,7 @@ import { registry } from "@/config/logic";
 import type { TorrentEntity } from "@/services/rpc/entities";
 
 const { performance } = registry;
+const ZERO_HISTORY = new Array(performance.historyDataPoints).fill(0);
 
 type HarnessRef = {
     read: () => Record<string, { down: number[]; up: number[] }>;
@@ -37,22 +38,6 @@ const makeTorrent = (
     added: 0,
 });
 
-const waitForCondition = async (
-    predicate: () => boolean,
-    timeoutMs = 1000,
-) => {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        if (predicate()) {
-            return;
-        }
-        await new Promise<void>((resolve) => {
-            window.setTimeout(resolve, 10);
-        });
-    }
-    throw new Error("wait_for_condition_timeout");
-};
-
 const Harness = forwardRef(function Harness(
     { torrents }: { torrents: TorrentEntity[] },
     ref: Ref<HarnessRef>,
@@ -71,7 +56,7 @@ describe("useTorrentSpeedHistory", () => {
         document.body.innerHTML = "";
     });
 
-    it("keeps bounded local histories and prunes removed torrents", async () => {
+    it("seeds fixed-length zero histories, shifts by one sample, appends idle zeroes, and prunes removed torrents", async () => {
         const ref = React.createRef<HarnessRef>();
         const container = document.createElement("div");
         document.body.appendChild(container);
@@ -80,7 +65,7 @@ describe("useTorrentSpeedHistory", () => {
         await act(async () => {
             root.render(createElement(Harness, { ref, torrents: [] }));
         });
-        await waitForCondition(() => Boolean(ref.current));
+        expect(ref.current?.read()).toEqual({});
 
         await act(async () => {
             root.render(
@@ -91,10 +76,15 @@ describe("useTorrentSpeedHistory", () => {
             );
         });
 
-        await waitForCondition(() => {
-            const snapshot = ref.current?.read();
-            return Boolean(snapshot && snapshot.a && snapshot.b);
-        });
+        const seeded = ref.current?.read();
+        expect(seeded?.a.down).toHaveLength(performance.historyDataPoints);
+        expect(seeded?.a.up).toHaveLength(performance.historyDataPoints);
+        expect(seeded?.b.down).toHaveLength(performance.historyDataPoints);
+        expect(seeded?.b.up).toHaveLength(performance.historyDataPoints);
+        expect(seeded?.a.down).toEqual(ZERO_HISTORY);
+        expect(seeded?.a.up).toEqual(ZERO_HISTORY);
+        expect(seeded?.b.down).toEqual(ZERO_HISTORY);
+        expect(seeded?.b.up).toEqual(ZERO_HISTORY);
 
         await act(async () => {
             root.render(
@@ -105,43 +95,33 @@ describe("useTorrentSpeedHistory", () => {
             );
         });
 
-        await waitForCondition(() => {
-            const snapshot = ref.current?.read();
-            return Boolean(snapshot && snapshot.a?.down.at(-1) === 20);
-        });
+        const advanced = ref.current?.read();
+        expect(advanced?.a.down).toHaveLength(performance.historyDataPoints);
+        expect(advanced?.a.up).toHaveLength(performance.historyDataPoints);
+        expect(advanced?.a.down.slice(0, -1)).toEqual(
+            ZERO_HISTORY.slice(1),
+        );
+        expect(advanced?.a.up.slice(0, -1)).toEqual(
+            ZERO_HISTORY.slice(1),
+        );
+        expect(advanced?.a.down.at(-1)).toBe(20);
+        expect(advanced?.a.up.at(-1)).toBe(6);
+        expect(advanced?.b).toBeUndefined();
 
-        const snapshot = ref.current?.read();
-        expect(snapshot?.a.down).toEqual([10, 20]);
-        expect(snapshot?.a.up).toEqual([3, 6]);
-        expect(snapshot?.b).toBeUndefined();
-
-        for (
-            let index = 0;
-            index < performance.historyDataPoints + 5;
-            index += 1
-        ) {
-            await act(async () => {
-                root.render(
-                    createElement(Harness, {
-                        ref,
-                        torrents: [makeTorrent("a", index, index + 1)],
-                    }),
-                );
-            });
-        }
-
-        await waitForCondition(() => {
-            const current = ref.current?.read().a;
-            return Boolean(
-                current &&
-                    current.down.length === performance.historyDataPoints &&
-                    current.up.length === performance.historyDataPoints,
+        await act(async () => {
+            root.render(
+                createElement(Harness, {
+                    ref,
+                    torrents: [makeTorrent("a", 0, 0)],
+                }),
             );
         });
 
-        const bounded = ref.current?.read().a;
-        expect(bounded?.down).toHaveLength(performance.historyDataPoints);
-        expect(bounded?.up).toHaveLength(performance.historyDataPoints);
+        const idled = ref.current?.read();
+        expect(idled?.a.down).toHaveLength(performance.historyDataPoints);
+        expect(idled?.a.up).toHaveLength(performance.historyDataPoints);
+        expect(idled?.a.down.slice(-2)).toEqual([20, 0]);
+        expect(idled?.a.up.slice(-2)).toEqual([6, 0]);
 
         await act(async () => {
             root.unmount();

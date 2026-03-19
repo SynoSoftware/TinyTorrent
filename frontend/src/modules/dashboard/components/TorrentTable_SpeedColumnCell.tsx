@@ -55,23 +55,10 @@ export function TorrentTable_SpeedCell({
         [rawHistory, torrent],
     );
     const relevantHistory = isSeeding ? speedHistory.up : speedHistory.down;
-
-    const current =
-        typeof speedValue === "number" && Number.isFinite(speedValue)
-            ? speedValue
-            : NaN;
-    const sparklineHistory: number[] = useMemo(
-        () =>
-            Number.isFinite(current)
-                ? [...relevantHistory, current]
-                : [...relevantHistory],
-        [current, relevantHistory],
-    );
-
-    const hasSignal = sparklineHistory.length >= 2;
+    const hasSignal = speedValue !== null && relevantHistory.length >= 2;
     const maxSpeed = useMemo(
-        () => (hasSignal ? Math.max(...sparklineHistory) : 0),
-        [hasSignal, sparklineHistory],
+        () => (hasSignal ? Math.max(...relevantHistory) : 0),
+        [hasSignal, relevantHistory],
     );
 
     const tableRowHeight = meta?.rowHeight;
@@ -91,7 +78,7 @@ export function TorrentTable_SpeedCell({
         () =>
             hasSignal
                 ? buildSplinePath(
-                      sparklineHistory,
+                      [...relevantHistory],
                       sparklineWidth,
                       sparklineHeight - 1,
                       maxSpeed,
@@ -100,8 +87,8 @@ export function TorrentTable_SpeedCell({
         [
             hasSignal,
             maxSpeed,
+            relevantHistory,
             sparklineHeight,
-            sparklineHistory,
             sparklineWidth,
         ],
     );
