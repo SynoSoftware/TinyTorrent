@@ -53,6 +53,7 @@ docs/bug fixing/
 docs/engine/
 frontend/docs/
 backend/docs/
+docs/architecture/
 patch*.txt
 *.diff
-
+.tmp/

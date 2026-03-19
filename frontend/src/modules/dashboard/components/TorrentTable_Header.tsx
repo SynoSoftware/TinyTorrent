@@ -1,5 +1,4 @@
 import React, { memo, type CSSProperties } from "react";
-import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -124,15 +123,10 @@ const TorrentTable_Header = memo(
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         const shouldAnimateLayout =
             !isAnimationSuppressed && !isDragging && !isOverlay;
-        const headerLayoutId =
-            shouldAnimateLayout ? `column-header-${header.id}` : undefined;
-
+        void shouldAnimateLayout;
         return (
-            <motion.div
+            <div
                 ref={setNodeRef}
-                layout={shouldAnimateLayout ? "position" : false}
-                layoutId={headerLayoutId}
-                initial={false}
                 style={style}
                 role="columnheader"
                 tabIndex={-1}
@@ -183,9 +177,19 @@ const TorrentTable_Header = memo(
                         />
                     </div>
                 )}
-            </motion.div>
+            </div>
         );
     },
+    (prev, next) =>
+        prev.isOverlay === next.isOverlay &&
+        prev.isAnimationSuppressed === next.isAnimationSuppressed &&
+        prev.isResizing === next.isResizing &&
+        prev.header.id === next.header.id &&
+        prev.header.column.getSize() === next.header.column.getSize() &&
+        prev.header.column.getIsSorted() === next.header.column.getIsSorted() &&
+        prev.onContextMenu === next.onContextMenu &&
+        prev.onAutoFitColumn === next.onAutoFitColumn &&
+        prev.onResizeStart === next.onResizeStart,
 );
 
 export default TorrentTable_Header;

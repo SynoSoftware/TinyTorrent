@@ -3,12 +3,12 @@ import type { Table } from "@tanstack/react-table";
 import { useMemo, type RefObject } from "react";
 import { getStatusRecipeText, registry } from "@/config/logic";
 import { status } from "@/shared/status";
-import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { useUiClock } from "@/shared/hooks/useUiClock";
 import { formatSpeed } from "@/shared/utils/format";
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { getStatusSpeedHistory } from "@/modules/dashboard/utils/torrentStatus";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 const { layout, visuals } = registry;
 
 const DENSE_TEXT = `${layout.table.fontSize} ${layout.table.fontMono} leading-none cap-height-text`;
@@ -16,7 +16,10 @@ const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 const DEFAULT_SPARKLINE_HEIGHT = 12;
 
 type SpeedTableMeta = {
-    speedHistoryRef?: RefObject<Record<string, Array<number | null>>>;
+    speedHistoryRef?: RefObject<
+        Record<string, SpeedHistorySnapshot | Array<number | null>>
+    >;
+    rowHeight?: number;
 };
 
 interface TorrentTableSpeedColumnCellProps {
@@ -40,38 +43,40 @@ export function TorrentTable_SpeedCell({
     torrent,
     table,
 }: TorrentTableSpeedColumnCellProps) {
-    // Keep UI clock subscription here; without it sparkline cadence stalls.
-    const { tick } = useUiClock();
-    void tick;
-
     const isDownloading = torrent.state === status.torrent.downloading;
     const isSeeding = torrent.state === status.torrent.seeding;
 
     const speedValue = getTorrentCompactSpeedValue(torrent);
 
     const meta = table.options.meta as SpeedTableMeta | undefined;
-    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-    const sanitizedHistory = rawHistory.reduce<number[]>((acc, value) => {
-        if (Number.isFinite(value)) {
-            acc.push(value as number);
-        }
-        return acc;
-    }, []);
+    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id];
+    const speedHistory = useMemo(
+        () => getStatusSpeedHistory(torrent, rawHistory),
+        [rawHistory, torrent],
+    );
+    const relevantHistory = isSeeding ? speedHistory.up : speedHistory.down;
 
     const current =
         typeof speedValue === "number" && Number.isFinite(speedValue)
             ? speedValue
             : NaN;
-    const sparklineHistory: number[] = Number.isFinite(current)
-        ? [...sanitizedHistory, current]
-        : sanitizedHistory;
+    const sparklineHistory: number[] = useMemo(
+        () =>
+            Number.isFinite(current)
+                ? [...relevantHistory, current]
+                : [...relevantHistory],
+        [current, relevantHistory],
+    );
 
     const hasSignal = sparklineHistory.length >= 2;
-    const maxSpeed = hasSignal ? Math.max(...sparklineHistory) : 0;
+    const maxSpeed = useMemo(
+        () => (hasSignal ? Math.max(...sparklineHistory) : 0),
+        [hasSignal, sparklineHistory],
+    );
 
-    const { rowHeight } = useLayoutMetrics();
-    const resolvedRow = Number.isFinite(rowHeight)
-        ? rowHeight
+    const tableRowHeight = meta?.rowHeight;
+    const resolvedRow: number = Number.isFinite(tableRowHeight ?? Number.NaN)
+        ? Number(tableRowHeight)
         : DEFAULT_SPARKLINE_HEIGHT * 2.5;
 
     const { width: sparklineWidth, height: sparklineHeight } = useMemo(() => {
@@ -82,14 +87,24 @@ export function TorrentTable_SpeedCell({
         };
     }, [resolvedRow]);
 
-    const path = hasSignal
-        ? buildSplinePath(
-              sparklineHistory,
-              sparklineWidth,
-              sparklineHeight - 1,
-              maxSpeed,
-          )
-        : "";
+    const path = useMemo(
+        () =>
+            hasSignal
+                ? buildSplinePath(
+                      sparklineHistory,
+                      sparklineWidth,
+                      sparklineHeight - 1,
+                      maxSpeed,
+                  )
+                : "",
+        [
+            hasSignal,
+            maxSpeed,
+            sparklineHeight,
+            sparklineHistory,
+            sparklineWidth,
+        ],
+    );
 
     const speedState = isDownloading ? "down" : isSeeding ? "seed" : "idle";
     const speedColorKey =

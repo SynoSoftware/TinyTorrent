@@ -9,23 +9,29 @@ import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentT
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { RefObject } from "react";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 const { visuals } = registry;
 
 export function useTorrentTableColumns({
     t,
     speedHistoryRef,
     optimisticStatuses,
+    rowHeight,
 }: {
     t: TFunction;
-    speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
+    speedHistoryRef: RefObject<
+        Record<string, SpeedHistorySnapshot | Array<number | null>>
+    >;
     optimisticStatuses: OptimisticStatusMap;
+    rowHeight: number;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const tableMeta = useMemo<DashboardTableMeta>(
         () => ({
             speedHistoryRef,
             optimisticStatuses,
+            rowHeight,
         }),
-        [optimisticStatuses, speedHistoryRef],
+        [optimisticStatuses, rowHeight, speedHistoryRef],
     );
 
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {

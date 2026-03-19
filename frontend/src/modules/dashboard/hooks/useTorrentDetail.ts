@@ -32,11 +32,12 @@ interface UseTorrentDetailResult {
 
 const cloneDetail = (detail: TorrentDetail): TorrentDetail => ({
     ...detail,
-    files: detail.files ? [...detail.files] : detail.files,
-    trackers: detail.trackers ? [...detail.trackers] : detail.trackers,
-    peers: detail.peers ? [...detail.peers] : detail.peers,
-    // Keep the large piece arrays by reference. Re-cloning them on every
-    // detail write turns small UI toggles into massive allocation churn.
+    // Detail payload arrays are owned by the heartbeat snapshot already.
+    // Re-cloning them on every detail write turns heartbeat updates into
+    // avoidable allocation churn for large torrents.
+    files: detail.files,
+    trackers: detail.trackers,
+    peers: detail.peers,
     pieceStates: detail.pieceStates,
     pieceAvailability: detail.pieceAvailability,
 });

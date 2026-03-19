@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, type CSSProperties } from "react";
-import { motion } from "framer-motion";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 
@@ -46,6 +46,7 @@ const TorrentTable_Row = memo(
         // Inside VirtualRow component
         const {
             setNodeRef,
+            setActivatorNodeRef,
             attributes,
             listeners,
             transform,
@@ -120,27 +121,16 @@ const TorrentTable_Row = memo(
         ]);
 
         return (
-            <motion.div
+            <div
                 ref={setNodeRef}
                 data-index={virtualRow.index}
                 data-torrent-row={row.original.id}
-                {...(attributes ?? {})}
-                {...(listeners ?? {})}
                 role="row"
                 aria-selected={isSelected}
                 tabIndex={-1}
-                layout={!suppressRowAnimation}
-                layoutId={
-                    suppressRowAnimation
-                        ? undefined
-                        : `torrent-row-shell-${row.id}`
-                }
                 className={cn(
                     visuals.table.rowClass.shell,
-                    // Dragging overrides
-                    canReorderQueue
-                        ? visuals.table.rowClass.dragCursorEnabled
-                        : visuals.table.rowClass.dragCursorDisabled,
+                    visuals.table.rowClass.dragCursorDisabled,
                     isDragging &&
                         visuals.table.rowClass.dragging
                 )}
@@ -149,15 +139,40 @@ const TorrentTable_Row = memo(
                 onDoubleClick={() => onRowDoubleClick(row.original)}
                 onContextMenu={(e) => onRowContextMenu(e, row.original)}
             >
+                {canReorderQueue ? (
+                    <button
+                        ref={setActivatorNodeRef}
+                        type="button"
+                        aria-label="Reorder torrent"
+                        className={visuals.table.rowClass.dragCursorEnabled}
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            zIndex: 10,
+                            width: 18,
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            opacity: 0.55,
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                        {...(attributes ?? {})}
+                        {...(listeners ?? {})}
+                    >
+                        <GripVertical
+                            aria-hidden="true"
+                            size={14}
+                            strokeWidth={visuals.icon.strokeWidthDense}
+                        />
+                    </button>
+                ) : null}
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
-                <motion.div
-                    layout={!suppressRowAnimation}
-                    layoutId={
-                        suppressRowAnimation
-                            ? undefined
-                            : `torrent-row-${row.id}`
-                    }
-                    initial={false}
+                <div
                     className={cn(
                         visuals.table.rowClass.content,
                         isSelected
@@ -174,10 +189,29 @@ const TorrentTable_Row = memo(
                     {row.getVisibleCells().map((cell) => (
                         <TableCellContent key={cell.id} cell={cell} />
                     ))}
-                </motion.div>
-            </motion.div>
+                </div>
+            </div>
         );
     },
+    (prev, next) =>
+        prev.row.id === next.row.id &&
+        prev.row.original === next.row.original &&
+        prev.virtualRow.index === next.virtualRow.index &&
+        prev.virtualRow.start === next.virtualRow.start &&
+        prev.virtualRow.size === next.virtualRow.size &&
+        prev.isSelected === next.isSelected &&
+        prev.isContext === next.isContext &&
+        prev.isHighlighted === next.isHighlighted &&
+        prev.state.canReorderQueue === next.state.canReorderQueue &&
+        prev.state.dropTargetRowId === next.state.dropTargetRowId &&
+        prev.state.activeRowId === next.state.activeRowId &&
+        prev.state.isAnyColumnResizing === next.state.isAnyColumnResizing &&
+        prev.state.isAnimationSuppressed === next.state.isAnimationSuppressed &&
+        prev.state.isColumnOrderChanging === next.state.isColumnOrderChanging &&
+        prev.interaction.onRowClick === next.interaction.onRowClick &&
+        prev.interaction.onRowDoubleClick === next.interaction.onRowDoubleClick &&
+        prev.interaction.onRowContextMenu === next.interaction.onRowContextMenu &&
+        prev.interaction.onDropTargetChange === next.interaction.onDropTargetChange,
 );
 
 export default TorrentTable_Row;

@@ -13,6 +13,7 @@ import {
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 import {
     ArrowDown,
     ArrowUp,
@@ -95,7 +96,9 @@ interface TorrentTableStatusColumnCellProps {
 }
 
 type StatusTableMeta = {
-    speedHistoryRef?: { current: Record<string, Array<number | null>> };
+    speedHistoryRef?: {
+        current: Record<string, SpeedHistorySnapshot | Array<number | null>>;
+    };
 };
 
 export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }: TorrentTableStatusColumnCellProps) {
@@ -107,7 +110,7 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
         classNames?: StatusMeta["classNames"],
     ) => {
         return (
-            <AppTooltip content={tooltip} dense placement="top">
+            <AppTooltip content={tooltip} dense placement="top" native>
                 <Chip
                     size="md"
                     variant="flat"

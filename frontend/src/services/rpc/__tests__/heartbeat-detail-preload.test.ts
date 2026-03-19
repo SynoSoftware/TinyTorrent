@@ -49,7 +49,16 @@ type HeartbeatClientLike = {
     getTorrents: ReturnType<typeof vi.fn<() => Promise<TorrentEntity[]>>>;
     getSessionStats: ReturnType<typeof vi.fn<() => Promise<SessionStats>>>;
     getTorrentDetails: ReturnType<
-        typeof vi.fn<(id: string) => Promise<TorrentDetailEntity>>
+        typeof vi.fn<
+            (
+                id: string,
+                options?: {
+                    profile?: "standard" | "pieces";
+                    includeTrackerStats?: boolean;
+                    includePieceSnapshot?: boolean;
+                },
+            ) => Promise<TorrentDetailEntity>
+        >
     >;
 };
 
@@ -167,6 +176,7 @@ describe("HeartbeatManager detail preload", () => {
             expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-1", {
                 profile: "standard",
                 includeTrackerStats: true,
+                includePieceSnapshot: false,
             });
         } finally {
             subscription.unsubscribe();
@@ -220,6 +230,7 @@ describe("HeartbeatManager detail preload", () => {
             expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-2", {
                 profile: "pieces",
                 includeTrackerStats: true,
+                includePieceSnapshot: true,
             });
         } finally {
             subscription.unsubscribe();
@@ -285,6 +296,7 @@ describe("HeartbeatManager detail preload", () => {
             expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-3", {
                 profile: "standard",
                 includeTrackerStats: true,
+                includePieceSnapshot: false,
             });
         } finally {
             subscription.unsubscribe();
@@ -350,6 +362,7 @@ describe("HeartbeatManager detail preload", () => {
             expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-3", {
                 profile: "standard",
                 includeTrackerStats: true,
+                includePieceSnapshot: false,
             });
         } finally {
             subscription.unsubscribe();

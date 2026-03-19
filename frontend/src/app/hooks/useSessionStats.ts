@@ -88,15 +88,59 @@ export function useSessionStats({
         }
     }, [isMountedRef, reportReadError, sessionDomain]);
 
+    const setSessionStatsIfChanged = useCallback(
+        (next: SessionStats | null) => {
+            setSessionStats((current) => {
+                if (current === next) {
+                    return current;
+                }
+                if (current && next) {
+                    const same =
+                        current.downloadSpeed === next.downloadSpeed &&
+                        current.uploadSpeed === next.uploadSpeed &&
+                        current.torrentCount === next.torrentCount &&
+                        current.activeTorrentCount === next.activeTorrentCount &&
+                        current.pausedTorrentCount === next.pausedTorrentCount &&
+                        current.dhtNodes === next.dhtNodes &&
+                        current.downloadDirFreeSpace ===
+                            next.downloadDirFreeSpace &&
+                        current.networkTelemetry?.dhtEnabled ===
+                            next.networkTelemetry?.dhtEnabled &&
+                        current.networkTelemetry?.pexEnabled ===
+                            next.networkTelemetry?.pexEnabled &&
+                        current.networkTelemetry?.lpdEnabled ===
+                            next.networkTelemetry?.lpdEnabled &&
+                        current.networkTelemetry?.portForwardingEnabled ===
+                            next.networkTelemetry?.portForwardingEnabled &&
+                        current.networkTelemetry?.altSpeedEnabled ===
+                            next.networkTelemetry?.altSpeedEnabled &&
+                        current.networkTelemetry?.downloadDirFreeSpace ===
+                            next.networkTelemetry?.downloadDirFreeSpace &&
+                        current.networkTelemetry?.downloadQueueEnabled ===
+                            next.networkTelemetry?.downloadQueueEnabled &&
+                        current.networkTelemetry?.seedQueueEnabled ===
+                            next.networkTelemetry?.seedQueueEnabled;
+                    return same ? current : next;
+                }
+                return next;
+            });
+        },
+        [],
+    );
+
     useEffect(() => {
         if (!sessionReady) return;
         const subscription = heartbeatDomain.subscribeTable({
             onUpdate: ({ sessionStats: stats, torrents, source }) => {
                 if (!isMountedRef.current || !stats) return;
                 lastHeartbeatTorrentsRef.current = torrents;
-                setSessionStats(deriveLiveTransferRates(stats, torrents));
+                setSessionStatsIfChanged(
+                    deriveLiveTransferRates(stats, torrents),
+                );
                 if (source) {
-                    setLiveTransportStatus(source);
+                    setLiveTransportStatus((current) =>
+                        current === source ? current : source,
+                    );
                 }
             },
             onError: () => {
@@ -107,7 +151,13 @@ export function useSessionStats({
         return () => {
             subscription.unsubscribe();
         };
-    }, [heartbeatDomain, isMountedRef, reportReadError, sessionReady]);
+    }, [
+        heartbeatDomain,
+        isMountedRef,
+        reportReadError,
+        sessionReady,
+        setSessionStatsIfChanged,
+    ]);
 
     useEffect(() => {
         if (sessionReady) {

@@ -1,66 +1,40 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import { status } from "@/shared/status";
-import { useSpeedHistoryDomain } from "@/shared/hooks/useSpeedHistoryDomain";
+import { useEffect, useRef } from "react";
 
-type SpeedHistoryMap = Record<string, number[]>;
+import { registry } from "@/config/logic";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
+
+const { performance } = registry;
+
+type SpeedHistoryMap = Record<string, SpeedHistorySnapshot>;
+
+const HISTORY_POINTS = performance.historyDataPoints;
+
+const appendSample = (history: readonly number[], sample: number) => {
+    const normalizedSample = Number.isFinite(sample) ? sample : 0;
+    if (history.length >= HISTORY_POINTS) {
+        return [...history.slice(-(HISTORY_POINTS - 1)), normalizedSample];
+    }
+    return [...history, normalizedSample];
+};
 
 export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
     const historyRef = useRef<SpeedHistoryMap>({});
-    const torrentsRef = useRef<Torrent[]>(torrents);
-    const store = useSpeedHistoryDomain();
-    const unwatchMapRef = useRef<Map<string, () => void>>(new Map());
 
     useEffect(() => {
-        torrentsRef.current = torrents;
-    }, [torrents]);
-
-    const updateVisibleHistory = useCallback(() => {
-        const currentTorrents = torrentsRef.current;
+        const previousHistory = historyRef.current;
         const nextHistory: SpeedHistoryMap = {};
 
-        currentTorrents.forEach((torrent) => {
-            const data = store.get(torrent.id);
-            const isSeeding = torrent.state === status.torrent.seeding;
-            nextHistory[torrent.id] = isSeeding ? data.up : data.down;
+        torrents.forEach((torrent) => {
+            const previous = previousHistory[torrent.id];
+            nextHistory[torrent.id] = {
+                down: appendSample(previous?.down ?? [], torrent.speed.down),
+                up: appendSample(previous?.up ?? [], torrent.speed.up),
+            };
         });
 
         historyRef.current = nextHistory;
-    }, [store]);
-
-    useEffect(() => {
-        const nextIds = new Set(torrents.map((torrent) => torrent.id));
-        const currentMap = unwatchMapRef.current;
-
-        nextIds.forEach((id) => {
-            if (currentMap.has(id)) return;
-            currentMap.set(id, store.watch(id));
-        });
-
-        Array.from(currentMap.keys()).forEach((id) => {
-            if (nextIds.has(id)) return;
-            const unwatch = currentMap.get(id);
-            unwatch?.();
-            currentMap.delete(id);
-        });
-
-        updateVisibleHistory();
-    }, [store, torrents, updateVisibleHistory]);
-
-    useEffect(() => {
-        const unsubscribe = store.subscribe(updateVisibleHistory);
-        return () => {
-            unsubscribe();
-        };
-    }, [store, updateVisibleHistory]);
-
-    useEffect(() => {
-        const unwatchMap = unwatchMapRef.current;
-        return () => {
-            Array.from(unwatchMap.values()).forEach((unwatch) => unwatch());
-            unwatchMap.clear();
-        };
-    }, []);
+    }, [torrents]);
 
     return historyRef;
 };

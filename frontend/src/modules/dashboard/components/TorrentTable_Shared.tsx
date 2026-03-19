@@ -1,16 +1,100 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { memo } from "react";
-import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import {
     flexRender, type Row, type Table, } from "@tanstack/react-table";
 import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 const { visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 type TorrentTableCell = ReturnType<Row<Torrent>["getVisibleCells"]>[number];
+
+const getOptimisticSignature = (cell: TorrentTableCell) => {
+    const meta = cell.getContext().table.options.meta as
+        | DashboardTableMeta
+        | undefined;
+    const optimistic = meta?.optimisticStatuses[cell.row.id];
+    return `${optimistic?.state ?? ""}|${optimistic?.operation ?? ""}`;
+};
+
+const areSimpleCellInputsEqual = (
+    columnId: string,
+    previous: Torrent,
+    next: Torrent,
+) => {
+    switch (columnId) {
+        case "name":
+            return (
+                previous.name === next.name &&
+                previous.errorString === next.errorString &&
+                previous.state === next.state
+            );
+        case "queue":
+            return previous.queuePosition === next.queuePosition;
+        case "peers":
+            return (
+                previous.peerSummary.connected === next.peerSummary.connected &&
+                previous.peerSummary.getting === next.peerSummary.getting &&
+                previous.peerSummary.sending === next.peerSummary.sending &&
+                previous.peerSummary.seeds === next.peerSummary.seeds
+            );
+        case "size":
+            return previous.totalSize === next.totalSize;
+        case "ratio":
+            return (
+                previous.ratio === next.ratio &&
+                previous.uploaded === next.uploaded &&
+                previous.downloaded === next.downloaded
+            );
+        case "added":
+            return previous.added === next.added;
+        case "eta":
+            return (
+                previous.eta === next.eta &&
+                previous.state === next.state &&
+                previous.error === next.error &&
+                previous.errorString === next.errorString
+            );
+        case "progress":
+            return (
+                previous.progress === next.progress &&
+                previous.verificationProgress === next.verificationProgress &&
+                previous.totalSize === next.totalSize &&
+                previous.sizeWhenDone === next.sizeWhenDone &&
+                previous.metadataPercentComplete === next.metadataPercentComplete &&
+                previous.isFinished === next.isFinished &&
+                previous.state === next.state
+            );
+        default:
+            return false;
+    }
+};
+
+const areCellRenderInputsEqual = (
+    previousCell: TorrentTableCell,
+    nextCell: TorrentTableCell,
+) => {
+    const columnId = nextCell.column.id;
+    const previousTorrent = previousCell.row.original;
+    const nextTorrent = nextCell.row.original;
+
+    if (
+        columnId === "status" ||
+        columnId === "health" ||
+        columnId === "speed"
+    ) {
+        return (
+            previousTorrent === nextTorrent &&
+            getOptimisticSignature(previousCell) ===
+                getOptimisticSignature(nextCell)
+        );
+    }
+
+    return areSimpleCellInputsEqual(columnId, previousTorrent, nextTorrent);
+};
 
 export const toCssVarSafeId = (value: string) =>
     value.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -44,6 +128,7 @@ export const TableHeaderContent = memo(
         layoutEnabled?: boolean;
         showSortIcon?: boolean;
     }) => {
+        void layoutEnabled;
         const { column } = header;
         const align = column.columnDef.meta?.align || "start";
         const isSelection = header.id.toString() === "selection";
@@ -51,13 +136,10 @@ export const TableHeaderContent = memo(
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         return (
-            <motion.div
+            <div
                 {...(isMeasurement
                     ? { ["data-tt-measure-header"]: column.id }
                     : {})}
-                layout={
-                    isMeasurement ? false : layoutEnabled ? "position" : false
-                }
                 className={cn(
                     useBaseClass && visuals.table.cellBaseClass,
                     visuals.table.cellClass.headerLabel,
@@ -84,9 +166,17 @@ export const TableHeaderContent = memo(
                         )}
                     />
                 )}
-            </motion.div>
+            </div>
         );
-    }
+    },
+    (prev, next) =>
+        prev.isMeasurement === next.isMeasurement &&
+        prev.useBaseClass === next.useBaseClass &&
+        prev.layoutEnabled === next.layoutEnabled &&
+        prev.showSortIcon === next.showSortIcon &&
+        prev.header.id === next.header.id &&
+        prev.header.column.getSize() === next.header.column.getSize() &&
+        prev.header.column.getIsSorted() === next.header.column.getIsSorted()
 );
 
 export const TableCellContent = memo(
@@ -131,7 +221,14 @@ export const TableCellContent = memo(
                 />
             </div>
         );
-    }
+    },
+    (prev, next) =>
+        prev.isMeasurement === next.isMeasurement &&
+        prev.cell.id === next.cell.id &&
+        prev.cell.column.id === next.cell.column.id &&
+        prev.cell.column.getSize() === next.cell.column.getSize() &&
+        prev.cell.row.id === next.cell.row.id &&
+        areCellRenderInputsEqual(prev.cell, next.cell)
 );
 
 export const ColumnMeasurementLayer = memo(

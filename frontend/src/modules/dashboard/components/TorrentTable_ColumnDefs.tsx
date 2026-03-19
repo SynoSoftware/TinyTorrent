@@ -37,6 +37,7 @@ import {
 } from "@/modules/dashboard/utils/torrentSwarm";
 import { getStatusSpeedHistory } from "@/modules/dashboard/utils/torrentStatus";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 const { layout } = registry;
 
 // --- TYPES ---
@@ -55,8 +56,11 @@ export type ColumnId =
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
-    speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
+    speedHistoryRef: RefObject<
+        Record<string, SpeedHistorySnapshot | Array<number | null>>
+    >;
     optimisticStatuses: OptimisticStatusMap;
+    rowHeight?: number;
 }
 
 export interface ColumnRendererProps {
@@ -139,7 +143,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => (
             <div className={TABLE.columnDefs.nameCell}>
                 {torrent.errorString ? (
-                    <AppTooltip content={torrent.errorString}>
+                    <AppTooltip content={torrent.errorString} native>
                         <span
                             className={cn(
                                 TABLE.columnDefs.nameLabel,
@@ -262,7 +266,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent, t }) => {
             const eta = getTorrentEtaTableDisplay(torrent, t);
             return (
-                <AppTooltip content={eta.tooltip}>
+                <AppTooltip content={eta.tooltip} native>
                     <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}>
                         {eta.value}
                     </span>
@@ -315,7 +319,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             ];
 
             return (
-                <AppTooltip content={renderTooltipLines(tooltipLines)}>
+                <AppTooltip content={renderTooltipLines(tooltipLines)} native>
                     <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
                         {torrent.peerSummary.connected}
                     </span>
@@ -365,7 +369,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.added,
         headerIcon: Clock,
         render: ({ torrent }) => (
-            <AppTooltip content={formatDate(torrent.added)}>
+            <AppTooltip content={formatDate(torrent.added)} native>
                 <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
                     {formatRelativeTime(torrent.added)}
                 </span>

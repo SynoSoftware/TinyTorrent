@@ -49,6 +49,7 @@ export type TorrentDetailProfile = "standard" | "pieces";
 export interface TorrentDetailsRequestOptions {
     profile?: TorrentDetailProfile;
     includeTrackerStats?: boolean;
+    includePieceSnapshot?: boolean;
 }
 
 export interface EngineAdapter {

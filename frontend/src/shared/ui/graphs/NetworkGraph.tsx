@@ -1,14 +1,12 @@
 // All config tokens imported from '@/config/logic'. No magic numbers or relative imports remain.
 
-import { motion, type Transition } from "framer-motion";
 import { cn } from "@heroui/react";
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
     buildSplinePathFromPoints, createSplinePoints, } from "@/shared/utils/spline";
 import { registry } from "@/config/logic";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
-import { useUiClock } from "@/shared/hooks/useUiClock";
 const { interaction, visuals } = registry;
 
 const { networkGraph } = interaction.config;
@@ -27,8 +25,6 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         width: GRAPH_WIDTH,
         height: GRAPH_HEIGHT,
     });
-
-    // Stable unique suffix for SVG defs to avoid id collisions across instances
     const idSuffix = useId();
 
     // HeroUI semantic color names (text-* exists for all of these)
@@ -41,66 +37,73 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 : `text-${color}`
             : "text-primary";
 
-    // Sanitize color string to build safe ids for SVG defs (avoid invalid id chars)
     const safeColorId = String(color)
         .replace(/[^a-z0-9]+/gi, "-")
         .toLowerCase();
     const glowId = `glow-${safeColorId}-${idSuffix}`;
     const gradId = `grad-${safeColorId}-${idSuffix}`;
 
+    const normalizedData = useMemo(() => (data.length ? data : [0]), [data]);
+    const maxValue = useMemo(
+        () => Math.max(...normalizedData, 1),
+        [normalizedData],
+    );
+
     useEffect(() => {
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+
+        const node = containerRef.current;
+        if (!node) {
+            return;
+        }
+
         const updateDimensions = () => {
-            if (containerRef.current) {
-                const { clientWidth, clientHeight } = containerRef.current;
-                setDimensions({ width: clientWidth, height: clientHeight });
-            }
+            const width = node.clientWidth || GRAPH_WIDTH;
+            const height = node.clientHeight || GRAPH_HEIGHT;
+            setDimensions((current) =>
+                current.width === width && current.height === height
+                    ? current
+                    : { width, height },
+            );
         };
 
-        const observer = new ResizeObserver(updateDimensions);
-        const node = containerRef.current;
-        if (node) observer.observe(node);
+        const observer = new ResizeObserver(() => {
+            updateDimensions();
+        });
 
-        updateDimensions(); // Initial update
+        observer.observe(node);
+        updateDimensions();
 
         return () => {
-            if (node) {
-                try {
-                    observer.unobserve(node);
-                } catch {
-                    // node may have been removed before cleanup; ignore
-                }
-            }
+            observer.disconnect();
         };
     }, []);
 
-    // Subscribe to the UI clock so graph cadence is stable.
-    const { tick } = useUiClock();
-    void tick;
-    const normalizedData = data.length ? data : [0];
-    const maxValue = Math.max(...normalizedData, 1);
-    const points = createSplinePoints(
-        normalizedData,
-        dimensions.width,
-        dimensions.height,
-        maxValue
+    const points = useMemo(
+        () =>
+            createSplinePoints(
+                normalizedData,
+                dimensions.width,
+                dimensions.height,
+                maxValue,
+            ),
+        [dimensions.height, dimensions.width, maxValue, normalizedData],
     );
-    const linePath = buildSplinePathFromPoints(points);
-    const safeLinePath =
-        linePath ||
-        `M0,${dimensions.height} L${dimensions.width},${dimensions.height}`;
-    const areaPath =
-        points.length > 0
-            ? `${safeLinePath} L${points[points.length - 1].x.toFixed(2)},${
-                  dimensions.height
-              } L${points[0].x.toFixed(2)},${dimensions.height} Z`
-            : `${safeLinePath} L${dimensions.width},${dimensions.height} L0,${dimensions.height} Z`;
-
-    const areaTransition: Transition = {
-        d: { duration: 0 },
-    };
-    const lineTransition: Transition = {
-        d: { duration: 0 },
-    };
+    const safeLinePath = useMemo(() => {
+        const linePath = buildSplinePathFromPoints(points);
+        return (
+            linePath ||
+            `M0,${dimensions.height} L${dimensions.width},${dimensions.height}`
+        );
+    }, [dimensions.height, dimensions.width, points]);
+    const areaPath = useMemo(() => {
+        if (points.length > 0) {
+            return `${safeLinePath} L${points[points.length - 1].x.toFixed(2)},${dimensions.height} L${points[0].x.toFixed(2)},${dimensions.height} Z`;
+        }
+        return `${safeLinePath} L${dimensions.width},${dimensions.height} L0,${dimensions.height} Z`;
+    }, [dimensions.height, dimensions.width, points, safeLinePath]);
 
     return (
         <svg
@@ -123,6 +126,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 y2={dimensions.height - 0.5}
                 stroke="currentColor"
                 strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
                 className={METRIC_CHART.baselineMuted}
             />
 
@@ -134,55 +138,35 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                     y2={dimensions.height - 0.5}
                     stroke="currentColor"
                     strokeWidth={2}
+                    vectorEffect="non-scaling-stroke"
                     className={cn(METRIC_CHART.baselineActive, colorClass)}
                 />
             )}
             <defs>
-                <filter
-                    id={glowId}
-                    x="-20%"
-                    y="-20%"
-                    width="140%"
-                    height="140%"
-                >
+                <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
                     <feGaussianBlur stdDeviation="2" result="blur" />
-                    <feComposite
-                        in="SourceGraphic"
-                        in2="blur"
-                        operator="over"
-                    />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                        offset="0%"
-                        stopColor="currentColor"
-                        stopOpacity="0.5"
-                    />
-                    <stop
-                        offset="100%"
-                        stopColor="currentColor"
-                        stopOpacity="0"
-                    />
+                    <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
                 </linearGradient>
             </defs>
-            <motion.path
+            <path
                 d={areaPath}
                 className={cn(METRIC_CHART.areaMuted, colorClass)}
                 fill={`url(#${gradId})`}
-                animate={{ d: areaPath }}
-                transition={areaTransition}
             />
-            <motion.path
+            <path
                 d={safeLinePath}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={visuals.icon.strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
                 className={cn(colorClass)}
                 filter={`url(#${glowId})`}
-                animate={{ d: safeLinePath }}
-                transition={lineTransition}
             />
         </svg>
     );

@@ -92,10 +92,11 @@ const waitForCondition = async (
 
 const ViewModelHarness = forwardRef<
     HarnessRef,
-    { trackers: TorrentTrackerEntity[]; version: number }
->(({ trackers }, ref) => {
+    { trackers: TorrentTrackerEntity[]; version: number; enabled?: boolean }
+>(({ trackers, enabled = true }, ref) => {
         const listRef = useRef<HTMLDivElement | null>(null);
         const viewModel = useTorrentDetailsTrackersViewModel({
+            enabled,
             torrentId: "torrent-1",
             torrentName: "Ubuntu ISO",
             trackers,
@@ -216,6 +217,7 @@ type MountedHarness = {
 
 const mountHarness = async (
     trackers: TorrentTrackerEntity[],
+    options?: { enabled?: boolean },
 ): Promise<MountedHarness> => {
     const ref = React.createRef<HarnessRef>();
     let version = 0;
@@ -227,6 +229,7 @@ const mountHarness = async (
             ref,
             trackers,
             version,
+            enabled: options?.enabled,
         }),
     );
     await waitForCondition(() => Boolean(ref.current), 1200);
@@ -240,6 +243,7 @@ const mountHarness = async (
                         ref,
                         trackers: nextTrackers,
                         version,
+                        enabled: options?.enabled,
                     }),
                 );
             });
@@ -314,6 +318,34 @@ describe("useTorrentDetailsTrackersViewModel", () => {
                 "https://tracker-live.example/announce",
             );
             expect(harness.getRowDownloadCountLabel(0)).toBe("12");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("stays inert while disabled even when tracker data arrives", async () => {
+        const mounted = await mountHarness([], { enabled: false });
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            expect(harness.getRowCount()).toBe(0);
+
+            mounted.rerender([
+                makeTracker({
+                    id: 7,
+                    announce: "https://tracker-live.example/announce",
+                    downloadCount: 12,
+                }),
+            ]);
+
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 50);
+            });
+
+            expect(harness.getRowCount()).toBe(0);
         } finally {
             mounted.cleanup();
         }

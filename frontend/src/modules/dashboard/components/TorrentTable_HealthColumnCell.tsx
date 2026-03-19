@@ -14,6 +14,7 @@ import AppTooltip from "@/shared/ui/components/AppTooltip";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { registry } from "@/config/logic";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 
 const { visuals } = registry;
 
@@ -57,7 +58,12 @@ export function TorrentTable_HealthCell({
 }: TorrentTableHealthColumnCellProps) {
     const meta = table?.options?.meta as
         | {
-              speedHistoryRef?: { current: Record<string, Array<number | null>> };
+              speedHistoryRef?: {
+                  current: Record<
+                      string,
+                      SpeedHistorySnapshot | Array<number | null>
+                  >;
+              };
           }
         | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id];
@@ -74,7 +80,7 @@ export function TorrentTable_HealthCell({
     const Icon = conf.icon;
 
     return (
-        <AppTooltip content={tooltip} dense placement="top">
+        <AppTooltip content={tooltip} dense placement="top" native>
             <div className={FORM_CONTROL.statusChipContainer} aria-label={label}>
                 <StatusIcon
                     Icon={Icon}

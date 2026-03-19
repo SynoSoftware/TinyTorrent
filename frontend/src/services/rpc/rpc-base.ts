@@ -118,7 +118,7 @@ const SUMMARY_FIELDS = [
     "downloadDir",
 ] as const satisfies readonly string[];
 
-const DETAIL_BASE_FIELDS = [
+const DETAIL_STANDARD_FIELDS = [
     ...SUMMARY_FIELDS,
     "activityDate",
     "comment",
@@ -138,6 +138,13 @@ const DETAIL_BASE_FIELDS = [
     "uploadLimited",
 ] as const satisfies readonly string[];
 
+const DETAIL_PIECES_FIELDS = [
+    ...SUMMARY_FIELDS,
+    "pieceCount",
+    "pieceSize",
+    "trackers",
+] as const satisfies readonly string[];
+
 const DETAIL_TRACKER_FIELDS = [
     "trackerStats",
 ];
@@ -152,11 +159,15 @@ const buildDetailFields = (
 ): string[] => {
     const profile = options?.profile ?? "standard";
     const includeTrackerStats = options?.includeTrackerStats ?? true;
-    const fields: string[] = [...DETAIL_BASE_FIELDS];
+    const includePieceSnapshot = options?.includePieceSnapshot ?? true;
+    const fields: string[] =
+        profile === "pieces"
+            ? [...DETAIL_PIECES_FIELDS]
+            : [...DETAIL_STANDARD_FIELDS];
     if (includeTrackerStats) {
         fields.push(...DETAIL_TRACKER_FIELDS);
     }
-    if (profile === "pieces") {
+    if (profile === "pieces" && includePieceSnapshot) {
         fields.push(...DETAIL_PIECE_FIELDS);
     }
     return fields;

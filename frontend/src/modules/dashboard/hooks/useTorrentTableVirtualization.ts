@@ -105,6 +105,10 @@ export const useTorrentTableVirtualization = (
     const measurementHeaders = table
         .getFlatHeaders()
         .filter((header) => !header.isPlaceholder && header.column.getIsVisible());
+    const rowIdentityKey = useMemo(
+        () => rows.map((row) => row.id).join("|"),
+        [rows],
+    );
 
     useLayoutEffect(() => {
         if (isAnyColumnResizing) return;
@@ -114,7 +118,7 @@ export const useTorrentTableVirtualization = (
         columnVisibility,
         isAnyColumnResizing,
         measureColumnMinWidths,
-        rows,
+        rowIdentityKey,
         sorting,
     ]);
 

@@ -86,7 +86,7 @@ function StatGroup({
         >
             <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>{label}</span>
             <div className={WORKBENCH.status.statValueRow}>
-                <AppTooltip content={value}>
+                <AppTooltip content={value} native>
                     <span className={cn(WORKBENCH.status.statValueText)}>
                         {value}
                     </span>
@@ -118,7 +118,7 @@ function TelemetryIcon({
         getStatusRecipeText(toneKey, visuals.status.keys.tone.muted);
 
     return (
-        <AppTooltip content={title}>
+        <AppTooltip content={title} native>
             <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)}>
                 <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.iconCurrent} />
             </span>
@@ -366,7 +366,7 @@ function EngineControlChip({
         </button>
     );
 
-    return <AppTooltip content={tooltip}>{button}</AppTooltip>;
+    return <AppTooltip content={tooltip} native>{button}</AppTooltip>;
 }
 
 /* ------------------------------------------------------------------ */

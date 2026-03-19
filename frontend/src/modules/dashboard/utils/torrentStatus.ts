@@ -3,6 +3,7 @@ import type { TorrentEntity as Torrent, TorrentTransportStatus } from "@/service
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
 import { registry } from "@/config/logic";
 import { status, type TorrentStatus } from "@/shared/status";
+import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 
 const { timing } = registry;
 const STALLED_OBSERVATION_WINDOW_MS =
@@ -19,6 +20,9 @@ export type TorrentSpeedHistory = {
     down: readonly number[];
     up: readonly number[];
 };
+type RawTorrentSpeedHistory =
+    | readonly (number | null)[]
+    | SpeedHistorySnapshot;
 type StalledObservationEntry = {
     transportState: ActiveTransportState;
     observedAtMs: number;
@@ -314,8 +318,20 @@ const getStallTooltip = (
 
 export const getStatusSpeedHistory = (
     torrent: Pick<Torrent, "state">,
-    rawHistory?: readonly (number | null)[],
+    rawHistory?: RawTorrentSpeedHistory,
 ): TorrentSpeedHistory => {
+    if (isSpeedHistorySnapshot(rawHistory)) {
+        const snapshot = rawHistory;
+        return {
+            down: snapshot.down.filter((value): value is number =>
+                Number.isFinite(value),
+            ),
+            up: snapshot.up.filter((value): value is number =>
+                Number.isFinite(value),
+            ),
+        };
+    }
+
     const sanitizedHistory = (rawHistory ?? []).filter(
         (value): value is number => Number.isFinite(value),
     );
@@ -324,6 +340,11 @@ export const getStatusSpeedHistory = (
         ? { down: [], up: sanitizedHistory }
         : { down: sanitizedHistory, up: [] };
 };
+
+const isSpeedHistorySnapshot = (
+    value: RawTorrentSpeedHistory | undefined,
+): value is SpeedHistorySnapshot =>
+    value !== undefined && !Array.isArray(value);
 
 type StatusViewState = Omit<
     TorrentStatusPresentation,

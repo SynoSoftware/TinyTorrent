@@ -1,6 +1,6 @@
 import { Button, cn } from "@heroui/react";
 import {
-    cloneElement, forwardRef, isValidElement, type CSSProperties, type ComponentPropsWithoutRef, type ReactElement, type ReactNode, } from "react";
+    cloneElement, forwardRef, isValidElement, memo, type CSSProperties, type ComponentPropsWithoutRef, type ReactElement, type ReactNode, } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
@@ -35,7 +35,7 @@ export interface ToolbarIconButtonProps
     ariaLabel?: string;
 }
 
-export const ToolbarIconButton = forwardRef<
+const ToolbarIconButtonBase = forwardRef<
     HTMLButtonElement,
     ToolbarIconButtonProps
 >(function ToolbarIconButton(
@@ -109,6 +109,8 @@ export const ToolbarIconButton = forwardRef<
             isIconOnly
             variant={mergedVariant}
             radius="full"
+            disableRipple
+            disableAnimation
             className={cn(
                 `p-tight inline-flex items-center justify-center ${visuals.transitions.fast} toolbar-icon-hit`,
                 className
@@ -121,11 +123,13 @@ export const ToolbarIconButton = forwardRef<
     );
 
     return typeof title === "string" && title.trim().length > 0 ? (
-        <AppTooltip content={title}>
+        <AppTooltip content={title} native>
             {button}
         </AppTooltip>
     ) : (
         button
     );
 });
+
+export const ToolbarIconButton = memo(ToolbarIconButtonBase);
 

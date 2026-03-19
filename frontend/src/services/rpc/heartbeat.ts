@@ -5,7 +5,13 @@ import type {
     TorrentEntity,
     NetworkTelemetry,
 } from "@/services/rpc/entities";
-import { computeTorrentListFingerprint } from "@/services/rpc/heartbeat-fingerprint";
+import {
+    computePieceSnapshotFingerprint,
+    computeTorrentDetailFingerprint,
+    computeTorrentListFingerprint,
+    computeTorrentPiecesSummaryFingerprint,
+    computeSessionStatsFingerprint,
+} from "@/services/rpc/heartbeat-fingerprint";
 import { enforceStateTransition } from "@/services/rpc/normalizers";
 import { status } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
@@ -60,6 +66,7 @@ type HeartbeatClient = {
         options?: {
             profile?: HeartbeatDetailProfile;
             includeTrackerStats?: boolean;
+            includePieceSnapshot?: boolean;
         }
     ): Promise<TorrentDetailEntity>;
     // Optional bulk fetch to retrieve many details in a single RPC call.
@@ -68,6 +75,7 @@ type HeartbeatClient = {
         options?: {
             profile?: HeartbeatDetailProfile;
             includeTrackerStats?: boolean;
+            includePieceSnapshot?: boolean;
         }
     ): Promise<TorrentDetailEntity[]>;
 };
@@ -87,6 +95,8 @@ type HeartbeatSubscriber = {
     id: symbol;
     params: HeartbeatSubscriberParams;
     lastSeenHash?: number;
+    lastSeenDetailFingerprint?: number;
+    lastSeenSessionFingerprint?: number;
 };
 
 const MODE_INTERVALS: Record<HeartbeatMode, number> = {
@@ -103,6 +113,8 @@ const DETAIL_FETCH_CONCURRENCY = 3;
 
 type DetailFetchResult = {
     detailId: string;
+    fetchProfile: HeartbeatDetailProfile;
+    includePieceSnapshot: boolean;
     detail?: TorrentDetailEntity;
     error?: unknown;
 };
@@ -111,6 +123,15 @@ type DetailFetchRequest = {
     detailId: string;
     profile: HeartbeatDetailProfile;
     includeTrackerStats: boolean;
+    includePieceSnapshot: boolean;
+};
+
+type CachedDetailEntry = {
+    hash: string;
+    detail: TorrentDetailEntity;
+    standardFingerprint: number;
+    piecesFingerprint?: number;
+    piecesSummaryFingerprint?: number;
 };
 
 const RECENT_REMOVED_TTL_MS = timing.timeouts.ghostMs;
@@ -128,10 +149,7 @@ export class HeartbeatManager {
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
     private lastPayloadTimestampMs?: number;
-    private readonly detailCache = new Map<
-        string,
-        { hash: string; detail: TorrentDetailEntity }
-    >();
+    private readonly detailCache = new Map<string, CachedDetailEntry>();
     private lastResyncAt = 0;
     // Drift correction counters: after a number of delta-only cycles,
     // force a full sync to prevent ghost rows when deltas are missed.
@@ -162,7 +180,7 @@ export class HeartbeatManager {
     private client: HeartbeatClientWithTelemetry;
 
     private readonly historySize: number = performance.historyDataPoints;
-    private computeHash(torrents: TorrentEntity[]) {
+    private computeHash(torrents: readonly TorrentEntity[]) {
         return computeTorrentListFingerprint(torrents);
     }
     private computeChangedIds(
@@ -347,15 +365,18 @@ export class HeartbeatManager {
                 requestById.set(request.detailId, request);
                 continue;
             }
-            requestById.set(request.detailId, {
-                detailId: request.detailId,
-                profile:
-                    existing.profile === "pieces" || request.profile === "pieces"
-                        ? "pieces"
-                        : "standard",
-                includeTrackerStats:
-                    existing.includeTrackerStats || request.includeTrackerStats,
-            });
+                requestById.set(request.detailId, {
+                    detailId: request.detailId,
+                    profile:
+                        existing.profile === "pieces" || request.profile === "pieces"
+                            ? "pieces"
+                            : "standard",
+                    includeTrackerStats:
+                        existing.includeTrackerStats || request.includeTrackerStats,
+                    includePieceSnapshot:
+                        existing.includePieceSnapshot ||
+                        request.includePieceSnapshot,
+                });
         }
         const normalizedRequests = Array.from(requestById.values());
 
@@ -371,11 +392,12 @@ export class HeartbeatManager {
                     {
                         profile: HeartbeatDetailProfile;
                         includeTrackerStats: boolean;
+                        includePieceSnapshot: boolean;
                         ids: string[];
                     }
                 >();
                 for (const request of normalizedRequests) {
-                    const key = `${request.profile}:${request.includeTrackerStats ? "1" : "0"}`;
+                    const key = `${request.profile}:${request.includeTrackerStats ? "1" : "0"}:${request.includePieceSnapshot ? "1" : "0"}`;
                     const bucket = idsByProfile.get(key);
                     if (bucket) {
                         bucket.ids.push(request.detailId);
@@ -384,11 +406,17 @@ export class HeartbeatManager {
                     idsByProfile.set(key, {
                         profile: request.profile,
                         includeTrackerStats: request.includeTrackerStats,
+                        includePieceSnapshot: request.includePieceSnapshot,
                         ids: [request.detailId],
                     });
                 }
 
-                for (const { profile, includeTrackerStats, ids } of idsByProfile.values()) {
+                for (const {
+                    profile,
+                    includeTrackerStats,
+                    includePieceSnapshot,
+                    ids,
+                } of idsByProfile.values()) {
                     if (ids.length === 0) {
                         continue;
                     }
@@ -398,11 +426,13 @@ export class HeartbeatManager {
                             options?: {
                                 profile?: HeartbeatDetailProfile;
                                 includeTrackerStats?: boolean;
+                                includePieceSnapshot?: boolean;
                             }
                         ) => Promise<TorrentDetailEntity[]>
                     )(ids, {
                         profile,
                         includeTrackerStats,
+                        includePieceSnapshot,
                     });
                     for (const detail of details || []) {
                         if (detail && detail.id) {
@@ -411,15 +441,26 @@ export class HeartbeatManager {
                     }
                 }
 
-                return normalizedRequests.map(({ detailId }) => ({
+                return normalizedRequests.map(
+                    ({ detailId, profile, includePieceSnapshot }) => ({
                     detailId,
+                    fetchProfile: profile,
+                    includePieceSnapshot,
                     detail: resultMap.get(detailId),
                     error: resultMap.has(detailId)
                         ? undefined
                         : new Error("Detail not returned in bulk fetch"),
-                }));
+                    }),
+                );
             } catch (error) {
-                return normalizedRequests.map(({ detailId }) => ({ detailId, error }));
+                return normalizedRequests.map(
+                    ({ detailId, profile, includePieceSnapshot }) => ({
+                        detailId,
+                        fetchProfile: profile,
+                        includePieceSnapshot,
+                        error,
+                    }),
+                );
             }
         }
 
@@ -436,11 +477,22 @@ export class HeartbeatManager {
                         {
                             profile: request.profile,
                             includeTrackerStats: request.includeTrackerStats,
+                            includePieceSnapshot: request.includePieceSnapshot,
                         }
                     );
-                    results.push({ detailId: request.detailId, detail });
+                    results.push({
+                        detailId: request.detailId,
+                        fetchProfile: request.profile,
+                        includePieceSnapshot: request.includePieceSnapshot,
+                        detail,
+                    });
                 } catch (error) {
-                    results.push({ detailId: request.detailId, error });
+                    results.push({
+                        detailId: request.detailId,
+                        fetchProfile: request.profile,
+                        includePieceSnapshot: request.includePieceSnapshot,
+                        error,
+                    });
                 }
             }
         };
@@ -462,19 +514,153 @@ export class HeartbeatManager {
         return false;
     }
 
-    private getCachedDetail(detailId: string): TorrentDetailEntity | null {
+    private getTorrentById(
+        detailId: string,
+        torrents: readonly TorrentEntity[] = this.lastTorrents ?? [],
+    ) {
+        return torrents.find((torrent) => torrent.id === detailId) ?? null;
+    }
+
+    private getCachedDetailEntry(detailId: string): CachedDetailEntry | null {
         const entry = this.detailCache.get(detailId);
         if (!entry) {
             return null;
         }
-        const currentTorrent = this.lastTorrents?.find(
-            (torrent) => torrent.id === detailId
-        );
+        const currentTorrent = this.getTorrentById(detailId);
         if (!currentTorrent || currentTorrent.hash !== entry.hash) {
             this.detailCache.delete(detailId);
             return null;
         }
-        return entry.detail;
+        return entry;
+    }
+
+    private getCachedDetail(detailId: string): TorrentDetailEntity | null {
+        return this.getCachedDetailEntry(detailId)?.detail ?? null;
+    }
+
+    private getDetailFingerprint(
+        params: HeartbeatSubscriberParams,
+        detailId = params.detailId,
+    ) {
+        if (!detailId) {
+            return undefined;
+        }
+        const entry = this.getCachedDetailEntry(detailId);
+        if (!entry) {
+            return undefined;
+        }
+        return params.detailProfile === "pieces"
+            ? entry.piecesFingerprint
+            : entry.standardFingerprint;
+    }
+
+    private getSummaryFingerprint(
+        params: HeartbeatSubscriberParams,
+        torrents: readonly TorrentEntity[] = this.lastTorrents ?? [],
+    ) {
+        if (params.mode === "detail" && params.detailId) {
+            const torrent = this.getTorrentById(params.detailId, torrents);
+            return torrent ? this.computeHash([torrent]) : undefined;
+        }
+        return torrents.length > 0 ? this.computeHash(torrents) : undefined;
+    }
+
+    private shouldFetchPieceSnapshot(
+        detailId: string,
+        torrents: readonly TorrentEntity[],
+    ) {
+        const currentTorrent = this.getTorrentById(detailId, torrents);
+        if (!currentTorrent) {
+            return true;
+        }
+        const currentSummaryFingerprint =
+            computeTorrentPiecesSummaryFingerprint(currentTorrent);
+        const cachedEntry = this.getCachedDetailEntry(detailId);
+        if (!cachedEntry?.piecesFingerprint) {
+            return true;
+        }
+        return (
+            cachedEntry.piecesSummaryFingerprint !== currentSummaryFingerprint
+        );
+    }
+
+    private mergeFetchedDetail(
+        detailId: string,
+        detail: TorrentDetailEntity,
+        request: DetailFetchRequest,
+        torrents: readonly TorrentEntity[],
+    ): CachedDetailEntry {
+        const previousEntry = this.getCachedDetailEntry(detailId);
+        const currentTorrent = this.getTorrentById(detailId, torrents);
+        const currentPiecesSummaryFingerprint = currentTorrent
+            ? computeTorrentPiecesSummaryFingerprint(currentTorrent)
+            : undefined;
+
+        let mergedDetail = detail;
+        let piecesFingerprint = previousEntry?.piecesFingerprint;
+        let piecesSummaryFingerprint = previousEntry?.piecesSummaryFingerprint;
+
+        if (previousEntry && previousEntry.hash === detail.hash) {
+            if (!request.includePieceSnapshot) {
+                const previousDetail = previousEntry.detail;
+                if (previousDetail.pieceStates || previousDetail.pieceAvailability) {
+                    mergedDetail = {
+                        ...mergedDetail,
+                        pieceCount:
+                            mergedDetail.pieceCount ?? previousDetail.pieceCount,
+                        pieceSize:
+                            mergedDetail.pieceSize ?? previousDetail.pieceSize,
+                        pieceStates: previousDetail.pieceStates,
+                        pieceAvailability: previousDetail.pieceAvailability,
+                    };
+                }
+            } else if (
+                detail.pieceStates &&
+                detail.pieceAvailability
+            ) {
+                const nextPiecesFingerprint =
+                    computePieceSnapshotFingerprint(detail);
+                if (
+                    previousEntry.piecesFingerprint === nextPiecesFingerprint
+                ) {
+                    const previousDetail = previousEntry.detail;
+                    mergedDetail = {
+                        ...mergedDetail,
+                        pieceCount:
+                            mergedDetail.pieceCount ?? previousDetail.pieceCount,
+                        pieceSize:
+                            mergedDetail.pieceSize ?? previousDetail.pieceSize,
+                        pieceStates: previousDetail.pieceStates,
+                        pieceAvailability: previousDetail.pieceAvailability,
+                    };
+                    piecesFingerprint = previousEntry.piecesFingerprint;
+                } else {
+                    piecesFingerprint = nextPiecesFingerprint;
+                }
+                piecesSummaryFingerprint = currentPiecesSummaryFingerprint;
+            }
+        }
+
+        if (
+            request.includePieceSnapshot &&
+            piecesFingerprint == null &&
+            mergedDetail.pieceStates &&
+            mergedDetail.pieceAvailability
+        ) {
+            piecesFingerprint = computePieceSnapshotFingerprint(mergedDetail);
+            piecesSummaryFingerprint = currentPiecesSummaryFingerprint;
+        }
+
+        return {
+            hash: mergedDetail.hash,
+            detail: mergedDetail,
+            standardFingerprint: computeTorrentDetailFingerprint(
+                mergedDetail,
+                "standard",
+            ),
+            piecesFingerprint,
+            piecesSummaryFingerprint,
+        };
     }
 
     private hasUsableCachedDetail(params: HeartbeatSubscriberParams) {
@@ -539,7 +725,14 @@ export class HeartbeatManager {
         // they will still receive the next tick only if data changed.
         const entry = this.subscribers.get(id);
         if (entry && this.lastTorrents) {
-            entry.lastSeenHash = this.computeHash(this.lastTorrents);
+            entry.lastSeenHash = this.getSummaryFingerprint(
+                params,
+                this.lastTorrents,
+            );
+            entry.lastSeenDetailFingerprint = this.getDetailFingerprint(params);
+            entry.lastSeenSessionFingerprint = computeSessionStatsFingerprint(
+                this.lastSessionStats,
+            );
         }
         this.rescheduleLoop();
         if (!this.hasInitialData()) {
@@ -820,6 +1013,7 @@ export class HeartbeatManager {
                     detailId,
                     profile,
                     includeTrackerStats,
+                    includePieceSnapshot: profile === "pieces",
                 });
                 continue;
             }
@@ -831,6 +1025,9 @@ export class HeartbeatManager {
                         : "standard",
                 includeTrackerStats:
                     existing.includeTrackerStats || includeTrackerStats,
+                includePieceSnapshot:
+                    existing.includePieceSnapshot ||
+                    profile === "pieces",
             });
         }
         const detailRequests = Array.from(detailRequestMap.values());
@@ -1203,18 +1400,34 @@ export class HeartbeatManager {
                 return;
             }
 
-            const detailResults = new Map<
-                string,
-                { data?: TorrentDetailEntity; error?: unknown }
-            >();
+            const detailResults = new Map<string, { error?: unknown }>();
 
             if (hasDetailSubscribers) {
+                const effectiveDetailRequests = detailRequests.map((request) =>
+                    request.profile === "pieces"
+                        ? {
+                              ...request,
+                              includePieceSnapshot:
+                                  request.includePieceSnapshot &&
+                                  this.shouldFetchPieceSnapshot(
+                                      request.detailId,
+                                      torrents,
+                                  ),
+                          }
+                        : request,
+                );
                 const detailResponses = await this.fetchDetailResponses(
-                    detailRequests
+                    effectiveDetailRequests
                 );
 
                 for (const response of detailResponses) {
-                    const { detailId, detail, error } = response;
+                    const {
+                        detailId,
+                        detail,
+                        error,
+                        fetchProfile,
+                        includePieceSnapshot,
+                    } = response;
                     if (error || !detail) {
                         detailResults.set(detailId, { error });
                         continue;
@@ -1232,11 +1445,18 @@ export class HeartbeatManager {
                         });
                         continue;
                     }
-                    detailResults.set(detailId, { data: detail });
-                    this.detailCache.set(detailId, {
-                        hash: detail.hash,
+                    const cacheEntry = this.mergeFetchedDetail(
+                        detailId,
                         detail,
-                    });
+                        {
+                            detailId,
+                            profile: fetchProfile,
+                            includeTrackerStats: true,
+                            includePieceSnapshot,
+                        },
+                        torrents,
+                    );
+                    this.detailCache.set(detailId, cacheEntry);
                 }
             }
 
@@ -1246,18 +1466,27 @@ export class HeartbeatManager {
 
             const timestampMs = Date.now();
             this.lastPayloadTimestampMs = timestampMs;
+            const sessionFingerprint =
+                computeSessionStatsFingerprint(sessionStats);
 
             for (const subEntry of snapshot) {
                 const { params } = subEntry;
                 const detailId = params.detailId;
                 const detailEntry =
                     detailId == null ? undefined : detailResults.get(detailId);
+                const cachedDetailEntry =
+                    detailId == null
+                        ? null
+                        : this.getCachedDetailEntry(detailId);
                 const detailPayload =
                     detailId == null
                         ? undefined
-                        : detailEntry?.data ??
-                          this.getCachedDetail(detailId) ??
-                          null;
+                        : cachedDetailEntry?.detail ?? null;
+                const detailFingerprint = this.getDetailFingerprint(params);
+                const summaryFingerprint = this.getSummaryFingerprint(
+                    params,
+                    torrents,
+                );
 
                 const payload: HeartbeatPayload = {
                     torrents,
@@ -1273,14 +1502,31 @@ export class HeartbeatManager {
                 };
                 try {
                     const stored = this.subscribers.get(subEntry.id);
-                    const lastSeen = stored?.lastSeenHash;
+                    const lastSeenSummaryFingerprint = stored?.lastSeenHash;
+                    const lastSeenDetailFingerprint =
+                        stored?.lastSeenDetailFingerprint;
+                    const lastSeenSessionFingerprint =
+                        stored?.lastSeenSessionFingerprint;
+                    const sessionChanged =
+                        sessionFingerprint !== lastSeenSessionFingerprint;
+                    const detailChanged =
+                        detailFingerprint !== lastSeenDetailFingerprint;
+                    const summaryChanged =
+                        summaryFingerprint !== lastSeenSummaryFingerprint;
                     const shouldNotify =
-                        lastSeen !== currentHash ||
-                        Boolean(detailEntry?.data) ||
-                        params.mode === "table";
+                        params.mode === "table"
+                            ? summaryChanged || sessionChanged
+                            : summaryChanged || detailChanged;
                     if (shouldNotify) {
                         params.onUpdate(payload);
-                        if (stored) stored.lastSeenHash = currentHash;
+                        if (stored) {
+                            stored.lastSeenHash = summaryFingerprint;
+                            stored.lastSeenDetailFingerprint = detailFingerprint;
+                            if (params.mode === "table") {
+                                stored.lastSeenSessionFingerprint =
+                                    sessionFingerprint;
+                            }
+                        }
                     }
                 } catch {
                     // swallow

@@ -1,10 +1,14 @@
 import { Tooltip, cn } from "@heroui/react";
 import {
+    Children,
+    cloneElement,
+    isValidElement,
     useCallback,
     useEffect,
     useRef,
     useState,
     type ComponentProps,
+    type ReactNode,
 } from "react";
 import { registry } from "@/config/logic";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
@@ -13,6 +17,7 @@ type HeroTooltipProps = ComponentProps<typeof Tooltip>;
 type AppTooltipProps = HeroTooltipProps & {
     dense?: boolean;
     operational?: boolean;
+    native?: boolean;
 };
 const { ui } = registry;
 const MENU_SELECTOR = "[role='menu']";
@@ -22,131 +27,254 @@ const hasOpenMenu = () =>
     document.body != null &&
     document.body.querySelector(MENU_SELECTOR) !== null;
 
-const useTooltipInterferenceGuard = (enabled: boolean) => {
-    const [isInteractionSuppressed, setIsInteractionSuppressed] =
-        useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const timeoutRef = useRef<number | null>(null);
+type TooltipGuardSubscriber = (isSuppressed: boolean) => void;
 
-    const clearSuppressionTimeout = useCallback(() => {
-        if (timeoutRef.current == null || typeof window === "undefined") return;
-        window.clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-    }, []);
+type TooltipGuardRuntime = {
+    enabledCount: number;
+    isInteractionSuppressed: boolean;
+    isMenuOpen: boolean;
+    subscribers: Set<TooltipGuardSubscriber>;
+    timeoutId: number | null;
+    cleanup: (() => void) | null;
+};
 
-    const suppressFor = useCallback(
-        (durationMs: number) => {
-            if (typeof window === "undefined") return;
-            setIsInteractionSuppressed(true);
-            clearSuppressionTimeout();
-            timeoutRef.current = window.setTimeout(() => {
-                timeoutRef.current = null;
-                setIsInteractionSuppressed(false);
-            }, durationMs);
-        },
-        [clearSuppressionTimeout],
-    );
+const tooltipGuardRuntime: TooltipGuardRuntime = {
+    enabledCount: 0,
+    isInteractionSuppressed: false,
+    isMenuOpen: false,
+    subscribers: new Set(),
+    timeoutId: null,
+    cleanup: null,
+};
 
-    useEffect(() => {
-        if (enabled) {
-            return () => {
-                clearSuppressionTimeout();
-                setIsInteractionSuppressed(false);
-                setIsMenuOpen(false);
-            };
+const getTooltipGuardValue = () =>
+    tooltipGuardRuntime.isInteractionSuppressed || tooltipGuardRuntime.isMenuOpen;
+
+const emitTooltipGuard = () => {
+    const nextValue = getTooltipGuardValue();
+    tooltipGuardRuntime.subscribers.forEach((subscriber) => {
+        try {
+            subscriber(nextValue);
+        } catch {
+            // Keep tooltip guard fan-out resilient to subscriber failures.
         }
+    });
+};
 
-        clearSuppressionTimeout();
-        return undefined;
-    }, [enabled, clearSuppressionTimeout]);
+const clearTooltipGuardTimeout = () => {
+    if (tooltipGuardRuntime.timeoutId == null || typeof window === "undefined") {
+        return;
+    }
+    window.clearTimeout(tooltipGuardRuntime.timeoutId);
+    tooltipGuardRuntime.timeoutId = null;
+};
 
-    useEffect(() => {
-        if (!enabled) return;
-        if (typeof window === "undefined") return;
+const setTooltipMenuOpen = (isMenuOpen: boolean) => {
+    if (tooltipGuardRuntime.isMenuOpen === isMenuOpen) {
+        return;
+    }
+    tooltipGuardRuntime.isMenuOpen = isMenuOpen;
+    emitTooltipGuard();
+};
 
-        const handleWheel = () => suppressFor(ui.tooltip.scrollSuppressionMs);
-        const handleScroll = () => suppressFor(ui.tooltip.scrollSuppressionMs);
-        const handlePointerDown = () =>
-            suppressFor(ui.tooltip.pointerSuppressionMs);
-        const handleDragStart = () =>
-            suppressFor(ui.tooltip.pointerSuppressionMs);
-        const handleDragEnd = () =>
-            suppressFor(ui.tooltip.scrollSuppressionMs);
-        const handleDrop = () => suppressFor(ui.tooltip.scrollSuppressionMs);
-        const handleContextMenu = () =>
-            suppressFor(ui.tooltip.contextMenuSuppressionMs);
+const suppressTooltipInteractionsFor = (durationMs: number) => {
+    if (typeof window === "undefined") {
+        return;
+    }
 
-        window.addEventListener("wheel", handleWheel, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("scroll", handleScroll, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("pointerdown", handlePointerDown, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("dragstart", handleDragStart, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("dragend", handleDragEnd, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("drop", handleDrop, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("contextmenu", handleContextMenu, {
-            passive: true,
-            capture: true,
-        });
+    if (!tooltipGuardRuntime.isInteractionSuppressed) {
+        tooltipGuardRuntime.isInteractionSuppressed = true;
+        emitTooltipGuard();
+    }
 
-        return () => {
-            window.removeEventListener("wheel", handleWheel, true);
-            window.removeEventListener("scroll", handleScroll, true);
-            window.removeEventListener("pointerdown", handlePointerDown, true);
-            window.removeEventListener("dragstart", handleDragStart, true);
-            window.removeEventListener("dragend", handleDragEnd, true);
-            window.removeEventListener("drop", handleDrop, true);
-            window.removeEventListener("contextmenu", handleContextMenu, true);
-        };
-    }, [enabled, suppressFor]);
-
-    useEffect(() => {
-        if (!enabled) return;
-        if (
-            typeof document === "undefined" ||
-            document.body == null ||
-            typeof MutationObserver === "undefined"
-        ) {
+    clearTooltipGuardTimeout();
+    tooltipGuardRuntime.timeoutId = window.setTimeout(() => {
+        tooltipGuardRuntime.timeoutId = null;
+        if (!tooltipGuardRuntime.isInteractionSuppressed) {
             return;
         }
+        tooltipGuardRuntime.isInteractionSuppressed = false;
+        emitTooltipGuard();
+    }, durationMs);
+};
 
-        const updateMenuState = () => {
-            setIsMenuOpen(hasOpenMenu());
-        };
+const ensureTooltipGuardRuntime = () => {
+    if (tooltipGuardRuntime.cleanup != null) {
+        return;
+    }
+    if (
+        typeof window === "undefined" ||
+        typeof document === "undefined" ||
+        document.body == null
+    ) {
+        return;
+    }
 
-        updateMenuState();
-        const observer = new MutationObserver(updateMenuState);
+    const handleWheel = () => suppressTooltipInteractionsFor(ui.tooltip.scrollSuppressionMs);
+    const handleScroll = () => suppressTooltipInteractionsFor(ui.tooltip.scrollSuppressionMs);
+    const handlePointerDown = () => suppressTooltipInteractionsFor(ui.tooltip.pointerSuppressionMs);
+    const handleDragStart = () => suppressTooltipInteractionsFor(ui.tooltip.pointerSuppressionMs);
+    const handleDragEnd = () => suppressTooltipInteractionsFor(ui.tooltip.scrollSuppressionMs);
+    const handleDrop = () => suppressTooltipInteractionsFor(ui.tooltip.scrollSuppressionMs);
+    const handleContextMenu = () => suppressTooltipInteractionsFor(ui.tooltip.contextMenuSuppressionMs);
+    const updateMenuState = () => {
+        setTooltipMenuOpen(hasOpenMenu());
+    };
+
+    window.addEventListener("wheel", handleWheel, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("scroll", handleScroll, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("pointerdown", handlePointerDown, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("dragstart", handleDragStart, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("dragend", handleDragEnd, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("drop", handleDrop, {
+        passive: true,
+        capture: true,
+    });
+    window.addEventListener("contextmenu", handleContextMenu, {
+        passive: true,
+        capture: true,
+    });
+
+    let observer: MutationObserver | null = null;
+    if (typeof MutationObserver !== "undefined") {
+        observer = new MutationObserver(updateMenuState);
         observer.observe(document.body, {
             childList: true,
             subtree: true,
         });
+    }
+    updateMenuState();
 
-        return () => observer.disconnect();
-    }, [enabled]);
+    tooltipGuardRuntime.cleanup = () => {
+        window.removeEventListener("wheel", handleWheel, true);
+        window.removeEventListener("scroll", handleScroll, true);
+        window.removeEventListener("pointerdown", handlePointerDown, true);
+        window.removeEventListener("dragstart", handleDragStart, true);
+        window.removeEventListener("dragend", handleDragEnd, true);
+        window.removeEventListener("drop", handleDrop, true);
+        window.removeEventListener("contextmenu", handleContextMenu, true);
+        observer?.disconnect();
+        observer = null;
+        clearTooltipGuardTimeout();
+        tooltipGuardRuntime.isInteractionSuppressed = false;
+        tooltipGuardRuntime.isMenuOpen = false;
+        tooltipGuardRuntime.cleanup = null;
+        emitTooltipGuard();
+    };
+};
+
+const acquireTooltipGuard = () => {
+    tooltipGuardRuntime.enabledCount += 1;
+    ensureTooltipGuardRuntime();
+};
+
+const releaseTooltipGuard = () => {
+    if (tooltipGuardRuntime.enabledCount === 0) {
+        return;
+    }
+    tooltipGuardRuntime.enabledCount -= 1;
+    if (tooltipGuardRuntime.enabledCount === 0) {
+        tooltipGuardRuntime.cleanup?.();
+    }
+};
+
+const useTooltipInterferenceGuard = (enabled: boolean) => {
+    const [isSuppressed, setIsSuppressed] = useState(getTooltipGuardValue);
+    const subscribedRef = useRef(false);
+
+    const handleGuardUpdate = useCallback((nextValue: boolean) => {
+        setIsSuppressed(nextValue);
+    }, []);
 
     useEffect(() => {
-        return () => {
-            clearSuppressionTimeout();
-        };
-    }, [clearSuppressionTimeout]);
+        if (!enabled) {
+            if (subscribedRef.current) {
+                tooltipGuardRuntime.subscribers.delete(handleGuardUpdate);
+                releaseTooltipGuard();
+                subscribedRef.current = false;
+            }
+            setIsSuppressed(false);
+            return;
+        }
 
-    return enabled && (isInteractionSuppressed || isMenuOpen);
+        if (!subscribedRef.current) {
+            tooltipGuardRuntime.subscribers.add(handleGuardUpdate);
+            acquireTooltipGuard();
+            subscribedRef.current = true;
+        }
+        setIsSuppressed(getTooltipGuardValue());
+
+        return () => {
+            if (!subscribedRef.current) {
+                return;
+            }
+            tooltipGuardRuntime.subscribers.delete(handleGuardUpdate);
+            releaseTooltipGuard();
+            subscribedRef.current = false;
+        };
+    }, [enabled, handleGuardUpdate]);
+
+    return enabled && isSuppressed;
+};
+
+const flattenTooltipContent = (value: ReactNode): string | null => {
+    if (value == null || typeof value === "boolean") {
+        return null;
+    }
+    if (typeof value === "string" || typeof value === "number") {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        const flattened = value
+            .map((item) => flattenTooltipContent(item))
+            .filter((item): item is string => Boolean(item && item.trim().length > 0));
+        return flattened.length > 0 ? flattened.join("\n") : null;
+    }
+    if (isValidElement<{ children?: ReactNode }>(value)) {
+        return flattenTooltipContent(value.props.children);
+    }
+    return null;
+};
+
+const renderNativeTooltip = (
+    children: ReactNode,
+    content: ReactNode,
+) => {
+    const title = flattenTooltipContent(content);
+    const normalizedChildren = Children.toArray(children);
+    if (
+        normalizedChildren.length === 1 &&
+        isValidElement<{ title?: string; "aria-label"?: string }>(normalizedChildren[0])
+    ) {
+        const child = normalizedChildren[0];
+        const existingTitle = child.props.title;
+        const nextTitle = existingTitle ?? title ?? undefined;
+        return cloneElement<{ title?: string; "aria-label"?: string }>(child, {
+            title: nextTitle,
+            "aria-label":
+                child.props["aria-label"] ?? title ?? undefined,
+        });
+    }
+    return (
+        <span title={title ?? undefined} aria-label={title ?? undefined}>
+            {children}
+        </span>
+    );
 };
 
 export function AppTooltip({
@@ -157,7 +285,10 @@ export function AppTooltip({
     offset,
     dense = false,
     operational,
+    native = false,
     isDisabled,
+    content,
+    children,
     ...props
 }: AppTooltipProps) {
     const usesOperationalPolicy = operational ?? dense;
@@ -168,9 +299,15 @@ export function AppTooltip({
     const resolvedOffset =
         offset ?? (dense ? ui.tooltip.denseOffsetPx : ui.tooltip.offsetPx);
 
+    if (native) {
+        return renderNativeTooltip(children, content);
+    }
+
     return (
         <Tooltip
             {...props}
+            content={content}
+            children={children}
             isDisabled={isDisabled || isSuppressed}
             delay={resolvedDelay}
             closeDelay={resolvedCloseDelay}

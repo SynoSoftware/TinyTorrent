@@ -1,4 +1,5 @@
 import { cn } from "@heroui/react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info, type LucideIcon } from "lucide-react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
@@ -50,7 +51,7 @@ interface TorrentDetailHeaderProps {
     primaryHint?: string | null;
 }
 
-export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
+const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
     const {
         torrent,
         isDetailFullscreen = false,
@@ -137,6 +138,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                             content={statusTooltip ?? statusLabel}
                             dense
                             placement="top"
+                            native
                         >
                             <span className={DETAILS.headerStatus}>
                                 {statusLabel}
@@ -227,3 +229,49 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         </div>
     );
 };
+
+const areHeaderActionsEqual = (
+    previous: TorrentDetailHeaderAction[] | undefined,
+    next: TorrentDetailHeaderAction[] | undefined,
+) => {
+    if (previous === next) {
+        return true;
+    }
+    if (!previous || !next || previous.length !== next.length) {
+        return false;
+    }
+    for (let index = 0; index < previous.length; index += 1) {
+        if (
+            previous[index].icon !== next[index].icon ||
+            previous[index].ariaLabel !== next[index].ariaLabel ||
+            previous[index].onPress !== next[index].onPress ||
+            previous[index].tone !== next[index].tone
+        ) {
+            return false;
+        }
+    }
+    return true;
+};
+
+export const TorrentDetailHeader = memo(
+    TorrentDetailHeaderComponent,
+    (prev, next) =>
+        prev.torrent === next.torrent &&
+        prev.isDetailFullscreen === next.isDetailFullscreen &&
+        prev.isStandalone === next.isStandalone &&
+        prev.onDock === next.onDock &&
+        prev.onPopout === next.onPopout &&
+        prev.onClose === next.onClose &&
+        prev.activeTab === next.activeTab &&
+        prev.onTabChange === next.onTabChange &&
+        prev.statusLabel === next.statusLabel &&
+        prev.statusTooltip === next.statusTooltip &&
+        prev.primaryHint === next.primaryHint &&
+        areHeaderActionsEqual(prev.headerActions, next.headerActions) &&
+        prev.tabs.length === next.tabs.length &&
+        prev.tabs.every(
+            (tab, index) =>
+                tab.id === next.tabs[index]?.id &&
+                tab.labelKey === next.tabs[index]?.labelKey,
+        ),
+);

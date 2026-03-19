@@ -242,6 +242,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         t,
         speedHistoryRef,
         optimisticStatuses,
+        rowHeight,
     });
 
     const serverOrder = useMemo(() => data.map((torrent) => torrent.id), [data]);

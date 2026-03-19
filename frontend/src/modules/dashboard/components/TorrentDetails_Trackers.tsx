@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/refs */
-import { type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { cn } from "@heroui/react";
 import { flexRender } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Pencil, RefreshCcw, Trash2, type LucideIcon } from "lucide-react";
@@ -40,37 +40,55 @@ const sortIcon = (direction: false | "asc" | "desc") => {
 const renderHeaderLabel = (value: unknown) =>
     typeof value === "string" || typeof value === "number" ? String(value) : null;
 
-const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: TorrentDetailsTrackersViewModel }) => (
+const TRACKER_ROW_CLASS = cn(
+    DETAILS.table.tableRow,
+    "cursor-default",
+);
+
+const TRACKER_BODY_CELL_CLASS = cn(
+    DETAILS.table.tableBody,
+    visuals.trackerTable.bodyCell,
+    "px-tight py-panel align-middle",
+);
+
+const TRACKER_METRIC_CELL_CLASS = cn(
+    TRACKER_BODY_CELL_CLASS,
+    visuals.trackerTable.metricCell,
+    "text-right tabular-nums",
+);
+
+const TRACKER_TIME_CELL_CLASS = cn(
+    TRACKER_BODY_CELL_CLASS,
+    visuals.trackerTable.timeCell,
+    "text-right tabular-nums",
+);
+
+const TrackerRow = memo(({
+    row,
+    onRowClick,
+    onContextMenu,
+}: {
+    row: TrackerRowViewModel;
+    onRowClick: TorrentDetailsTrackersViewModel["actions"]["handleRowClick"];
+    onContextMenu: TorrentDetailsTrackersViewModel["actions"]["openContextMenu"];
+}) => (
     <tr
         key={row.key}
         className={cn(
-            DETAILS.table.tableRow,
-            "cursor-default",
+            TRACKER_ROW_CLASS,
             row.selected && visuals.trackerTable.rowSelected,
         )}
-        onClick={(event) => viewModel.actions.handleRowClick(event, row.key, row.index)}
-        onContextMenu={(event) => viewModel.actions.openContextMenu(event, row.key, row.index)}
+        onClick={(event) => onRowClick(event, row.key, row.index)}
+        onContextMenu={(event) => onContextMenu(event, row.key, row.index)}
     >
-        <td
-            className={cn(
-                DETAILS.table.tableBody,
-                visuals.trackerTable.bodyCell,
-                "px-tight py-panel align-middle",
-            )}
-        >
+        <td className={TRACKER_BODY_CELL_CLASS}>
             <div className="flex min-w-0 items-center gap-tight">
                 <div className={visuals.trackerTable.statusDot[row.statusTone]} />
                 <span className="truncate">{row.statusLabel}</span>
             </div>
         </td>
-        <td
-            className={cn(
-                DETAILS.table.tableBody,
-                visuals.trackerTable.bodyCell,
-                "px-tight py-panel align-middle",
-            )}
-        >
-            <AppTooltip content={row.announce}>
+        <td className={TRACKER_BODY_CELL_CLASS}>
+            <AppTooltip content={row.announce} native>
                 <div className={cn("min-w-0 truncate", visuals.trackerTable.trackerCell)}>
                     <span className="truncate">{row.announce}</span>
                 </div>
@@ -94,33 +112,51 @@ const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: T
                 {row.tierLabel}
             </span>
         </td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.seedsLabel}</td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.leechesLabel}</td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadCountLabel}</td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadersLabel}</td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
-            <AppTooltip content={row.lastAnnounceTooltip}>
+        <td className={TRACKER_METRIC_CELL_CLASS}>{row.seedsLabel}</td>
+        <td className={TRACKER_METRIC_CELL_CLASS}>{row.leechesLabel}</td>
+        <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadCountLabel}</td>
+        <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadersLabel}</td>
+        <td className={TRACKER_TIME_CELL_CLASS}>
+            <AppTooltip content={row.lastAnnounceTooltip} native>
                 <span className="truncate">{row.lastAnnounceLabel}</span>
             </AppTooltip>
         </td>
-        <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
-            <AppTooltip content={row.nextAnnounceTooltip}>
+        <td className={TRACKER_TIME_CELL_CLASS}>
+            <AppTooltip content={row.nextAnnounceTooltip} native>
                 <span className="truncate">{row.nextAnnounceLabel}</span>
             </AppTooltip>
         </td>
-        <td
-            className={cn(
-                DETAILS.table.tableBody,
-                visuals.trackerTable.bodyCell,
-                "px-tight py-panel align-middle",
-            )}
-        >
-            <AppTooltip content={row.messageTooltip}>
+        <td className={TRACKER_BODY_CELL_CLASS}>
+            <AppTooltip content={row.messageTooltip} native>
                 <div className={cn("truncate", visuals.trackerTable.messageCell)}>{row.messageText}</div>
             </AppTooltip>
         </td>
     </tr>
-);
+), (prevProps, nextProps) => {
+    const prevRow = prevProps.row;
+    const nextRow = nextProps.row;
+    return (
+        prevRow.key === nextRow.key &&
+        prevRow.index === nextRow.index &&
+        prevRow.selected === nextRow.selected &&
+        prevRow.statusTone === nextRow.statusTone &&
+        prevRow.statusLabel === nextRow.statusLabel &&
+        prevRow.announce === nextRow.announce &&
+        prevRow.tierLabel === nextRow.tierLabel &&
+        prevRow.seedsLabel === nextRow.seedsLabel &&
+        prevRow.leechesLabel === nextRow.leechesLabel &&
+        prevRow.downloadCountLabel === nextRow.downloadCountLabel &&
+        prevRow.downloadersLabel === nextRow.downloadersLabel &&
+        prevRow.lastAnnounceLabel === nextRow.lastAnnounceLabel &&
+        prevRow.lastAnnounceTooltip === nextRow.lastAnnounceTooltip &&
+        prevRow.nextAnnounceLabel === nextRow.nextAnnounceLabel &&
+        prevRow.nextAnnounceTooltip === nextRow.nextAnnounceTooltip &&
+        prevRow.messageText === nextRow.messageText &&
+        prevRow.messageTooltip === nextRow.messageTooltip &&
+        prevProps.onRowClick === nextProps.onRowClick &&
+        prevProps.onContextMenu === nextProps.onContextMenu
+    );
+});
 
 export const TrackersTab = ({
     viewModel,
@@ -135,6 +171,8 @@ export const TrackersTab = ({
     const trackerData = viewModel.data;
     const trackerTable = viewModel.table;
     const trackerRefs = viewModel.refs;
+    const handleTrackerRowClick = trackerActions.handleRowClick;
+    const handleTrackerContextMenu = trackerActions.openContextMenu;
 
     if (trackerState.isEmpty) {
         return shell(
@@ -222,7 +260,12 @@ export const TrackersTab = ({
                             </thead>
                             <tbody>
                                 {trackerData.rows.map((row) => (
-                                    <TrackerRow key={row.key} row={row} viewModel={viewModel} />
+                                    <TrackerRow
+                                        key={row.key}
+                                        row={row}
+                                        onRowClick={handleTrackerRowClick}
+                                        onContextMenu={handleTrackerContextMenu}
+                                    />
                                 ))}
                             </tbody>
                         </table>

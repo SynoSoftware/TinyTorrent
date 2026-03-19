@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 import { ICON_SIZE_CLASSES } from "@/shared/ui/layout/toolbar-button";
@@ -19,21 +20,23 @@ export interface StatusIconProps {
     strokeWidth?: number | string;
 }
 
-export const StatusIcon = ({
-    Icon,
-    size = "md",
-    className,
-    style,
-    strokeWidth,
-}: StatusIconProps) => {
-    return (
-        <Icon
-            className={cn(ICON_SIZE_CLASSES[size], className)}
-            strokeWidth={strokeWidth ?? visuals.icon.strokeWidth}
-            style={style}
-        />
-    );
-};
+export const StatusIcon = memo(
+    ({
+        Icon,
+        size = "md",
+        className,
+        style,
+        strokeWidth,
+    }: StatusIconProps) => {
+        return (
+            <Icon
+                className={cn(ICON_SIZE_CLASSES[size], className)}
+                strokeWidth={strokeWidth ?? visuals.icon.strokeWidth}
+                style={style}
+            />
+        );
+    },
+);
 
 export default StatusIcon;
 

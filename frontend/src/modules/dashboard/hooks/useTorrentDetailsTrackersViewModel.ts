@@ -78,6 +78,11 @@ interface TrackerRuntimeRow {
     messageTooltip: string;
 }
 
+const EMPTY_TRACKERS: TorrentTrackerEntity[] = [];
+const EMPTY_TRACKER_RUNTIME_ROWS: TrackerRuntimeRow[] = [];
+const EMPTY_TRACKER_COLUMNS: ColumnDef<TrackerRuntimeRow>[] = [];
+const EMPTY_TRACKER_ROW_VIEW_MODELS: TrackerRowViewModel[] = [];
+
 export interface TrackerRowViewModel extends TrackerRuntimeRow {
     index: number;
     selected: boolean;
@@ -367,14 +372,20 @@ export const useTorrentDetailsTrackersViewModel = ({
     const [contextMenu, setContextMenu] = useState<TrackerContextMenuState | null>(null);
     const trackerInputRef = useRef<HTMLTextAreaElement | null>(null);
 
-    const safeTrackers = useMemo(() => trackers ?? [], [trackers]);
+    const safeTrackers = useMemo(
+        () => (enabled ? trackers ?? EMPTY_TRACKERS : EMPTY_TRACKERS),
+        [enabled, trackers],
+    );
     const isEmpty = safeTrackers.length === 0;
-    const unknownLabel = t("labels.unknown");
+    const unknownLabel = enabled ? t("labels.unknown") : "";
     const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
 
     const baseRows = useMemo<TrackerRuntimeRow[]>(
-        () =>
-            safeTrackers.map((tracker, originalIndex) => {
+        () => {
+            if (!enabled) {
+                return EMPTY_TRACKER_RUNTIME_ROWS;
+            }
+            return safeTrackers.map((tracker, originalIndex) => {
                 const key = `${String(tracker.id ?? `${tracker.tier}-${originalIndex}`)}|${tracker.announce}`;
                 const status = deriveTrackerStatus(tracker, t);
                 const lastAnnounceTime =
@@ -433,11 +444,15 @@ export const useTorrentDetailsTrackersViewModel = ({
                     nextAnnounceTooltip,
                     messageTooltip: status.messageText,
                 };
-            }),
-        [safeTrackers, t, unknownLabel],
+            });
+        },
+        [enabled, safeTrackers, t, unknownLabel],
     );
 
-    const columns = useMemo(() => createTrackerColumns(t), [t]);
+    const columns = useMemo(
+        () => (enabled ? createTrackerColumns(t) : EMPTY_TRACKER_COLUMNS),
+        [enabled, t],
+    );
 
     const table = useReactTable({
         data: baseRows,
@@ -450,19 +465,21 @@ export const useTorrentDetailsTrackersViewModel = ({
         getSortedRowModel: getSortedRowModel(),
     });
 
-    const rows: TrackerRowViewModel[] = table.getRowModel().rows.map((row) => ({
-        ...row.original,
-        index: row.index,
-        selected: selectedKeySet.has(row.id),
-        tierLabel: String(row.original.tier),
-        seedsLabel: formatMetric(row.original.seederCount),
-        leechesLabel: formatMetric(row.original.leecherCount),
-        downloadCountLabel: formatMetric(row.original.downloadCount),
-        downloadersLabel: formatMetric(row.original.downloaderCount),
-        lastAnnounceLabel: row.original.lastAnnounceTime
-            ? formatRelativeTime(row.original.lastAnnounceTime)
-            : "-",
-    }));
+    const rows: TrackerRowViewModel[] = !enabled
+        ? EMPTY_TRACKER_ROW_VIEW_MODELS
+        : table.getRowModel().rows.map((row) => ({
+              ...row.original,
+              index: row.index,
+              selected: selectedKeySet.has(row.id),
+              tierLabel: String(row.original.tier),
+              seedsLabel: formatMetric(row.original.seederCount),
+              leechesLabel: formatMetric(row.original.leecherCount),
+              downloadCountLabel: formatMetric(row.original.downloadCount),
+              downloadersLabel: formatMetric(row.original.downloaderCount),
+              lastAnnounceLabel: row.original.lastAnnounceTime
+                  ? formatRelativeTime(row.original.lastAnnounceTime)
+                  : "-",
+          }));
 
     useEffect(() => {
         setSelectedKeys([]);
