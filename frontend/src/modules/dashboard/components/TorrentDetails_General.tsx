@@ -1,3 +1,4 @@
+import { cn } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
 import { Copy, Folder } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
@@ -16,6 +17,13 @@ import { getTorrentEtaDisplay } from "@/modules/dashboard/components/TorrentEtaD
 import { TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { getTorrentCompactSpeedValue } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
+import {
+    deriveTorrentDisplayHealth,
+    deriveTorrentSwarmHealth,
+    deriveTorrentTrackerCondition,
+    getTorrentHealthGeneralTooltipKey,
+    getTorrentHealthLabelKey,
+} from "@/modules/dashboard/utils/torrentSwarm";
 import type { TorrentDetailEntity, TorrentTrackerEntity } from "@/services/rpc/entities";
 import {
     torrentHeadlineFields,
@@ -26,6 +34,7 @@ import {
     DETAILS,
     FORM_CONTROL,
 } from "@/shared/ui/layout/glass-surface";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { formatBytes, formatDate, formatRelativeTime, formatSpeed, formatTime } from "@/shared/utils/format";
@@ -52,6 +61,7 @@ type SectionProps = {
     title: string;
     description?: string;
     rows: DisplayRow[];
+    actions?: ReactNode;
 };
 
 const findPrimaryTracker = (trackers?: TorrentTrackerEntity[]): TorrentTrackerEntity | null => {
@@ -137,9 +147,25 @@ const SummarySection = ({
                     <TorrentTable_StatusCell torrent={torrent} t={t} optimisticStatus={optimisticStatus} />
                 </div>
             ),
-            eta: <span title={eta.tooltip}>{eta.value}</span>,
+            health: t(
+                getTorrentHealthLabelKey(
+                    deriveTorrentDisplayHealth(
+                        torrent,
+                        optimisticStatus,
+                    ).healthState,
+                ),
+            ),
+            eta: (
+                <AppTooltip content={eta.tooltip}>
+                    <span>{eta.value}</span>
+                </AppTooltip>
+            ),
             progress: <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />,
-            added: <span title={formatDate(torrent.added)}>{formatRelativeTime(torrent.added)}</span>,
+            added: (
+                <AppTooltip content={formatDate(torrent.added)}>
+                    <span>{formatRelativeTime(torrent.added)}</span>
+                </AppTooltip>
+            ),
         };
 
         return torrentHeadlineOrder.map((fieldId) => ({
@@ -164,7 +190,7 @@ const SummarySection = ({
     );
 };
 
-function SectionBlock({ title, description, rows, summary = false }: SectionProps & { summary?: boolean }) {
+function SectionBlock({ title, description, rows, actions, summary = false }: SectionProps & { summary?: boolean }) {
     return (
         <section className={DETAILS.generalSection}>
             <div className={DETAILS.generalSectionHeader}>
@@ -172,6 +198,7 @@ function SectionBlock({ title, description, rows, summary = false }: SectionProp
                     <h3 className={DETAILS.generalSectionTitle}>{title}</h3>
                     {description ? <p className={DETAILS.generalSectionDescription}>{description}</p> : null}
                 </div>
+                {actions}
             </div>
             <div className={summary ? DETAILS.generalSummaryGrid : DETAILS.generalMetricGrid}>
                 {rows.map((row) => (
@@ -190,6 +217,40 @@ function SectionBlock({ title, description, rows, summary = false }: SectionProp
     );
 }
 
+const getPeerDiscoverySourcesLabel = (
+    sources: TorrentDetailEntity["peersFrom"],
+    t: ReturnType<typeof useTranslation>["t"],
+    unavailableLabel: string,
+) => {
+    if (!sources) {
+        return unavailableLabel;
+    }
+
+    const labels = [
+        sources.tracker ? t("torrent_modal.swarm.discovery.tracker") : null,
+        sources.dht ? t("torrent_modal.swarm.discovery.dht") : null,
+        sources.pex ? t("torrent_modal.swarm.discovery.pex") : null,
+        sources.lpd ? t("torrent_modal.swarm.discovery.lpd") : null,
+        sources.incoming ? t("torrent_modal.swarm.discovery.incoming") : null,
+        sources.cache ? t("torrent_modal.swarm.discovery.cache") : null,
+        sources.ltep ? t("torrent_modal.swarm.discovery.ltep") : null,
+    ].filter((value): value is string => Boolean(value));
+
+    return labels.length > 0 ? labels.join(", ") : unavailableLabel;
+};
+
+const getSwarmToneClass = (
+    healthState: ReturnType<typeof deriveTorrentSwarmHealth>["healthState"],
+) => {
+    if (healthState === "degraded") {
+        return DETAILS.generalStatusTone.warning;
+    }
+    if (healthState === "unavailable" || healthState === "error") {
+        return DETAILS.generalStatusTone.danger;
+    }
+    return DETAILS.generalStatusTone.neutral;
+};
+
 export const GeneralTab = ({
     torrent,
     isDetailFullscreen,
@@ -202,10 +263,19 @@ export const GeneralTab = ({
     const { showFeedback } = useActionFeedback();
     const { copyToClipboard } = useTorrentClipboard();
     const [showSetDownloadPathModal, setShowSetDownloadPathModal] = useState(false);
+    const [showSwarmMore, setShowSwarmMore] = useState(false);
     const { lastTickAt } = useUiClock();
     const nowSeconds = Math.floor(lastTickAt / 1000);
 
     const primaryTracker = useMemo(() => findPrimaryTracker(torrent.trackers), [torrent.trackers]);
+    const swarm = useMemo(
+        () => deriveTorrentDisplayHealth(torrent, optimisticStatus),
+        [optimisticStatus, torrent],
+    );
+    const trackerCondition = useMemo(
+        () => deriveTorrentTrackerCondition(torrent.trackers, nowSeconds),
+        [nowSeconds, torrent.trackers],
+    );
 
     const unavailableLabel = t("torrent_modal.general.values.unavailable");
     const unknownLabel = t("labels.unknown");
@@ -365,6 +435,123 @@ export const GeneralTab = ({
         unknownLabel,
     ]);
 
+    const swarmRows = useMemo<DisplayRow[]>(() => {
+        if (!swarm.isIncomplete) {
+            return [];
+        }
+
+        const connectedSourceParts = [
+            t("torrent_modal.swarm.values.connected_peer_count", {
+                count: swarm.connectedPeerCount,
+            }),
+            ...(swarm.activeWebseedCount > 0
+                ? [
+                      t("torrent_modal.swarm.values.active_webseed_count", {
+                          count: swarm.activeWebseedCount,
+                      }),
+                  ]
+                : []),
+        ];
+        const healthLabel = t(getTorrentHealthLabelKey(swarm.healthState));
+        const healthTooltip = t(getTorrentHealthGeneralTooltipKey(swarm.healthState));
+        const rows: DisplayRow[] = [
+            {
+                key: "swarm-health",
+                label: t("torrent_modal.swarm.fields.health"),
+                value: (
+                    <div className={DETAILS.generalMetricStack}>
+                        <AppTooltip
+                            content={healthTooltip}
+                            dense
+                            placement="top"
+                        >
+                            <span
+                                className={cn(
+                                    DETAILS.generalStatusBadge,
+                                    getSwarmToneClass(swarm.healthState),
+                                )}
+                            >
+                                <span className={DETAILS.generalStatusBadgeLabel}>{healthLabel}</span>
+                            </span>
+                        </AppTooltip>
+                    </div>
+                ),
+                block: true,
+            },
+            {
+                key: "swarm-reachable-now",
+                label: t("torrent_modal.swarm.fields.reachable_now"),
+                value:
+                    swarm.healthState === "metadata" && swarm.remainingBytes === 0
+                        ? unknownLabel
+                        : t("torrent_modal.swarm.values.reachable_now", {
+                              reachable: formatBytes(swarm.reachableNowBytes),
+                              remaining: formatBytes(swarm.remainingBytes),
+                          }),
+            },
+            {
+                key: "swarm-connected-sources",
+                label: t("torrent_modal.swarm.fields.connected_sources"),
+                value: connectedSourceParts.join(", "),
+            },
+            {
+                key: "swarm-tracker-condition",
+                label: t("torrent_modal.swarm.fields.tracker_condition"),
+                value: t(`torrent_modal.swarm.tracker_condition.${trackerCondition.condition}`),
+            },
+        ];
+
+        if (showSwarmMore) {
+            rows.push(
+                {
+                    key: "swarm-missing-unavailable",
+                    label: t("torrent_modal.swarm.fields.missing_pieces_unavailable"),
+                    value:
+                        swarm.missingPiecesUnavailable == null
+                            ? unknownLabel
+                            : String(swarm.missingPiecesUnavailable),
+                },
+                {
+                    key: "swarm-missing-single-source",
+                    label: t("torrent_modal.swarm.fields.missing_pieces_single_source"),
+                    value:
+                        swarm.missingPiecesSingleSource == null
+                            ? unknownLabel
+                            : String(swarm.missingPiecesSingleSource),
+                },
+                {
+                    key: "swarm-peer-discovery",
+                    label: t("torrent_modal.swarm.fields.peer_discovery"),
+                    value: getPeerDiscoverySourcesLabel(torrent.peersFrom, t, unavailableLabel),
+                },
+                {
+                    key: "swarm-best-tracker-report",
+                    label: t("torrent_modal.swarm.fields.best_tracker_report"),
+                    value:
+                        trackerCondition.bestSeederCount == null &&
+                        trackerCondition.bestLeecherCount == null
+                            ? unavailableLabel
+                            : t("torrent_modal.swarm.values.best_tracker_report", {
+                                  seeders: trackerCondition.bestSeederCount ?? 0,
+                                  leechers: trackerCondition.bestLeecherCount ?? 0,
+                              }),
+                },
+            );
+        }
+
+        return rows;
+    }, [
+        showSwarmMore,
+        swarm,
+        t,
+        torrent.peersFrom,
+        trackerCondition.bestLeecherCount,
+        trackerCondition.bestSeederCount,
+        trackerCondition.condition,
+        unavailableLabel,
+        unknownLabel,
+    ]);
+
     const informationRows = useMemo<DisplayRow[]>(() => {
         const rows: DisplayRow[] = [
             {
@@ -480,6 +667,28 @@ export const GeneralTab = ({
                 description={t("torrent_modal.general.sections.transfer_description")}
                 rows={transferRows}
             />
+            {swarm.isIncomplete ? (
+                <SectionBlock
+                    title={t("torrent_modal.swarm.section_title")}
+                    description={t("torrent_modal.swarm.section_description")}
+                    rows={swarmRows}
+                    actions={
+                        <button
+                            type="button"
+                            className={DETAILS.generalSectionActionButton}
+                            onClick={() => {
+                                setShowSwarmMore((current) => !current);
+                            }}
+                        >
+                            {t(
+                                showSwarmMore
+                                    ? "torrent_modal.swarm.actions.hide_more"
+                                    : "torrent_modal.swarm.actions.show_more",
+                            )}
+                        </button>
+                    }
+                />
+            ) : null}
             <SectionBlock
                 title={t("torrent_modal.general.sections.information")}
                 description={t("torrent_modal.general.sections.information_description")}

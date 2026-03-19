@@ -1,4 +1,4 @@
-import { Card, cn } from "@heroui/react";
+import { Card, CardBody, CardHeader, cn } from "@heroui/react";
 import type { ReactNode } from "react";
 import { registry } from "@/config/logic";
 import { FORM } from "@/shared/ui/layout/glass-surface";
@@ -27,23 +27,17 @@ export function SettingsSection({
 
     return (
         <Card className={cn(FORM.sectionCard, toneClass, className)}>
-            {title && (
-                <h3
-                    className={FORM.sectionTitle}
-                    style={FORM.sectionTitleTrackingStyle}
-                >
-                    {title}
-                </h3>
+            {(title || description) && (
+                <CardHeader className={FORM.sectionHeader}>
+                    <div className={FORM.sectionHeaderStack}>
+                        {title ? <h3 className={FORM.sectionTitle}>{title}</h3> : null}
+                        {description ? (
+                            <p className={FORM.sectionDescription}>{description}</p>
+                        ) : null}
+                    </div>
+                </CardHeader>
             )}
-            {description && (
-                <p
-                    className={FORM.sectionDescription}
-                    style={FORM.sectionDescriptionTrackingStyle}
-                >
-                    {description}
-                </p>
-            )}
-            {children}
+            <CardBody className={FORM.sectionBody}>{children}</CardBody>
         </Card>
     );
 }

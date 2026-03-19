@@ -218,6 +218,18 @@ function TorrentTable_RowMenuInner({
         ],
     );
 
+    const handleCheckboxToggle = useCallback(
+        (
+            event: React.MouseEvent | React.PointerEvent,
+            action: () => void,
+        ) => {
+            event.preventDefault();
+            event.stopPropagation();
+            action();
+        },
+        [],
+    );
+
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
 
@@ -238,23 +250,39 @@ function TorrentTable_RowMenuInner({
             const sequentialEnabled = Boolean(
                 contextTorrent.sequentialDownload,
             );
+            const toggleSequentialDownload = () =>
+                void handleMenuActionPress(
+                    rowMenuKey.toggleSequentialDownload,
+                );
             items.push(
                 <DropdownItem
                     key={rowMenuKey.toggleSequentialDownload}
                     closeOnSelect={false}
-                    onPress={() =>
-                        void handleMenuActionPress(
-                            rowMenuKey.toggleSequentialDownload,
-                        )
-                    }
+                    onPress={toggleSequentialDownload}
                     startContent={
-                        <Checkbox
-                            isSelected={sequentialEnabled}
-                            disableAnimation
-                            classNames={
-                                formControlStyles.checkboxMarginRightClassNames
+                        <span
+                            onClick={(event) =>
+                                handleCheckboxToggle(
+                                    event,
+                                    toggleSequentialDownload,
+                                )
                             }
-                        />
+                            onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }}
+                        >
+                            <Checkbox
+                                isSelected={sequentialEnabled}
+                                disableAnimation
+                                onValueChange={() => {
+                                    toggleSequentialDownload();
+                                }}
+                                classNames={
+                                    formControlStyles.checkboxMarginRightClassNames
+                                }
+                            />
+                        </span>
                     }
                 >
                     {t(
@@ -377,6 +405,7 @@ function TorrentTable_RowMenuInner({
         rowMenuViewModel,
         clipboardWriteSupported,
         getContextMenuShortcut,
+        handleCheckboxToggle,
         handleMenuActionPress,
         contextTorrent.sequentialDownload,
         sequentialUiState.supported,

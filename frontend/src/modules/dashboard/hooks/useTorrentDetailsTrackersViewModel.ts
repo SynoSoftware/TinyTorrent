@@ -43,6 +43,7 @@ interface EditorState {
 }
 
 interface UseTorrentDetailsTrackersViewModelParams {
+    enabled?: boolean;
     torrentId: string | number | null;
     torrentName: string;
     trackers: TorrentTrackerEntity[];
@@ -121,6 +122,7 @@ export interface TorrentDetailsTrackersViewModel {
         rows: TrackerRowViewModel[];
     };
     refs: {
+        listRef: RefObject<HTMLDivElement | null>;
         trackerInputRef: RefObject<HTMLTextAreaElement | null>;
     };
     actions: {
@@ -343,6 +345,7 @@ const createTrackerColumns = (t: ReturnType<typeof useTranslation>["t"]): Column
 ];
 
 export const useTorrentDetailsTrackersViewModel = ({
+    enabled = true,
     torrentId,
     torrentName,
     trackers,
@@ -447,23 +450,19 @@ export const useTorrentDetailsTrackersViewModel = ({
         getSortedRowModel: getSortedRowModel(),
     });
 
-    const rows: TrackerRowViewModel[] = useMemo(
-        () =>
-            table.getRowModel().rows.map((row) => ({
-                ...row.original,
-                index: row.index,
-                selected: selectedKeySet.has(row.id),
-                tierLabel: String(row.original.tier),
-                seedsLabel: formatMetric(row.original.seederCount),
-                leechesLabel: formatMetric(row.original.leecherCount),
-                downloadCountLabel: formatMetric(row.original.downloadCount),
-                downloadersLabel: formatMetric(row.original.downloaderCount),
-                lastAnnounceLabel: row.original.lastAnnounceTime
-                    ? formatRelativeTime(row.original.lastAnnounceTime)
-                    : "-",
-            })),
-        [selectedKeySet, table],
-    );
+    const rows: TrackerRowViewModel[] = table.getRowModel().rows.map((row) => ({
+        ...row.original,
+        index: row.index,
+        selected: selectedKeySet.has(row.id),
+        tierLabel: String(row.original.tier),
+        seedsLabel: formatMetric(row.original.seederCount),
+        leechesLabel: formatMetric(row.original.leecherCount),
+        downloadCountLabel: formatMetric(row.original.downloadCount),
+        downloadersLabel: formatMetric(row.original.downloaderCount),
+        lastAnnounceLabel: row.original.lastAnnounceTime
+            ? formatRelativeTime(row.original.lastAnnounceTime)
+            : "-",
+    }));
 
     useEffect(() => {
         setSelectedKeys([]);
@@ -471,6 +470,16 @@ export const useTorrentDetailsTrackersViewModel = ({
         setContextMenu(null);
         setEditor(EMPTY_EDITOR);
     }, [torrentId]);
+
+    useEffect(() => {
+        if (enabled) {
+            return;
+        }
+        setSelectedKeys([]);
+        setAnchorKey(null);
+        setContextMenu(null);
+        setEditor(EMPTY_EDITOR);
+    }, [enabled]);
 
     useEffect(() => {
         const nextSelected = selectedKeys.filter((key) => rows.some((row) => row.key === key));
@@ -579,12 +588,15 @@ export const useTorrentDetailsTrackersViewModel = ({
     }, []);
 
     useEffect(() => {
+        if (!enabled) {
+            return undefined;
+        }
         window.addEventListener("pointerdown", closeContextMenu);
         return () => window.removeEventListener("pointerdown", closeContextMenu);
-    }, [closeContextMenu]);
+    }, [closeContextMenu, enabled]);
 
     useEffect(() => {
-        if (!editor.isOpen) {
+        if (!enabled || !editor.isOpen) {
             return;
         }
         const frame = window.requestAnimationFrame(() => {
@@ -592,7 +604,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             trackerInputRef.current?.select();
         });
         return () => window.cancelAnimationFrame(frame);
-    }, [editor.isOpen]);
+    }, [editor.isOpen, enabled]);
 
     const executeMutation = useCallback(
         async (mutation: () => Promise<TrackerMutationOutcome>) => {
@@ -978,6 +990,7 @@ export const useTorrentDetailsTrackersViewModel = ({
             handleListKeyDown,
         },
         refs: {
+            listRef,
             trackerInputRef,
         },
     };

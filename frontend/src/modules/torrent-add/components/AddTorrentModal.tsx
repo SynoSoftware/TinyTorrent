@@ -2,6 +2,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Button, Checkbox } from "@heroui/react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
@@ -15,6 +16,7 @@ const DESTINATION_INPUT_ID = "add-torrent-settings-destination";
 import { FolderOpen, HardDrive, Magnet, type LucideIcon } from "lucide-react";
 
 import { FORM, INPUT, MODAL } from "@/shared/ui/layout/glass-surface";
+import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommitMode, AddTorrentSelection, AddTorrentSource } from "@/modules/torrent-add/types";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
@@ -32,9 +34,11 @@ export interface AddTorrentModalProps {
     downloadDir: string;
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
+    showAddDialog: boolean;
     sequentialDownloadCapability: CapabilityState;
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     onSequentialDownloadChange: (value: boolean) => void;
+    onShowAddDialogChange: (value: boolean) => void;
     onCancel: () => void;
     onConfirm: (selection: AddTorrentSelection) => Promise<AddTorrentCommandOutcome>;
 }
@@ -58,9 +62,11 @@ export function AddTorrentModal({
     downloadDir,
     commitMode,
     sequentialDownload,
+    showAddDialog,
     sequentialDownloadCapability,
     onCommitModeChange,
     onSequentialDownloadChange,
+    onShowAddDialogChange,
     onCancel,
     onConfirm,
 }: AddTorrentModalProps) {
@@ -280,23 +286,6 @@ export function AddTorrentModal({
             size={modalSize}
             maximize={!showDestinationGate}
             bodyVariant={showDestinationGate ? "padded" : "flush"}
-            secondaryAction={
-                showDestinationGate
-                    ? undefined
-                    : {
-                          label: t("modals.cancel"),
-                          onPress: handleModalCancel,
-                      }
-            }
-            primaryAction={
-                showDestinationGate
-                    ? undefined
-                    : {
-                          label: primaryActionLabel,
-                          onPress: requestSubmit,
-                          disabled: !canConfirm,
-                }
-            }
         >
             <AddTorrentModalContextProvider value={modalContextValue}>
                 {showDestinationGate ? (
@@ -408,6 +397,39 @@ export function AddTorrentModal({
                                     </PanelGroup>
                                 </motion.div>
                             </LayoutGroup>
+                        </div>
+                        <div className={MODAL.workflow.footer}>
+                            {!isMagnetMode ? (
+                                <Checkbox
+                                    isSelected={!showAddDialog}
+                                    onValueChange={(value) =>
+                                        onShowAddDialogChange(!value)
+                                    }
+                                    classNames={
+                                        FORM_CONTROL.checkboxLabelBodySmallClassNames
+                                    }
+                                >
+                                    {t("modals.add_torrent.dont_show_again")}
+                                </Checkbox>
+                            ) : null}
+                            <div className={MODAL.footerButtonRow}>
+                                <Button
+                                    variant="light"
+                                    onPress={handleModalCancel}
+                                    className={MODAL.workflow.cancelButton}
+                                >
+                                    {t("modals.cancel")}
+                                </Button>
+                                <Button
+                                    color="primary"
+                                    variant="shadow"
+                                    onPress={requestSubmit}
+                                    isDisabled={!canConfirm}
+                                    className={MODAL.workflow.primaryButton}
+                                >
+                                    {primaryActionLabel}
+                                </Button>
+                            </div>
                         </div>
                     </form>
                 )}

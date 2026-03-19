@@ -1,7 +1,6 @@
 import {
     Checkbox,
     Divider,
-    Tooltip,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,6 +19,7 @@ import {
     FORM,
     FORM_CONTROL,
 } from "@/shared/ui/layout/glass-surface";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEditor";
 
 export function AddTorrentSettingsPanel() {
@@ -51,9 +51,9 @@ export function AddTorrentSettingsPanel() {
         </Checkbox>
     );
     const sequentialControl = sequentialUiState.disabled ? (
-        <Tooltip content={sequentialHint}>
+        <AppTooltip content={sequentialHint}>
             <span>{sequentialCheckbox}</span>
-        </Tooltip>
+        </AppTooltip>
     ) : (
         sequentialCheckbox
     );
@@ -67,7 +67,7 @@ export function AddTorrentSettingsPanel() {
                 onDragLeave={settings.onDragLeave}
             >
                 <div className={FORM.switchBlock}>
-                    <Tooltip
+                    <AppTooltip
                         content={t(
                             "modals.add_torrent.destination_prompt_help",
                         )}
@@ -76,7 +76,7 @@ export function AddTorrentSettingsPanel() {
                             <HardDrive className={FORM.workflow.labelIcon} />{" "}
                             {t("modals.add_torrent.destination")}
                         </label>
-                    </Tooltip>
+                    </AppTooltip>
                 </div>
 
                 <DestinationPathEditor

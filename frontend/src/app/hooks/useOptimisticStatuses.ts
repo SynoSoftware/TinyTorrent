@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import type { TorrentStatus } from "@/services/rpc/entities";
+import type { TorrentTransportStatus } from "@/services/rpc/entities";
 import { scheduler } from "@/app/services/scheduler";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import { registry } from "@/config/logic";
@@ -8,7 +8,7 @@ import { status } from "@/shared/status";
 const { timing } = registry;
 
 type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
-    state?: TorrentStatus;
+    state?: TorrentTransportStatus;
     sawCheckingState: boolean;
     pendingCheckingUntilMs?: number;
     pendingStateUntilMs?: number;
@@ -17,7 +17,7 @@ type InternalOptimisticStatusEntry = OptimisticStatusEntry & {
 type InternalOptimisticStatusMap = Record<string, InternalOptimisticStatusEntry>;
 type OptimisticStatusUpdate = {
     id: string;
-    state?: TorrentStatus;
+    state?: TorrentTransportStatus;
     operation?: OptimisticStatusEntry["operation"] | null;
 };
 

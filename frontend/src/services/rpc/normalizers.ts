@@ -4,6 +4,7 @@ import type {
     TransmissionTorrentFile,
     TransmissionTorrentFileStat,
     TransmissionTorrentPeer,
+    TransmissionPeerSourceCounts,
     TransmissionTorrentTracker,
 } from "@/services/rpc/types";
 import type {
@@ -11,13 +12,14 @@ import type {
     TorrentDetailEntity,
     TorrentEntity,
     TorrentFileEntity,
+    TorrentPeerDiscoverySources,
     TorrentPeerEntity,
     TorrentTrackerEntity,
 } from "@/services/rpc/entities";
-import { status, type TorrentStatus } from "@/shared/status";
+import { status, type TorrentTransportStatus } from "@/shared/status";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
-const STATUS_MAP: Record<number, TorrentStatus> = {
+const STATUS_MAP: Record<number, TorrentTransportStatus> = {
     0: status.torrent.paused,
     1: status.torrent.checking,
     2: status.torrent.checking,
@@ -29,10 +31,10 @@ const STATUS_MAP: Record<number, TorrentStatus> = {
 };
 
 const normalizeStatus = (
-    rawStatus: number | TorrentStatus | undefined,
-): TorrentStatus => {
+    rawStatus: number | TorrentTransportStatus | undefined,
+): TorrentTransportStatus => {
     if (typeof rawStatus === "string") {
-        return rawStatus as TorrentStatus;
+        return rawStatus;
     }
     if (typeof rawStatus === "number") {
         return STATUS_MAP[rawStatus] ?? status.torrent.paused;
@@ -61,7 +63,7 @@ export function resetNormalizerRuntimeState() {
 
 const isCheckingStatusNum = (statusNum: unknown) => statusNum === 1 || statusNum === 2;
 
-export const deriveTorrentState = (base: TorrentStatus, torrent: TransmissionTorrent): TorrentStatus => {
+export const deriveTorrentState = (base: TorrentTransportStatus, torrent: TransmissionTorrent): TorrentTransportStatus => {
     const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
     const statusIndicatesChecking = isCheckingStatusNum(statusNum);
     const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
@@ -240,6 +242,38 @@ const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
     flagStr: peer.flagStr ?? "",
 });
 
+const normalizePeerDiscoverySources = (
+    sources?: TransmissionPeerSourceCounts,
+): TorrentPeerDiscoverySources | undefined => {
+    if (!sources) {
+        return undefined;
+    }
+
+    return {
+        cache: Number.isFinite(Number(sources.fromCache))
+            ? Number(sources.fromCache)
+            : undefined,
+        dht: Number.isFinite(Number(sources.fromDht))
+            ? Number(sources.fromDht)
+            : undefined,
+        incoming: Number.isFinite(Number(sources.fromIncoming))
+            ? Number(sources.fromIncoming)
+            : undefined,
+        lpd: Number.isFinite(Number(sources.fromLpd))
+            ? Number(sources.fromLpd)
+            : undefined,
+        ltep: Number.isFinite(Number(sources.fromLtep))
+            ? Number(sources.fromLtep)
+            : undefined,
+        pex: Number.isFinite(Number(sources.fromPex))
+            ? Number(sources.fromPex)
+            : undefined,
+        tracker: Number.isFinite(Number(sources.fromTracker))
+            ? Number(sources.fromTracker)
+            : undefined,
+    };
+};
+
 export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => {
     const baseState = normalizeStatus(torrent.status);
     const derivedState = deriveTorrentState(baseState, torrent);
@@ -290,9 +324,23 @@ export const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity =>
                 : undefined,
         leftUntilDone: torrent.leftUntilDone,
         sizeWhenDone: torrent.sizeWhenDone,
+        desiredAvailable:
+            typeof torrent.desiredAvailable === "number"
+                ? torrent.desiredAvailable
+                : undefined,
         error: torrent.error,
         errorString: normalizeErrorString(torrent.errorString),
+        metadataPercentComplete:
+            typeof torrent.metadataPercentComplete === "number"
+                ? torrent.metadataPercentComplete
+                : undefined,
         isFinished: torrent.isFinished,
+        isStalled: torrent.isStalled,
+        webseedsSendingToUs:
+            typeof torrent.webseedsSendingToUs === "number"
+                ? torrent.webseedsSendingToUs
+                : undefined,
+        peersFrom: normalizePeerDiscoverySources(torrent.peersFrom),
         sequentialDownload:
             torrent.sequentialDownload ?? torrent["sequential_download"],
         superSeeding: torrent.superSeeding,
@@ -366,7 +414,7 @@ export const normalizeTorrentDetail = (detail: TransmissionTorrentDetail): Torre
  * result will preserve the previous state `A` until engine truth
  * moves into a legal state.
  */
-export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> = {
+export const ALLOWED_STATE_TRANSITIONS: Record<TorrentTransportStatus, TorrentTransportStatus[]> = {
     [status.torrent.paused]: [
         status.torrent.paused,
         status.torrent.queued,
@@ -386,7 +434,6 @@ export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
     [status.torrent.downloading]: [
         status.torrent.downloading,
         status.torrent.queued,
-        status.torrent.stalled,
         status.torrent.checking,
         status.torrent.seeding,
         status.torrent.paused,
@@ -407,13 +454,6 @@ export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
         status.torrent.seeding,
         status.torrent.error,
     ],
-    [status.torrent.stalled]: [
-        status.torrent.stalled,
-        status.torrent.downloading,
-        status.torrent.checking,
-        status.torrent.paused,
-        status.torrent.error,
-    ],
     [status.torrent.error]: [
         status.torrent.error,
         status.torrent.paused,
@@ -428,7 +468,10 @@ export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
  * Enforce allowed state transitions. If `prev` is undefined, accept `next`.
  * If transition is illegal, return `prev` to preserve engine-truth continuity.
  */
-export function enforceStateTransition(prev: TorrentStatus | undefined, next: TorrentStatus): TorrentStatus {
+export function enforceStateTransition(
+    prev: TorrentTransportStatus | undefined,
+    next: TorrentTransportStatus,
+): TorrentTransportStatus {
     if (!prev) return next;
     const allowed = ALLOWED_STATE_TRANSITIONS[prev] ?? [prev];
     return allowed.includes(next) ? next : prev;

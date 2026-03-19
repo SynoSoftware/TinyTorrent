@@ -1,30 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Tooltip, cn } from "@heroui/react";
+/* eslint-disable react-hooks/refs */
+import { type ReactNode } from "react";
+import { cn } from "@heroui/react";
 import { flexRender } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Pencil, Plus, RefreshCcw, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Pencil, RefreshCcw, Trash2, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
-import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { registry } from "@/config/logic";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { CONTEXT_MENU, DETAILS, FORM, INPUT, SURFACE } from "@/shared/ui/layout/glass-surface";
-import { useTorrentDetailsTrackersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
-import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import type {
     TorrentDetailsTrackersViewModel,
     TrackerRowViewModel,
 } from "@/modules/dashboard/hooks/useTorrentDetailsTrackersViewModel";
-import type { TorrentDetailHeaderAction } from "@/modules/dashboard/types/torrentDetailHeader";
 const { visuals } = registry;
 
 interface TrackersTabProps {
-    torrentName: string;
-    trackers: TorrentTrackerEntity[];
-    emptyMessage: string;
+    viewModel: TorrentDetailsTrackersViewModel;
     isStandalone?: boolean;
-    commands: DashboardDetailViewModel["tabs"]["trackers"];
-    registerHeaderActions?: (actions: TorrentDetailHeaderAction[]) => void;
 }
 
 const TRACKER_COLUMN_WIDTHS = ["10%", "24%", "8%", "7%", "7%", "8%", "8%", "11%", "11%", "6%"] as const;
@@ -77,11 +70,11 @@ const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: T
                 "px-tight py-panel align-middle",
             )}
         >
-            <Tooltip content={row.announce} classNames={SURFACE.tooltip} delay={500}>
+            <AppTooltip content={row.announce}>
                 <div className={cn("min-w-0 truncate", visuals.trackerTable.trackerCell)}>
                     <span className="truncate">{row.announce}</span>
                 </div>
-            </Tooltip>
+            </AppTooltip>
         </td>
         <td
             className={cn(
@@ -106,14 +99,14 @@ const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: T
         <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadCountLabel}</td>
         <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.metricCell, "px-tight py-panel align-middle text-right tabular-nums")}>{row.downloadersLabel}</td>
         <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
-            <Tooltip content={row.lastAnnounceTooltip} classNames={SURFACE.tooltip} delay={500}>
+            <AppTooltip content={row.lastAnnounceTooltip}>
                 <span className="truncate">{row.lastAnnounceLabel}</span>
-            </Tooltip>
+            </AppTooltip>
         </td>
         <td className={cn(DETAILS.table.tableBody, visuals.trackerTable.bodyCell, visuals.trackerTable.timeCell, "px-tight py-panel align-middle text-right tabular-nums")}>
-            <Tooltip content={row.nextAnnounceTooltip} classNames={SURFACE.tooltip} delay={500}>
+            <AppTooltip content={row.nextAnnounceTooltip}>
                 <span className="truncate">{row.nextAnnounceLabel}</span>
-            </Tooltip>
+            </AppTooltip>
         </td>
         <td
             className={cn(
@@ -122,72 +115,17 @@ const TrackerRow = ({ row, viewModel }: { row: TrackerRowViewModel; viewModel: T
                 "px-tight py-panel align-middle",
             )}
         >
-            <Tooltip content={row.messageTooltip} classNames={SURFACE.tooltip} delay={500}>
+            <AppTooltip content={row.messageTooltip}>
                 <div className={cn("truncate", visuals.trackerTable.messageCell)}>{row.messageText}</div>
-            </Tooltip>
+            </AppTooltip>
         </td>
     </tr>
 );
 
 export const TrackersTab = ({
-    torrentName,
-    trackers,
-    emptyMessage,
+    viewModel,
     isStandalone = false,
-    commands,
-    registerHeaderActions,
 }: TrackersTabProps) => {
-    const { t } = useTranslation();
-    const { showFeedback } = useActionFeedback();
-    const listRef = useRef<HTMLDivElement | null>(null);
-    const torrentId = commands.torrentId;
-    const runTrackerMutation = useCallback(
-        async (
-            mutate: () => Promise<{ status: "applied" | "unsupported" | "failed" }>,
-        ) => {
-            const outcome = await mutate();
-            if (outcome.status === "unsupported") {
-                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
-            } else if (outcome.status === "failed") {
-                showFeedback(t("toolbar.feedback.failed"), "danger");
-            }
-            return outcome;
-        },
-        [showFeedback, t],
-    );
-
-    const viewModel = useTorrentDetailsTrackersViewModel({
-        torrentId: commands.torrentId,
-        torrentName,
-        trackers,
-        emptyMessage,
-        listRef,
-        addTrackers: (nextTrackers) =>
-            torrentId == null
-                ? Promise.resolve({ status: "failed" as const })
-                : runTrackerMutation(() =>
-                      commands.addTrackers(torrentId, nextTrackers),
-                  ),
-        removeTrackers: (trackerIds) =>
-            torrentId == null
-                ? Promise.resolve({ status: "failed" as const })
-                : runTrackerMutation(() =>
-                      commands.removeTrackers(torrentId, trackerIds),
-                  ),
-        setTrackerList: (trackerList) =>
-            torrentId == null
-                ? Promise.resolve({ status: "failed" as const })
-                : runTrackerMutation(() =>
-                      commands.setTrackerList(torrentId, trackerList),
-                  ),
-        reannounce: () =>
-            torrentId == null
-                ? Promise.resolve({ status: "failed" as const })
-                : runTrackerMutation(() =>
-                      commands.reannounce(torrentId),
-                  ),
-    });
-
     const shell = (content: ReactNode) =>
         isStandalone ? <GlassPanel className={DETAILS.table.panel}>{content}</GlassPanel> : content;
 
@@ -197,80 +135,6 @@ export const TrackersTab = ({
     const trackerData = viewModel.data;
     const trackerTable = viewModel.table;
     const trackerRefs = viewModel.refs;
-
-    const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
-        if (!registerHeaderActions) {
-            return [];
-        }
-        const actions: TorrentDetailHeaderAction[] = [];
-        const canMutate = !trackerState.isMutating;
-        if (torrentId != null && canMutate) {
-            actions.push({
-                icon: Plus,
-                ariaLabel: trackerLabels.addLabel,
-                onPress: trackerActions.openAddModal,
-                tone: "success",
-            });
-        }
-        if (torrentId != null && canMutate && trackerState.canEdit) {
-            actions.push({
-                icon: Pencil,
-                ariaLabel: trackerLabels.editLabel,
-                onPress: trackerActions.openEditModal,
-                tone: "default",
-            });
-        }
-        if (
-            torrentId != null &&
-            canMutate &&
-            trackerState.canRemove &&
-            trackerState.selectedCount > 0
-        ) {
-            actions.push({
-                icon: Trash2,
-                ariaLabel: trackerState.selectedCount > 1 ? trackerLabels.removeManyLabel : trackerLabels.removeLabel,
-                onPress: () => {
-                    void trackerActions.removeSelected();
-                },
-                tone: "danger",
-            });
-        }
-        if (torrentId != null && canMutate) {
-            actions.push({
-                icon: RefreshCcw,
-                ariaLabel: trackerLabels.reannounceLabel,
-                onPress: () => {
-                    void trackerActions.reannounceTorrent();
-                },
-                tone: "neutral",
-            });
-        }
-        if (canMutate) {
-            actions.push({
-                icon: Copy,
-                ariaLabel: trackerLabels.copyAllLabel,
-                onPress: () => {
-                    void trackerActions.copyAllTrackers();
-                },
-                tone: "default",
-            });
-        }
-        return actions;
-    }, [
-        registerHeaderActions,
-        torrentId,
-        trackerActions,
-        trackerLabels,
-        trackerState,
-    ]);
-
-    useEffect(() => {
-        if (!registerHeaderActions) {
-            return undefined;
-        }
-        registerHeaderActions(headerActions);
-        return () => registerHeaderActions([]);
-    }, [headerActions, registerHeaderActions]);
 
     if (trackerState.isEmpty) {
         return shell(
@@ -291,7 +155,7 @@ export const TrackersTab = ({
             <div className={DETAILS.table.body}>
                 {shell(
                     <div
-                        ref={listRef}
+                        ref={trackerRefs.listRef}
                         className={cn(DETAILS.table.scroll, "relative outline-none")}
                         tabIndex={0}
                         onKeyDown={trackerActions.handleListKeyDown}

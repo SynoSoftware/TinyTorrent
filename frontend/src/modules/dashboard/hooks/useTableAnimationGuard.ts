@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 export const animationSuppressionKeys = {
     autoFit: "auto-fit",
     autoFitAll: "auto-fit-all",
+    columnVisibility: "column-visibility",
     panelResize: "panel-resize",
     rowDrag: "row-drag",
     queueReorder: "queue-reorder",

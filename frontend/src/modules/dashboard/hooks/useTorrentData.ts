@@ -4,7 +4,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import { useSession } from "@/app/context/SessionContext";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import type { TorrentStatus } from "@/services/rpc/entities";
+import type { TorrentTransportStatus } from "@/services/rpc/entities";
 import { status } from "@/shared/status";
 import { registry } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "@/modules/dashboard/hooks/utils/torrent-order.ts";
@@ -87,6 +87,18 @@ const arePeerSummariesEqual = (a: Torrent["peerSummary"], b: Torrent["peerSummar
     a.getting === b.getting &&
     a.seeds === b.seeds;
 
+const arePeerDiscoverySourcesEqual = (
+    a: Torrent["peersFrom"],
+    b: Torrent["peersFrom"],
+) =>
+    a?.cache === b?.cache &&
+    a?.dht === b?.dht &&
+    a?.incoming === b?.incoming &&
+    a?.lpd === b?.lpd &&
+    a?.ltep === b?.ltep &&
+    a?.pex === b?.pex &&
+    a?.tracker === b?.tracker;
+
 const areSpeedsEqual = (a: Torrent["speed"], b: Torrent["speed"]) => a.down === b.down && a.up === b.up;
 
 const areTorrentsEqual = (current: Torrent, next: Torrent) =>
@@ -106,9 +118,14 @@ const areTorrentsEqual = (current: Torrent, next: Torrent) =>
     current.downloaded === next.downloaded &&
     current.leftUntilDone === next.leftUntilDone &&
     current.sizeWhenDone === next.sizeWhenDone &&
+    current.desiredAvailable === next.desiredAvailable &&
     current.error === next.error &&
     current.errorString === next.errorString &&
+    current.metadataPercentComplete === next.metadataPercentComplete &&
     current.isFinished === next.isFinished &&
+    current.isStalled === next.isStalled &&
+    current.webseedsSendingToUs === next.webseedsSendingToUs &&
+    arePeerDiscoverySourcesEqual(current.peersFrom, next.peersFrom) &&
     current.sequentialDownload === next.sequentialDownload &&
     current.superSeeding === next.superSeeding &&
     current.added === next.added &&
@@ -122,7 +139,7 @@ export interface GhostTorrentOptions {
     label: string;
     downloadDir?: string;
     strategy?: GhostTorrentStrategy;
-    state?: TorrentStatus;
+    state?: TorrentTransportStatus;
 }
 
 export function useTorrentData({
@@ -224,9 +241,14 @@ export function useTorrentData({
         downloaded: 0,
         leftUntilDone: 0,
         sizeWhenDone: 0,
+        desiredAvailable: 0,
         error: undefined,
         errorString: undefined,
+        metadataPercentComplete: 1,
         isFinished: false,
+        isStalled: false,
+        webseedsSendingToUs: 0,
+        peersFrom: undefined,
         sequentialDownload: false,
         superSeeding: false,
         added: Math.floor(Date.now() / 1000),

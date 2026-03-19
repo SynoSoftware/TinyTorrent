@@ -1,13 +1,13 @@
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { TorrentStatus } from "@/services/rpc/entities";
+import type { TorrentTransportStatus } from "@/services/rpc/entities";
 import { status } from "@/shared/status";
 
 type OptimisticAction = Extract<TorrentTableAction, "pause" | "resume" | "recheck">;
 
 export interface OptimisticStatusUpdate {
     id: string;
-    state: TorrentStatus;
+    state: TorrentTransportStatus;
 }
 
 const isCheckingLike = (torrent: Torrent): boolean => {
@@ -23,7 +23,7 @@ const isCheckingLike = (torrent: Torrent): boolean => {
 const getOptimisticStateForAction = (
     action: OptimisticAction,
     torrent: Torrent,
-): TorrentStatus | undefined => {
+): TorrentTransportStatus | undefined => {
     switch (action) {
         case "pause":
             return torrent.state === status.torrent.paused

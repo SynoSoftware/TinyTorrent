@@ -3,6 +3,7 @@ import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
@@ -37,6 +38,7 @@ export const WindowControlButton = forwardRef<
         iconSize = "lg",
         tone = "neutral",
         className,
+        title,
         ...restProps
     },
     ref
@@ -45,7 +47,7 @@ export const WindowControlButton = forwardRef<
     const iconSizeClass =
         ICON_SIZE_CLASSES[iconSize as ToolbarIconSize];
 
-    return (
+    const button = (
         <Button
             ref={ref}
             isIconOnly
@@ -69,6 +71,14 @@ export const WindowControlButton = forwardRef<
                 />
             )}
         </Button>
+    );
+
+    return typeof title === "string" && title.trim().length > 0 ? (
+        <AppTooltip content={title}>
+            {button}
+        </AppTooltip>
+    ) : (
+        button
     );
 });
 

@@ -12,7 +12,7 @@ import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { resetTransportSessionRuntimeOwner } from "@/services/transport";
 import { resetNormalizerRuntimeState } from "@/services/rpc/normalizers";
-import { resetTorrentStatusPresentationRuntimeState } from "@/modules/dashboard/utils/torrentStatus";
+import { resetTorrentStatusRuntimeState } from "@/modules/dashboard/utils/torrentStatus";
 import { infraLogger } from "@/shared/utils/infraLogger";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
@@ -62,13 +62,13 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         resetTransportSessionRuntimeOwner();
         resetNormalizerRuntimeState();
-        resetTorrentStatusPresentationRuntimeState();
+        resetTorrentStatusRuntimeState();
     }, []);
 
     useEffect(() => {
         resetTransportSessionRuntimeOwner();
         resetNormalizerRuntimeState();
-        resetTorrentStatusPresentationRuntimeState();
+        resetTorrentStatusRuntimeState();
         return () => {
             destroyClient(client);
         };

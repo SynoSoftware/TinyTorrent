@@ -14,6 +14,5 @@ describe("normalizer state transitions", () => {
     it("allows active torrents to enter checking for manual verify", () => {
         expect(enforceStateTransition(status.torrent.downloading, status.torrent.checking)).toBe(status.torrent.checking);
         expect(enforceStateTransition(status.torrent.seeding, status.torrent.checking)).toBe(status.torrent.checking);
-        expect(enforceStateTransition(status.torrent.stalled, status.torrent.checking)).toBe(status.torrent.checking);
     });
 });

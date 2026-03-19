@@ -1,8 +1,9 @@
-import { Button, Tooltip } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { HardDrive } from "lucide-react";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEditor";
@@ -13,14 +14,14 @@ export function AddTorrentDestinationGatePanel() {
 
     return (
         <GlassPanel className={FORM.workflow.gatePanel}>
-            <Tooltip content={t("modals.add_torrent.destination_prompt_help")}>
+            <AppTooltip content={t("modals.add_torrent.destination_prompt_help")}>
                 <div className={FORM.workflow.gatePromptRow}>
                     <HardDrive className={FORM.workflow.gatePromptIcon} />
                     <span>
                         {t("modals.add_torrent.destination_prompt_mode_full")}
                     </span>
                 </div>
-            </Tooltip>
+            </AppTooltip>
 
             <DestinationPathEditor
                 id="add-torrent-gate-destination"

@@ -16,6 +16,8 @@ export type TorrentStatus =
     | "checking"
     | "error";
 
+export type TorrentTransportStatus = Exclude<TorrentStatus, "stalled">;
+
 export const status = {
     engine: {
         detecting: "detecting",

@@ -29,7 +29,9 @@ export interface SettingsFormActionsContextValue {
     interfaceTab: {
         isImmersive: boolean;
         hasDismissedInsights: boolean;
+        showAddTorrentDialog: boolean;
         onToggleWorkspaceStyle?: () => void;
+        setShowAddTorrentDialog?: (value: boolean) => void;
     };
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;

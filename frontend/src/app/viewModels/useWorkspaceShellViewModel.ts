@@ -336,10 +336,15 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     );
 
     const {
-        preferences: { workspaceStyle, dismissedHudCardIds },
+        preferences: {
+            workspaceStyle,
+            dismissedHudCardIds,
+            addTorrentDefaults: addTorrentPreferenceDefaults,
+        },
         toggleWorkspaceStyle,
         dismissHudCard,
         restoreHudCards,
+        setAddTorrentDefaults,
     } = usePreferences();
     const dismissedHudCardSet = useMemo(
         () => new Set(dismissedHudCardIds),
@@ -498,6 +503,12 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         reconnect,
         workspaceStyle,
         hasDismissedInsights,
+        showAddTorrentDialog: addTorrentPreferenceDefaults.showAddDialog,
+        setShowAddTorrentDialog: (value: boolean) =>
+            setAddTorrentDefaults({
+                ...addTorrentPreferenceDefaults,
+                showAddDialog: value,
+            }),
         openSettings,
         restoreHudCards,
     });
@@ -595,9 +606,11 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             downloadDir: addTorrentDefaults.downloadDir,
             commitMode: addTorrentDefaults.commitMode,
             sequentialDownload: addTorrentDefaults.sequentialDownload,
+            showAddDialog: addTorrentDefaults.showAddDialog,
             sequentialDownloadCapability: capabilities.sequentialDownload,
             onCommitModeChange: addTorrentDefaults.setCommitMode,
             onSequentialDownloadChange: addTorrentDefaults.setSequentialDownload,
+            onShowAddDialogChange: addTorrentDefaults.setShowAddDialog,
             onCancel: closeAddTorrentWindow,
             onConfirm: handleTorrentWindowConfirm,
         };

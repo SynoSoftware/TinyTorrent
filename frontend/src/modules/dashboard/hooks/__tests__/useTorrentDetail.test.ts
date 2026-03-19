@@ -37,7 +37,10 @@ vi.mock("@/app/context/PreferencesContext", () => ({
 }));
 
 type HarnessRef = {
-    loadDetail: (torrentId: string) => Promise<void>;
+    loadDetail: (
+        torrentId: string,
+        detail?: Record<string, unknown>,
+    ) => Promise<void>;
 };
 
 const waitForCondition = async (
@@ -64,8 +67,11 @@ const HookHarness = forwardRef<HarnessRef>((_, ref) => {
     });
 
     useImperativeHandle(ref, () => ({
-        loadDetail: (torrentId: string) =>
-            viewModel.loadDetail(torrentId, { id: torrentId } as never),
+        loadDetail: (torrentId: string, detail?: Record<string, unknown>) =>
+            viewModel.loadDetail(
+                torrentId,
+                ({ id: torrentId, ...(detail ?? {}) } as never),
+            ),
     }));
 
     return createElement("div");

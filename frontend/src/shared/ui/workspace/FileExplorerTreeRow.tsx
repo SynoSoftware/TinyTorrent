@@ -23,6 +23,7 @@ import {
     DropdownTrigger,
     Progress,
 } from "@heroui/react";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
@@ -138,18 +139,19 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     )}
                 </div>
 
-                <span
-                    className={cn(
-                        FILE_BROWSER.rowNameBase,
-                        row.node.isFolder
-                            ? FILE_BROWSER.rowNameFolder
-                            : FILE_BROWSER.rowNameFile,
-                    )}
-                    title={row.node.name}
-                    onClick={row.node.isFolder ? onToggleExpand : undefined}
-                >
-                    {row.node.name}
-                </span>
+                <AppTooltip content={row.node.name}>
+                    <span
+                        className={cn(
+                            FILE_BROWSER.rowNameBase,
+                            row.node.isFolder
+                                ? FILE_BROWSER.rowNameFolder
+                                : FILE_BROWSER.rowNameFile,
+                        )}
+                        onClick={row.node.isFolder ? onToggleExpand : undefined}
+                    >
+                        {row.node.name}
+                    </span>
+                </AppTooltip>
             </div>
 
             <div className={FILE_BROWSER.rowPriorityWrap}>

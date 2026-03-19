@@ -20,6 +20,14 @@ export function useTorrentTableColumns({
     speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
+    const tableMeta = useMemo<DashboardTableMeta>(
+        () => ({
+            speedHistoryRef,
+            optimisticStatuses,
+        }),
+        [optimisticStatuses, speedHistoryRef],
+    );
+
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
@@ -28,7 +36,7 @@ export function useTorrentTableColumns({
             const sortAccessor = def.sortAccessor;
             const accessorKey = sortAccessor ? undefined : def.rpcField;
             const accessorFn = sortAccessor
-                ? (torrent: Torrent) => sortAccessor(torrent)
+                ? (torrent: Torrent) => sortAccessor(torrent, tableMeta)
                 : undefined;
             return {
                 id,
@@ -45,7 +53,7 @@ export function useTorrentTableColumns({
                         >
                             <HeaderIcon
                                 strokeWidth={visuals.icon.strokeWidthDense}
-                                className={TABLE.columnHeaderPulseIcon}
+                                className={TABLE.columnHeaderIcon}
                             />
                             <span>{label}</span>
                         </div>
@@ -54,6 +62,7 @@ export function useTorrentTableColumns({
                     );
                 },
                 size: def.width ?? 150,
+                minSize: def.minSize,
                 enableResizing: true,
                 meta: { align: def.align },
                 cell: ({ row, table }) => {
@@ -74,15 +83,7 @@ export function useTorrentTableColumns({
             } as ColumnDef<Torrent>;
         });
         return cols.filter(Boolean) as ColumnDef<Torrent>[];
-    }, [t]);
-
-    const tableMeta = useMemo<DashboardTableMeta>(
-        () => ({
-            speedHistoryRef,
-            optimisticStatuses,
-        }),
-        [optimisticStatuses, speedHistoryRef],
-    );
+    }, [t, tableMeta]);
 
     return { columns, tableMeta };
 }

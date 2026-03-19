@@ -131,6 +131,8 @@ export function useSettingsModalController(
         onReconnect,
         isImmersive,
         hasDismissedInsights,
+        showAddTorrentDialog,
+        setShowAddTorrentDialog,
         onApplyUserPreferencesPatch,
     } = viewModel;
 
@@ -681,7 +683,9 @@ export function useSettingsModalController(
             interfaceTab: {
                 isImmersive: Boolean(isImmersive),
                 hasDismissedInsights,
+                showAddTorrentDialog,
                 onToggleWorkspaceStyle,
+                setShowAddTorrentDialog,
             },
             buttonActions,
             canBrowseDirectories,
@@ -693,7 +697,9 @@ export function useSettingsModalController(
             capabilities,
             hasDismissedInsights,
             isImmersive,
+            showAddTorrentDialog,
             onToggleWorkspaceStyle,
+            setShowAddTorrentDialog,
             buttonActions,
             canBrowseDirectories,
             handleBrowse,

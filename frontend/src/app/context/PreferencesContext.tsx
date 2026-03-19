@@ -45,6 +45,11 @@ export interface SystemPreferences {
 export interface AddTorrentDefaultsState {
     commitMode: AddTorrentCommitMode;
     sequentialDownload: boolean;
+    showAddDialog: boolean;
+}
+
+export interface RemoveTorrentDefaultsState {
+    deleteData: boolean;
 }
 
 export interface TorrentTablePersistenceState {
@@ -91,8 +96,12 @@ const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
     commitMode: "paused",
     sequentialDownload: false,
+    showAddDialog: true,
 };
 const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
+const DEFAULT_REMOVE_TORRENT_DEFAULTS: RemoveTorrentDefaultsState = {
+    deleteData: false,
+};
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
 const DEFAULT_ACTIVE_CONNECTION_PROFILE_ID = "";
 
@@ -127,7 +136,7 @@ const removeLegacyPreferences = () => {
 //   theme, language,
 //   systemPreferences (preventSleep, autoUpdate, closeAction),
 //   inspectorTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
-//   addTorrentDefaults, addTorrentHistory,
+//   addTorrentDefaults, addTorrentHistory, removeTorrentDefaults,
 //   connectionProfiles, activeConnectionProfileId.
 // This contract should never shrink without a documented migration path.
 export interface PreferencesState {
@@ -147,6 +156,7 @@ export interface PreferencesState {
     speedChartLayoutMode: SpeedChartLayoutMode | null;
     addTorrentDefaults: AddTorrentDefaultsState;
     addTorrentHistory: string[];
+    removeTorrentDefaults: RemoveTorrentDefaultsState;
     connectionProfiles: ConnectionProfile[];
     activeConnectionProfileId: string;
 }
@@ -170,6 +180,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     speedChartLayoutMode: DEFAULT_SPEED_CHART_LAYOUT,
     addTorrentDefaults: DEFAULT_ADD_TORRENT_DEFAULTS,
     addTorrentHistory: DEFAULT_ADD_TORRENT_HISTORY,
+    removeTorrentDefaults: DEFAULT_REMOVE_TORRENT_DEFAULTS,
     connectionProfiles: DEFAULT_CONNECTION_PROFILES,
     activeConnectionProfileId: DEFAULT_ACTIVE_CONNECTION_PROFILE_ID,
 };
@@ -230,6 +241,19 @@ const sanitizeAddTorrentDefaults = (
         typeof defaults?.sequentialDownload === "boolean"
             ? defaults.sequentialDownload
             : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
+    showAddDialog:
+        typeof defaults?.showAddDialog === "boolean"
+            ? defaults.showAddDialog
+            : DEFAULT_ADD_TORRENT_DEFAULTS.showAddDialog,
+});
+
+const sanitizeRemoveTorrentDefaults = (
+    defaults?: Partial<RemoveTorrentDefaultsState> | null,
+): RemoveTorrentDefaultsState => ({
+    deleteData:
+        typeof defaults?.deleteData === "boolean"
+            ? defaults.deleteData
+            : DEFAULT_REMOVE_TORRENT_DEFAULTS.deleteData,
 });
 
 const isConnectionProfileValue = (
@@ -403,6 +427,9 @@ const sanitizePreferences = (
     const addTorrentHistory = sanitizePathHistory([
         ...(Array.isArray(value.addTorrentHistory) ? value.addTorrentHistory : []),
     ]);
+    const removeTorrentDefaults = sanitizeRemoveTorrentDefaults(
+        value.removeTorrentDefaults,
+    );
 
     return {
         version: CURRENT_PREFERENCES_VERSION,
@@ -467,6 +494,7 @@ const sanitizePreferences = (
             : DEFAULT_SPEED_CHART_LAYOUT,
         addTorrentDefaults,
         addTorrentHistory,
+        removeTorrentDefaults,
         connectionProfiles: Array.isArray(value.connectionProfiles)
             ? value.connectionProfiles.filter(
                   (entry): entry is ConnectionProfile =>

@@ -45,6 +45,7 @@ const SWARM_TONE_WEIGHT: Record<SwarmTone, number> = {
     missing: 2,
     verified: 1,
 };
+const PIECE_MAP_FLASH = visualizations.details.pieceMap.flash;
 
 type SwarmTone = "verified" | "common" | "rare" | "dead" | "missing";
 type Axis = { starts: number[]; total: number };
@@ -103,6 +104,14 @@ type CellBounds = {
     y: number;
     width: number;
     height: number;
+};
+type DisplayBlockFlash = {
+    startedAtMs: number;
+    endsAtMs: number;
+    hitCount: number;
+    startPieceIndex: number;
+    endPieceIndex: number;
+    pieceCount: number;
 };
 type TopologyMetrics = {
     topology: DisplayTopology;
@@ -683,6 +692,209 @@ const drawDisplayBlocksToCanvas = (params: {
     }
 };
 
+const areSameDisplayBlockRange = (
+    left: DisplayBlock | null | undefined,
+    right: DisplayBlock | null | undefined,
+) =>
+    left != null &&
+    right != null &&
+    left.startPieceIndex === right.startPieceIndex &&
+    left.endPieceIndex === right.endPieceIndex &&
+    left.pieceCount === right.pieceCount;
+
+const isSameFlashRange = (
+    flash: DisplayBlockFlash,
+    block: DisplayBlock | null | undefined,
+) =>
+    block != null &&
+    flash.startPieceIndex === block.startPieceIndex &&
+    flash.endPieceIndex === block.endPieceIndex &&
+    flash.pieceCount === block.pieceCount;
+
+const isDonePieceStatus = (status: PieceStatus | undefined) => status === "done";
+
+const findDisplayBlockIndexForPiece = (
+    displayBlocks: Array<DisplayBlock | null>,
+    pieceIndex: number,
+) => {
+    let low = 0;
+    let high = displayBlocks.length - 1;
+
+    while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const block = displayBlocks[mid];
+        if (!block) {
+            let left = mid - 1;
+            while (left >= low && displayBlocks[left] == null) {
+                left -= 1;
+            }
+            if (
+                left >= low &&
+                displayBlocks[left] != null &&
+                pieceIndex <= (displayBlocks[left]?.endPieceIndex ?? -1)
+            ) {
+                high = left;
+                continue;
+            }
+
+            let right = mid + 1;
+            while (right <= high && displayBlocks[right] == null) {
+                right += 1;
+            }
+            if (
+                right <= high &&
+                displayBlocks[right] != null &&
+                pieceIndex >= (displayBlocks[right]?.startPieceIndex ?? Number.MAX_SAFE_INTEGER)
+            ) {
+                low = right;
+                continue;
+            }
+            return null;
+        }
+
+        if (pieceIndex < block.startPieceIndex) {
+            high = mid - 1;
+            continue;
+        }
+        if (pieceIndex > block.endPieceIndex) {
+            low = mid + 1;
+            continue;
+        }
+        return block.blockIndex;
+    }
+
+    return null;
+};
+
+const resolveRecentlyCompletedBlockHits = (params: {
+    previousBlocks: Array<DisplayBlock | null> | null;
+    nextBlocks: Array<DisplayBlock | null>;
+    previousResolvedStates: PieceStatus[] | null;
+    nextResolvedStates: PieceStatus[];
+}) => {
+    if (
+        !params.previousBlocks?.length ||
+        !params.previousResolvedStates?.length ||
+        params.previousResolvedStates.length !== params.nextResolvedStates.length
+    ) {
+        return [];
+    }
+
+    const blockHits = new Map<number, number>();
+    for (let pieceIndex = 0; pieceIndex < params.nextResolvedStates.length; pieceIndex += 1) {
+        if (
+            isDonePieceStatus(params.previousResolvedStates[pieceIndex]) ||
+            !isDonePieceStatus(params.nextResolvedStates[pieceIndex])
+        ) {
+            continue;
+        }
+
+        const blockIndex = findDisplayBlockIndexForPiece(params.nextBlocks, pieceIndex);
+        if (blockIndex == null) {
+            continue;
+        }
+        const previousBlock = params.previousBlocks[blockIndex];
+        const nextBlock = params.nextBlocks[blockIndex];
+        if (!areSameDisplayBlockRange(previousBlock, nextBlock)) {
+            continue;
+        }
+        blockHits.set(blockIndex, (blockHits.get(blockIndex) ?? 0) + 1);
+    }
+
+    return Array.from(blockHits.entries())
+        .map(([blockIndex, hitCount]) => ({ blockIndex, hitCount }))
+        .sort((left, right) => left.blockIndex - right.blockIndex);
+};
+
+const readAnimationTimestamp = () =>
+    typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
+
+const drawRecentCompletionFlashes = (params: {
+    ctx: CanvasRenderingContext2D;
+    flashes: Map<number, DisplayBlockFlash>;
+    displayBlocks: Array<DisplayBlock | null>;
+    drawState: DrawState;
+    colAxis: Axis;
+    rowAxis: Axis;
+    cellSize: number;
+    nowMs: number;
+}) => {
+    let hasActiveFlash = false;
+
+    for (const [blockIndex, flash] of params.flashes) {
+        if (flash.endsAtMs <= params.nowMs) {
+            params.flashes.delete(blockIndex);
+            continue;
+        }
+
+        const block = params.displayBlocks[blockIndex];
+        if (block == null || !isSameFlashRange(flash, block)) {
+            params.flashes.delete(blockIndex);
+            continue;
+        }
+
+        const progress = Math.min(
+            1,
+            Math.max(
+                0,
+                (params.nowMs - flash.startedAtMs) /
+                    Math.max(1, flash.endsAtMs - flash.startedAtMs),
+            ),
+        );
+        const fade = 1 - progress;
+        const hitAlpha = Math.min(
+            PIECE_MAP_FLASH.max_alpha,
+            PIECE_MAP_FLASH.base_alpha +
+                Math.max(0, flash.hitCount - 1) * PIECE_MAP_FLASH.per_hit_alpha,
+        );
+        const alpha = hitAlpha * fade * fade;
+        if (alpha <= 0.001) {
+            continue;
+        }
+
+        const bounds = resolveRenderedCellBounds({
+            x:
+                params.drawState.contentOriginX +
+                (params.colAxis.starts[block.col] ?? 0) *
+                    params.drawState.fitZoom,
+            y:
+                params.drawState.contentOriginY +
+                (params.rowAxis.starts[block.row] ?? 0) *
+                    params.drawState.fitZoom,
+            size: params.cellSize * params.drawState.fitZoom,
+        });
+
+        params.ctx.save();
+        params.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        params.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        if (
+            Math.min(bounds.width, bounds.height) >= PIECE_MAP_FLASH.glow_min_size
+        ) {
+            params.ctx.strokeStyle = `rgba(255, 255, 255, ${
+                PIECE_MAP_FLASH.glow_alpha * fade
+            })`;
+            params.ctx.lineWidth = 1;
+            params.ctx.shadowColor = `rgba(255, 255, 255, ${
+                PIECE_MAP_FLASH.glow_alpha * fade
+            })`;
+            params.ctx.shadowBlur = PIECE_MAP_FLASH.glow_blur;
+            params.ctx.strokeRect(
+                bounds.x + 0.5,
+                bounds.y + 0.5,
+                Math.max(0, bounds.width - 1),
+                Math.max(0, bounds.height - 1),
+            );
+        }
+        params.ctx.restore();
+        hasActiveFlash = true;
+    }
+
+    return hasActiveFlash;
+};
+
 const drawHoveredBlockOverlay = (params: {
     ctx: CanvasRenderingContext2D;
     hoveredBlock: DisplayBlock | null;
@@ -735,6 +947,7 @@ const scheduleDrawFrames = (params: {
     displayBlocks: Array<DisplayBlock | null>;
     palette: ReturnType<typeof useCanvasPalette>;
     hoveredBlock: DisplayBlock | null;
+    activeFlashesRef: MutableRefObject<Map<number, DisplayBlockFlash>>;
 }) => {
     if (params.frameRef.current) {
         cancelScheduledFrame(params.frameRef.current);
@@ -801,7 +1014,7 @@ const scheduleDrawFrames = (params: {
     if (params.overlayFrameRef.current) {
         cancelScheduledFrame(params.overlayFrameRef.current);
     }
-    params.overlayFrameRef.current = scheduleFrame(() => {
+    const drawOverlayFrame = () => {
         const overlay = params.overlayRef.current;
         const drawState = params.drawStateRef.current;
         if (!overlay || !drawState) {
@@ -821,6 +1034,16 @@ const scheduleDrawFrames = (params: {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, overlay.width, overlay.height);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const hasActiveFlash = drawRecentCompletionFlashes({
+            ctx,
+            flashes: params.activeFlashesRef.current,
+            displayBlocks: params.displayBlocks,
+            drawState,
+            colAxis: params.colAxis,
+            rowAxis: params.rowAxis,
+            cellSize: params.cellSize,
+            nowMs: readAnimationTimestamp(),
+        });
         drawHoveredBlockOverlay({
             ctx,
             hoveredBlock: params.hoveredBlock,
@@ -830,7 +1053,11 @@ const scheduleDrawFrames = (params: {
             cellSize: params.cellSize,
             palette: params.palette,
         });
-    });
+        if (hasActiveFlash) {
+            params.overlayFrameRef.current = scheduleFrame(drawOverlayFrame);
+        }
+    };
+    params.overlayFrameRef.current = scheduleFrame(drawOverlayFrame);
 };
 
 const readViewportBounds = (element: HTMLElement | null): ViewportBounds | null => {
@@ -1378,14 +1605,18 @@ export const piecesMapTopologyInternals = {
     computeOverviewTopology,
     resolveOverviewTopology,
     resolveCellPieceRange,
+    resolveRecentlyCompletedBlockHits,
 };
 
 export interface PiecesMapProps {
+    torrentKey: string | number;
     percent: number;
     pieceCount?: number;
     pieceStates?: number[];
     pieceSize?: number;
     pieceAvailability?: number[];
+    downloadSpeed: number;
+    uploadSpeed: number;
 }
 
 export interface PiecesMapViewModel {
@@ -1396,6 +1627,8 @@ export interface PiecesMapViewModel {
         tooltipRef: RefObject<HTMLDivElement | null>;
     };
     palette: ReturnType<typeof useCanvasPalette>;
+    downloadSpeed: number;
+    uploadSpeed: number;
     totalPieces: number;
     pieceSizeLabel: string;
     verifiedCount: number;
@@ -1413,11 +1646,14 @@ export interface PiecesMapViewModel {
 }
 
 export function usePiecesMapViewModel({
+    torrentKey,
     percent,
     pieceCount,
     pieceStates,
     pieceSize,
     pieceAvailability,
+    downloadSpeed,
+    uploadSpeed,
 }: PiecesMapProps): PiecesMapViewModel {
     const { t } = useTranslation();
     const { unit } = useLayoutMetrics();
@@ -1429,6 +1665,9 @@ export function usePiecesMapViewModel({
     const drawStateRef = useRef<DrawState | null>(null);
     const frameRef = useRef<FrameHandle | null>(null);
     const overlayFrameRef = useRef<FrameHandle | null>(null);
+    const activeFlashesRef = useRef<Map<number, DisplayBlockFlash>>(new Map());
+    const previousDisplayBlocksRef = useRef<Array<DisplayBlock | null> | null>(null);
+    const previousResolvedStatesRef = useRef<PieceStatus[] | null>(null);
     const pointerRef = useRef<PointerState>({
         clientX: 0,
         clientY: 0,
@@ -1494,6 +1733,7 @@ export function usePiecesMapViewModel({
     const hasBinaryPieceStates =
         pieceStatesLength >= totalPieces &&
         (pieceStates?.every((value) => value === 0 || value === 1) ?? false);
+    const hasTrustedPieceSnapshot = hasBinaryPieceStates;
     const resolvedStates = useMemo(
         () => {
             if (pieceStates && pieceStates.length >= totalPieces) {
@@ -1620,8 +1860,10 @@ export function usePiecesMapViewModel({
                 displayBlocks,
                 palette,
                 hoveredBlock,
+                activeFlashesRef,
             }),
         [
+            activeFlashesRef,
             canvasRef,
             cellSize,
             colAxis,
@@ -1647,6 +1889,51 @@ export function usePiecesMapViewModel({
     useEffect(() => {
         scheduleDraw();
     }, [scheduleDraw]);
+
+    useEffect(() => {
+        activeFlashesRef.current.clear();
+        previousDisplayBlocksRef.current = null;
+        previousResolvedStatesRef.current = null;
+    }, [torrentKey]);
+
+    useEffect(() => {
+        if (!hasTrustedPieceSnapshot) {
+            activeFlashesRef.current.clear();
+            previousDisplayBlocksRef.current = null;
+            previousResolvedStatesRef.current = null;
+            return;
+        }
+
+        const completedBlockHits = resolveRecentlyCompletedBlockHits({
+            previousBlocks: previousDisplayBlocksRef.current,
+            nextBlocks: displayBlocks,
+            previousResolvedStates: previousResolvedStatesRef.current,
+            nextResolvedStates: resolvedStates,
+        });
+
+        previousDisplayBlocksRef.current = displayBlocks;
+        previousResolvedStatesRef.current = resolvedStates;
+        if (completedBlockHits.length === 0) {
+            return;
+        }
+
+        const nowMs = readAnimationTimestamp();
+        for (const { blockIndex, hitCount } of completedBlockHits) {
+            const block = displayBlocks[blockIndex];
+            if (!block) {
+                continue;
+            }
+            activeFlashesRef.current.set(blockIndex, {
+                startedAtMs: nowMs,
+                endsAtMs: nowMs + PIECE_MAP_FLASH.duration_ms,
+                hitCount,
+                startPieceIndex: block.startPieceIndex,
+                endPieceIndex: block.endPieceIndex,
+                pieceCount: block.pieceCount,
+            });
+        }
+        scheduleDrawRef.current();
+    }, [displayBlocks, hasTrustedPieceSnapshot, resolvedStates]);
 
     useEffect(() => {
         pointerRef.current.isInside = false;
@@ -1738,6 +2025,8 @@ export function usePiecesMapViewModel({
             tooltipRef,
         },
         palette,
+        downloadSpeed,
+        uploadSpeed,
         totalPieces,
         pieceSizeLabel,
         verifiedCount,

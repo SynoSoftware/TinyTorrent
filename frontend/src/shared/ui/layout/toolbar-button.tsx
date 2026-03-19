@@ -4,6 +4,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { SURFACE } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
@@ -102,7 +103,7 @@ export const ToolbarIconButton = forwardRef<
         );
     })();
 
-    return (
+    const button = (
         <Button
             ref={ref}
             isIconOnly
@@ -113,11 +114,18 @@ export const ToolbarIconButton = forwardRef<
                 className
             )}
             aria-label={ariaLabel}
-            title={title}
             {...buttonProps}
         >
             {iconContent}
         </Button>
+    );
+
+    return typeof title === "string" && title.trim().length > 0 ? (
+        <AppTooltip content={title}>
+            {button}
+        </AppTooltip>
+    ) : (
+        button
     );
 });
 

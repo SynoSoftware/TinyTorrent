@@ -2,6 +2,7 @@ import { Autocomplete, AutocompleteItem, Button } from "@heroui/react";
 import { FolderOpen } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key, type KeyboardEvent } from "react";
 import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 
@@ -157,7 +158,7 @@ const PathAutocomplete = memo(function PathAutocomplete({
         event.stopPropagation();
         onEnterRef.current();
     }, [filteredHistoryItems.length, isMenuOpen]);
-    return (
+    const autocomplete = (
         <div ref={rootRef}>
             <Autocomplete
                 id={id}
@@ -182,13 +183,20 @@ const PathAutocomplete = memo(function PathAutocomplete({
                 autoComplete="off"
                 menuTrigger="input"
                 allowsEmptyCollection={false}
-                title={manualEntryPrompt}
                 onOpenChange={handleOpenChange}
                 onKeyDown={handleKeyDown}
             >
                 {(item) => <AutocompleteItem key={item.key}>{item.label}</AutocompleteItem>}
             </Autocomplete>
         </div>
+    );
+
+    return typeof manualEntryPrompt === "string" && manualEntryPrompt.trim().length > 0 ? (
+        <AppTooltip content={manualEntryPrompt}>
+            {autocomplete}
+        </AppTooltip>
+    ) : (
+        autocomplete
     );
 }, (prev, next) => prev.id === next.id &&
     prev.value === next.value &&

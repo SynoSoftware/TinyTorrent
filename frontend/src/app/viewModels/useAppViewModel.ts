@@ -137,6 +137,8 @@ export interface SettingsModalViewModel {
     onReconnect: () => Promise<RpcConnectionOutcome>;
     isImmersive?: boolean;
     hasDismissedInsights: boolean;
+    showAddTorrentDialog: boolean;
+    setShowAddTorrentDialog?: (value: boolean) => void;
     onApplyUserPreferencesPatch?: (
         patch: Partial<
             Pick<

@@ -36,6 +36,14 @@ export default function TorrentTable_HeaderMenu({
         handleHeaderMenuAction,
     } = viewModel;
     if (!headerMenuTriggerRect) return null;
+    const handleCheckboxToggle = (
+        event: React.MouseEvent | React.PointerEvent,
+        toggle: () => void,
+    ) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+    };
     return (
         <AnimatePresence>
             <Dropdown
@@ -92,6 +100,14 @@ export default function TorrentTable_HeaderMenu({
                     >
                         {headerMenuItems.map((item) => {
                             const isVisible = item.column.getIsVisible();
+                            const toggleColumnVisibility = () =>
+                                handleHeaderMenuAction(
+                                    () =>
+                                        item.column.toggleVisibility(
+                                            !isVisible,
+                                        ),
+                                    { keepOpen: true },
+                                );
                             return (
                                 <DropdownItem
                                     key={item.column.id}
@@ -101,24 +117,32 @@ export default function TorrentTable_HeaderMenu({
                                             SURFACE.menu.itemPinned,
                                     )}
                                     closeOnSelect={false}
-                                    onPress={() =>
-                                        handleHeaderMenuAction(
-                                            () =>
-                                                item.column.toggleVisibility(
-                                                    !isVisible,
-                                                ),
-                                            { keepOpen: true },
-                                        )
-                                    }
+                                    onPress={toggleColumnVisibility}
                                     startContent={
-                                        <Checkbox
-                                            isSelected={isVisible}
-                                            size="md"
-                                            disableAnimation
-                                            classNames={
-                                                FORM_CONTROL.checkboxMarginRightClassNames
+                                        <span
+                                            onClick={(event) =>
+                                                handleCheckboxToggle(
+                                                    event,
+                                                    toggleColumnVisibility,
+                                                )
                                             }
-                                        />
+                                            onPointerDown={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                            }}
+                                        >
+                                            <Checkbox
+                                                isSelected={isVisible}
+                                                size="md"
+                                                disableAnimation
+                                                onValueChange={() =>
+                                                    toggleColumnVisibility()
+                                                }
+                                                classNames={
+                                                    FORM_CONTROL.checkboxMarginRightClassNames
+                                                }
+                                            />
+                                        </span>
                                     }
                                 >
                                     {item.label}

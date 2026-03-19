@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     resolveAddTorrentDestinationDecision,
+    resolveAddTorrentFileHandlingDecision,
     resolveAddTorrentSubmissionDecision,
     resolveAddTorrentModalSize,
     resolveAddTorrentResolvedState,
@@ -108,6 +109,35 @@ describe("add torrent modal decisions", () => {
             });
 
             expect(decision.canConfirm).toBe(true);
+        });
+    });
+
+    describe("file handling slice", () => {
+        it("opens the modal while the preference is enabled", () => {
+            const decision = resolveAddTorrentFileHandlingDecision({
+                showAddDialog: true,
+                hasDefaultDownloadDir: true,
+            });
+
+            expect(decision.action).toBe("open_modal");
+        });
+
+        it("opens the modal when no default destination is available", () => {
+            const decision = resolveAddTorrentFileHandlingDecision({
+                showAddDialog: false,
+                hasDefaultDownloadDir: false,
+            });
+
+            expect(decision.action).toBe("open_modal");
+        });
+
+        it("submits directly only when the preference is disabled and a destination exists", () => {
+            const decision = resolveAddTorrentFileHandlingDecision({
+                showAddDialog: false,
+                hasDefaultDownloadDir: true,
+            });
+
+            expect(decision.action).toBe("submit_directly");
         });
     });
 

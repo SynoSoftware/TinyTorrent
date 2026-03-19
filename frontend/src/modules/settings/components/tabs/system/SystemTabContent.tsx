@@ -36,23 +36,19 @@ function SystemSectionCard({
 }: SystemSectionCardProps) {
     return (
         <div className={FORM.sectionCardEmphasized}>
-            {title && (
-                <h3
-                    className={FORM.sectionTitle}
-                    style={FORM.sectionTitleTrackingStyle}
-                >
-                    {title}
-                </h3>
+            {(title || description) && (
+                <div className={FORM.sectionHeader}>
+                    <div className={FORM.sectionHeaderStack}>
+                        {title ? <h3 className={FORM.sectionTitle}>{title}</h3> : null}
+                        {description ? (
+                            <p className={FORM.sectionDescription}>{description}</p>
+                        ) : null}
+                    </div>
+                </div>
             )}
-            {description && (
-                <p
-                    className={FORM.sectionDescription}
-                    style={FORM.sectionDescriptionTrackingStyle}
-                >
-                    {description}
-                </p>
-            )}
-            <div className={FORM.sectionContentStack}>{children}</div>
+            <div className={FORM.sectionBody}>
+                <div className={FORM.sectionContentStack}>{children}</div>
+            </div>
         </div>
     );
 }

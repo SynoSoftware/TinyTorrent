@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { status } from "@/shared/status";
 import { registry } from "@/config/logic";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
@@ -33,6 +33,7 @@ import {
 } from "@/app/context/AppCommandContext";
 import type { OpenFolderOutcome } from "@/app/types/openFolder";
 import type { LocationMode } from "@/modules/dashboard/domain/torrentRelocation";
+import { scheduler } from "@/app/services/scheduler";
 const { timing } = registry;
 
 export interface UseWorkspaceTorrentDomainParams {
@@ -81,6 +82,11 @@ export interface WorkspaceTorrentDomain {
     };
 }
 
+interface PendingSequential {
+    enabled: boolean;
+    reqId: number;
+}
+
 const findMatchingTorrentByIdentity = <
     TTarget extends Pick<Torrent, "id" | "hash">,
 >(
@@ -113,7 +119,11 @@ export function useWorkspaceTorrentDomain({
     capabilities,
 }: UseWorkspaceTorrentDomainParams): WorkspaceTorrentDomain {
     const isMountedRef = useRef(false);
+    const nextSequentialReqIdRef = useRef(0);
     const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
+    const [pendingSequential, setPendingSequential] = useState<
+        Record<string, PendingSequential>
+    >({});
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -126,7 +136,6 @@ export function useWorkspaceTorrentDomain({
         torrents,
         isInitialLoadFinished,
         refresh: refreshTorrents,
-        mutateTorrents,
         runtimeSummary,
         ghostTorrents,
     } = useTorrentData({
@@ -162,21 +171,81 @@ export function useWorkspaceTorrentDomain({
     const { optimisticStatuses, updateOptimisticStatuses } = useOptimisticStatuses(torrents);
     const { selectedIds, activeId, setActiveId } = useSelection();
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const setPendingSequentialValue = useCallback(
+        (torrentId: string, enabled: boolean, reqId: number) => {
+            setPendingSequential((current) => {
+                const existing = current[torrentId];
+                if (
+                    existing &&
+                    existing.enabled === enabled &&
+                    existing.reqId === reqId
+                ) {
+                    return current;
+                }
+                return {
+                    ...current,
+                    [torrentId]: {
+                        enabled,
+                        reqId,
+                    },
+                };
+            });
+        },
+        [],
+    );
+    const clearPendingSequentialValue = useCallback(
+        (torrentId: string, reqId?: number) => {
+            setPendingSequential((current) => {
+                const existing = current[torrentId];
+                if (!existing) {
+                    return current;
+                }
+                if (
+                    typeof reqId === "number" &&
+                    existing.reqId !== reqId
+                ) {
+                    return current;
+                }
+                const next = { ...current };
+                delete next[torrentId];
+                return next;
+            });
+        },
+        [],
+    );
+    const displayTorrents = useMemo(() => {
+        if (Object.keys(pendingSequential).length === 0) {
+            return torrents;
+        }
+        return torrents.map((torrent) => {
+            const pending = pendingSequential[String(torrent.id)];
+            if (
+                !pending ||
+                torrent.sequentialDownload === pending.enabled
+            ) {
+                return torrent;
+            }
+            return {
+                ...torrent,
+                sequentialDownload: pending.enabled,
+            };
+        });
+    }, [pendingSequential, torrents]);
     const selectedTorrents = useMemo(
-        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
-        [selectedIdsSet, torrents],
+        () => displayTorrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+        [displayTorrents, selectedIdsSet],
     );
 
     const openTorrentDetailsById = useCallback(
         async (torrentId: string) => {
-            const target = torrents.find((torrent) => torrent.id === torrentId);
+            const target = displayTorrents.find((torrent) => torrent.id === torrentId);
             setActiveId(torrentId);
             await loadDetail(
                 torrentId,
                 target ? ({ ...target } as TorrentDetail) : undefined,
             );
         },
-        [loadDetail, setActiveId, torrents],
+        [displayTorrents, loadDetail, setActiveId],
     );
 
     const orchestrator = useTorrentOrchestrator({
@@ -185,7 +254,7 @@ export function useWorkspaceTorrentDomain({
         refreshTorrents,
         refreshSessionStatsData,
         refreshDetailData,
-        torrents,
+        torrents: displayTorrents,
         detailData,
         settingsConfig,
         clearDetail,
@@ -204,69 +273,73 @@ export function useWorkspaceTorrentDomain({
         dispatch,
     });
 
-    const mutateSequentialDownloadState = useCallback(
-        (
-            target: Pick<Torrent, "id" | "hash" | "sequentialDownload">,
-            enabled: boolean,
-        ) => {
-            const targetId = String(target.id);
-            const targetHash = target.hash;
-
-            mutateTorrents((current) => {
-                let changed = false;
-                const next = current.map((torrent) => {
-                    const matches =
-                        String(torrent.id) === targetId ||
-                        torrent.hash === targetHash;
-                    if (!matches || torrent.sequentialDownload === enabled) {
-                        return torrent;
-                    }
-                    changed = true;
-                    return {
-                        ...torrent,
-                        sequentialDownload: enabled,
-                    };
-                });
-                return changed ? next : current;
-            });
-
-            mutateDetail((current) => {
-                if (!current) {
-                    return current;
-                }
-                const matches =
-                    String(current.id) === targetId ||
-                    current.hash === targetHash;
-                if (!matches || current.sequentialDownload === enabled) {
-                    return current;
-                }
-                return {
-                    ...current,
-                    sequentialDownload: enabled,
-                };
-            });
-        },
-        [mutateDetail, mutateTorrents],
-    );
-
     const resolvedDetailData = useMemo(() => {
         if (!detailData) {
             return null;
         }
 
-        const liveTorrent = findMatchingTorrentByIdentity(torrents, detailData);
+        const liveTorrent = findMatchingTorrentByIdentity(
+            displayTorrents,
+            detailData,
+        );
         if (
             !liveTorrent ||
             liveTorrent.sequentialDownload === detailData.sequentialDownload
         ) {
-            return detailData;
+            const pending = pendingSequential[String(detailData.id)];
+            if (
+                !pending ||
+                pending.enabled === detailData.sequentialDownload
+            ) {
+                return detailData;
+            }
+            return {
+                ...detailData,
+                sequentialDownload: pending.enabled,
+            };
         }
 
         return {
             ...detailData,
             sequentialDownload: liveTorrent.sequentialDownload,
         };
-    }, [detailData, torrents]);
+    }, [detailData, displayTorrents, pendingSequential]);
+
+    useEffect(() => {
+        if (Object.keys(pendingSequential).length === 0) {
+            return;
+        }
+
+        const torrentById = new Map(
+            torrents.map((torrent) => [String(torrent.id), torrent]),
+        );
+        const settledIds = Object.entries(pendingSequential)
+            .filter(([torrentId, pending]) => {
+                const torrent = torrentById.get(torrentId);
+                return !torrent || torrent.sequentialDownload === pending.enabled;
+            })
+            .map(([torrentId]) => torrentId);
+        if (settledIds.length === 0) {
+            return;
+        }
+
+        const cancelCleanup = scheduler.scheduleTimeout(() => {
+            setPendingSequential((current) => {
+                let changed = false;
+                const next = { ...current };
+                settledIds.forEach((torrentId) => {
+                    if (!(torrentId in next)) {
+                        return;
+                    }
+                    delete next[torrentId];
+                    changed = true;
+                });
+                return changed ? next : current;
+            });
+        }, 0);
+
+        return cancelCleanup;
+    }, [pendingSequential, torrents]);
 
     const setSequentialDownloadOptimistically = useCallback(
         async (
@@ -277,8 +350,10 @@ export function useWorkspaceTorrentDomain({
                 return commandOutcome.unsupported();
             }
 
-            const previous = Boolean(target.sequentialDownload);
-            mutateSequentialDownloadState(target, enabled);
+            const torrentId = String(target.id);
+            const reqId = nextSequentialReqIdRef.current + 1;
+            nextSequentialReqIdRef.current = reqId;
+            setPendingSequentialValue(torrentId, enabled, reqId);
 
             const outcome = await dispatch(
                 TorrentIntents.setSequentialDownload(target.id, enabled),
@@ -287,13 +362,18 @@ export function useWorkspaceTorrentDomain({
                 return commandOutcome.success();
             }
 
-            mutateSequentialDownloadState(target, previous);
+            clearPendingSequentialValue(torrentId, reqId);
             if (outcome.status === "unsupported") {
                 return commandOutcome.unsupported();
             }
             return commandOutcome.failed(commandReason.executionFailed);
         },
-        [capabilities.sequentialDownload, dispatch, mutateSequentialDownloadState],
+        [
+            capabilities.sequentialDownload,
+            clearPendingSequentialValue,
+            dispatch,
+            setPendingSequentialValue,
+        ],
     );
 
     const handleSequentialToggle = useCallback(
@@ -417,7 +497,7 @@ export function useWorkspaceTorrentDomain({
         });
 
     return {
-        torrents,
+        torrents: displayTorrents,
         ghostTorrents,
         runtimeSummary,
         isInitialLoadFinished,

@@ -16,7 +16,7 @@ export type DeleteAction = Extract<
 export type DeleteIntent = {
     torrents: Torrent[];
     action: DeleteAction;
-    deleteData: boolean;
+    deleteData?: boolean;
 };
 
 export type AmbientHudCard = {

@@ -10,7 +10,7 @@ import {
     commandOutcome, commandReason, isCommandFailed, isCommandSuccess, type SuccessReason, type TorrentCommandOutcome, } from "@/app/context/AppCommandContext";
 import { buildOptimisticStatusUpdatesForAction } from "@/app/domain/torrentActionPolicy";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
-import type { TorrentStatus } from "@/services/rpc/entities";
+import type { TorrentTransportStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { scheduler } from "@/app/services/scheduler";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
@@ -34,7 +34,7 @@ interface UseTorrentWorkflowParams {
     updateOptimisticStatuses: (
         updates: Array<{
             id: string;
-            state?: TorrentStatus;
+            state?: TorrentTransportStatus;
             operation?: "moving" | null;
         }>,
     ) => void;
@@ -225,7 +225,7 @@ export function useTorrentWorkflow({
         (
             torrentsToDelete: Torrent[],
             action: DeleteIntent["action"],
-            deleteData: boolean,
+            deleteData?: boolean,
         ) => {
             if (!torrentsToDelete.length) return;
             setPendingDelete({
@@ -409,7 +409,11 @@ export function useTorrentWorkflow({
             torrent: Torrent,
         ): Promise<TorrentCommandOutcome> => {
             if (action === "remove" || action === "remove-with-data") {
-                requestDelete([torrent], action, action === "remove-with-data");
+                requestDelete(
+                    [torrent],
+                    action,
+                    action === "remove-with-data" ? true : undefined,
+                );
                 return commandOutcome.success(commandReason.queued);
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
@@ -442,7 +446,11 @@ export function useTorrentWorkflow({
             if (!selectedTorrents.length) return commandOutcome.noSelection();
             const targets = [...selectedTorrents];
             if (action === "remove" || action === "remove-with-data") {
-                requestDelete(targets, action, action === "remove-with-data");
+                requestDelete(
+                    targets,
+                    action,
+                    action === "remove-with-data" ? true : undefined,
+                );
                 return commandOutcome.success(commandReason.queued);
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
@@ -547,7 +555,7 @@ export function useTorrentWorkflow({
             const previousSelectedIds = selectedIds;
             const previousActiveId = activeId;
             setPendingDelete(null);
-            const deleteData = overrideDeleteData ?? pdDelete;
+            const deleteData = overrideDeleteData ?? pdDelete ?? false;
             const count = toDelete.length;
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;

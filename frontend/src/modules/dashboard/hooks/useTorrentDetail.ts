@@ -35,10 +35,10 @@ const cloneDetail = (detail: TorrentDetail): TorrentDetail => ({
     files: detail.files ? [...detail.files] : detail.files,
     trackers: detail.trackers ? [...detail.trackers] : detail.trackers,
     peers: detail.peers ? [...detail.peers] : detail.peers,
-    pieceStates: detail.pieceStates ? [...detail.pieceStates] : detail.pieceStates,
-    pieceAvailability: detail.pieceAvailability
-        ? [...detail.pieceAvailability]
-        : detail.pieceAvailability,
+    // Keep the large piece arrays by reference. Re-cloning them on every
+    // detail write turns small UI toggles into massive allocation churn.
+    pieceStates: detail.pieceStates,
+    pieceAvailability: detail.pieceAvailability,
 });
 
 export function useTorrentDetail({
@@ -110,6 +110,9 @@ export function useTorrentDetail({
             setDetailData((prev) => {
                 if (!prev) return prev;
                 const next = updater(prev);
+                if (next === prev) {
+                    return prev;
+                }
                 const committed = next ? cloneDetail(next) : null;
                 detailTimestampRef.current = committed ? Date.now() : 0;
                 detailIdentityRef.current = committed

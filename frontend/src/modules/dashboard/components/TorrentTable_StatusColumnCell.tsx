@@ -1,4 +1,4 @@
-import { Chip } from "@heroui/react";
+import { Chip, cn } from "@heroui/react";
 import type { Table } from "@tanstack/react-table";
 import { type TFunction } from "i18next";
 import type { TorrentStatus } from "@/services/rpc/entities";
@@ -6,8 +6,12 @@ import { registry } from "@/config/logic";
 import { status } from "@/shared/status";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
-import { getTorrentStatusPresentation } from "@/modules/dashboard/utils/torrentStatus";
+import {
+    getTorrentStatusPresentation,
+    getStatusSpeedHistory,
+} from "@/modules/dashboard/utils/torrentStatus";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
 import {
     ArrowDown,
@@ -24,10 +28,15 @@ import {
 const { visuals } = registry;
 
 type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" | "danger";
+type TorrentPresentationVisualState = TorrentStatus | "connecting";
 
 type StatusMeta = {
     color: StatusColor;
     icon: LucideIcon;
+    classNames?: {
+        base?: string;
+        content?: string;
+    };
 };
 
 const UNKNOWN_STATUS_META: StatusMeta = {
@@ -43,7 +52,11 @@ const STATUS_CHIP_STYLE = {
     boxSizing: "border-box",
 } as const;
 
-const statusMap: Record<TorrentStatus, StatusMeta> = {
+const statusMap: Record<TorrentPresentationVisualState, StatusMeta> = {
+    connecting: {
+        color: "primary",
+        icon: Loader,
+    },
     [status.torrent.downloading]: {
         color: "success",
         icon: ArrowDown,
@@ -53,7 +66,7 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
         icon: ArrowUp,
     },
     [status.torrent.paused]: {
-        color: "warning",
+        color: "default",
         icon: Pause,
     },
     [status.torrent.checking]: {
@@ -61,11 +74,11 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
         icon: RefreshCw,
     },
     [status.torrent.queued]: {
-        color: "secondary",
+        color: "default",
         icon: ListStart,
     },
     [status.torrent.stalled]: {
-        color: "secondary",
+        color: "warning",
         icon: WifiOff,
     },
     [status.torrent.error]: {
@@ -86,15 +99,30 @@ type StatusTableMeta = {
 };
 
 export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }: TorrentTableStatusColumnCellProps) {
-    const renderChip = (icon: LucideIcon, color: StatusColor, label: string, tooltip: string) => {
+    const renderChip = (
+        icon: LucideIcon,
+        color: StatusColor,
+        label: string,
+        tooltip: string,
+        classNames?: StatusMeta["classNames"],
+    ) => {
         return (
-            <div className={FORM_CONTROL.statusChipContainer}>
+            <AppTooltip content={tooltip} dense placement="top">
                 <Chip
                     size="md"
                     variant="flat"
                     color={color}
                     style={STATUS_CHIP_STYLE}
-                    classNames={FORM_CONTROL.statusChipClassNames}
+                    classNames={{
+                        base: cn(
+                            FORM_CONTROL.statusChipClassNames.base,
+                            classNames?.base,
+                        ),
+                        content: cn(
+                            FORM_CONTROL.statusChipClassNames.content,
+                            classNames?.content,
+                        ),
+                    }}
                 >
                     <div className={FORM_CONTROL.statusChipContent}>
                         <StatusIcon
@@ -103,22 +131,18 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
                             strokeWidth={visuals.icon.strokeWidthDense}
                             className={FORM_CONTROL.statusChipCurrentIcon}
                         />
-                        <span className={FORM_CONTROL.statusChipLabel} title={tooltip}>
+                        <span className={FORM_CONTROL.statusChipLabel}>
                             {label}
                         </span>
                     </div>
                 </Chip>
-            </div>
+            </AppTooltip>
         );
     };
 
-    const meta = table?.options.meta as StatusTableMeta | undefined;
+    const meta = table?.options?.meta as StatusTableMeta | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-    const sanitizedHistory = rawHistory.filter((value): value is number => Number.isFinite(value));
-    const speedHistory =
-        torrent.state === status.torrent.seeding
-            ? { down: [], up: sanitizedHistory }
-            : { down: sanitizedHistory, up: [] };
+    const speedHistory = getStatusSpeedHistory(torrent, rawHistory);
     const presentation = getTorrentStatusPresentation(torrent, t, optimisticStatus, speedHistory);
 
     if (presentation.isOptimisticMoving && presentation.label) {
@@ -128,11 +152,11 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
     const label = presentation.label ?? t("table.status_error");
     const tooltip = presentation.tooltip ?? label;
     const seedingIdleMeta: StatusMeta | null =
-        presentation.transportState === status.torrent.seeding &&
-        presentation.overlayState === status.torrent.stalled
+        presentation.isIdleSeeding
             ? {
-                  color: "primary",
+                  color: "default",
                   icon: Loader,
+                  classNames: FORM_CONTROL.statusChipMutedPrimaryClassNames,
               }
             : null;
     const conf =
@@ -141,6 +165,9 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
               ? statusMap[presentation.visualState]
               : undefined)) ?? UNKNOWN_STATUS_META;
     const Icon = conf.icon;
-
-    return renderChip(Icon, conf.color, label, tooltip);
+    return (
+        <div className={FORM_CONTROL.statusChipContainer}>
+            {renderChip(Icon, conf.color, label, tooltip, conf.classNames)}
+        </div>
+    );
 }

@@ -6,6 +6,7 @@ import {
 import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import {
     BufferedInput,
@@ -478,18 +479,16 @@ export function LanguageRenderer({
     block: Extract<SectionBlock, { type: "language" }>;
 }) {
     const { t } = useTranslation();
+    const tooltip = block.descriptionKey
+        ? t(block.descriptionKey)
+        : t("settings.descriptions.language");
     return (
         <div className={FORM.languageRow}>
-            <div>
-                <span className={FORM.interfaceRowTitle}>
+            <AppTooltip content={tooltip}>
+                <span className={FORM.systemRowLabel}>
                     {t(block.labelKey)}
                 </span>
-                {block.descriptionKey && (
-                    <p className={TEXT_ROLE.caption}>
-                        {t(block.descriptionKey)}
-                    </p>
-                )}
-            </div>
+            </AppTooltip>
             <LanguageMenu />
         </div>
     );
@@ -503,6 +502,9 @@ export function RawConfigRenderer({
     const { t } = useTranslation();
     const { jsonCopyStatus, configJson } = useSettingsFormState();
     const { onCopyConfigJson } = useSettingsFormActions();
+    const tooltip = block.descriptionKey
+        ? `${t("settings.descriptions.config_export")} ${t(block.descriptionKey)}`
+        : t("settings.descriptions.config_export");
     const handleCopy = async () => {
         const outcome = await onCopyConfigJson();
         switch (outcome.status) {
@@ -519,16 +521,11 @@ export function RawConfigRenderer({
     return (
         <div className={FORM.blockStackTight}>
             <div className={FORM.rawConfigHeader}>
-                <div>
-                    <span className={FORM.rawConfigTitle}>
+                <AppTooltip content={tooltip}>
+                    <span className={FORM.systemRowLabel}>
                         {t(block.labelKey)}
                     </span>
-                    {block.descriptionKey && (
-                        <p className={FORM.rawConfigDescription}>
-                            {t(block.descriptionKey)}
-                        </p>
-                    )}
-                </div>
+                </AppTooltip>
                 <Button
                     size="md"
                     variant="shadow"

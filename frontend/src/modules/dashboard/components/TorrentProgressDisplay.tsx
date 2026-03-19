@@ -1,10 +1,10 @@
 import { cn } from "@heroui/react";
 import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
-import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import type { TorrentEntity as Torrent, TorrentTransportStatus } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-import { status, type TorrentStatus } from "@/shared/status";
+import { status } from "@/shared/status";
 import { formatBytes } from "@/shared/utils/format";
 import { getEffectiveTorrentState } from "@/modules/dashboard/utils/torrentStatus";
 
@@ -32,7 +32,7 @@ export const getEffectiveProgress = (
     return normalizedProgress;
 };
 
-const getProgressIndicatorClass = (effectiveState: TorrentStatus) => {
+const getProgressIndicatorClass = (effectiveState: TorrentTransportStatus) => {
     if (effectiveState === status.torrent.paused) {
         return TABLE.columnDefs.progressIndicatorPaused;
     }

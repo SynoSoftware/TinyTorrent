@@ -1,5 +1,5 @@
-import type { TorrentStatus } from "@/shared/status";
-export type { TorrentStatus } from "@/shared/status";
+import type { TorrentTransportStatus } from "@/shared/status";
+export type { TorrentStatus, TorrentTransportStatus } from "@/shared/status";
 
 export interface TorrentSpeed {
     down: number;
@@ -12,6 +12,16 @@ export interface TorrentPeers {
     sending?: number;
     getting?: number;
     seeds?: number;
+}
+
+export interface TorrentPeerDiscoverySources {
+    cache?: number;
+    dht?: number;
+    incoming?: number;
+    lpd?: number;
+    ltep?: number;
+    pex?: number;
+    tracker?: number;
 }
 
 export type LibtorrentPriority = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -84,7 +94,7 @@ export interface TorrentEntity {
     name: string;
     progress?: number;
     verificationProgress?: number;
-    state: TorrentStatus;
+    state: TorrentTransportStatus;
     speed: TorrentSpeed;
     peerSummary: TorrentPeers;
     totalSize: number;
@@ -100,9 +110,14 @@ export interface TorrentEntity {
     secondsSeeding?: number;
     leftUntilDone?: number;
     sizeWhenDone?: number;
+    desiredAvailable?: number;
     error?: number;
     errorString?: string;
+    metadataPercentComplete?: number;
     isFinished?: boolean;
+    isStalled?: boolean;
+    webseedsSendingToUs?: number;
+    peersFrom?: TorrentPeerDiscoverySources;
     sequentialDownload?: boolean;
     superSeeding?: boolean;
     pieceAvailability?: number[];

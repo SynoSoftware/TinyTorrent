@@ -84,6 +84,7 @@ export const useMeasuredColumnWidths = (
                 }
             });
 
+        const nextMeasuredWidths: Record<string, number> = {};
         const nextMinWidths: Record<string, number> = {};
         const columnIds = new Set([
             ...Object.keys(headerWidths),
@@ -92,6 +93,15 @@ export const useMeasuredColumnWidths = (
         columnIds.forEach((columnId) => {
             const headerWidth = headerWidths[columnId];
             const cellWidth = cellWidths[columnId];
+
+            if (Number.isFinite(headerWidth) && Number.isFinite(cellWidth)) {
+                nextMeasuredWidths[columnId] = Math.max(headerWidth, cellWidth);
+            } else if (Number.isFinite(headerWidth)) {
+                nextMeasuredWidths[columnId] = headerWidth;
+            } else if (Number.isFinite(cellWidth)) {
+                nextMeasuredWidths[columnId] = cellWidth;
+            }
+
             if (columnId === "name" && Number.isFinite(headerWidth)) {
                 nextMinWidths[columnId] = headerWidth;
                 return;
@@ -132,7 +142,7 @@ export const useMeasuredColumnWidths = (
             return prev;
         });
 
-        return nextMinWidths;
+        return nextMeasuredWidths;
     }, [layerRef, tolerancePx]);
 
     return { minWidths, minWidthsRef, measure };

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
@@ -85,9 +86,11 @@ function StatGroup({
         >
             <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>{label}</span>
             <div className={WORKBENCH.status.statValueRow}>
-                <span className={cn(WORKBENCH.status.statValueText)} title={value}>
-                    {value}
-                </span>
+                <AppTooltip content={value}>
+                    <span className={cn(WORKBENCH.status.statValueText)}>
+                        {value}
+                    </span>
+                </AppTooltip>
                 {Icon && <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.statIcon} />}
             </div>
         </div>
@@ -115,9 +118,11 @@ function TelemetryIcon({
         getStatusRecipeText(toneKey, visuals.status.keys.tone.muted);
 
     return (
-        <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)} title={title}>
-            <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.iconCurrent} />
-        </span>
+        <AppTooltip content={title}>
+            <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)}>
+                <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.iconCurrent} />
+            </span>
+        </AppTooltip>
     );
 }
 
@@ -310,7 +315,7 @@ function EngineControlChip({
         return <StatusIcon Icon={EngineIcon} size="lg" className={WORKBENCH.status.iconCurrent} />;
     };
 
-    return (
+    const button = (
         <button
             type="button"
             onClick={() => {
@@ -325,7 +330,6 @@ function EngineControlChip({
                 statusVisual.text,
                 statusVisual.shadow,
             )}
-            title={tooltip}
             style={{
                 height: ui.bases.statusbar.buttonH,
                 minWidth: ui.bases.statusbar.buttonMinW,
@@ -361,6 +365,8 @@ function EngineControlChip({
             )}
         </button>
     );
+
+    return <AppTooltip content={tooltip}>{button}</AppTooltip>;
 }
 
 /* ------------------------------------------------------------------ */

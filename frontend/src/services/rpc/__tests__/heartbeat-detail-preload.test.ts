@@ -226,4 +226,134 @@ describe("HeartbeatManager detail preload", () => {
             hb.dispose();
         }
     });
+
+    it("forces a fresh detail fetch when opening a detail view even if cached detail exists", async () => {
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([makeTorrent("torrent-3")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue({
+                    ...makeTorrent("torrent-3"),
+                    trackers: [
+                        {
+                            announce: "https://tracker.example/announce",
+                            tier: 0,
+                            lastAnnounceTime: 0,
+                            lastAnnounceResult: "",
+                            lastAnnounceSucceeded: false,
+                            lastScrapeTime: 0,
+                            lastScrapeResult: "",
+                            lastScrapeSucceeded: false,
+                            seederCount: 0,
+                            leecherCount: 0,
+                        },
+                    ],
+                }),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const internals = hb as unknown as HeartbeatInternals;
+        internals.lastTorrents = [makeTorrent("torrent-3")];
+        internals.lastSessionStats = dummyStats;
+        internals.lastImmediateTriggerMs = Date.now();
+        internals.detailCache.set("torrent-3", {
+            hash: "htorrent-3",
+            detail: {
+                ...makeTorrent("torrent-3"),
+            },
+        });
+
+        const subscription = hb.subscribe({
+            mode: "detail",
+            detailId: "torrent-3",
+            detailProfile: "standard",
+            includeTrackerStats: true,
+            onUpdate: () => undefined,
+            onError: () => undefined,
+        });
+
+        try {
+            await waitForCondition(
+                () => client.getTorrentDetails.mock.calls.length === 1,
+            );
+
+            expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-3", {
+                profile: "standard",
+                includeTrackerStats: true,
+            });
+        } finally {
+            subscription.unsubscribe();
+            hb.dispose();
+        }
+    });
+
+    it("triggers an immediate detail refetch when reopening a standard detail from cache", async () => {
+        const client: HeartbeatClientLike = {
+            getTorrents: vi
+                .fn<() => Promise<TorrentEntity[]>>()
+                .mockResolvedValue([makeTorrent("torrent-3")]),
+            getSessionStats: vi
+                .fn<() => Promise<SessionStats>>()
+                .mockResolvedValue(dummyStats),
+            getTorrentDetails: vi
+                .fn<(id: string) => Promise<TorrentDetailEntity>>()
+                .mockResolvedValue({
+                    ...makeTorrent("torrent-3"),
+                    trackers: [
+                        {
+                            announce: "https://tracker.example/announce",
+                            tier: 0,
+                            lastAnnounceTime: 0,
+                            lastAnnounceResult: "",
+                            lastAnnounceSucceeded: false,
+                            lastScrapeTime: 0,
+                            lastScrapeResult: "",
+                            lastScrapeSucceeded: false,
+                            seederCount: 0,
+                            leecherCount: 0,
+                        },
+                    ],
+                }),
+        };
+
+        const hb = new HeartbeatManager(client);
+        const internals = hb as unknown as HeartbeatInternals;
+        internals.lastTorrents = [makeTorrent("torrent-3")];
+        internals.lastSessionStats = dummyStats;
+        internals.lastImmediateTriggerMs = Date.now();
+        internals.detailCache.set("torrent-3", {
+            hash: "htorrent-3",
+            detail: {
+                ...makeTorrent("torrent-3"),
+            },
+        });
+
+        const subscription = hb.subscribe({
+            mode: "detail",
+            detailId: "torrent-3",
+            detailProfile: "standard",
+            includeTrackerStats: true,
+            onUpdate: () => undefined,
+            onError: () => undefined,
+        });
+
+        try {
+            await waitForCondition(
+                () => client.getTorrentDetails.mock.calls.length === 1,
+            );
+
+            expect(client.getTorrentDetails).toHaveBeenCalledWith("torrent-3", {
+                profile: "standard",
+                includeTrackerStats: true,
+            });
+        } finally {
+            subscription.unsubscribe();
+            hb.dispose();
+        }
+    });
 });

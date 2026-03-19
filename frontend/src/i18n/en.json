@@ -90,6 +90,7 @@
             "torrent": {
                 "blocked": "Blocked",
                 "checking": "Checking",
+                "connecting": "Connecting",
                 "downloading": "Downloading",
                 "error": "Error",
                 "needsUserAction": "Action",
@@ -217,6 +218,7 @@
             "destination_prompt_invalid": "Enter a valid absolute path to continue.",
             "destination_ready": "Destination looks good.",
             "destination_invalid_chip": "Invalid destination",
+            "dont_show_again": "Don't show this again",
             "exit_fullscreen": "Exit Fullscreen",
             "fullscreen": "Fullscreen",
             "magnet_error": "Unable to resolve torrent metadata.",
@@ -455,10 +457,10 @@
             "incomplete_folder": "Files remain in this directory until the download completes.",
             "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files.",
             "language": "Pick the interface language you prefer.",
-            "language_helper": "The HUD updates immediately after you change it.",
             "polling": "These affect how the UI talks to the engine. Changes apply immediately.",
             "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
-            "shellStyle": "Choose between the classic panels or the immersive HUD shell. Changes apply instantly.",
+            "shellStyle": "Choose between the classic panels or the immersive HUD shell.",
+            "showAddTorrentDialog": "Open the Add Torrent dialog for .torrent files so you can review the destination and options before adding.",
             "startup": "Control whether the HUD opens automatically, stays hidden on autorun, and how the splash screen is shown.",
             "system_integration": "System-level services that affect startup, autorun, and tray helpers.",
             "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table. Changes apply immediately.",
@@ -549,6 +551,7 @@
             "seedRatioLimit": "Seed Ratio Limit",
             "seedRatioToggle": "Enforce Seed Ratio",
             "shellStyle": "Shell style",
+            "showAddTorrentDialog": "Show Add Torrent dialog",
             "showSplash": "Show the splash screen before the HUD appears",
             "silentStart": "Start minimized to tray",
             "silentStartHelper": "Applies to system startup only. Manual launch always opens the window.",
@@ -729,6 +732,7 @@
         "column_desc_added": "When the torrent was added",
         "column_desc_eta": "Estimated completion time",
         "column_desc_hash": "Torrent identifier",
+        "column_desc_health": "Swarm availability and reachability",
         "column_desc_queue": "Position in the download/upload queue",
         "column_desc_ratio": "Upload / download ratio",
         "column_desc_speed": "Download / upload velocity",
@@ -741,8 +745,10 @@
         "empty_hint_subtext": "Drop a .torrent, paste a magnet link, or use the toolbar to begin.",
         "eta": "ETA: {{time}}",
         "eta_unknown": "Unknown",
+        "eta_less_than_minute": "less than a minute",
         "header_added": "Added",
         "header_eta": "ETA",
+        "header_health": "Avail",
         "header_name": "Name",
         "header_peers": "Peers",
         "header_progress": "Progress",
@@ -968,6 +974,75 @@
                 "uploading_to_count": "{{count}} to"
             }
         },
+        "swarm": {
+            "section_title": "Swarm",
+            "section_description": "Reachability, resilience, and tracker condition for the remaining data.",
+            "actions": {
+                "show_more": "More",
+                "hide_more": "Less"
+            },
+            "states": {
+                "healthy": "Healthy",
+                "degraded": "Degraded",
+                "unavailable": "Unavailable",
+                "finding_peers": "Finding peers",
+                "metadata": "Metadata",
+                "error": "Error"
+            },
+            "table_tooltips": {
+                "healthy": "All remaining data is reachable right now and the torrent can progress normally.",
+                "degraded": "The torrent can still progress, but current swarm conditions are weak.",
+                "unavailable": "None of the remaining data is reachable now.",
+                "finding_peers": "No connected sources for missing data yet.",
+                "metadata": "Still fetching torrent metadata.",
+                "error": "Torrent cannot currently progress because of an error."
+            },
+            "general_tooltips": {
+                "healthy": "All remaining data is currently reachable and the torrent should be able to progress normally.",
+                "degraded": "The torrent can still progress, but swarm conditions are weak or unstable.",
+                "unavailable": "None of the remaining data is currently available from connected peers.",
+                "finding_peers": "No connected sources for missing data yet.",
+                "metadata": "Still fetching torrent metadata.",
+                "error": "Torrent cannot currently progress because of an error."
+            },
+            "fields": {
+                "health": "Health",
+                "reachable_now": "Reachable now",
+                "connected_sources": "Connected sources",
+                "tracker_condition": "Tracker condition",
+                "missing_pieces_unavailable": "Missing pieces unavailable now",
+                "missing_pieces_single_source": "Missing pieces with single source",
+                "peer_discovery": "Peer discovery",
+                "best_tracker_report": "Best tracker report"
+            },
+            "values": {
+                "reachable_now": "{{reachable}} of {{remaining}}",
+                "connected_peer_count_one": "{{count}} peer",
+                "connected_peer_count_other": "{{count}} peers",
+                "active_webseed_count_one": "{{count}} web seed",
+                "active_webseed_count_other": "{{count}} web seeds",
+                "best_tracker_report": "{{seeders}} seeders, {{leechers}} leechers"
+            },
+            "tracker_condition": {
+                "working": "Working",
+                "degraded": "Degraded",
+                "failing": "Failing",
+                "unavailable": "Unavailable"
+            },
+            "discovery": {
+                "tracker": "Tracker",
+                "dht": "DHT",
+                "pex": "PEX",
+                "lpd": "LPD",
+                "incoming": "Incoming",
+                "cache": "Cache",
+                "ltep": "LT exchange"
+            },
+            "pieces": {
+                "unavailable_missing": "Unavailable missing pieces",
+                "rare_missing": "Rare missing pieces"
+            }
+        },
         "ghost_states": {
             "loading": "Adding torrent...",
             "magnet_lookup": "Resolving magnet link..."
@@ -995,8 +1070,13 @@
             "dead_stat": "Dead / 0 peers",
             "detail_mixed": "Mixed block",
             "detail_uniform": "Uniform block · {{state}}",
+            "download_mode": "Download",
             "hide_hud": "Hide insights",
             "legend_dead": "Dead",
+            "mode_random": "Random",
+            "mode_sequential": "Sequential",
+            "switch_to_random": "Switch to random download mode",
+            "switch_to_sequential": "Switch to sequential download mode",
             "show_hud": "Show insights",
             "tooltip": "Piece #{{piece}} - {{status}}",
             "tooltip_availability_unknown": "Availability unknown",
@@ -1007,6 +1087,20 @@
             "tooltip_piece_range": "Pieces #{{start}}-{{end}}",
             "tooltip_state_count": "{{count}} {{state}}",
             "tooltip_size": "Piece size: {{size}}"
+        },
+        "pieces_hud": {
+            "labels": {
+                "unavailable_pieces": "Unavailable",
+                "rare_pieces": "Rare",
+                "download": "Download",
+                "upload": "Upload"
+            },
+            "tooltips": {
+                "verified": "Data verified and complete",
+                "missing": "Data remaining to download",
+                "unavailable_pieces": "Pieces not available from any connected source",
+                "rare_pieces": "Pieces available from only one connected source"
+            }
         },
         "files_search_placeholder": "Search files...",
         "files_select_extension": "Select by extension...",

@@ -5,6 +5,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { WindowControlButton } from "@/shared/ui/layout/window-control-button";
@@ -264,16 +265,15 @@ export function Navbar({ viewModel }: NavbarProps) {
 
                     {rehashStatus?.active && (
                         <div className={WORKBENCH.nav.rehashWrap}>
-                            <div className={WORKBENCH.nav.rehashTooltipWrap}>
-                                <SmoothProgressBar
-                                    value={Math.min(Math.max(rehashStatus.value, 0), 100)}
-                                    trackClassName={WORKBENCH.nav.rehashTrack}
-                                    indicatorClassName={WORKBENCH.nav.rehashIndicator}
-                                />
-                                <div className={WORKBENCH.nav.rehashTooltip}>
-                                    {rehashStatus.label}: {Math.round(rehashStatus.value)}%
+                            <AppTooltip content={`${rehashStatus.label}: ${Math.round(rehashStatus.value)}%`}>
+                                <div className={WORKBENCH.nav.rehashTooltipWrap}>
+                                    <SmoothProgressBar
+                                        value={Math.min(Math.max(rehashStatus.value, 0), 100)}
+                                        trackClassName={WORKBENCH.nav.rehashTrack}
+                                        indicatorClassName={WORKBENCH.nav.rehashIndicator}
+                                    />
                                 </div>
-                            </div>
+                            </AppTooltip>
                         </div>
                     )}
                 </div>

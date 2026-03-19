@@ -135,7 +135,7 @@ const GLASS_SEMANTIC_CHROME = {
     footerBorder: GLASS_ROLE_CORE.chrome.edgeTop,
     dialogHeader: `${GLASS_ROLE_CORE.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
     dialogFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
-    workflowFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-end sm:justify-between`,
+    workflowFooter: `${GLASS_ROLE_CORE.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-center sm:justify-between`,
     headerPassive: `${GLASS_ROLE_CORE.chrome.edgeBottom} select-none`,
     footerEnd: `${GLASS_ROLE_CORE.chrome.edgeTop} flex justify-end gap-tools`,
     footerActionsPadded: `${GLASS_ROLE_CORE.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
@@ -395,13 +395,14 @@ const SETTINGS_SLIDER_VALUE_BADGE_STYLE = {
 } as const;
 export const FORM = {
     sectionMarginTop: "mt-panel",
-    sectionContentOffsetStack: "space-y-stage mt-panel",
-    sectionCard: `${SURFACE.surface.panelRaised} p-panel`,
-    sectionCardEmphasized: `${SURFACE.surface.panelWorkflow} p-panel`,
-    sectionTitle: `${TEXT_ROLE.heading} text-foreground/40 mb-panel leading-tight`,
-    sectionTitleTrackingStyle: SETTINGS_TRACKING_STYLE.ultra,
-    sectionDescription: `${TEXT_ROLE.body} mb-panel`,
-    sectionDescriptionTrackingStyle: SETTINGS_TRACKING_STYLE.wide,
+    sectionContentOffsetStack: "space-y-stage",
+    sectionCard: `${SURFACE.surface.panelRaised} overflow-hidden`,
+    sectionCardEmphasized: `${SURFACE.surface.panelWorkflow} overflow-hidden`,
+    sectionHeader: `${SURFACE.chromeEx.headerPassive} bg-background/40 px-panel py-panel`,
+    sectionHeaderStack: "min-w-0 flex flex-col gap-tight",
+    sectionTitle: visuals.typography.headerBase,
+    sectionDescription: TEXT_ROLE.caption,
+    sectionBody: "p-panel",
     sectionContentStack: "space-y-stage",
     bodyStackPanel: "space-y-panel py-panel",
     stackTools: "flex flex-col gap-tools",
@@ -439,14 +440,11 @@ export const FORM = {
     buttonRow: "flex",
     languageRow: "flex items-center justify-between gap-panel",
     interfaceStack: "space-y-stage",
-    interfaceRow: "flex items-start justify-between gap-panel",
+    interfaceRow: "flex items-center justify-between gap-panel",
     interfaceRowInfo: "min-w-0",
-    interfaceRowTitle: withOpacity(TEXT_ROLE.bodyStrong, 80),
     interfaceRowActions: "flex gap-tools shrink-0",
     rawConfigHeader: "flex items-center justify-between gap-panel",
     rawConfigFeedback: "mt-tight",
-    rawConfigTitle: withOpacity(TEXT_ROLE.bodyStrong, 80),
-    rawConfigDescription: withOpacity(TEXT_ROLE.caption, 50),
     rawConfigStatusSuccess: withColor(TEXT_ROLE.caption, "success"),
     rawConfigStatusDanger: withColor(TEXT_ROLE.caption, "danger"),
     rawConfigCode: withOpacity(TEXT_ROLE.code, 80),
@@ -598,6 +596,8 @@ const TORRENT_HEADER = {
 const TABLE_DETAILS_CONTENT_SCROLL_STYLE = (maxHeight: number) => ({
     maxHeight,
 });
+const CONTEXT_STATUS_BADGE =
+    "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight";
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     shellPanel: `relative flex-1 h-full min-h-0 flex flex-col m-px overflow-hidden`,
@@ -641,7 +641,7 @@ export const TABLE = {
     columnHeaderLabelTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
-    columnHeaderPulseIcon: "text-foreground/50 animate-pulse toolbar-icon-size-md",
+    columnHeaderIcon: "text-foreground/50 toolbar-icon-size-md",
     columnDefs: {
         nameCell: "flex min-w-0 items-center h-full",
         nameLabel: `font-medium truncate max-w-full ${transition.fast} cap-height-text`,
@@ -661,6 +661,14 @@ export const TABLE = {
         peersIcon: "opacity-50 text-current",
         peersDivider: "opacity-30",
         peersSeedCount: "opacity-50",
+        statusCellStack: "flex min-w-0 flex-col items-center justify-center gap-tight",
+        statusSwarmBadge: CONTEXT_STATUS_BADGE,
+        statusSwarmBadgeLabel: `${TEXT_ROLE.caption} truncate font-semibold`,
+        statusSwarmTone: {
+            neutral: "text-foreground/65",
+            warning: "text-warning",
+            danger: "text-danger",
+        } as const,
     } as const,
     speedCell: {
         root: "relative w-full h-full min-w-0 min-h-0",
@@ -790,7 +798,6 @@ const WORKBENCH_NAV = {
     rehashTooltipWrap: "relative group cursor-help",
     rehashTrack: "h-track bg-transparent",
     rehashIndicator: "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
-    rehashTooltip: `absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none ${TEXT_ROLE.body} ${visuals.interactive.groupReveal}`,
     windowControls: "hidden md:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
     windowControlsStyle: {
         paddingLeft: 0,
@@ -928,17 +935,21 @@ export const SPLIT = {
     mapStatsTrackingStyle: {
         letterSpacing: "var(--tt-tracking-wide)",
     } as const,
-    mapHud: `flex max-w-[56rem] min-w-0 flex-wrap items-start gap-panel ${MAP_OVERLAY_CARD}`,
-    mapHudStat: "flex min-w-0 flex-col gap-tight",
-    mapHudStatQuiet: "flex min-w-0 flex-col gap-tight opacity-60",
+    mapHud: `flex h-full min-w-0 shrink-0 flex-nowrap items-start gap-panel ${MAP_OVERLAY_CARD}`,
+    mapHudStat: "flex min-w-0 shrink-0 flex-col gap-tight",
+    mapHudStatQuiet: "flex min-w-0 shrink-0 flex-col gap-tight opacity-60",
     mapHudLabel: withOpacity(TEXT_ROLE.caption, 45),
     mapHudValue: TEXT_ROLE.code,
     mapHudValueQuiet: withOpacity(TEXT_ROLE.code, 55),
     mapHudValueWarning: withColor(TEXT_ROLE.code, "warning"),
     mapHudValueDanger: withColor(TEXT_ROLE.code, "danger"),
-    mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel",
+    mapLegendShell: "flex h-full items-stretch gap-panel",
+    mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel self-center",
     mapLegendCell: "flex min-w-0 items-center gap-tight",
     mapLegendCellPlaceholder: "invisible",
+    mapLegendMode: `flex min-w-0 flex-col justify-center gap-tight border-l ${visuals.surface.border} pl-panel`,
+    mapLegendModeLabel: withOpacity(TEXT_ROLE.caption, 45),
+    mapLegendModeValue: TEXT_ROLE.code,
     mapFrame: "relative z-panel flex-1 min-h-0 overflow-hidden mt-panel",
     mapFrameInner: "relative h-full w-full overflow-hidden isolate",
     mapCanvasLayer: "absolute inset-0 block h-full w-full",
@@ -951,8 +962,9 @@ export const SPLIT = {
     mapTooltipSwatch: "inline-block",
     mapLegendItem: "flex items-center gap-tight whitespace-nowrap leading-none min-w-0",
     mapLegendSwatch: "inline-block rounded-panel",
-    mapLegendFloat: `shrink-0 ${MAP_OVERLAY_CARD}`,
-    mapHudDockRow: "flex flex-wrap items-end justify-between gap-panel pb-tight",
+    mapLegendInline: `ml-auto flex h-full shrink-0 ${MAP_OVERLAY_CARD}`,
+    mapLegendBelow: `mt-panel shrink-0 self-end ${MAP_OVERLAY_CARD}`,
+    mapHudDockRow: "flex w-full min-w-0 flex-nowrap items-stretch gap-panel pb-tight",
     mapPanel: "flex flex-col h-full w-full p-tight",
     builder: {
         canvasInteractionStyle: (cursor: string) =>
@@ -1227,8 +1239,18 @@ export const DETAILS = {
     generalMetricValueBlock: `${TEXT_ROLE.bodyStrong} min-w-0`,
     generalMetricMuted: `${TEXT_ROLE.body} text-foreground/55`,
     generalMetricCode: `${TEXT_ROLE.codeMuted} break-all`,
+    generalMetricStack: "flex min-w-0 flex-col gap-tight",
     generalMetricPair: "flex items-center gap-tight text-foreground/75",
     generalMetricActions: "flex shrink-0 items-center gap-tight self-start sm:self-center",
+    generalSectionActionButton:
+        "rounded-panel border border-default/10 bg-content1/20 px-panel py-tight text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0",
+    generalStatusBadge: CONTEXT_STATUS_BADGE,
+    generalStatusBadgeLabel: `${TEXT_ROLE.caption} font-semibold`,
+    generalStatusTone: {
+        neutral: "text-foreground/70",
+        warning: "text-warning",
+        danger: "text-danger",
+    } as const,
     generalCommentValue: `${TEXT_ROLE.body} whitespace-pre-wrap break-words text-foreground/80`,
     generalUnavailable: `${TEXT_ROLE.body} text-foreground/45 italic`,
     generalSummaryName: `${TEXT_ROLE.bodyStrong} truncate`,
@@ -1298,6 +1320,7 @@ export const FORM_CONTROL = {
     checkboxPrimaryClassNames: { wrapper: "after:bg-primary" } as const,
     checkboxMarginRightClassNames: { base: "mr-tight" } as const,
     checkboxLabelBodySmallClassNames: {
+        base: "items-center",
         label: TEXT_ROLE.bodySmall,
     } as const,
     priorityChipClassNames: {
@@ -1306,6 +1329,10 @@ export const FORM_CONTROL = {
     statusChipClassNames: {
         base: STATUS_CHIP_PATTERN.base,
         content: STATUS_CHIP_PATTERN.content,
+    } as const,
+    statusChipMutedPrimaryClassNames: {
+        base: `${STATUS_CHIP_PATTERN.base} border border-primary/18 bg-primary/8 dark:border-primary/22 dark:bg-primary/12`,
+        content: `${STATUS_CHIP_PATTERN.content} text-primary/72 dark:text-primary/62`,
     } as const,
     statusChipContainer: STATUS_CHIP_PATTERN.container,
     statusChipContent: STATUS_CHIP_PATTERN.contentWrap,

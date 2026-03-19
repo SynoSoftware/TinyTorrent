@@ -55,6 +55,31 @@ export type DetailsPieceMapConfig = {
         max: number;
     };
     chunk_interval?: number;
+    hud: {
+        legend_inline_min_width_px: number;
+        field_breakpoints_px: {
+            compact: number;
+            compact_plus: number;
+            summary: number;
+            summary_plus: number;
+            extended: number;
+            wide: number;
+        };
+    };
+    flash: {
+        duration_ms: number;
+        base_alpha: number;
+        per_hit_alpha: number;
+        max_alpha: number;
+        glow_alpha: number;
+        glow_min_size: number;
+        glow_blur: number;
+    };
+};
+
+export type DetailsEtaConfig = {
+    max_seconds: number;
+    min_credible_rate_bps: number;
 };
 
 export type DetailsScatterConfig = {
@@ -87,6 +112,7 @@ export type DetailsSpeedChartConfig = {
 
 export type DetailsVisualizationsConfig = {
     piece_map: DetailsPieceMapConfig;
+    eta: DetailsEtaConfig;
     scatter: DetailsScatterConfig;
     availability_heatmap: DetailsAvailabilityHeatmapConfig;
     speed_chart: DetailsSpeedChartConfig;

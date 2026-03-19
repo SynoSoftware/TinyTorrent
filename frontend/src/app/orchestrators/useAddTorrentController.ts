@@ -18,6 +18,7 @@ import type {
     AddTorrentSelection,
     AddTorrentSource,
 } from "@/modules/torrent-add/types";
+import { resolveAddTorrentFileHandlingDecision } from "@/modules/torrent-add/services/addTorrentModalDecisions";
 import { parseTorrentFile } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
@@ -78,8 +79,10 @@ export interface AddTorrentDefaultsViewModel {
     downloadDir: string;
     commitMode: AddTorrentDefaultsState["commitMode"];
     sequentialDownload: AddTorrentDefaultsState["sequentialDownload"];
+    showAddDialog: boolean;
     setCommitMode: (value: AddTorrentDefaultsState["commitMode"]) => void;
     setSequentialDownload: (value: boolean) => void;
+    setShowAddDialog: (value: boolean) => void;
 }
 
 type AddSubmissionPayload = {
@@ -118,7 +121,7 @@ export function useAddTorrentController({
     const submissionSeqRef = useRef(0);
     const torrentsRef = useRef<Array<Torrent | TorrentDetail>>(torrents);
 
-    const { current } = useDownloadPaths();
+    const { current, remember } = useDownloadPaths();
     const currentDownloadDir = current || settingsConfig.download_dir || "";
 
     const setCommitMode = useCallback(
@@ -141,20 +144,34 @@ export function useAddTorrentController({
         [addTorrentDefaultsState, setAddTorrentDefaults],
     );
 
+    const setShowAddDialog = useCallback(
+        (value: boolean) => {
+            setAddTorrentDefaults({
+                ...addTorrentDefaultsState,
+                showAddDialog: value,
+            });
+        },
+        [addTorrentDefaultsState, setAddTorrentDefaults],
+    );
+
     const addTorrentDefaults = useMemo<AddTorrentDefaultsViewModel>(
         () => ({
             downloadDir: currentDownloadDir,
             commitMode: addTorrentDefaultsState.commitMode,
             sequentialDownload: addTorrentDefaultsState.sequentialDownload,
+            showAddDialog: addTorrentDefaultsState.showAddDialog,
             setCommitMode,
             setSequentialDownload,
+            setShowAddDialog,
         }),
         [
             addTorrentDefaultsState.commitMode,
             addTorrentDefaultsState.sequentialDownload,
+            addTorrentDefaultsState.showAddDialog,
             currentDownloadDir,
             setCommitMode,
             setSequentialDownload,
+            setShowAddDialog,
         ],
     );
 
@@ -200,16 +217,25 @@ export function useAddTorrentController({
                 showInFlightStatus();
                 return;
             }
+            const decision = resolveAddTorrentFileHandlingDecision({
+                showAddDialog: addTorrentDefaultsState.showAddDialog,
+                hasDefaultDownloadDir: currentDownloadDir.trim().length > 0,
+            });
+            if (decision.action === "submit_directly") {
+                void submitFileSourceDirectly(file);
+                return;
+            }
             try {
                 const { parseTorrentFile } =
                     await import("@/shared/utils/torrent");
                 const metadata = await parseTorrentFile(file);
-                setAddSource({
+                const nextSource = {
                     kind: "file",
                     file,
                     metadata,
                     label: metadata.name ?? file.name,
-                });
+                } as const;
+                setAddSource(nextSource);
             } catch {
                 // ignore
             }
@@ -502,6 +528,53 @@ export function useAddTorrentController({
             t,
         ],
     );
+
+    async function submitFileSourceDirectly(
+        file: File,
+    ): Promise<AddTorrentCommandOutcome> {
+        const downloadDir = currentDownloadDir.trim();
+        if (!downloadDir) {
+            showFeedback(
+                t("modals.add_torrent.destination_prompt_invalid"),
+                "warning",
+            );
+            return {
+                status: "invalid_input",
+                reason: "invalid_destination",
+            };
+        }
+
+        const metainfo = await parseTorrentFile(file);
+        if (!metainfo.ok) {
+            showFeedback(t("modals.file_tree_error"), "danger");
+            return { status: "failed", reason: "metainfo_read_failed" };
+        }
+        const startNow = addTorrentDefaultsState.commitMode !== "paused";
+        const submissionOutcome = beginSubmission({
+            label: file.name,
+            sourceName: file.name,
+            failureReason: "add_file_failed",
+            execute: () =>
+                dispatch(
+                    TorrentIntents.addTorrentFromFile(
+                        metainfo.metainfoBase64,
+                        downloadDir,
+                        !startNow,
+                        [],
+                        [],
+                        [],
+                        [],
+                        addTorrentDefaultsState.sequentialDownload,
+                    ),
+                ),
+        });
+
+        if (submissionOutcome.status === "queued") {
+            remember(downloadDir);
+        }
+
+        return submissionOutcome;
+    }
 
     const openAddTorrentPicker = useCallback((): AddTorrentCommandOutcome => {
         if (activeSubmissionRef.current) {

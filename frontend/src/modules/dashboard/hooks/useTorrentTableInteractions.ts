@@ -12,6 +12,10 @@ import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTab
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
+const ROW_DRAG_ACTIVATION_DISTANCE_PX = 12;
+const ROW_TOUCH_DRAG_DELAY_MS = 250;
+const ROW_TOUCH_DRAG_TOLERANCE_PX = 5;
+
 type RowVirtualizerLike = {
     scrollToIndex: (index: number) => void;
 };
@@ -63,9 +67,16 @@ type TorrentTableInteractionsDeps = DragHandlers & {
 // Extracted from `TorrentTable.tsx` and parameterized via a deps object.
 export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) => {
     const sensors = useSensors(
-        useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: ROW_DRAG_ACTIVATION_DISTANCE_PX,
+            },
+        }),
         useSensor(TouchSensor, {
-            activationConstraint: { delay: 250, tolerance: 5 },
+            activationConstraint: {
+                delay: ROW_TOUCH_DRAG_DELAY_MS,
+                tolerance: ROW_TOUCH_DRAG_TOLERANCE_PX,
+            },
         }),
         useSensor(KeyboardSensor)
     );

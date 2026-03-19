@@ -316,6 +316,35 @@ const zTransmissionTorrentPeer = z
         flagStr: peer.flagStr,
     }));
 
+const normalizePeerSourceRecord = (value: unknown) => {
+    if (!value || typeof value !== "object") {
+        return value;
+    }
+    const raw = value as Record<string, unknown>;
+    return {
+        ...raw,
+        fromCache: raw.fromCache ?? raw.from_cache,
+        fromDht: raw.fromDht ?? raw.from_dht,
+        fromIncoming: raw.fromIncoming ?? raw.from_incoming,
+        fromLpd: raw.fromLpd ?? raw.from_lpd,
+        fromLtep: raw.fromLtep ?? raw.from_ltep,
+        fromPex: raw.fromPex ?? raw.from_pex,
+        fromTracker: raw.fromTracker ?? raw.from_tracker,
+    };
+};
+
+const zTransmissionPeerSourceCounts = z
+    .object({
+        fromCache: zRpcOptionalNumberLike,
+        fromDht: zRpcOptionalNumberLike,
+        fromIncoming: zRpcOptionalNumberLike,
+        fromLpd: zRpcOptionalNumberLike,
+        fromLtep: zRpcOptionalNumberLike,
+        fromPex: zRpcOptionalNumberLike,
+        fromTracker: zRpcOptionalNumberLike,
+    })
+    .passthrough();
+
 const normalizePeerRecord = (item: unknown) => {
     if (!item || typeof item !== "object") {
         return item;
@@ -398,6 +427,13 @@ const zTransmissionTorrent = z
         errorString: z.string().optional(),
         peersSendingToUs: z.number().optional(),
         peersGettingFromUs: z.number().optional(),
+        peersFrom: z
+            .preprocess(normalizePeerSourceRecord, zTransmissionPeerSourceCounts)
+            .optional(),
+        desiredAvailable: z.number().optional(),
+        metadataPercentComplete: z.number().optional(),
+        webseedsSendingToUs: z.number().optional(),
+        isStalled: z.boolean().optional(),
         isFinished: z.boolean().optional(),
         "sequential_download": z.boolean().optional(),
         sequentialDownload: z.boolean().optional(),

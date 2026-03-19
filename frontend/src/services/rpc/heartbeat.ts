@@ -498,12 +498,31 @@ export class HeartbeatManager {
         return true;
     }
 
-    private pruneDetailCache(torrents: TorrentEntity[]) {
+    private getActiveDetailIds(
+        subscribers: Iterable<HeartbeatSubscriber> = this.subscribers.values()
+    ) {
+        const activeDetailIds = new Set<string>();
+        for (const { params } of subscribers) {
+            if (params.detailId != null) {
+                activeDetailIds.add(params.detailId);
+            }
+        }
+        return activeDetailIds;
+    }
+
+    private pruneDetailCache(
+        torrents: TorrentEntity[],
+        activeDetailIds: ReadonlySet<string> = this.getActiveDetailIds()
+    ) {
         const existingHashes = new Map<string, string>();
         for (const torrent of torrents) {
             existingHashes.set(torrent.id, torrent.hash);
         }
         for (const [id, entry] of this.detailCache.entries()) {
+            if (!activeDetailIds.has(id)) {
+                this.detailCache.delete(id);
+                continue;
+            }
             const hash = existingHashes.get(id);
             if (!hash || hash !== entry.hash) {
                 this.detailCache.delete(id);
@@ -525,6 +544,11 @@ export class HeartbeatManager {
         this.rescheduleLoop();
         if (!this.hasInitialData()) {
             void this.triggerImmediateTick(true);
+        } else if (params.mode === "detail" && params.detailId != null) {
+            // Detail views are user-facing and must converge immediately when
+            // opened. Always force a fresh detail read instead of trusting the
+            // cache to be complete enough for the newly opened surface.
+            void this.triggerImmediateTick(true);
         } else if (!this.hasUsableCachedDetail(params)) {
             void this.triggerImmediateTick(true);
         }
@@ -536,8 +560,19 @@ export class HeartbeatManager {
     private unsubscribe(id: symbol) {
         this.subscribers.delete(id);
         if (this.subscribers.size === 0) {
+            this.detailCache.clear();
             this.clearTimer();
             return;
+        }
+        if (this.lastTorrents) {
+            this.pruneDetailCache(this.lastTorrents);
+        } else {
+            const activeDetailIds = this.getActiveDetailIds();
+            for (const detailId of Array.from(this.detailCache.keys())) {
+                if (!activeDetailIds.has(detailId)) {
+                    this.detailCache.delete(detailId);
+                }
+            }
         }
         this.rescheduleLoop();
     }
@@ -770,6 +805,7 @@ export class HeartbeatManager {
 
         if (this.subscribers.size === 0) return;
         const snapshot = Array.from(this.subscribers.values());
+        const activeDetailIds = this.getActiveDetailIds(snapshot);
         const detailRequestMap = new Map<string, DetailFetchRequest>();
         for (const { params } of snapshot) {
             const detailId = params.detailId;
@@ -1161,7 +1197,7 @@ export class HeartbeatManager {
                     }
                 }
                 this.lastTorrentHash = currentHash;
-                this.pruneDetailCache(torrents);
+                this.pruneDetailCache(torrents, activeDetailIds);
             }
             if (!torrents || !sessionStats) {
                 return;
@@ -1202,6 +1238,10 @@ export class HeartbeatManager {
                         detail,
                     });
                 }
+            }
+
+            if (torrents) {
+                this.pruneDetailCache(torrents, activeDetailIds);
             }
 
             const timestampMs = Date.now();

@@ -7,7 +7,6 @@ import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel"
 import type {
     TorrentDetailEntity,
     TorrentPeerEntity,
-    TorrentTrackerEntity,
 } from "@/services/rpc/entities";
 import { commandOutcome } from "@/app/context/AppCommandContext";
 
@@ -72,23 +71,29 @@ vi.mock("@/modules/dashboard/components/TorrentDetails_Speed", () => ({
 
 vi.mock("@/modules/dashboard/components/TorrentDetails_Trackers", () => ({
     TrackersTab: ({
-        trackers,
-        emptyMessage,
-        commands,
+        viewModel,
     }: {
-        trackers: TorrentTrackerEntity[];
-        emptyMessage: string;
-        commands: DashboardDetailViewModel["tabs"]["trackers"];
+        viewModel: {
+            labels: {
+                emptyMessage: string;
+            };
+            data: {
+                rows: Array<{
+                    announce: string;
+                }>;
+            };
+        };
     }) =>
         createElement(
             "div",
             {
                 "data-testid": "trackers-surface",
-                "data-torrent-id": String(commands.torrentId ?? ""),
             },
-            trackers.length > 0
-                ? trackers.map((tracker) => tracker.announce).join(",")
-                : emptyMessage,
+            viewModel.data.rows.length > 0
+                ? viewModel.data.rows
+                      .map((tracker) => tracker.announce)
+                      .join(",")
+                : viewModel.labels.emptyMessage,
         ),
 }));
 
@@ -166,6 +171,29 @@ function CoordinatorHarness({
     return createElement("div", null, coordinator.activeSurface);
 }
 
+function HeaderActionsHarness({
+    viewModel,
+}: {
+    viewModel: DashboardDetailViewModel;
+}) {
+    const coordinator = useTorrentDetailTabCoordinator({
+        viewModel,
+        isStandalone: false,
+        isDetailFullscreen: false,
+    });
+
+    return createElement(
+        "div",
+        { "data-testid": "header-actions" },
+        coordinator.headerActions
+            .map(
+                (action) =>
+                    `${action.ariaLabel}:${action.icon.displayName ?? action.icon.name ?? "unknown"}`,
+            )
+            .join("|"),
+    );
+}
+
 describe("useTorrentDetailTabCoordinator trackers tab", () => {
     afterEach(() => {
         document.body.innerHTML = "";
@@ -208,6 +236,49 @@ describe("useTorrentDetailTabCoordinator trackers tab", () => {
 
             expect(container.textContent).toContain(
                 "https://tracker.example/announce",
+            );
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("derives trackers header actions in the coordinator without child registration", () => {
+        const detail = {
+            ...makeDetail(),
+            trackers: [
+                {
+                    announce: "https://tracker.example/announce",
+                    tier: 0,
+                    lastAnnounceTime: 0,
+                    lastAnnounceResult: "",
+                    lastAnnounceSucceeded: false,
+                    lastScrapeTime: 0,
+                    lastScrapeResult: "",
+                    lastScrapeSucceeded: false,
+                    seederCount: 0,
+                    leecherCount: 0,
+                },
+            ],
+        } satisfies TorrentDetailEntity;
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(HeaderActionsHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toContain(
+                "torrent_modal.trackers.add_action:Plus",
+            );
+            expect(container.textContent).toContain(
+                "torrent_modal.trackers.reannounce_action:RefreshCcw",
+            );
+            expect(container.textContent).toContain(
+                "torrent_modal.trackers.copy_all_action:Copy",
             );
         } finally {
             root.unmount();
@@ -357,5 +428,63 @@ describe("useTorrentDetailTabCoordinator peers tab", () => {
         document.body.innerHTML = "";
         setInspectorTabMock.mockReset();
         inspectorTabMock = "peers";
+    });
+});
+
+describe("useTorrentDetailTabCoordinator pieces tab header actions", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+        setInspectorTabMock.mockReset();
+        inspectorTabMock = "pieces";
+    });
+
+    it("shows visibility and sequential toggle actions when sequential download is supported", () => {
+        inspectorTabMock = "pieces";
+        const detail = {
+            ...makeDetail(),
+            sequentialDownload: true,
+        } satisfies TorrentDetailEntity;
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(HeaderActionsHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toContain("torrent_modal.piece_map.hide_hud");
+            expect(container.textContent).toContain("torrent_modal.piece_map.switch_to_random");
+            expect(container.textContent).toContain("Shuffle");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("omits the sequential toggle when the capability is unsupported", () => {
+        inspectorTabMock = "pieces";
+        const detail = {
+            ...makeDetail(),
+            sequentialDownload: false,
+        } satisfies TorrentDetailEntity;
+        const viewModel = createViewModel(detail);
+        viewModel.tabs.general.sequentialDownloadCapability = "unsupported";
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(HeaderActionsHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toContain("torrent_modal.piece_map.hide_hud");
+            expect(container.textContent).not.toContain("sequential_download");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
     });
 });

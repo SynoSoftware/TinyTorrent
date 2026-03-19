@@ -2,8 +2,10 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { TFunction } from "i18next";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
+import { registry } from "@/config/logic";
+import { resetTorrentStatusRuntimeState } from "@/modules/dashboard/utils/torrentStatus";
 import type { TorrentEntity } from "@/services/rpc/entities";
 import { status } from "@/shared/status";
 
@@ -21,6 +23,10 @@ vi.mock("@/shared/ui/components/StatusIcon", () => ({
 }));
 
 const t = ((key: string) => key) as unknown as TFunction;
+const stalledObservationWindowMs =
+    registry.timing.ui.stalledActivityHistoryWindow *
+    registry.timing.heartbeat.detailMs;
+const startupGraceMs = registry.timing.ui.startupStalledGraceMs;
 
 const makeTorrent = (
     overrides: Partial<TorrentEntity> = {},
@@ -54,7 +60,15 @@ const makeTableMeta = (torrentId: string, history: Array<number | null>) =>
     }) as never;
 
 describe("TorrentTable_StatusCell", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-03-18T12:00:00Z"));
+        resetTorrentStatusRuntimeState();
+    });
+
     afterEach(() => {
+        resetTorrentStatusRuntimeState();
+        vi.useRealTimers();
         document.body.innerHTML = "";
     });
 
@@ -89,7 +103,7 @@ describe("TorrentTable_StatusCell", () => {
         }
     });
 
-    it("uses loader for idle seeding with stalled overlay", () => {
+    it("uses the idle seeding visual without marking the torrent stalled", () => {
         const torrent = makeTorrent({
             state: status.torrent.seeding,
         });
@@ -107,6 +121,20 @@ describe("TorrentTable_StatusCell", () => {
                             torrent.id,
                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         ),
+                        }),
+                );
+            });
+            vi.advanceTimersByTime(stalledObservationWindowMs);
+            flushSync(() => {
+                root.render(
+                    createElement(TorrentTable_StatusCell, {
+                        torrent,
+                        t,
+                        table: makeTableMeta(
+                            torrent.id,
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        ),
+                        optimisticStatus: undefined,
                     }),
                 );
             });
@@ -116,13 +144,14 @@ describe("TorrentTable_StatusCell", () => {
                     "data-icon",
                 ),
             ).toBe("Loader");
+            expect(container.textContent).toContain("table.status_seed");
         } finally {
             root.unmount();
             container.remove();
         }
     });
 
-    it("keeps wifi-off for stalled downloads", () => {
+    it("uses loader during startup connecting grace for idle downloads", () => {
         const torrent = makeTorrent({
             state: status.torrent.downloading,
         });
@@ -148,10 +177,58 @@ describe("TorrentTable_StatusCell", () => {
                 container.querySelector("[data-testid='status-icon']")?.getAttribute(
                     "data-icon",
                 ),
+            ).toBe("Loader");
+            expect(container.textContent).toContain("labels.status.torrent.connecting");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("keeps wifi-off for stalled downloads", () => {
+        const torrent = makeTorrent({
+            state: status.torrent.downloading,
+        });
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(
+                    createElement(TorrentTable_StatusCell, {
+                        torrent,
+                        t,
+                        table: makeTableMeta(
+                            torrent.id,
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        ),
+                        }),
+                );
+            });
+            vi.advanceTimersByTime(startupGraceMs + stalledObservationWindowMs);
+            flushSync(() => {
+                root.render(
+                    createElement(TorrentTable_StatusCell, {
+                        torrent,
+                        t,
+                        table: makeTableMeta(
+                            torrent.id,
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        ),
+                    }),
+                );
+            });
+
+            expect(
+                container.querySelector("[data-testid='status-icon']")?.getAttribute(
+                    "data-icon",
+                ),
             ).toBe("WifiOff");
         } finally {
             root.unmount();
             container.remove();
         }
     });
+
 });

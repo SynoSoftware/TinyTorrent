@@ -4,6 +4,7 @@ export type TorrentHeadlineFieldId =
     | "name"
     | "progress"
     | "status"
+    | "health"
     | "queue"
     | "eta"
     | "speed"
@@ -45,6 +46,9 @@ export const torrentHeadlineFields = {
     status: defineField("status", ["table", "summary"], {
         tableLabelKey: "table.header_status",
         summaryLabelKey: "torrent_modal.general.fields.status",
+    }),
+    health: defineField("health", ["table"], {
+        tableLabelKey: "table.header_health",
     }),
     queue: defineField("queue", ["table", "summary"], {
         tableLabelKey: "table.header_queue",

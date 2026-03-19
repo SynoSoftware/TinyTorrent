@@ -4,6 +4,7 @@ import {
     Checkbox,
 } from "@heroui/react";
 import { Trash2, type LucideIcon } from "lucide-react";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
@@ -32,6 +33,10 @@ export function RemoveConfirmationModal({
 }: RemoveConfirmationModalProps) {
     const { t } = useTranslation();
     const deleteConfirmation = useDeleteConfirmationContextOptional();
+    const {
+        preferences: { removeTorrentDefaults },
+        updatePreferences,
+    } = usePreferences();
     const [deleteData, setDeleteData] = useState(defaultDeleteData);
     const [loading, setLoading] = useState(false);
 
@@ -39,7 +44,8 @@ export function RemoveConfirmationModal({
     const resolvedTorrentCount =
         torrentCount ?? deleteConfirmation?.pendingDelete?.torrents.length ?? 0;
     const resolvedDefaultDeleteData =
-        deleteConfirmation?.pendingDelete?.deleteData ?? defaultDeleteData;
+        deleteConfirmation?.pendingDelete?.deleteData ??
+        removeTorrentDefaults.deleteData;
     const resolvedOnClose = useMemo(
         () => onClose ?? deleteConfirmation?.clearPendingDelete ?? (() => {}),
         [deleteConfirmation?.clearPendingDelete, onClose],
@@ -78,6 +84,18 @@ export function RemoveConfirmationModal({
     useEffect(() => {
         if (resolvedIsOpen) setDeleteData(resolvedDefaultDeleteData);
     }, [resolvedDefaultDeleteData, resolvedIsOpen]);
+
+    const handleDeleteDataChange = React.useCallback(
+        (value: boolean) => {
+            setDeleteData(value);
+            updatePreferences({
+                removeTorrentDefaults: {
+                    deleteData: value,
+                },
+            });
+        },
+        [updatePreferences],
+    );
 
     const handleConfirm = React.useCallback(async () => {
         if (loading) return;
@@ -150,7 +168,7 @@ export function RemoveConfirmationModal({
 
                 <Checkbox
                     isSelected={deleteData}
-                    onValueChange={setDeleteData}
+                    onValueChange={handleDeleteDataChange}
                     classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
                 >
                     {t("remove_modal.delete_files_option")}

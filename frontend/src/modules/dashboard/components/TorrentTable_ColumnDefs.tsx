@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 // FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
 
-import { Tooltip, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
     FileText, // name
@@ -26,10 +26,17 @@ import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import { getTorrentEtaSortValue, getTorrentEtaTableDisplay } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
+import { TorrentTable_HealthCell } from "@/modules/dashboard/components/TorrentTable_HealthColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
-import { SURFACE, TABLE } from "@/shared/ui/layout/glass-surface";
+import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
+import {
+    deriveTorrentDisplayHealth,
+    getTorrentSwarmSortValue,
+} from "@/modules/dashboard/utils/torrentSwarm";
+import { getStatusSpeedHistory } from "@/modules/dashboard/utils/torrentStatus";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 const { layout } = registry;
 
 // --- TYPES ---
@@ -37,6 +44,7 @@ export type ColumnId =
     | "name"
     | "progress"
     | "status"
+    | "health"
     | "queue"
     | "eta"
     | "speed"
@@ -67,7 +75,7 @@ export interface ColumnDefinition {
     minSize?: number;
     align?: "start" | "center" | "end";
     sortable?: boolean;
-    sortAccessor?: (torrent: Torrent) => number | string;
+    sortAccessor?: (torrent: Torrent, meta?: DashboardTableMeta) => number | string;
     rpcField?: keyof Torrent;
     defaultVisible?: boolean;
     isRequired?: boolean;
@@ -130,16 +138,29 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: FileText,
         render: ({ torrent }) => (
             <div className={TABLE.columnDefs.nameCell}>
-                <span
-                    title={torrent.errorString ? torrent.errorString : undefined}
-                    className={cn(
-                        TABLE.columnDefs.nameLabel,
-                        layout.table.fontSize,
-                        torrent.state === status.torrent.paused && TABLE.columnDefs.nameLabelPaused,
-                    )}
-                >
-                    {torrent.name}
-                </span>
+                {torrent.errorString ? (
+                    <AppTooltip content={torrent.errorString}>
+                        <span
+                            className={cn(
+                                TABLE.columnDefs.nameLabel,
+                                layout.table.fontSize,
+                                torrent.state === status.torrent.paused && TABLE.columnDefs.nameLabelPaused,
+                            )}
+                        >
+                            {torrent.name}
+                        </span>
+                    </AppTooltip>
+                ) : (
+                    <span
+                        className={cn(
+                            TABLE.columnDefs.nameLabel,
+                            layout.table.fontSize,
+                            torrent.state === status.torrent.paused && TABLE.columnDefs.nameLabelPaused,
+                        )}
+                    >
+                        {torrent.name}
+                    </span>
+                )}
             </div>
         ),
     },
@@ -152,7 +173,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         rpcField: "progress",
         defaultVisible: true,
-        sortAccessor: getEffectiveProgress,
+        sortAccessor: (torrent, meta) =>
+            getEffectiveProgress(
+                torrent,
+                meta?.optimisticStatuses[torrent.id],
+            ),
         headerIcon: Percent,
         render: ({ torrent, optimisticStatus }) => (
             <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />
@@ -171,6 +196,35 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Activity,
         render: ({ torrent, t, optimisticStatus, table }) => (
             <TorrentTable_StatusCell
+                torrent={torrent}
+                table={table}
+                t={t}
+                optimisticStatus={optimisticStatus}
+            />
+        ),
+    },
+
+    health: {
+        id: "health",
+        labelKey: "table.header_health",
+        width: 110,
+        minSize: 95,
+        sortable: true,
+        descriptionKey: "table.column_desc_health",
+        sortAccessor: (torrent, meta) =>
+            getTorrentSwarmSortValue(
+                deriveTorrentDisplayHealth(
+                    torrent,
+                    meta?.optimisticStatuses[torrent.id],
+                    getStatusSpeedHistory(
+                        torrent,
+                        meta?.speedHistoryRef.current[torrent.id],
+                    ),
+                ),
+            ),
+        headerIcon: Network,
+        render: ({ torrent, t, table, optimisticStatus }) => (
+            <TorrentTable_HealthCell
                 torrent={torrent}
                 table={table}
                 t={t}
@@ -208,9 +262,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent, t }) => {
             const eta = getTorrentEtaTableDisplay(torrent, t);
             return (
-                <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)} title={eta.tooltip}>
-                    {eta.value}
-                </span>
+                <AppTooltip content={eta.tooltip}>
+                    <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}>
+                        {eta.value}
+                    </span>
+                </AppTooltip>
             );
         },
     },
@@ -259,15 +315,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             ];
 
             return (
-                <Tooltip
-                    content={renderTooltipLines(tooltipLines)}
-                    classNames={SURFACE.tooltip}
-                    delay={500}
-                >
+                <AppTooltip content={renderTooltipLines(tooltipLines)}>
                     <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
                         {torrent.peerSummary.connected}
                     </span>
-                </Tooltip>
+                </AppTooltip>
             );
         },
     },
@@ -313,9 +365,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.added,
         headerIcon: Clock,
         render: ({ torrent }) => (
-            <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)} title={formatDate(torrent.added)}>
-                {formatRelativeTime(torrent.added)}
-            </span>
+            <AppTooltip content={formatDate(torrent.added)}>
+                <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
+                    {formatRelativeTime(torrent.added)}
+                </span>
+            </AppTooltip>
         ),
     },
 };
@@ -324,6 +378,7 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "name",
     "progress",
     "status",
+    "health",
     "queue",
     "eta",
     "speed",
@@ -333,6 +388,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "added",
 ];
 
-export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "queue", "speed", "peers", "size"];
+export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "health", "queue", "speed", "peers", "size"];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(TORRENTTABLE_COLUMN_DEFS) as ColumnId[];

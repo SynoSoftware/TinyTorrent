@@ -124,12 +124,14 @@ const TorrentTable_Header = memo(
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         const shouldAnimateLayout =
             !isAnimationSuppressed && !isDragging && !isOverlay;
+        const headerLayoutId =
+            shouldAnimateLayout ? `column-header-${header.id}` : undefined;
 
         return (
             <motion.div
                 ref={setNodeRef}
                 layout={shouldAnimateLayout ? "position" : false}
-                layoutId={`column-header-${header.id}`}
+                layoutId={headerLayoutId}
                 initial={false}
                 style={style}
                 role="columnheader"

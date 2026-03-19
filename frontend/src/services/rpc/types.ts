@@ -1,5 +1,15 @@
 export type RpcTorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
+export interface TransmissionPeerSourceCounts {
+    fromCache?: number;
+    fromDht?: number;
+    fromIncoming?: number;
+    fromLpd?: number;
+    fromLtep?: number;
+    fromPex?: number;
+    fromTracker?: number;
+}
+
 export interface TransmissionTorrent {
     id: number;
     hashString: string;
@@ -29,6 +39,11 @@ export interface TransmissionTorrent {
     errorString?: string;
     peersSendingToUs?: number;
     peersGettingFromUs?: number;
+    peersFrom?: TransmissionPeerSourceCounts;
+    desiredAvailable?: number;
+    metadataPercentComplete?: number;
+    webseedsSendingToUs?: number;
+    isStalled?: boolean;
     isFinished?: boolean;
     "sequential_download"?: boolean;
     sequentialDownload?: boolean;

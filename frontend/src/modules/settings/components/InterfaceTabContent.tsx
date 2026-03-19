@@ -7,7 +7,7 @@ import {
 } from "@/modules/settings/context/SettingsFormContext";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
-import { TEXT_ROLE } from "@/config/textRoles";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 
 export function InterfaceTabContent() {
@@ -18,7 +18,9 @@ export function InterfaceTabContent() {
         interfaceTab: {
             isImmersive,
             hasDismissedInsights,
+            showAddTorrentDialog,
             onToggleWorkspaceStyle,
+            setShowAddTorrentDialog,
         },
     } = useSettingsFormActions();
 
@@ -30,12 +32,11 @@ export function InterfaceTabContent() {
                 <div className={FORM.interfaceStack}>
                     <div className={FORM.interfaceRow}>
                         <div className={FORM.interfaceRowInfo}>
-                            <p className={FORM.interfaceRowTitle}>
-                                {t("settings.labels.shellStyle")}
-                            </p>
-                            <p className={TEXT_ROLE.caption}>
-                                {t("settings.descriptions.shellStyle")}
-                            </p>
+                            <AppTooltip content={t("settings.descriptions.shellStyle")}>
+                                <span className={FORM.systemRowLabel}>
+                                    {t("settings.labels.shellStyle")}
+                                </span>
+                            </AppTooltip>
                         </div>
                         <div className={FORM.interfaceRowActions}>
                             <Button
@@ -68,12 +69,11 @@ export function InterfaceTabContent() {
                     {isImmersive && hasDismissedInsights && (
                         <div className={FORM.interfaceRow}>
                             <div className={FORM.interfaceRowInfo}>
-                                <p className={FORM.interfaceRowTitle}>
-                                    {t("settings.buttons.restore_hud")}
-                                </p>
-                                <p className={TEXT_ROLE.caption}>
-                                    {t("settings.descriptions.restore_hud")}
-                                </p>
+                                <AppTooltip content={t("settings.descriptions.restore_hud")}>
+                                    <span className={FORM.systemRowLabel}>
+                                        {t("settings.buttons.restore_hud")}
+                                    </span>
+                                </AppTooltip>
                             </div>
                             <Button
                                 size="md"
@@ -90,44 +90,57 @@ export function InterfaceTabContent() {
 
             <SettingsSection
                 title={t("settings.sections.visuals")}
-                description={t("settings.descriptions.table_watermark")}
                 className={FORM.sectionMarginTop}
             >
-                <div className={FORM.switchRow}>
-                    <span className={FORM.systemRowLabel}>
-                        {t("settings.labels.tableWatermark")}
-                    </span>
-                    <Switch
-                        size="md"
-                        isSelected={config.table_watermark_enabled}
-                        onValueChange={(val) =>
-                            updateConfig("table_watermark_enabled", val)
-                        }
-                    />
+                <div className={FORM.blockStackTight}>
+                    <div className={FORM.switchRow}>
+                        <AppTooltip content={t("settings.descriptions.table_watermark")}>
+                            <span className={FORM.systemRowLabel}>
+                                {t("settings.labels.tableWatermark")}
+                            </span>
+                        </AppTooltip>
+                        <Switch
+                            size="md"
+                            isSelected={config.table_watermark_enabled}
+                            onValueChange={(val) =>
+                                updateConfig("table_watermark_enabled", val)
+                            }
+                        />
+                    </div>
+                    <div className={FORM.switchRow}>
+                        <AppTooltip content={t("settings.descriptions.showAddTorrentDialog")}>
+                            <span className={FORM.systemRowLabel}>
+                                {t("settings.labels.showAddTorrentDialog")}
+                            </span>
+                        </AppTooltip>
+                        <Switch
+                            size="md"
+                            isSelected={showAddTorrentDialog}
+                            onValueChange={(value) =>
+                                setShowAddTorrentDialog?.(value)
+                            }
+                            isDisabled={!setShowAddTorrentDialog}
+                        />
+                    </div>
                 </div>
             </SettingsSection>
 
             <SettingsSection
                 title={t("settings.sections.localization")}
-                description={t("settings.descriptions.language")}
                 className={FORM.sectionMarginTop}
             >
                 <div className={FORM.languageRow}>
-                    <div>
-                        <span className={FORM.interfaceRowTitle}>
+                    <AppTooltip content={t("settings.descriptions.language")}>
+                        <span className={FORM.systemRowLabel}>
                             {t("settings.labels.language")}
                         </span>
-                        <p className={TEXT_ROLE.caption}>
-                            {t("settings.descriptions.language_helper")}
-                        </p>
-                    </div>
+                    </AppTooltip>
                     <LanguageMenu />
                 </div>
             </SettingsSection>
 
             <SettingsSection
                 title={t("settings.sections.advanced")}
-                description={t("settings.descriptions.config_export")}
                 className={FORM.sectionMarginTop}
             >
                 <RawConfigRenderer

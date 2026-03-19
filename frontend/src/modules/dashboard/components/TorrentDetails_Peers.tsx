@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { Tooltip, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import { flexRender } from "@tanstack/react-table";
 import {
     ArrowDown,
@@ -14,6 +14,7 @@ import {
     UserPlus,
 } from "lucide-react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { CONTEXT_MENU, DETAILS, MODAL, SURFACE } from "@/shared/ui/layout/glass-surface";
 import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
@@ -32,7 +33,6 @@ interface PeersTabProps {
 }
 
 const PEER_COLUMN_WIDTHS = ["15%", "6%", "8%", "21%", "18%", "7%", "7%", "7%", "6%", "5%"] as const;
-const TOOLTIP_DELAY = 500;
 
 const PEER_COLUMN_ALIGN_END = new Set(["port", "progress", "down", "up", "downloaded", "uploaded"]);
 
@@ -58,9 +58,9 @@ const renderTooltipLines = (value: string) => (
 );
 
 const TruncatedTooltipText = ({ value, className }: { value: string; className?: string }) => (
-    <Tooltip content={value} classNames={SURFACE.tooltip} delay={TOOLTIP_DELAY}>
+    <AppTooltip content={value} dense>
         <span className={cn("block truncate", className)}>{value}</span>
-    </Tooltip>
+    </AppTooltip>
 );
 
 const StateCell = ({ label, ariaLabel, tooltip }: { label: string; ariaLabel: string; tooltip: string }) => {
@@ -81,9 +81,9 @@ const StateCell = ({ label, ariaLabel, tooltip }: { label: string; ariaLabel: st
     }
 
     return (
-        <Tooltip content={renderTooltipLines(tooltip)} classNames={SURFACE.tooltip} delay={TOOLTIP_DELAY}>
+        <AppTooltip content={renderTooltipLines(tooltip)} dense>
             {content}
-        </Tooltip>
+        </AppTooltip>
     );
 };
 
@@ -200,10 +200,9 @@ export const PeersTab = ({
                                             {row.port > 0 ? String(row.port) : "-"}
                                         </td>
                                         <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
-                                            <Tooltip
+                                            <AppTooltip
                                                 content={renderTooltipLines(row.connectionTooltip)}
-                                                classNames={SURFACE.tooltip}
-                                                delay={TOOLTIP_DELAY}
+                                                dense
                                             >
                                                 <span
                                                     className={cn(
@@ -242,7 +241,7 @@ export const PeersTab = ({
                                                         />
                                                     ) : null}
                                                 </span>
-                                            </Tooltip>
+                                            </AppTooltip>
                                         </td>
                                         <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
                                             <StateCell

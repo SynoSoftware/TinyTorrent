@@ -17,6 +17,10 @@ export interface AddTorrentDestinationDecision {
     showDestinationGate: boolean;
 }
 
+export interface AddTorrentFileHandlingDecision {
+    action: "open_modal" | "submit_directly";
+}
+
 export const resolveAddTorrentResolvedState = ({
     source,
     fileCount,
@@ -89,6 +93,20 @@ export const resolveAddTorrentSubmissionDecision = ({
     return {
         canConfirm,
     };
+};
+
+export const resolveAddTorrentFileHandlingDecision = ({
+    showAddDialog,
+    hasDefaultDownloadDir,
+}: {
+    showAddDialog: boolean;
+    hasDefaultDownloadDir: boolean;
+}): AddTorrentFileHandlingDecision => {
+    if (showAddDialog || !hasDefaultDownloadDir) {
+        return { action: "open_modal" };
+    }
+
+    return { action: "submit_directly" };
 };
 
 export const resolveAddTorrentModalSize = ({

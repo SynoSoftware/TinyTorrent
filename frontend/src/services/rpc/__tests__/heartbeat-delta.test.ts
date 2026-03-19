@@ -239,15 +239,15 @@ describe("HeartbeatManager delta integration", () => {
         sub.unsubscribe();
     });
 
-    it("ignores presentation-only stalled values for full-fetch selection", async () => {
-        const stalledTorrent = {
+    it("forces a full summary fetch for idle downloading torrents", async () => {
+        const idleTorrent = {
             ...makeTorrent("1"),
-            state: "stalled" as const,
+            state: "downloading" as const,
         };
         const client: HeartbeatClientLike = {
             getTorrents: vi
                 .fn<() => Promise<TorrentEntity[]>>()
-                .mockResolvedValue([stalledTorrent]),
+                .mockResolvedValue([idleTorrent]),
             getSessionStats: vi
                 .fn<() => Promise<SessionStats>>()
                 .mockResolvedValue({
@@ -256,7 +256,7 @@ describe("HeartbeatManager delta integration", () => {
                 }),
             getTorrentDetails: vi
                 .fn<(id: string) => Promise<TorrentDetailEntity>>()
-                .mockResolvedValue(stalledTorrent),
+                .mockResolvedValue(idleTorrent),
             getRecentlyActive: vi
                 .fn<
                     () => Promise<{
@@ -264,7 +264,7 @@ describe("HeartbeatManager delta integration", () => {
                         removed?: number[];
                     }>
                 >()
-                .mockResolvedValue({ torrents: [stalledTorrent], removed: [] }),
+                .mockResolvedValue({ torrents: [idleTorrent], removed: [] }),
         };
 
         const hb = new HeartbeatManager(client);
@@ -291,8 +291,8 @@ describe("HeartbeatManager delta integration", () => {
 
         await hbInternals.tick();
 
-        expect(client.getTorrents).toHaveBeenCalledTimes(1);
-        expect(client.getRecentlyActive).toHaveBeenCalledTimes(1);
+        expect(client.getTorrents).toHaveBeenCalledTimes(2);
+        expect(client.getRecentlyActive).toHaveBeenCalledTimes(0);
 
         sub.unsubscribe();
     });

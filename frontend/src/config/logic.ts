@@ -50,8 +50,7 @@ const defaultLayoutDetails = {
 const runtime = {
     nativeHost:
         import.meta.env.VITE_INTERNAL_MODE === "true" ||
-        (typeof window !== "undefined" &&
-            !!(window as NativeHostWindow).__TINY_TORRENT_NATIVE__),
+        (typeof window !== "undefined" && !!(window as NativeHostWindow).__TINY_TORRENT_NATIVE__),
 } as const;
 
 const {
@@ -79,8 +78,7 @@ const defaultDefaults = {
 
 const nonEmpty = (value: unknown, fallback: string) =>
     typeof value === "string" && value.trim().length > 0 ? value : fallback;
-const n = (configKey: string, fallback: number) =>
-    ({ configKey, fallback }) as const;
+const n = (configKey: string, fallback: number) => ({ configKey, fallback }) as const;
 
 const performanceSchema = {
     historyDataPoints: n("history_data_points", 60),
@@ -94,6 +92,17 @@ const performanceSchema = {
 const defaultUi = {
     toast_display_duration_ms: 3000,
     stalled_activity_history_window: 10,
+    startup_stalled_grace_ms: 60000,
+} as const;
+const defaultTooltipUi = {
+    delay_ms: 500,
+    dense_delay_ms: 900,
+    close_delay_ms: 100,
+    offset_px: 10,
+    dense_offset_px: 12,
+    scroll_suppression_ms: 240,
+    pointer_suppression_ms: 360,
+    context_menu_suppression_ms: 900,
 } as const;
 
 const defaultHeartbeats = {
@@ -125,10 +134,7 @@ const defaultTimers = {
 
 const defaults = {
     rpcEndpoint: nonEmpty(defaultsConfig.rpc_endpoint, defaultDefaults.rpc_endpoint),
-    magnetProtocolPrefix: nonEmpty(
-        defaultsConfig.magnet_protocol_prefix,
-        defaultDefaults.magnet_protocol_prefix,
-    ),
+    magnetProtocolPrefix: nonEmpty(defaultsConfig.magnet_protocol_prefix, defaultDefaults.magnet_protocol_prefix),
     downloadPathHistoryLimit: Math.max(
         1,
         Math.floor(
@@ -138,16 +144,10 @@ const defaults = {
     ),
 } as const;
 
-const resolvedPerformanceRaw = readNumberDomainFromSchema(
-    performanceConfig,
-    performanceSchema,
-);
+const resolvedPerformanceRaw = readNumberDomainFromSchema(performanceConfig, performanceSchema);
 const resolvedPerformance = {
     ...resolvedPerformanceRaw,
-    bulkResumeConcurrency: Math.max(
-        1,
-        Math.floor(resolvedPerformanceRaw.bulkResumeConcurrency),
-    ),
+    bulkResumeConcurrency: Math.max(1, Math.floor(resolvedPerformanceRaw.bulkResumeConcurrency)),
 } as const;
 
 // --- SHELL (Classic / Immersive) ---
@@ -222,30 +222,20 @@ const resolveShellDomain = () => {
 
     // Back-compat: older config had layout.shell as the classic shell object.
     const legacyShellLooksClassic =
-        "outer_radius" in shellConfig ||
-        "panel_gap" in shellConfig ||
-        "ring_padding" in shellConfig;
+        "outer_radius" in shellConfig || "panel_gap" in shellConfig || "ring_padding" in shellConfig;
 
-    const classicShellConfig = legacyShellLooksClassic
-        ? shellConfig
-        : asRecord(shellConfig.classic);
+    const classicShellConfig = legacyShellLooksClassic ? shellConfig : asRecord(shellConfig.classic);
 
     const immersiveShellConfig = asRecord(shellConfig.immersive);
 
-    const classicShellResolved = readNumberDomainFromSchema(
-        classicShellConfig,
-        classicShellSchema,
-    );
+    const classicShellResolved = readNumberDomainFromSchema(classicShellConfig, classicShellSchema);
 
     // Classic shell metrics (default for shared layout)
     const classicOuterRadius = classicShellResolved.outerRadius;
     const classicRingPadding = classicShellResolved.ringPadding;
     const classicPanelGap = classicShellResolved.panelGap;
     const classicHandleHitArea = classicShellResolved.handleHitArea;
-    const classicInnerRadius = Math.max(
-        0,
-        classicOuterRadius - classicRingPadding,
-    );
+    const classicInnerRadius = Math.max(0, classicOuterRadius - classicRingPadding);
     const classicInsetRadius = Math.max(0, classicInnerRadius - classicPanelGap);
 
     // Immersive shell metrics
@@ -254,22 +244,13 @@ const resolveShellDomain = () => {
         readOptionalNumber(immersiveShellConfig.outer_radius) ??
         readOptionalNumber(immersiveShellConfig.main_inner_radius) ??
         classicOuterRadius;
-    const immersiveShellMetrics = readNumberDomainFromSchema(
-        immersiveShellConfig,
-        immersiveShellMetricSchema,
-    );
+    const immersiveShellMetrics = readNumberDomainFromSchema(immersiveShellConfig, immersiveShellMetricSchema);
     const immersiveRingPadding = immersiveShellMetrics.ringPadding;
     const immersivePanelGap = immersiveShellMetrics.panelGap;
     // Increase immersive shell resize / handle hit-box to 20px by default
     const immersiveHandleHitArea = immersiveShellMetrics.handleHitArea;
-    const immersiveInnerRadius = Math.max(
-        0,
-        immersiveOuterRadius - immersiveRingPadding,
-    );
-    const immersiveInsetRadius = Math.max(
-        0,
-        immersiveInnerRadius - immersivePanelGap,
-    );
+    const immersiveInnerRadius = Math.max(0, immersiveOuterRadius - immersiveRingPadding);
+    const immersiveInsetRadius = Math.max(0, immersiveInnerRadius - immersivePanelGap);
 
     const shellTokensClassic: ShellTokens = {
         gap: classicPanelGap,
@@ -330,10 +311,7 @@ const resolveShellDomain = () => {
     } as const;
 
     const immersiveShell = {
-        ...readNumberDomainFromSchema(
-            immersiveShellConfig,
-            immersiveShellSchema,
-        ),
+        ...readNumberDomainFromSchema(immersiveShellConfig, immersiveShellSchema),
         mainInnerRadius: immersiveOuterRadius,
     } as const;
     const immersive = {
@@ -451,6 +429,43 @@ const uiBases = {
     },
 };
 
+const tooltipUiConfig = asRecord(uiConfig.tooltip);
+const tooltipUiSchema = {
+    delayMs: {
+        configKey: "delay_ms",
+        fallback: defaultTooltipUi.delay_ms,
+    },
+    denseDelayMs: {
+        configKey: "dense_delay_ms",
+        fallback: defaultTooltipUi.dense_delay_ms,
+    },
+    closeDelayMs: {
+        configKey: "close_delay_ms",
+        fallback: defaultTooltipUi.close_delay_ms,
+    },
+    offsetPx: {
+        configKey: "offset_px",
+        fallback: defaultTooltipUi.offset_px,
+    },
+    denseOffsetPx: {
+        configKey: "dense_offset_px",
+        fallback: defaultTooltipUi.dense_offset_px,
+    },
+    scrollSuppressionMs: {
+        configKey: "scroll_suppression_ms",
+        fallback: defaultTooltipUi.scroll_suppression_ms,
+    },
+    pointerSuppressionMs: {
+        configKey: "pointer_suppression_ms",
+        fallback: defaultTooltipUi.pointer_suppression_ms,
+    },
+    contextMenuSuppressionMs: {
+        configKey: "context_menu_suppression_ms",
+        fallback: defaultTooltipUi.context_menu_suppression_ms,
+    },
+} as const;
+const tooltipUi = readNumberDomainFromSchema(tooltipUiConfig, tooltipUiSchema);
+
 const uiPrimitives = {
     dropOverlayRole: "tt-drop-overlay",
     dropOverlayTitleRole: "tt-drop-overlay__title",
@@ -479,10 +494,7 @@ const iconographySchema = {
         fallback: 1.2,
     },
 } as const;
-const iconographyResolved = readNumberDomainFromSchema(
-    iconography,
-    iconographySchema,
-);
+const iconographyResolved = readNumberDomainFromSchema(iconography, iconographySchema);
 
 const iconTokens = {
     size: {
@@ -557,8 +569,7 @@ const workspaceHudVisuals = {
 
 const trackerTableVisuals = {
     headerCell: "bg-content1/80 backdrop-blur-sm",
-    headerButton:
-        "text-inherit transition-colors hover:text-foreground/80 whitespace-normal break-words",
+    headerButton: "text-inherit transition-colors hover:text-foreground/80 whitespace-normal break-words",
     rowSelected: "surface-layer-1 outline outline-1 -outline-offset-1 outline-primary/20",
     bodyCell: "border-b border-default/5",
     trackerCell: "font-medium text-foreground/85",
@@ -597,30 +608,26 @@ const statusChipStyle = {
     height: "var(--tt-status-chip-h)",
     boxSizing: "border-box",
 } as const;
+const statusHealthChipTone = {
+    healthy: "text-success/30",
+    degraded: "text-warning/90",
+    unavailable: "text-danger/75",
+    finding_peers: "text-warning/60",
+    metadata: "text-primary/70",
+    error: "text-danger/90",
+} as const;
 
 // `tableHeaderClass` composes `headerBase` with table-specific surface, padding and grid.
 const tableHeaderClass = `${tableVisualTokens.headerBase} py-panel ${tableVisualTokens.cellPaddingClass} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border ${tableVisualTokens.surfaceBorder}`;
 
 const timingSchemas = {
     heartbeat: {
-        tableMs: n(
-            "table_refresh_interval_ms",
-            defaultHeartbeats.table_refresh_interval_ms,
-        ),
-        detailMs: n(
-            "detail_refresh_interval_ms",
-            defaultHeartbeats.detail_refresh_interval_ms,
-        ),
-        backgroundMs: n(
-            "background_refresh_interval_ms",
-            defaultHeartbeats.background_refresh_interval_ms,
-        ),
+        tableMs: n("table_refresh_interval_ms", defaultHeartbeats.table_refresh_interval_ms),
+        detailMs: n("detail_refresh_interval_ms", defaultHeartbeats.detail_refresh_interval_ms),
+        backgroundMs: n("background_refresh_interval_ms", defaultHeartbeats.background_refresh_interval_ms),
     },
     debounce: {
-        tablePersistMs: n(
-            "table_persist_debounce_ms",
-            defaultTimers.table_persist_debounce_ms,
-        ),
+        tablePersistMs: n("table_persist_debounce_ms", defaultTimers.table_persist_debounce_ms),
         setLocationValidationMs: n(
             "set_location_validation_debounce_ms",
             defaultTimers.set_location_validation_debounce_ms,
@@ -637,59 +644,30 @@ const timingSchemas = {
         ),
     },
     timeouts: {
-        addSubmitTimeoutMinMs: n(
-            "add_submit_timeout_min_ms",
-            defaultTimers.add_submit_timeout_min_ms,
-        ),
-        addSubmitTimeoutMultiplier: n(
-            "add_submit_timeout_multiplier",
-            defaultTimers.add_submit_timeout_multiplier,
-        ),
+        addSubmitTimeoutMinMs: n("add_submit_timeout_min_ms", defaultTimers.add_submit_timeout_min_ms),
+        addSubmitTimeoutMultiplier: n("add_submit_timeout_multiplier", defaultTimers.add_submit_timeout_multiplier),
         ghostMs: n("ghost_timeout_ms", defaultTimers.ghost_timeout_ms),
-        setLocationMoveMs: n(
-            "set_location_move_timeout_ms",
-            defaultTimers.set_location_move_timeout_ms,
-        ),
+        setLocationMoveMs: n("set_location_move_timeout_ms", defaultTimers.set_location_move_timeout_ms),
     },
     wsReconnect: {
-        initialDelayMs: n(
-            "initial_delay_ms",
-            defaultTimers.ws_reconnect.initial_delay_ms,
-        ),
+        initialDelayMs: n("initial_delay_ms", defaultTimers.ws_reconnect.initial_delay_ms),
         maxDelayMs: n("max_delay_ms", defaultTimers.ws_reconnect.max_delay_ms),
     },
     ui: {
         toastMs: n("toast_display_duration_ms", defaultUi.toast_display_duration_ms),
-        stalledActivityHistoryWindow: n(
-            "stalled_activity_history_window",
-            defaultUi.stalled_activity_history_window,
-        ),
-        clipboardBadgeMs: n(
-            "clipboard_badge_duration_ms",
-            defaultTimers.clipboard_badge_duration_ms,
-        ),
-        focusRestoreMs: n(
-            "focus_restore_delay_ms",
-            defaultTimers.focus_restore_delay_ms,
-        ),
-        magnetEventDedupWindowMs: n(
-            "magnet_event_dedup_window_ms",
-            defaultTimers.magnet_event_dedup_window_ms,
-        ),
+        stalledActivityHistoryWindow: n("stalled_activity_history_window", defaultUi.stalled_activity_history_window),
+        startupStalledGraceMs: n("startup_stalled_grace_ms", defaultUi.startup_stalled_grace_ms),
+        clipboardBadgeMs: n("clipboard_badge_duration_ms", defaultTimers.clipboard_badge_duration_ms),
+        focusRestoreMs: n("focus_restore_delay_ms", defaultTimers.focus_restore_delay_ms),
+        magnetEventDedupWindowMs: n("magnet_event_dedup_window_ms", defaultTimers.magnet_event_dedup_window_ms),
         actionFeedbackStartToastMs: n(
             "action_feedback_start_toast_duration_ms",
             defaultTimers.action_feedback_start_toast_duration_ms,
         ),
-        optimisticCheckingGraceMs: n(
-            "optimistic_checking_grace_ms",
-            defaultTimers.optimistic_checking_grace_ms,
-        ),
+        optimisticCheckingGraceMs: n("optimistic_checking_grace_ms", defaultTimers.optimistic_checking_grace_ms),
     },
     recovery: {
-        verifyWatchIntervalMs: n(
-            "verify_watch_interval_ms",
-            defaultTimers.verify_watch_interval_ms,
-        ),
+        verifyWatchIntervalMs: n("verify_watch_interval_ms", defaultTimers.verify_watch_interval_ms),
     },
 } as const;
 
@@ -698,17 +676,12 @@ const resolvedTiming = {
     debounce: readNumberDomainFromSchema(timerConfig, timingSchemas.debounce),
     cache: readNumberDomainFromSchema(timerConfig, timingSchemas.cache),
     timeouts: readNumberDomainFromSchema(timerConfig, timingSchemas.timeouts),
-    wsReconnect: readNumberDomainFromSchema(
-        wsReconnectConfig,
-        timingSchemas.wsReconnect,
-    ),
+    wsReconnect: readNumberDomainFromSchema(wsReconnectConfig, timingSchemas.wsReconnect),
     ui: readNumberDomainFromSchema(uiConfig, timingSchemas.ui),
     recovery: readNumberDomainFromSchema(timerConfig, timingSchemas.recovery),
 } as const;
 
-const normalizeDragOverlay = (
-    dragOverlay: DragOverlayConfig,
-): DragOverlayConfig => ({
+const normalizeDragOverlay = (dragOverlay: DragOverlayConfig): DragOverlayConfig => ({
     ...dragOverlay,
     root: {
         ...dragOverlay.root,
@@ -730,9 +703,7 @@ const normalizeDragOverlay = (
         transition: {
             ...adaptTransition(dragOverlay.iconPulse.transition),
             type: "spring",
-            repeatType: normalizeRepeatType(
-                dragOverlay.iconPulse.transition.repeatType,
-            ),
+            repeatType: normalizeRepeatType(dragOverlay.iconPulse.transition.repeatType),
         },
     },
 });
@@ -766,14 +737,9 @@ const detailsLayoutSchema = {
         fallback: 1024,
     },
 } as const;
-const detailsLayoutResolved = readNumberDomainFromSchema(
-    detailsLayoutConfig,
-    detailsLayoutSchema,
-);
-const detailsTabContentMaxHeight =
-    detailsLayoutResolved.tabContentMaxHeight;
-const detailsInspectorBreakpointPx =
-    detailsLayoutResolved.inspectorBreakpointPx;
+const detailsLayoutResolved = readNumberDomainFromSchema(detailsLayoutConfig, detailsLayoutSchema);
+const detailsTabContentMaxHeight = detailsLayoutResolved.tabContentMaxHeight;
+const detailsInspectorBreakpointPx = detailsLayoutResolved.inspectorBreakpointPx;
 
 const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
     piece_map: {
@@ -785,6 +751,30 @@ const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
             max: 16,
         },
         chunk_interval: 10,
+        hud: {
+            legend_inline_min_width_px: 1120,
+            field_breakpoints_px: {
+                compact: 560,
+                compact_plus: 680,
+                summary: 800,
+                summary_plus: 920,
+                extended: 1040,
+                wide: 1160,
+            },
+        },
+        flash: {
+            duration_ms: 1000,
+            base_alpha: 0.48,
+            per_hit_alpha: 0.08,
+            max_alpha: 0.68,
+            glow_alpha: 0.22,
+            glow_min_size: 10,
+            glow_blur: 4,
+        },
+    },
+    eta: {
+        max_seconds: 30 * 24 * 60 * 60,
+        min_credible_rate_bps: 4 * 1024,
     },
     scatter: {
         padding: {
@@ -818,19 +808,15 @@ const defaultDetailsVisualizations: DetailsVisualizationsConfig = {
     },
 };
 
-const resolveDetailsVisualizations = (
-    value: unknown,
-): DetailsVisualizationsConfig =>
+const resolveDetailsVisualizations = (value: unknown): DetailsVisualizationsConfig =>
     mergeKnownKeysDeep(defaultDetailsVisualizations, asRecord(value));
 
-const detailsVisualizations = resolveDetailsVisualizations(
-    constants.visualizations?.details,
-);
+const detailsVisualizations = resolveDetailsVisualizations(constants.visualizations?.details);
 
 const detailsPieceMapConfig = detailsVisualizations.piece_map;
+const detailsEtaConfig = detailsVisualizations.eta;
 const detailsScatterConfig = detailsVisualizations.scatter;
-const detailsTooltipAnimation =
-    detailsVisualizations.tooltip_animation;
+const detailsTooltipAnimation = detailsVisualizations.tooltip_animation;
 const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
     initial: {
         opacity: readOpacity(detailsTooltipAnimation?.initial, 0),
@@ -842,8 +828,7 @@ const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
 };
 
 // Availability heatmap visual tokens (moved from hard-coded literals)
-const detailsAvailabilityHeatmap =
-    detailsVisualizations.availability_heatmap;
+const detailsAvailabilityHeatmap = detailsVisualizations.availability_heatmap;
 
 const detailsSpeedChart = detailsVisualizations.speed_chart;
 
@@ -909,8 +894,7 @@ const statusVisuals = {
         text: "text-foreground/40",
         shadow: "shadow-none",
         glow: "bg-content1",
-        hudSurface:
-            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
+        hudSurface: "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
         hudIconBg: "bg-warning/15 text-warning",
     },
     [status.connection.online]: {
@@ -919,8 +903,7 @@ const statusVisuals = {
         text: "text-success",
         shadow: "shadow-success-glow",
         glow: "bg-success",
-        hudSurface:
-            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
+        hudSurface: "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
         hudIconBg: "bg-success/15 text-success",
     },
     [status.connection.connected]: {
@@ -929,8 +912,7 @@ const statusVisuals = {
         text: "text-success",
         shadow: "shadow-success-glow",
         glow: "bg-success",
-        hudSurface:
-            "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
+        hudSurface: "bg-gradient-to-br from-success/15 via-background/30 to-background/10",
         hudIconBg: "bg-success/15 text-success",
     },
     [status.connection.polling]: {
@@ -939,8 +921,7 @@ const statusVisuals = {
         text: "text-warning",
         shadow: "shadow-none",
         glow: "bg-warning",
-        hudSurface:
-            "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
+        hudSurface: "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
         hudIconBg: "bg-warning/15 text-warning",
     },
     [status.connection.offline]: {
@@ -949,8 +930,7 @@ const statusVisuals = {
         text: "text-foreground/40",
         shadow: "shadow-none",
         glow: "bg-content1",
-        hudSurface:
-            "bg-gradient-to-br from-content1/10 via-background/30 to-background/5",
+        hudSurface: "bg-gradient-to-br from-content1/10 via-background/30 to-background/5",
         hudIconBg: "bg-content1/15 text-foreground/60",
     },
     [status.connection.error]: {
@@ -959,8 +939,7 @@ const statusVisuals = {
         text: "text-danger",
         shadow: "shadow-danger-glow",
         glow: "bg-danger",
-        hudSurface:
-            "bg-gradient-to-br from-danger/20 via-background/25 to-background/5",
+        hudSurface: "bg-gradient-to-br from-danger/20 via-background/25 to-background/5",
         hudIconBg: "bg-danger/15 text-danger",
     },
     [statusVisualKeys.tone.primary]: {
@@ -1035,10 +1014,7 @@ const statusVisuals = {
         shadow: "shadow-none",
         glow: "bg-content1",
     },
-} satisfies Record<
-    StatusVisualKeyFromKeys<typeof statusVisualKeys>,
-    StatusVisualRecipe
->;
+} satisfies Record<StatusVisualKeyFromKeys<typeof statusVisualKeys>, StatusVisualRecipe>;
 
 const detailsTableStatusVisuals = {
     ...detailsTableVisuals,
@@ -1046,10 +1022,8 @@ const detailsTableStatusVisuals = {
     rateUp: statusVisuals[statusVisualKeys.speed.seed].text,
 } as const;
 
-export const getStatusRecipeText = (
-    key: keyof typeof statusVisuals,
-    fallbackKey: keyof typeof statusVisuals,
-) => statusVisuals[key]?.text ?? statusVisuals[fallbackKey]?.text ?? "";
+export const getStatusRecipeText = (key: keyof typeof statusVisuals, fallbackKey: keyof typeof statusVisuals) =>
+    statusVisuals[key]?.text ?? statusVisuals[fallbackKey]?.text ?? "";
 
 /* =========================================
    DOMAIN: PERFORMANCE
@@ -1097,6 +1071,7 @@ const visuals = {
         chip: {
             layout: statusChip,
             style: statusChipStyle,
+            healthTone: statusHealthChipTone,
         },
     },
     transitions: transitionTokens,
@@ -1137,6 +1112,7 @@ const visualizations = {
     details: {
         tabContentMaxHeight: detailsTabContentMaxHeight,
         pieceMap: detailsPieceMapConfig,
+        eta: detailsEtaConfig,
         scatter: detailsScatterConfig,
         tooltipAnimation: detailsTooltipAnimation,
         tooltipOpacityAnimation: detailsTooltipOpacityAnimation,
@@ -1174,6 +1150,7 @@ const ui = {
     },
     scaleBases,
     bases: uiBases,
+    tooltip: tooltipUi,
 } as const;
 
 export const registry = {
@@ -1188,4 +1165,3 @@ export const registry = {
     visualizations,
     ui,
 } as const;
-

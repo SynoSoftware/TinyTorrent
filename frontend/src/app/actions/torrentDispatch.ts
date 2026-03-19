@@ -357,11 +357,10 @@ const dispatchHandlers: DispatchHandlerTable = {
             await setSequentialDownload.bind(context.client)(String(intent.torrentId), intent.enabled);
             return dispatchOutcome.applied();
         },
-        refresh: {
-            refreshTorrents: true,
-            refreshDetail: true,
-            refreshStats: true,
-        },
+        // Keep sequential-toggle command flow responsive. UI convergence is
+        // owned by the optimistic overlay plus heartbeat snapshots, and this
+        // command does not need to churn session stats or force sibling HUDs.
+        refresh: {},
     },
     SET_TORRENT_SUPERSEEDING: {
         run: async (intent, context) => {

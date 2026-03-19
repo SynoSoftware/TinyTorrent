@@ -129,7 +129,7 @@ it("keeps live-transfer torrents on the fast cadence even if the state label lag
     expect(interval).toBe(registry.timing.heartbeat.detailMs);
 });
 
-it("ignores presentation-only stalled values for cadence selection", () => {
+it("keeps idle downloading torrents on the fast table cadence", () => {
     const hb = new HeartbeatManager(fakeClient) as unknown as HeartbeatInternals & {
         lastTorrents: TorrentEntity[];
     };
@@ -137,8 +137,8 @@ it("ignores presentation-only stalled values for cadence selection", () => {
         {
             id: "1",
             hash: "h-1",
-            name: "stalled",
-            state: status.torrent.stalled,
+            name: "idle-downloading",
+            state: status.torrent.downloading,
             speed: { down: 0, up: 0 },
             peerSummary: { connected: 0 },
             totalSize: 0,
@@ -156,7 +156,7 @@ it("ignores presentation-only stalled values for cadence selection", () => {
         onUpdate: () => undefined,
     });
 
-    expect(interval).toBe(registry.timing.heartbeat.tableMs);
+    expect(interval).toBe(registry.timing.heartbeat.detailMs);
 });
 
 it("does not slow table cadence when document visibility is hidden", () => {

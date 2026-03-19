@@ -2,6 +2,7 @@ import {
     createContext,
     createElement,
     useContext,
+    useMemo,
     type ReactNode,
 } from "react";
 import type { SpeedHistorySnapshot, SpeedHistoryStore } from "@/shared/hooks/speedHistoryStore";
@@ -21,11 +22,14 @@ export function SpeedHistoryDomainProvider({
     store: SpeedHistoryStore;
     children: ReactNode;
 }) {
-    const value: SpeedHistoryDomain = {
-        watch: (id) => store.watch(id),
-        subscribe: (listener) => store.subscribe(listener),
-        get: (id) => store.get(id),
-    };
+    const value = useMemo<SpeedHistoryDomain>(
+        () => ({
+            watch: (id) => store.watch(id),
+            subscribe: (listener) => store.subscribe(listener),
+            get: (id) => store.get(id),
+        }),
+        [store],
+    );
 
     return createElement(
         SpeedHistoryDomainContext.Provider,

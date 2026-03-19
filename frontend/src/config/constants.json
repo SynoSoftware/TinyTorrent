@@ -9,7 +9,18 @@
     },
     "ui": {
         "toast_display_duration_ms": 3000,
-        "stalled_activity_history_window": 10
+        "stalled_activity_history_window": 10,
+        "startup_stalled_grace_ms": 60000,
+        "tooltip": {
+            "delay_ms": 500,
+            "dense_delay_ms": 900,
+            "close_delay_ms": 100,
+            "offset_px": 10,
+            "dense_offset_px": 12,
+            "scroll_suppression_ms": 240,
+            "pointer_suppression_ms": 360,
+            "context_menu_suppression_ms": 900
+        }
     },
     "defaults": {
         "rpc_endpoint": "/transmission/rpc",
@@ -223,7 +234,31 @@
                 "rows": {
                     "base": 4,
                     "max": 16
+                },
+                "hud": {
+                    "legend_inline_min_width_px": 1120,
+                    "field_breakpoints_px": {
+                        "compact": 560,
+                        "compact_plus": 680,
+                        "summary": 800,
+                        "summary_plus": 920,
+                        "extended": 1040,
+                        "wide": 1160
+                    }
+                },
+                "flash": {
+                    "duration_ms": 1000,
+                    "base_alpha": 0.48,
+                    "per_hit_alpha": 0.08,
+                    "max_alpha": 0.68,
+                    "glow_alpha": 0.22,
+                    "glow_min_size": 10,
+                    "glow_blur": 4
                 }
+            },
+            "eta": {
+                "max_seconds": 2592000,
+                "min_credible_rate_bps": 4096
             },
             "scatter": {
                 "padding": {

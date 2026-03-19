@@ -1,6 +1,7 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { Pin, PinOff, X, Info, type LucideIcon } from "lucide-react";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { ICON_SIZE_CLASSES, ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { registry } from "@/config/logic";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
@@ -132,10 +133,16 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 <span className={DETAILS.headerTitle}>
                     {renderedName}
                     {statusLabel ? (
-                        <span className={DETAILS.headerStatus} title={statusTooltip ?? undefined}>
-                            {statusLabel}
-                            {primaryHint ? <em className={DETAILS.headerPrimaryHint}>- {primaryHint}</em> : null}
-                        </span>
+                        <AppTooltip
+                            content={statusTooltip ?? statusLabel}
+                            dense
+                            placement="top"
+                        >
+                            <span className={DETAILS.headerStatus}>
+                                {statusLabel}
+                                {primaryHint ? <em className={DETAILS.headerPrimaryHint}>- {primaryHint}</em> : null}
+                            </span>
+                        </AppTooltip>
                     ) : null}
                 </span>
             </div>

@@ -1,5 +1,5 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Column, type ColumnSizingInfoState, type Row, type RowSelectionState, type SortingState } from "@tanstack/react-table";
+import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Column, type ColumnSizingInfoState, type OnChangeFn, type Row, type RowSelectionState, type SortingState, type VisibilityState } from "@tanstack/react-table";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -51,7 +51,10 @@ import { status } from "@/shared/status";
 import { scheduler } from "@/app/services/scheduler";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-import { deriveVisibleHeaderOrder } from "@/modules/dashboard/viewModels/torrentTableColumnOrder";
+import {
+    deriveCommittedColumnOrder,
+    deriveVisibleHeaderOrder,
+} from "@/modules/dashboard/viewModels/torrentTableColumnOrder";
 const { layout } = registry;
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
@@ -138,7 +141,12 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<HeaderContextMenu | null>(null);
     const [sorting, setSorting] = useState<SortingState>(() => preferences.torrentTableState?.sorting ?? []);
-    const [columnOrder, setColumnOrder] = useState<string[]>(() => preferences.torrentTableState?.columnOrder ?? DEFAULT_COLUMN_ORDER);
+    const [columnOrder, setColumnOrder] = useState<string[]>(() =>
+        deriveCommittedColumnOrder(
+            preferences.torrentTableState?.columnOrder ?? DEFAULT_COLUMN_ORDER,
+            DEFAULT_COLUMN_ORDER,
+        ),
+    );
     const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => preferences.torrentTableState?.columnVisibility ?? {});
     const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => preferences.torrentTableState?.columnSizing ?? {});
     const [columnSizingInfo, setColumnSizingInfo] = useState<ColumnSizingInfoState>({
@@ -174,6 +182,27 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const { copyToClipboard, buildMagnetLink } = useTorrentClipboard();
     const { isSuppressed: animationSuppressionActive, begin: beginAnimationSuppression, end: endAnimationSuppression } = useTableAnimationGuard();
     const { disableDetailOpen = false, openDetail } = useDetailOpenContext();
+
+    const handleColumnVisibilityChange = useCallback<OnChangeFn<VisibilityState>>(
+        (updater) => {
+            beginAnimationSuppression(animationSuppressionKeys.columnVisibility);
+            setColumnVisibility((current) =>
+                typeof updater === "function" ? updater(current) : updater,
+            );
+            if (typeof window === "undefined") {
+                endAnimationSuppression(animationSuppressionKeys.columnVisibility);
+                return;
+            }
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    endAnimationSuppression(
+                        animationSuppressionKeys.columnVisibility,
+                    );
+                });
+            });
+        },
+        [beginAnimationSuppression, endAnimationSuppression],
+    );
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
@@ -245,7 +274,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
         onColumnOrderChange: setColumnOrder,
-        onColumnVisibilityChange: setColumnVisibility,
+        onColumnVisibilityChange: handleColumnVisibilityChange,
         onColumnSizingChange: setColumnSizing,
         onColumnSizingInfoChange: setColumnSizingInfo,
         onRowSelectionChange: setRowSelection,
@@ -404,18 +433,26 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
 
     const commitColumnDragOrder = useCallback(
         (activeColumnId: string, overColumnId: string): ColumnDragCommitOutcome => {
-            const oldIndex = columnOrder.indexOf(activeColumnId);
-            const newIndex = columnOrder.indexOf(overColumnId);
+            const committedColumnOrder = deriveCommittedColumnOrder(
+                columnOrder,
+                DEFAULT_COLUMN_ORDER,
+            );
+            const oldIndex = committedColumnOrder.indexOf(activeColumnId);
+            const newIndex = committedColumnOrder.indexOf(overColumnId);
             if (oldIndex < 0 || newIndex < 0) {
                 return { status: "rejected", reason: "invalid_index" };
             }
-            const nextOrder = arrayMove(columnOrder, oldIndex, newIndex);
+            const nextOrder = arrayMove(
+                committedColumnOrder,
+                oldIndex,
+                newIndex,
+            );
             try {
                 setColumnOrder(nextOrder);
                 return { status: "applied" };
             } catch {
                 // Reconcile local state on commit failure to avoid table/UI drift.
-                setColumnOrder(columnOrder);
+                setColumnOrder(committedColumnOrder);
                 return { status: "failed", reason: "commit_failed" };
             }
         },
@@ -551,6 +588,18 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             endAnimationSuppression(animationSuppressionKeys.panelResize);
         };
     }, [beginAnimationSuppression, endAnimationSuppression]);
+
+    useEffect(() => {
+        const normalizedColumnOrder = deriveCommittedColumnOrder(
+            columnOrder,
+            DEFAULT_COLUMN_ORDER,
+        );
+        const changed =
+            normalizedColumnOrder.length !== columnOrder.length ||
+            normalizedColumnOrder.some((columnId, index) => columnId !== columnOrder[index]);
+        if (!changed) return;
+        setColumnOrder(normalizedColumnOrder);
+    }, [columnOrder]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;

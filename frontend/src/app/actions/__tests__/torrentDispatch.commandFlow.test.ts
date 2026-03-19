@@ -415,11 +415,14 @@ describe("torrentDispatch command flow", () => {
 
     it("dispatches sequential download toggle through adapter", async () => {
         const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
         const dispatch = createTorrentDispatch({
             client: createMockClient(commandLog),
-            refreshTorrents: async () => {},
-            refreshSessionStatsData: async () => {},
-            refreshDetailData: async () => {},
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
         });
 
         const outcome = await dispatch(
@@ -428,6 +431,9 @@ describe("torrentDispatch command flow", () => {
 
         expect(outcome).toEqual({ status: "applied" });
         expect(commandLog).toEqual(["set-sequential:t-seq-1:true"]);
+        expect(refreshTorrents).not.toHaveBeenCalled();
+        expect(refreshSessionStatsData).not.toHaveBeenCalled();
+        expect(refreshDetailData).not.toHaveBeenCalled();
     });
 
     it("returns unsupported when tracker remove method is missing", async () => {
