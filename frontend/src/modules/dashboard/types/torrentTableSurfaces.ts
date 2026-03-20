@@ -1,6 +1,7 @@
 import type {
     DndContextProps,
     DragEndEvent,
+    DragOverEvent,
     DragStartEvent,
 } from "@dnd-kit/core";
 import type {
@@ -10,7 +11,7 @@ import type {
     Table,
 } from "@tanstack/react-table";
 import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
-import type { MouseEvent, ReactNode, RefObject } from "react";
+import type { MouseEvent, PointerEvent, ReactNode, RefObject } from "react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
@@ -62,23 +63,36 @@ export type HeaderContextMenu = {
 
 export type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 
+export type QueueDropTarget = {
+    rowId: string;
+    after: boolean;
+};
+
 export interface TorrentTableRowInteractionViewModel {
     contextMenuTorrentId?: string | null;
+    onRowPointerDown: (
+        event: PointerEvent,
+        rowId: string,
+        index: number,
+    ) => void;
     onRowClick: (
         event: MouseEvent,
         rowId: string,
         index: number,
+        options?: {
+            suppressPlainClick?: boolean;
+        },
     ) => void;
     onRowDoubleClick: (row: Torrent) => void;
     onRowContextMenu: (event: MouseEvent, row: Torrent) => void;
-    onDropTargetChange: (id: string | null) => void;
+    onDropTargetChange: (target: QueueDropTarget | null) => void;
 }
 
 export interface TorrentTableRowStateViewModel {
     canReorderQueue: boolean;
-    dropTargetRowId?: string | null;
+    dropTarget?: QueueDropTarget | null;
     activeRowId?: string | null;
-    highlightedRowId?: string | null;
+    activeDragRowIds: string[];
     isAnyColumnResizing: boolean;
     columnOrder: string[];
     isAnimationSuppressed: boolean;
@@ -90,7 +104,6 @@ export interface TorrentTableRowProps {
     virtualRow: VirtualItem;
     isSelected: boolean;
     isContext: boolean;
-    isHighlighted: boolean;
     interaction: TorrentTableRowInteractionViewModel;
     state: TorrentTableRowStateViewModel;
 }
@@ -143,10 +156,12 @@ export interface TorrentTableBodyViewModel {
         noResults: string;
         headerName: string;
         headerSpeed: string;
+        dragOverlaySummary: string;
     };
     dnd: {
         rowSensors: NonNullable<DndContextProps["sensors"]>;
         handleRowDragStart: (e: DragStartEvent) => void;
+        handleRowDragOver: (e: DragOverEvent) => void;
         handleRowDragEnd: (e: DragEndEvent) => void;
         handleRowDragCancel: () => void;
         renderOverlayPortal: (node: ReactNode) => ReactNode;
@@ -159,6 +174,7 @@ export interface TorrentTableBodyViewModel {
         tableApi: { getTotalSize: () => number };
         renderVisibleCells: (row: Row<Torrent>) => ReactNode;
         activeDragRow?: Row<Torrent> | null;
+        activeDragPreviewRows: Row<Torrent>[];
     };
     rowInteraction: TorrentTableRowInteractionViewModel;
     state: TorrentTableRowStateViewModel;

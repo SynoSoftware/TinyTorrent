@@ -10,6 +10,21 @@ const HISTORY_POINTS = performance.historyDataPoints;
 const createHistoryBuffer = () =>
     new Array(HISTORY_POINTS).fill(0);
 
+const areArraysEqual = (a: readonly number[], b: readonly number[]) => {
+    if (a === b) {
+        return true;
+    }
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) {
+            return false;
+        }
+    }
+    return true;
+};
+
 type SessionHistorySnapshot = {
     down: number[];
     up: number[];
@@ -69,6 +84,12 @@ class SessionSpeedHistoryStore {
         const up = this.stats?.uploadSpeed ?? 0;
         nextDown.push(down);
         nextUp.push(up);
+        if (
+            areArraysEqual(this.history.down, nextDown) &&
+            areArraysEqual(this.history.up, nextUp)
+        ) {
+            return;
+        }
         this.history = { down: nextDown, up: nextUp };
         this.emit();
     }

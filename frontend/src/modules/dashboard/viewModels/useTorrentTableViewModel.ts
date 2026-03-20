@@ -37,6 +37,7 @@ import { dashboardFilters } from "@/modules/dashboard/types/dashboardFilter";
 import type {
     ContextMenuKey,
     HeaderContextMenu,
+    QueueDropTarget,
     QueueMenuAction,
     TableContextMenu,
     TorrentTableBodyViewModel,
@@ -131,13 +132,12 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const { torrents, filter, searchQuery, optimisticStatuses = {}, ghostTorrents = [], removedIds } = viewModel;
 
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
-    const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
+    const [dropTarget, setDropTarget] = useState<QueueDropTarget | null>(null);
     const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(null);
     const [isColumnOrderChanging, setIsColumnOrderChanging] = useState<boolean>(false);
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(null);
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
-    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<HeaderContextMenu | null>(null);
     const [sorting, setSorting] = useState<SortingState>(() => preferences.torrentTableState?.sorting ?? []);
@@ -160,6 +160,8 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
+    const dragClickBlockRef = useRef(false);
+    const dragClickBlockResetRef = useRef<(() => void) | null>(null);
     const parentRef = useRef<HTMLDivElement | null>(null);
     const tableContainerRef = useRef<HTMLDivElement | null>(null);
     const measureLayerRef = useRef<HTMLDivElement | null>(null);
@@ -364,11 +366,11 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
 
     const selection = useRowSelectionController({
         table,
-        rows,
         rowIds,
         rowVirtualizerRef,
         isMarqueeDraggingRef,
         marqueeClickBlockRef,
+        dragClickBlockRef,
         rowSelectionRef,
         rowSelection,
         setRowSelection,
@@ -376,8 +378,6 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         setAnchorIndex,
         focusIndex,
         setFocusIndex,
-        highlightedRowId,
-        setHighlightedRowId,
     });
 
     selectionBridgeRef.current = {
@@ -417,19 +417,36 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const {
         canReorderQueue,
         handleRowDragStart: queueHandleRowDragStart,
+        handleRowDragOver: queueHandleRowDragOver,
         handleRowDragEnd: queueHandleRowDragEnd,
         handleRowDragCancel: queueHandleRowDragCancel,
     } = useQueueReorderController({
         sorting,
         pendingQueueOrder,
         setPendingQueueOrder,
+        serverOrder,
         rowIds,
         rowsById,
+        dropTarget,
+        rowSelection,
+        setRowSelection,
+        anchorIndex,
+        focusIndex,
         rowsLength: rows.length,
         beginAnimationSuppression,
         endAnimationSuppression,
+        markRowDragInteractionComplete: () => {
+            dragClickBlockResetRef.current?.();
+            dragClickBlockRef.current = true;
+            dragClickBlockResetRef.current = scheduler.scheduleTimeout(() => {
+                dragClickBlockRef.current = false;
+                dragClickBlockResetRef.current = null;
+            }, 0);
+        },
+        setAnchorIndex,
+        setFocusIndex,
         setActiveRowId,
-        setDropTargetRowId,
+        setDropTarget,
     });
 
     const commitColumnDragOrder = useCallback(
@@ -477,7 +494,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         beginAnimationSuppression,
         endAnimationSuppression,
         setActiveRowId,
-        setDropTargetRowId,
+        setDropTarget,
         rowIds,
         rowsById,
         sorting,
@@ -485,12 +502,13 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         setRowSelection,
         setAnchorIndex,
         setFocusIndex,
-        setHighlightedRowId,
+        setActiveId: selection.setActiveId,
         rowVirtualizer,
         selectAllRows: selection.selectAllRows,
-        anchorIndex: selection.anchorIndex,
-        focusIndex: selection.focusIndex,
+        anchorIndex,
+        focusIndex,
         handleRowDragStart: queueHandleRowDragStart,
+        handleRowDragOver: queueHandleRowDragOver,
         handleRowDragEnd: queueHandleRowDragEnd,
         handleRowDragCancel: queueHandleRowDragCancel,
     });
@@ -617,9 +635,12 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
 
     const headerMenuTriggerRect = headerContextMenu ? headerContextMenu.virtualElement.getBoundingClientRect() : null;
 
-    const handleDropTargetChange = useCallback((id: string | null) => {
-        setDropTargetRowId(id);
-    }, []);
+    const handleDropTargetChange = useCallback(
+        (target: QueueDropTarget | null) => {
+            setDropTarget(target);
+        },
+        [],
+    );
 
     const closeHeaderMenu = useCallback(() => {
         setHeaderContextMenu(null);
@@ -641,7 +662,31 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         tableContainerRef.current?.focus();
     }, []);
     const headerContainerClass = TABLE.header;
-    const activeDragRow = useMemo(() => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null), [activeRowId, rowsById]);
+    const activeDragRow = useMemo(
+        () => (activeRowId ? (rowsById.get(activeRowId) ?? null) : null),
+        [activeRowId, rowsById],
+    );
+    const activeDragPreviewRows = useMemo(() => {
+        if (!activeRowId) return [];
+        const draggedRow = rowsById.get(activeRowId);
+        if (!draggedRow) return [];
+        if (!rowSelection[activeRowId]) {
+            return [draggedRow];
+        }
+        const selectedRows = rowIds
+            .filter((rowId) => rowSelection[rowId])
+            .map((rowId) => rowsById.get(rowId))
+            .filter((row): row is Row<Torrent> => row != null);
+
+        return [
+            draggedRow,
+            ...selectedRows.filter((row) => row.id !== activeRowId),
+        ];
+    }, [activeRowId, rowIds, rowSelection, rowsById]);
+    const activeDragRowIds = useMemo(
+        () => activeDragPreviewRows.map((row) => row.id),
+        [activeDragPreviewRows],
+    );
     const headersViewModel = useMemo<TorrentTableHeadersViewModel>(
         () => ({
             headerContainerClass,
@@ -696,10 +741,14 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
                 noResults: t("table.no_results"),
                 headerName: t("table.header_name"),
                 headerSpeed: t("table.header_speed"),
+                dragOverlaySummary: t("table.drag_overlay_summary", {
+                    count: activeDragPreviewRows.length,
+                }),
             },
             dnd: {
                 rowSensors: interactions.rowSensors,
                 handleRowDragStart: interactions.handleRowDragStart,
+                handleRowDragOver: interactions.handleRowDragOver,
                 handleRowDragEnd: interactions.handleRowDragEnd,
                 handleRowDragCancel: interactions.handleRowDragCancel,
                 renderOverlayPortal,
@@ -712,9 +761,11 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
                 tableApi: table,
                 renderVisibleCells,
                 activeDragRow,
+                activeDragPreviewRows,
             },
             rowInteraction: {
                 contextMenuTorrentId: contextMenu?.torrentId ?? null,
+                onRowPointerDown: selection.handleRowPointerDown,
                 onRowClick: selection.handleRowClick,
                 onRowDoubleClick: handleRowDoubleClick,
                 onRowContextMenu: handleContextMenu,
@@ -722,9 +773,9 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             },
             state: {
                 canReorderQueue,
-                dropTargetRowId,
+                dropTarget,
                 activeRowId,
-                highlightedRowId,
+                activeDragRowIds,
                 isAnyColumnResizing,
                 columnOrder,
                 isAnimationSuppressed,
@@ -740,6 +791,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             t,
             interactions.rowSensors,
             interactions.handleRowDragStart,
+            interactions.handleRowDragOver,
             interactions.handleRowDragEnd,
             interactions.handleRowDragCancel,
             renderOverlayPortal,
@@ -748,15 +800,17 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             rows,
             table,
             activeDragRow,
+            activeDragPreviewRows,
             contextMenu?.torrentId,
+            selection.handleRowPointerDown,
             selection.handleRowClick,
             handleRowDoubleClick,
             handleContextMenu,
             handleDropTargetChange,
             canReorderQueue,
-            dropTargetRowId,
+            dropTarget,
             activeRowId,
-            highlightedRowId,
+            activeDragRowIds,
             isAnyColumnResizing,
             columnOrder,
             isAnimationSuppressed,

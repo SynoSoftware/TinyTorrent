@@ -31,24 +31,41 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         rowHeight,
         marqueeRect,
     } = viewModel.data;
-    const { emptyHint, emptyHintSubtext, noResults, headerName, headerSpeed } =
-        viewModel.labels;
+    const {
+        emptyHint,
+        emptyHintSubtext,
+        noResults,
+        headerName,
+        headerSpeed,
+        dragOverlaySummary,
+    } = viewModel.labels;
     const {
         rowSensors,
         handleRowDragStart,
+        handleRowDragOver,
         handleRowDragEnd,
         handleRowDragCancel,
         renderOverlayPortal,
         overlayClassName,
     } = viewModel.dnd;
-    const { rowIds, rowVirtualizer, rows, tableApi, activeDragRow } =
-        viewModel.table;
+    const {
+        rowIds,
+        rowVirtualizer,
+        rows,
+        tableApi,
+        activeDragRow,
+        activeDragPreviewRows,
+    } = viewModel.table;
     const { contextMenuTorrentId } = viewModel.rowInteraction;
-    const { highlightedRowId } = viewModel.state;
     const showSkeleton = isLoading && !hasSourceTorrents;
     const showEmptyState = !isLoading && !hasSourceTorrents;
     const showNoResultsState =
         !isLoading && hasSourceTorrents && visibleRowCount === 0;
+    const overlayRows = activeDragPreviewRows.slice(0, 3);
+    const overlayStackOffset = 8;
+    const overlayHeight =
+        rowHeight +
+        Math.max(0, overlayRows.length - 1) * overlayStackOffset;
 
     return (
         <div
@@ -116,6 +133,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                     collisionDetection={closestCenter}
                     sensors={rowSensors}
                     onDragStart={handleRowDragStart}
+                    onDragOver={handleRowDragOver}
                     onDragEnd={handleRowDragEnd}
                     onDragCancel={handleRowDragCancel}
                 >
@@ -147,10 +165,6 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                 contextMenuTorrentId ===
                                                 row.original.id
                                             }
-                                            isHighlighted={
-                                                highlightedRowId === row.id &&
-                                                !row.getIsSelected()
-                                            }
                                             interaction={
                                                 viewModel.rowInteraction
                                             }
@@ -172,20 +186,56 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         width: getTableTotalWidthCss(
                                             tableApi.getTotalSize(),
                                         ),
-                                        height: rowHeight,
+                                        height: overlayHeight,
                                     }}
-                                    className={TABLE.dragOverlay}
+                                    className={TABLE.dragOverlayStack}
                                 >
-                                    <div className={TABLE.dragOverlayContent}>
-                                        {activeDragRow
-                                            .getVisibleCells()
-                                            .map((cell) => (
-                                                <TableCellContent
-                                                    key={cell.id}
-                                                    cell={cell}
-                                                />
-                                            ))}
-                                    </div>
+                                    {overlayRows
+                                        .slice()
+                                        .reverse()
+                                        .map((row, index) => {
+                                            const layerIndex =
+                                                overlayRows.length - index - 1;
+                                            const isFrontLayer =
+                                                layerIndex === 0;
+
+                                            return (
+                                                <div
+                                                    key={row.id}
+                                                    style={{
+                                                        height: rowHeight,
+                                                        top:
+                                                            layerIndex *
+                                                            overlayStackOffset,
+                                                    }}
+                                                    className={
+                                                        isFrontLayer
+                                                            ? TABLE.dragOverlay
+                                                            : TABLE.dragOverlayGhost
+                                                    }
+                                                >
+                                                    <div
+                                                        className={
+                                                            TABLE.dragOverlayContent
+                                                        }
+                                                    >
+                                                        {row
+                                                            .getVisibleCells()
+                                                            .map((cell) => (
+                                                                <TableCellContent
+                                                                    key={cell.id}
+                                                                    cell={cell}
+                                                                />
+                                                            ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    {activeDragPreviewRows.length > 1 && (
+                                        <div className={TABLE.dragOverlayBadge}>
+                                            {dragOverlaySummary}
+                                        </div>
+                                    )}
                                 </div>
                             ) : null}
                         </DragOverlay>,

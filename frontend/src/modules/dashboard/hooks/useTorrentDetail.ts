@@ -12,6 +12,50 @@ import { status } from "@/shared/status";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
+const DEFAULT_TORRENT_SPEED = {
+    down: 0,
+    up: 0,
+} as const;
+
+const DEFAULT_TORRENT_PEER_SUMMARY = {
+    connected: 0,
+    total: 0,
+    sending: 0,
+    getting: 0,
+    seeds: 0,
+} as const;
+
+const normalizeDetail = (
+    detail: Partial<TorrentDetail>,
+    fallbackId?: string,
+): TorrentDetail => {
+    const id = String(detail.id ?? fallbackId ?? "");
+    return {
+        ...detail,
+        id,
+        hash: detail.hash ?? id,
+        name: detail.name ?? id,
+        state: detail.state ?? status.torrent.queued,
+        speed: {
+            ...DEFAULT_TORRENT_SPEED,
+            ...detail.speed,
+        },
+        peerSummary: {
+            ...DEFAULT_TORRENT_PEER_SUMMARY,
+            ...detail.peerSummary,
+        },
+        totalSize: detail.totalSize ?? 0,
+        eta: detail.eta ?? 0,
+        ratio: detail.ratio ?? 0,
+        uploaded: detail.uploaded ?? 0,
+        downloaded: detail.downloaded ?? 0,
+        added: detail.added ?? Math.floor(Date.now() / 1000),
+        isFinished: detail.isFinished ?? false,
+        isStalled: detail.isStalled ?? false,
+        webseedsSendingToUs: detail.webseedsSendingToUs ?? 0,
+    } as TorrentDetail;
+};
+
 interface UseTorrentDetailParams {
     torrentClient: EngineAdapter;
     isMountedRef: MutableRefObject<boolean>;
@@ -66,7 +110,9 @@ export function useTorrentDetail({
     const commitDetailState = useCallback(
         (detail: TorrentDetail | null, timestamp = Date.now()) => {
             if (!isMountedRef.current) return;
-            const nextDetail = detail ? cloneDetail(detail) : null;
+            const nextDetail = detail
+                ? cloneDetail(normalizeDetail(detail))
+                : null;
             setDetailData(nextDetail);
             detailTimestampRef.current = nextDetail ? timestamp : 0;
             detailIdentityRef.current =
@@ -94,7 +140,10 @@ export function useTorrentDetail({
             } else {
                 // If no placeholder, create a stub so we can subscribe.
                 // The Heartbeat will fill in the real data on the next tick.
-                commitDetailState({ id: torrentId } as TorrentDetail, 0);
+                commitDetailState(
+                    normalizeDetail({ id: torrentId } as Partial<TorrentDetail>, torrentId),
+                    0,
+                );
             }
         },
         [commitDetailState],

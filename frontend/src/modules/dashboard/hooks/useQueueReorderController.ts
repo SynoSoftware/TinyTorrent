@@ -5,20 +5,30 @@ import {
     type AnimationSuppressionKey,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 import { useTorrentRowDrag } from "@/modules/dashboard/hooks/useTorrentRowDrag";
-import type { SortingState, Row } from "@tanstack/react-table";
+import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
+import type { SortingState, Row, RowSelectionState } from "@tanstack/react-table";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 type QueueControllerDeps = {
     sorting: SortingState;
     pendingQueueOrder: string[] | null;
     setPendingQueueOrder: (order: string[] | null) => void;
+    serverOrder: string[];
     rowIds: string[];
     rowsById: Map<string, Row<Torrent>>;
+    dropTarget: QueueDropTarget | null;
+    rowSelection: RowSelectionState;
+    setRowSelection: (next: RowSelectionState) => void;
+    anchorIndex: number | null;
+    focusIndex: number | null;
     rowsLength: number;
     beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
     endAnimationSuppression: (key: AnimationSuppressionKey) => void;
+    markRowDragInteractionComplete: () => void;
+    setAnchorIndex: (index: number | null) => void;
+    setFocusIndex: (index: number | null) => void;
     setActiveRowId: (id: string | null) => void;
-    setDropTargetRowId: (id: string | null) => void;
+    setDropTarget: (target: QueueDropTarget | null) => void;
 };
 
 export const useQueueReorderController = (deps: QueueControllerDeps) => {
@@ -26,13 +36,22 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         sorting,
         pendingQueueOrder,
         setPendingQueueOrder,
+        serverOrder,
         rowIds,
         rowsById,
+        dropTarget,
+        rowSelection,
+        setRowSelection,
+        anchorIndex,
+        focusIndex,
         rowsLength,
         beginAnimationSuppression,
         endAnimationSuppression,
+        markRowDragInteractionComplete,
+        setAnchorIndex,
+        setFocusIndex,
         setActiveRowId,
-        setDropTargetRowId,
+        setDropTarget,
     } = deps;
 
     const { dispatch } = useRequiredTorrentActions();
@@ -48,18 +67,30 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     );
     const canReorderQueue = isQueueSort && Boolean(dispatch);
 
-    const { handleRowDragStart, handleRowDragEnd, handleRowDragCancel } =
+    const {
+        handleRowDragStart,
+        handleRowDragOver,
+        handleRowDragEnd,
+        handleRowDragCancel,
+    } =
         useTorrentRowDrag({
             canReorderQueue,
             rowIds,
             rowsById,
+            dropTarget,
+            rowSelection,
+            setRowSelection,
+            anchorIndex,
+            focusIndex,
             rowsLength,
-            sorting,
             setActiveRowId,
-            setDropTargetRowId,
+            setDropTarget,
+            setAnchorIndex,
+            setFocusIndex,
             setPendingQueueOrder,
             beginAnimationSuppression,
             endAnimationSuppression,
+            markRowDragInteractionComplete,
         });
     if (import.meta.env.DEV) {
         if (
@@ -76,38 +107,33 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     useEffect(() => {
         if (!canReorderQueue) {
             setActiveRowId(null);
-            setDropTargetRowId(null);
+            setDropTarget(null);
             setPendingQueueOrder(null);
             endAnimationSuppression(animationSuppressionKeys.rowDrag);
-            endAnimationSuppression(animationSuppressionKeys.queueReorder);
         }
     }, [
         canReorderQueue,
         endAnimationSuppression,
         setActiveRowId,
-        setDropTargetRowId,
+        setDropTarget,
         setPendingQueueOrder,
     ]);
 
     useEffect(() => {
         if (!pendingQueueOrder) return;
-        if (rowIds.length !== pendingQueueOrder.length) return;
-        for (let i = 0; i < rowIds.length; i += 1) {
-            if (rowIds[i] !== pendingQueueOrder[i]) {
+        if (serverOrder.length !== pendingQueueOrder.length) return;
+        for (let i = 0; i < serverOrder.length; i += 1) {
+            if (serverOrder[i] !== pendingQueueOrder[i]) {
                 return;
             }
         }
         setPendingQueueOrder(null);
-    }, [pendingQueueOrder, rowIds, setPendingQueueOrder]);
-
-    useEffect(() => {
-        if (pendingQueueOrder) return;
-        endAnimationSuppression(animationSuppressionKeys.queueReorder);
-    }, [pendingQueueOrder, endAnimationSuppression]);
+    }, [pendingQueueOrder, serverOrder, setPendingQueueOrder]);
 
     return {
         canReorderQueue,
         handleRowDragStart,
+        handleRowDragOver,
         handleRowDragEnd,
         handleRowDragCancel,
     };

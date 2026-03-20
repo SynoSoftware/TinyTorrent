@@ -64,4 +64,35 @@ describe("createSessionSpeedHistoryStore", () => {
 
         expect(clockState.unsubscribe).toHaveBeenCalledTimes(1);
     });
+
+    it("keeps a stable snapshot and skips notifications when the history is already flat", async () => {
+        const { createSessionSpeedHistoryStore } = await import(
+            "@/shared/hooks/useSessionSpeedHistory"
+        );
+
+        const store = createSessionSpeedHistoryStore();
+        const detach = store.attachFeedOwner();
+        const listener = vi.fn();
+        const unsubscribe = store.subscribe(listener);
+
+        try {
+            store.setStats({
+                downloadSpeed: 0,
+                uploadSpeed: 0,
+                torrentCount: 0,
+                activeTorrentCount: 0,
+                pausedTorrentCount: 0,
+            });
+
+            const initial = store.getSnapshot();
+            clockState.subscriber?.();
+
+            const next = store.getSnapshot();
+            expect(next).toBe(initial);
+            expect(listener).not.toHaveBeenCalled();
+        } finally {
+            unsubscribe();
+            detach();
+        }
+    });
 });

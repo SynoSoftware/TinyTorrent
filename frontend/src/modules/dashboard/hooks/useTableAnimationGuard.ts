@@ -6,7 +6,6 @@ export const animationSuppressionKeys = {
     columnVisibility: "column-visibility",
     panelResize: "panel-resize",
     rowDrag: "row-drag",
-    queueReorder: "queue-reorder",
 } as const;
 
 export type AnimationSuppressionKey =

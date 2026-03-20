@@ -16,7 +16,6 @@ import { AppShellStateProvider } from "@/app/context/AppShellStateContext";
 const { timing } = registry;
 
 type TinyTorrentGlobal = typeof globalThis & {
-    __ttPerformanceMeasurePrunerId?: number;
     __ttPerformanceMeasurePatched?: boolean;
 };
 
@@ -64,10 +63,6 @@ function installPerformanceMeasurePruner() {
         globalState.__ttPerformanceMeasurePatched = true;
     }
 
-    if (globalState.__ttPerformanceMeasurePrunerId !== undefined) {
-        return;
-    }
-
     const prune = () => {
         const entries = perf.getEntriesByType("measure");
         if (entries.length === 0) {
@@ -101,7 +96,6 @@ function installPerformanceMeasurePruner() {
     };
 
     prune();
-    globalState.__ttPerformanceMeasurePrunerId = window.setInterval(prune, 1000);
 }
 
 // Apply CSS variable bases from constants.json before rendering.

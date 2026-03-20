@@ -4,11 +4,13 @@ import {
     TouchSensor,
     useSensor,
     useSensors,
+    type DragOverEvent,
     type DragStartEvent,
     type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
 import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
+import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
@@ -30,6 +32,7 @@ export type ColumnDragCommitOutcome =
 
 type DragHandlers = {
     handleRowDragStart: (event: DragStartEvent) => void;
+    handleRowDragOver: (event: DragOverEvent) => void;
     handleRowDragEnd: (event: DragEndEvent) => Promise<void>;
     handleRowDragCancel: () => void;
 };
@@ -49,14 +52,14 @@ type TorrentTableInteractionsDeps = DragHandlers & {
     setRowSelection: (next: RowSelectionState) => void;
     setAnchorIndex: (index: number | null) => void;
     setFocusIndex: (index: number | null) => void;
-    setHighlightedRowId: (id: string | null) => void;
+    setActiveId: (id: string | null) => void;
     selectAllRows: () => void;
     rowVirtualizer: RowVirtualizerLike;
     canReorderQueue: boolean;
     beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
     endAnimationSuppression: (key: AnimationSuppressionKey) => void;
     setActiveRowId: (id: string | null) => void;
-    setDropTargetRowId: (id: string | null) => void;
+    setDropTarget: (target: QueueDropTarget | null) => void;
     rowIds: string[];
     rowsById: Map<string, Row<Torrent>>;
     sorting: SortingState;
@@ -128,6 +131,7 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
     // full deps object so those hooks can pick what they need.
     const {
         handleRowDragStart,
+        handleRowDragOver,
         handleRowDragEnd,
         handleRowDragCancel,
     } = deps;
@@ -141,6 +145,7 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
         handleDragEnd,
         handleDragCancel,
         handleRowDragStart,
+        handleRowDragOver,
         handleRowDragEnd,
         handleRowDragCancel,
         handleKeyDown,

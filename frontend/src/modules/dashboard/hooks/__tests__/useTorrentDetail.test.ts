@@ -2,6 +2,7 @@ import React, {
     createElement,
     forwardRef,
     useImperativeHandle,
+    useLayoutEffect,
     useRef,
 } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +42,7 @@ type HarnessRef = {
         torrentId: string,
         detail?: Record<string, unknown>,
     ) => Promise<void>;
+    getDetailData: () => Record<string, unknown> | null;
 };
 
 const waitForCondition = async (
@@ -65,13 +67,19 @@ const HookHarness = forwardRef<HarnessRef>((_, ref) => {
         torrentClient: {} as never,
         isMountedRef,
     });
+    const viewModelRef = useRef(viewModel);
+
+    useLayoutEffect(() => {
+        viewModelRef.current = viewModel;
+    }, [viewModel]);
 
     useImperativeHandle(ref, () => ({
         loadDetail: (torrentId: string, detail?: Record<string, unknown>) =>
-            viewModel.loadDetail(
+            viewModelRef.current.loadDetail(
                 torrentId,
                 ({ id: torrentId, ...(detail ?? {}) } as never),
             ),
+        getDetailData: () => viewModelRef.current.detailData as Record<string, unknown> | null,
     }));
 
     return createElement("div");
@@ -162,6 +170,37 @@ describe("useTorrentDetail", () => {
                     includeTrackerStats: true,
                 }),
             );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("normalizes placeholder detail state before the heartbeat fills in full data", async () => {
+        const mounted = await mountHarness();
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            flushSync(() => {
+                void harness.loadDetail("torrent-3");
+            });
+
+            await waitForCondition(() => {
+                const detail = harness.getDetailData();
+                return Boolean(detail && typeof detail.speed === "object");
+            });
+
+            const detail = harness.getDetailData();
+            expect(detail).not.toBeNull();
+            expect((detail as { speed?: { down?: number; up?: number } }).speed?.down).toBe(0);
+            expect((detail as { speed?: { down?: number; up?: number } }).speed?.up).toBe(0);
+            expect(
+                (detail as { peerSummary?: { connected?: number; total?: number } }).peerSummary?.connected,
+            ).toBe(0);
+            expect(detail?.id).toBe("torrent-3");
+            expect(detail?.hash).toBe("torrent-3");
         } finally {
             mounted.cleanup();
         }

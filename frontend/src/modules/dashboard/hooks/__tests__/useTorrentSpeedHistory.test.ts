@@ -90,6 +90,21 @@ describe("useTorrentSpeedHistory", () => {
             root.render(
                 createElement(Harness, {
                     ref,
+                    torrents: [makeTorrent("a", 0, 0), makeTorrent("b", 0, 0)],
+                }),
+            );
+        });
+
+        const seededAgain = ref.current?.read();
+        expect(seededAgain?.a.down).toBe(seeded?.a.down);
+        expect(seededAgain?.a.up).toBe(seeded?.a.up);
+        expect(seededAgain?.b.down).toBe(seeded?.b.down);
+        expect(seededAgain?.b.up).toBe(seeded?.b.up);
+
+        await act(async () => {
+            root.render(
+                createElement(Harness, {
+                    ref,
                     torrents: [makeTorrent("a", 20, 6)],
                 }),
             );
@@ -122,6 +137,19 @@ describe("useTorrentSpeedHistory", () => {
         expect(idled?.a.up).toHaveLength(performance.historyDataPoints);
         expect(idled?.a.down.slice(-2)).toEqual([20, 0]);
         expect(idled?.a.up.slice(-2)).toEqual([6, 0]);
+
+        await act(async () => {
+            root.render(
+                createElement(Harness, {
+                    ref,
+                    torrents: [makeTorrent("a", 0, 0)],
+                }),
+            );
+        });
+
+        const idledAgain = ref.current?.read();
+        expect(idledAgain?.a.down).not.toBe(idled?.a.down);
+        expect(idledAgain?.a.up).not.toBe(idled?.a.up);
 
         await act(async () => {
             root.unmount();

@@ -2,7 +2,6 @@ import {
     useCallback,
     useEffect,
     useMemo,
-    useRef,
     type MutableRefObject,
 } from "react";
 import type { Row } from "@tanstack/react-table";
@@ -17,11 +16,11 @@ type RowSelectionControllerDeps = {
         getSelectedRowModel: () => { rows: Row<Torrent>[] };
         getRow: (id: string) => Row<Torrent> | undefined;
     };
-    rows?: Row<Torrent>[];
     rowIds: string[];
     rowVirtualizerRef?: MutableRefObject<{ scrollToIndex: (index: number) => void } | null>;
     isMarqueeDraggingRef: React.MutableRefObject<boolean>;
     marqueeClickBlockRef: React.MutableRefObject<boolean>;
+    dragClickBlockRef: React.MutableRefObject<boolean>;
     rowSelectionRef: React.MutableRefObject<RowSelectionState>;
     rowSelection: RowSelectionState;
     setRowSelection: (s: RowSelectionState) => void;
@@ -29,8 +28,6 @@ type RowSelectionControllerDeps = {
     setAnchorIndex: (n: number | null) => void;
     focusIndex: number | null;
     setFocusIndex: (n: number | null) => void;
-    highlightedRowId: string | null;
-    setHighlightedRowId: (id: string | null) => void;
 };
 
 export const useRowSelectionController = (
@@ -38,11 +35,11 @@ export const useRowSelectionController = (
 ) => {
     const {
         table,
-        rows,
         rowIds,
         rowVirtualizerRef,
         isMarqueeDraggingRef,
         marqueeClickBlockRef,
+        dragClickBlockRef,
         rowSelectionRef,
         rowSelection,
         setRowSelection,
@@ -50,8 +47,6 @@ export const useRowSelectionController = (
         setAnchorIndex,
         focusIndex,
         setFocusIndex,
-        highlightedRowId,
-        setHighlightedRowId,
     } = deps;
     const { setSelectedIds, setActiveId } = useSelection();
 
@@ -85,14 +80,14 @@ export const useRowSelectionController = (
             const bottomRow = allRows[bottomIndex];
             setAnchorIndex(bottomIndex);
             setFocusIndex(bottomIndex);
-            setHighlightedRowId(bottomRow?.id ?? null);
+            setActiveId(bottomRow?.id ?? null);
             rowVirtualizerRef?.current?.scrollToIndex(bottomIndex);
         }
     }, [
         rowVirtualizerRef,
+        setActiveId,
         setAnchorIndex,
         setFocusIndex,
-        setHighlightedRowId,
         setRowSelection,
         table,
     ]);
@@ -133,43 +128,31 @@ export const useRowSelectionController = (
                 setAnchorIndex(focusIndexValue);
                 setFocusIndex(focusIndexValue);
             }
-            setHighlightedRowId(focusRowId ?? null);
+            setActiveId(focusRowId ?? null);
         },
-        [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]
+        [setActiveId, setAnchorIndex, setFocusIndex, setRowSelection]
     );
 
     const clearSelection = useCallback(() => {
         setRowSelection({});
         setAnchorIndex(null);
         setFocusIndex(null);
-        setHighlightedRowId(null);
-    }, [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]);
+        setActiveId(null);
+    }, [setActiveId, setAnchorIndex, setFocusIndex, setRowSelection]);
 
     useEffect(() => {
         setSelectedIds(selectedIds);
     }, [selectedIds, setSelectedIds]);
 
-    const rowsById = useMemo(() => {
-        if (!rows) return new Map<string, Row<Torrent>>();
-        const map = new Map<string, Row<Torrent>>();
-        rows.forEach((row) => {
-            map.set(row.id, row);
-        });
-        return map;
-    }, [rows]);
-
-    const lastActiveRowIdRef = useRef<string | null>(null);
-    useEffect(() => {
-        if (lastActiveRowIdRef.current === highlightedRowId) return;
-        lastActiveRowIdRef.current = highlightedRowId ?? null;
-        const activeRow = highlightedRowId
-            ? rowsById.get(highlightedRowId)
-            : null;
-        setActiveId(activeRow?.original.id ?? null);
-    }, [highlightedRowId, rowsById, setActiveId]);
-
     const handleRowClick = useCallback(
-        (e: React.MouseEvent, rowId: string, originalIndex: number) => {
+        (
+            e: React.MouseEvent,
+            rowId: string,
+            originalIndex: number,
+            options?: {
+                suppressPlainClick?: boolean;
+            },
+        ) => {
             if (!table) return;
             if (isMarqueeDraggingRef.current) return;
             const target = e.target as HTMLElement;
@@ -189,6 +172,16 @@ export const useRowSelectionController = (
             const isMultiSelect = e.ctrlKey || e.metaKey;
             const isRangeSelect = e.shiftKey;
             const rangeAnchor = anchorIndex ?? focusIndex;
+            const suppressPlainClick = Boolean(options?.suppressPlainClick);
+
+            if (!suppressPlainClick && dragClickBlockRef.current) {
+                dragClickBlockRef.current = false;
+                return;
+            }
+
+            if (suppressPlainClick && !isMultiSelect && !isRangeSelect) {
+                return;
+            }
 
             if (isRangeSelect && rangeAnchor !== null) {
                 const allRows = table.getRowModel().rows;
@@ -205,7 +198,7 @@ export const useRowSelectionController = (
                 for (const id of ids) newSel[id] = true;
                 setRowSelection(newSel);
                 setFocusIndex(originalIndex);
-                setHighlightedRowId(rowId);
+                setActiveId(rowId);
                 return;
             }
 
@@ -217,20 +210,57 @@ export const useRowSelectionController = (
 
             setAnchorIndex(originalIndex);
             setFocusIndex(originalIndex);
-            setHighlightedRowId(rowId);
+            setActiveId(rowId);
         },
         [
             anchorIndex,
             focusIndex,
+            dragClickBlockRef,
             isMarqueeDraggingRef,
             marqueeClickBlockRef,
             rowIds,
+            setActiveId,
             setAnchorIndex,
             setFocusIndex,
-            setHighlightedRowId,
             setRowSelection,
             table,
         ]
+    );
+
+    const handleRowPointerDown = useCallback(
+        (event: React.PointerEvent, rowId: string, originalIndex: number) => {
+            if (!table) return;
+            if (event.button !== 0) return;
+            if (isMarqueeDraggingRef.current) return;
+            const target = event.target as HTMLElement;
+            if (
+                target.closest("button") ||
+                target.closest("label") ||
+                target.closest("[data-no-select]")
+            ) {
+                return;
+            }
+
+            const rowData = table.getRow(rowId)?.original;
+            if (rowData?.isGhost) return;
+
+            if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                return;
+            }
+
+            setActiveId(rowId);
+            setRowSelection({ [rowId]: true });
+            setAnchorIndex(originalIndex);
+            setFocusIndex(originalIndex);
+        },
+        [
+            isMarqueeDraggingRef,
+            setActiveId,
+            setRowSelection,
+            setAnchorIndex,
+            setFocusIndex,
+            table,
+        ],
     );
 
     const ensureContextSelection = useCallback(
@@ -238,32 +268,23 @@ export const useRowSelectionController = (
             if (!currentSelection[rowId]) {
                 setRowSelection({ [rowId]: true });
             }
-            setHighlightedRowId(rowId);
             setAnchorIndex(rowIndex);
             setFocusIndex(rowIndex);
+            setActiveId(rowId);
         },
-        [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]
+        [setActiveId, setAnchorIndex, setFocusIndex, setRowSelection]
     );
 
     return {
-        rowSelection,
-        setRowSelection,
-        rowSelectionRef,
-        anchorIndex,
-        focusIndex,
-        setAnchorIndex,
-        setFocusIndex,
-        highlightedRowId,
-        setHighlightedRowId,
         selectAllRows,
-        selectedTorrents,
         getSelectionSnapshot,
         previewSelection,
         commitSelection,
         clearSelection,
+        handleRowPointerDown,
         handleRowClick,
+        setActiveId,
         ensureContextSelection,
-        handleTableRowSelectionChange: setRowSelection,
     };
 };
 

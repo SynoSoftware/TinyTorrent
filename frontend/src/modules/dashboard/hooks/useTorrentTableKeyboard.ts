@@ -16,7 +16,7 @@ type TorrentTableKeyboardDeps = {
     setRowSelection: (next: RowSelectionState) => void;
     setAnchorIndex: (index: number | null) => void;
     setFocusIndex: (index: number | null) => void;
-    setHighlightedRowId: (id: string | null) => void;
+    setActiveId: (id: string | null) => void;
     selectAllRows: () => void;
 };
 
@@ -29,7 +29,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
         setRowSelection,
         setAnchorIndex,
         setFocusIndex,
-        setHighlightedRowId,
+        setActiveId,
         selectAllRows,
     } = deps;
 
@@ -48,7 +48,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
                 setRowSelection({ [targetRow.id]: true });
                 setAnchorIndex(targetIndex);
                 setFocusIndex(targetIndex);
-                setHighlightedRowId(targetRow.id);
+                setActiveId(targetRow.id);
                 rowVirtualizer.scrollToIndex(targetIndex);
             };
 
@@ -70,7 +70,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
                 setFocusIndex(normalizedEnd);
                 const targetRow = allRows[normalizedEnd];
                 if (targetRow) {
-                    setHighlightedRowId(targetRow.id);
+                    setActiveId(targetRow.id);
                 }
                 rowVirtualizer.scrollToIndex(normalizedEnd);
             };
@@ -129,7 +129,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
             setRowSelection,
             setAnchorIndex,
             setFocusIndex,
-            setHighlightedRowId,
+            setActiveId,
         ]
     );
 

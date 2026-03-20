@@ -617,8 +617,13 @@ export const TABLE = {
     } as const,
     bodyCanvas: "relative w-full min-w-max",
     noResults: `h-full flex items-center justify-center px-stage ${TEXT_ROLE.labelDense}`,
-    dragOverlay: `pointer-events-none ${SURFACE.role.overlay} px-panel box-border`,
+    dragOverlayStack: "pointer-events-none relative box-border",
+    dragOverlay: `pointer-events-none absolute inset-x-0 ${SURFACE.role.overlay} px-panel box-border`,
+    dragOverlayGhost:
+        "pointer-events-none absolute inset-x-0 rounded-panel border border-default/10 bg-content1/50 px-panel box-border opacity-70 backdrop-blur-md",
     dragOverlayContent: "flex h-full w-full items-center",
+    dragOverlayBadge:
+        "pointer-events-none absolute right-tight top-tight rounded-full border border-default/15 bg-background/90 px-tight py-1 text-label font-semibold text-foreground/80 shadow-small backdrop-blur-md",
     marquee: "pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20",
     loadingRoot: "w-full",
     loadingRow: "flex items-center w-full border-b border-content1/5 px-panel",
