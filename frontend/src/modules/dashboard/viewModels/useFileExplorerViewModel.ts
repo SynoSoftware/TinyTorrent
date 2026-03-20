@@ -24,14 +24,17 @@ export function useFileExplorerViewModel(
     // 1. Transform raw RPC file entities into flat explorer entries
     const fileEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!files) return [];
-        return files.map(({ name, index, length, progress, wanted, priority }) => ({
-            name,
-            index,
-            length,
-            progress,
-            wanted,
-            priority,
-        }));
+        return files.map(
+            ({ name, index, length, bytesCompleted, progress, wanted, priority }) => ({
+                name,
+                index,
+                length,
+                bytesCompleted,
+                progress,
+                wanted,
+                priority,
+            }),
+        );
     }, [files]);
 
     const commitFileToggle = useCallback(

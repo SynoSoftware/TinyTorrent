@@ -75,6 +75,7 @@ const ViewModelHarness = forwardRef<HarnessRef>((_, ref) => {
             },
         },
         handleFileSelectionChange: async () => undefined,
+        handleFilePriorityChange: async () => undefined,
         trackerCommands: {
             addTrackers: vi.fn(async () => ({ status: "applied" as const })),
             removeTrackers: vi.fn(async () => ({ status: "applied" as const })),

@@ -2,7 +2,30 @@ import type {
     FileExplorerEntry,
     FileExplorerFilterMode,
     FileNode,
+    FileExplorerPrioritySelectKey,
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+import type { LibtorrentPriority } from "@/services/rpc/entities";
+
+export const fileExplorerPriorityValues = {
+    high: 7 as LibtorrentPriority,
+    normal: 4 as LibtorrentPriority,
+    low: 1 as LibtorrentPriority,
+} as const;
+
+const fileExplorerPriorityThresholds = {
+    high: 6,
+    low: 2,
+} as const;
+
+export const getFileExplorerPriorityKey = (
+    priority: LibtorrentPriority,
+    isWanted: boolean,
+): FileExplorerPrioritySelectKey => {
+    if (!isWanted) return "skip";
+    if (priority >= fileExplorerPriorityThresholds.high) return "high";
+    if (priority <= fileExplorerPriorityThresholds.low) return "low";
+    return "normal";
+};
 
 const VIDEO_FILE_PATTERN = /\.(mp4|mkv|avi|mov|wmv)$/i;
 const AUDIO_FILE_PATTERN = /\.(mp3|aac|flac|wav)$/i;
@@ -65,6 +88,7 @@ export const buildTree = (entries: FileExplorerEntry[]): FileNode[] => {
                     descendantIndexes: [],
                     totalSize: 0,
                     bytesCompleted: 0,
+                    progress: 0,
                 };
                 nodeByPath.set(currentPath, node);
 
@@ -80,7 +104,13 @@ export const buildTree = (entries: FileExplorerEntry[]): FileNode[] => {
             }
 
             node.totalSize += entry.length || 0;
-            node.bytesCompleted += entry.bytesCompleted || 0;
+            const entryBytesCompleted =
+                typeof entry.bytesCompleted === "number"
+                    ? entry.bytesCompleted
+                    : typeof entry.progress === "number" && typeof entry.length === "number"
+                      ? Math.min(Math.max(entry.progress, 0), 1) * entry.length
+                      : 0;
+            node.bytesCompleted += entryBytesCompleted;
             node.descendantIndexes.push(entry.index);
         }
     });
@@ -100,6 +130,21 @@ export const buildTree = (entries: FileExplorerEntry[]): FileNode[] => {
     };
 
     sortNodes(rootNodes);
+
+    const annotateProgress = (nodes: FileNode[]) => {
+        nodes.forEach((node) => {
+            node.progress =
+                node.totalSize > 0
+                    ? Math.min((node.bytesCompleted / node.totalSize) * 100, 100)
+                    : 0;
+            if (node.children.length > 0) {
+                annotateProgress(node.children);
+            }
+        });
+    };
+
+    annotateProgress(rootNodes);
+
     return rootNodes;
 };
 

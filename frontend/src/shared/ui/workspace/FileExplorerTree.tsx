@@ -1,35 +1,27 @@
-import { ArrowDown, ArrowUp, ChevronDown, Filter, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, Filter, ListOrdered, HardDrive, Percent, Search } from "lucide-react";
 import {
-    Button,
-    ButtonGroup,
     Checkbox,
-    cn,
     Dropdown,
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
     Input,
+    Select,
+    SelectItem,
 } from "@heroui/react";
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
-import type {
-    FileExplorerContextAction,
-    FileExplorerFilterMode,
-    FileExplorerTreeViewModel,
-} from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import {
-    FILE_BROWSER,
-    FORM_CONTROL,
-    SURFACE,
-} from "@/shared/ui/layout/glass-surface";
-import { FileExplorerTreeRow } from "@/shared/ui/workspace/FileExplorerTreeRow";
+import type { FileExplorerFilterMode, FileExplorerTreeViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+import { FILE_BROWSER, FORM_CONTROL, DETAILS, SURFACE, TABLE } from "@/shared/ui/layout/glass-surface";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { FileExplorerTreeRow, prioritySelectOptions } from "@/shared/ui/workspace/FileExplorerTreeRow";
+import { fileExplorerPriorityValues, getFileExplorerPriorityKey } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
-import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 
 export type {
-    FileExplorerContextAction,
     FileExplorerEntry,
     FileExplorerToggleCommand,
     FileExplorerToggleOutcome,
@@ -40,20 +32,70 @@ interface FileExplorerTreeProps {
     viewModel: FileExplorerTreeViewModel;
 }
 
-const ROW_ESTIMATE = 36;
+const readCssLength = (value: string) => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
 
-export const FileExplorerTree = memo(function FileExplorerTree({
-    viewModel,
-}: FileExplorerTreeProps) {
+const getCompactLayoutThreshold = () => {
+    if (typeof window === "undefined") {
+        return 480;
+    }
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const minTableWidth = readCssLength(rootStyles.getPropertyValue("--tt-add-file-table-min-w"));
+    const panelSpacing = readCssLength(rootStyles.getPropertyValue("--spacing-panel"));
+    if (minTableWidth == null || panelSpacing == null) {
+        return 0;
+    }
+    return Math.round(minTableWidth + panelSpacing * 2);
+};
+
+export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: FileExplorerTreeProps) {
     const {
         files,
         wantedByIndex,
         priorityByIndex,
+        showProgress = false,
+        search,
         onFilesToggle,
-        onFileContextAction,
+        onSetPriority,
     } = viewModel;
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
+    const toolbarLeadRef = useRef<HTMLDivElement>(null);
+    const selectionMeasureRef = useRef<HTMLSpanElement>(null);
+    const { rowHeight } = useLayoutMetrics();
+    const [containerWidth, setContainerWidth] = useState(0);
+    const [shouldShowSelectionSummary, setShouldShowSelectionSummary] = useState(false);
+    useEffect(() => {
+        const element = parentRef.current;
+        if (!element || typeof ResizeObserver === "undefined") {
+            return;
+        }
+
+        const updateWidth = () => {
+            const nextWidth = Math.max(0, element.getBoundingClientRect().width);
+            setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
+        };
+
+        updateWidth();
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const nextWidth = Math.max(0, entry.contentRect.width);
+                setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
+            }
+        });
+
+        observer.observe(element);
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
+    const compactLayoutThreshold = useMemo(() => getCompactLayoutThreshold(), []);
+    const isCompactLayout = containerWidth > 0 && containerWidth < compactLayoutThreshold;
 
     const {
         searchQuery,
@@ -65,31 +107,53 @@ export const FileExplorerTree = memo(function FileExplorerTree({
         expandAll,
         collapseAll,
         visibleNodes,
-        selectedIndexes,
-        setSelectedIndexes,
-        handleSelectionChange,
-        handleSelectAll,
         fileWantedMap,
         filePriorityMap,
-        isAllSelected,
-        isIndeterminate,
     } = useFileExplorerTreeState(files, {
         wantedByIndex,
         priorityByIndex,
+        searchQuery: search?.value,
     });
+    const controlledSearchValue = search?.value ?? searchQuery;
+    const handleSearchValueChange = search?.onChange ?? setSearchQuery;
 
-    useEffect(() => {
+    const selectedIndexes = useMemo(() => {
         const next = new Set<number>();
-        fileWantedMap.forEach((wanted, index) => {
-            if (wanted) next.add(index);
+        files.forEach((file) => {
+            if (fileWantedMap.get(file.index)) {
+                next.add(file.index);
+            }
         });
-        setSelectedIndexes(next);
-    }, [fileWantedMap, setSelectedIndexes]);
+        return next;
+    }, [fileWantedMap, files]);
 
-    const handleSetPriority = useCallback(
-        (priority: LibtorrentPriority | "skip", targetIndexes?: number[]) => {
-            const indexesToUpdate =
-                targetIndexes ?? Array.from(selectedIndexes);
+    const allVisibleIndexes = useMemo(
+        () => Array.from(new Set(visibleNodes.flatMap((node) => node.descendantIndexes))),
+        [visibleNodes],
+    );
+
+    const headerPrioritySelection = useMemo(() => {
+        const keys = new Set<string>(
+            allVisibleIndexes.map((index) => {
+                const priority = (filePriorityMap.get(index) ??
+                    fileExplorerPriorityValues.normal) as LibtorrentPriority;
+                const isWanted = Boolean(fileWantedMap.get(index));
+                return getFileExplorerPriorityKey(priority, isWanted);
+            }),
+        );
+        return keys.size === 1 ? keys : new Set<string>();
+    }, [allVisibleIndexes, filePriorityMap, fileWantedMap]);
+
+    const gridTemplateColumns = showProgress
+        ? "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w)) minmax(calc(20 * var(--u) * var(--z)), var(--tt-col-meta)) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))"
+        : "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w)) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))";
+
+    const isAllSelected =
+        allVisibleIndexes.length > 0 && allVisibleIndexes.every((index) => Boolean(fileWantedMap.get(index)));
+    const isIndeterminate = !isAllSelected && allVisibleIndexes.some((index) => Boolean(fileWantedMap.get(index)));
+
+    const applyPriorityToIndexes = useCallback(
+        (indexesToUpdate: number[], priority: LibtorrentPriority | "skip") => {
             if (indexesToUpdate.length === 0) return;
 
             if (priority === "skip") {
@@ -97,218 +161,225 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                 return;
             }
 
-            void onFilesToggle(indexesToUpdate, true);
-            const entryMap = new Map(files.map((file) => [file.index, file]));
-
-            let action: FileExplorerContextAction = "priority_normal";
-            if (priority >= 6) action = "priority_high";
-            if (priority <= 2) action = "priority_low";
-
-            indexesToUpdate.forEach((index) => {
-                const entry = entryMap.get(index);
-                if (entry) {
-                    onFileContextAction?.(action, entry);
-                }
-            });
+            void onSetPriority?.(indexesToUpdate, priority);
         },
-        [files, onFileContextAction, onFilesToggle, selectedIndexes],
+        [onFilesToggle, onSetPriority],
+    );
+
+    const handleSetPriority = useCallback(
+        (priority: LibtorrentPriority | "skip", targetIndexes?: number[]) => {
+            applyPriorityToIndexes(targetIndexes ?? [], priority);
+        },
+        [applyPriorityToIndexes],
+    );
+
+    const handleSetVisiblePriority = useCallback(
+        (priority: LibtorrentPriority | "skip") => {
+            applyPriorityToIndexes(allVisibleIndexes, priority);
+        },
+        [allVisibleIndexes, applyPriorityToIndexes],
+    );
+
+    const handleSelectAll = useCallback(
+        (selected: boolean) => {
+            if (!allVisibleIndexes.length) return;
+            void onFilesToggle(allVisibleIndexes, selected);
+        },
+        [allVisibleIndexes, onFilesToggle],
     );
 
     // eslint-disable-next-line react-hooks/incompatible-library
     const virtualizer = useVirtualizer({
         count: visibleNodes.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => ROW_ESTIMATE,
+        estimateSize: () => rowHeight,
+        measureElement: (element) => element?.getBoundingClientRect().height ?? rowHeight,
         overscan: 10,
     });
 
+    useEffect(() => {
+        virtualizer.measure();
+    }, [isCompactLayout, virtualizer]);
+
+    useEffect(() => {
+        if (selectedIndexes.size === 0) {
+            setShouldShowSelectionSummary(false);
+            return;
+        }
+
+        const toolbar = toolbarRef.current;
+        const toolbarLead = toolbarLeadRef.current;
+        const selectionMeasure = selectionMeasureRef.current;
+        if (!toolbar || !toolbarLead || !selectionMeasure) {
+            setShouldShowSelectionSummary(true);
+            return;
+        }
+
+        const rootStyles = window.getComputedStyle(document.documentElement);
+        const toolbarGap = readCssLength(rootStyles.getPropertyValue("--gap-tools")) ?? 0;
+        const requiredWidth =
+            toolbarLead.getBoundingClientRect().width +
+            selectionMeasure.getBoundingClientRect().width +
+            toolbarGap * 2;
+        setShouldShowSelectionSummary(requiredWidth <= toolbar.clientWidth);
+    }, [containerWidth, selectedIndexes.size]);
+
     return (
-        <div className={FILE_BROWSER.container}>
-            <div className={FILE_BROWSER.toolbar}>
-                <Input
-                    classNames={FILE_BROWSER.searchInputClassNames}
-                    placeholder={t("actions.search")}
-                    startContent={
-                        <Search className={FILE_BROWSER.iconDefault} />
-                    }
-                    value={searchQuery}
-                    onValueChange={setSearchQuery}
-                    isClearable
-                    size="md"
-                    variant="bordered"
-                />
+        <div ref={parentRef} className={FILE_BROWSER.container}>
+            <div ref={toolbarRef} className={FILE_BROWSER.toolbar}>
+                <div ref={toolbarLeadRef} className={FILE_BROWSER.toolbarLead}>
+                    <div className={FILE_BROWSER.toolbarActionGroup}>
+                        <ToolbarIconButton
+                            Icon={ArrowDown}
+                            ariaLabel={t("actions.expand_all")}
+                            title={t("actions.expand_all")}
+                            onPress={expandAll}
+                            className={DETAILS.headerContextActionButton}
+                            iconSize="md"
+                        />
+                        <ToolbarIconButton
+                            Icon={ArrowUp}
+                            ariaLabel={t("actions.collapse_all")}
+                            title={t("actions.collapse_all")}
+                            onPress={collapseAll}
+                            className={DETAILS.headerContextActionButton}
+                            iconSize="md"
+                        />
+                    </div>
+                    <div className={FILE_BROWSER.toolsDivider} />
 
-                <Dropdown>
-                    <DropdownTrigger>
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            isIconOnly
-                            className={FILE_BROWSER.filterButton}
-                        >
-                            <Filter className={FILE_BROWSER.filterIcon} />
-                        </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                        selectionMode="single"
-                        selectedKeys={new Set([filterMode])}
-                        onSelectionChange={(keys) =>
-                            setFilterMode(
-                                Array.from(keys)[0] as FileExplorerFilterMode,
-                            )
-                        }
-                        disallowEmptySelection
-                        variant="shadow"
-                        className={SURFACE.menu.surface}
-                        classNames={SURFACE.menu.listClassNames}
-                        itemClasses={SURFACE.menu.itemClassNames}
-                    >
-                        <DropdownItem key="all">{t("status.all")}</DropdownItem>
-                        <DropdownItem key="video">
-                            {t("types.video")}
-                        </DropdownItem>
-                        <DropdownItem key="audio">
-                            {t("types.audio")}
-                        </DropdownItem>
-                    </DropdownMenu>
-                </Dropdown>
-
-                <div className={FILE_BROWSER.toolsDivider} />
-
-                <ButtonGroup size="md" variant="shadow">
-                    <Button
-                        onPress={expandAll}
-                        isIconOnly
-                        aria-label={t("actions.expand_all")}
-                        className={FILE_BROWSER.expandButton}
-                    >
-                        <ArrowDown className={FILE_BROWSER.iconSmall} />
-                    </Button>
-                    <Button
-                        onPress={collapseAll}
-                        isIconOnly
-                        aria-label={t("actions.collapse_all")}
-                        className={FILE_BROWSER.expandButton}
-                    >
-                        <ArrowUp className={FILE_BROWSER.iconSmall} />
-                    </Button>
-                </ButtonGroup>
-
-                <div className={FILE_BROWSER.toolbarSpacer} />
-
-                <div
-                    className={FILE_BROWSER.builder.selectionActionsClass(
-                        selectedIndexes.size > 0,
-                    )}
-                >
-                    <span className={FILE_BROWSER.selectionActionsLabel}>
-                        {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
-                    </span>
                     <Dropdown>
                         <DropdownTrigger>
-                            <Button
-                                size="md"
-                                color="primary"
-                                variant="shadow"
-                                endContent={
-                                    <ChevronDown
-                                        className={FILE_BROWSER.iconSmall}
-                                    />
-                                }
-                                className={FILE_BROWSER.priorityButton}
-                            >
-                                {t("fields.priority")}
-                            </Button>
+                            <ToolbarIconButton
+                                Icon={Filter}
+                                ariaLabel={t("labels.filter_aria")}
+                                title={t("labels.filter_aria")}
+                                className={DETAILS.headerContextActionButton}
+                                iconSize="md"
+                            />
                         </DropdownTrigger>
                         <DropdownMenu
-                            onAction={(key) => {
-                                if (key === "high") handleSetPriority(7);
-                                if (key === "normal") handleSetPriority(4);
-                                if (key === "low") handleSetPriority(1);
-                                if (key === "skip") handleSetPriority("skip");
-                            }}
+                            selectionMode="single"
+                            selectedKeys={new Set([filterMode])}
+                            onSelectionChange={(keys) => setFilterMode(Array.from(keys)[0] as FileExplorerFilterMode)}
+                            disallowEmptySelection
                             variant="shadow"
                             className={SURFACE.menu.surface}
                             classNames={SURFACE.menu.listClassNames}
                             itemClasses={SURFACE.menu.itemClassNames}
                         >
-                            <DropdownItem key="high">
-                                {t("priority.high")}
-                            </DropdownItem>
-                            <DropdownItem key="normal">
-                                {t("priority.normal")}
-                            </DropdownItem>
-                            <DropdownItem key="low">
-                                {t("priority.low")}
-                            </DropdownItem>
-                            <DropdownItem
-                                key="skip"
-                                className={FILE_BROWSER.priorityMenuDangerItem}
-                            >
-                                {t("priority.dont_download")}
-                            </DropdownItem>
+                            <DropdownItem key="all">{t("status.all")}</DropdownItem>
+                            <DropdownItem key="video">{t("types.video")}</DropdownItem>
+                            <DropdownItem key="audio">{t("types.audio")}</DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
-                </div>
-            </div>
-
-            <div
-                className={cn(
-                    FILE_BROWSER.headerRow,
-                    TEXT_ROLE_EXTENDED.fileTreeHeader,
-                )}
-            >
-                <div className={FILE_BROWSER.headerCheckboxWrap}>
-                    <Checkbox
-                        size="sm"
-                        isSelected={isAllSelected}
-                        isIndeterminate={isIndeterminate}
-                        onValueChange={handleSelectAll}
-                        classNames={FORM_CONTROL.checkboxPrimaryClassNames}
+                    <Input
+                        classNames={FILE_BROWSER.searchInputClassNames}
+                        className={FILE_BROWSER.toolbarSearchWrap}
+                        placeholder={t("actions.search")}
+                        startContent={<Search className={FILE_BROWSER.iconDefault} />}
+                        value={controlledSearchValue}
+                        onValueChange={handleSearchValueChange}
+                        isClearable
+                        size="md"
+                        variant="bordered"
                     />
                 </div>
-                <div>{t("fields.name")}</div>
-                <div className={FILE_BROWSER.headerPriority}>
-                    {t("fields.priority")}
+
+                <div className={FILE_BROWSER.toolbarSpacer} />
+
+                <div className={FILE_BROWSER.builder.selectionSummaryClass(shouldShowSelectionSummary)}>
+                    <span className={FILE_BROWSER.toolbarSelectionCount}>
+                        {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
+                    </span>
                 </div>
-                <div className={FILE_BROWSER.headerProgress}>
-                    {t("fields.progress")}
-                </div>
-                <div className={FILE_BROWSER.headerSize}>
-                    {t("fields.size")}
-                </div>
+                <span ref={selectionMeasureRef} className={FILE_BROWSER.toolbarSelectionMeasure}>
+                    {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
+                </span>
             </div>
 
-            <div ref={parentRef} className={FILE_BROWSER.scroll}>
-                <div
-                    className={FILE_BROWSER.virtualCanvas}
-                    style={{ height: `${virtualizer.getTotalSize()}px` }}
-                >
+            {!isCompactLayout ? (
+                <div className={FILE_BROWSER.headerRow} style={{ gridTemplateColumns }}>
+                    <div className={FILE_BROWSER.headerCheckboxWrap}>
+                        <Checkbox
+                            size="md"
+                            isSelected={isAllSelected}
+                            isIndeterminate={isIndeterminate}
+                            onValueChange={handleSelectAll}
+                            classNames={FORM_CONTROL.checkboxPrimaryClassNames}
+                        />
+                    </div>
+                    <div className={`${TABLE.columnHeaderLabel} ${FILE_BROWSER.headerCellName}`}>
+                        <FileText className={TABLE.columnHeaderIcon} />
+                        <span>{t("fields.name")}</span>
+                    </div>
+                    <div className={`${TABLE.columnHeaderLabel} ${FILE_BROWSER.headerCellCenter}`}>
+                        <Select
+                            aria-label={t("fields.priority")}
+                            placeholder={t("fields.priority")}
+                            startContent={<ListOrdered className={TABLE.columnHeaderIcon} />}
+                            selectedKeys={headerPrioritySelection}
+                            onSelectionChange={(keys) => {
+                                const [next] = [...keys];
+                                if (!next) return;
+                                const option = prioritySelectOptions.find((candidate) => candidate.key === next);
+                                if (!option) return;
+                                handleSetVisiblePriority(option.value);
+                            }}
+                            variant="underlined"
+                            size="sm"
+                            classNames={FORM_CONTROL.priorityHeaderSelectClassNames}
+                        >
+                            {prioritySelectOptions.map((option) => {
+                                const Icon = option.icon;
+                                return (
+                                    <SelectItem key={option.key} startContent={<Icon className={option.iconClass} />}>
+                                        {t(option.labelKey)}
+                                    </SelectItem>
+                                );
+                            })}
+                        </Select>
+                    </div>
+                    {showProgress ? (
+                        <div className={`${TABLE.columnHeaderLabel} ${FILE_BROWSER.headerCellCenter}`}>
+                            <Percent className={TABLE.columnHeaderIcon} />
+                            <span>{t("fields.progress")}</span>
+                        </div>
+                    ) : null}
+                    <div className={`${TABLE.columnHeaderLabel} ${FILE_BROWSER.headerCellEnd}`}>
+                        <HardDrive className={TABLE.columnHeaderIcon} />
+                        <span>{t("fields.size")}</span>
+                    </div>
+                </div>
+            ) : null}
+
+            {visibleNodes.length === 0 ? (
+                <div className={FILE_BROWSER.emptyWrap}>
+                    <div className={FILE_BROWSER.emptyOverlay}>
+                        <Search className={FILE_BROWSER.emptyIcon} />
+                        <p className={FILE_BROWSER.emptyText}>{viewModel.emptyMessage ?? t("errors.no_results")}</p>
+                    </div>
+                </div>
+            ) : (
+                <div className={FILE_BROWSER.virtualCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                         const node = visibleNodes[virtualRow.index];
                         const rowViewModel = {
                             node,
                             isExpanded: expandedIds.has(node.id),
-                            isSelected: node.descendantIndexes.every((index) =>
-                                selectedIndexes.has(index),
-                            ),
+                            isSelected: node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))),
                             isIndeterminate:
-                                !node.descendantIndexes.every((index) =>
-                                    selectedIndexes.has(index),
-                                ) &&
-                                node.descendantIndexes.some((index) =>
-                                    selectedIndexes.has(index),
-                                ),
-                            isWanted: node.descendantIndexes.every((index) =>
-                                Boolean(fileWantedMap.get(index)),
-                            ),
-                            priority: (filePriorityMap.get(
-                                node.descendantIndexes[0],
-                            ) || 4) as LibtorrentPriority,
+                                !node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))) &&
+                                node.descendantIndexes.some((index) => Boolean(fileWantedMap.get(index))),
+                            isWanted: node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))),
+                            priority: (filePriorityMap.get(node.descendantIndexes[0]) ??
+                                fileExplorerPriorityValues.normal) as LibtorrentPriority,
                         };
                         return (
                             <div
                                 key={virtualRow.key}
+                                ref={virtualizer.measureElement}
+                                data-index={virtualRow.index}
                                 className={FILE_BROWSER.virtualRow}
                                 style={{
                                     height: `${virtualRow.size}px`,
@@ -317,13 +388,11 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                             >
                                 <FileExplorerTreeRow
                                     row={rowViewModel}
+                                    showProgress={showProgress}
+                                    gridTemplateColumns={gridTemplateColumns}
+                                    layout={isCompactLayout ? "card" : "table"}
                                     onToggleExpand={() => toggleExpand(node.id)}
-                                    onSelectionChange={(selected) =>
-                                        handleSelectionChange(
-                                            node.descendantIndexes,
-                                            selected ? "select" : "deselect",
-                                        )
-                                    }
+                                    onWantedChange={(wanted) => void onFilesToggle(node.descendantIndexes, wanted)}
                                     onSetPriority={handleSetPriority}
                                     t={t}
                                 />
@@ -331,16 +400,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({
                         );
                     })}
                 </div>
-
-                {visibleNodes.length === 0 && (
-                    <div className={FILE_BROWSER.emptyOverlay}>
-                        <Search className={FILE_BROWSER.emptyIcon} />
-                        <p className={FILE_BROWSER.emptyText}>
-                            {viewModel.emptyMessage ?? t("errors.no_results")}
-                        </p>
-                    </div>
-                )}
-            </div>
+            )}
         </div>
     );
 });

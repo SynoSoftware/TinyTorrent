@@ -4,17 +4,13 @@ import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
-    type FileExplorerContextAction,
-    type FileExplorerEntry,
     type FileExplorerToggleCommand,
     type FileExplorerToggleOutcome,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
-const { visualizations } = registry;
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
@@ -24,10 +20,10 @@ interface ContentTabProps {
         indexes: number[],
         wanted: boolean,
     ) => Promise<void> | void;
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry,
-    ) => void;
+    onSetPriority?: (
+        indexes: number[],
+        priority: import("@/services/rpc/entities").LibtorrentPriority,
+    ) => Promise<void> | void;
     isStandalone?: boolean;
 }
 
@@ -35,8 +31,7 @@ export const ContentTab = ({
     files,
     emptyMessage,
     onFilesToggle,
-    onFileContextAction,
-    isStandalone,
+    onSetPriority,
 }: ContentTabProps) => {
     const { t } = useTranslation();
     const fileToggleCommand = React.useCallback<FileExplorerToggleCommand>(
@@ -65,25 +60,21 @@ export const ContentTab = ({
     const filesCount = explorer.files.length;
     const isLoading = files == null;
 
-    const fileCountLabel =
-        filesCount === 1
-            ? t("torrent_modal.file_counts.count_single")
-            : t("torrent_modal.file_counts.count_multiple", {
-                  count: filesCount,
-              });
-
     const fileExplorerViewModel = useMemo(
         () => ({
             files: explorer.files,
             emptyMessage,
+            showProgress: true,
             onFilesToggle: explorer.toggle,
-            onFileContextAction,
+            onSetPriority,
         }),
-        [explorer.files, explorer.toggle, emptyMessage, onFileContextAction],
+        [
+            explorer.files,
+            explorer.toggle,
+            emptyMessage,
+            onSetPriority,
+        ],
     );
-    const contentHostClassName = isStandalone
-        ? `${TABLE.detailsContentPanel} ${TABLE.detailsContentListHost}`
-        : TABLE.detailsContentListHost;
 
     if (filesCount === 0) {
         return (
@@ -105,36 +96,7 @@ export const ContentTab = ({
         );
     }
 
-    return (
-        <div className={TABLE.detailsContentRoot}>
-            <div className={TABLE.detailsContentHeaderShell}>
-                <div className={TABLE.detailsContentHeaderRow}>
-                    <div className={TABLE.detailsContentHeaderMeta}>
-                        <span className={TABLE.detailsContentHeaderTitle}>
-                            {t("torrent_modal.files_title")}
-                        </span>
-                        <p className={TEXT_ROLE.caption}>
-                            {t("torrent_modal.files_description")}
-                        </p>
-                    </div>
-                    <span className={TEXT_ROLE.labelPrimary}>
-                        {fileCountLabel}
-                    </span>
-                </div>
-            </div>
-
-            <div className={contentHostClassName}>
-                <div
-                    className={TABLE.detailsContentListScroll}
-                    style={TABLE.builder.detailsContentScrollStyle(
-                        visualizations.details.tabContentMaxHeight,
-                    )}
-                >
-                    <FileExplorerTree viewModel={fileExplorerViewModel} />
-                </div>
-            </div>
-        </div>
-    );
+    return <FileExplorerTree viewModel={fileExplorerViewModel} />;
 };
 
 

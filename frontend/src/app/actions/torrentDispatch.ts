@@ -50,6 +50,7 @@ type DispatchableIntentType =
     | "TORRENT_SET_TRACKER_LIST"
     | "TORRENT_REANNOUNCE"
     | "SET_TORRENT_FILES_WANTED"
+    | "SET_TORRENT_FILES_PRIORITY"
     | "SET_TORRENT_SEQUENTIAL"
     | "SET_TORRENT_SUPERSEEDING"
     | "ENSURE_SELECTION_ACTIVE"
@@ -346,6 +347,23 @@ const dispatchHandlers: DispatchHandlerTable = {
             refreshTorrents: true,
             refreshDetail: true,
             refreshStats: true,
+        },
+    },
+    SET_TORRENT_FILES_PRIORITY: {
+        run: async (intent, context) => {
+            const setFilePriority = requireClientMethod(context.client, "setFilePriority");
+            if (typeof setFilePriority !== "function") {
+                return dispatchOutcome.methodMissing();
+            }
+            await setFilePriority.bind(context.client)(
+                String(intent.torrentId),
+                intent.fileIndexes,
+                intent.priority,
+            );
+            return dispatchOutcome.applied();
+        },
+        refresh: {
+            refreshDetail: true,
         },
     },
     SET_TORRENT_SEQUENTIAL: {

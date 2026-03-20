@@ -60,6 +60,10 @@ export interface DashboardViewModelParams {
         indexes: number[],
         wanted: boolean,
     ) => Promise<void>;
+    handleFilePriorityChange: (
+        indexes: number[],
+        priority: import("@/services/rpc/entities").LibtorrentPriority,
+    ) => Promise<void>;
     trackerCommands: Omit<
         DashboardViewModel["detail"]["tabs"]["trackers"],
         "torrentId"
@@ -86,6 +90,7 @@ export function useDashboardViewModel({
     closeDetail,
     generalTab,
     handleFileSelectionChange,
+    handleFilePriorityChange,
     trackerCommands,
     setInspectorTabCommand,
     capabilities,
@@ -131,6 +136,7 @@ export function useDashboardViewModel({
                     },
                     content: {
                         handleFileSelectionChange,
+                        handleFilePriorityChange,
                     },
                     trackers: {
                         torrentId: detailTrackerId,
@@ -162,6 +168,7 @@ export function useDashboardViewModel({
             setInspectorTabCommand,
             generalTab,
             handleFileSelectionChange,
+            handleFilePriorityChange,
             detailTrackerId,
             trackerCommands,
             peerSortStrategy,

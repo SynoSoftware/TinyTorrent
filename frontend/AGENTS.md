@@ -425,6 +425,30 @@ Practical rule: when the decision is *design* (not pure layout composition), it 
 
 This keeps changes small, reviewable, and prevents “className changes for everything”.
 
+## Surface token normalization (high priority)
+
+When working with surface tokens across the codebase, perform a semantic normalization pass.
+
+- Scan the full token tree and identify tokens with overlapping or equivalent meaning.
+- Collapse semantically equivalent tokens into a single canonical token.
+- Prefer the token that is:
+  - more widely used
+  - more clearly named
+  - more aligned with design intent
+- Replace all duplicates with the chosen canonical token.
+
+Ambiguity rule:
+- If multiple tokens could reasonably serve as the canonical version and the choice is not clearly better, stop and ask for clarification before proceeding.
+
+Constraints:
+- Do not preserve redundant tokens for historical or local reasons.
+- Do not introduce new tokens unless necessary.
+- Do not create visual divergence without semantic justification.
+
+Goal:
+Minimize token count while maximizing semantic clarity and UI consistency.
+
+
 ## **3.3 Standard Elements Over Inline Recipes**
 
 Prefer **standard elements** (shared primitives, semantic components, and tokenized utilities) over duplicating long Tailwind strings.

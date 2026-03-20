@@ -22,6 +22,7 @@ import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { DeleteIntent } from "@/app/types/workspace";
+import type { LibtorrentPriority } from "@/services/rpc/entities";
 import {
     createTorrentDispatch,
     type TorrentDispatchOutcome,
@@ -77,6 +78,10 @@ export interface WorkspaceTorrentDomain {
         handleCloseDetail: () => void;
         handleOpenFolder: (path?: string | null) => Promise<OpenFolderOutcome>;
         handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
+        handleFilePriorityChange: (
+            indexes: number[],
+            priority: LibtorrentPriority,
+        ) => Promise<void>;
         handleSequentialToggle: (enabled: boolean) => Promise<void>;
         handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
     };
@@ -86,6 +91,51 @@ interface PendingSequential {
     enabled: boolean;
     reqId: number;
 }
+
+interface PendingFilePriority {
+    priority: LibtorrentPriority;
+    reqId: number;
+}
+
+const applyPendingFilePriorities = (
+    detail: TorrentDetail,
+    pendingFiles?: Record<number, PendingFilePriority>,
+): TorrentDetail => {
+    if (!pendingFiles || !detail.files?.length) {
+        return detail;
+    }
+
+    let changed = false;
+    const nextFiles = detail.files.map((file) => {
+        const pending = pendingFiles[file.index];
+        if (!pending || pending.priority === file.priority) {
+            return file;
+        }
+        changed = true;
+        return {
+            ...file,
+            priority: pending.priority,
+        };
+    });
+
+    return changed ? { ...detail, files: nextFiles } : detail;
+};
+
+const getSettledPendingFilePriorityIndexes = (
+    detail: TorrentDetail,
+    pendingFiles?: Record<number, PendingFilePriority>,
+): number[] => {
+    if (!pendingFiles || !detail.files?.length) {
+        return [];
+    }
+
+    return detail.files
+        .filter((file) => {
+            const pending = pendingFiles[file.index];
+            return pending != null && pending.priority === file.priority;
+        })
+        .map((file) => file.index);
+};
 
 const findMatchingTorrentByIdentity = <
     TTarget extends Pick<Torrent, "id" | "hash">,
@@ -120,9 +170,13 @@ export function useWorkspaceTorrentDomain({
 }: UseWorkspaceTorrentDomainParams): WorkspaceTorrentDomain {
     const isMountedRef = useRef(false);
     const nextSequentialReqIdRef = useRef(0);
+    const nextFilePriorityReqIdRef = useRef(0);
     const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
     const [pendingSequential, setPendingSequential] = useState<
         Record<string, PendingSequential>
+    >({});
+    const [pendingFilePriorities, setPendingFilePriorities] = useState<
+        Record<string, Record<number, PendingFilePriority>>
     >({});
 
     useEffect(() => {
@@ -213,6 +267,65 @@ export function useWorkspaceTorrentDomain({
         },
         [],
     );
+    const registerPendingFilePriority = useCallback(
+        (torrentId: string, indexes: number[], priority: LibtorrentPriority) => {
+            const reqId = ++nextFilePriorityReqIdRef.current;
+            setPendingFilePriorities((current) => {
+                const nextTorrent = {
+                    ...(current[torrentId] ?? {}),
+                };
+                indexes.forEach((index) => {
+                    nextTorrent[index] = {
+                        priority,
+                        reqId,
+                    };
+                });
+                return {
+                    ...current,
+                    [torrentId]: nextTorrent,
+                };
+            });
+            return reqId;
+        },
+        [],
+    );
+    const clearPendingFilePriority = useCallback(
+        (torrentId: string, indexes: number[], reqId: number) => {
+            setPendingFilePriorities((current) => {
+                const existing = current[torrentId];
+                if (!existing) {
+                    return current;
+                }
+
+                let changed = false;
+                const nextTorrent = { ...existing };
+                indexes.forEach((index) => {
+                    const pending = nextTorrent[index];
+                    if (!pending || pending.reqId !== reqId) {
+                        return;
+                    }
+                    delete nextTorrent[index];
+                    changed = true;
+                });
+
+                if (!changed) {
+                    return current;
+                }
+
+                if (Object.keys(nextTorrent).length === 0) {
+                    const next = { ...current };
+                    delete next[torrentId];
+                    return next;
+                }
+
+                return {
+                    ...current,
+                    [torrentId]: nextTorrent,
+                };
+            });
+        },
+        [],
+    );
     const displayTorrents = useMemo(() => {
         if (Object.keys(pendingSequential).length === 0) {
             return torrents;
@@ -265,12 +378,15 @@ export function useWorkspaceTorrentDomain({
 
     const {
         handleFileSelectionChange,
+        handleFilePriorityChange,
         handleSuperSeedingToggle,
     } = useDetailControls({
         detailData,
         mutateDetail,
         capabilities,
         dispatch,
+        registerPendingFilePriority,
+        clearPendingFilePriority,
     });
 
     const resolvedDetailData = useMemo(() => {
@@ -291,19 +407,28 @@ export function useWorkspaceTorrentDomain({
                 !pending ||
                 pending.enabled === detailData.sequentialDownload
             ) {
-                return detailData;
+                return applyPendingFilePriorities(
+                    detailData,
+                    pendingFilePriorities[String(detailData.id)],
+                );
             }
-            return {
-                ...detailData,
-                sequentialDownload: pending.enabled,
-            };
+            return applyPendingFilePriorities(
+                {
+                    ...detailData,
+                    sequentialDownload: pending.enabled,
+                },
+                pendingFilePriorities[String(detailData.id)],
+            );
         }
 
-        return {
-            ...detailData,
-            sequentialDownload: liveTorrent.sequentialDownload,
-        };
-    }, [detailData, displayTorrents, pendingSequential]);
+        return applyPendingFilePriorities(
+            {
+                ...detailData,
+                sequentialDownload: liveTorrent.sequentialDownload,
+            },
+            pendingFilePriorities[String(detailData.id)],
+        );
+    }, [detailData, displayTorrents, pendingFilePriorities, pendingSequential]);
 
     useEffect(() => {
         if (Object.keys(pendingSequential).length === 0) {
@@ -340,6 +465,33 @@ export function useWorkspaceTorrentDomain({
 
         return cancelCleanup;
     }, [pendingSequential, torrents]);
+
+    useEffect(() => {
+        if (!detailData) {
+            return;
+        }
+
+        const pendingFiles =
+            pendingFilePriorities[String(detailData.id)] ?? null;
+        if (!pendingFiles || !detailData.files?.length) {
+            return;
+        }
+
+        const settledIndexes = getSettledPendingFilePriorityIndexes(
+            detailData,
+            pendingFiles,
+        );
+        if (settledIndexes.length === 0) {
+            return;
+        }
+
+        const settledReqId = pendingFiles[settledIndexes[0]]?.reqId;
+        if (typeof settledReqId !== "number") {
+            return;
+        }
+
+        clearPendingFilePriority(detailData.id, settledIndexes, settledReqId);
+    }, [clearPendingFilePriority, detailData, pendingFilePriorities]);
 
     const setSequentialDownloadOptimistically = useCallback(
         async (
@@ -523,6 +675,7 @@ export function useWorkspaceTorrentDomain({
             handleCloseDetail,
             handleOpenFolder,
             handleFileSelectionChange,
+            handleFilePriorityChange,
             handleSequentialToggle,
             handleSuperSeedingToggle,
         },

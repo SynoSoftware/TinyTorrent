@@ -111,9 +111,6 @@ export const TEXT_ROLE_EXTENDED = {
         "uppercase text-foreground/30 tracking-0-4 text-label font-black",
 
     // --- File Explorer ---
-    fileTreeHeader:
-        "text-label font-bold uppercase tracking-label text-default-500 bg-default-100/50",
-
     // --- Badges & Pills ---
     badge: "text-label font-semibold uppercase tracking-tight",
     badgeMuted:

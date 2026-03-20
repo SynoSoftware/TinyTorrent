@@ -1,9 +1,14 @@
 import { useCallback } from "react";
-import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
+import { useTranslation } from "react-i18next";
+import type {
+    TorrentDetailEntity as TorrentDetail,
+    LibtorrentPriority,
+} from "@/services/rpc/entities";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;
     mutateDetail: (
@@ -11,6 +16,16 @@ interface UseDetailControlsParams {
     ) => void;
     capabilities: CapabilityStore;
     dispatch: (intent: TorrentIntentExtended) => Promise<TorrentDispatchOutcome>;
+    registerPendingFilePriority: (
+        torrentId: string,
+        indexes: number[],
+        priority: LibtorrentPriority,
+    ) => number;
+    clearPendingFilePriority: (
+        torrentId: string,
+        indexes: number[],
+        reqId: number,
+    ) => void;
 }
 
 export function useDetailControls({
@@ -18,7 +33,11 @@ export function useDetailControls({
     mutateDetail,
     capabilities,
     dispatch,
+    registerPendingFilePriority,
+    clearPendingFilePriority,
 }: UseDetailControlsParams) {
+    const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const { sequentialDownload, superSeeding } = capabilities;
 
     const handleFileSelectionChange = useCallback(
@@ -90,6 +109,57 @@ export function useDetailControls({
         [detailData, mutateDetail, dispatch, sequentialDownload],
     );
 
+    const handleFilePriorityChange = useCallback(
+        async (indexes: number[], priority: LibtorrentPriority) => {
+            if (!detailData) return;
+            const availableIndexes = new Set(
+                detailData.files?.map((file) => file.index) ?? [],
+            );
+            const validIndexes = indexes.filter((index) =>
+                availableIndexes.has(index),
+            );
+            if (!validIndexes.length) return;
+            const fileCount = detailData.files?.length ?? 0;
+            const boundedIndexes = validIndexes.filter(
+                (index) => index >= 0 && index < fileCount,
+            );
+            if (!boundedIndexes.length) return;
+
+            const requestId = registerPendingFilePriority(
+                detailData.id,
+                boundedIndexes,
+                priority,
+            );
+
+            const outcome = await dispatch(
+                TorrentIntents.setFilesPriority(
+                    detailData.id,
+                    boundedIndexes,
+                    priority,
+                ),
+            );
+            if (outcome.status === "applied") {
+                return;
+            }
+
+            clearPendingFilePriority(detailData.id, boundedIndexes, requestId);
+
+            if (outcome.status === "unsupported") {
+                showFeedback(t("torrent_modal.controls.not_supported"), "warning");
+                return;
+            }
+            showFeedback(t("toolbar.feedback.failed"), "danger");
+        },
+        [
+            detailData,
+            dispatch,
+            registerPendingFilePriority,
+            clearPendingFilePriority,
+            showFeedback,
+            t,
+        ],
+    );
+
     const handleSuperSeedingToggle = useCallback(
         async (enabled: boolean) => {
             if (!detailData) return;
@@ -111,6 +181,7 @@ export function useDetailControls({
 
     return {
         handleFileSelectionChange,
+        handleFilePriorityChange,
         handleSequentialToggle,
         handleSuperSeedingToggle,
     };

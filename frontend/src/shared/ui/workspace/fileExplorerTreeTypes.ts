@@ -5,13 +5,6 @@ import type {
 
 export type FileExplorerEntry = TorrentFileEntity;
 
-export type FileExplorerContextAction =
-    | "priority_high"
-    | "priority_normal"
-    | "priority_low"
-    | "open_file"
-    | "open_folder";
-
 export type FileExplorerToggleOutcome =
     | { status: "success" }
     | {
@@ -29,15 +22,21 @@ export interface FileExplorerTreeViewModel {
     files: FileExplorerEntry[];
     wantedByIndex?: ReadonlyMap<number, boolean>;
     priorityByIndex?: ReadonlyMap<number, LibtorrentPriority>;
+    showProgress?: boolean;
+    search?: {
+        value: string;
+        onChange: (value: string) => void;
+    };
     emptyMessage?: string;
     onFilesToggle: FileExplorerToggleCommand;
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry,
-    ) => void;
+    onSetPriority?: (
+        indexes: number[],
+        priority: LibtorrentPriority,
+    ) => Promise<void> | void;
 }
 
 export type FileExplorerFilterMode = "all" | "video" | "audio";
+export type FileExplorerPrioritySelectKey = "high" | "normal" | "low" | "skip";
 
 export interface FileNode {
     id: string;
@@ -51,6 +50,7 @@ export interface FileNode {
     descendantIndexes: number[];
     totalSize: number;
     bytesCompleted: number;
+    progress: number;
 }
 
 export interface FileNodeRowViewModel {

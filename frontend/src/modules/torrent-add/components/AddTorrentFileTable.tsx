@@ -2,10 +2,12 @@ import { useMemo, useCallback } from "react";
 import {
     FileExplorerTree,
     type FileExplorerTreeViewModel,
-    type FileExplorerContextAction,
-    type FileExplorerEntry,
     type FileExplorerToggleOutcome,
 } from "@/shared/ui/workspace/FileExplorerTree";
+import {
+    fileExplorerPriorityValues,
+    getFileExplorerPriorityKey,
+} from "@/shared/ui/workspace/fileExplorerTreeModel";
 import type {
     TorrentFileEntity,
     LibtorrentPriority,
@@ -15,12 +17,6 @@ import type {
 } from "@/modules/torrent-add/services/fileSelection";
 import { MODAL } from "@/shared/ui/layout/glass-surface";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-
-const PRIORITY_MAP: Record<FilePriority, LibtorrentPriority> = {
-    low: 1,
-    normal: 4,
-    high: 7,
-};
 
 export const AddTorrentFileTable = () => {
     const { fileTable } = useAddTorrentModalContext();
@@ -38,9 +34,9 @@ export const AddTorrentFileTable = () => {
                 index: file.index,
                 name: file.path,
                 length: file.length,
-                completed: 0,
+                bytesCompleted: 0,
                 progress: 0,
-                priority: PRIORITY_MAP.normal,
+                priority: fileExplorerPriorityValues.normal,
                 wanted: true,
             })),
         [files],
@@ -61,7 +57,7 @@ export const AddTorrentFileTable = () => {
     const priorityByIndex = useMemo(() => {
         const next = new Map<number, LibtorrentPriority>();
         for (const [index, priority] of priorities.entries()) {
-            next.set(index, PRIORITY_MAP[priority]);
+            next.set(index, fileExplorerPriorityValues[priority]);
         }
         return next;
     }, [priorities]);
@@ -84,19 +80,12 @@ export const AddTorrentFileTable = () => {
         [onRowSelectionChange],
     );
 
-    const handleFileContextAction = useCallback(
-        (action: FileExplorerContextAction, entry: FileExplorerEntry) => {
-            if (action === "priority_high") {
-                onSetPriority(entry.index, "high");
-                return;
-            }
-            if (action === "priority_normal") {
-                onSetPriority(entry.index, "normal");
-                return;
-            }
-            if (action === "priority_low") {
-                onSetPriority(entry.index, "low");
-            }
+    const handleSetPriority = useCallback(
+        (indexes: number[], priority: LibtorrentPriority) => {
+            const nextPriority = getFileExplorerPriorityKey(priority, true) as FilePriority;
+            indexes.forEach((index) => {
+                onSetPriority(index, nextPriority);
+            });
         },
         [onSetPriority],
     );
@@ -106,15 +95,16 @@ export const AddTorrentFileTable = () => {
             files: treeFiles,
             wantedByIndex,
             priorityByIndex,
+            showProgress: false,
             onFilesToggle: handleFilesToggle,
-            onFileContextAction: handleFileContextAction,
+            onSetPriority: handleSetPriority,
         }),
         [
             treeFiles,
             wantedByIndex,
             priorityByIndex,
             handleFilesToggle,
-            handleFileContextAction,
+            handleSetPriority,
         ],
     );
 

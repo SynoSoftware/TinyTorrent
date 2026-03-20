@@ -14,29 +14,76 @@ import {
     X,
 } from "lucide-react";
 import {
+    Card,
+    CardBody,
+    CardHeader,
     Checkbox,
-    Chip,
+    Select,
+    SelectItem,
     cn,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
-    Progress,
 } from "@heroui/react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
+import { ProgressCell } from "@/shared/ui/components/SmoothProgressBar";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+import { TEXT_ROLE } from "@/config/textRoles";
 import {
     FILE_BROWSER,
     FORM_CONTROL,
-    SURFACE,
+    FORM,
+    TABLE,
 } from "@/shared/ui/layout/glass-surface";
+import {
+    fileExplorerPriorityValues,
+    getFileExplorerPriorityKey,
+} from "@/shared/ui/workspace/fileExplorerTreeModel";
+import type { FileExplorerPrioritySelectKey } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+
+export const prioritySelectOptions = [
+    {
+        key: "high",
+        labelKey: "priority.high",
+        icon: ArrowUp,
+        iconClass: "toolbar-icon-size-md text-success",
+        value: fileExplorerPriorityValues.high,
+    },
+    {
+        key: "normal",
+        labelKey: "priority.normal",
+        icon: Minus,
+        iconClass: "toolbar-icon-size-md text-primary",
+        value: fileExplorerPriorityValues.normal,
+    },
+    {
+        key: "low",
+        labelKey: "priority.low",
+        icon: ArrowDown,
+        iconClass: "toolbar-icon-size-md text-warning",
+        value: fileExplorerPriorityValues.low,
+    },
+    {
+        key: "skip",
+        labelKey: "priority.dont_download",
+        icon: X,
+        iconClass: "toolbar-icon-size-md",
+        value: "skip" as const,
+    },
+] as const satisfies ReadonlyArray<{
+    key: FileExplorerPrioritySelectKey;
+    labelKey: string;
+    icon: typeof ArrowUp;
+    iconClass: string;
+    value: LibtorrentPriority | "skip";
+}>;
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
+    showProgress: boolean;
+    gridTemplateColumns: string;
+    layout: "table" | "card";
     onToggleExpand: () => void;
-    onSelectionChange: (selected: boolean) => void;
+    onWantedChange: (wanted: boolean) => void;
     onSetPriority: (
         priority: LibtorrentPriority | "skip",
         indexes?: number[],
@@ -61,33 +108,166 @@ const getFileIcon = (filename: string) => {
     return <FileIcon className={FILE_BROWSER.iconDefault} />;
 };
 
-const getPriorityColor = (priority: LibtorrentPriority, isWanted: boolean) => {
-    if (!isWanted) return "default";
-    if (priority >= 6) return "success";
-    if (priority <= 2) return "warning";
-    return "primary";
-};
-
-const getPriorityLabel = (
-    priority: LibtorrentPriority,
-    isWanted: boolean,
-    t: (key: string) => string,
-) => {
-    if (!isWanted) return t("priority.skip");
-    if (priority >= 6) return t("priority.high");
-    if (priority <= 2) return t("priority.low");
-    return t("priority.normal");
-};
-
 export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     row,
+    showProgress,
+    gridTemplateColumns,
+    layout,
     onToggleExpand,
-    onSelectionChange,
+    onWantedChange,
     onSetPriority,
     t,
 }: FileExplorerTreeRowProps) {
-    const progress =
-        (row.node.bytesCompleted / Math.max(1, row.node.totalSize)) * 100;
+    const progress = row.node.progress;
+    const displayProgress = Math.max(0, Math.min(progress / 100, 1));
+    const completedBytes =
+        row.node.bytesCompleted ?? row.node.totalSize * displayProgress;
+    const renderedIcon = row.node.isFolder ? (
+        <Folder className={FILE_BROWSER.rowFolderIcon} />
+    ) : (
+        getFileIcon(row.node.name)
+    );
+    const renderedPriorityControl = (
+        <Select
+            aria-label={t("fields.priority")}
+            selectedKeys={new Set([getFileExplorerPriorityKey(row.priority, row.isWanted)])}
+            onSelectionChange={(keys) => {
+                const [next] = [...keys];
+                if (!next) return;
+                const option = prioritySelectOptions.find((candidate) => candidate.key === next);
+                if (!option) return;
+                onSetPriority(option.value, row.node.descendantIndexes);
+            }}
+            variant="bordered"
+            size="sm"
+            classNames={FORM_CONTROL.prioritySelectClassNames}
+        >
+            {prioritySelectOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                    <SelectItem
+                        key={option.key}
+                        startContent={<Icon className={option.iconClass} />}
+                    >
+                        {t(option.labelKey)}
+                    </SelectItem>
+                );
+            })}
+        </Select>
+    );
+    const renderedProgress = showProgress ? (
+        <ProgressCell
+            progressPercent={progress}
+            completedBytes={completedBytes}
+            indicatorClassName={
+                row.isWanted
+                    ? TABLE.columnDefs.progressIndicatorActive
+                    : TABLE.columnDefs.progressIndicatorPaused
+            }
+            ariaLabel={t("labels.download_progress")}
+        />
+    ) : null;
+
+    if (layout === "card") {
+        return (
+            <Card
+                className={cn(
+                    FORM.sectionCard,
+                    !row.isWanted && FILE_BROWSER.rowDimmed,
+                )}
+                style={
+                    {
+                        "--tt-file-depth": String(row.node.depth),
+                    } as CSSProperties
+                }
+            >
+                <CardHeader className={cn(FORM.sectionHeader, FILE_BROWSER.cardHeader)}>
+                    <div className={FILE_BROWSER.cardHeaderContent}>
+                        <div className={FILE_BROWSER.rowCheckboxWrap}>
+                            <Checkbox
+                                size="sm"
+                                radius="sm"
+                                isSelected={row.isSelected}
+                                isIndeterminate={row.isIndeterminate}
+                                onValueChange={onWantedChange}
+                                classNames={FORM_CONTROL.checkboxPrimaryClassNames}
+                            />
+                        </div>
+                        <div className={FILE_BROWSER.cardNameGroup}>
+                            {row.node.isFolder ? (
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        onToggleExpand();
+                                    }}
+                                    className={FILE_BROWSER.chevronButton}
+                                >
+                                    {row.isExpanded ? (
+                                        <ChevronDown className={FILE_BROWSER.iconSmall} />
+                                    ) : (
+                                        <ChevronRight className={FILE_BROWSER.iconSmall} />
+                                    )}
+                                </button>
+                            ) : (
+                                <div className={FILE_BROWSER.rowIndentSpacer} />
+                            )}
+                            <div className={FILE_BROWSER.rowIconWrap}>{renderedIcon}</div>
+                            <div className={FILE_BROWSER.cardNameContent}>
+                                <AppTooltip content={row.node.name}>
+                                    {row.node.isFolder ? (
+                                        <button
+                                            type="button"
+                                            className={cn(
+                                                FORM.sectionTitle,
+                                                FILE_BROWSER.cardTitleButton,
+                                            )}
+                                            onClick={onToggleExpand}
+                                        >
+                                            {row.node.name}
+                                        </button>
+                                    ) : (
+                                        <span
+                                            className={cn(
+                                                FORM.sectionTitle,
+                                                FILE_BROWSER.cardTitleText,
+                                            )}
+                                        >
+                                            {row.node.name}
+                                        </span>
+                                    )}
+                                </AppTooltip>
+                                <p
+                                    className={cn(
+                                        FORM.sectionDescription,
+                                        TEXT_ROLE.caption,
+                                        FILE_BROWSER.cardDescription,
+                                    )}
+                                >
+                                    {row.node.path}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardBody className={cn(FORM.sectionBody, FILE_BROWSER.cardBody)}>
+                    {renderedProgress ? (
+                        <div className={FILE_BROWSER.rowProgressWrap}>
+                            {renderedProgress}
+                        </div>
+                    ) : null}
+                    <div className={FILE_BROWSER.cardFooter}>
+                        <div className={FILE_BROWSER.cardFooterGroup}>
+                            {renderedPriorityControl}
+                        </div>
+                        <div className={FILE_BROWSER.rowSizeText}>
+                            {formatBytes(row.node.totalSize)}
+                        </div>
+                    </div>
+                </CardBody>
+            </Card>
+        );
+    }
 
     return (
         <div
@@ -98,6 +278,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             style={
                 {
                     "--tt-file-depth": String(row.node.depth),
+                    gridTemplateColumns,
                 } as CSSProperties
             }
         >
@@ -107,7 +288,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     radius="sm"
                     isSelected={row.isSelected}
                     isIndeterminate={row.isIndeterminate}
-                    onValueChange={onSelectionChange}
+                    onValueChange={onWantedChange}
                     classNames={FORM_CONTROL.checkboxPrimaryClassNames}
                 />
             </div>
@@ -115,6 +296,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             <div className={FILE_BROWSER.rowNameCell}>
                 {row.node.isFolder ? (
                     <button
+                        type="button"
                         onClick={(event) => {
                             event.stopPropagation();
                             onToggleExpand();
@@ -131,13 +313,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     <div className={FILE_BROWSER.rowIndentSpacer} />
                 )}
 
-                <div className={FILE_BROWSER.rowIconWrap}>
-                    {row.node.isFolder ? (
-                        <Folder className={FILE_BROWSER.rowFolderIcon} />
-                    ) : (
-                        getFileIcon(row.node.name)
-                    )}
-                </div>
+                <div className={FILE_BROWSER.rowIconWrap}>{renderedIcon}</div>
 
                 <AppTooltip content={row.node.name}>
                     <span
@@ -154,92 +330,11 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </AppTooltip>
             </div>
 
-            <div className={FILE_BROWSER.rowPriorityWrap}>
-                <Dropdown>
-                    <DropdownTrigger>
-                        <Chip
-                            size="sm"
-                            variant="flat"
-                            color={getPriorityColor(row.priority, row.isWanted)}
-                            className={FILE_BROWSER.priorityChip}
-                            classNames={FORM_CONTROL.priorityChipClassNames}
-                        >
-                            {getPriorityLabel(row.priority, row.isWanted, t)}
-                        </Chip>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                        onAction={(key) => {
-                            const indexes = row.node.descendantIndexes;
-                            if (key === "high") onSetPriority(7, indexes);
-                            if (key === "normal") onSetPriority(4, indexes);
-                            if (key === "low") onSetPriority(1, indexes);
-                            if (key === "skip") onSetPriority("skip", indexes);
-                        }}
-                        variant="shadow"
-                        className={SURFACE.menu.surface}
-                        classNames={SURFACE.menu.listClassNames}
-                        itemClasses={SURFACE.menu.itemClassNames}
-                    >
-                        <DropdownItem
-                            key="high"
-                            startContent={
-                                <ArrowUp
-                                    className={
-                                        FILE_BROWSER.priorityMenuHighIcon
-                                    }
-                                />
-                            }
-                        >
-                            {t("priority.high")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="normal"
-                            startContent={
-                                <Minus
-                                    className={
-                                        FILE_BROWSER.priorityMenuNormalIcon
-                                    }
-                                />
-                            }
-                        >
-                            {t("priority.normal")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="low"
-                            startContent={
-                                <ArrowDown
-                                    className={FILE_BROWSER.priorityMenuLowIcon}
-                                />
-                            }
-                        >
-                            {t("priority.low")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="skip"
-                            className={FILE_BROWSER.priorityMenuDangerItem}
-                            startContent={
-                                <X
-                                    className={
-                                        FILE_BROWSER.priorityMenuSkipIcon
-                                    }
-                                />
-                            }
-                        >
-                            {t("priority.dont_download")}
-                        </DropdownItem>
-                    </DropdownMenu>
-                </Dropdown>
-            </div>
+            <div className={FILE_BROWSER.rowPriorityWrap}>{renderedPriorityControl}</div>
 
-            <div className={FILE_BROWSER.rowProgressWrap}>
-                <Progress
-                    size="sm"
-                    value={progress}
-                    color={progress === 100 ? "success" : "primary"}
-                    classNames={FILE_BROWSER.progressClassNames}
-                    aria-label={t("labels.download_progress")}
-                />
-            </div>
+            {renderedProgress ? (
+                <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div>
+            ) : null}
 
             <div className={FILE_BROWSER.rowSizeText}>
                 {formatBytes(row.node.totalSize)}

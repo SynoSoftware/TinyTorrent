@@ -95,6 +95,7 @@ export interface TorrentDetailTabSurfaces {
         files: NonNullable<DashboardDetailViewModel["detailData"]>["files"];
         emptyMessage: string;
         onFilesToggle: DashboardDetailViewModel["tabs"]["content"]["handleFileSelectionChange"];
+        onSetPriority: DashboardDetailViewModel["tabs"]["content"]["handleFilePriorityChange"];
         isStandalone?: boolean;
     } | null;
     pieces: {
@@ -144,7 +145,7 @@ export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
     },
     {
         id: "content",
-        labelKey: "inspector.tab.content",
+        labelKey: "inspector.tab.files",
         isVisible: (surfaces) => surfaces.content !== null,
         render: (surfaces) => (surfaces.content ? createElement(ContentTab, surfaces.content) : null),
     },
@@ -280,6 +281,7 @@ export const useTorrentDetailTabCoordinator = ({
                           emptyMessage:
                               torrent.files == null ? t("torrent_modal.loading") : t("torrent_modal.files_empty"),
                           onFilesToggle: viewModel.tabs.content.handleFileSelectionChange,
+                          onSetPriority: viewModel.tabs.content.handleFilePriorityChange,
                           isStandalone,
                       },
                       pieces: {

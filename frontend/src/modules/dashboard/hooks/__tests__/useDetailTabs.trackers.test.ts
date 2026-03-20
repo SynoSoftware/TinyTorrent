@@ -143,6 +143,7 @@ const createViewModel = (
         },
         content: {
             handleFileSelectionChange: async () => undefined,
+            handleFilePriorityChange: async () => undefined,
         },
         trackers: {
             torrentId: detailData?.id ?? null,

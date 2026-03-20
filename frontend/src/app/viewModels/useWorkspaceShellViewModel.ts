@@ -225,6 +225,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         handleRequestDetails,
         handleCloseDetail,
         handleFileSelectionChange,
+        handleFilePriorityChange,
         handleSequentialToggle,
     } = handlers;
 
@@ -432,6 +433,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             setLocation: detailSetLocationFlow,
         },
         handleFileSelectionChange,
+        handleFilePriorityChange,
         trackerCommands: {
             addTrackers,
             removeTrackers,

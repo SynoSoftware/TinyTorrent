@@ -96,6 +96,13 @@ export type SetTorrentFilesWanted = {
     wanted: boolean;
 };
 
+export type SetTorrentFilesPriority = {
+    type: "SET_TORRENT_FILES_PRIORITY";
+    torrentId: string | number;
+    fileIndexes: number[];
+    priority: import("@/services/rpc/entities").LibtorrentPriority;
+};
+
 export type SetTorrentSequentialDownload = {
     type: "SET_TORRENT_SEQUENTIAL";
     torrentId: string | number;
@@ -153,6 +160,7 @@ export type TorrentIntent =
     | EnsureSelectionPaused
     | EnsureSelectionValid
     | SetTorrentFilesWanted
+    | SetTorrentFilesPriority
     | SetTorrentSequentialDownload
     | SetTorrentSuperSeeding
     | AddMagnetTorrent
@@ -247,6 +255,16 @@ export const TorrentIntents = {
         torrentId,
         fileIndexes,
         wanted,
+    }),
+    setFilesPriority: (
+        torrentId: string | number,
+        fileIndexes: number[],
+        priority: import("@/services/rpc/entities").LibtorrentPriority,
+    ): SetTorrentFilesPriority => ({
+        type: "SET_TORRENT_FILES_PRIORITY",
+        torrentId,
+        fileIndexes,
+        priority,
     }),
     setSequentialDownload: (torrentId: string | number, enabled: boolean): SetTorrentSequentialDownload => ({
         type: "SET_TORRENT_SEQUENTIAL",

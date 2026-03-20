@@ -109,7 +109,7 @@
     "inspector": {
         "panel_label": "Torrent Properties",
         "tab": {
-            "content": "Content",
+            "files": "Files",
             "general": "General",
             "peers": "Peers",
             "pieces": "Pieces",
@@ -708,6 +708,9 @@
         "transport_polling": "Polling",
         "transport_polling_desc": "HTTP Polling",
         "up": "Upload"
+    },
+    "statusbar": {
+        "selected_count": "Selected"
     },
     "table": {
         "actions": {

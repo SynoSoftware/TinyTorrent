@@ -13,6 +13,7 @@ import {
 type FileExplorerTreeStateOverrides = {
     wantedByIndex?: ReadonlyMap<number, boolean>;
     priorityByIndex?: ReadonlyMap<number, number>;
+    searchQuery?: string;
 };
 
 export const useFileExplorerTreeState = (
@@ -21,12 +22,10 @@ export const useFileExplorerTreeState = (
 ) => {
     const wantedByIndexOverride = overrides?.wantedByIndex;
     const priorityByIndexOverride = overrides?.priorityByIndex;
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQueryState, setSearchQuery] = useState("");
     const [filterMode, setFilterMode] = useState<FileExplorerFilterMode>("all");
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-    const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
-        () => new Set(),
-    );
+    const searchQuery = overrides?.searchQuery ?? searchQueryState;
 
     const filteredFiles = useMemo(
         () => filterEntries(files, searchQuery, filterMode),
@@ -59,18 +58,6 @@ export const useFileExplorerTreeState = (
         return map;
     }, [files, priorityByIndexOverride]);
 
-    const allVisibleIndexes = useMemo(
-        () => visibleNodes.flatMap((node) => node.descendantIndexes),
-        [visibleNodes],
-    );
-
-    const isAllSelected =
-        allVisibleIndexes.length > 0 &&
-        allVisibleIndexes.every((index) => selectedIndexes.has(index));
-    const isIndeterminate =
-        !isAllSelected &&
-        allVisibleIndexes.some((index) => selectedIndexes.has(index));
-
     const toggleExpand = useCallback((id: string) => {
         setExpandedIds((previous) => {
             const next = new Set(previous);
@@ -91,42 +78,6 @@ export const useFileExplorerTreeState = (
         setExpandedIds(new Set());
     }, []);
 
-    const handleSelectionChange = useCallback(
-        (indexes: number[], mode: "toggle" | "select" | "deselect") => {
-            setSelectedIndexes((previous) => {
-                const next = new Set(previous);
-                indexes.forEach((index) => {
-                    if (mode === "toggle") {
-                        if (next.has(index)) {
-                            next.delete(index);
-                        } else {
-                            next.add(index);
-                        }
-                        return;
-                    }
-                    if (mode === "select") {
-                        next.add(index);
-                        return;
-                    }
-                    next.delete(index);
-                });
-                return next;
-            });
-        },
-        [],
-    );
-
-    const handleSelectAll = useCallback(
-        (selected: boolean) => {
-            if (!selected) {
-                setSelectedIndexes(new Set());
-                return;
-            }
-            setSelectedIndexes(new Set(allVisibleIndexes));
-        },
-        [allVisibleIndexes],
-    );
-
     return {
         searchQuery,
         setSearchQuery,
@@ -137,14 +88,7 @@ export const useFileExplorerTreeState = (
         expandAll,
         collapseAll,
         visibleNodes,
-        selectedIndexes,
-        setSelectedIndexes,
-        handleSelectionChange,
-        handleSelectAll,
         fileWantedMap,
         filePriorityMap,
-        allVisibleIndexes,
-        isAllSelected,
-        isIndeterminate,
     };
 };
