@@ -106,7 +106,7 @@ const makeDeps = (
 
     const deps: Parameters<typeof useTorrentRowDrag>[0] = {
         canReorderQueue: true,
-        queueOrder: ["row-1", "row-2", "row-3"],
+        visibleQueueOrder: ["row-1", "row-2", "row-3"],
         dropTarget: null,
         setActiveRowId: vi.fn(),
         setDropTarget: vi.fn(),
@@ -168,6 +168,26 @@ describe("useTorrentRowDrag", () => {
             if (!hook) throw new Error("hook_missing");
 
             hook.handleRowDragOver(makeDragOverEvent("row-1", "row-2"));
+            expect(callbacks.setDropTarget).toHaveBeenLastCalledWith({
+                rowId: "row-2",
+                after: true,
+            });
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("uses the visible descending order to resolve drag slots", async () => {
+        const { deps, callbacks } = makeDeps({
+            visibleQueueOrder: ["row-3", "row-2", "row-1"],
+        });
+        const mounted = await mountHarness(deps);
+
+        try {
+            const hook = mounted.ref.current?.getValue();
+            if (!hook) throw new Error("hook_missing");
+
+            hook.handleRowDragOver(makeDragOverEvent("row-3", "row-2"));
             expect(callbacks.setDropTarget).toHaveBeenLastCalledWith({
                 rowId: "row-2",
                 after: true,

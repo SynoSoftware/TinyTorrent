@@ -186,19 +186,6 @@ const runQueueReorder = async (intent: QueueReorderIntent, context: DispatchCont
         return dispatchOutcome.applied();
     }
 
-    infraLogger.debug({
-        scope: "queue_reorder",
-        event: "dispatch_plan",
-        message: "Lowering semantic queue reorder to Transmission-compatible operations",
-        details: {
-            queueOrder: intent.queueOrder.map(String),
-            movingIds: intent.torrentIds.map(String),
-            targetInsertionIndex: intent.targetInsertionIndex,
-            nextOrder: plan.nextOrder,
-            operations: plan.operations,
-        },
-    });
-
     for (const operation of plan.operations) {
         if (operation.method === "moveToTop") {
             await context.client.moveToTop([operation.torrentId]);

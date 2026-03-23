@@ -28,6 +28,7 @@ type QueueControllerDeps = {
     setPendingQueueOrder: (order: string[] | null) => void;
     serverOrder: string[];
     queueOrder: string[];
+    visibleQueueOrder: string[];
     dropTarget: QueueDropTarget | null;
     rowSelection: RowSelectionState;
     setRowSelection: (next: RowSelectionState) => void;
@@ -63,6 +64,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         setPendingQueueOrder,
         serverOrder,
         queueOrder,
+        visibleQueueOrder,
         dropTarget,
         rowSelection,
         setRowSelection,
@@ -79,7 +81,10 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
 
     const { dispatch } = useRequiredTorrentActions();
     const { activeId, setActiveId } = useSelection();
-    const pendingServerOrderRef = useRef<string[] | null>(null);
+    const pendingReorderRef = useRef<{
+        serverOrder: string[];
+        uiStateSnapshot: QueueReorderUiStateSnapshot;
+    } | null>(null);
 
     const commitQueueReorder = async (
         reorder: QueueReorderResult,
@@ -99,18 +104,24 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
               : commandOutcome.failed("execution_failed");
     };
 
-    const isQueueSort =
-        sorting.length === 1 &&
-        typeof sorting[0] === "object" &&
-        (sorting[0] as { id?: string; desc?: boolean }).id === "queue" &&
-        !Boolean((sorting[0] as { desc?: boolean }).desc);
+    const queueSorting =
+        sorting.length === 1 && typeof sorting[0] === "object"
+            ? (sorting[0] as { id?: string; desc?: boolean })
+            : null;
+    const isQueueSort = sorting.length === 0 || queueSorting?.id === "queue";
+    const queueSortDescending = Boolean(queueSorting?.desc);
     const canReorderQueue =
         isQueueSort && queueReorderScopeEnabled && Boolean(dispatch);
 
+    const toVisibleQueueOrder = (order: string[]) =>
+        queueSortDescending ? [...order].reverse() : order;
+
     const captureQueueUiStateSnapshot = (): QueueReorderUiStateSnapshot => ({
         rowSelection: { ...rowSelection },
-        anchorRowId: anchorIndex == null ? null : (queueOrder[anchorIndex] ?? null),
-        focusRowId: focusIndex == null ? null : (queueOrder[focusIndex] ?? null),
+        anchorRowId:
+            anchorIndex == null ? null : (visibleQueueOrder[anchorIndex] ?? null),
+        focusRowId:
+            focusIndex == null ? null : (visibleQueueOrder[focusIndex] ?? null),
         activeId,
     });
 
@@ -119,13 +130,20 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         snapshot: QueueReorderUiStateSnapshot,
         pendingOrder: string[] | null = order,
     ) => {
-        pendingServerOrderRef.current = pendingOrder == null ? null : serverOrder;
+        pendingReorderRef.current =
+            pendingOrder == null
+                ? null
+                : {
+                      serverOrder,
+                      uiStateSnapshot: snapshot,
+                  };
+        const visibleOrder = toVisibleQueueOrder(order);
         setPendingQueueOrder(pendingOrder);
         setRowSelection(snapshot.rowSelection);
-        setAnchorIndex(getOrderIndex(order, snapshot.anchorRowId));
-        setFocusIndex(getOrderIndex(order, snapshot.focusRowId));
+        setAnchorIndex(getOrderIndex(visibleOrder, snapshot.anchorRowId));
+        setFocusIndex(getOrderIndex(visibleOrder, snapshot.focusRowId));
         setActiveId(
-            snapshot.activeId != null && order.includes(snapshot.activeId)
+            snapshot.activeId != null && visibleOrder.includes(snapshot.activeId)
                 ? snapshot.activeId
                 : null,
         );
@@ -135,17 +153,6 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         reorder: QueueReorderResult,
         uiStateSnapshot: QueueReorderUiStateSnapshot,
     ): Promise<TorrentCommandOutcome> => {
-        infraLogger.debug({
-            scope: "queue_reorder",
-            event: "optimistic_apply",
-            message: "Applying semantic queue reorder optimistically",
-            details: {
-                currentOrder: queueOrder,
-                movingIds: reorder.movingIds,
-                targetInsertionIndex: reorder.targetInsertionIndex,
-                nextOrder: reorder.nextOrder,
-            },
-        });
         applyQueueUiState(reorder.nextOrder, uiStateSnapshot);
 
         const outcome = await commitQueueReorder(reorder);
@@ -197,7 +204,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
                     queueOrder,
                     packet,
                     targetRowId,
-                    after,
+                    queueSortDescending ? !after : after,
                 ),
         );
 
@@ -209,19 +216,20 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     } =
         useTorrentRowDrag({
             canReorderQueue,
-            queueOrder,
+            visibleQueueOrder,
             dropTarget,
             setActiveRowId,
             setDropTarget,
             beginAnimationSuppression,
             endAnimationSuppression,
-        markRowDragInteractionComplete,
-        captureQueueUiStateSnapshot,
-        executeDroppedQueueReorder,
-    });
+            markRowDragInteractionComplete,
+            captureQueueUiStateSnapshot,
+            executeDroppedQueueReorder,
+        });
 
     useEffect(() => {
         if (!canReorderQueue) {
+            pendingReorderRef.current = null;
             setActiveRowId(null);
             setDropTarget(null);
             setPendingQueueOrder(null);
@@ -238,22 +246,14 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     useEffect(() => {
         if (!pendingQueueOrder) return;
         if (areQueueOrdersEqual(serverOrder, pendingQueueOrder)) {
-            infraLogger.debug({
-                scope: "queue_reorder",
-                event: "backend_converged",
-                message: "Backend queue order matched the optimistic queue reorder target",
-                details: {
-                    serverOrder,
-                },
-            });
-            pendingServerOrderRef.current = null;
+            pendingReorderRef.current = null;
             setPendingQueueOrder(null);
             return;
         }
-        const pendingServerOrder = pendingServerOrderRef.current;
+        const pendingReorder = pendingReorderRef.current;
         if (
-            pendingServerOrder != null &&
-            !areQueueOrdersEqual(serverOrder, pendingServerOrder)
+            pendingReorder != null &&
+            !areQueueOrdersEqual(serverOrder, pendingReorder.serverOrder)
         ) {
             infraLogger.warn({
                 scope: "queue_reorder",
@@ -265,8 +265,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
                     pendingQueueOrder,
                 },
             });
-            pendingServerOrderRef.current = null;
-            setPendingQueueOrder(null);
+            applyQueueUiState(serverOrder, pendingReorder.uiStateSnapshot, null);
         }
     }, [pendingQueueOrder, serverOrder, setPendingQueueOrder]);
 

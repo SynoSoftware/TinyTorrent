@@ -85,12 +85,10 @@ export interface TorrentTableRowInteractionViewModel {
     ) => void;
     onRowDoubleClick: (row: Torrent) => void;
     onRowContextMenu: (event: MouseEvent, row: Torrent) => void;
-    onDropTargetChange: (target: QueueDropTarget | null) => void;
 }
 
 export interface TorrentTableRowStateViewModel {
     canReorderQueue: boolean;
-    dropTarget?: QueueDropTarget | null;
     activeRowId?: string | null;
     activeDragRowIds: string[];
     isAnyColumnResizing: boolean;

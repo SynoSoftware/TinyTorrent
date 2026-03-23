@@ -13,12 +13,12 @@ type QueueReorderUiStateSnapshot = {
 };
 
 const resolveDropAfter = (
-    queueOrder: string[],
+    visibleQueueOrder: string[],
     draggedRowId: string,
     targetRowId: string,
 ) => {
-    const draggedIndex = queueOrder.indexOf(draggedRowId);
-    const targetIndex = queueOrder.indexOf(targetRowId);
+    const draggedIndex = visibleQueueOrder.indexOf(draggedRowId);
+    const targetIndex = visibleQueueOrder.indexOf(targetRowId);
 
     if (draggedIndex === -1 || targetIndex === -1) {
         return false;
@@ -33,7 +33,7 @@ const resolveDropAfter = (
 // of state.
 type UseTorrentRowDragDeps = {
     canReorderQueue: boolean;
-    queueOrder: string[];
+    visibleQueueOrder: string[];
     dropTarget?: QueueDropTarget | null;
     setActiveRowId: (id: string | null) => void;
     setDropTarget: (target: QueueDropTarget | null) => void;
@@ -52,7 +52,7 @@ type UseTorrentRowDragDeps = {
 export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
     const {
         canReorderQueue,
-        queueOrder,
+        visibleQueueOrder,
         dropTarget = null,
         setActiveRowId,
         setDropTarget,
@@ -97,7 +97,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             if (draggedId === overId) return;
 
             const after = resolveDropAfter(
-                queueOrder,
+                visibleQueueOrder,
                 draggedId,
                 overId,
             );
@@ -107,7 +107,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
                 after,
             });
         },
-        [canReorderQueue, queueOrder, setDropTarget],
+        [canReorderQueue, setDropTarget, visibleQueueOrder],
     );
 
     const handleRowDragEnd = useCallback(
@@ -130,7 +130,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             const isAfterOver =
                 dropTarget?.after ??
                 resolveDropAfter(
-                    queueOrder,
+                    visibleQueueOrder,
                     draggedId,
                     overId,
                 );
@@ -154,7 +154,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             setActiveRowId,
             setDropTarget,
             dropTarget,
-            queueOrder,
+            visibleQueueOrder,
         ]
     );
 

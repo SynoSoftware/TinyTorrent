@@ -163,8 +163,6 @@ const TorrentTable_Row = memo(
         prev.isSelected === next.isSelected &&
         prev.isContext === next.isContext &&
         prev.state.canReorderQueue === next.state.canReorderQueue &&
-        prev.state.dropTarget?.rowId === next.state.dropTarget?.rowId &&
-        prev.state.dropTarget?.after === next.state.dropTarget?.after &&
         prev.state.activeRowId === next.state.activeRowId &&
         prev.state.activeDragRowIds === next.state.activeDragRowIds &&
         prev.state.isAnyColumnResizing === next.state.isAnyColumnResizing &&
@@ -173,8 +171,7 @@ const TorrentTable_Row = memo(
         prev.interaction.onRowPointerDown === next.interaction.onRowPointerDown &&
         prev.interaction.onRowClick === next.interaction.onRowClick &&
         prev.interaction.onRowDoubleClick === next.interaction.onRowDoubleClick &&
-        prev.interaction.onRowContextMenu === next.interaction.onRowContextMenu &&
-        prev.interaction.onDropTargetChange === next.interaction.onDropTargetChange,
+        prev.interaction.onRowContextMenu === next.interaction.onRowContextMenu,
 );
 
 export default TorrentTable_Row;

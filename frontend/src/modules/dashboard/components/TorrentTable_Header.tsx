@@ -7,6 +7,7 @@ import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 const { visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
@@ -41,9 +42,7 @@ const TorrentTable_Header = memo(
         const { column } = header;
         const canResize =
             header.column.id !== "selection" &&
-            (typeof column.getCanResize === "function"
-                ? column.getCanResize()
-                : true);
+            (column.getCanResize?.() ?? true);
         const {
             setNodeRef,
             attributes,
@@ -69,7 +68,7 @@ const TorrentTable_Header = memo(
             }
         };
         const startManualResize = (clientX?: number) => {
-            if (clientX === undefined || clientX === null) return;
+            if (clientX == null) return;
             onResizeStart?.(column, clientX);
         };
         const handlePointerDown = (event: React.PointerEvent) => {
@@ -99,10 +98,7 @@ const TorrentTable_Header = memo(
         };
 
         const isColumnResizing =
-            isResizing ||
-            (typeof column.getIsResizing === "function"
-                ? column.getIsResizing()
-                : false);
+            isResizing || column.getIsResizing?.() === true;
 
         const style: CSSProperties = {
             transform:
@@ -121,9 +117,26 @@ const TorrentTable_Header = memo(
         const isSelection = header.id.toString() === "selection";
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
-        const shouldAnimateLayout =
-            !isAnimationSuppressed && !isDragging && !isOverlay;
-        void shouldAnimateLayout;
+        const handleSortToggle = () => {
+            if (!canSort) return;
+            const meta = header.getContext().table.options.meta as
+                | DashboardTableMeta
+                | undefined;
+            if (meta?.handleHeaderSortToggle) {
+                meta.handleHeaderSortToggle(column.id);
+                return;
+            }
+            column.toggleSorting();
+        };
+        const handleSortPointerUp = (event: React.PointerEvent) => {
+            if (event.pointerType === "mouse" && event.button !== 0) {
+                return;
+            }
+            if (isDragging) {
+                return;
+            }
+            handleSortToggle();
+        };
         return (
             <div
                 ref={setNodeRef}
@@ -147,9 +160,7 @@ const TorrentTable_Header = memo(
                         isSelection,
                     })}
                     style={TABLE.columnHeader.activatorTrackingStyle}
-                    onClick={
-                        canSort ? column.getToggleSortingHandler() : undefined
-                    }
+                    onPointerUp={canSort ? handleSortPointerUp : undefined}
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon

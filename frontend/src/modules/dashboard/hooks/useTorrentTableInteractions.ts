@@ -8,14 +8,16 @@ import {
     type DragStartEvent,
     type DragEndEvent,
 } from "@dnd-kit/core";
-import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
+import type { Row, RowSelectionState } from "@tanstack/react-table";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
 import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
+const COLUMN_DRAG_ACTIVATION_DISTANCE_PX = 18;
+const COLUMN_TOUCH_DRAG_DELAY_MS = 250;
+const COLUMN_TOUCH_DRAG_TOLERANCE_PX = 8;
 const ROW_DRAG_ACTIVATION_DISTANCE_PX = 12;
 const ROW_TOUCH_DRAG_DELAY_MS = 250;
 const ROW_TOUCH_DRAG_TOLERANCE_PX = 5;
@@ -60,21 +62,27 @@ type TorrentTableInteractionsDeps = DragHandlers & {
         action: TorrentTableAction,
     ) => Promise<TorrentCommandOutcome>;
     rowVirtualizer: RowVirtualizerLike;
-    canReorderQueue: boolean;
-    beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
-    endAnimationSuppression: (key: AnimationSuppressionKey) => void;
-    setActiveRowId: (id: string | null) => void;
-    setDropTarget: (target: QueueDropTarget | null) => void;
-    rowIds: string[];
-    rowsById: Map<string, Row<Torrent>>;
-    sorting: SortingState;
-    rows: Array<Row<Torrent>>;
 };
 
 // Hook: provide DnD sensors and table interaction handlers.
 // Extracted from `TorrentTable.tsx` and parameterized via a deps object.
 export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) => {
     const sensors = useSensors(
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: COLUMN_DRAG_ACTIVATION_DISTANCE_PX,
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: COLUMN_TOUCH_DRAG_DELAY_MS,
+                tolerance: COLUMN_TOUCH_DRAG_TOLERANCE_PX,
+            },
+        }),
+        useSensor(KeyboardSensor)
+    );
+
+    const rowSensors = useSensors(
         useSensor(MouseSensor, {
             activationConstraint: {
                 distance: ROW_DRAG_ACTIVATION_DISTANCE_PX,
@@ -86,11 +94,8 @@ export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) 
                 tolerance: ROW_TOUCH_DRAG_TOLERANCE_PX,
             },
         }),
-        useSensor(KeyboardSensor)
+        useSensor(KeyboardSensor),
     );
-
-    // Reuse the same sensor set for rows to avoid duplicate setup.
-    const rowSensors = sensors;
 
     // Wiring: keep this hook as pure orchestration glue. Only pull
     // the small set of values needed for the column-drag handlers.

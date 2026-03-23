@@ -61,6 +61,7 @@ export interface DashboardTableMeta {
     >;
     optimisticStatuses: OptimisticStatusMap;
     rowHeight?: number;
+    handleHeaderSortToggle?: (columnId: string) => void;
 }
 
 export interface ColumnRendererProps {

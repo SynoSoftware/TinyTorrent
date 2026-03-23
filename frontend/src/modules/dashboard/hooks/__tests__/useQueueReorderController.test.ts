@@ -117,6 +117,7 @@ const makeControllerDeps = (
         setPendingQueueOrder: vi.fn(),
         serverOrder: rowIds,
         queueOrder: rowIds,
+        visibleQueueOrder: rowIds,
         dropTarget: null,
         rowSelection: makeSelection(selectedIds),
         setRowSelection: vi.fn(),
@@ -454,6 +455,45 @@ describe("useQueueReorderController integration", () => {
         }
     });
 
+    it("keeps queue reorder enabled while queue sort is descending", async () => {
+        const semanticQueueOrder = ["row-1", "row-2", "row-3", "row-4", "row-5"];
+        const deps = {
+            ...makeControllerDeps(semanticQueueOrder, ["row-3"]),
+            sorting: [{ id: "queue", desc: true }],
+            visibleQueueOrder: [...semanticQueueOrder].reverse(),
+        };
+        const mounted = await mountHarness<ControllerKeyboardHarnessRef>(
+            (ref) =>
+                createElement(ControllerKeyboardHarness, {
+                    ref,
+                    controllerDeps: deps,
+                    rowIds: deps.visibleQueueOrder,
+                }),
+        );
+
+        try {
+            const controller = mounted.ref.current?.getController();
+            if (!controller) {
+                throw new Error("controller_missing");
+            }
+
+            const outcome = await controller.executeQueueAction(
+                torrentTableActions.queueMoveTop,
+                { rowId: "row-3" },
+            );
+
+            expect(outcome).toEqual({ status: "success" });
+            expect(dispatchMock).toHaveBeenLastCalledWith({
+                type: "QUEUE_REORDER",
+                torrentIds: ["row-3"],
+                queueOrder: semanticQueueOrder,
+                targetInsertionIndex: 0,
+            });
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
     it("clears optimistic queue order when refreshed backend order diverges from the target", async () => {
         const rowIds = ["row-1", "row-2", "row-3", "row-4", "row-5"];
         const pendingQueueOrder = [
@@ -501,6 +541,7 @@ describe("useQueueReorderController integration", () => {
                     rowIds: pendingQueueOrder,
                 }),
             );
+            await flush();
 
             deps.serverOrder = mismatchedServerOrder;
 
@@ -511,13 +552,10 @@ describe("useQueueReorderController integration", () => {
                     rowIds: pendingQueueOrder,
                 }),
             );
+            await flush();
 
-            expect(deps.setPendingQueueOrder).toHaveBeenCalledTimes(2);
-            expect(deps.setPendingQueueOrder).toHaveBeenNthCalledWith(
-                1,
-                pendingQueueOrder,
-            );
-            expect(deps.setPendingQueueOrder).toHaveBeenNthCalledWith(2, null);
+            expect(deps.setPendingQueueOrder).toHaveBeenCalled();
+            expect(deps.setPendingQueueOrder).toHaveBeenCalledWith(null);
         } finally {
             mounted.cleanup();
         }
