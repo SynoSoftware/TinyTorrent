@@ -167,14 +167,14 @@ export type TorrentIntent =
     | AddTorrentFromFile
     | FinalizeExistingTorrent;
 
-export type QueueMoveIntent = {
-    type: "QUEUE_MOVE";
-    torrentId: string | number;
-    direction: "up" | "down" | "top" | "bottom";
-    steps?: number;
+export type QueueReorderIntent = {
+    type: "QUEUE_REORDER";
+    torrentIds: Array<string | number>;
+    queueOrder: Array<string | number>;
+    targetInsertionIndex: number;
 };
 
-export type TorrentIntentExtended = TorrentIntent | QueueMoveIntent;
+export type TorrentIntentExtended = TorrentIntent | QueueReorderIntent;
 
 export const TorrentIntents = {
     ensureActive: (torrentId: string | number): EnsureTorrentActive => ({
@@ -276,15 +276,15 @@ export const TorrentIntents = {
         torrentId,
         enabled,
     }),
-    queueMove: (
-        torrentId: string | number,
-        direction: "up" | "down" | "top" | "bottom",
-        steps?: number,
-    ): QueueMoveIntent => ({
-        type: "QUEUE_MOVE",
-        torrentId,
-        direction,
-        steps,
+    queueReorder: (
+        torrentIds: Array<string | number>,
+        queueOrder: Array<string | number>,
+        targetInsertionIndex: number,
+    ): QueueReorderIntent => ({
+        type: "QUEUE_REORDER",
+        torrentIds,
+        queueOrder,
+        targetInsertionIndex,
     }),
     addMagnetTorrent: (
         magnetLink: string,

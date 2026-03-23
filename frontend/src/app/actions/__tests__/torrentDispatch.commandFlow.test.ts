@@ -65,10 +65,14 @@ const createMockClient = (commandLog: string[]): EngineAdapter => ({
     forceTrackerReannounce: vi.fn(async (id: string) => {
         commandLog.push(`tracker-reannounce:${id}`);
     }),
-    moveToTop: vi.fn(async () => {}),
+    moveToTop: vi.fn(async (ids: string[]) => {
+        commandLog.push(`queue-top:${ids.join(",")}`);
+    }),
     moveUp: vi.fn(async () => {}),
     moveDown: vi.fn(async () => {}),
-    moveToBottom: vi.fn(async () => {}),
+    moveToBottom: vi.fn(async (ids: string[]) => {
+        commandLog.push(`queue-bottom:${ids.join(",")}`);
+    }),
     updateFileSelection: vi.fn(async () => {}),
     setSequentialDownload: vi.fn(async (id: string, enabled: boolean) => {
         commandLog.push(`set-sequential:${id}:${String(enabled)}`);
@@ -432,6 +436,140 @@ describe("torrentDispatch command flow", () => {
         expect(outcome).toEqual({ status: "applied" });
         expect(commandLog).toEqual(["set-sequential:t-seq-1:true"]);
         expect(refreshTorrents).not.toHaveBeenCalled();
+        expect(refreshSessionStatsData).not.toHaveBeenCalled();
+        expect(refreshDetailData).not.toHaveBeenCalled();
+    });
+
+    it("lowers queue reorder to exact backend order for a non-contiguous packet moved to the end", async () => {
+        const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const client = createMockClient(commandLog);
+        const backendOrder = ["t-1", "t-2", "t-3", "t-4", "t-5", "t-6"];
+        client.moveToTop = vi.fn(async (ids: string[]) => {
+            commandLog.push(`queue-top:${ids.join(",")}`);
+            for (const id of ids) {
+                const index = backendOrder.indexOf(id);
+                if (index === -1) continue;
+                backendOrder.splice(index, 1);
+                backendOrder.unshift(id);
+            }
+        });
+
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.queueReorder(
+                ["t-1", "t-3", "t-4", "t-5"],
+                ["t-1", "t-2", "t-3", "t-4", "t-5", "t-6"],
+                2,
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual(["queue-top:t-6", "queue-top:t-2"]);
+        expect(backendOrder).toEqual(["t-2", "t-6", "t-1", "t-3", "t-4", "t-5"]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(1);
+        expect(refreshSessionStatsData).not.toHaveBeenCalled();
+        expect(refreshDetailData).not.toHaveBeenCalled();
+    });
+
+    it("lowers queue reorder to exact backend order for an upward adjacent move", async () => {
+        const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const client = createMockClient(commandLog);
+        const backendOrder = ["t-1", "t-2", "t-3", "t-4", "t-5"];
+        client.moveToBottom = vi.fn(async (ids: string[]) => {
+            commandLog.push(`queue-bottom:${ids.join(",")}`);
+            for (const id of ids) {
+                const index = backendOrder.indexOf(id);
+                if (index === -1) continue;
+                backendOrder.splice(index, 1);
+                backendOrder.push(id);
+            }
+        });
+
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.queueReorder(
+                ["t-3"],
+                ["t-1", "t-2", "t-3", "t-4", "t-5"],
+                1,
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual([
+            "queue-top:t-1",
+            "queue-bottom:t-2",
+            "queue-bottom:t-4",
+            "queue-bottom:t-5",
+        ]);
+        expect(backendOrder).toEqual(["t-1", "t-3", "t-2", "t-4", "t-5"]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(1);
+        expect(refreshSessionStatsData).not.toHaveBeenCalled();
+        expect(refreshDetailData).not.toHaveBeenCalled();
+    });
+
+    it("lowers queue reorder to exact backend order for a non-contiguous interior move", async () => {
+        const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const client = createMockClient(commandLog);
+        const backendOrder = ["t-1", "t-2", "t-3", "t-4"];
+        client.moveToTop = vi.fn(async (ids: string[]) => {
+            commandLog.push(`queue-top:${ids.join(",")}`);
+            for (const id of ids) {
+                const index = backendOrder.indexOf(id);
+                if (index === -1) continue;
+                backendOrder.splice(index, 1);
+                backendOrder.unshift(id);
+            }
+        });
+        client.moveToBottom = vi.fn(async (ids: string[]) => {
+            commandLog.push(`queue-bottom:${ids.join(",")}`);
+            for (const id of ids) {
+                const index = backendOrder.indexOf(id);
+                if (index === -1) continue;
+                backendOrder.splice(index, 1);
+                backendOrder.push(id);
+            }
+        });
+
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.queueReorder(
+                ["t-1", "t-4"],
+                ["t-1", "t-2", "t-3", "t-4"],
+                1,
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual(["queue-top:t-2", "queue-bottom:t-3"]);
+        expect(backendOrder).toEqual(["t-2", "t-1", "t-4", "t-3"]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(1);
         expect(refreshSessionStatsData).not.toHaveBeenCalled();
         expect(refreshDetailData).not.toHaveBeenCalled();
     });

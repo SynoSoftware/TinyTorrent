@@ -60,14 +60,6 @@ export async function dispatchTorrentAction({
             );
         case "remove-with-data":
             return mapDispatchOutcome(await dispatch(TorrentIntents.ensureRemoved(targetId, true)));
-        case "queue-move-top":
-            return mapDispatchOutcome(await dispatch(TorrentIntents.queueMove(targetId, "top", 1)));
-        case "queue-move-bottom":
-            return mapDispatchOutcome(await dispatch(TorrentIntents.queueMove(targetId, "bottom", 1)));
-        case "queue-move-up":
-            return mapDispatchOutcome(await dispatch(TorrentIntents.queueMove(targetId, "up", 1)));
-        case "queue-move-down":
-            return mapDispatchOutcome(await dispatch(TorrentIntents.queueMove(targetId, "down", 1)));
         default:
             return commandOutcome.unsupported();
     }

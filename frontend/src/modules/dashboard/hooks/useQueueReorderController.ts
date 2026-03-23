@@ -1,27 +1,38 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
+import { useSelection } from "@/app/context/AppShellStateContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import {
     animationSuppressionKeys,
     type AnimationSuppressionKey,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 import { useTorrentRowDrag } from "@/modules/dashboard/hooks/useTorrentRowDrag";
+import { commandOutcome, type TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
-import type { SortingState, Row, RowSelectionState } from "@tanstack/react-table";
-import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import { isQueueTableAction, type TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
+import type { SortingState, RowSelectionState } from "@tanstack/react-table";
+import {
+    areQueueOrdersEqual,
+    moveQueuePacketByDirection,
+    reorderQueuePacketByDropTarget,
+    resolveQueuePacket,
+    type QueuePacket,
+    type QueueReorderResult,
+} from "@/modules/dashboard/hooks/utils/queue-reorder";
+import { infraLogger } from "@/shared/utils/infraLogger";
 
 type QueueControllerDeps = {
     sorting: SortingState;
+    queueReorderScopeEnabled: boolean;
     pendingQueueOrder: string[] | null;
     setPendingQueueOrder: (order: string[] | null) => void;
     serverOrder: string[];
-    rowIds: string[];
-    rowsById: Map<string, Row<Torrent>>;
+    queueOrder: string[];
     dropTarget: QueueDropTarget | null;
     rowSelection: RowSelectionState;
     setRowSelection: (next: RowSelectionState) => void;
     anchorIndex: number | null;
     focusIndex: number | null;
-    rowsLength: number;
     beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
     endAnimationSuppression: (key: AnimationSuppressionKey) => void;
     markRowDragInteractionComplete: () => void;
@@ -31,20 +42,32 @@ type QueueControllerDeps = {
     setDropTarget: (target: QueueDropTarget | null) => void;
 };
 
+type QueueReorderUiStateSnapshot = {
+    rowSelection: RowSelectionState;
+    anchorRowId: string | null;
+    focusRowId: string | null;
+    activeId: string | null;
+};
+
+const getOrderIndex = (order: string[], rowId: string | null) => {
+    if (rowId == null) return null;
+    const index = order.indexOf(rowId);
+    return index === -1 ? null : index;
+};
+
 export const useQueueReorderController = (deps: QueueControllerDeps) => {
     const {
         sorting,
+        queueReorderScopeEnabled,
         pendingQueueOrder,
         setPendingQueueOrder,
         serverOrder,
-        rowIds,
-        rowsById,
+        queueOrder,
         dropTarget,
         rowSelection,
         setRowSelection,
         anchorIndex,
         focusIndex,
-        rowsLength,
         beginAnimationSuppression,
         endAnimationSuppression,
         markRowDragInteractionComplete,
@@ -55,17 +78,128 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     } = deps;
 
     const { dispatch } = useRequiredTorrentActions();
+    const { activeId, setActiveId } = useSelection();
+    const pendingServerOrderRef = useRef<string[] | null>(null);
 
-    const isQueueSort = useMemo(
-        () =>
-            sorting.some(
-                (s) =>
-                    typeof s === "object" &&
-                    (s as { id?: string }).id === "queue"
+    const commitQueueReorder = async (
+        reorder: QueueReorderResult,
+    ): Promise<TorrentCommandOutcome> => {
+        const outcome = await dispatch(
+            TorrentIntents.queueReorder(
+                reorder.movingIds,
+                queueOrder,
+                reorder.targetInsertionIndex,
             ),
-        [sorting]
-    );
-    const canReorderQueue = isQueueSort && Boolean(dispatch);
+        );
+
+        return outcome.status === "applied"
+            ? commandOutcome.success()
+            : outcome.status === "unsupported"
+              ? commandOutcome.unsupported()
+              : commandOutcome.failed("execution_failed");
+    };
+
+    const isQueueSort =
+        sorting.length === 1 &&
+        typeof sorting[0] === "object" &&
+        (sorting[0] as { id?: string; desc?: boolean }).id === "queue" &&
+        !Boolean((sorting[0] as { desc?: boolean }).desc);
+    const canReorderQueue =
+        isQueueSort && queueReorderScopeEnabled && Boolean(dispatch);
+
+    const captureQueueUiStateSnapshot = (): QueueReorderUiStateSnapshot => ({
+        rowSelection: { ...rowSelection },
+        anchorRowId: anchorIndex == null ? null : (queueOrder[anchorIndex] ?? null),
+        focusRowId: focusIndex == null ? null : (queueOrder[focusIndex] ?? null),
+        activeId,
+    });
+
+    const applyQueueUiState = (
+        order: string[],
+        snapshot: QueueReorderUiStateSnapshot,
+        pendingOrder: string[] | null = order,
+    ) => {
+        pendingServerOrderRef.current = pendingOrder == null ? null : serverOrder;
+        setPendingQueueOrder(pendingOrder);
+        setRowSelection(snapshot.rowSelection);
+        setAnchorIndex(getOrderIndex(order, snapshot.anchorRowId));
+        setFocusIndex(getOrderIndex(order, snapshot.focusRowId));
+        setActiveId(
+            snapshot.activeId != null && order.includes(snapshot.activeId)
+                ? snapshot.activeId
+                : null,
+        );
+    };
+
+    const executeResolvedQueueReorder = async (
+        reorder: QueueReorderResult,
+        uiStateSnapshot: QueueReorderUiStateSnapshot,
+    ): Promise<TorrentCommandOutcome> => {
+        infraLogger.debug({
+            scope: "queue_reorder",
+            event: "optimistic_apply",
+            message: "Applying semantic queue reorder optimistically",
+            details: {
+                currentOrder: queueOrder,
+                movingIds: reorder.movingIds,
+                targetInsertionIndex: reorder.targetInsertionIndex,
+                nextOrder: reorder.nextOrder,
+            },
+        });
+        applyQueueUiState(reorder.nextOrder, uiStateSnapshot);
+
+        const outcome = await commitQueueReorder(reorder);
+        if (outcome.status === "success") {
+            return outcome;
+        }
+
+        applyQueueUiState(queueOrder, uiStateSnapshot, null);
+
+        return outcome;
+    };
+
+    const resolveAndExecuteQueueReorder = async (
+        actedRowId: string | null | undefined,
+        queueActiveRowId: string | null,
+        uiStateSnapshot: QueueReorderUiStateSnapshot,
+        resolveReorder: (packet: QueuePacket) => QueueReorderResult | null,
+    ): Promise<TorrentCommandOutcome> => {
+        const packet = resolveQueuePacket({
+            queueOrder,
+            rowSelection,
+            actedRowId,
+            activeRowId: queueActiveRowId,
+        });
+        if (!packet) {
+            return commandOutcome.noSelection();
+        }
+
+        const reorder = resolveReorder(packet);
+        if (!reorder) {
+            return commandOutcome.success();
+        }
+
+        return executeResolvedQueueReorder(reorder, uiStateSnapshot);
+    };
+
+    const executeDroppedQueueReorder = async (
+        draggedRowId: string,
+        targetRowId: string,
+        after: boolean,
+        uiStateSnapshot: QueueReorderUiStateSnapshot,
+    ): Promise<TorrentCommandOutcome> =>
+        resolveAndExecuteQueueReorder(
+            draggedRowId,
+            uiStateSnapshot.activeId,
+            uiStateSnapshot,
+            (packet) =>
+                reorderQueuePacketByDropTarget(
+                    queueOrder,
+                    packet,
+                    targetRowId,
+                    after,
+                ),
+        );
 
     const {
         handleRowDragStart,
@@ -75,34 +209,16 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     } =
         useTorrentRowDrag({
             canReorderQueue,
-            rowIds,
-            rowsById,
+            queueOrder,
             dropTarget,
-            rowSelection,
-            setRowSelection,
-            anchorIndex,
-            focusIndex,
-            rowsLength,
             setActiveRowId,
             setDropTarget,
-            setAnchorIndex,
-            setFocusIndex,
-            setPendingQueueOrder,
             beginAnimationSuppression,
             endAnimationSuppression,
-            markRowDragInteractionComplete,
-        });
-    if (import.meta.env.DEV) {
-        if (
-            !Array.isArray(rowIds) ||
-            rowIds.length !== rowsLength ||
-            rowsLength !== rowsById.size
-        ) {
-            throw new Error(
-                "Queue controller invariant violated: rowIds/rowsLength/rowsById must describe the same row set"
-            );
-        }
-    }
+        markRowDragInteractionComplete,
+        captureQueueUiStateSnapshot,
+        executeDroppedQueueReorder,
+    });
 
     useEffect(() => {
         if (!canReorderQueue) {
@@ -121,14 +237,67 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
 
     useEffect(() => {
         if (!pendingQueueOrder) return;
-        if (serverOrder.length !== pendingQueueOrder.length) return;
-        for (let i = 0; i < serverOrder.length; i += 1) {
-            if (serverOrder[i] !== pendingQueueOrder[i]) {
-                return;
-            }
+        if (areQueueOrdersEqual(serverOrder, pendingQueueOrder)) {
+            infraLogger.debug({
+                scope: "queue_reorder",
+                event: "backend_converged",
+                message: "Backend queue order matched the optimistic queue reorder target",
+                details: {
+                    serverOrder,
+                },
+            });
+            pendingServerOrderRef.current = null;
+            setPendingQueueOrder(null);
+            return;
         }
-        setPendingQueueOrder(null);
+        const pendingServerOrder = pendingServerOrderRef.current;
+        if (
+            pendingServerOrder != null &&
+            !areQueueOrdersEqual(serverOrder, pendingServerOrder)
+        ) {
+            infraLogger.warn({
+                scope: "queue_reorder",
+                event: "backend_order_mismatch",
+                message:
+                    "Backend queue order diverged from the optimistic queue reorder target",
+                details: {
+                    serverOrder,
+                    pendingQueueOrder,
+                },
+            });
+            pendingServerOrderRef.current = null;
+            setPendingQueueOrder(null);
+        }
     }, [pendingQueueOrder, serverOrder, setPendingQueueOrder]);
+
+    const executeQueueAction = async (
+        action: TorrentTableAction,
+        options?: {
+            rowId?: string | null;
+        },
+    ): Promise<TorrentCommandOutcome> => {
+        if (!isQueueTableAction(action) || !canReorderQueue) {
+            return commandOutcome.unsupported();
+        }
+
+        return resolveAndExecuteQueueReorder(
+            options?.rowId,
+            activeId,
+            captureQueueUiStateSnapshot(),
+            (packet) =>
+                moveQueuePacketByDirection(
+                    queueOrder,
+                    packet,
+                    action === "queue-move-top"
+                        ? "top"
+                        : action === "queue-move-bottom"
+                          ? "bottom"
+                          : action === "queue-move-up"
+                            ? "up"
+                            : "down",
+                ),
+        );
+    };
 
     return {
         canReorderQueue,
@@ -136,6 +305,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         handleRowDragOver,
         handleRowDragEnd,
         handleRowDragCancel,
+        executeQueueAction,
     };
 };
 

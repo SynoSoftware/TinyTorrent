@@ -60,6 +60,10 @@ type UseTorrentTableContextParams = {
     buildMagnetLink: (t: Torrent) => string;
     closeContextMenu: () => void;
     sequentialDownloadCapability: CapabilityState;
+    executeQueueAction: (
+        action: TorrentTableAction,
+        options?: { rowId?: string | null },
+    ) => Promise<TorrentCommandOutcome>;
 };
 
 export const useTorrentTableContextActions = (params: UseTorrentTableContextParams) => {
@@ -69,6 +73,7 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
         buildMagnetLink,
         closeContextMenu,
         sequentialDownloadCapability,
+        executeQueueAction,
     } = params;
 
     const {
@@ -86,8 +91,10 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
     const executeTableAction = useCallback(
         async (action: TorrentTableAction): Promise<TorrentCommandOutcome> => {
             if (!contextTorrent) return commandOutcome.noSelection();
+            if (isQueueTableAction(action)) {
+                return executeQueueAction(action, { rowId: contextTorrent.id });
+            }
             const shouldRunBulkAction =
-                !isQueueTableAction(action) &&
                 selectedIds.length > 1 &&
                 selectedIds.includes(contextTorrent.id);
             if (shouldRunBulkAction) {
@@ -95,7 +102,13 @@ export const useTorrentTableContextActions = (params: UseTorrentTableContextPara
             }
             return handleTorrentAction(action, contextTorrent);
         },
-        [contextTorrent, handleBulkAction, handleTorrentAction, selectedIds],
+        [
+            contextTorrent,
+            executeQueueAction,
+            handleBulkAction,
+            handleTorrentAction,
+            selectedIds,
+        ],
     );
 
     const handleContextMenuAction = useCallback(

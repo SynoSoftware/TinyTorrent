@@ -9,8 +9,10 @@ import {
     type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
 import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
@@ -54,6 +56,9 @@ type TorrentTableInteractionsDeps = DragHandlers & {
     setFocusIndex: (index: number | null) => void;
     setActiveId: (id: string | null) => void;
     selectAllRows: () => void;
+    executeQueueAction: (
+        action: TorrentTableAction,
+    ) => Promise<TorrentCommandOutcome>;
     rowVirtualizer: RowVirtualizerLike;
     canReorderQueue: boolean;
     beginAnimationSuppression: (key: AnimationSuppressionKey) => void;

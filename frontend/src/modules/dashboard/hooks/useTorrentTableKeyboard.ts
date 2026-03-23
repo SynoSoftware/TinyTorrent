@@ -1,5 +1,14 @@
 import React, { useCallback } from "react";
 import type { Row, RowSelectionState } from "@tanstack/react-table";
+import {
+    resolveShortcutIntentFromKeyboardEvent,
+    Shortcuts,
+} from "@/app/controlPlane/shortcuts";
+import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
+import {
+    torrentTableActions,
+    type TorrentTableAction,
+} from "@/modules/dashboard/types/torrentTable";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 
 // Wiring-friendly keyboard hook. Parent must provide the dependencies
@@ -18,6 +27,9 @@ type TorrentTableKeyboardDeps = {
     setFocusIndex: (index: number | null) => void;
     setActiveId: (id: string | null) => void;
     selectAllRows: () => void;
+    executeQueueAction: (
+        action: TorrentTableAction,
+    ) => Promise<TorrentCommandOutcome>;
 };
 
 export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
@@ -31,6 +43,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
         setFocusIndex,
         setActiveId,
         selectAllRows,
+        executeQueueAction,
     } = deps;
 
     const handleKeyDown = useCallback(
@@ -79,6 +92,28 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
             if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
                 event.preventDefault();
                 selectAllRows();
+                return;
+            }
+            const shortcutIntent = resolveShortcutIntentFromKeyboardEvent(
+                event.nativeEvent,
+                [
+                    Shortcuts.intents.QueueMoveTop,
+                    Shortcuts.intents.QueueMoveUp,
+                    Shortcuts.intents.QueueMoveDown,
+                    Shortcuts.intents.QueueMoveBottom,
+                ],
+            );
+            if (shortcutIntent) {
+                event.preventDefault();
+                const action =
+                    shortcutIntent === Shortcuts.intents.QueueMoveTop
+                        ? torrentTableActions.queueMoveTop
+                        : shortcutIntent === Shortcuts.intents.QueueMoveUp
+                          ? torrentTableActions.queueMoveUp
+                          : shortcutIntent === Shortcuts.intents.QueueMoveDown
+                            ? torrentTableActions.queueMoveDown
+                            : torrentTableActions.queueMoveBottom;
+                void executeQueueAction(action);
                 return;
             }
             if (key === "ArrowDown" || key === "ArrowUp") {
@@ -130,6 +165,7 @@ export const useTorrentTableKeyboard = (deps: TorrentTableKeyboardDeps) => {
             setAnchorIndex,
             setFocusIndex,
             setActiveId,
+            executeQueueAction,
         ]
     );
 

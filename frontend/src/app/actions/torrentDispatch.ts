@@ -1,6 +1,6 @@
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
-import type { TorrentIntentExtended, QueueMoveIntent } from "@/app/intents/torrentIntents";
+import type { TorrentIntentExtended, QueueReorderIntent } from "@/app/intents/torrentIntents";
 import { watchVerifyCompletion } from "@/services/rpc/verify-watcher";
 import { toMoveDataFlag } from "@/modules/dashboard/domain/torrentRelocation";
 import { infraLogger } from "@/shared/utils/infraLogger";
@@ -58,7 +58,7 @@ type DispatchableIntentType =
     | "ENSURE_SELECTION_PAUSED"
     | "ENSURE_SELECTION_REMOVED"
     | "ENSURE_SELECTION_VALID"
-    | "QUEUE_MOVE"
+    | "QUEUE_REORDER"
     | "ADD_MAGNET_TORRENT"
     | "ADD_TORRENT_FROM_FILE"
     | "FINALIZE_EXISTING_TORRENT";
@@ -123,24 +123,90 @@ const requireClientMethod = <TMethod extends keyof EngineAdapter>(client: Engine
     return methodRef;
 };
 
-const runQueueMove = async (intent: QueueMoveIntent, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
-    const torrentId = String(intent.torrentId);
-    const steps = Math.max(1, Number(intent.steps ?? 1));
-    for (let step = 0; step < steps; step++) {
-        if (intent.direction === "up") {
-            await context.client.moveUp([torrentId]);
-            continue;
-        }
-        if (intent.direction === "down") {
-            await context.client.moveDown([torrentId]);
-            continue;
-        }
-        if (intent.direction === "top") {
-            await context.client.moveToTop([torrentId]);
-            continue;
-        }
-        await context.client.moveToBottom([torrentId]);
+type QueueReorderOperation =
+    | { method: "moveToTop"; torrentId: string }
+    | { method: "moveToBottom"; torrentId: string };
+
+const planQueueReorder = (intent: QueueReorderIntent) => {
+    const queueOrder = (intent.queueOrder || []).map(String).filter(Boolean);
+    const torrentIds = (intent.torrentIds || []).map(String).filter(Boolean);
+    if (torrentIds.length === 0) {
+        return null;
     }
+
+    const requestedMovingIds = new Set(torrentIds);
+    const orderedTorrentIds = queueOrder.filter((torrentId) =>
+        requestedMovingIds.has(torrentId),
+    );
+    if (orderedTorrentIds.length === 0) {
+        return null;
+    }
+
+    const movingSet = new Set(orderedTorrentIds);
+    const reducedOrderLength = queueOrder.length - orderedTorrentIds.length;
+    const boundedInsertIndex = Math.max(
+        0,
+        Math.min(reducedOrderLength, Number(intent.targetInsertionIndex) || 0),
+    );
+    const reducedOrder = queueOrder.filter((torrentId) => !movingSet.has(torrentId));
+    const nextOrder = [
+        ...reducedOrder.slice(0, boundedInsertIndex),
+        ...orderedTorrentIds,
+        ...reducedOrder.slice(boundedInsertIndex),
+    ];
+    if (nextOrder.length === queueOrder.length && nextOrder.every((torrentId, index) => torrentId === queueOrder[index])) {
+        return null;
+    }
+
+    const prefixIds = nextOrder.slice(0, boundedInsertIndex);
+    const suffixIds = nextOrder.slice(
+        boundedInsertIndex + orderedTorrentIds.length,
+    );
+
+    const operations: QueueReorderOperation[] = [
+        ...prefixIds.slice().reverse().map((torrentId) => ({
+            method: "moveToTop" as const,
+            torrentId,
+        })),
+        ...suffixIds.map((torrentId) => ({
+            method: "moveToBottom" as const,
+            torrentId,
+        })),
+    ];
+
+    return {
+        operations,
+        nextOrder,
+    };
+};
+
+const runQueueReorder = async (intent: QueueReorderIntent, context: DispatchContext): Promise<DispatchHandlerOutcome> => {
+    const plan = planQueueReorder(intent);
+    if (!plan) {
+        return dispatchOutcome.applied();
+    }
+
+    infraLogger.debug({
+        scope: "queue_reorder",
+        event: "dispatch_plan",
+        message: "Lowering semantic queue reorder to Transmission-compatible operations",
+        details: {
+            queueOrder: intent.queueOrder.map(String),
+            movingIds: intent.torrentIds.map(String),
+            targetInsertionIndex: intent.targetInsertionIndex,
+            nextOrder: plan.nextOrder,
+            operations: plan.operations,
+        },
+    });
+
+    for (const operation of plan.operations) {
+        if (operation.method === "moveToTop") {
+            await context.client.moveToTop([operation.torrentId]);
+            continue;
+        }
+        await context.client.moveToBottom([operation.torrentId]);
+    }
+
     return dispatchOutcome.applied();
 };
 
@@ -450,9 +516,12 @@ const dispatchHandlers: DispatchHandlerTable = {
             refreshStats: true,
         },
     },
-    QUEUE_MOVE: {
+    QUEUE_REORDER: {
         run: async (intent, context) => {
-            return runQueueMove(intent, context);
+            return runQueueReorder(intent, context);
+        },
+        refresh: {
+            refreshTorrents: true,
         },
     },
     ADD_MAGNET_TORRENT: {
