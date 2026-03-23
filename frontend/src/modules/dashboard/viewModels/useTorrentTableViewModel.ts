@@ -92,20 +92,9 @@ const getQueueSorting = (sorting: SortingState) => {
     return sort?.id === "queue" ? sort : undefined;
 };
 
-const areSortingEntriesEqual = (
-    left: SortingState[number] | undefined,
-    right: SortingState[number] | undefined,
-) =>
-    left?.id === right?.id && Boolean(left?.desc) === Boolean(right?.desc);
-
-const isDefaultTorrentTableSorting = (sorting: SortingState) =>
-    areSortingEntriesEqual(
-        getSingleColumnSorting(sorting),
-        DEFAULT_TORRENT_TABLE_SORTING[0],
-    );
-
-const normalizeInitialTorrentTableSorting = (sorting: SortingState) =>
-    isDefaultTorrentTableSorting(sorting) ? [] : sorting;
+export const getInitialTorrentTableSorting = (
+    sorting: SortingState | undefined,
+): SortingState => sorting ?? [];
 
 const getNextTorrentTableSorting = (
     currentSorting: SortingState,
@@ -203,9 +192,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<HeaderContextMenu | null>(null);
     const [sorting, setSorting] = useState<SortingState>(() =>
-        normalizeInitialTorrentTableSorting(
-            preferences.torrentTableState?.sorting ?? [],
-        ),
+        getInitialTorrentTableSorting(preferences.torrentTableState?.sorting),
     );
     const [columnOrder, setColumnOrder] = useState<string[]>(() =>
         deriveCommittedColumnOrder(
@@ -429,12 +416,6 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     });
 
     useTorrentTablePersistence({
-        initialState: {
-            columnOrder: DEFAULT_COLUMN_ORDER,
-            columnVisibility: {},
-            columnSizing: {},
-            sorting: [],
-        },
         columnOrder,
         columnVisibility,
         columnSizing,

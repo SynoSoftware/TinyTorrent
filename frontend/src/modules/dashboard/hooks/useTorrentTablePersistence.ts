@@ -16,7 +16,6 @@ type TorrentTablePersistentState = {
 };
 
 interface UseTorrentTablePersistenceParams {
-    initialState: TorrentTablePersistentState;
     columnOrder: string[];
     columnVisibility: VisibilityState;
     columnSizing: Record<string, number>;
@@ -25,7 +24,6 @@ interface UseTorrentTablePersistenceParams {
 }
 
 export const useTorrentTablePersistence = ({
-    initialState,
     columnOrder,
     columnVisibility,
     columnSizing,
@@ -34,11 +32,11 @@ export const useTorrentTablePersistence = ({
 }: UseTorrentTablePersistenceParams) => {
     const { setTorrentTableState } = usePreferences();
 
-    const latestStateRef = useRef({
-        columnOrder: initialState.columnOrder,
-        columnVisibility: initialState.columnVisibility,
-        columnSizing: initialState.columnSizing,
-        sorting: initialState.sorting,
+    const latestStateRef = useRef<TorrentTablePersistentState>({
+        columnOrder,
+        columnVisibility,
+        columnSizing,
+        sorting,
     });
     const saveTimeoutRef = useRef<(() => void) | null>(null);
 
