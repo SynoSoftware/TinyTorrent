@@ -11,6 +11,7 @@ export type TorrentHeadlineFieldId =
     | "peers"
     | "size"
     | "added"
+    | "completedOn"
     | "uploadingTo"
     | "downloadingFrom";
 
@@ -73,6 +74,9 @@ export const torrentHeadlineFields = {
     added: defineField("added", ["table", "summary"], {
         tableLabelKey: "table.header_added",
         summaryLabelKey: "torrent_modal.general.fields.time_added",
+    }),
+    completedOn: defineField("completedOn", ["table"], {
+        tableLabelKey: "table.header_completed_on",
     }),
     uploadingTo: defineField("uploadingTo", ["summary"], {
         summaryLabelKey: "torrent_modal.general.fields.peers_uploading_to",

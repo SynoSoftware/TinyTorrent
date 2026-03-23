@@ -7,6 +7,7 @@ import {
     FileText, // name
     Percent, // progress
     Activity, // status
+    CheckCircle2, // completed on
     ListOrdered, // queue
     Timer, // eta
     Gauge, // speed
@@ -52,7 +53,8 @@ export type ColumnId =
     | "peers"
     | "size"
     | "ratio"
-    | "added";
+    | "added"
+    | "completedOn";
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
@@ -377,6 +379,35 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             </AppTooltip>
         ),
     },
+
+    completedOn: {
+        id: "completedOn",
+        labelKey: torrentHeadlineFields.completedOn.tableLabelKey,
+        width: 110,
+        align: "end",
+        sortable: true,
+        rpcField: "doneDate",
+        descriptionKey: "table.column_desc_completed_on",
+        sortAccessor: (torrent) => torrent.doneDate ?? 0,
+        headerIcon: CheckCircle2,
+        render: ({ torrent, t }) => {
+            if (typeof torrent.doneDate !== "number" || torrent.doneDate <= 0) {
+                return (
+                    <span className={cn(TABLE.columnDefs.numericDim, DENSE_TEXT)}>
+                        {t("torrent_modal.general.values.not_completed")}
+                    </span>
+                );
+            }
+
+            return (
+                <AppTooltip content={formatDate(torrent.doneDate)} native>
+                    <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
+                        {formatRelativeTime(torrent.doneDate)}
+                    </span>
+                </AppTooltip>
+            );
+        },
+    },
 };
 
 export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
@@ -391,6 +422,7 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "size",
     "ratio",
     "added",
+    "completedOn",
 ];
 
 export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "health", "queue", "speed", "peers", "size"];

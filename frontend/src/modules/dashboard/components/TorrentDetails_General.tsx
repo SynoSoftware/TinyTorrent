@@ -166,6 +166,10 @@ const SummarySection = ({
                     <span>{formatRelativeTime(torrent.added)}</span>
                 </AppTooltip>
             ),
+            completedOn:
+                typeof torrent.doneDate === "number" && torrent.doneDate > 0
+                    ? formatDate(torrent.doneDate)
+                    : t("torrent_modal.general.values.not_completed"),
         };
 
         return torrentHeadlineOrder.map((fieldId) => ({

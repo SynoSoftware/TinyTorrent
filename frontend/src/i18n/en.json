@@ -733,6 +733,7 @@
             "start_now": "Start Now"
         },
         "column_desc_added": "When the torrent was added",
+        "column_desc_completed_on": "When the torrent finished downloading",
         "column_desc_eta": "Estimated completion time",
         "column_desc_hash": "Torrent identifier",
         "column_desc_health": "Swarm availability and reachability",
@@ -751,6 +752,7 @@
         "eta_unknown": "Unknown",
         "eta_less_than_minute": "less than a minute",
         "header_added": "Added",
+        "header_completed_on": "Completed",
         "header_eta": "ETA",
         "header_health": "Avail",
         "header_name": "Name",
