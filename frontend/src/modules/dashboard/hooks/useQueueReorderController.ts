@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useRequiredTorrentActions } from "@/app/context/AppCommandContext";
 import { useSelection } from "@/app/context/AppShellStateContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
@@ -113,8 +113,11 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     const canReorderQueue =
         isQueueSort && queueReorderScopeEnabled && Boolean(dispatch);
 
-    const toVisibleQueueOrder = (order: string[]) =>
-        queueSortDescending ? [...order].reverse() : order;
+    const toVisibleQueueOrder = useCallback(
+        (order: string[]) =>
+            queueSortDescending ? [...order].reverse() : order,
+        [queueSortDescending],
+    );
 
     const captureQueueUiStateSnapshot = (): QueueReorderUiStateSnapshot => ({
         rowSelection: { ...rowSelection },
@@ -125,29 +128,41 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         activeId,
     });
 
-    const applyQueueUiState = (
-        order: string[],
-        snapshot: QueueReorderUiStateSnapshot,
-        pendingOrder: string[] | null = order,
-    ) => {
-        pendingReorderRef.current =
-            pendingOrder == null
-                ? null
-                : {
-                      serverOrder,
-                      uiStateSnapshot: snapshot,
-                  };
-        const visibleOrder = toVisibleQueueOrder(order);
-        setPendingQueueOrder(pendingOrder);
-        setRowSelection(snapshot.rowSelection);
-        setAnchorIndex(getOrderIndex(visibleOrder, snapshot.anchorRowId));
-        setFocusIndex(getOrderIndex(visibleOrder, snapshot.focusRowId));
-        setActiveId(
-            snapshot.activeId != null && visibleOrder.includes(snapshot.activeId)
-                ? snapshot.activeId
-                : null,
-        );
-    };
+    const applyQueueUiState = useCallback(
+        (
+            order: string[],
+            snapshot: QueueReorderUiStateSnapshot,
+            pendingOrder: string[] | null = order,
+        ) => {
+            pendingReorderRef.current =
+                pendingOrder == null
+                    ? null
+                    : {
+                          serverOrder,
+                          uiStateSnapshot: snapshot,
+                      };
+            const visibleOrder = toVisibleQueueOrder(order);
+            setPendingQueueOrder(pendingOrder);
+            setRowSelection(snapshot.rowSelection);
+            setAnchorIndex(getOrderIndex(visibleOrder, snapshot.anchorRowId));
+            setFocusIndex(getOrderIndex(visibleOrder, snapshot.focusRowId));
+            setActiveId(
+                snapshot.activeId != null &&
+                    visibleOrder.includes(snapshot.activeId)
+                    ? snapshot.activeId
+                    : null,
+            );
+        },
+        [
+            serverOrder,
+            setActiveId,
+            setAnchorIndex,
+            setFocusIndex,
+            setPendingQueueOrder,
+            setRowSelection,
+            toVisibleQueueOrder,
+        ],
+    );
 
     const executeResolvedQueueReorder = async (
         reorder: QueueReorderResult,
@@ -267,7 +282,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             });
             applyQueueUiState(serverOrder, pendingReorder.uiStateSnapshot, null);
         }
-    }, [pendingQueueOrder, serverOrder, setPendingQueueOrder]);
+    }, [applyQueueUiState, pendingQueueOrder, serverOrder, setPendingQueueOrder]);
 
     const executeQueueAction = async (
         action: TorrentTableAction,

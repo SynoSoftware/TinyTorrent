@@ -11,7 +11,6 @@ import {
 import type { Row, RowSelectionState } from "@tanstack/react-table";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
-import type { QueueDropTarget } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 

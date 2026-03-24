@@ -2,6 +2,7 @@ import React, {
     act,
     createElement,
     forwardRef,
+    useState,
     useImperativeHandle,
     type Ref,
 } from "react";
@@ -17,6 +18,7 @@ const ZERO_HISTORY = new Array(performance.historyDataPoints).fill(0);
 
 type HarnessRef = {
     read: () => Record<string, { down: number[]; up: number[] }>;
+    rerender: () => void;
 };
 
 const makeTorrent = (
@@ -42,10 +44,14 @@ const Harness = forwardRef(function Harness(
     { torrents }: { torrents: TorrentEntity[] },
     ref: Ref<HarnessRef>,
 ) {
+    const [, setTick] = useState(0);
     const historyRef = useTorrentSpeedHistory(torrents);
 
     useImperativeHandle(ref, () => ({
         read: () => historyRef.current,
+        rerender: () => {
+            setTick((current) => current + 1);
+        },
     }));
 
     return createElement("div");
@@ -150,6 +156,43 @@ describe("useTorrentSpeedHistory", () => {
         const idledAgain = ref.current?.read();
         expect(idledAgain?.a.down).not.toBe(idled?.a.down);
         expect(idledAgain?.a.up).not.toBe(idled?.a.up);
+
+        await act(async () => {
+            root.unmount();
+        });
+        container.remove();
+    });
+
+    it("does not append a duplicate sample when rerendering with the same torrents reference", async () => {
+        const ref = React.createRef<HarnessRef>();
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+        const firstTorrents = [makeTorrent("a", 10, 3)];
+        const secondTorrents = [makeTorrent("a", 20, 6)];
+
+        await act(async () => {
+            root.render(createElement(Harness, { ref, torrents: firstTorrents }));
+        });
+
+        const seeded = ref.current?.read();
+        expect(seeded?.a.down).toEqual(ZERO_HISTORY);
+
+        await act(async () => {
+            root.render(createElement(Harness, { ref, torrents: secondTorrents }));
+        });
+
+        const advanced = ref.current?.read();
+        expect(advanced?.a.down.at(-1)).toBe(20);
+        expect(advanced?.a.up.at(-1)).toBe(6);
+
+        await act(async () => {
+            ref.current?.rerender();
+        });
+
+        const rerendered = ref.current?.read();
+        expect(rerendered?.a.down).toBe(advanced?.a.down);
+        expect(rerendered?.a.up).toBe(advanced?.a.up);
 
         await act(async () => {
             root.unmount();

@@ -53,7 +53,6 @@ const TorrentTable_Row = memo(
             transform,
             transition,
             isDragging,
-            isOver,
         } = useSortable({
             id: row.id,
             disabled: !canReorderQueue,

@@ -4,9 +4,7 @@ import {
     cloneElement,
     isValidElement,
     useCallback,
-    useEffect,
-    useRef,
-    useState,
+    useSyncExternalStore,
     type ComponentProps,
     type ReactNode,
 } from "react";
@@ -194,42 +192,28 @@ const releaseTooltipGuard = () => {
 };
 
 const useTooltipInterferenceGuard = (enabled: boolean) => {
-    const [isSuppressed, setIsSuppressed] = useState(getTooltipGuardValue);
-    const subscribedRef = useRef(false);
-
-    const handleGuardUpdate = useCallback((nextValue: boolean) => {
-        setIsSuppressed(nextValue);
-    }, []);
-
-    useEffect(() => {
-        if (!enabled) {
-            if (subscribedRef.current) {
-                tooltipGuardRuntime.subscribers.delete(handleGuardUpdate);
-                releaseTooltipGuard();
-                subscribedRef.current = false;
+    const subscribe = useCallback(
+        (onStoreChange: () => void) => {
+            if (!enabled) {
+                return () => {};
             }
-            setIsSuppressed(false);
-            return;
-        }
 
-        if (!subscribedRef.current) {
-            tooltipGuardRuntime.subscribers.add(handleGuardUpdate);
+            tooltipGuardRuntime.subscribers.add(onStoreChange);
             acquireTooltipGuard();
-            subscribedRef.current = true;
-        }
-        setIsSuppressed(getTooltipGuardValue());
 
-        return () => {
-            if (!subscribedRef.current) {
-                return;
-            }
-            tooltipGuardRuntime.subscribers.delete(handleGuardUpdate);
-            releaseTooltipGuard();
-            subscribedRef.current = false;
-        };
-    }, [enabled, handleGuardUpdate]);
+            return () => {
+                tooltipGuardRuntime.subscribers.delete(onStoreChange);
+                releaseTooltipGuard();
+            };
+        },
+        [enabled],
+    );
+    const getSnapshot = useCallback(
+        () => (enabled ? getTooltipGuardValue() : false),
+        [enabled],
+    );
 
-    return enabled && isSuppressed;
+    return useSyncExternalStore(subscribe, getSnapshot, () => false);
 };
 
 const flattenTooltipContent = (value: ReactNode): string | null => {

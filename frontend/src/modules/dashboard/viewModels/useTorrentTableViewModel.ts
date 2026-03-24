@@ -39,7 +39,6 @@ import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpee
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import {
     dashboardFilters,
-    type DashboardFilter,
 } from "@/modules/dashboard/types/dashboardFilter";
 import type {
     ContextMenuKey,
@@ -135,9 +134,9 @@ const getNextTorrentTableSorting = (
 
     if (isDefaultColumn) {
         if (current?.id !== columnId) {
-            return [{ id: columnId, desc: !Boolean(defaultSorting.desc) }];
+            return [{ id: columnId, desc: !defaultSorting.desc }];
         }
-        return [{ id: columnId, desc: !Boolean(current.desc) }];
+        return [{ id: columnId, desc: !current.desc }];
     }
 
     if (current?.id !== columnId) {

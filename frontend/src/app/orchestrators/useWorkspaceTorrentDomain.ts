@@ -490,7 +490,13 @@ export function useWorkspaceTorrentDomain({
             return;
         }
 
-        clearPendingFilePriority(detailData.id, settledIndexes, settledReqId);
+        return scheduler.scheduleTimeout(() => {
+            clearPendingFilePriority(
+                detailData.id,
+                settledIndexes,
+                settledReqId,
+            );
+        }, 0);
     }, [clearPendingFilePriority, detailData, pendingFilePriorities]);
 
     const setSequentialDownloadOptimistically = useCallback(

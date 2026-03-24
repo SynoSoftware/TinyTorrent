@@ -40,6 +40,7 @@ import {
 } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import type { FileExplorerPrioritySelectKey } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const prioritySelectOptions = [
     {
         key: "high",
