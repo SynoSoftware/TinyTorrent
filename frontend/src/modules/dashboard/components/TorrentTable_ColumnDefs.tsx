@@ -27,16 +27,10 @@ import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusEntry, OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import { getTorrentEtaSortValue, getTorrentEtaTableDisplay } from "@/modules/dashboard/components/TorrentEtaDisplay";
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
-import { TorrentTable_HealthCell } from "@/modules/dashboard/components/TorrentTable_HealthColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
-import {
-    deriveTorrentDisplayHealth,
-    getTorrentSwarmSortValue,
-} from "@/modules/dashboard/utils/torrentSwarm";
-import { getStatusSpeedHistory } from "@/modules/dashboard/utils/torrentStatus";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 const { layout } = registry;
@@ -46,7 +40,6 @@ export type ColumnId =
     | "name"
     | "progress"
     | "status"
-    | "health"
     | "queue"
     | "eta"
     | "speed"
@@ -203,35 +196,6 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Activity,
         render: ({ torrent, t, optimisticStatus, table }) => (
             <TorrentTable_StatusCell
-                torrent={torrent}
-                table={table}
-                t={t}
-                optimisticStatus={optimisticStatus}
-            />
-        ),
-    },
-
-    health: {
-        id: "health",
-        labelKey: "table.header_health",
-        width: 110,
-        minSize: 95,
-        sortable: true,
-        descriptionKey: "table.column_desc_health",
-        sortAccessor: (torrent, meta) =>
-            getTorrentSwarmSortValue(
-                deriveTorrentDisplayHealth(
-                    torrent,
-                    meta?.optimisticStatuses[torrent.id],
-                    getStatusSpeedHistory(
-                        torrent,
-                        meta?.speedHistoryRef.current[torrent.id],
-                    ),
-                ),
-            ),
-        headerIcon: Network,
-        render: ({ torrent, t, table, optimisticStatus }) => (
-            <TorrentTable_HealthCell
                 torrent={torrent}
                 table={table}
                 t={t}
@@ -414,7 +378,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "name",
     "progress",
     "status",
-    "health",
     "queue",
     "eta",
     "speed",
@@ -425,6 +388,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "completedOn",
 ];
 
-export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "health", "queue", "speed", "peers", "size"];
+export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["name", "progress", "status", "queue", "speed", "peers", "size"];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(TORRENTTABLE_COLUMN_DEFS) as ColumnId[];

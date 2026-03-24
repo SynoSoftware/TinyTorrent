@@ -35,4 +35,12 @@ describe("getInitialTorrentTableSorting", () => {
         const { getInitialTorrentTableSorting } = await import("@/modules/dashboard/viewModels/useTorrentTableViewModel");
         expect(getInitialTorrentTableSorting(undefined)).toEqual([]);
     });
+
+    it("drops persisted sorting entries for removed columns", async () => {
+        const { getInitialTorrentTableSorting } = await import("@/modules/dashboard/viewModels/useTorrentTableViewModel");
+
+        expect(
+            getInitialTorrentTableSorting([{ id: "health", desc: false }]),
+        ).toEqual([]);
+    });
 });

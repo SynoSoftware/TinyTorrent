@@ -218,18 +218,6 @@ function TorrentTable_RowMenuInner({
         ],
     );
 
-    const handleCheckboxToggle = useCallback(
-        (
-            event: React.MouseEvent | React.PointerEvent,
-            action: () => void,
-        ) => {
-            event.preventDefault();
-            event.stopPropagation();
-            action();
-        },
-        [],
-    );
-
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
 
@@ -260,24 +248,10 @@ function TorrentTable_RowMenuInner({
                     closeOnSelect={false}
                     onPress={toggleSequentialDownload}
                     startContent={
-                        <span
-                            onClick={(event) =>
-                                handleCheckboxToggle(
-                                    event,
-                                    toggleSequentialDownload,
-                                )
-                            }
-                            onPointerDown={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                            }}
-                        >
+                        <span className="pointer-events-none">
                             <Checkbox
                                 isSelected={sequentialEnabled}
                                 disableAnimation
-                                onValueChange={() => {
-                                    toggleSequentialDownload();
-                                }}
                                 classNames={
                                     formControlStyles.checkboxMarginRightClassNames
                                 }
@@ -405,7 +379,6 @@ function TorrentTable_RowMenuInner({
         rowMenuViewModel,
         clipboardWriteSupported,
         getContextMenuShortcut,
-        handleCheckboxToggle,
         handleMenuActionPress,
         contextTorrent.sequentialDownload,
         sequentialUiState.supported,

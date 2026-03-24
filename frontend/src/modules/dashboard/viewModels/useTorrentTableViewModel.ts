@@ -30,7 +30,11 @@ import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReo
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
-import { TORRENTTABLE_COLUMN_DEFS, DEFAULT_COLUMN_ORDER, type ColumnId } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
+import {
+    TORRENTTABLE_COLUMN_DEFS,
+    DEFAULT_COLUMN_ORDER,
+    type ColumnId,
+} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import {
@@ -94,7 +98,32 @@ const getQueueSorting = (sorting: SortingState) => {
 
 export const getInitialTorrentTableSorting = (
     sorting: SortingState | undefined,
-): SortingState => sorting ?? [];
+    availableColumnIds: readonly string[] = DEFAULT_COLUMN_ORDER,
+): SortingState => {
+    if (!sorting?.length) {
+        return [];
+    }
+
+    const availableIds = new Set(availableColumnIds);
+    return sorting.filter((entry) => availableIds.has(entry.id));
+};
+
+export const getContextMenuTorrent = (
+    contextMenu: TableContextMenu | null,
+    torrents: readonly Torrent[],
+): Torrent | null => {
+    if (contextMenu == null) {
+        return null;
+    }
+
+    return (
+        torrents.find(
+            (torrent) =>
+                torrent.id === contextMenu.torrentId ||
+                torrent.hash === contextMenu.torrentHash,
+        ) ?? null
+    );
+};
 
 const getNextTorrentTableSorting = (
     currentSorting: SortingState,
@@ -192,7 +221,10 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<HeaderContextMenu | null>(null);
     const [sorting, setSorting] = useState<SortingState>(() =>
-        getInitialTorrentTableSorting(preferences.torrentTableState?.sorting),
+        getInitialTorrentTableSorting(
+            preferences.torrentTableState?.sorting,
+            DEFAULT_COLUMN_ORDER,
+        ),
     );
     const [columnOrder, setColumnOrder] = useState<string[]>(() =>
         deriveCommittedColumnOrder(
@@ -200,7 +232,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             DEFAULT_COLUMN_ORDER,
         ),
     );
-    const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => preferences.torrentTableState?.columnVisibility ?? {});
+    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => preferences.torrentTableState?.columnVisibility ?? {});
     const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => preferences.torrentTableState?.columnSizing ?? {});
     const [columnSizingInfo, setColumnSizingInfo] = useState<ColumnSizingInfoState>({
         startOffset: null,
@@ -480,15 +512,8 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
     }, []);
 
     const contextTorrent = useMemo(
-        () =>
-            contextMenu == null
-                ? null
-                : torrents.find(
-                      (torrent) =>
-                          torrent.id === contextMenu.torrentId ||
-                          torrent.hash === contextMenu.torrentHash,
-                  ) ?? null,
-        [contextMenu, torrents],
+        () => getContextMenuTorrent(contextMenu, displayTorrents),
+        [contextMenu, displayTorrents],
     );
 
     const { activate: activateScope, deactivate: deactivateScope } =
@@ -640,7 +665,6 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
             t,
             setHeaderContextMenu,
             headerContextMenu,
-            columnVisibility,
         });
 
     const headerSortableIds = useMemo(

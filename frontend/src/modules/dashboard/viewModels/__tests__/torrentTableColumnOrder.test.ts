@@ -11,7 +11,7 @@ describe("deriveVisibleHeaderOrder", () => {
             "speed",
             "progress",
             "status",
-            "health",
+            "queue",
         ];
 
         expect(
@@ -23,7 +23,7 @@ describe("deriveVisibleHeaderOrder", () => {
             "name",
             "progress",
             "status",
-            "health",
+            "queue",
         ];
 
         expect(
@@ -35,18 +35,18 @@ describe("deriveVisibleHeaderOrder", () => {
         expect(
             deriveVisibleHeaderOrder(
                 ["progress", "name"],
-                ["name", "progress", "health", "speed"],
+                ["name", "progress", "queue", "speed"],
             ),
-        ).toEqual(["progress", "name", "health", "speed"]);
+        ).toEqual(["progress", "name", "queue", "speed"]);
     });
 
     it("ignores hidden columns and duplicate committed ids", () => {
         expect(
             deriveVisibleHeaderOrder(
-                ["name", "progress", "name", "speed", "status", "health"],
-                ["speed", "status", "health", "name"],
+                ["name", "progress", "name", "speed", "status", "queue"],
+                ["speed", "status", "queue", "name"],
             ),
-        ).toEqual(["name", "speed", "status", "health"]);
+        ).toEqual(["name", "speed", "status", "queue"]);
     });
 });
 
@@ -55,17 +55,17 @@ describe("deriveCommittedColumnOrder", () => {
         expect(
             deriveCommittedColumnOrder(
                 ["progress", "name", "status"],
-                ["name", "progress", "status", "health", "speed"],
+                ["name", "progress", "status", "queue", "speed"],
             ),
-        ).toEqual(["progress", "name", "status", "health", "speed"]);
+        ).toEqual(["progress", "name", "status", "queue", "speed"]);
     });
 
     it("drops duplicate and obsolete saved ids while preserving valid order", () => {
         expect(
             deriveCommittedColumnOrder(
-                ["name", "progress", "name", "obsolete", "health"],
-                ["name", "progress", "status", "health"],
+                ["name", "progress", "name", "obsolete", "queue"],
+                ["name", "progress", "status", "queue"],
             ),
-        ).toEqual(["name", "progress", "health", "status"]);
+        ).toEqual(["name", "progress", "queue", "status"]);
     });
 });

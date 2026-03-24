@@ -787,7 +787,31 @@
         "status_stalled": "Stalled",
         "status_waiting_for_peers": "Waiting for peers",
         "status_no_active_connections": "No active connections",
-        "status_no_data_transfer": "No data transfer"
+        "status_no_data_transfer": "No data transfer",
+        "status_tooltip": {
+            "availability": {
+                "fully_available": "Fully available",
+                "degraded": "Availability degraded",
+                "unavailable": "Unavailable",
+                "finding_peers": "Finding peers",
+                "metadata": "Fetching metadata",
+                "error": "Blocked by error",
+                "moving": "Updating location"
+            },
+            "detail": {
+                "degraded": "Some remaining data is reachable, but the swarm is weak.",
+                "unavailable": "No connected peer has the remaining data.",
+                "finding_peers": "No connected sources for missing data yet.",
+                "metadata": "Still fetching torrent metadata.",
+                "error": "Torrent cannot continue until the error is resolved.",
+                "stalled_connected": "Peers are connected, but no data is moving.",
+                "stalled_disconnected": "No connected sources for missing data yet.",
+                "idle_seeding_connected": "Peers are connected, but nothing is requesting data.",
+                "idle_seeding_disconnected": "No peers are requesting data right now.",
+                "connecting": "No connected sources for missing data yet.",
+                "moving": "The torrent is being moved."
+            }
+        }
     },
     "theme": {
         "dark": "Dark",
@@ -1012,6 +1036,7 @@
                 "error": "Torrent cannot currently progress because of an error."
             },
             "fields": {
+                "availability": "Availability",
                 "health": "Health",
                 "reachable_now": "Reachable now",
                 "connected_sources": "Connected sources",

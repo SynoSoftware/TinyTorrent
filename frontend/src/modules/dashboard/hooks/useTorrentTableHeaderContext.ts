@@ -4,6 +4,7 @@ import type { TFunction } from "i18next";
 import type { Column, Table } from "@tanstack/react-table";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+import type { HeaderMenuItem } from "@/modules/dashboard/types/torrentTableSurfaces";
 
 type HeaderContextMenuState = {
     virtualElement: ContextMenuVirtualElement;
@@ -12,12 +13,6 @@ type HeaderContextMenuState = {
 
 type HeaderMenuActionOptions = {
     keepOpen?: boolean;
-};
-
-type HeaderMenuItem = {
-    column: Column<Torrent>;
-    label: string;
-    isPinned: boolean;
 };
 
 type UseTorrentTableHeaderContextParams = {
@@ -35,7 +30,6 @@ type UseTorrentTableHeaderContextParams = {
         value: HeaderContextMenuState | null
     ) => void;
     headerContextMenu: HeaderContextMenuState | null;
-    columnVisibility: Record<string, boolean>;
 };
 
 // Hook: header context/menu helpers for the torrent table.
@@ -52,6 +46,7 @@ export const useTorrentTableHeaderContext = (
         getColumnLabel,
         t,
         setHeaderContextMenu,
+        headerContextMenu,
     } = params;
 
     const handleHeaderContextMenu = useCallback(
@@ -78,9 +73,9 @@ export const useTorrentTableHeaderContext = (
     );
 
     const headerMenuActiveColumn = useMemo(() => {
-        if (!params.headerContextMenu?.columnId) return null;
-        return table.getColumn(params.headerContextMenu.columnId) ?? null;
-    }, [params.headerContextMenu, table]);
+        if (!headerContextMenu?.columnId) return null;
+        return table.getColumn(headerContextMenu.columnId) ?? null;
+    }, [headerContextMenu, table]);
 
     const handleHeaderMenuAction = useCallback(
         (action: () => void, options: HeaderMenuActionOptions = {}) => {
@@ -102,11 +97,11 @@ export const useTorrentTableHeaderContext = (
     }, [getColumnLabel, headerMenuActiveColumn, t]);
 
     const isHeaderMenuHideEnabled = Boolean(
-        headerMenuActiveColumn?.getIsVisible()
+        headerMenuActiveColumn?.getIsVisible(),
     );
 
     const headerMenuItems = useMemo(() => {
-        if (!params.headerContextMenu) return [];
+        if (!headerContextMenu) return [];
         const byId = new Map<string, Column<Torrent>>();
         table.getAllLeafColumns().forEach((column) => {
             byId.set(column.id, column);
@@ -149,7 +144,7 @@ export const useTorrentTableHeaderContext = (
     }, [
         columnOrder,
         getColumnLabel,
-        params.headerContextMenu,
+        headerContextMenu,
         headerMenuActiveColumn,
         table,
     ]);

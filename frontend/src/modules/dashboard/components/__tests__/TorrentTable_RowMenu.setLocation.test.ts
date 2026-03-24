@@ -281,6 +281,48 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
         }
     });
 
+    it("toggles sequential download once and keeps the menu open", async () => {
+        const torrent = makeTorrent({
+            sequentialDownload: false,
+        });
+        const onClose = vi.fn();
+        const handleContextMenuAction = vi.fn(async () =>
+            ({ status: "success" }) as const,
+        );
+        const mounted = mountRowMenu({
+            ...makeViewModel(torrent),
+            onClose,
+            handleContextMenuAction,
+        });
+        try {
+            await waitForCondition(
+                () => setDownloadPathModalSpy.mock.calls.length > 0,
+            );
+            const sequentialButton = Array.from(
+                mounted.container.querySelectorAll("button"),
+            ).find(
+                (button) =>
+                    button.textContent ===
+                    "table.actions.enable_sequential_download",
+            );
+            if (!sequentialButton) {
+                throw new Error("sequential_button_missing");
+            }
+
+            sequentialButton.click();
+
+            await waitForCondition(
+                () => handleContextMenuAction.mock.calls.length === 1,
+            );
+            expect(handleContextMenuAction).toHaveBeenCalledWith(
+                "toggle-sequential-download",
+            );
+            expect(onClose).not.toHaveBeenCalled();
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
     it("hides the sequential toggle when unsupported", async () => {
         const torrent = makeTorrent({
             sequentialDownload: false,

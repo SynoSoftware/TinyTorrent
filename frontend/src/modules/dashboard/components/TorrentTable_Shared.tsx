@@ -81,11 +81,7 @@ const areCellRenderInputsEqual = (
     const previousTorrent = previousCell.row.original;
     const nextTorrent = nextCell.row.original;
 
-    if (
-        columnId === "status" ||
-        columnId === "health" ||
-        columnId === "speed"
-    ) {
+    if (columnId === "status" || columnId === "speed") {
         return (
             previousTorrent === nextTorrent &&
             getOptimisticSignature(previousCell) ===
