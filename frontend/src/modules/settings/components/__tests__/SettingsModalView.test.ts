@@ -79,6 +79,9 @@ vi.mock("@/shared/version", () => ({
 }));
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
+    FORM: {
+        blockStackTight: "block-stack-tight",
+    },
     MODAL: {
         sidebar: "sidebar",
         sidebarHidden: "sidebar-hidden",
@@ -229,11 +232,8 @@ const createController = (): SettingsModalController =>
         modal: {
             isOpen: true,
             uiMode: "Full",
-            isSaving: false,
             settingsLoadError: false,
-            modalFeedback: null,
-            hasUnsavedChanges: false,
-            closeConfirmPending: false,
+            modalError: null,
             isMobileMenuOpen: true,
             tabsFallbackActive: false,
             safeVisibleTabs: [
@@ -260,18 +260,12 @@ const createController = (): SettingsModalController =>
                 setFieldDraft: vi.fn(),
                 jsonCopyStatus: "idle",
                 configJson: "{}",
-                connectionFeedback: null,
             },
             settingsFormActions: {
                 capabilities: {
                     blocklistSupported: true,
                     versionGatedSettings: {
                         sequential_download: {
-                            minimum: "4.1.0",
-                            detectedVersion: "5.0.0",
-                            state: "supported",
-                        },
-                        torrent_added_verify_mode: {
                             minimum: "4.1.0",
                             detectedVersion: "5.0.0",
                             state: "supported",
@@ -286,16 +280,18 @@ const createController = (): SettingsModalController =>
                 interfaceTab: {
                     isImmersive: false,
                     hasDismissedInsights: false,
+                    showAddTorrentDialog: true,
                     onToggleWorkspaceStyle: vi.fn(),
+                    setShowAddTorrentDialog: vi.fn(),
                 },
                 buttonActions: {
                     testPort: vi.fn(),
                     restoreHud: vi.fn(),
                 },
                 canBrowseDirectories: false,
+                onApplySetting: vi.fn(),
                 onBrowse: vi.fn(),
                 onCopyConfigJson: vi.fn(),
-                onReconnect: vi.fn(),
             },
         },
         commands: {
@@ -303,10 +299,7 @@ const createController = (): SettingsModalController =>
             onRequestClose: vi.fn(),
             onOpenMobileMenu: vi.fn(),
             onSelectTab: vi.fn(),
-            onKeepEditing: vi.fn(),
-            onDiscardAndClose: vi.fn(),
             onReset: vi.fn(),
-            onSave: vi.fn(),
         },
     }) as unknown as SettingsModalController;
 

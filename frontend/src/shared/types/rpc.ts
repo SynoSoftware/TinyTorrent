@@ -21,9 +21,12 @@ export type ReportReadErrorFn = (error?: unknown) => void;
 
 export interface RpcReconnectOptions {
     suppressTimeoutDialog?: boolean;
+    disableRetry?: boolean;
 }
 
 export type RpcConnectionAction = "probe" | "reconnect";
+
+export type RpcConnectionDisplayState = "connected" | "connecting" | "offline";
 
 export type RpcConnectionOutcome =
     | {
@@ -44,6 +47,12 @@ export type RpcConnectionRetryStatus =
     | {
           kind: "connecting";
       };
+
+export interface RpcConnectionStatusView {
+    state: RpcConnectionDisplayState;
+    activeAction: RpcConnectionAction | null;
+    retryStatus: RpcConnectionRetryStatus | null;
+}
 
 export interface RpcConnectionTimeoutDialogController {
     isOpen: boolean;

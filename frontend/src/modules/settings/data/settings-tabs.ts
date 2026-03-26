@@ -454,23 +454,6 @@ export const SETTINGS_TABS: TabDefinition[] = [
                         stateKey: "sequential_download",
                     },
                     {
-                        type: "select",
-                        labelKey: "settings.labels.addedVerifyMode",
-                        stateKey: "torrent_added_verify_mode",
-                        options: [
-                            {
-                                key: "fast",
-                                labelKey:
-                                    "settings.options.addedVerifyMode.fast",
-                            },
-                            {
-                                key: "full",
-                                labelKey:
-                                    "settings.options.addedVerifyMode.full",
-                            },
-                        ],
-                    },
-                    {
                         type: "switch",
                         labelKey: "settings.labels.verifyOnComplete",
                         stateKey: "torrent_complete_verify_enabled",

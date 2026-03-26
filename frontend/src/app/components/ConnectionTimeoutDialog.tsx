@@ -62,7 +62,7 @@ export function ConnectionTimeoutDialog() {
             : "workspace.connection_timeout_dialog.runtime_body";
     const openSettingsFromDialog = () => {
         connectionTimeoutDialog.dismiss();
-        openSettings();
+        openSettings("connection");
     };
     const remainingRetrySeconds =
         connectionTimeoutDialog.retryStatus?.kind !== "scheduled"

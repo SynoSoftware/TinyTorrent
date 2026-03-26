@@ -405,11 +405,12 @@
             "autorun_subtitle": "Control whether TinyTorrent launches with your session.",
             "autorun_title": "Startup Integration",
             "current_connection": "Current server",
+            "connect": "Connect",
+            "connecting": "Connecting",
             "default_profile_label": "This PC",
             "connect_to_this_pc": "Connect to this PC",
             "edit_credentials": "Edit credentials",
             "endpoint": "Server address",
-            "endpoint_preview": "Server: {{endpoint}}",
             "extended_mock_notice": "This connection is Transmission (RPC-only), so desktop helpers show sample data while TinyTorrent mode remains unavailable.",
             "extended_version_unknown": "unknown",
             "extension_mode_helper": "Switch to TinyTorrent mode to unlock the full desktop experience when ShellExtensions are available.",
@@ -418,7 +419,7 @@
             "extension_mode_label": "TinyTorrent features",
             "hide_credentials": "Hide credentials",
             "host": "Host",
-            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active.",
+            "insecure_http_warning": "This connection uses HTTP. Your password is sent unencrypted. Use only on a trusted network.",
             "mode_label": "Connection Mode",
             "native_mode_label": "TinyTorrent Host Shell",
             "native_mode_summary": "Native shell owns dialogs, installer, and clipboard hooks; the UI delegates paths and autorun settings to the host.",
@@ -553,7 +554,6 @@
             "silentStartHelper": "Applies to system startup only. Manual launch always opens the window.",
             "splashMessage": "Splash screen message",
             "startAdded": "Start Added Torrents",
-            "addedVerifyMode": "Verify Added Torrents",
             "tableWatermark": "Show torrent table watermark",
             "turtleMode": "Turtle Mode",
             "updateChecks": "Automatically check for updates",
@@ -566,27 +566,17 @@
         "modal": {
             "clipboard_failed": "Clipboard copy failed. Please try again.",
             "clipboard_success": "Configuration JSON copied to clipboard.",
-            "close_blocked_saving": "Saving is in progress. Please wait.",
-            "discard_body": "Closing now will discard your unsaved changes.",
-            "discard_close": "Discard & Close",
-            "discard_keep": "Keep Editing",
-            "discard_title": "Discard changes?",
             "error_browse": "Unable to open the native folder picker.",
             "error_no_tabs": "No configuration tabs are currently available.",
-            "error_reconnect": "Unable to reconnect to the backend.",
             "error_restore": "Unable to restore insights at this time.",
-            "error_save": "Unable to save settings. Please try again.",
+            "error_apply": "Unable to apply the setting. Please try again.",
             "error_test_port": "Port test failed. Check your connection.",
-            "error_window_state": "Unable to preserve the window state.",
             "test_port_closed": "Port test: not open.",
             "test_port_offline": "Port test needs an active connection.",
             "test_port_open": "Port test: open.",
             "test_port_unsupported": "Port test is not supported by this engine.",
             "footer": {
-                "cancel": "Cancel",
-                "reset": "Reset",
-                "reset_defaults": "Reset to Defaults",
-                "save": "Save Changes"
+                "reset_defaults": "Reset to Defaults"
             },
             "title": "Settings"
         },
@@ -599,10 +589,6 @@
                 "preferred": "Prefer Encryption",
                 "required": "Require Encryption",
                 "tolerated": "Allow Unencrypted"
-            },
-            "addedVerifyMode": {
-                "fast": "Fast Add (verify on demand)",
-                "full": "Full Verify on Add"
             },
             "shellStyle": {
                 "classic": "Classic",
@@ -668,8 +654,7 @@
         },
         "units": {
             "kbps": "{{value}} KB/s"
-        },
-        "unsaved_changes": "Unsaved changes"
+        }
     },
     "status_bar": {
         "active_torrents": "Active",

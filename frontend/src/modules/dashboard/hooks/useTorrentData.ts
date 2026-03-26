@@ -433,6 +433,20 @@ export function useTorrentData({
         reportReadError,
     ]);
 
+    useEffect(() => {
+        if (sessionReady || !isMountedRef.current) {
+            return;
+        }
+        clearAllGhostTimers();
+        snapshotCacheRef.current = new Map();
+        snapshotOrderRef.current = [];
+        snapshotTimestampRef.current = 0;
+        initialLoadRef.current = false;
+        setTorrents([]);
+        setGhosts([]);
+        setIsInitialLoadFinished(false);
+    }, [clearAllGhostTimers, sessionReady]);
+
     return {
         torrents,
         isInitialLoadFinished,

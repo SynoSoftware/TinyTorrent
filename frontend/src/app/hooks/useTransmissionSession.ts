@@ -4,6 +4,7 @@ import type { EngineInfo } from "@/services/rpc/entities";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     RpcConnectionTimeoutDialogController,
+    RpcConnectionStatusView,
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
@@ -17,8 +18,13 @@ import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 type UseTransmissionSessionResult = {
     client: EngineAdapter;
     rpcStatus: ConnectionStatus;
+    connectionStatusView: RpcConnectionStatusView;
     isReady: boolean;
     reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
+    primeNextProbe: (
+        action: "probe" | "reconnect",
+        options?: RpcReconnectOptions,
+    ) => void;
     sessionSettings: TransmissionSessionSettings | null;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
@@ -36,8 +42,10 @@ export function useTransmissionSession(
     const sessionDomain = useEngineSessionDomain(client);
     const {
         rpcStatus,
+        connectionStatusView,
         isReady,
         reconnect,
+        primeNextProbe,
         markTransportConnected,
         reportCommandError,
         reportReadError,
@@ -109,13 +117,27 @@ export function useTransmissionSession(
             // handled through existing connection/read error channels.
         });
     }, [refreshSessionSettings, rpcStatus]);
+
+    useEffect(() => {
+        if (rpcStatus === status.connection.connected) {
+            return;
+        }
+        if (!isMountedRef.current) {
+            return;
+        }
+        setSessionSettings(null);
+        setEngineInfo(null);
+        setIsDetectingEngine(false);
+    }, [rpcStatus]);
     // TODO: Pull session detection/rpcStatus/engineInfo into the planned Session provider so AppContent reads from one source of truth instead of hook chaining.
 
     return {
         client,
         rpcStatus,
+        connectionStatusView,
         isReady,
         reconnect,
+        primeNextProbe,
         sessionSettings,
         refreshSessionSettings,
         markTransportConnected,

@@ -13,12 +13,13 @@ import { usePreferences } from "@/app/context/PreferencesContext";
 
 export function InterfaceTabContent() {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsFormState();
+    const { config } = useSettingsFormState();
     const {
         preferences: { hasConnectedTorrentServer },
         updatePreferences,
     } = usePreferences();
     const {
+        onApplySetting,
         buttonActions,
         interfaceTab: {
             isImmersive,
@@ -29,12 +30,10 @@ export function InterfaceTabContent() {
         },
     } = useSettingsFormActions();
 
-    const canToggleShell = typeof onToggleWorkspaceStyle === "function";
-
     return (
         <>
             <SettingsSection title={t("settings.sections.dashboard")}>
-                <div className={FORM.interfaceStack}>
+                <div className={FORM.sectionContentStack}>
                     <div className={FORM.interfaceRow}>
                         <div className={FORM.interfaceRowInfo}>
                             <AppTooltip content={t("settings.descriptions.shellStyle")}>
@@ -49,10 +48,10 @@ export function InterfaceTabContent() {
                                 variant={isImmersive ? "light" : "shadow"}
                                 color={isImmersive ? "default" : "primary"}
                                 onPress={() => {
-                                    if (!isImmersive || !canToggleShell) return;
-                                    onToggleWorkspaceStyle?.();
+                                    if (!isImmersive) return;
+                                    onToggleWorkspaceStyle();
                                 }}
-                                isDisabled={!canToggleShell || !isImmersive}
+                                isDisabled={!isImmersive}
                             >
                                 {t("settings.options.shellStyle.classic")}
                             </Button>
@@ -61,10 +60,10 @@ export function InterfaceTabContent() {
                                 variant={isImmersive ? "shadow" : "light"}
                                 color={isImmersive ? "primary" : "default"}
                                 onPress={() => {
-                                    if (isImmersive || !canToggleShell) return;
-                                    onToggleWorkspaceStyle?.();
+                                    if (isImmersive) return;
+                                    onToggleWorkspaceStyle();
                                 }}
-                                isDisabled={!canToggleShell || isImmersive}
+                                isDisabled={isImmersive}
                             >
                                 {t("settings.options.shellStyle.immersive")}
                             </Button>
@@ -107,9 +106,12 @@ export function InterfaceTabContent() {
                         <Switch
                             size="md"
                             isSelected={config.table_watermark_enabled}
-                            onValueChange={(val) =>
-                                updateConfig("table_watermark_enabled", val)
-                            }
+                            onValueChange={(val) => {
+                                void onApplySetting(
+                                    "table_watermark_enabled",
+                                    val,
+                                );
+                            }}
                         />
                     </div>
                     <div className={FORM.switchRow}>
@@ -121,10 +123,7 @@ export function InterfaceTabContent() {
                         <Switch
                             size="md"
                             isSelected={showAddTorrentDialog}
-                            onValueChange={(value) =>
-                                setShowAddTorrentDialog?.(value)
-                            }
-                            isDisabled={!setShowAddTorrentDialog}
+                            onValueChange={setShowAddTorrentDialog}
                         />
                     </div>
                     <div className={FORM.switchRow}>

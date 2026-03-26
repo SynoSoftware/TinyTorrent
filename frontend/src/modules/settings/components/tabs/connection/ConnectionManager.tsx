@@ -1,302 +1,447 @@
 import { Button, Chip, Input } from "@heroui/react";
-import { Monitor, RefreshCw, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, Monitor, RefreshCw, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { scheduler } from "@/app/services/scheduler";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
-import { status } from "@/shared/status";
-import { useConnectionConfig, buildRpcServerUrl } from "@/app/context/ConnectionConfigContext";
+import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
+import { isLoopbackHost } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
-import { useSettingsFormActions, useSettingsFormState } from "@/modules/settings/context/SettingsFormContext";
-import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
-import { FORM } from "@/shared/ui/layout/glass-surface";
-const { visuals } = registry;
+import { status } from "@/shared/status";
+import { FORM, MODAL } from "@/shared/ui/layout/glass-surface";
+
+const { timing, visuals } = registry;
 const AUTO_PROFILE_LABEL_PATTERN = /^Connection \d+$/;
-// TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
-// TODO: - Transmission endpoint (host/port/scheme/path)
-// TODO: - Transmission Basic Auth (username/password)
-// TODO: Host-backed UI features are NOT a different server type; they are a locality-derived capability (localhost + ShellAgent/ShellExtensions available).
-// TODO: The “TinyTorrent server” label must be removed from this UX to avoid implying a different daemon protocol.
 
-interface ConnectionManagerState {
-    activeProfile: ConnectionProfile;
-    handleUpdate: (patch: Partial<ConnectionProfile>) => void;
-    isOffline: boolean;
+type ConnectionDraft = Pick<
+    ConnectionProfile,
+    "scheme" | "host" | "port" | "username" | "password"
+>;
+
+type ConnectionSubmitIntent = "connect" | "connect_local" | "reconnect";
+
+type PendingConnectionAction = {
+    intent: ConnectionSubmitIntent;
+    startedAtMs: number;
+};
+
+const LOCAL_CONNECTION_DRAFT: ConnectionDraft = {
+    scheme: "http",
+    host: "localhost",
+    port: "9091",
+    username: "",
+    password: "",
+};
+
+const toConnectionDraft = (profile: ConnectionProfile): ConnectionDraft => ({
+    scheme: profile.scheme,
+    host: profile.host,
+    port: profile.port,
+    username: profile.username,
+    password: profile.password,
+});
+
+const draftsEqual = (left: ConnectionDraft, right: ConnectionDraft) =>
+    left.scheme === right.scheme &&
+    left.host === right.host &&
+    left.port === right.port &&
+    left.username === right.username &&
+    left.password === right.password;
+
+interface ConnectionFieldRowProps {
+    label: string;
+    children: ReactNode;
 }
 
-function useConnectionManagerState(): ConnectionManagerState {
-    const { activeProfile, updateProfile } = useConnectionConfig();
-    const handleUpdate = useCallback(
-        (patch: Partial<ConnectionProfile>) => {
-            updateProfile(activeProfile.id, patch);
-        },
-        [activeProfile.id, updateProfile],
+function ConnectionFieldRow({ label, children }: ConnectionFieldRowProps) {
+    return (
+        <div className={FORM.locationEditorLabelInputRow}>
+            <div className={FORM.locationEditorLabelColumn}>
+                <span className={FORM.locationEditorInlineLabel}>{label}</span>
+            </div>
+            <div className={FORM.locationEditorValueColumn}>{children}</div>
+        </div>
     );
-    const { rpcStatus } = useSession();
-    return {
-        activeProfile,
-        handleUpdate,
-        isOffline: rpcStatus === status.connection.error,
-    };
 }
-// TODO: Remove `token` from ConnectionProfile update shape once TT tokens are removed.
 
 export function ConnectionCredentialsCard() {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [pendingLocalReconnect, setPendingLocalReconnect] = useState(false);
-    const { activeProfile, handleUpdate, isOffline } = useConnectionManagerState();
-    const { onReconnect } = useSettingsFormActions();
-    const { connectionFeedback } = useSettingsFormState();
-    const handleReconnect = useCallback(async () => {
-        const outcome = await onReconnect();
-        switch (outcome.status) {
-            case "applied":
-            case "cancelled":
-            case "unsupported":
-            case "failed":
-                return;
-            default:
-                return;
-        }
-    }, [onReconnect]);
-    const handleConnectLocal = useCallback(() => {
-        handleUpdate({
-            host: "localhost",
-            port: "9091",
-            scheme: "http",
-        });
-        setPendingLocalReconnect(true);
-    }, [handleUpdate]);
-    const { rpcStatus, uiCapabilities } = useSession();
-    const connectionStatusLabel = useMemo(() => {
-        const map: Record<string, string> = {
-            [status.connection.connected]: t("status_bar.rpc_connected"),
-            [status.connection.error]: t("status_bar.rpc_error"),
-            [status.connection.idle]: t("status_bar.rpc_idle"),
-        };
-        return map[rpcStatus];
-    }, [rpcStatus, t]);
-    const statusColor = useMemo<"success" | "warning" | "danger">(() => {
-        if (rpcStatus === status.connection.connected) return "success";
-        if (rpcStatus === status.connection.error) return "danger";
-        return "warning";
-    }, [rpcStatus]);
+    const [draft, setDraft] = useState<ConnectionDraft>(LOCAL_CONNECTION_DRAFT);
+    const [pendingAction, setPendingAction] =
+        useState<PendingConnectionAction | null>(null);
+    const { activeProfile, activeRpcConnection, updateProfile } =
+        useConnectionConfig();
+    const {
+        primeNextProbe,
+        reconnect,
+        rpcStatus,
+        uiCapabilities,
+    } = useSession();
 
-    const { uiMode } = uiCapabilities;
-    const isFullMode = uiMode === "Full";
-    const isNativeMode = isFullMode;
-    const modeLabelKey = useMemo(
-        () => (isFullMode ? "settings.connection.ui_mode_full_label" : "settings.connection.ui_mode_rpc_label"),
-        [isFullMode],
-    );
-    const modeSummaryKey = useMemo(
-        () => (isFullMode ? "settings.connection.ui_mode_full_summary" : "settings.connection.ui_mode_rpc_summary"),
-        [isFullMode],
-    );
-
-    const remoteInputsEnabled = !isNativeMode || showAdvanced;
-
-    const serverUrl = useMemo(() => buildRpcServerUrl(activeProfile), [activeProfile]);
     useEffect(() => {
-        if (!pendingLocalReconnect) {
-            return;
-        }
-        const normalizedHost = activeProfile.host.trim().toLowerCase();
-        if (normalizedHost !== "localhost" || activeProfile.port.trim() !== "9091") {
-            return;
-        }
-        setPendingLocalReconnect(false);
-        void handleReconnect();
-    }, [activeProfile.host, activeProfile.port, handleReconnect, pendingLocalReconnect]);
+        setDraft(toConnectionDraft(activeProfile));
+    }, [
+        activeProfile.host,
+        activeProfile.password,
+        activeProfile.port,
+        activeProfile.scheme,
+        activeProfile.username,
+    ]);
+
+    const committedDraft = useMemo(
+        () => toConnectionDraft(activeProfile),
+        [activeProfile],
+    );
+    const hasDraftChanges = useMemo(
+        () => !draftsEqual(draft, committedDraft),
+        [committedDraft, draft],
+    );
+    const isDraftValid =
+        draft.host.trim().length > 0 && draft.port.trim().length > 0;
+    const currentServerUrl = activeRpcConnection.serverUrl;
+    const isCurrentLoopback = uiCapabilities.isLoopback;
+    const isDraftLoopback = isLoopbackHost(draft.host);
+    const isDraftLocalDefaults = draftsEqual(draft, LOCAL_CONNECTION_DRAFT);
+    const showConnectLocalAction =
+        !isCurrentLoopback && !isDraftLocalDefaults;
+    const isFullMode = uiCapabilities.uiMode === "Full";
+    const showCompactLocalCard =
+        isFullMode && isCurrentLoopback && !showAdvanced && !hasDraftChanges;
+    const modeLabelKey = isFullMode
+        ? "settings.connection.ui_mode_full_label"
+        : "settings.connection.ui_mode_rpc_label";
+    const modeSummaryKey = isFullMode
+        ? "settings.connection.ui_mode_full_summary"
+        : "settings.connection.ui_mode_rpc_summary";
     const profileLabel = useMemo(() => {
         const explicitLabel = activeProfile.label.trim();
         if (explicitLabel && !AUTO_PROFILE_LABEL_PATTERN.test(explicitLabel)) {
             return explicitLabel;
         }
-        if (uiCapabilities.isLoopback) {
+        if (isCurrentLoopback) {
             return t("settings.connection.default_profile_label");
         }
         const hostLabel = activeProfile.host.trim();
         return hostLabel || t("settings.connection.profile_placeholder");
-    }, [activeProfile.host, activeProfile.id, activeProfile.label, t, uiCapabilities.isLoopback]);
-    const shouldShowAuthControls = true;
-    const isInsecureBasicAuth = (() => {
-        const scheme = activeProfile.scheme;
-        if (scheme !== "http") return false;
-        const host = activeProfile.host
-            .trim()
-            .replace(/^\[|\]$/g, "")
-            .toLowerCase();
-        const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
-        if (isLocal) return false;
-        return Boolean(activeProfile.username || activeProfile.password);
+    }, [activeProfile.host, activeProfile.label, isCurrentLoopback, t]);
+    const draftUsesInsecureBasicAuth = (() => {
+        if (draft.scheme !== "http") return false;
+        if (isDraftLoopback) return false;
+        return Boolean(draft.username || draft.password);
     })();
-    const showModeStatus = rpcStatus === status.connection.connected;
-    // In native/local host mode, collapse remote controls behind an Advanced toggle.
-    if (isNativeMode && !showAdvanced) {
+    const currentConnectionUsesInsecureBasicAuth = useMemo(() => {
+        if (committedDraft.scheme !== "http") return false;
+        if (isLoopbackHost(committedDraft.host)) return false;
+        return Boolean(committedDraft.username || committedDraft.password);
+    }, [committedDraft]);
+    const insecureAuthNotice = useMemo(() => {
+        if (hasDraftChanges ? draftUsesInsecureBasicAuth : currentConnectionUsesInsecureBasicAuth) {
+            return t("settings.connection.insecure_http_warning");
+        }
+        return null;
+    }, [
+        currentConnectionUsesInsecureBasicAuth,
+        draftUsesInsecureBasicAuth,
+        hasDraftChanges,
+        t,
+    ]);
+    const connectionStatusLabel = useMemo(() => {
+        if (pendingAction !== null) {
+            return t("settings.connection.connecting");
+        }
+        return rpcStatus === status.connection.connected
+            ? t("status_bar.rpc_connected")
+            : t("status_bar.rpc_error");
+    }, [pendingAction, rpcStatus, t]);
+    const connectionStatusColor = useMemo<"success" | "warning" | "danger">(
+        () => {
+            if (pendingAction !== null) {
+                return "warning";
+            }
+            return rpcStatus === status.connection.connected
+                ? "success"
+                : "danger";
+        },
+        [pendingAction, rpcStatus],
+    );
+    const statusIcon = useMemo(() => {
+        if (pendingAction !== null) {
+            return RefreshCw;
+        }
+        return rpcStatus === status.connection.connected
+            ? CheckCircle
+            : XCircle;
+    }, [pendingAction, rpcStatus]);
+    const StatusIcon = statusIcon;
+    const isConnectionBusy = pendingAction !== null;
+    const pendingIntent = pendingAction?.intent ?? null;
+
+    useEffect(() => {
+        if (pendingAction === null) {
+            return;
+        }
+        if (rpcStatus === status.connection.connected) {
+            setPendingAction(null);
+            return;
+        }
+        const remainingMs =
+            pendingAction.startedAtMs + timing.connection.timeoutMs - Date.now();
+        if (remainingMs <= 0) {
+            setPendingAction(null);
+            return;
+        }
+        return scheduler.scheduleTimeout(() => {
+            setPendingAction((current) =>
+                current === pendingAction ? null : current,
+            );
+        }, remainingMs);
+    }, [pendingAction, rpcStatus]);
+
+    const updateDraft = useCallback(
+        (patch: Partial<ConnectionDraft>) => {
+            setDraft((previous) => ({
+                ...previous,
+                ...patch,
+            }));
+        },
+        [],
+    );
+
+    const handleSubmit = useCallback(
+        async (intent: ConnectionSubmitIntent, nextDraft?: ConnectionDraft) => {
+            const draftToCommit = nextDraft ?? draft;
+            if (
+                intent !== "reconnect" &&
+                (draftToCommit.host.trim().length === 0 ||
+                    draftToCommit.port.trim().length === 0)
+            ) {
+                return;
+            }
+
+            const startedAtMs = Date.now();
+            if (intent !== "reconnect") {
+                setPendingAction({
+                    intent,
+                    startedAtMs,
+                });
+                // Switching endpoint/profile recreates the session client, and
+                // the Session owner already probes the new client immediately.
+                // Prime that probe so settings-originated connects do not
+                // retry or show the startup timeout dialog, and use the same
+                // explicit reconnect action semantics as later reconnects.
+                primeNextProbe("reconnect", {
+                    suppressTimeoutDialog: true,
+                    disableRetry: true,
+                });
+                flushSync(() => {
+                    updateProfile(activeProfile.id, draftToCommit);
+                });
+                return;
+            }
+
+            setPendingAction({
+                intent,
+                startedAtMs,
+            });
+            await reconnect({
+                suppressTimeoutDialog: true,
+                disableRetry: true,
+            });
+        },
+        [activeProfile.id, draft, primeNextProbe, reconnect, updateProfile],
+    );
+
+    const handleConnectLocal = useCallback(() => {
+        setDraft(LOCAL_CONNECTION_DRAFT);
+        void handleSubmit("connect_local", LOCAL_CONNECTION_DRAFT);
+    }, [handleSubmit]);
+
+    const renderStatusChip = (
+        <Chip
+            size="lg"
+            variant="flat"
+            color={connectionStatusColor}
+            className={FORM.systemStatusChip}
+            startContent={
+                <StatusIcon
+                    strokeWidth={visuals.icon.strokeWidth}
+                    className={FORM.connection.iconSmall}
+                />
+            }
+        >
+            {connectionStatusLabel}
+        </Chip>
+    );
+
+    if (showCompactLocalCard) {
         return (
-            <div className={FORM.connection.localRoot}>
-                <div className={FORM.connection.localHeader}>
-                    <div className={FORM.connection.localHeaderInfo}>
-                        <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
-                        <p className={FORM.connection.profileEndpoint}>{serverUrl}</p>
+            <div className={FORM.sectionContentStack}>
+                <div className={FORM.connection.topRow}>
+                    <div className={FORM.sectionHeaderStack}>
+                        <h3 className={FORM.connection.profileTitle}>
+                            {profileLabel}
+                        </h3>
+                        <p className={FORM.connection.profileEndpoint}>
+                            {currentServerUrl}
+                        </p>
                     </div>
-                    <div className={FORM.connection.localHeaderActions}>
-                        <Button size="md" variant="ghost" onPress={() => setShowAdvanced(true)}>
-                            {t("settings.connection.show_advanced")}
-                        </Button>
-                    </div>
+                    <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
                 </div>
-                <p className={TEXT_ROLE.caption}>{t("settings.connection.local_mode_info")}</p>
+                <div className={FORM.interfaceRowActions}>
+                    <Button
+                        size="md"
+                        variant="ghost"
+                        onPress={() => setShowAdvanced(true)}
+                    >
+                        {t("settings.connection.show_advanced")}
+                    </Button>
+                </div>
+                <p className={TEXT_ROLE.caption}>
+                    {t("settings.connection.local_mode_info")}
+                </p>
             </div>
         );
     }
 
+    const primaryActionLabel = hasDraftChanges
+        ? t("settings.connection.connect")
+        : t("settings.connection.reconnect");
+    const primaryActionIntent: ConnectionSubmitIntent = hasDraftChanges
+        ? "connect"
+        : "reconnect";
+
     return (
-        <div className={FORM.connection.root}>
+        <div className={FORM.sectionContentStack}>
             <div className={FORM.connection.topRow}>
-                <div className={FORM.connection.topRowInfo}>
+                <div className={FORM.sectionHeaderStack}>
                     <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
-                    <p className={FORM.connection.profileEndpoint}>{serverUrl}</p>
+                    <p className={FORM.connection.profileEndpoint}>
+                        {currentServerUrl}
+                    </p>
                 </div>
-                <div className={FORM.stackTools}>
-                    <div className={FORM.connection.localHeaderActions}>
-                        <Chip
-                            size="lg"
-                            variant="flat"
-                            color={statusColor}
-                            className={FORM.systemStatusChip}
+                <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
+            </div>
+            <div className={FORM.blockStackTight}>
+                <ConnectionFieldRow label={t("settings.connection.host")}>
+                    <Input
+                        aria-label={t("settings.connection.host")}
+                        variant="bordered"
+                        size="md"
+                        value={draft.host}
+                        onChange={(event) =>
+                            updateDraft({ host: event.target.value })
+                        }
+                        className={FORM.connection.inputHeight}
+                        isDisabled={isConnectionBusy}
+                    />
+                </ConnectionFieldRow>
+                <ConnectionFieldRow label={t("settings.connection.port")}>
+                    <Input
+                        aria-label={t("settings.connection.port")}
+                        variant="bordered"
+                        size="md"
+                        type="text"
+                        value={draft.port}
+                        onChange={(event) =>
+                            updateDraft({ port: event.target.value })
+                        }
+                        className={FORM.connection.inputHeight}
+                        isDisabled={isConnectionBusy}
+                    />
+                </ConnectionFieldRow>
+                <ConnectionFieldRow label={t("settings.connection.username")}>
+                    <Input
+                        aria-label={t("settings.connection.username")}
+                        variant="bordered"
+                        size="md"
+                        value={draft.username}
+                        onChange={(event) =>
+                            updateDraft({ username: event.target.value })
+                        }
+                        isDisabled={isConnectionBusy}
+                    />
+                </ConnectionFieldRow>
+                <ConnectionFieldRow label={t("settings.connection.password")}>
+                    <Input
+                        aria-label={t("settings.connection.password")}
+                        variant="bordered"
+                        size="md"
+                        type="password"
+                        value={draft.password}
+                        onChange={(event) =>
+                            updateDraft({ password: event.target.value })
+                        }
+                        isDisabled={isConnectionBusy}
+                    />
+                </ConnectionFieldRow>
+                {insecureAuthNotice !== null && (
+                    <p className={FORM.connection.insecureAuthWarning}>
+                        {insecureAuthNotice}
+                    </p>
+                )}
+                <div className={FORM.inputActionRow}>
+                    <div className={FORM.interfaceRowActions}>
+                        {showConnectLocalAction && (
+                            <Button
+                                variant="bordered"
+                                onPress={() => {
+                                    handleConnectLocal();
+                                }}
+                                type="button"
+                                isDisabled={isConnectionBusy}
+                                isLoading={pendingIntent === "connect_local"}
+                            >
+                                {t("settings.connection.connect_to_this_pc")}
+                            </Button>
+                        )}
+                        <Button
+                            variant="bordered"
+                            color="primary"
+                            onPress={() => {
+                                void handleSubmit(primaryActionIntent);
+                            }}
+                            type="button"
+                            isDisabled={
+                                isConnectionBusy ||
+                                (primaryActionIntent === "connect" &&
+                                    !isDraftValid)
+                            }
+                            isLoading={pendingIntent === primaryActionIntent}
                             startContent={
-                                statusColor === "success" ? (
-                                    <CheckCircle
-                                        strokeWidth={visuals.icon.strokeWidth}
-                                        className={FORM.connection.iconSmall}
-                                    />
-                                ) : (
-                                    <XCircle
+                                pendingIntent === primaryActionIntent ? undefined : (
+                                    <RefreshCw
                                         strokeWidth={visuals.icon.strokeWidth}
                                         className={FORM.connection.iconSmall}
                                     />
                                 )
                             }
                         >
-                            {connectionStatusLabel}
-                        </Chip>
-                    </div>
-                </div>
-            </div>
-            <div className={FORM.connection.fieldsStack}>
-                {isOffline && (
-                    <p className={FORM.connection.insecureAuthWarning}>{t("settings.connection.offline_warning")}</p>
-                )}
-                {isInsecureBasicAuth && (
-                    <p className={FORM.connection.insecureAuthWarning}>
-                        {t("settings.connection.insecure_basic_auth_warning")}
-                    </p>
-                )}
-                <div className={FORM.connection.fieldsPairGrid}>
-                    <Input
-                        label={t("settings.connection.host")}
-                        labelPlacement="outside"
-                        variant="bordered"
-                        size="md"
-                        value={activeProfile.host}
-                        onChange={(event) => handleUpdate({ host: event.target.value })}
-                        className={FORM.connection.inputHeight}
-                        disabled={!remoteInputsEnabled}
-                    />
-                    <Input
-                        label={t("settings.connection.port")}
-                        variant="bordered"
-                        labelPlacement="outside"
-                        size="md"
-                        type="text"
-                        value={activeProfile.port}
-                        onChange={(event) => handleUpdate({ port: event.target.value })}
-                        className={FORM.connection.inputHeight}
-                        disabled={!remoteInputsEnabled}
-                    />
-                </div>
-                {shouldShowAuthControls && (
-                    <div className={FORM.connection.fieldsPairGrid}>
-                        <Input
-                            label={t("settings.connection.username")}
-                            labelPlacement="outside"
-                            variant="bordered"
-                            size="md"
-                            value={activeProfile.username}
-                            onChange={(event) =>
-                                handleUpdate({
-                                    username: event.target.value,
-                                })
-                            }
-                            disabled={!remoteInputsEnabled}
-                        />
-                        <Input
-                            label={t("settings.connection.password")}
-                            labelPlacement="outside"
-                            variant="bordered"
-                            size="md"
-                            type="password"
-                            value={activeProfile.password}
-                            onChange={(event) =>
-                                handleUpdate({
-                                    password: event.target.value,
-                                })
-                            }
-                            disabled={!remoteInputsEnabled}
-                        />
-                    </div>
-                )}
-                {isNativeMode && !showAdvanced && (
-                    <p className={FORM.connection.localModeHint}>{t("settings.connection.local_mode_info")}</p>
-                )}
-                <div className={FORM.inputActionRow}>
-                    <div className={FORM.interfaceRowActions}>
-                        <Button
-                            variant="bordered"
-                            onPress={() => {
-                                void handleConnectLocal();
-                            }}
-                            type="button"
-                        >
-                            {t("settings.connection.connect_to_this_pc")}
-                        </Button>
-                        <Button
-                            variant="bordered"
-                            color="primary"
-                            onPress={() => {
-                                void handleReconnect();
-                            }}
-                            type="button"
-                            startContent={
-                                <RefreshCw
-                                    strokeWidth={visuals.icon.strokeWidth}
-                                    className={FORM.connection.iconSmall}
-                                />
-                            }
-                        >
-                            {t("settings.connection.reconnect")}
+                            {primaryActionLabel}
                         </Button>
                     </div>
                 </div>
-                {showModeStatus && (
+                {rpcStatus === status.connection.connected && (
                     <div className={FORM.connection.statusFooter}>
                         <div className={FORM.connection.statusFooterRow}>
-                            <Monitor strokeWidth={visuals.icon.strokeWidth} className={FORM.workflow.statusInfoIcon} />
+                            <Monitor
+                                strokeWidth={visuals.icon.strokeWidth}
+                                className={FORM.workflow.statusInfoIcon}
+                            />
                             <div className={FORM.stackTools}>
-                                <p className={TEXT_ROLE.bodyStrong}>{t(modeLabelKey)}</p>
-                                <p className={TEXT_ROLE.bodySmall}>{t(modeSummaryKey)}</p>
+                                <p className={TEXT_ROLE.bodyStrong}>
+                                    {t(modeLabelKey)}
+                                </p>
+                                <p className={TEXT_ROLE.bodySmall}>
+                                    {t(modeSummaryKey)}
+                                </p>
                             </div>
                         </div>
                     </div>
-                )}
-                {connectionFeedback && (
-                    <AlertPanel severity={connectionFeedback.type === "error" ? "danger" : "success"}>
-                        {connectionFeedback.text}
-                    </AlertPanel>
                 )}
             </div>
         </div>

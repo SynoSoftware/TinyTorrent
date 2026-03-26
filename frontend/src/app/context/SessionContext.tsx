@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
 import type {
     ConnectionStatus,
+    RpcConnectionStatusView,
     RpcConnectionOutcome,
     RpcReconnectOptions,
     RpcConnectionTimeoutDialogController,
@@ -47,7 +48,12 @@ import { isClipboardWriteSupported } from "@/shared/utils/clipboard";
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
     rpcStatus: ConnectionStatus;
+    connectionStatusView: RpcConnectionStatusView;
     reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
+    primeNextProbe: (
+        action: "probe" | "reconnect",
+        options?: RpcReconnectOptions,
+    ) => void;
     connectionTimeoutDialog: RpcConnectionTimeoutDialogController;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
@@ -118,7 +124,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
     } = usePreferences();
     const {
         rpcStatus,
+        connectionStatusView,
         reconnect,
+        primeNextProbe,
         connectionTimeoutDialog,
         refreshSessionSettings,
         markTransportConnected,
@@ -199,7 +207,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
         () => ({
             torrentClient,
             rpcStatus,
+            connectionStatusView,
             reconnect,
+            primeNextProbe,
             connectionTimeoutDialog,
             refreshSessionSettings,
             markTransportConnected,
@@ -215,7 +225,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
         [
             torrentClient,
             rpcStatus,
+            connectionStatusView,
             reconnect,
+            primeNextProbe,
             connectionTimeoutDialog,
             refreshSessionSettings,
             markTransportConnected,

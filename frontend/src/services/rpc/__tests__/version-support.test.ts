@@ -14,7 +14,6 @@ describe("version support resolver", () => {
         });
 
         expect(support.sequential_download.state).toBe("supported");
-        expect(support.torrent_added_verify_mode.state).toBe("supported");
         expect(support.torrent_complete_verify_enabled.state).toBe("supported");
     });
 
@@ -39,7 +38,6 @@ describe("version support resolver", () => {
         });
 
         expect(support.sequential_download.state).toBe("supported");
-        expect(support.torrent_added_verify_mode.state).toBe("supported");
         expect(support.torrent_complete_verify_enabled.state).toBe("supported");
     });
 
@@ -47,7 +45,6 @@ describe("version support resolver", () => {
         const support = getVersionGatedSettingsSupport(null);
 
         expect(support.sequential_download.state).toBe("unknown");
-        expect(support.torrent_added_verify_mode.state).toBe("unknown");
         expect(support.torrent_complete_verify_enabled.state).toBe("unknown");
     });
 
@@ -55,20 +52,17 @@ describe("version support resolver", () => {
         const filtered = removeUnsupportedVersionGatedSettings(
             {
                 "sequential_download": true,
-                "torrent_added_verify_mode": "full",
                 "torrent_complete_verify_enabled": true,
             },
             getVersionGatedSettingsSupport({
                 version: "5.0.0",
                 "sequential_download": true,
-                "torrent_added_verify_mode": "fast",
                 "torrent_complete_verify_enabled": false,
             }),
         );
 
         expect(filtered).toEqual({
             "sequential_download": true,
-            "torrent_added_verify_mode": "full",
             "torrent_complete_verify_enabled": true,
         });
     });
@@ -77,7 +71,6 @@ describe("version support resolver", () => {
         const filtered = removeUnsupportedVersionGatedSettings(
             {
                 sequentialDownload: true,
-                "torrent_added_verify_mode": "full",
             },
             getVersionGatedSettingsSupport({
                 version: "4.0.0",

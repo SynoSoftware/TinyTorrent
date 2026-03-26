@@ -164,7 +164,9 @@ export function useSessionStats({
             return;
         }
         lastHeartbeatTorrentsRef.current = undefined;
-    }, [sessionReady]);
+        setSessionStatsIfChanged(null);
+        setLiveTransportStatus("polling");
+    }, [sessionReady, setSessionStatsIfChanged]);
 
     return {
         sessionStats,

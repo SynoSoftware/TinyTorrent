@@ -10,11 +10,6 @@ export type SettingsFormActionOutcome =
     | { status: "unsupported"; reason: "capability_unavailable" }
     | { status: "failed"; reason: "execution_failed" };
 
-export interface SettingsFeedback {
-    type: "error" | "success";
-    text: string;
-}
-
 export interface SettingsFormStateContextValue {
     config: SettingsConfig;
     updateConfig: <K extends ConfigKey>(
@@ -24,7 +19,6 @@ export interface SettingsFormStateContextValue {
     setFieldDraft: (key: ConfigKey, draft: string | null) => void;
     jsonCopyStatus: "idle" | "copied" | "failed";
     configJson: string;
-    connectionFeedback: SettingsFeedback | null;
 }
 
 export interface SettingsFormActionsContextValue {
@@ -36,14 +30,17 @@ export interface SettingsFormActionsContextValue {
         isImmersive: boolean;
         hasDismissedInsights: boolean;
         showAddTorrentDialog: boolean;
-        onToggleWorkspaceStyle?: () => void;
-        setShowAddTorrentDialog?: (value: boolean) => void;
+        onToggleWorkspaceStyle: () => void;
+        setShowAddTorrentDialog: (value: boolean) => void;
     };
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;
+    onApplySetting: <K extends ConfigKey>(
+        key: K,
+        value: SettingsConfig[K]
+    ) => Promise<SettingsFormActionOutcome>;
     onBrowse: (key: ConfigKey) => Promise<SettingsFormActionOutcome>;
     onCopyConfigJson: () => Promise<SettingsFormActionOutcome>;
-    onReconnect: () => Promise<SettingsFormActionOutcome>;
 }
 
 const SettingsFormStateContext =

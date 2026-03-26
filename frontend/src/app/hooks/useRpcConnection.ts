@@ -5,6 +5,7 @@ import { registry } from "@/config/logic";
 import type {
     RpcConnectionTimeoutDialogController,
     RpcConnectionRetryStatus,
+    RpcConnectionStatusView,
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
@@ -28,12 +29,23 @@ type ConnectionAttemptOptions = {
     preserveStatus?: boolean;
     resetConnectionBeforeAttempt?: boolean;
     suppressTimeoutDialog?: boolean;
+    disableRetry?: boolean;
+};
+
+type PrimedProbeRequest = {
+    action: RpcConnectionAction;
+    options: RpcReconnectOptions;
 };
 
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
+    connectionStatusView: RpcConnectionStatusView;
     isReady: boolean;
     reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
+    primeNextProbe: (
+        action: RpcConnectionAction,
+        options?: RpcReconnectOptions,
+    ) => void;
     markTransportConnected: () => void;
     reportCommandError: ReportCommandErrorFn;
     reportReadError: ReportReadErrorFn;
@@ -53,6 +65,8 @@ export function useRpcConnection(
         useState(false);
     const [connectionTimeoutDialogAction, setConnectionTimeoutDialogAction] =
         useState<RpcConnectionAction | null>(null);
+    const [activeConnectionAction, setActiveConnectionAction] =
+        useState<RpcConnectionAction | null>(null);
     const [connectionTimeoutDialogSuppressed, setConnectionTimeoutDialogSuppressed] =
         useState(false);
     const [retryStatus, setRetryStatus] =
@@ -62,6 +76,7 @@ export function useRpcConnection(
     const retryDelayMsRef = useRef(timing.wsReconnect.initialDelayMs);
     const connectionTimeoutDialogSuppressedRef = useRef(false);
     const showConnectionTimeoutDialogRef = useRef(false);
+    const nextProbeRequestRef = useRef<PrimedProbeRequest | null>(null);
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
         if (isMountedRef.current) setRpcStatus(next);
@@ -161,11 +176,14 @@ export function useRpcConnection(
                 if (!options?.preserveStatus) {
                     updateStatus(status.connection.idle);
                     if (isMountedRef.current) {
+                        setActiveConnectionAction(action);
                         setIsReady(false);
                         setRetryStatus(null);
                         setConnectionTimeoutDialogSuppressed(false);
                     }
                     resetRetryBackoff();
+                } else if (isMountedRef.current) {
+                    setActiveConnectionAction(action);
                 }
                 if (options?.resetConnectionBeforeAttempt) {
                     try {
@@ -179,6 +197,7 @@ export function useRpcConnection(
                     await runProbeWithTimeout();
                     updateStatus(status.connection.connected);
                     if (isMountedRef.current) {
+                        setActiveConnectionAction(null);
                         setIsReady(true);
                         setRetryStatus(null);
                         setShowConnectionTimeoutDialog(false);
@@ -210,8 +229,9 @@ export function useRpcConnection(
                     );
                     updateStatus(status.connection.error);
                     if (isMountedRef.current) {
+                        setActiveConnectionAction(null);
                         setIsReady(false);
-                        if (isTimeout) {
+                        if (isTimeout && !options?.disableRetry) {
                             scheduleNextRetry();
                         } else {
                             setRetryStatus(null);
@@ -254,12 +274,46 @@ export function useRpcConnection(
         ],
     );
 
+    const connectionStatusView = useCallback((): RpcConnectionStatusView => {
+        const isConnecting =
+            activeConnectionAction !== null ||
+            retryStatus?.kind === "connecting" ||
+            rpcStatus === status.connection.idle;
+        if (isConnecting) {
+            return {
+                state: "connecting",
+                activeAction: activeConnectionAction,
+                retryStatus,
+            };
+        }
+        if (rpcStatus === status.connection.connected) {
+            return {
+                state: "connected",
+                activeAction: activeConnectionAction,
+                retryStatus,
+            };
+        }
+        return {
+            state: "offline",
+            activeAction: activeConnectionAction,
+            retryStatus,
+        };
+    }, [activeConnectionAction, retryStatus, rpcStatus]);
+
     useEffect(() => {
         isMountedRef.current = true;
         // `connect` already updates status state on failure. Swallow here to
         // avoid unhandled promise rejections during initial mount probing.
         const cancelMountProbeTimer = scheduler.scheduleTimeout(() => {
-            void connect("probe");
+            const nextProbeRequest = nextProbeRequestRef.current;
+            nextProbeRequestRef.current = null;
+            const nextAction = nextProbeRequest?.action ?? "probe";
+            void connect(nextAction, {
+                resetConnectionBeforeAttempt: nextAction === "reconnect",
+                suppressTimeoutDialog:
+                    nextProbeRequest?.options?.suppressTimeoutDialog,
+                disableRetry: nextProbeRequest?.options?.disableRetry,
+            });
         }, 0);
         return () => {
             cancelMountProbeTimer();
@@ -291,8 +345,19 @@ export function useRpcConnection(
             connect("reconnect", {
                 resetConnectionBeforeAttempt: true,
                 suppressTimeoutDialog: options?.suppressTimeoutDialog,
+                disableRetry: options?.disableRetry,
             }),
         [connect],
+    );
+
+    const primeNextProbe = useCallback(
+        (action: RpcConnectionAction, options?: RpcReconnectOptions) => {
+            nextProbeRequestRef.current = {
+                action,
+                options: options ?? {},
+            };
+        },
+        [],
     );
 
     const dismissConnectionTimeoutDialog = useCallback(() => {
@@ -305,8 +370,10 @@ export function useRpcConnection(
 
     return {
         rpcStatus,
+        connectionStatusView: connectionStatusView(),
         isReady,
         reconnect,
+        primeNextProbe,
         markTransportConnected,
         reportCommandError,
         reportReadError,

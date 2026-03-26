@@ -23,36 +23,6 @@ const { visuals } = registry;
 // TODO: In the current architecture, the daemon is always `transmission-daemon` (Transmission RPC). “Host integration available” is a separate, local-only capability.
 // TODO: Remove any mention of TT token/security protocol from this surface; it is not relevant in Transmission-only mode.
 
-interface SystemSectionCardProps {
-    title?: string;
-    description?: string;
-    children: ReactNode;
-}
-
-function SystemSectionCard({
-    title,
-    description,
-    children,
-}: SystemSectionCardProps) {
-    return (
-        <div className={FORM.sectionCardEmphasized}>
-            {(title || description) && (
-                <div className={FORM.sectionHeader}>
-                    <div className={FORM.sectionHeaderStack}>
-                        {title ? <h3 className={FORM.sectionTitle}>{title}</h3> : null}
-                        {description ? (
-                            <p className={FORM.sectionDescription}>{description}</p>
-                        ) : null}
-                    </div>
-                </div>
-            )}
-            <div className={FORM.sectionBody}>
-                <div className={FORM.sectionContentStack}>{children}</div>
-            </div>
-        </div>
-    );
-}
-
 interface SystemRowProps {
     label: string;
     control: ReactNode;
@@ -316,8 +286,8 @@ export function SystemTabContent() {
     }
 
     return (
-        <div className={FORM.systemRootStack}>
-            <SystemSectionCard
+        <div className={FORM.sectionContentStack}>
+            <SettingsSection
                 title={t("settings.sections.system_integration")}
                 description={t("settings.descriptions.system_integration")}
             >
@@ -346,8 +316,8 @@ export function SystemTabContent() {
                     }
                     helper={integrationReadHelper}
                 />
-            </SystemSectionCard>
-            <SystemSectionCard
+            </SettingsSection>
+            <SettingsSection
                 title={t("settings.sections.startup")}
                 description={t("settings.descriptions.startup")}
             >
@@ -365,7 +335,7 @@ export function SystemTabContent() {
                     status={<StatusChip label={autorunLabel} color="default" />}
                     helper={autorunErrorMessage ?? integrationReadHelper}
                 />
-            </SystemSectionCard>
+            </SettingsSection>
         </div>
     );
 }

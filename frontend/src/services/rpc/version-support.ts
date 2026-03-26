@@ -17,7 +17,6 @@ export type VersionSupportState = "unknown" | "supported" | "unsupported";
 
 export type VersionGatedSettingKey =
     | "sequential_download"
-    | "torrent_added_verify_mode"
     | "torrent_complete_verify_enabled";
 
 type VersionRequirement = {
@@ -37,11 +36,6 @@ const versionGatedSettingsSpecs = {
         minimum: "4.1.0",
         aliases: ["sequential_download", "sequentialDownload"],
         torrentAliases: ["sequential_download", "sequentialDownload"],
-    },
-    torrent_added_verify_mode: {
-        minimum: "4.1.0",
-        aliases: ["torrent_added_verify_mode"],
-        torrentAliases: [],
     },
     torrent_complete_verify_enabled: {
         minimum: "4.1.0",
@@ -163,10 +157,6 @@ export function getVersionGatedSessionValue(
     session: TransmissionSessionSettings | null | undefined,
     key: "sequential_download",
 ): boolean | undefined;
-export function getVersionGatedSessionValue(
-    session: TransmissionSessionSettings | null | undefined,
-    key: "torrent_added_verify_mode",
-): "fast" | "full" | undefined;
 export function getVersionGatedSessionValue(
     session: TransmissionSessionSettings | null | undefined,
     key: "torrent_complete_verify_enabled",

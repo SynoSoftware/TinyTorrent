@@ -9,6 +9,12 @@ vi.mock("@/app/context/SessionContext", () => ({
     }),
 }));
 
+vi.mock("@/app/context/PreferencesContext", () => ({
+    usePreferences: () => ({
+        setSettingsTab: vi.fn(),
+    }),
+}));
+
 import {
     useAppShellState,
     useFocusState,

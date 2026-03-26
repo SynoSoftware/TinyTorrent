@@ -8,7 +8,9 @@ import {
     type ReactNode,
 } from "react";
 import type { ConnectionStatus } from "@/shared/types/rpc";
+import type { SettingsTab } from "@/modules/settings/data/settings-tabs";
 import { useSession } from "@/app/context/SessionContext";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 export type FocusPart =
     | "table"
@@ -30,7 +32,7 @@ export interface AppShellStateContextValue {
     activeId: string | null;
     setActiveId: (id: string | null) => void;
     isSettingsOpen: boolean;
-    openSettings: () => void;
+    openSettings: (tab?: SettingsTab) => void;
     closeSettings: () => void;
     lifecycle: AppShellLifecycleState;
 }
@@ -44,6 +46,7 @@ export function AppShellStateProvider({ children }: { children: ReactNode }) {
         rpcStatus,
         uiCapabilities: { uiMode },
     } = useSession();
+    const { setSettingsTab } = usePreferences();
     const [activePart, setActivePart] = useState<FocusPart>("table");
     const [selectedIds, setSelectedIdsState] = useState<string[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -62,8 +65,15 @@ export function AppShellStateProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
-    const openSettings = useCallback(() => setIsSettingsOpen(true), []);
-    const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
+    const openSettings = useCallback((tab?: SettingsTab) => {
+        if (tab) {
+            setSettingsTab(tab);
+        }
+        setIsSettingsOpen(true);
+    }, [setSettingsTab]);
+    const closeSettings = useCallback(() => {
+        setIsSettingsOpen(false);
+    }, []);
 
     const value = useMemo<AppShellStateContextValue>(
         () => ({
@@ -134,5 +144,9 @@ export function useSelection() {
 
 export function useWorkspaceModals() {
     const { isSettingsOpen, openSettings, closeSettings } = useAppShellState();
-    return { isSettingsOpen, openSettings, closeSettings };
+    return {
+        isSettingsOpen,
+        openSettings,
+        closeSettings,
+    };
 }

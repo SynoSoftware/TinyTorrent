@@ -297,19 +297,18 @@ export function useNavbarViewModel({
 
 export interface SettingsModalViewModelParams {
     config: SettingsConfig;
-    isSaving: boolean;
     loadError: boolean;
     capabilities: {
         blocklistSupported: boolean;
         versionGatedSettings: VersionGatedSettingSupport;
     };
-    handleSave: (config: SettingsConfig) => Promise<void>;
     handleTestPort: () => Promise<EngineTestPortOutcome>;
     applyUserPreferencesPatch: (patch: Partial<{
         refresh_interval_ms: number;
         request_timeout_ms: number;
         table_watermark_enabled: boolean;
     }>) => void;
+    applySettingsPatch: (patch: Partial<SettingsConfig>) => Promise<void>;
     isSettingsOpen: boolean;
     closeSettings: () => void;
     toggleWorkspaceStyle: () => void;
@@ -317,18 +316,16 @@ export interface SettingsModalViewModelParams {
     hasDismissedInsights: boolean;
     showAddTorrentDialog: boolean;
     setShowAddTorrentDialog: (value: boolean) => void;
-    openSettings: () => void;
     restoreHudCards: () => void;
 }
 
 export function useSettingsModalViewModel({
     config,
-    isSaving,
     loadError,
     capabilities,
-    handleSave,
     handleTestPort,
     applyUserPreferencesPatch,
+    applySettingsPatch,
     isSettingsOpen,
     closeSettings,
     toggleWorkspaceStyle,
@@ -336,16 +333,13 @@ export function useSettingsModalViewModel({
     hasDismissedInsights,
     showAddTorrentDialog,
     setShowAddTorrentDialog,
-    openSettings,
     restoreHudCards,
 }: SettingsModalViewModelParams): SettingsModalViewModel {
     return useMemo(
         () => ({
             isOpen: isSettingsOpen,
             onClose: closeSettings,
-            initialConfig: config,
-            isSaving,
-            onSave: handleSave,
+            config,
             settingsLoadError: loadError,
             onTestPort: handleTestPort,
             capabilities,
@@ -356,16 +350,15 @@ export function useSettingsModalViewModel({
             showAddTorrentDialog,
             setShowAddTorrentDialog,
             onApplyUserPreferencesPatch: applyUserPreferencesPatch,
-            onOpen: openSettings,
+            onApplySettingsPatch: applySettingsPatch,
         }),
         [
             config,
-            isSaving,
             loadError,
             capabilities,
-            handleSave,
             handleTestPort,
             applyUserPreferencesPatch,
+            applySettingsPatch,
             isSettingsOpen,
             closeSettings,
             toggleWorkspaceStyle,
@@ -373,7 +366,6 @@ export function useSettingsModalViewModel({
             hasDismissedInsights,
             showAddTorrentDialog,
             setShowAddTorrentDialog,
-            openSettings,
             restoreHudCards,
         ],
     );

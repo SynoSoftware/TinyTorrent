@@ -138,7 +138,11 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         };
     }, [canUseShell, torrentClient]);
 
-    const { isSettingsOpen, openSettings, closeSettings } = useWorkspaceModals();
+    const {
+        isSettingsOpen,
+        openSettings,
+        closeSettings,
+    } = useWorkspaceModals();
     const settingsMountedRef = useRef(false);
     useEffect(() => {
         settingsMountedRef.current = true;
@@ -490,15 +494,14 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
 
     const settingsModalViewModel = useSettingsModalViewModel({
         config: settingsFlow.settingsConfig,
-        isSaving: settingsFlow.isSettingsSaving,
         loadError: settingsFlow.settingsLoadError,
         capabilities: {
             blocklistSupported: settingsFlow.blocklistSupported,
             versionGatedSettings: settingsFlow.versionGatedSettings,
         },
-        handleSave: settingsFlow.handleSaveSettings,
         handleTestPort: settingsFlow.handleTestPort,
         applyUserPreferencesPatch: settingsFlow.applyUserPreferencesPatch,
+        applySettingsPatch: settingsFlow.applySettingsPatch,
         isSettingsOpen,
         closeSettings,
         toggleWorkspaceStyle,
@@ -510,7 +513,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
                 ...addTorrentPreferenceDefaults,
                 showAddDialog: value,
             }),
-        openSettings,
         restoreHudCards,
     });
 

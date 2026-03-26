@@ -18,13 +18,7 @@ interface AlertPanelProps {
 
 export function AlertPanel({ severity, children, className }: AlertPanelProps) {
     return (
-        <div
-            className={cn(
-                "rounded-panel border p-panel text-scaled",
-                ALERT_SEVERITY_CLASS[severity],
-                className,
-            )}
-        >
+        <div className={cn("rounded-panel border p-tight text-scaled", ALERT_SEVERITY_CLASS[severity], className)}>
             {children}
         </div>
     );

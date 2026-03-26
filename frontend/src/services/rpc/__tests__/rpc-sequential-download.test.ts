@@ -10,7 +10,6 @@ type AdapterInternals = {
         version?: string;
         "rpc-version-semver"?: string;
         "sequential_download"?: boolean;
-        "torrent_added_verify_mode"?: "fast" | "full";
         "torrent_complete_verify_enabled"?: boolean;
     };
     transport: {
@@ -170,7 +169,6 @@ describe("TransmissionAdapter sequential download support", () => {
 
         await adapter.updateSessionSettings({
             "sequential_download": true,
-            "torrent_added_verify_mode": "full",
             "torrent_complete_verify_enabled": true,
         });
 

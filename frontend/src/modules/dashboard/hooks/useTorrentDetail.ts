@@ -226,6 +226,13 @@ export function useTorrentDetail({
         isMountedRef,
     ]);
 
+    useEffect(() => {
+        if (sessionReady) {
+            return;
+        }
+        clearDetail();
+    }, [clearDetail, sessionReady]);
+
     return {
         detailData,
         loadDetail,

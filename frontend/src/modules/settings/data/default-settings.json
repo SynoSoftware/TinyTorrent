@@ -26,7 +26,6 @@
     "rename_partial_files": true,
     "start_added_torrents": true,
     "sequential_download": false,
-    "torrent_added_verify_mode": "fast",
     "torrent_complete_verify_enabled": false,
     "seedRatioLimit": 2,
     "seedRatioLimited": true,

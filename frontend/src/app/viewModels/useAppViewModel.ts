@@ -128,22 +128,20 @@ export interface DashboardViewModel {
 export interface SettingsModalViewModel {
     isOpen: boolean;
     onClose: () => void;
-    initialConfig: SettingsConfig;
-    isSaving: boolean;
-    onSave: (config: SettingsConfig) => Promise<void>;
-    settingsLoadError?: boolean;
-    onTestPort?: () => Promise<EngineTestPortOutcome>;
+    config: SettingsConfig;
+    settingsLoadError: boolean;
+    onTestPort: () => Promise<EngineTestPortOutcome>;
     capabilities: {
         blocklistSupported: boolean;
         versionGatedSettings: VersionGatedSettingSupport;
     };
-    onRestoreInsights?: () => void;
-    onToggleWorkspaceStyle?: () => void;
-    isImmersive?: boolean;
+    onRestoreInsights: () => void;
+    onToggleWorkspaceStyle: () => void;
+    isImmersive: boolean;
     hasDismissedInsights: boolean;
     showAddTorrentDialog: boolean;
-    setShowAddTorrentDialog?: (value: boolean) => void;
-    onApplyUserPreferencesPatch?: (
+    setShowAddTorrentDialog: (value: boolean) => void;
+    onApplyUserPreferencesPatch: (
         patch: Partial<
             Pick<
                 SettingsConfig,
@@ -151,7 +149,7 @@ export interface SettingsModalViewModel {
             >
         >
     ) => void;
-    onOpen?: () => void;
+    onApplySettingsPatch: (patch: Partial<SettingsConfig>) => Promise<void>;
 }
 
 export interface WorkspaceDragAndDropViewModel {

@@ -139,7 +139,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                         }
                         tone={section.tone}
                     >
-                        <div className={FORM.sectionContentOffsetStack}>
+                        <div className={FORM.sectionContentStack}>
                             {visibleBlocks.map((block, blockIndex) =>
                                 renderBlock(block, blockIndex),
                             )}

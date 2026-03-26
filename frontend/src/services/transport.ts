@@ -1,7 +1,7 @@
 import { infraLogger } from "@/shared/utils/infraLogger";
 import { isAbortError } from "@/shared/utils/errors";
 import { registry } from "@/config/logic";
-const { performance } = registry;
+const { performance, timing } = registry;
 
 export type TransportOutcomeKind =
     | "ok"
@@ -250,10 +250,24 @@ export class TransmissionRpcTransport {
 
                     // Leader: attempt a light-weight probe to obtain session id
                     // before sending POSTs. Use an independent controller so a
-                    // caller abort won't cancel the leader's probe.
+                    // caller abort won't cancel the leader's probe, but still
+                    // bound it to the normal connection timeout and transport
+                    // abort lifecycle so bad endpoints cannot hang barrier
+                    // initialization indefinitely.
                     (async () => {
+                        const leaderController = new AbortController();
+                        let leaderTimeoutId: number | undefined;
                         try {
-                            let token = await this.probeForSessionId(undefined);
+                            this.inflightControllers.add(leaderController);
+                            leaderTimeoutId = window.setTimeout(() => {
+                                try {
+                                    leaderController.abort();
+                                } catch { /* ignore */ }
+                            }, timing.connection.timeoutMs);
+
+                            let token = await this.probeForSessionId(
+                                leaderController,
+                            );
                             // If a simple GET probe didn't return a session id,
                             // attempt a direct POST probe to elicit a 409 with
                             // the X-Transmission-Session-Id header. This is
@@ -275,6 +289,7 @@ export class TransmissionRpcTransport {
                                         method: "POST",
                                         headers: postHeaders,
                                         body: probeBody,
+                                        signal: leaderController.signal,
                                     });
                                     const headerToken =
                                         resp &&
@@ -319,6 +334,16 @@ export class TransmissionRpcTransport {
                                 );
                             } catch { /* ignore */ }
                         } finally {
+                            if (leaderTimeoutId !== undefined) {
+                                try {
+                                    window.clearTimeout(leaderTimeoutId);
+                                } catch { /* ignore */ }
+                            }
+                            try {
+                                this.inflightControllers.delete(
+                                    leaderController,
+                                );
+                            } catch { /* ignore */ }
                             // clear barrier after resolution so future handshakes
                             // may create a new barrier when needed.
                             this.sessionRuntime.sessionBarrier = null;

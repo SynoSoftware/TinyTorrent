@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 
 import { status } from "@/shared/status";
@@ -126,9 +126,6 @@ const mapSessionToConfig = (
     sequential_download:
         getVersionGatedSessionValue(session, "sequential_download") ??
         DEFAULT_SETTINGS_CONFIG.sequential_download,
-    torrent_added_verify_mode:
-        getVersionGatedSessionValue(session, "torrent_added_verify_mode") ??
-        DEFAULT_SETTINGS_CONFIG.torrent_added_verify_mode,
     torrent_complete_verify_enabled:
         getVersionGatedSessionValue(session, "torrent_complete_verify_enabled") ??
         DEFAULT_SETTINGS_CONFIG.torrent_complete_verify_enabled,
@@ -181,7 +178,6 @@ const mapConfigToSession = (
         "rename-partial-files": config.rename_partial_files,
         "start-added-torrents": config.start_added_torrents,
         "sequential_download": config.sequential_download,
-        "torrent_added_verify_mode": config.torrent_added_verify_mode,
         "torrent_complete_verify_enabled":
             config.torrent_complete_verify_enabled,
         seedRatioLimit: config.seedRatioLimit,
@@ -259,9 +255,12 @@ export function useSettingsFlow({
         () => applyPreferencesToConfig(settingsConfigBase, preferences),
         [settingsConfigBase, preferences],
     );
+    const settingsConfigRef = useRef(settingsConfig);
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
-    const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+    const sessionSettingsRef = useRef<TransmissionSessionSettings | null>(null);
+    const settingsPatchQueueRef = useRef(Promise.resolve());
+    const hasLoadedSettingsForOpenRef = useRef(false);
     const [settingsLoadError, setSettingsLoadError] = useState(false);
     const blocklistSupported = useMemo(() => {
         if (!sessionSettings) return true;
@@ -280,16 +279,34 @@ export function useSettingsFlow({
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
     useEffect(() => {
+        settingsConfigRef.current = settingsConfig;
+    }, [settingsConfig]);
+
+    useEffect(() => {
+        sessionSettingsRef.current = sessionSettings;
+    }, [sessionSettings]);
+
+    useEffect(() => {
+        if (isSettingsOpen) {
+            return;
+        }
+        hasLoadedSettingsForOpenRef.current = false;
+        setSettingsLoadError(false);
+    }, [isSettingsOpen]);
+
+    useEffect(() => {
         if (!isSettingsOpen || rpcStatus !== status.connection.connected)
             return;
         let active = true;
+        const shouldSurfaceLoadError = !hasLoadedSettingsForOpenRef.current;
         const loadSettings = async () => {
-            if (active) {
+            if (active && shouldSurfaceLoadError) {
                 setSettingsLoadError(false);
             }
             try {
                 const session = await refreshSessionSettings();
                 setSessionSettings(session);
+                hasLoadedSettingsForOpenRef.current = true;
                 if (active) {
                     setSettingsConfig(
                         applyPreferencesToConfig(
@@ -299,7 +316,7 @@ export function useSettingsFlow({
                     );
                 }
             } catch {
-                if (active) {
+                if (active && shouldSurfaceLoadError) {
                     setSettingsLoadError(true);
                 }
             }
@@ -309,68 +326,6 @@ export function useSettingsFlow({
             active = false;
         };
     }, [isSettingsOpen, refreshSessionSettings, rpcStatus, preferences]);
-
-    const handleSaveSettings = useCallback(
-        async (config: SettingsConfig) => {
-            setIsSettingsSaving(true);
-            let sessionPayload: Partial<TransmissionSessionSettings> | null =
-                null;
-            try {
-                sessionPayload = mapConfigToSession(config, sessionSettings);
-                await sessionDomain.updateSessionSettings(sessionPayload);
-                if (isMountedRef.current) {
-                    setSettingsConfig(config);
-                    if (sessionPayload) {
-                        setSessionSettings((prev) => ({
-                            ...(prev ?? {}),
-                            ...sessionPayload,
-                        }));
-                    }
-                    try {
-                        const latest = await refreshSessionSettings();
-                        setSessionSettings(latest);
-                    } catch {
-                        // Keep save flow resilient even if post-save sync fails.
-                    }
-                }
-            } catch (error) {
-                infraLogger.error(
-                    {
-                        scope: "settings",
-                        event: "save_failed",
-                        message: "Failed to persist session settings",
-                        details: {
-                            hasPayload: Boolean(sessionPayload),
-                        },
-                    },
-                    {
-                        error,
-                        payload: sessionPayload,
-                    },
-                );
-                if (isMountedRef.current) {
-                    if (!isRpcCommandError(error)) {
-                        reportCommandError(error);
-                    }
-                }
-                if (error instanceof Error) {
-                    throw error;
-                }
-                throw new Error("Unable to save settings");
-            } finally {
-                if (isMountedRef.current) {
-                    setIsSettingsSaving(false);
-                }
-            }
-        },
-        [
-            reportCommandError,
-            isMountedRef,
-            sessionSettings,
-            refreshSessionSettings,
-            sessionDomain,
-        ],
-    );
 
     const handleTestPort = useCallback(
         async (): Promise<EngineTestPortOutcome> => {
@@ -389,36 +344,105 @@ export function useSettingsFlow({
         [isMountedRef, reportCommandError, rpcStatus, sessionDomain],
     );
 
-    const applyUserPreferencesPatch = useCallback(
-        (patch: Partial<PreferencePayload>) => {
-            setSettingsConfig((prev) => ({
-                ...prev,
-                ...patch,
-            }));
-            updatePreferences({
-                refreshIntervalMs:
-                    patch.refresh_interval_ms ?? preferences.refreshIntervalMs,
-                requestTimeoutMs:
-                    patch.request_timeout_ms ?? preferences.requestTimeoutMs,
-                tableWatermarkEnabled:
-                    patch.table_watermark_enabled ??
-                    preferences.tableWatermarkEnabled,
-            });
+    const applySettingsPatch = useCallback(
+        async (patch: Partial<SettingsConfig>) => {
+            const queuedPatch = settingsPatchQueueRef.current
+                .catch(() => undefined)
+                .then(async () => {
+                    let sessionPayload: Partial<TransmissionSessionSettings> | null =
+                        null;
+                    const nextConfig = {
+                        ...settingsConfigRef.current,
+                        ...patch,
+                    };
+                    try {
+                        sessionPayload = mapConfigToSession(
+                            nextConfig,
+                            sessionSettingsRef.current,
+                        );
+                        await sessionDomain.updateSessionSettings(sessionPayload);
+                        if (isMountedRef.current) {
+                            settingsConfigRef.current = nextConfig;
+                            setSettingsConfig(nextConfig);
+                            if (sessionPayload) {
+                                setSessionSettings((prev) => {
+                                    const nextSession = {
+                                        ...(prev ?? {}),
+                                        ...sessionPayload,
+                                    };
+                                    sessionSettingsRef.current = nextSession;
+                                    return nextSession;
+                                });
+                            }
+                            try {
+                                const latest = await refreshSessionSettings();
+                                sessionSettingsRef.current = latest;
+                                setSessionSettings(latest);
+                            } catch {
+                                // Keep live settings resilient even if post-apply sync fails.
+                            }
+                        }
+                    } catch (error) {
+                        infraLogger.error(
+                            {
+                                scope: "settings",
+                                event: "patch_failed",
+                                message: "Failed to persist settings patch",
+                                details: {
+                                    hasPayload: Boolean(sessionPayload),
+                                    patchKeys: Object.keys(patch),
+                                },
+                            },
+                            {
+                                error,
+                                payload: sessionPayload,
+                            },
+                        );
+                        if (isMountedRef.current && !isRpcCommandError(error)) {
+                            reportCommandError(error);
+                        }
+                        if (error instanceof Error) {
+                            throw error;
+                        }
+                        throw new Error("Unable to apply settings patch");
+                    }
+                });
+            settingsPatchQueueRef.current = queuedPatch;
+            return queuedPatch;
         },
         [
-            preferences.refreshIntervalMs,
-            preferences.requestTimeoutMs,
-            preferences.tableWatermarkEnabled,
-            updatePreferences,
+            isMountedRef,
+            refreshSessionSettings,
+            reportCommandError,
+            sessionDomain,
         ],
+    );
+
+    const applyUserPreferencesPatch = useCallback(
+        (patch: Partial<PreferencePayload>) => {
+            const preferencePatch: Partial<Parameters<typeof updatePreferences>[0]> =
+                {};
+            if (patch.refresh_interval_ms !== undefined) {
+                preferencePatch.refreshIntervalMs = patch.refresh_interval_ms;
+            }
+            if (patch.request_timeout_ms !== undefined) {
+                preferencePatch.requestTimeoutMs = patch.request_timeout_ms;
+            }
+            if (patch.table_watermark_enabled !== undefined) {
+                preferencePatch.tableWatermarkEnabled =
+                    patch.table_watermark_enabled;
+            }
+            if (Object.keys(preferencePatch).length > 0) {
+                updatePreferences(preferencePatch);
+            }
+        },
+        [updatePreferences],
     );
 
     return {
         settingsConfig,
-        isSettingsSaving,
-        handleSaveSettings,
         handleTestPort,
-        setSettingsConfig,
+        applySettingsPatch,
         applyUserPreferencesPatch,
         settingsLoadError,
         blocklistSupported,

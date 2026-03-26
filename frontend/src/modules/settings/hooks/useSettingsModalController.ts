@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { addToast } from "@heroui/toast";
 import type { UiMode } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { scheduler } from "@/app/services/scheduler";
 import { status } from "@/shared/status";
@@ -12,6 +14,7 @@ import {
     type ConfigKey,
     type SettingsConfig,
 } from "@/modules/settings/data/config";
+import { mergeDownloadPaths, useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import {
     SETTINGS_TABS,
     type ButtonActionKey,
@@ -24,7 +27,6 @@ import {
     writeClipboardOutcome,
 } from "@/shared/utils/clipboard";
 import type {
-    SettingsFeedback,
     SettingsFormActionOutcome,
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
@@ -37,39 +39,18 @@ type LiveUserPreferencePatch = Partial<
         "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
     >
 >;
-
-type SaveableSettingsConfig = Omit<
-    SettingsConfig,
-    keyof LiveUserPreferencePatch
->;
-
-const stripLivePreferences = (
-    config: SettingsConfig,
-): SaveableSettingsConfig => {
-    const rest = {
-        ...config,
-    } as Partial<SettingsConfig>;
-    delete rest.refresh_interval_ms;
-    delete rest.request_timeout_ms;
-    delete rest.table_watermark_enabled;
-    return rest as SaveableSettingsConfig;
-};
-
-const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
-    JSON.stringify(stripLivePreferences(a)) ===
-    JSON.stringify(stripLivePreferences(b));
-
-type ModalFeedback = SettingsFeedback;
+const LIVE_PREFERENCE_KEYS = [
+    "refresh_interval_ms",
+    "request_timeout_ms",
+    "table_watermark_enabled",
+] as const satisfies readonly ConfigKey[];
 
 export interface SettingsModalController {
     modal: {
         isOpen: boolean;
         uiMode: UiMode;
-        isSaving: boolean;
-        settingsLoadError?: boolean;
-        modalFeedback: ModalFeedback | null;
-        hasUnsavedChanges: boolean;
-        closeConfirmPending: boolean;
+        settingsLoadError: boolean;
+        modalError: string | null;
         isMobileMenuOpen: boolean;
         tabsFallbackActive: boolean;
         safeVisibleTabs: TabDefinition[];
@@ -82,10 +63,7 @@ export interface SettingsModalController {
         onRequestClose: () => void;
         onOpenMobileMenu: () => void;
         onSelectTab: (tab: SettingsTab) => void;
-        onKeepEditing: () => void;
-        onDiscardAndClose: () => void;
         onReset: () => void;
-        onSave: () => void;
     };
 }
 
@@ -118,9 +96,7 @@ export function useSettingsModalController(
     const {
         isOpen,
         onClose,
-        initialConfig,
-        isSaving,
-        onSave,
+        config: settingsConfig,
         settingsLoadError,
         onTestPort,
         capabilities,
@@ -131,39 +107,43 @@ export function useSettingsModalController(
         showAddTorrentDialog,
         setShowAddTorrentDialog,
         onApplyUserPreferencesPatch,
+        onApplySettingsPatch,
     } = viewModel;
 
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
+    const {
+        preferences: { settingsTab },
+        setSettingsTab,
+        setAddTorrentHistory,
+    } = usePreferences();
+    const { current: currentDownloadPath, history: downloadPathHistory } =
+        useDownloadPaths();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
-    const [closeConfirmPending, setCloseConfirmPending] = useState(false);
     const [inputDrafts, setInputDrafts] = useState<Map<ConfigKey, string>>(
         () => new Map()
     );
-    const safeInitialConfig = useMemo(
-        () => initialConfig ?? DEFAULT_SETTINGS_CONFIG,
-        [initialConfig],
-    );
+    const safeInitialConfig = useMemo(() => {
+        if (!currentDownloadPath) {
+            return settingsConfig;
+        }
+        return {
+            ...settingsConfig,
+            download_dir: currentDownloadPath,
+        };
+    }, [currentDownloadPath, settingsConfig]);
     const [config, setConfig] = useState<SettingsConfig>(() => ({
         ...safeInitialConfig,
     }));
-    const [openedConfigSnapshot, setOpenedConfigSnapshot] =
-        useState<SettingsConfig>({ ...safeInitialConfig });
+    const configRef = useRef(config);
     const wasOpenRef = useRef(false);
-    const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
-        null,
-    );
-    const [connectionFeedback, setConnectionFeedback] =
-        useState<SettingsFeedback | null>(null);
+    const [modalError, setModalError] = useState<string | null>(null);
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
     >("idle");
     const jsonCopyTimerRef = useRef<(() => void) | null>(null);
     const resetModalEphemeralState = useCallback(() => {
-        setModalFeedback(null);
-        setConnectionFeedback(null);
+        setModalError(null);
         setJsonCopyStatus("idle");
-        setCloseConfirmPending(false);
         setInputDrafts(new Map());
     }, []);
 
@@ -174,7 +154,6 @@ export function useSettingsModalController(
             shellAgentAvailable,
             clipboardWriteSupported,
         },
-        reconnect,
     } = useSession();
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
@@ -219,11 +198,8 @@ export function useSettingsModalController(
                 }
                 return next;
             });
-            if (closeConfirmPending) {
-                setCloseConfirmPending(false);
-            }
         },
-        [closeConfirmPending],
+        [],
     );
 
     const effectiveConfig = useMemo(() => {
@@ -278,12 +254,9 @@ export function useSettingsModalController(
         }
     }, [clipboardWriteSupported, configJson]);
 
-    const hasSaveableEdits = useMemo(
-        () => !configsAreEqual(effectiveConfig, openedConfigSnapshot),
-        [effectiveConfig, openedConfigSnapshot],
-    );
-    const hasPendingDraftEdits = inputDrafts.size > 0;
-    const hasUnsavedChanges = hasSaveableEdits || hasPendingDraftEdits;
+    useEffect(() => {
+        configRef.current = config;
+    }, [config]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -293,7 +266,6 @@ export function useSettingsModalController(
 
         wasOpenRef.current = true;
         const cancelInit = scheduler.scheduleTimeout(() => {
-            setOpenedConfigSnapshot({ ...safeInitialConfig });
             setConfig({ ...safeInitialConfig });
             setIsMobileMenuOpen(true);
             resetModalEphemeralState();
@@ -302,15 +274,14 @@ export function useSettingsModalController(
     }, [isOpen, resetModalEphemeralState, safeInitialConfig]);
 
     useEffect(() => {
-        if (!isOpen || hasSaveableEdits) {
+        if (!isOpen || inputDrafts.size > 0) {
             return;
         }
         const cancelSync = scheduler.scheduleTimeout(() => {
-            setOpenedConfigSnapshot({ ...safeInitialConfig });
             setConfig({ ...safeInitialConfig });
         }, 0);
         return cancelSync;
-    }, [hasSaveableEdits, isOpen, safeInitialConfig]);
+    }, [inputDrafts.size, isOpen, safeInitialConfig]);
 
     useEffect(() => {
         if (isOpen) return;
@@ -322,171 +293,54 @@ export function useSettingsModalController(
     }, [isOpen, resetModalEphemeralState]);
 
     const requestClose = useCallback(() => {
-        if (isSaving) {
-            setModalFeedback({
-                type: "error",
-                text: t("settings.modal.close_blocked_saving"),
-            });
-            return;
-        }
-        if (hasUnsavedChanges) {
-            setCloseConfirmPending(true);
-            return;
-        }
         onClose();
-    }, [hasUnsavedChanges, isSaving, onClose, t]);
+    }, [onClose]);
 
-    const persistWindowState = useCallback(async () => {
-        if (!canUseShell) return;
-        try {
-            await shellAgent.persistWindowState();
-        } catch {
-            setModalFeedback({
-                type: "error",
-                text: t("settings.modal.error_window_state"),
-            });
-        }
-    }, [canUseShell, t]);
-
-    const handleSave = useCallback(async () => {
-        const needsSave = !configsAreEqual(
-            effectiveConfig,
-            openedConfigSnapshot,
-        );
-        if (onApplyUserPreferencesPatch) {
-            const patch: LiveUserPreferencePatch = {};
-            if (
-                effectiveConfig.table_watermark_enabled !==
-                config.table_watermark_enabled
-            ) {
-                patch.table_watermark_enabled =
-                    effectiveConfig.table_watermark_enabled;
+    const handleRestoreHudAction = useCallback(() => {
+        void (async () => {
+            try {
+                await onRestoreInsights();
+                setModalError(null);
+            } catch {
+                setModalError(t("settings.modal.error_restore"));
             }
-            if (
-                effectiveConfig.refresh_interval_ms !==
-                config.refresh_interval_ms
-            ) {
-                patch.refresh_interval_ms = effectiveConfig.refresh_interval_ms;
-            }
-            if (
-                effectiveConfig.request_timeout_ms !== config.request_timeout_ms
-            ) {
-                patch.request_timeout_ms = effectiveConfig.request_timeout_ms;
-            }
-            if (Object.keys(patch).length) {
-                onApplyUserPreferencesPatch(patch);
-            }
-        }
-
-        if (needsSave) {
-            await persistWindowState();
-        }
-
-        try {
-            if (needsSave) {
-                await onSave(effectiveConfig);
-            }
-            setModalFeedback(null);
-            setInputDrafts(new Map());
-            onClose();
-        } catch {
-            setModalFeedback({
-                type: "error",
-                text: t("settings.modal.error_save"),
-            });
-        }
-    }, [
-        config,
-        effectiveConfig,
-        openedConfigSnapshot,
-        onApplyUserPreferencesPatch,
-        onClose,
-        onSave,
-        persistWindowState,
-        t,
-    ]);
-
-    const handleReset = useCallback(() => {
-        const nextConfig: SettingsConfig = { ...DEFAULT_SETTINGS_CONFIG };
-        setConfig(nextConfig);
-        setInputDrafts(new Map());
-        onApplyUserPreferencesPatch?.({
-            refresh_interval_ms: nextConfig.refresh_interval_ms,
-            request_timeout_ms: nextConfig.request_timeout_ms,
-            table_watermark_enabled: nextConfig.table_watermark_enabled,
-        });
-        setModalFeedback(null);
-    }, [onApplyUserPreferencesPatch]);
-
-    const runAction = useCallback(
-        (
-            action: (() => void | Promise<void>) | undefined,
-            messageKey: string,
-        ) => {
-            return () => {
-                if (!action) return;
-                void (async () => {
-                    try {
-                        await action();
-                        setModalFeedback(null);
-                    } catch {
-                        setModalFeedback({
-                            type: "error",
-                            text: t(messageKey),
-                        });
-                    }
-                })();
-            };
-        },
-        [t],
-    );
+        })();
+    }, [onRestoreInsights, t]);
 
     const handleTestPortAction = useCallback(() => {
-        if (!onTestPort) {
-            setModalFeedback({
-                type: "error",
-                text: t("settings.modal.test_port_unsupported"),
+        const showTestPortToast = (
+            type: "error" | "success",
+            text: string,
+        ) => {
+            addToast({
+                title: text,
+                color: type === "error" ? "danger" : "success",
+                severity: type === "error" ? "danger" : "success",
+                timeout: timing.ui.toastMs,
+                hideCloseButton: true,
             });
-            return;
-        }
+        };
+
         void (async () => {
             const outcome = await onTestPort();
             switch (outcome.status) {
                 case "open":
-                    setModalFeedback({
-                        type: "success",
-                        text: t("settings.modal.test_port_open"),
-                    });
+                    showTestPortToast("success", t("settings.modal.test_port_open"));
                     return;
                 case "closed":
-                    setModalFeedback({
-                        type: "success",
-                        text: t("settings.modal.test_port_closed"),
-                    });
+                    showTestPortToast("success", t("settings.modal.test_port_closed"));
                     return;
                 case "unsupported":
-                    setModalFeedback({
-                        type: "error",
-                        text: t("settings.modal.test_port_unsupported"),
-                    });
+                    showTestPortToast("error", t("settings.modal.test_port_unsupported"));
                     return;
                 case status.connection.offline:
-                    setModalFeedback({
-                        type: "error",
-                        text: t("settings.modal.test_port_offline"),
-                    });
+                    showTestPortToast("error", t("settings.modal.test_port_offline"));
                     return;
                 case "failed":
-                    setModalFeedback({
-                        type: "error",
-                        text: t("settings.modal.error_test_port"),
-                    });
+                    showTestPortToast("error", t("settings.modal.error_test_port"));
                     return;
                 default:
-                    setModalFeedback({
-                        type: "error",
-                        text: t("settings.modal.error_test_port"),
-                    });
+                    showTestPortToast("error", t("settings.modal.error_test_port"));
                     return;
             }
         })();
@@ -495,30 +349,9 @@ export function useSettingsModalController(
     const buttonActions: Record<ButtonActionKey, () => void> = useMemo(
         () => ({
             testPort: handleTestPortAction,
-            restoreHud: runAction(
-                () => onRestoreInsights?.(),
-                "settings.modal.error_restore",
-            ),
+            restoreHud: handleRestoreHudAction,
         }),
-        [handleTestPortAction, onRestoreInsights, runAction],
-    );
-
-    const safeReconnect = useCallback(
-        async (): Promise<SettingsFormActionOutcome> => {
-            const outcome = await reconnect({
-                suppressTimeoutDialog: true,
-            });
-            if (outcome.status !== status.connection.connected) {
-                setConnectionFeedback({
-                    type: "error",
-                    text: t("settings.modal.error_reconnect"),
-                });
-                return SETTINGS_ACTION_FAILED;
-            }
-            setConnectionFeedback(null);
-            return SETTINGS_ACTION_APPLIED;
-        },
-        [reconnect, t],
+        [handleRestoreHudAction, handleTestPortAction],
     );
 
     const sliderConstraints = useMemo<
@@ -537,54 +370,185 @@ export function useSettingsModalController(
         return constraints;
     }, []);
 
-    const updateConfig = useCallback(
-        <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
-            if (closeConfirmPending) {
-                setCloseConfirmPending(false);
+    const normalizePatch = useCallback(
+        (patch: Partial<SettingsConfig>): Partial<SettingsConfig> => {
+            const normalized = {
+                ...patch,
+            } as Record<ConfigKey, SettingsConfig[ConfigKey] | undefined>;
+            for (const [rawKey, rawValue] of Object.entries(patch)) {
+                const key = rawKey as ConfigKey;
+                const constraint = sliderConstraints[key];
+                if (
+                    constraint &&
+                    typeof rawValue === "number" &&
+                    Number.isFinite(rawValue)
+                ) {
+                    normalized[key] = Math.min(
+                        Math.max(rawValue, constraint.min),
+                        constraint.max,
+                    ) as SettingsConfig[typeof key];
+                }
             }
+            return normalized as Partial<SettingsConfig>;
+        },
+        [sliderConstraints],
+    );
+
+    const syncDownloadPathHistory = useCallback(
+        (downloadDir: string | undefined) => {
+            if (downloadDir === undefined) {
+                return;
+            }
+            const trimmedValue = downloadDir.trim();
+            setAddTorrentHistory(
+                trimmedValue
+                    ? mergeDownloadPaths(downloadPathHistory, downloadDir)
+                    : [],
+            );
+        },
+        [downloadPathHistory, setAddTorrentHistory],
+    );
+
+    const applyLocalPatch = useCallback(
+        (patch: Partial<SettingsConfig>) => {
+            const normalizedPatch = normalizePatch(patch);
+            const patchKeys = new Set(
+                Object.keys(normalizedPatch) as ConfigKey[],
+            );
             setInputDrafts((previous) => {
-                if (!previous.has(key)) return previous;
+                if (patchKeys.size === 0) {
+                    return previous;
+                }
                 const next = new Map(previous);
-                next.delete(key);
+                for (const key of patchKeys) {
+                    next.delete(key);
+                }
                 return next;
             });
-            const constraint = sliderConstraints[key];
-            let nextValue = value;
-            if (
-                constraint &&
-                typeof value === "number" &&
-                Number.isFinite(value)
-            ) {
-                nextValue = Math.min(
-                    Math.max(value, constraint.min),
-                    constraint.max,
-                ) as SettingsConfig[K];
+            setConfig((previous) => {
+                const next = {
+                    ...previous,
+                    ...normalizedPatch,
+                };
+                configRef.current = next;
+                return next;
+            });
+            syncDownloadPathHistory(normalizedPatch.download_dir);
+            return normalizedPatch;
+        },
+        [normalizePatch, syncDownloadPathHistory],
+    );
+
+    const updateConfig = useCallback(
+        <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
+            applyLocalPatch({
+                [key]: value,
+            } as Partial<SettingsConfig>);
+        },
+        [applyLocalPatch],
+    );
+
+    const applyLivePreferencePatch = useCallback(
+        (patch: Partial<SettingsConfig>) => {
+            const preferencePatch: LiveUserPreferencePatch = {};
+            if (patch.refresh_interval_ms !== undefined) {
+                preferencePatch.refresh_interval_ms = patch.refresh_interval_ms;
             }
-            setConfig((previous) => ({ ...previous, [key]: nextValue }));
-            if (
-                key === "table_watermark_enabled" &&
-                typeof nextValue === "boolean"
-            ) {
-                onApplyUserPreferencesPatch?.({
-                    table_watermark_enabled: nextValue,
-                });
+            if (patch.request_timeout_ms !== undefined) {
+                preferencePatch.request_timeout_ms = patch.request_timeout_ms;
             }
-            if (
-                key === "refresh_interval_ms" &&
-                typeof nextValue === "number"
-            ) {
-                onApplyUserPreferencesPatch?.({
-                    refresh_interval_ms: nextValue,
-                });
+            if (patch.table_watermark_enabled !== undefined) {
+                preferencePatch.table_watermark_enabled =
+                    patch.table_watermark_enabled;
             }
-            if (key === "request_timeout_ms" && typeof nextValue === "number") {
-                onApplyUserPreferencesPatch?.({
-                    request_timeout_ms: nextValue,
-                });
+            if (Object.keys(preferencePatch).length > 0) {
+                onApplyUserPreferencesPatch(preferencePatch);
             }
         },
-        [closeConfirmPending, onApplyUserPreferencesPatch, sliderConstraints],
+        [onApplyUserPreferencesPatch],
     );
+
+    const persistConfigPatch = useCallback(
+        async (patch: Partial<SettingsConfig>) => {
+            const previousConfig = { ...configRef.current };
+            const normalizedPatch = applyLocalPatch(patch);
+            const sessionPatch: Partial<SettingsConfig> = {
+                ...normalizedPatch,
+            };
+            for (const liveKey of LIVE_PREFERENCE_KEYS) {
+                delete sessionPatch[liveKey];
+            }
+
+            applyLivePreferencePatch(normalizedPatch);
+
+            if (
+                Object.keys(sessionPatch).length === 0
+            ) {
+                setModalError(null);
+                return SETTINGS_ACTION_APPLIED;
+            }
+
+            try {
+                await onApplySettingsPatch(sessionPatch);
+                setModalError(null);
+                return SETTINGS_ACTION_APPLIED;
+            } catch {
+                const rollbackPatch = {} as Record<
+                    ConfigKey,
+                    SettingsConfig[ConfigKey] | undefined
+                >;
+                for (const key of Object.keys(normalizedPatch) as ConfigKey[]) {
+                    if (Object.is(configRef.current[key], normalizedPatch[key])) {
+                        rollbackPatch[key] = previousConfig[key];
+                    }
+                }
+                const normalizedRollbackPatch =
+                    rollbackPatch as Partial<SettingsConfig>;
+                if (Object.keys(normalizedRollbackPatch).length > 0) {
+                    setConfig((current) => {
+                        const next = {
+                            ...current,
+                            ...normalizedRollbackPatch,
+                        };
+                        configRef.current = next;
+                        return next;
+                    });
+                    syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
+                    applyLivePreferencePatch(normalizedRollbackPatch);
+                }
+                addToast({
+                    title: t("settings.modal.error_apply"),
+                    color: "danger",
+                    severity: "danger",
+                    timeout: timing.ui.toastMs,
+                    hideCloseButton: true,
+                });
+                return SETTINGS_ACTION_FAILED;
+            }
+        },
+        [
+            applyLivePreferencePatch,
+            applyLocalPatch,
+            onApplySettingsPatch,
+            syncDownloadPathHistory,
+            t,
+        ],
+    );
+
+    const handleApplySetting = useCallback(
+        <K extends ConfigKey>(
+            key: K,
+            value: SettingsConfig[K],
+        ): Promise<SettingsFormActionOutcome> =>
+            persistConfigPatch({
+                [key]: value,
+            } as Partial<SettingsConfig>),
+        [persistConfigPatch],
+    );
+
+    const handleReset = useCallback(() => {
+        void persistConfigPatch({ ...DEFAULT_SETTINGS_CONFIG });
+    }, [persistConfigPatch]);
 
     const handleBrowse = useCallback(
         async (key: ConfigKey) => {
@@ -606,17 +570,13 @@ export function useSettingsModalController(
                         reason: "no_change",
                     } as const;
                 }
-                updateConfig(key, selected);
-                return SETTINGS_ACTION_APPLIED;
+                return handleApplySetting(key, selected);
             } catch {
-                setModalFeedback({
-                    type: "error",
-                    text: t("settings.modal.error_browse"),
-                });
+                setModalError(t("settings.modal.error_browse"));
                 return SETTINGS_ACTION_FAILED;
             }
         },
-        [canBrowseDirectories, canUseShell, config, t, updateConfig],
+        [canBrowseDirectories, canUseShell, config, handleApplySetting, t],
     );
 
     const hasVisibleBlocks = useCallback(
@@ -651,20 +611,20 @@ export function useSettingsModalController(
     const tabsFallbackActive = visibleTabs.length === 0;
     const activeTabDefinition = useMemo(
         () =>
-            safeVisibleTabs.find((tab) => tab.id === activeTab) ??
+            safeVisibleTabs.find((tab) => tab.id === settingsTab) ??
             safeVisibleTabs[0],
-        [activeTab, safeVisibleTabs],
+        [safeVisibleTabs, settingsTab],
     );
 
     useEffect(() => {
-        if (safeVisibleTabs.find((tab) => tab.id === activeTab)) {
+        if (safeVisibleTabs.find((tab) => tab.id === settingsTab)) {
             return;
         }
         const cancelFallback = scheduler.scheduleTimeout(() => {
-            setActiveTab(safeVisibleTabs[0]?.id ?? "speed");
+            setSettingsTab(safeVisibleTabs[0]?.id ?? "speed");
         }, 0);
         return cancelFallback;
-    }, [activeTab, safeVisibleTabs]);
+    }, [safeVisibleTabs, setSettingsTab, settingsTab]);
 
     const settingsFormState = useMemo<SettingsFormStateContextValue>(
         () => ({
@@ -673,7 +633,6 @@ export function useSettingsModalController(
             setFieldDraft,
             jsonCopyStatus,
             configJson,
-            connectionFeedback,
         }),
         [
             config,
@@ -681,7 +640,6 @@ export function useSettingsModalController(
             setFieldDraft,
             jsonCopyStatus,
             configJson,
-            connectionFeedback,
         ],
     );
 
@@ -697,9 +655,9 @@ export function useSettingsModalController(
             },
             buttonActions,
             canBrowseDirectories,
+            onApplySetting: handleApplySetting,
             onBrowse: handleBrowse,
             onCopyConfigJson: handleCopyConfigJson,
-            onReconnect: safeReconnect,
         }),
         [
             capabilities,
@@ -710,9 +668,9 @@ export function useSettingsModalController(
             setShowAddTorrentDialog,
             buttonActions,
             canBrowseDirectories,
+            handleApplySetting,
             handleBrowse,
             handleCopyConfigJson,
-            safeReconnect,
         ],
     );
 
@@ -726,27 +684,17 @@ export function useSettingsModalController(
     );
 
     const onSelectTab = useCallback((tab: SettingsTab) => {
-        setActiveTab(tab);
-        setCloseConfirmPending(false);
+        setSettingsTab(tab);
         setIsMobileMenuOpen(false);
-    }, []);
-
-    const onDiscardAndClose = useCallback(() => {
-        setCloseConfirmPending(false);
-        setInputDrafts(new Map());
-        onClose();
-    }, [onClose]);
+    }, [setSettingsTab]);
 
     return useMemo(
         () => ({
             modal: {
                 isOpen,
                 uiMode,
-                isSaving,
                 settingsLoadError,
-                modalFeedback,
-                hasUnsavedChanges,
-                closeConfirmPending,
+                modalError,
                 isMobileMenuOpen,
                 tabsFallbackActive,
                 safeVisibleTabs,
@@ -759,25 +707,15 @@ export function useSettingsModalController(
                 onRequestClose: requestClose,
                 onOpenMobileMenu: () => setIsMobileMenuOpen(true),
                 onSelectTab,
-                onKeepEditing: () => setCloseConfirmPending(false),
-                onDiscardAndClose,
                 onReset: handleReset,
-                onSave: () => {
-                    void handleSave();
-                },
             },
         }),
         [
             activeTabDefinition,
-            closeConfirmPending,
             handleReset,
-            handleSave,
-            hasUnsavedChanges,
             isMobileMenuOpen,
             isOpen,
-            isSaving,
-            modalFeedback,
-            onDiscardAndClose,
+            modalError,
             onOpenChange,
             onSelectTab,
             requestClose,

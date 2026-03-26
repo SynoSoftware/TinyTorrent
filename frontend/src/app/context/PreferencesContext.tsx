@@ -25,6 +25,7 @@ import {
 } from "@/app/preferences/language";
 import { registry } from "@/config/logic";
 import type { DetailTab } from "@/modules/dashboard/types/contracts";
+import type { SettingsTab } from "@/modules/settings/data/settings-tabs";
 import type { VisibilityState, SortingState } from "@tanstack/react-table";
 import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
@@ -91,6 +92,7 @@ const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
 };
 
 const DEFAULT_INSPECTOR_TAB: DetailTab = "general";
+const DEFAULT_SETTINGS_TAB: SettingsTab = "speed";
 const DEFAULT_TORRENT_TABLE_STATE: TorrentTablePersistenceState | null = null;
 const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
@@ -135,7 +137,7 @@ const removeLegacyPreferences = () => {
 //   workbenchScale, workspaceStyle, dismissedHudCardIds,
 //   theme, language,
 //   systemPreferences (preventSleep, autoUpdate, closeAction),
-//   inspectorTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
+//   inspectorTab, settingsTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
 //   addTorrentDefaults, addTorrentHistory, removeTorrentDefaults,
 //   connectionProfiles, activeConnectionProfileId.
 // This contract should never shrink without a documented migration path.
@@ -152,6 +154,7 @@ export interface PreferencesState {
     language: LanguageCode;
     systemPreferences: SystemPreferences;
     inspectorTab: DetailTab;
+    settingsTab: SettingsTab;
     generalDetailsAdvanced: boolean;
     torrentTableState: TorrentTablePersistenceState | null;
     speedChartLayoutMode: SpeedChartLayoutMode | null;
@@ -177,6 +180,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     language: getInitialLanguage(),
     systemPreferences: DEFAULT_SYSTEM_PREFERENCES,
     inspectorTab: DEFAULT_INSPECTOR_TAB,
+    settingsTab: DEFAULT_SETTINGS_TAB,
     generalDetailsAdvanced: false,
     torrentTableState: DEFAULT_TORRENT_TABLE_STATE,
     speedChartLayoutMode: DEFAULT_SPEED_CHART_LAYOUT,
@@ -221,6 +225,16 @@ const isDetailTabValue = (value: unknown): value is DetailTab =>
     value === "speed" ||
     value === "peers" ||
     value === "trackers";
+
+const isSettingsTabValue = (value: unknown): value is SettingsTab =>
+    value === "speed" ||
+    value === "network" ||
+    value === "connection" ||
+    value === "peers" ||
+    value === "storage" ||
+    value === "privacy" ||
+    value === "gui" ||
+    value === "system";
 
 const isSpeedChartLayoutMode = (
     value: unknown,
@@ -488,6 +502,9 @@ const sanitizePreferences = (
         inspectorTab: isDetailTabValue(value.inspectorTab)
             ? value.inspectorTab
             : DEFAULT_INSPECTOR_TAB,
+        settingsTab: isSettingsTabValue(value.settingsTab)
+            ? value.settingsTab
+            : DEFAULT_SETTINGS_TAB,
         generalDetailsAdvanced:
             typeof value.generalDetailsAdvanced === "boolean"
                 ? value.generalDetailsAdvanced
@@ -556,6 +573,7 @@ export interface PreferencesContextValue {
     setLanguage: (code: LanguageCode) => void;
     setSystemPreferences: (patch: Partial<SystemPreferences>) => void;
     setInspectorTab: (tab: DetailTab) => void;
+    setSettingsTab: (tab: SettingsTab) => void;
     setTorrentTableState: (state: TorrentTablePersistenceState) => void;
     setSpeedChartLayoutMode: (mode: SpeedChartLayoutMode | null) => void;
     setAddTorrentDefaults: (defaults: AddTorrentDefaultsState) => void;
@@ -675,6 +693,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         [updatePreferences],
     );
 
+    const setSettingsTab = useCallback(
+        (tab: SettingsTab) => {
+            updatePreferences({ settingsTab: tab });
+        },
+        [updatePreferences],
+    );
+
     const setTorrentTableState = useCallback(
         (state: TorrentTablePersistenceState) => {
             updatePreferences({ torrentTableState: state });
@@ -783,6 +808,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setLanguage,
             setSystemPreferences,
             setInspectorTab,
+            setSettingsTab,
             setTorrentTableState,
             setSpeedChartLayoutMode,
             setAddTorrentDefaults,
@@ -806,6 +832,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setLanguage,
             setSystemPreferences,
             setInspectorTab,
+            setSettingsTab,
             setTorrentTableState,
             setSpeedChartLayoutMode,
             setAddTorrentDefaults,

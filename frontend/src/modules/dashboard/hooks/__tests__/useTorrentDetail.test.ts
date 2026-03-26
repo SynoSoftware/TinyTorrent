@@ -10,11 +10,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { status } from "@/shared/status";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 
 const subscribeNonTableMock = vi.fn();
 const reportReadErrorMock = vi.fn();
 
 let inspectorTabMock: "general" | "pieces" | "trackers" = "general";
+let rpcStatusMock: ConnectionStatus = status.connection.connected;
 
 vi.mock("@/app/providers/engineDomains", () => ({
     useEngineHeartbeatDomain: () => ({
@@ -25,7 +27,7 @@ vi.mock("@/app/providers/engineDomains", () => ({
 vi.mock("@/app/context/SessionContext", () => ({
     useSession: () => ({
         reportReadError: reportReadErrorMock,
-        rpcStatus: status.connection.connected,
+        rpcStatus: rpcStatusMock,
     }),
 }));
 
@@ -87,6 +89,7 @@ const HookHarness = forwardRef<HarnessRef>((_, ref) => {
 
 type MountedHarness = {
     ref: React.RefObject<HarnessRef | null>;
+    rerender: () => void;
     cleanup: () => void;
 };
 
@@ -95,10 +98,16 @@ const mountHarness = async (): Promise<MountedHarness> => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root: Root = createRoot(container);
-    root.render(createElement(HookHarness, { ref }));
+    const render = () => root.render(createElement(HookHarness, { ref }));
+    render();
     await waitForCondition(() => Boolean(ref.current), 1200);
     return {
         ref,
+        rerender: () => {
+            flushSync(() => {
+                render();
+            });
+        },
         cleanup: () => {
             root.unmount();
             container.remove();
@@ -114,6 +123,7 @@ describe("useTorrentDetail", () => {
             unsubscribe: vi.fn(),
         });
         inspectorTabMock = "general";
+        rpcStatusMock = status.connection.connected;
     });
 
     afterEach(() => {
@@ -201,6 +211,30 @@ describe("useTorrentDetail", () => {
             ).toBe(0);
             expect(detail?.id).toBe("torrent-3");
             expect(detail?.hash).toBe("torrent-3");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("clears detail state when the session disconnects", async () => {
+        const mounted = await mountHarness();
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            flushSync(() => {
+                void harness.loadDetail("torrent-4");
+            });
+
+            await waitForCondition(() => harness.getDetailData()?.id === "torrent-4");
+
+            rpcStatusMock = status.connection.error;
+            mounted.rerender();
+
+            await waitForCondition(() => harness.getDetailData() === null);
+            expect(harness.getDetailData()).toBeNull();
         } finally {
             mounted.cleanup();
         }
