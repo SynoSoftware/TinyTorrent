@@ -1,11 +1,10 @@
-import { AnimatePresence, motion, type Transition } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Button, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import { memo } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { DeleteConfirmationProvider } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
 import { X } from "lucide-react";
-import { status } from "@/shared/status";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModalView";
@@ -21,12 +20,6 @@ import type {
 } from "@/app/viewModels/useAppViewModel";
 import { TEXT_ROLE } from "@/config/textRoles";
 const { shell } = registry;
-
-const TOAST_SPRING_TRANSITION: Transition = {
-    type: "spring",
-    stiffness: 300,
-    damping: 28,
-};
 
 const HUD_COLUMNS = {
     0: "grid-cols-1",
@@ -62,7 +55,6 @@ export function WorkspaceShell({
     const { workspaceStyle } = workspaceStyleControls;
     const { visibleHudCards, dismissHudCard } = hud;
     const { pendingDelete, clearPendingDelete, confirmDelete } = deletion;
-    const { rpcStatus, handleReconnect } = statusBarViewModel;
     const isImmersiveShell = workspaceStyle === "immersive";
     const { t } = useTranslation();
 
@@ -120,33 +112,6 @@ export function WorkspaceShell({
                     <div className={WORKBENCH.immersiveBackgroundAccentTop} />
                 </div>
             )}
-
-            <AnimatePresence>
-                {rpcStatus === status.connection.error && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 6 }}
-                        transition={TOAST_SPRING_TRANSITION}
-                        className={WORKBENCH.reconnectToast}
-                        style={{
-                            bottom: "var(--spacing-panel)",
-                            right: "var(--spacing-panel)",
-                        }}
-                    >
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color="warning"
-                            onPress={() => {
-                                void handleReconnect();
-                            }}
-                        >
-                            {t("status_bar.reconnect")}
-                        </Button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             <div className={WORKBENCH.content}>
                 <Section

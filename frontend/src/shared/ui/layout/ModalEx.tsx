@@ -15,7 +15,7 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MODAL } from "@/shared/ui/layout/glass-surface";
+import { DETAILS, MODAL } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     ToolbarIconButton,
@@ -39,6 +39,7 @@ interface ModalExProps {
     onClose: () => void;
     title: ReactNode;
     icon?: LucideIcon;
+    footerStartContent?: ReactNode;
     primaryAction?: ModalAction;
     secondaryAction?: ModalAction;
     dangerAction?: ModalAction;
@@ -56,6 +57,7 @@ export function ModalEx({
     onClose,
     title,
     icon: TitleIcon,
+    footerStartContent,
     primaryAction,
     secondaryAction,
     dangerAction,
@@ -83,8 +85,14 @@ export function ModalEx({
     }, [isMaximized, open]);
 
     const resolvedSize: ModalExSize = isMaximized ? "full" : (size ?? "lg");
-    const hasFooter = Boolean(secondaryAction || primaryAction || dangerAction);
-    const footerClassName = secondaryAction ? MODAL.dialogFooter : MODAL.footerEnd;
+    const hasFooter = Boolean(
+        footerStartContent || secondaryAction || primaryAction || dangerAction,
+    );
+    const footerClassName =
+        footerStartContent || secondaryAction
+            ? MODAL.dialogFooter
+            : MODAL.footerEnd;
+    const showFooterStartSlot = footerClassName === MODAL.dialogFooter;
     const modalClassNames =
         resolvedSize === "sm" ? MODAL.compactClassNames : MODAL.baseClassNames;
     const closeAriaLabel = t("torrent_modal.actions.close");
@@ -190,17 +198,24 @@ export function ModalEx({
                 <ModalBody className={bodyClassName}>{children}</ModalBody>
                 {hasFooter ? (
                     <ModalFooter className={footerClassName}>
-                        {secondaryAction ? (
-                            <Button
-                                variant="light"
-                                onPress={secondaryAction.onPress}
-                                isDisabled={secondaryAction.disabled}
-                                isLoading={secondaryAction.loading}
-                            >
-                                {secondaryAction.label}
-                            </Button>
+                        {showFooterStartSlot ? (
+                            <div className={DETAILS.generalMetricContent}>
+                                {footerStartContent ?? (
+                                    <span aria-hidden="true">&nbsp;</span>
+                                )}
+                            </div>
                         ) : null}
-                        <div className={MODAL.dialogFooterGroup}>
+                        <div className={MODAL.footerButtonRow}>
+                            {secondaryAction ? (
+                                <Button
+                                    variant="light"
+                                    onPress={secondaryAction.onPress}
+                                    isDisabled={secondaryAction.disabled}
+                                    isLoading={secondaryAction.loading}
+                                >
+                                    {secondaryAction.label}
+                                </Button>
+                            ) : null}
                             {dangerAction ? (
                                 <Button
                                     color="danger"

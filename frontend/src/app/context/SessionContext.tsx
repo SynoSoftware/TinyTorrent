@@ -12,7 +12,12 @@ import type {
     EngineRuntimeCapabilities,
 } from "@/services/rpc/engine-adapter";
 import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
-import type { ConnectionStatus, RpcConnectionOutcome } from "@/shared/types/rpc";
+import type {
+    ConnectionStatus,
+    RpcConnectionOutcome,
+    RpcReconnectOptions,
+    RpcConnectionTimeoutDialogController,
+} from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { SessionStats, EngineInfo } from "@/services/rpc/entities";
 import { status } from "@/shared/status";
@@ -22,6 +27,7 @@ import { normalizeHost } from "@/app/utils/uiMode";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import Runtime from "@/app/runtime";
 import { shellAgent } from "@/app/agents/shell-agent";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
@@ -41,8 +47,8 @@ import { isClipboardWriteSupported } from "@/shared/utils/clipboard";
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
     rpcStatus: ConnectionStatus;
-    reconnect: () => Promise<RpcConnectionOutcome>;
-    lastConnectionAttempt: RpcConnectionOutcome | null;
+    reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
+    connectionTimeoutDialog: RpcConnectionTimeoutDialogController;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
     reportCommandError: (error: unknown) => void;
@@ -107,9 +113,13 @@ const resolveDaemonPathStyle = (
 export function SessionProvider({ children }: SessionProviderProps) {
     const torrentClient = useTorrentClient();
     const {
+        preferences: { hasConnectedTorrentServer },
+        updatePreferences,
+    } = usePreferences();
+    const {
         rpcStatus,
         reconnect,
-        lastConnectionAttempt,
+        connectionTimeoutDialog,
         refreshSessionSettings,
         markTransportConnected,
         reportCommandError,
@@ -178,12 +188,19 @@ export function SessionProvider({ children }: SessionProviderProps) {
         [torrentClient],
     );
 
+    useEffect(() => {
+        if (rpcStatus !== status.connection.connected || hasConnectedTorrentServer) {
+            return;
+        }
+        updatePreferences({ hasConnectedTorrentServer: true });
+    }, [hasConnectedTorrentServer, rpcStatus, updatePreferences]);
+
     const sessionValue = useMemo(
         () => ({
             torrentClient,
             rpcStatus,
             reconnect,
-            lastConnectionAttempt,
+            connectionTimeoutDialog,
             refreshSessionSettings,
             markTransportConnected,
             reportCommandError,
@@ -199,7 +216,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             torrentClient,
             rpcStatus,
             reconnect,
-            lastConnectionAttempt,
+            connectionTimeoutDialog,
             refreshSessionSettings,
             markTransportConnected,
             reportCommandError,

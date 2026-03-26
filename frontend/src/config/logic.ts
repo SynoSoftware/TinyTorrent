@@ -119,9 +119,10 @@ const defaultTimers = {
     magnet_event_dedup_window_ms: 1000,
     action_feedback_start_toast_duration_ms: 900,
     optimistic_checking_grace_ms: 5000,
+    rpc_connection_timeout_ms: 1000,
     ws_reconnect: {
-        initial_delay_ms: 1000,
-        max_delay_ms: 10000,
+        initial_delay_ms: 5000,
+        max_delay_ms: 60000,
     },
     ghost_timeout_ms: 30000,
     table_persist_debounce_ms: 250,
@@ -669,6 +670,9 @@ const timingSchemas = {
     recovery: {
         verifyWatchIntervalMs: n("verify_watch_interval_ms", defaultTimers.verify_watch_interval_ms),
     },
+    connection: {
+        timeoutMs: n("rpc_connection_timeout_ms", defaultTimers.rpc_connection_timeout_ms),
+    },
 } as const;
 
 const resolvedTiming = {
@@ -679,6 +683,7 @@ const resolvedTiming = {
     wsReconnect: readNumberDomainFromSchema(wsReconnectConfig, timingSchemas.wsReconnect),
     ui: readNumberDomainFromSchema(uiConfig, timingSchemas.ui),
     recovery: readNumberDomainFromSchema(timerConfig, timingSchemas.recovery),
+    connection: readNumberDomainFromSchema(timerConfig, timingSchemas.connection),
 } as const;
 
 const normalizeDragOverlay = (dragOverlay: DragOverlayConfig): DragOverlayConfig => ({

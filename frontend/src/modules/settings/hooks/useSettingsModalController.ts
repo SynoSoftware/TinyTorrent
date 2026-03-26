@@ -24,6 +24,7 @@ import {
     writeClipboardOutcome,
 } from "@/shared/utils/clipboard";
 import type {
+    SettingsFeedback,
     SettingsFormActionOutcome,
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
@@ -58,10 +59,7 @@ const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
     JSON.stringify(stripLivePreferences(a)) ===
     JSON.stringify(stripLivePreferences(b));
 
-type ModalFeedback = {
-    type: "error" | "success";
-    text: string;
-};
+type ModalFeedback = SettingsFeedback;
 
 export interface SettingsModalController {
     modal: {
@@ -128,7 +126,6 @@ export function useSettingsModalController(
         capabilities,
         onRestoreInsights,
         onToggleWorkspaceStyle,
-        onReconnect,
         isImmersive,
         hasDismissedInsights,
         showAddTorrentDialog,
@@ -156,12 +153,15 @@ export function useSettingsModalController(
     const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
         null,
     );
+    const [connectionFeedback, setConnectionFeedback] =
+        useState<SettingsFeedback | null>(null);
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
     >("idle");
     const jsonCopyTimerRef = useRef<(() => void) | null>(null);
     const resetModalEphemeralState = useCallback(() => {
         setModalFeedback(null);
+        setConnectionFeedback(null);
         setJsonCopyStatus("idle");
         setCloseConfirmPending(false);
         setInputDrafts(new Map());
@@ -174,6 +174,7 @@ export function useSettingsModalController(
             shellAgentAvailable,
             clipboardWriteSupported,
         },
+        reconnect,
     } = useSession();
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
@@ -504,21 +505,20 @@ export function useSettingsModalController(
 
     const safeReconnect = useCallback(
         async (): Promise<SettingsFormActionOutcome> => {
-            if (!onReconnect) {
-                return SETTINGS_ACTION_UNSUPPORTED;
-            }
-            const outcome = await onReconnect();
+            const outcome = await reconnect({
+                suppressTimeoutDialog: true,
+            });
             if (outcome.status !== status.connection.connected) {
-                setModalFeedback({
+                setConnectionFeedback({
                     type: "error",
                     text: t("settings.modal.error_reconnect"),
                 });
                 return SETTINGS_ACTION_FAILED;
             }
-            setModalFeedback(null);
+            setConnectionFeedback(null);
             return SETTINGS_ACTION_APPLIED;
         },
-        [onReconnect, t],
+        [reconnect, t],
     );
 
     const sliderConstraints = useMemo<
@@ -673,8 +673,16 @@ export function useSettingsModalController(
             setFieldDraft,
             jsonCopyStatus,
             configJson,
+            connectionFeedback,
         }),
-        [config, updateConfig, setFieldDraft, jsonCopyStatus, configJson],
+        [
+            config,
+            updateConfig,
+            setFieldDraft,
+            jsonCopyStatus,
+            configJson,
+            connectionFeedback,
+        ],
     );
 
     const settingsFormActions = useMemo<SettingsFormActionsContextValue>(

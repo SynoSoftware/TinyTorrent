@@ -1,25 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { scheduler } from "@/app/services/scheduler";
+import { registry } from "@/config/logic";
 import type {
+    RpcConnectionTimeoutDialogController,
+    RpcConnectionRetryStatus,
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
     RpcConnectionAction,
     RpcConnectionOutcome,
+    RpcReconnectOptions,
 } from "@/shared/types/rpc";
 import { status } from "@/shared/status";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import { infraLogger } from "@/shared/utils/infraLogger";
+const { timing } = registry;
+
+class RpcConnectionTimeoutError extends Error {
+    constructor(timeoutMs: number) {
+        super(`Transmission RPC connection timed out after ${timeoutMs}ms`);
+        this.name = "RpcConnectionTimeoutError";
+    }
+}
+
+type ConnectionAttemptOptions = {
+    preserveStatus?: boolean;
+    resetConnectionBeforeAttempt?: boolean;
+    suppressTimeoutDialog?: boolean;
+};
 
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
     isReady: boolean;
-    lastConnectionAttempt: RpcConnectionOutcome | null;
-    reconnect: () => Promise<RpcConnectionOutcome>;
+    reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
     markTransportConnected: () => void;
     reportCommandError: ReportCommandErrorFn;
     reportReadError: ReportReadErrorFn;
+    connectionTimeoutDialog: RpcConnectionTimeoutDialogController;
 };
 
 export function useRpcConnection(
@@ -31,33 +49,52 @@ export function useRpcConnection(
         status.connection.idle
     );
     const [isReady, setIsReady] = useState(false);
-    const [lastConnectionAttempt, setLastConnectionAttempt] =
-        useState<RpcConnectionOutcome | null>(null);
+    const [showConnectionTimeoutDialog, setShowConnectionTimeoutDialog] =
+        useState(false);
+    const [connectionTimeoutDialogAction, setConnectionTimeoutDialogAction] =
+        useState<RpcConnectionAction | null>(null);
+    const [connectionTimeoutDialogSuppressed, setConnectionTimeoutDialogSuppressed] =
+        useState(false);
+    const [retryStatus, setRetryStatus] =
+        useState<RpcConnectionRetryStatus | null>(null);
     const isMountedRef = useRef(false);
+    const connectPromiseRef = useRef<Promise<RpcConnectionOutcome> | null>(null);
+    const retryDelayMsRef = useRef(timing.wsReconnect.initialDelayMs);
+    const connectionTimeoutDialogSuppressedRef = useRef(false);
+    const showConnectionTimeoutDialogRef = useRef(false);
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
         if (isMountedRef.current) setRpcStatus(next);
     }, []);
 
-    const reportTransportError = useCallback(
-        (error?: unknown) => {
-            // TODO: Standardize log prefixes to “Transmission RPC” (not “tiny-torrent”) once legacy RPC-extended paths are removed.
-            infraLogger.error(
-                {
-                    scope: "rpc_connection",
-                    event: "transport_error",
-                    message: "RPC transport error reported",
-                },
-                error,
-            );
-            updateStatus(status.connection.error);
-        },
-        [updateStatus]
-    );
-
     const markTransportConnected = useCallback(() => {
         updateStatus(status.connection.connected);
     }, [updateStatus]);
+
+    useEffect(() => {
+        connectionTimeoutDialogSuppressedRef.current =
+            connectionTimeoutDialogSuppressed;
+    }, [connectionTimeoutDialogSuppressed]);
+
+    useEffect(() => {
+        showConnectionTimeoutDialogRef.current = showConnectionTimeoutDialog;
+    }, [showConnectionTimeoutDialog]);
+
+    const resetRetryBackoff = useCallback(() => {
+        retryDelayMsRef.current = timing.wsReconnect.initialDelayMs;
+    }, []);
+
+    const scheduleNextRetry = useCallback(() => {
+        const retryDelayMs = retryDelayMsRef.current;
+        retryDelayMsRef.current = Math.min(
+            retryDelayMs * 2,
+            timing.wsReconnect.maxDelayMs,
+        );
+        setRetryStatus({
+            kind: "scheduled",
+            retryAtMs: Date.now() + retryDelayMs,
+        });
+    }, []);
 
     const reportCommandError = useCallback((error?: unknown) => {
         // TODO: Unify error reporting through a single logger/telemetry boundary (Session provider), so leaf hooks don’t each invent their own logging semantics.
@@ -84,54 +121,137 @@ export function useRpcConnection(
         );
     }, []);
 
-    const recordAttempt = useCallback(
-        (outcome: RpcConnectionOutcome) => {
-            if (isMountedRef.current) {
-                setLastConnectionAttempt(outcome);
-            }
-            return outcome;
-        },
-        []
-    );
+    const runProbeWithTimeout = useCallback(async () => {
+        let cancelTimeout = () => {};
+        try {
+            await Promise.race([
+                sessionDomain.probeConnection(),
+                new Promise<never>((_, reject) => {
+                    cancelTimeout = scheduler.scheduleTimeout(() => {
+                        try {
+                            sessionDomain.resetConnection();
+                        } catch {
+                            // Ignore reset failures while timing out a probe.
+                        }
+                        reject(
+                            new RpcConnectionTimeoutError(
+                                timing.connection.timeoutMs,
+                            ),
+                        );
+                    }, timing.connection.timeoutMs);
+                }),
+            ]);
+        } finally {
+            cancelTimeout();
+        }
+    }, [sessionDomain]);
 
     // Probe to verify connectivity. Adapter/Transport handle Transmission RPC session handshakes.
     // TODO: Ensure this hook never triggers any TinyTorrent-only handshake (`tt-get-capabilities`, websocket setup, etc.). Those must be deleted from the adapter layer (see todo.md task 1).
     const connect = useCallback(
-        async (action: RpcConnectionAction): Promise<RpcConnectionOutcome> => {
-        updateStatus(status.connection.idle);
-        setIsReady(false);
-        try {
-            await sessionDomain.probeConnection();
+        async (
+            action: RpcConnectionAction,
+            options?: ConnectionAttemptOptions,
+        ): Promise<RpcConnectionOutcome> => {
+            if (connectPromiseRef.current) {
+                return connectPromiseRef.current;
+            }
 
-            updateStatus(status.connection.connected);
-            if (isMountedRef.current) setIsReady(true);
-            return recordAttempt({
-                status: "connected",
-                action,
-            });
-        } catch (err) {
-            infraLogger.error(
-                {
-                    scope: "rpc_connection",
-                    event: "connect_failed",
-                    message: "RPC connection probe failed",
-                    details: { action },
-                },
-                err,
-            );
-            updateStatus(status.connection.error);
-            if (isMountedRef.current) setIsReady(false);
-            return recordAttempt({
-                status: "failed",
-                action,
-                reason:
-                    action === "reconnect"
-                        ? "reconnect_failed"
-                        : "probe_failed",
-            });
-        }
+            const promise = (async () => {
+                if (!options?.preserveStatus) {
+                    updateStatus(status.connection.idle);
+                    if (isMountedRef.current) {
+                        setIsReady(false);
+                        setRetryStatus(null);
+                        setConnectionTimeoutDialogSuppressed(false);
+                    }
+                    resetRetryBackoff();
+                }
+                if (options?.resetConnectionBeforeAttempt) {
+                    try {
+                        sessionDomain.resetConnection();
+                    } catch {
+                        // Ignore reset failures; the probe will still surface
+                        // the connection state.
+                    }
+                }
+                try {
+                    await runProbeWithTimeout();
+                    updateStatus(status.connection.connected);
+                    if (isMountedRef.current) {
+                        setIsReady(true);
+                        setRetryStatus(null);
+                        setShowConnectionTimeoutDialog(false);
+                        setConnectionTimeoutDialogAction(null);
+                        setConnectionTimeoutDialogSuppressed(false);
+                    }
+                    resetRetryBackoff();
+                    return {
+                        status: "connected",
+                        action,
+                    } satisfies RpcConnectionOutcome;
+                } catch (err) {
+                    const isTimeout = err instanceof RpcConnectionTimeoutError;
+                    infraLogger.error(
+                        {
+                            scope: "rpc_connection",
+                            event: isTimeout
+                                ? "connect_timed_out"
+                                : "connect_failed",
+                            message: isTimeout
+                                ? "RPC connection probe timed out"
+                                : "RPC connection probe failed",
+                            details: {
+                                action,
+                                timeoutMs: timing.connection.timeoutMs,
+                            },
+                        },
+                        err,
+                    );
+                    updateStatus(status.connection.error);
+                    if (isMountedRef.current) {
+                        setIsReady(false);
+                        if (isTimeout) {
+                            scheduleNextRetry();
+                        } else {
+                            setRetryStatus(null);
+                            resetRetryBackoff();
+                        }
+                        if (
+                            isTimeout &&
+                            !options?.suppressTimeoutDialog &&
+                            !connectionTimeoutDialogSuppressedRef.current &&
+                            !showConnectionTimeoutDialogRef.current
+                        ) {
+                            setConnectionTimeoutDialogAction(action);
+                            setShowConnectionTimeoutDialog(true);
+                        }
+                    }
+                    return {
+                        status: "failed",
+                        action,
+                        reason:
+                            action === "reconnect"
+                                ? "reconnect_failed"
+                                : "probe_failed",
+                    } satisfies RpcConnectionOutcome;
+                }
+            })();
+
+            connectPromiseRef.current = promise;
+            try {
+                return await promise;
+            } finally {
+                connectPromiseRef.current = null;
+            }
         },
-        [sessionDomain, updateStatus, recordAttempt]
+        [
+            resetRetryBackoff,
+            runProbeWithTimeout,
+            scheduleNextRetry,
+            sessionDomain,
+            updateStatus,
+        ],
     );
 
     useEffect(() => {
@@ -147,40 +267,54 @@ export function useRpcConnection(
         };
     }, [connect]);
 
-    const reconnect = useCallback(async () => {
-        updateStatus(status.connection.idle);
-        setIsReady(false);
-
-        try {
-            sessionDomain.resetConnection();
-
-            return await connect("reconnect");
-        } catch (err) {
-            infraLogger.warn(
-                {
-                    scope: "rpc_connection",
-                    event: "reconnect_failed",
-                    message: "RPC reconnect request failed",
-                },
-                err,
-            );
-            reportTransportError(err);
-            if (isMountedRef.current) setIsReady(false);
-            return recordAttempt({
-                status: "failed",
-                action: "reconnect",
-                reason: "reconnect_failed",
-            });
+    useEffect(() => {
+        if (
+            retryStatus?.kind !== "scheduled" ||
+            rpcStatus === status.connection.connected
+        ) {
+            return;
         }
-    }, [sessionDomain, connect, reportTransportError, updateStatus, recordAttempt]);
+        const retryDelayMs = Math.max(0, retryStatus.retryAtMs - Date.now());
+        return scheduler.scheduleTimeout(() => {
+            if (isMountedRef.current) {
+                setRetryStatus({ kind: "connecting" });
+            }
+            void connect("reconnect", {
+                preserveStatus: true,
+                resetConnectionBeforeAttempt: true,
+            });
+        }, retryDelayMs);
+    }, [connect, retryStatus, rpcStatus]);
+
+    const reconnect = useCallback(
+        (options?: RpcReconnectOptions) =>
+            connect("reconnect", {
+                resetConnectionBeforeAttempt: true,
+                suppressTimeoutDialog: options?.suppressTimeoutDialog,
+            }),
+        [connect],
+    );
+
+    const dismissConnectionTimeoutDialog = useCallback(() => {
+        if (!isMountedRef.current) {
+            return;
+        }
+        setConnectionTimeoutDialogSuppressed(true);
+        setShowConnectionTimeoutDialog(false);
+    }, []);
 
     return {
         rpcStatus,
         isReady,
-        lastConnectionAttempt,
         reconnect,
         markTransportConnected,
         reportCommandError,
         reportReadError,
+        connectionTimeoutDialog: {
+            isOpen: showConnectionTimeoutDialog,
+            action: connectionTimeoutDialogAction,
+            retryStatus,
+            dismiss: dismissConnectionTimeoutDialog,
+        },
     };
 }

@@ -9,10 +9,15 @@ import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 export function InterfaceTabContent() {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsFormState();
+    const {
+        preferences: { hasConnectedTorrentServer },
+        updatePreferences,
+    } = usePreferences();
     const {
         buttonActions,
         interfaceTab: {
@@ -120,6 +125,22 @@ export function InterfaceTabContent() {
                                 setShowAddTorrentDialog?.(value)
                             }
                             isDisabled={!setShowAddTorrentDialog}
+                        />
+                    </div>
+                    <div className={FORM.switchRow}>
+                        <AppTooltip content={t("settings.descriptions.showTorrentServerSetup")}>
+                            <span className={FORM.systemRowLabel}>
+                                {t("settings.labels.showTorrentServerSetup")}
+                            </span>
+                        </AppTooltip>
+                        <Switch
+                            size="md"
+                            isSelected={!hasConnectedTorrentServer}
+                            onValueChange={(value) =>
+                                updatePreferences({
+                                    hasConnectedTorrentServer: !value,
+                                })
+                            }
                         />
                     </div>
                 </div>

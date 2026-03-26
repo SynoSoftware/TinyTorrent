@@ -144,6 +144,7 @@ export interface PreferencesState {
     refreshIntervalMs: number;
     requestTimeoutMs: number;
     tableWatermarkEnabled: boolean;
+    hasConnectedTorrentServer: boolean;
     workbenchScale: number;
     workspaceStyle: WorkspaceStyle;
     dismissedHudCardIds: string[];
@@ -168,6 +169,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     refreshIntervalMs: DEFAULT_SETTINGS_CONFIG.refresh_interval_ms,
     requestTimeoutMs: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
     tableWatermarkEnabled: DEFAULT_SETTINGS_CONFIG.table_watermark_enabled,
+    hasConnectedTorrentServer: false,
     workbenchScale: DEFAULT_WORKBENCH_SCALE,
     workspaceStyle: "classic",
     dismissedHudCardIds: [],
@@ -445,6 +447,10 @@ const sanitizePreferences = (
             typeof value.tableWatermarkEnabled === "boolean"
                 ? value.tableWatermarkEnabled
                 : DEFAULT_PREFERENCES.tableWatermarkEnabled,
+        hasConnectedTorrentServer:
+            typeof value.hasConnectedTorrentServer === "boolean"
+                ? value.hasConnectedTorrentServer
+                : DEFAULT_PREFERENCES.hasConnectedTorrentServer,
         workbenchScale:
             typeof value.workbenchScale === "number"
                 ? clampScale(value.workbenchScale)

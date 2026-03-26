@@ -260,6 +260,7 @@ const createController = (): SettingsModalController =>
                 setFieldDraft: vi.fn(),
                 jsonCopyStatus: "idle",
                 configJson: "{}",
+                connectionFeedback: null,
             },
             settingsFormActions: {
                 capabilities: {

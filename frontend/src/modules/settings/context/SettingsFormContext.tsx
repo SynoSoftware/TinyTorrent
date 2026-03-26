@@ -10,6 +10,11 @@ export type SettingsFormActionOutcome =
     | { status: "unsupported"; reason: "capability_unavailable" }
     | { status: "failed"; reason: "execution_failed" };
 
+export interface SettingsFeedback {
+    type: "error" | "success";
+    text: string;
+}
+
 export interface SettingsFormStateContextValue {
     config: SettingsConfig;
     updateConfig: <K extends ConfigKey>(
@@ -19,6 +24,7 @@ export interface SettingsFormStateContextValue {
     setFieldDraft: (key: ConfigKey, draft: string | null) => void;
     jsonCopyStatus: "idle" | "copied" | "failed";
     configJson: string;
+    connectionFeedback: SettingsFeedback | null;
 }
 
 export interface SettingsFormActionsContextValue {

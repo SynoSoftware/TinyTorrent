@@ -3,6 +3,7 @@ import Runtime from "@/app/runtime";
 import { usePreferences } from "@/app/context/PreferencesContext";
 
 import { CommandPalette } from "@/app/components/CommandPalette";
+import { ConnectionTimeoutDialog } from "@/app/components/ConnectionTimeoutDialog";
 import { WorkspaceShell } from "@/app/components/WorkspaceShell";
 import { GlobalHotkeysHost } from "@/app/components/GlobalHotkeysHost";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
@@ -37,6 +38,7 @@ function AppContent() {
         <AppCommandProvider value={appCommandValue}>
             <GlobalHotkeysHost {...controller.commands.globalHotkeys} />
             <WorkspaceShell workspaceViewModel={viewModel.workspace} statusBarViewModel={viewModel.statusBar} />
+            <ConnectionTimeoutDialog />
             <CommandPalette
                 isOpen={controller.commands.commandPaletteState.isOpen}
                 onOpenChange={controller.commands.commandPaletteState.setIsOpen}

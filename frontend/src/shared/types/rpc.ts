@@ -19,6 +19,10 @@ export type ReportTransportErrorFn = (error?: unknown) => void;
 export type ReportCommandErrorFn = (error?: unknown) => void;
 export type ReportReadErrorFn = (error?: unknown) => void;
 
+export interface RpcReconnectOptions {
+    suppressTimeoutDialog?: boolean;
+}
+
 export type RpcConnectionAction = "probe" | "reconnect";
 
 export type RpcConnectionOutcome =
@@ -31,3 +35,19 @@ export type RpcConnectionOutcome =
           action: RpcConnectionAction;
           reason: "probe_failed" | "reconnect_failed";
       };
+
+export type RpcConnectionRetryStatus =
+    | {
+          kind: "scheduled";
+          retryAtMs: number;
+      }
+    | {
+          kind: "connecting";
+      };
+
+export interface RpcConnectionTimeoutDialogController {
+    isOpen: boolean;
+    action: RpcConnectionAction | null;
+    retryStatus: RpcConnectionRetryStatus | null;
+    dismiss: () => void;
+}

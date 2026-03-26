@@ -139,7 +139,6 @@ export interface SettingsModalViewModel {
     };
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
-    onReconnect: () => Promise<RpcConnectionOutcome>;
     isImmersive?: boolean;
     hasDismissedInsights: boolean;
     showAddTorrentDialog: boolean;

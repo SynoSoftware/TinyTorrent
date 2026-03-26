@@ -502,7 +502,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         isSettingsOpen,
         closeSettings,
         toggleWorkspaceStyle,
-        reconnect,
         workspaceStyle,
         hasDismissedInsights,
         showAddTorrentDialog: addTorrentPreferenceDefaults.showAddDialog,

@@ -111,7 +111,7 @@ They are defaults, not architectural invariants.
 They may change if replaced without violating the canonical Hard Invariants in §21.
 
 - React + TypeScript
-- Tailwind + HeroUI
+- HeroUI + shared `uiRoles.ts` + Tailwind layout utilities
 - Framer Motion for structural motion
 - react-resizable-panels for pane persistence
 - cmdk for command palette
@@ -132,24 +132,22 @@ If you’re unsure what to do, follow these rules first, then read the reference
 - **Owner-extension-first:** extend existing owners before adding new surfaces. (See §0.2 and §21.13)
 - **Outcome contracts:** expected failures are typed outcomes, not exception control flow. (See §21.12 and §20)
 - **UI vs control plane:** UI may hide/disable capabilities, but boundary owners must enforce outcomes. (See §20 and §21)
-- **Diff-first for user-visible changes.** If behavior or UI output changes and the change is meant to land (or be reviewed), the change note must describe it explicitly and include the relevant diff artifact (screenshots/video for UI; surface-tree + guardrails for token/surface changes). (`frontend/TOKEN_CONTRACT.md`)
+- **Diff-first for user-visible changes.** If behavior or UI output changes and the change is meant to land (or be reviewed), the change note must describe it explicitly and include the relevant diff artifact (screenshots/video for UI; before/after notes for UI authority changes).
 - **Change note must list commands run (when landing/reviewing).** Include the exact `npm run ...` commands executed (lint/test/build + any relevant enforce/report scripts). If something cannot be run, state it explicitly and why.
 
 ## **0.1 Authority Registry (Hard)**
 
 Adding a new authority (a new “source of truth” surface) is forbidden unless it is registered here first.
 
-- **Surface token contract:** `frontend/TOKEN_CONTRACT.md`, `frontend/src/shared/ui/layout/glass-surface.ts`
-- **Token pipeline + global knobs:** `frontend/src/config/constants.json`, `frontend/src/index.css`
-- **Semantic UI logic/utilities:** `frontend/src/config/logic.ts`
-- **Text roles / typography roles:** `frontend/src/config/textRoles.ts`
+- **UI roles authority:** `frontend/src/shared/ui/uiRoles.ts` (semantic roles only; keep it small, roughly 20-25 entries max)
+- **Global non-visual knobs + layout geometry:** `frontend/src/config/constants.json`, `frontend/src/index.css`
+- **Approved shell owners (optional):** `frontend/src/shared/ui/shells/`
 - **RPC schema/validation authority:** `frontend/src/services/rpc/schemas.ts`
 - **RPC protocol feature/version support authority:** `frontend/src/services/rpc/version-support.ts`
 - **RPC transport outcome semantics:** `frontend/src/services/transport.ts`
 - **Feature ViewModel Authority (primary):** each feature module owns exactly one primary ViewModel, defined inside that module (for example `frontend/src/modules/dashboard/hooks.ts`)
 - **Cross-feature/global ViewModel authority (optional):** `frontend/src/app/` (only when no single feature can own the concern)
 - **Orchestration owner (cross-feature coordination):** `frontend/src/app/orchestrators/`
-- **Shared UI primitives:** `frontend/src/shared/ui/`
 
 ## **0.2 Owner Extension Statement (Landing/Review Gate)**
 
@@ -159,6 +157,7 @@ If a change introduces a new module/hook/service/model/constant set that is inte
 - **Lifecycle:** per render / per hook instance / per session / per application
 - **Why new surface:** why extending the existing owner would violate single-responsibility or authority/lifecycle rules (§21)
 - **Consumers:** at least one immediate consumer in the same change (no speculative surfaces)
+- **Violations:** for each encountered UI/component-structure violation in touched code, state one action only: direct HeroUI, delete, merge into one authority, or keep with explicit justification
 
 When the change introduces a new structural surface or rejects reuse/generalization during a structural change, the change note must also include the §21.21 structural change evidence block.
 
@@ -166,10 +165,11 @@ When the change introduces a new structural surface or rejects reuse/generalizat
 
 A change is not eligible to land (or be treated as done) if it introduces any of the following:
 
-- bypassing named authorities (tokens/primitives/text roles/interactive recipes/config)
+- bypassing named authorities (`uiRoles.ts`, HeroUI, config)
 - feature-local styling authorities (inline styles, raw numbers, bracket classes) — see §3.6 and §5 checklist
-- raw Tailwind utility authoring in feature UI files without qualifying under the Tailwind Exception Rule in §3.6
-- new token namespaces, compatibility aliases, or feature-owned token maps that violate `frontend/TOKEN_CONTRACT.md`
+- raw Tailwind utility authoring in feature UI files outside layout-only classes permitted by §3.6
+- new visual tokens, style maps, registries, or compatibility aliases
+- reintroducing `config/logic.ts` or `glass-surface.ts` as styling authority
 - duplicated decision logic across Component/Hook/ViewModel/Orchestrator layers (§21)
 - a new surface without an Owner Extension Statement (§0.2)
 - a structural change that requires the §21.21 evidence block without that block
@@ -232,7 +232,7 @@ Identify the feature module or authority responsible for the domain being modifi
 Examples:
 
 - feature ViewModel in `modules/*/hooks.ts`
-- shared primitives in `shared/ui/`
+- shared UI roles in `shared/ui/`
 - shared hooks in `shared/hooks/`
 - domain logic in `services/`
 - control-plane authorities in `app/`
@@ -244,7 +244,7 @@ If the owner is unclear, stop and determine it before writing code.
 Before introducing any new logic, the implementer must inspect the following locations for existing implementations:
 
 - the feature module being modified
-- shared UI primitives
+- shared UI roles
 - shared hooks
 - shared utilities
 - service/domain logic
@@ -347,7 +347,7 @@ No single CSS dimension token (height/width/padding/gap/font-size/line-height/ic
 If an element requires both:
 
 - Do NOT implement it.
-- FLAG it as a missing semantic role.
+- STOP and report that the current HeroUI + `uiRoles.ts` model does not cover it.
 
 ### **Constraint Directionality**
 
@@ -357,21 +357,20 @@ Geometry-owned containers (Sidebars, Navs) impose layout constraints. If Typogra
 
 **Definitions**
 
-- **Surface owner**: a container responsible for glass context, radius, and blur compatibility.
+- **Surface owner**: a container allowed to apply a shared `uiRoles.ts` surface role.
 - **Structural child**: any component rendered inside a surface owner (headers, views, tables, scroll bodies, rows, tabs).
-- **`surfaceStyle`**: the token that establishes a glass surface context.
-- **`outerStyle`**: the token that establishes shell chrome geometry.
+- **Shell owner**: an explicitly approved shell in `shared/ui/shells/`.
 
 **Rules**
 
-1. **`surfaceStyle` may be applied only by surface owners.**
+1. **Shared surface roles may be applied only by surface owners.**
 
-2. **Structural children must never apply `surfaceStyle`.**
+2. **Structural children must never define local visual styling.**
 
 3. **Headers are structural children.**
-   Headers must be typography-only and must not apply background, border, radius, blur, or surface tokens.
+   Headers must be typography-only and must not apply background, border, radius, blur, or shared surface roles.
 
-4. **`outerStyle` may be applied only by shell chrome containers.**
+4. **Shell-level visual styling may be applied only by explicitly approved shells.**
 
 5. **A structural child assumes a surface context is provided by an ancestor.**
 
@@ -391,11 +390,10 @@ This file is a **contract**, not a style guide. It defines *principles* that kee
 All styling authority follows this chain:
 
 1. **Root Knobs:** §3.1
-2. **Token Pipeline:** §3.2
-3. **Semantic Authorities:** §3.6
-4. **Structural Primitives:** Structural Layout Primitives section
-5. **Feature Mechanics:** local utilities for layout mechanics only
-6. **Enforcement:** §5 checklist
+2. **Non-Visual Config Boundary:** §3.2
+3. **UI Authority:** §3.6
+4. **Feature Mechanics:** layout classes only
+5. **Enforcement:** §5 checklist
 
 If a styling rule is not in this chain, it is guidance, not authority.
 
@@ -409,363 +407,113 @@ The UI must remain stable under the three global scale knobs:
 
 Principles:
 
-- Prefer using existing knobs/tokens over introducing new global knobs.
-- If a new knob is truly required, it must be introduced intentionally through the design token pipeline (not ad-hoc in components).
+- Prefer using existing knobs over introducing new global knobs.
+- If a new knob is truly required, it must be introduced intentionally through `constants.json` and `index.css`, not ad hoc in components.
 
-## **3.2 Use the Token Pipeline for Design Decisions**
+## **3.2 Use Config For Non-Visual Decisions**
 
-Feature components should not “decide” new numbers, opacities, radii, shadows, or blur values.
+Feature components should not decide new runtime/layout numbers ad hoc.
 
-Practical rule: when the decision is *design* (not pure layout composition), it must flow through the existing layers:
+Practical rule:
 
-1. **Intent** in `config/constants.json` (meaning, not CSS)
-2. **Arithmetic** in `index.css` (`@theme`, derived from the root knobs)
-3. **Role** in `config/logic.ts` (semantic exports / class utilities)
-4. **Usage** in `.tsx` (compose the semantic utilities)
+1. **Intent** in `config/constants.json` for non-visual product defaults, timings, limits, layout metrics, and visualization config
+2. **Arithmetic** in `index.css` only for shared layout geometry
+3. **Normalization** in `config/logic.ts` for non-visual concerns only
+4. **Usage** in `.tsx`
 
-This keeps changes small, reviewable, and prevents “className changes for everything”.
+`config/logic.ts` is not a styling authority.
+It must not export visual classes, visual recipes, typography classes, surface classes, status tone classes, or interactive styling.
 
-## Surface token normalization (high priority)
+## UI Role Consolidation (high priority)
 
-When working with surface tokens across the codebase, perform a semantic normalization pass.
+When working on visuals, consolidate repeated generic visual patterns into `uiRoles.ts` only.
 
-- Scan the full token tree and identify tokens with overlapping or equivalent meaning.
-- Collapse semantically equivalent tokens into a single canonical token.
-- Prefer the token that is:
-  - more widely used
-  - more clearly named
-  - more aligned with design intent
-- Replace all duplicates with the chosen canonical token.
-
-Ambiguity rule:
-- If multiple tokens could reasonably serve as the canonical version and the choice is not clearly better, stop and ask for clarification before proceeding.
-
-Constraints:
-- Do not preserve redundant tokens for historical or local reasons.
-- Do not introduce new tokens unless necessary.
-- Do not create visual divergence without semantic justification.
-
-Goal:
-Minimize token count while maximizing semantic clarity and UI consistency.
+- Collapse semantically equivalent roles into one canonical role.
+- Keep roles semantic, small, and component-agnostic.
+- Do not preserve redundant visual tokens or roles for historical reasons.
+- Do not introduce new visual tokens, maps, registries, or recipes during migration.
+- If the needed style is not already covered by HeroUI or `uiRoles.ts`, stop and report it instead of inventing a new system.
 
 
-## **3.3 Standard Elements Over Inline Recipes**
+## **3.6 Styling Model (WinUI3)**
 
-Prefer **standard elements** (shared primitives, semantic components, and tokenized utilities) over duplicating long Tailwind strings.
+### **1. Single UI Scaffold**
 
-Principle: *make the standard element once, then keep feature code boring.*
-
-Centralize only when it clearly pays off (shared pattern or repeated recipe). Avoid creating abstractions for one-offs. This does not permit local visual styling authorities; §3.6 still governs styling.
-
-## **3.4 Minimize Classname Churn (No Style Sweeps)**
-
-Do not change classNames “for consistency” unless at least one is true:
-
-- You are fixing a functional/UX bug in that area, or
-- You are adopting an existing standard element in the code you touched, or
-- You are creating the missing standard element (token/component) that will reduce future churn.
-
-Avoid repo-wide stylistic migrations unless explicitly requested.
-
-## **3.5 Plans Are Working Documents (Not a New Law)**
-
-These documents describe the intended direction for reducing drift, but they are allowed to evolve as implementation proves what works:
-
-- `SURFACE_CLEANUP_PLAN.md`
-- `TEXT_ROLE_MIGRATION.md`
-- `CONSISTENCY_AUDIT.md`
-
-When working *in those areas*, align with them. If they conflict with existing code or reality, prefer the smallest safe change and flag what needs to be amended in the plan.
-
-## **3.6 Feature Styling Ownership (Tier 2 Contract)**
-
-Feature code must consume shared semantic authorities for visual meaning. Tailwind utility authoring in feature files is disallowed by default and only permitted by the Tailwind Exception Rule below.
-
-### **No Local Styling Authority Rule (Hard)**
-
-Feature/UI files must not define styling authority.
-
-Forbidden:
-
-- local style constants/maps (`const ...CLASS...`, `const ...ClassNames...`)
-- raw Tailwind visual recipes in feature files
-- feature-prefixed style namespaces as end-state authorities
-
-Allowed:
-
-- consuming shared style authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`)
-- minor mechanical utilities only when they satisfy the Tailwind Exception Rule
-- mechanical class composition when semantic meaning is owned by shared authorities
-
-### **Modal Styling Contract (Hard)**
-
-Applies to `**/*Modal*.tsx`.
-
-- Modal files are style consumers only.
-- Modal files must not introduce modal-local class recipes or style maps.
-- Modal visual/layout semantics must come from shared authorities.
-- If a modal needs a new visual role, extend shared authorities first; do not implement styling locally in the modal file.
-
-### **UI Surface Authority Rule (Hard; Tier 2 Contract)**
-
-- UI components must not define new surface semantics inline (surface background, blur, border, radius, elevation, layering).
-- Surface composition must originate from the declared surface authority or structural primitives. Feature modules may not assemble new composite surface recipes. (See §0.1 and Structural Layout Primitives.)
-- Repeated semantic composite patterns must be promoted into the surface authority; feature modules must not copy/paste near-identical surface recipes.
-- This does not apply to mechanical layout utilities (spacing/alignment/sizing) that do not create new visual semantics.
-- Small mechanical adjustments that sit on top of parent layout/surface tokens (for example `justify-end`, `items-end`, `text-right`, `ml-auto`) must remain local composition and must not trigger new token creation.
-
-**Semantic authority locations:**
-
-- `frontend/src/shared/ui/layout/glass-surface.ts`
-- `frontend/src/config/textRoles.ts`
-- `frontend/src/config/logic.ts`
-
-**Forbidden in feature/UI components:**
-
-- ad-hoc semantic surface recipes (`bg-*`, `border-*`, `shadow-*`, `rounded-*`, `backdrop-blur-*`) used as local semantic systems
-- feature-local semantic styling authorities (feature-prefixed token maps/constants)
-- duplicate semantic systems that parallel shared authorities
-
-**Allowed in feature/UI components:**
-
-- compose semantic classes from shared authorities
-- minor mechanical utilities only when they qualify under the Tailwind Exception Rule
-- third-party `classNames` composition only when semantic meaning still comes from shared authorities and Tailwind exceptions are not exceeded
-
-**Promotion rule:**
-
-- Promote to shared utilities/primitives when reuse is stable and semantic meaning exists.
-- If a semantic role is missing, extend the authority chain instead of creating local semantic rules.
-
-### **Tailwind Exception Rule (Hard)**
-
-Tailwind utilities are permitted in feature/UI files only when **all** conditions are true:
-
-1. The utilities are strictly mechanical (`flex`/alignment/spacing/flow) and do not encode visual semantics (no color, border, shadow, blur, radius, opacity, typography, transitions, or effects).
-2. The usage is minor and local (single element, short utility list), and creating a new shared token/role would be disproportionate.
-3. The same utility recipe is not repeated across components. On second reuse, promote to shared authority.
-4. No local style authority is introduced (`const ...ClassNames`, `const ...CLASS...`, feature-local styling maps).
-
-If any condition fails, move styling to shared authorities (`glass-surface.ts`, `textRoles.ts`, `logic.ts`) before landing.
-
-### **Styling Exception Procedure (Hard)**
-
-If a shared style authority is missing:
-
-1. Stop local styling work.
-2. Add/extend the shared authority in `glass-surface.ts`, `textRoles.ts`, or `logic.ts`.
-3. Consume that authority from feature code.
-
-Direct local styling exceptions require explicit user approval in-thread. Silent or implied exceptions are forbidden.
-
-# **Structural Layout Primitives (Authority Scope)**
-
-Structural primitives own shared layout/surface patterns with clear intent.
-Use them where they add consistency and reuse value; do not force them for every local layout decision.
-
-This rule exists to ensure deterministic surface semantics and reduce repetition where it is real.
-
-**Layout Authority Rule**
-
-Semantic visual framing must be owned by structural primitives or semantic roles.
-Mechanical layout spacing/grouping/alignment may be authored locally with utilities.
-Repeated layout recipes become candidates for extraction when reuse is stable and semantic meaning exists.
+- HeroUI is the only control layer.
+- `frontend/src/shared/ui/uiRoles.ts` is the only shared visual authority.
+- Feature code may only compose HeroUI controls, apply `uiRoles.ts`, and use layout-only `className`.
 
 ---
 
-## **1. Approved Structural Primitives**
+### **2. `className` Rule**
 
-### **Surface**
-
-Owns:
-
-- background
-- blur
-- elevation/shadow
-- border
-- radius
-- surface padding
-
-Responsibilities:
-
-- defines the visual surface container for panels, cards, inspectors, tool areas, and modal bodies
-- may not define page centering or max-width behavior
-
-Prohibited inside features:
-
-- direct glass recipes
-- direct blur/shadow/radius application
-- ad-hoc card/panel surface construction
+- `className` is layout only: `flex`, `gap`, `grid`, sizing, overflow, and positioning.
+- `className` must not define colors, borders, radius, shadows, typography, blur, opacity, or interaction states.
 
 ---
 
-### **Section**
+### **3. `uiRoles.ts` Rule**
 
-Owns:
-
-- page/stage centering
-- horizontal alignment rhythm
-- max-width governance
-- stage padding
-
-Responsibilities:
-
-- defines top-level page/workbench stage containers
-- establishes horizontal rhythm and alignment for contained surfaces
-
-Must not:
-
-- define background, blur, elevation, or card framing
+- `uiRoles.ts` contains semantic, component-agnostic roles only.
+- Keep it small: roughly 20-25 entries max.
+- Allowed shared groups are `surfaces`, `text`, and `borders`.
+- Component-specific visual roles are forbidden.
+- HeroUI wrapper styling maps, status/style registries, and interaction recipe registries are forbidden.
 
 ---
 
-### **Stack**
+### **4. Forbidden**
 
-Owns:
-
-- vertical spacing between children
-
-Responsibilities:
-
-- replaces `space-y-*` and manual vertical spacing patterns
-- defines deterministic vertical rhythm
-
-Must not:
-
-- define surfaces
-- define horizontal layout or centering
+- Any visual styling in `className`
+- Any additional styling systems (tokens, maps, registries, recipes)
+- Any wrapper component that only restyles HeroUI
+- Any reintroduction of `config/logic.ts` or `glass-surface.ts` as styling authority
 
 ---
 
-### **Cluster**
+### **5. Optional Shell Layer**
 
-Owns:
-
-- horizontal grouping rhythm
-- toolbar/button/chip grouping spacing
-
-Responsibilities:
-
-- replaces ad-hoc `flex gap-*` clusters
-- defines deterministic horizontal spacing
-
-Must not:
-
-- define surfaces
-- define vertical spacing rules
+- `shared/ui/shells/` may contain only explicitly approved shell owners.
+- Do not create shared primitives or wrappers by default.
+- Shells must not become a second styling authority.
 
 ---
 
-## **2. Usage Rules**
+### **6. Migration**
 
-1. Any container that visually frames content (panel, modal body, inspector block, card, table shell) **must use `Surface`**.
-
-2. Any container responsible for page/workbench centering or stage padding **must use `Section`**.
-
-3. `Stack`/`Cluster` are preferred for repeated grouping patterns and stable UI motifs. Local `flex`/`gap` utilities are acceptable for one-off or low-reuse layout mechanics only when they satisfy the Tailwind Exception Rule (§3.6).
-
-4. Feature components are **forbidden** from composing their own surface recipes using Tailwind classes, blur, border, radius, or shadow tokens.
-
-5. Promotion rule: extract to a shared semantic utility/primitive when reuse is stable and semantic meaning exists.
-
-6. Surface/Section/Stack/Cluster primitives must live in shared UI primitives (single authority location) and be reused across the application.
-   Feature modules must never define local variants.
-
-7. Feature code must not stack multiple Surface recipes for the same intent (double borders/shadows). If nested surfaces are required (e.g., modal shell + inner pane), each layer must have a distinct declared intent (Shell / Pane / Card) and use the corresponding primitive.
+- Replace visual `className` usage with `uiRoles.ts`.
+- Use HeroUI directly for controls.
+- Delete `glass-surface.ts` once covered.
+- Do not introduce new visual tokens, maps, or registries during migration.
+- Do not preserve parallel systems.
 
 ---
 
-## **3. Migration Rule**
+### **7. Enforcement**
 
-During structural changes:
+If a visual requirement is not covered by HeroUI or `uiRoles.ts`:
 
-- If a container applies background + border + radius + blur -> replace with `Surface`.
-- If a container applies centering/max-width/stage padding -> replace with `Section`.
-- Replace repeated `gap-*`, `space-*`, or toolbar spacing with `Stack` or `Cluster` when reuse is stable and semantic meaning exists.
+- stop and report it
+- do not invent a new role or styling system
 
-Incremental migration is allowed; primitives must be used for all newly written UI.
+The following are violations and must be corrected:
 
----
-
-## **4. Architectural Intent**
-
-Layout ownership must be deterministic:
-
-- **Surface** controls visual framing
-- **Section** controls page alignment
-- **Stack** controls vertical rhythm
-- **Cluster** controls horizontal rhythm
-
-No other component may assume these responsibilities.
+- raw visual utility classes in `className`
+- local visual patterns
+- duplicate or component-specific roles
+- new visual tokens, maps, registries, or recipes
+- HeroUI restyling wrappers
 
 ---
 
-# **4. Theming & Semantic Tokens**
+# **4. Theme Semantics**
 
-This section defines theme defaults and semantic mappings inside the §3 styling authority chain.
+This section does not define a second styling system.
 
-Use **HeroUI semantic tokens** for semantic color meaning.
-
-### **The Layered Depth System (Semantic Glass)**
-
-We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves semantic color (light/dark aware) while applying glass transparency.
-
-| Layer       | Surface                      | Tokens                                                                        |
-| :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
-| **Layer 0** | App Background (Shell)       | `bg-background` + subtle noise texture (2–4% opacity), defined via config     |
-| **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
-| **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
-
-Every glass layer (Layers 1 and 2) should keep a subtle semantic border (`border-default/xx`) so edges remain readable across themes.
-
-- **Layer 0 (App Shell):**
-
-  - Transparency should allow OS window material to show through if supported (Mica-like effect).
-  - Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
-  - The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
-
-### **Semantic Status Mapping**
-
-These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
-
-| Token     | Usage                  |
-| --------- | ---------------------- |
-| `success` | Seeding, Completed     |
-| `warning` | Paused, Checking       |
-| `danger`  | Deletes, Errors        |
-| `primary` | CTAs, Progress Accents |
-| `default` | Borders, Inactive Text |
-
----
-
-## **Color Rules**
-
-**Use:**
-
-- `var(--heroui-background)`
-- `var(--heroui-content1)`
-- `var(--heroui-foreground)`
-- `var(--heroui-primary)`
-- `var(--heroui-default)` (for borders/dividers)
-- Tailwind visual utilities belong in shared authorities. Feature files must follow §3.6 (Tailwind Exception Rule) and may not define local visual semantics.
-
-**Avoid:**
-
-- Custom hex / rgb colors in JSX/TSX
-- Tailwind named colors (`bg-slate-900`, etc.)
-- Hard-coded `border-white` / `border-black` (breaks theme switching)
-- Manual `rgba()` color calculations
-
-All shell-level constants (fallback grays, noise strength, etc.) live in `config/constants.json`, never inline.
-
-### **Aesthetic**
-
-- Detect system dark/light mode and use it automatically; fallback = Dark.
-- Detect system/browser language and use it; fallback = English.
-- Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
-- Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
-- Strong typography hierarchy (Swiss style).
-- Layered shadows used sparingly for depth — never decoration.
+- Use HeroUI semantic theme tokens as the underlying color system.
+- Shared visual composition belongs in `uiRoles.ts` only.
+- Do not define semantic status maps, depth systems, visual registries, or token tables outside `uiRoles.ts`.
+- Avoid custom hex/rgb values and named Tailwind color palettes in JSX/TSX.
 
 ---
 
@@ -789,21 +537,20 @@ If a change causes any of these, it is a failure:
 
 Before claiming UI work is done, verify:
 
-- Root knobs and token pipeline are respected (§3.1, §3.2).
-- Semantic meaning comes from declared authorities, not feature-local semantic systems (§3.6).
-- Structural framing uses shared primitives where applicable (Structural Layout Primitives).
-- Local utilities are mechanical only, and promotions follow stable semantic reuse (§3.6).
-- Theme semantics remain consistent across light/dark and status mappings (§4).
+- Root knobs and non-visual config boundaries are respected (§3.1, §3.2).
+- Semantic meaning comes from shared roles, not feature-local semantic systems (§3.6).
+- Layout classes are layout-only; visual styling comes from HeroUI + shared roles (§3.6).
+- Theme semantics remain consistent without adding a second styling authority (§4).
 - Scroll behavior does not introduce layout shift in pane workflows (§7).
-- No duplicate semantic recipe strings were introduced where a shared authority exists.
+- No second styling authority or HeroUI restyling wrapper was introduced.
 
 ## **C. Agent Output Requirement**
 
-When UI changes are intended to land (or be reviewed), include a short “Token Mapping” note in the change note:
+When UI changes are intended to land (or be reviewed), include a short “Role Mapping” note in the change note:
 
-- Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
-- Whether any new token was required
-- If required but missing → must be flagged, not hacked
+- Which `uiRoles.ts` entries were used
+- Which HeroUI controls own the visual styling
+- If the needed style is missing from both, it must be flagged, not hacked
 
 ---
 
@@ -1284,7 +1031,7 @@ This pattern operationalizes §21 for frontend feature design.
 1. Expose one primary feature ViewModel surface, owned inside the feature module.
 2. Translate service/domain outcomes into UI-facing state.
 3. Expose command surfaces consumed by views.
-4. Avoid wrapper-viewmodel fragmentation unless it removes duplication or establishes a reusable boundary.
+4. Avoid wrapper-viewmodel fragmentation unless it removes current duplication or centralizes a real cross-feature authority.
 5. Place truly cross-feature UI authority under `src/app/`.
 
 ### **Context And Command Routing**
@@ -1302,8 +1049,8 @@ src/
 |-- app/                      # App shell: providers, routes, main.tsx
 |
 |-- config/                   # THE TWO CONFIG FILES
-|   |-- constants.json        # 1. Literals (colors, magic numbers, defaults)
-|   \-- logic.ts              # 2. Logic (types, computed config, maps)
+|   |-- constants.json        # 1. Non-visual literals (defaults, timings, layout metrics)
+|   \-- logic.ts              # 2. Non-visual computed config (types, runtime, layout, visualization)
 |
 |-- modules/                  # Feature Areas
 |   |-- dashboard/            # Flat structure - no internal folders
@@ -1326,9 +1073,9 @@ src/
 |   |   |-- schemas.ts             # Zod Schemas (Validation)
 |   |   \-- types.ts               # Inferred TypeScript Types
 |
-|-- shared/                   # Generic Reusables
-|   |-- ui/                   # Reusable UI primitives (Buttons, Inputs)
-|   |-- components/           # Complex shared components
+|-- shared/                   # Declared shared authorities only
+|   |-- ui/                   # Shared UI roles + explicitly approved shells
+|   |-- components/           # Shared components only when a real authority exists
 |   |   \-- SimpleVirtualTable.tsx  # Light Grid (Files/Peers)
 |   |-- hooks/                # Generic hooks
 |   \-- utils/                # Generic logic
@@ -1409,14 +1156,14 @@ Coding standards and workflow rules in this section must follow and reference th
 
 - Never hardcode numbers or colors in code.
 - Import literals from `@/config/constants.json`.
-- Import config logic from `@/config/logic.ts`.
+- Import config logic from `@/config/logic.ts` for non-visual runtime/layout concerns only.
 - Reusable defaults, limits, timings, debounce windows, retention periods, queue/history caps, and similar product knobs must live in `constants.json` and be exposed through `logic.ts`, not spread across hooks/components/orchestrators.
 - Local literals are allowed only when they are intrinsic to a tiny algorithm and not a configurable product decision.
 
 ## **2a. Config Compression**
 
 - Prefer extending `constants.json` / `logic.ts` over creating new config surfaces.
-- `logic.ts` must stay a thin config registry: derive, normalize, and expose values, but must not absorb feature workflows, back-compat branches, or duplicated fallback objects that belong in source config or domain modules.
+- `logic.ts` must stay a thin non-visual config registry: derive, normalize, and expose values, but must not absorb feature workflows, visual classes, style maps, recipes, or duplicated fallback objects that belong in source config or domain modules.
 
 ---
 
@@ -1483,6 +1230,7 @@ then the agent must reduce the violation **only when responsibilities are reused
 - Extract **one** responsibility (hook, helper, subcomponent) only when API tightening does not remove the need, or
 - Move logic closer to its correct layer (hook → service → adapter), or
 - Introduce a clearer boundary (split component, isolate effect, isolate selector)
+- Do not extract helper components that only shorten JSX, rename HeroUI usage, or forward props/classNames without owning non-local policy.
 
 **API Tightening Before Extraction**
 
@@ -1559,6 +1307,7 @@ Local repetition rule (global):
 Runtime policy resolution contract (config boundary modules such as `config/logic.ts`):
 
 - Resolve knobs once at the boundary module. Leaf code must not parse config, call readers, or apply local defaults.
+- Config boundary modules must not act as styling authorities.
 - Runtime policy modules must not define or resolve control-plane identifiers (status/reason/outcome/intent IDs).
 - A module should stay in one architectural layer: do not mix control-plane authority, runtime policy resolution, and presentation recipes unless explicitly declared as a multi-domain authority.
 - Runtime policy modules normalize configuration values; feature-specific shaping/derivation belongs in the owning feature/domain module.

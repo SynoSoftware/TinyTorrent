@@ -3,10 +3,12 @@ import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineInfo } from "@/services/rpc/entities";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
+    RpcConnectionTimeoutDialogController,
     ReportCommandErrorFn,
     ReportReadErrorFn,
     ConnectionStatus,
     RpcConnectionOutcome,
+    RpcReconnectOptions,
 } from "@/shared/types/rpc";
 import { status } from "@/shared/status";
 import { useRpcConnection } from "@/app/hooks/useRpcConnection";
@@ -16,7 +18,7 @@ type UseTransmissionSessionResult = {
     client: EngineAdapter;
     rpcStatus: ConnectionStatus;
     isReady: boolean;
-    reconnect: () => Promise<RpcConnectionOutcome>;
+    reconnect: (options?: RpcReconnectOptions) => Promise<RpcConnectionOutcome>;
     sessionSettings: TransmissionSessionSettings | null;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     markTransportConnected: () => void;
@@ -25,7 +27,7 @@ type UseTransmissionSessionResult = {
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
-    lastConnectionAttempt: RpcConnectionOutcome | null;
+    connectionTimeoutDialog: RpcConnectionTimeoutDialogController;
 };
 
 export function useTransmissionSession(
@@ -35,11 +37,11 @@ export function useTransmissionSession(
     const {
         rpcStatus,
         isReady,
-        lastConnectionAttempt,
         reconnect,
         markTransportConnected,
         reportCommandError,
         reportReadError,
+        connectionTimeoutDialog,
     } = useRpcConnection(client);
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
@@ -124,6 +126,6 @@ export function useTransmissionSession(
             rpcStatus === status.connection.connected ? engineInfo : null,
         isDetectingEngine:
             rpcStatus === status.connection.connected ? isDetectingEngine : false,
-        lastConnectionAttempt,
+        connectionTimeoutDialog,
     };
 }

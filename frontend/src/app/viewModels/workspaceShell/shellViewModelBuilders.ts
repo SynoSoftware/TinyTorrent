@@ -313,7 +313,6 @@ export interface SettingsModalViewModelParams {
     isSettingsOpen: boolean;
     closeSettings: () => void;
     toggleWorkspaceStyle: () => void;
-    reconnect: () => Promise<RpcConnectionOutcome>;
     workspaceStyle: WorkspaceStyle;
     hasDismissedInsights: boolean;
     showAddTorrentDialog: boolean;
@@ -333,7 +332,6 @@ export function useSettingsModalViewModel({
     isSettingsOpen,
     closeSettings,
     toggleWorkspaceStyle,
-    reconnect,
     workspaceStyle,
     hasDismissedInsights,
     showAddTorrentDialog,
@@ -353,7 +351,6 @@ export function useSettingsModalViewModel({
             capabilities,
             onRestoreInsights: restoreHudCards,
             onToggleWorkspaceStyle: toggleWorkspaceStyle,
-            onReconnect: reconnect,
             isImmersive: workspaceStyle === "immersive",
             hasDismissedInsights,
             showAddTorrentDialog,
@@ -372,7 +369,6 @@ export function useSettingsModalViewModel({
             isSettingsOpen,
             closeSettings,
             toggleWorkspaceStyle,
-            reconnect,
             workspaceStyle,
             hasDismissedInsights,
             showAddTorrentDialog,
