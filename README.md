@@ -2,6 +2,9 @@
 
 **A modern BitTorrent client. No frameworks needed. Binary target: <3 MB.**
 
+Launch instantly in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
+*(Early preview — some features are incomplete and may change)*
+
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
