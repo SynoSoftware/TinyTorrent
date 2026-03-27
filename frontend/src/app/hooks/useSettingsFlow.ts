@@ -161,6 +161,24 @@ const mapSessionToConfig = (
     idleSeedingLimited:
         session["idle-seeding-limit-enabled"] ??
         DEFAULT_SETTINGS_CONFIG.idleSeedingLimited,
+    download_queue_enabled:
+        session["download-queue-enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.download_queue_enabled,
+    download_queue_size:
+        session["download-queue-size"] ??
+        DEFAULT_SETTINGS_CONFIG.download_queue_size,
+    queue_stalled_enabled:
+        session["queue-stalled-enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.queue_stalled_enabled,
+    queue_stalled_minutes:
+        session["queue-stalled-minutes"] ??
+        DEFAULT_SETTINGS_CONFIG.queue_stalled_minutes,
+    seed_queue_enabled:
+        session["seed-queue-enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.seed_queue_enabled,
+    seed_queue_size:
+        session["seed-queue-size"] ??
+        DEFAULT_SETTINGS_CONFIG.seed_queue_size,
     refresh_interval_ms: DEFAULT_SETTINGS_CONFIG.refresh_interval_ms,
     request_timeout_ms: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
 });
@@ -201,6 +219,12 @@ const mapConfigToSession = (
         seedRatioLimited: config.seedRatioLimited,
         "idle-seeding-limit": config.idleSeedingLimit,
         "idle-seeding-limit-enabled": config.idleSeedingLimited,
+        "download-queue-enabled": config.download_queue_enabled,
+        "download-queue-size": config.download_queue_size,
+        "queue-stalled-enabled": config.queue_stalled_enabled,
+        "queue-stalled-minutes": config.queue_stalled_minutes,
+        "seed-queue-enabled": config.seed_queue_enabled,
+        "seed-queue-size": config.seed_queue_size,
     };
 
     const blocklistSupported =

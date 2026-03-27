@@ -572,8 +572,8 @@ const CONTEXT_STATUS_BADGE =
     "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight";
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
-    shellPanel: `relative flex-1 h-full min-h-0 flex flex-col m-px overflow-hidden`,
-    shell: WORKBENCH_SHELL,
+    shellPanel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
+    shell: WORKBENCH_CHROME_SHELL,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     columnHeader: TORRENT_HEADER,

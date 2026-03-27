@@ -1,7 +1,23 @@
 import { Input, Tab, Tabs, cn } from "@heroui/react";
 import type { Key } from "react";
 import {
-    DownloadCloud, ListChecks, Pause, Play, RotateCcw, Search, Settings, Trash2, UploadCloud, Minimize, Maximize, Moon, Sun, X, FileUp, Magnet, } from "lucide-react";
+    DownloadCloud,
+    ListChecks,
+    Pause,
+    Play,
+    RotateCcw,
+    Search,
+    Settings,
+    Trash2,
+    UploadCloud,
+    Minimize,
+    Maximize,
+    Moon,
+    Sun,
+    X,
+    FileUp,
+    Magnet,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -27,6 +43,7 @@ export function Navbar({ viewModel }: NavbarProps) {
     const {
         filter,
         searchQuery,
+        uiMode,
         setSearchQuery,
         setFilter,
         onAddTorrent,
@@ -48,12 +65,22 @@ export function Navbar({ viewModel }: NavbarProps) {
     } = usePreferences();
     const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
+    const showWindowControls = uiMode === "Full";
     const toneButtonClass = {
-        primary: visuals.status.recipes[visuals.status.keys.tone.primary]?.button ?? WORKBENCH.nav.toneButtonFallback.primary,
-        success: visuals.status.recipes[visuals.status.keys.tone.success]?.button ?? WORKBENCH.nav.toneButtonFallback.success,
-        warning: visuals.status.recipes[visuals.status.keys.tone.warning]?.button ?? WORKBENCH.nav.toneButtonFallback.warning,
-        danger: visuals.status.recipes[visuals.status.keys.tone.danger]?.button ?? WORKBENCH.nav.toneButtonFallback.danger,
-        neutral: visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ?? WORKBENCH.nav.toneButtonFallback.neutral,
+        primary:
+            visuals.status.recipes[visuals.status.keys.tone.primary]?.button ??
+            WORKBENCH.nav.toneButtonFallback.primary,
+        success:
+            visuals.status.recipes[visuals.status.keys.tone.success]?.button ??
+            WORKBENCH.nav.toneButtonFallback.success,
+        warning:
+            visuals.status.recipes[visuals.status.keys.tone.warning]?.button ??
+            WORKBENCH.nav.toneButtonFallback.warning,
+        danger:
+            visuals.status.recipes[visuals.status.keys.tone.danger]?.button ?? WORKBENCH.nav.toneButtonFallback.danger,
+        neutral:
+            visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ??
+            WORKBENCH.nav.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -68,6 +95,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                 style={{
                     ...shellTokens.surfaceStyle,
                     ...WORKBENCH.nav.titlebarBaseStyle,
+                    gap: showWindowControls ? WORKBENCH.nav.titlebarBaseStyle.gap : 0,
                 }}
             >
                 <div
@@ -76,6 +104,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
                         WORKBENCH.nav.main,
+                        !showWindowControls && "w-full",
                     )}
                     style={{
                         ...shellTokens.outerStyle,
@@ -240,16 +269,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                             className={WORKBENCH.nav.selectionSeparator}
                             style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
-
-                        <ToolbarIconButton
-                            Icon={Settings}
-                            ariaLabel={t("toolbar.settings")}
-                            title={t("toolbar.settings")}
-                            onPress={onSettings}
-                            className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
-                            iconSize="lg"
-                        />
-                        <div className={WORKBENCH.nav.themeMobileWrap}>
+                        {!showWindowControls ? (
                             <ToolbarIconButton
                                 Icon={Icon}
                                 ariaLabel={t("theme.toggle_label", {
@@ -260,7 +280,15 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
                                 iconSize="lg"
                             />
-                        </div>
+                        ) : null}
+                        <ToolbarIconButton
+                            Icon={Settings}
+                            ariaLabel={t("toolbar.settings")}
+                            title={t("toolbar.settings")}
+                            onPress={onSettings}
+                            className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                            iconSize="lg"
+                        />
                     </div>
 
                     {rehashStatus?.active && (
@@ -278,46 +306,47 @@ export function Navbar({ viewModel }: NavbarProps) {
                     )}
                 </div>
 
-                <div
-                    className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.windowControls)}
-                    style={{
-                        ...shellTokens.outerStyle,
-                        ...WORKBENCH.nav.windowControlsStyle,
-                    }}
-                >
-                    <WindowControlButton
-                        Icon={Icon}
-                        ariaLabel={t("theme.toggle_label", {
-                            value: isDark ? t("theme.dark") : t("theme.light"),
-                        })}
-                        title={t("theme.toggle")}
-                        onPress={toggleTheme}
-                    />
+                {showWindowControls ? (
+                    <div
+                        className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.windowControls)}
+                        style={{
+                            ...shellTokens.outerStyle,
+                            ...WORKBENCH.nav.windowControlsStyle,
+                        }}
+                    >
+                        <WindowControlButton
+                            Icon={Icon}
+                            ariaLabel={t("theme.toggle_label", {
+                                value: isDark ? t("theme.dark") : t("theme.light"),
+                            })}
+                            title={t("theme.toggle")}
+                            onPress={toggleTheme}
+                        />
 
-                    <WindowControlButton
-                        Icon={Minimize}
-                        ariaLabel={t("toolbar.minimize")}
-                        title={t("toolbar.minimize")}
-                        onPress={() => onWindowCommand("minimize")}
-                    />
+                        <WindowControlButton
+                            Icon={Minimize}
+                            ariaLabel={t("toolbar.minimize")}
+                            title={t("toolbar.minimize")}
+                            onPress={() => onWindowCommand("minimize")}
+                        />
 
-                    <WindowControlButton
-                        Icon={Maximize}
-                        ariaLabel={t("toolbar.maximize")}
-                        title={t("toolbar.maximize")}
-                        onPress={() => onWindowCommand("maximize")}
-                    />
+                        <WindowControlButton
+                            Icon={Maximize}
+                            ariaLabel={t("toolbar.maximize")}
+                            title={t("toolbar.maximize")}
+                            onPress={() => onWindowCommand("maximize")}
+                        />
 
-                    <WindowControlButton
-                        Icon={X}
-                        ariaLabel={t("toolbar.close")}
-                        title={t("toolbar.close")}
-                        onPress={() => onWindowCommand("close")}
-                        tone="danger"
-                    />
-                </div>
+                        <WindowControlButton
+                            Icon={X}
+                            ariaLabel={t("toolbar.close")}
+                            title={t("toolbar.close")}
+                            onPress={() => onWindowCommand("close")}
+                            tone="danger"
+                        />
+                    </div>
+                ) : null}
             </div>
         </header>
     );
 }
-

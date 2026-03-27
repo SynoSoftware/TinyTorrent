@@ -42,6 +42,12 @@ export interface SettingsConfig {
     seedRatioLimited: boolean;
     idleSeedingLimit: number;
     idleSeedingLimited: boolean;
+    download_queue_enabled: boolean;
+    download_queue_size: number;
+    queue_stalled_enabled: boolean;
+    queue_stalled_minutes: number;
+    seed_queue_enabled: boolean;
+    seed_queue_size: number;
     table_watermark_enabled: boolean;
     refresh_interval_ms: number;
     request_timeout_ms: number;

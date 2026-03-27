@@ -172,6 +172,12 @@ export interface TransmissionSessionSettings {
     seedRatioLimited?: boolean;
     "idle-seeding-limit"?: number;
     "idle-seeding-limit-enabled"?: boolean;
+    "download-queue-enabled"?: boolean;
+    "download-queue-size"?: number;
+    "queue-stalled-enabled"?: boolean;
+    "queue-stalled-minutes"?: number;
+    "seed-queue-enabled"?: boolean;
+    "seed-queue-size"?: number;
     "sequential_download"?: boolean;
     sequentialDownload?: boolean;
     version?: string;

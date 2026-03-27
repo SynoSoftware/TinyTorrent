@@ -263,6 +263,50 @@ export const SETTINGS_TABS: TabDefinition[] = [
                 ],
             },
             {
+                titleKey: "settings.sections.queue",
+                blocks: [
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.downloadQueueToggle",
+                        stateKey: "download_queue_enabled",
+                    },
+                    {
+                        type: "input",
+                        labelKey: "settings.labels.downloadQueueSize",
+                        stateKey: "download_queue_size",
+                        inputType: "number",
+                        variant: "bordered",
+                        dependsOn: "download_queue_enabled",
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.queueStalledToggle",
+                        stateKey: "queue_stalled_enabled",
+                    },
+                    {
+                        type: "input",
+                        labelKey: "settings.labels.queueStalledMinutes",
+                        stateKey: "queue_stalled_minutes",
+                        inputType: "number",
+                        variant: "bordered",
+                        dependsOn: "queue_stalled_enabled",
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.seedQueueToggle",
+                        stateKey: "seed_queue_enabled",
+                    },
+                    {
+                        type: "input",
+                        labelKey: "settings.labels.seedQueueSize",
+                        stateKey: "seed_queue_size",
+                        inputType: "number",
+                        variant: "bordered",
+                        dependsOn: "seed_queue_enabled",
+                    },
+                ],
+            },
+            {
                 titleKey: "settings.sections.polling",
                 descriptionKey: "settings.descriptions.polling",
                 blocks: [

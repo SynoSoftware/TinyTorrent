@@ -477,6 +477,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const navbarViewModel = useNavbarViewModel({
         filter,
         searchQuery,
+        uiMode: uiCapabilities.uiMode,
         setFilter,
         setSearchQuery,
         hasSelection: selectedIds.length > 0,

@@ -233,6 +233,7 @@ export function useStatusBarViewModel({
 export interface NavbarViewModelParams {
     filter: DashboardFilter;
     searchQuery: string;
+    uiMode: UiMode;
     setFilter: (value: DashboardFilter) => void;
     setSearchQuery: (value: string) => void;
     hasSelection: boolean;
@@ -249,6 +250,7 @@ export interface NavbarViewModelParams {
 export function useNavbarViewModel({
     filter,
     searchQuery,
+    uiMode,
     setFilter,
     setSearchQuery,
     hasSelection,
@@ -265,6 +267,7 @@ export function useNavbarViewModel({
         () => ({
             filter,
             searchQuery,
+            uiMode,
             setFilter,
             setSearchQuery,
             onAddTorrent: openAddTorrentPicker,
@@ -280,6 +283,7 @@ export function useNavbarViewModel({
         [
             filter,
             searchQuery,
+            uiMode,
             setFilter,
             setSearchQuery,
             openAddTorrentPicker,

@@ -198,6 +198,7 @@ export interface WorkspaceShellViewModel {
 export interface NavbarViewModel {
     filter: DashboardFilter;
     searchQuery: string;
+    uiMode: UiMode;
     setFilter: (value: DashboardFilter) => void;
     setSearchQuery: (value: string) => void;
     onAddTorrent: () => void;
