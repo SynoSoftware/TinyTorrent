@@ -41,7 +41,7 @@ export function TorrentTable({ viewModel, embedded = false }: TorrentTableProps)
             data-tt-column-resizing={state.isAnyColumnResizing ? "true" : undefined}
             data-tt-layout-suppressed={state.isAnimationSuppressed ? "true" : undefined}
             style={TABLE.hostBorderRadiusStyle}
-            className={cn(TABLE.hostRoot, !embedded && TABLE.surface)}
+            className={TABLE.hostRoot}
             onClick={menus.closeContextMenu}
         >
             <ColumnMeasurementLayer
