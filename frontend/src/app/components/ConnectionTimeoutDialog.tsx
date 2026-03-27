@@ -41,7 +41,6 @@ export function ConnectionTimeoutDialog() {
     const { connectionTimeoutDialog, reconnect, rpcStatus } = useSession();
     const {
         preferences: { showTorrentServerSetup },
-        updatePreferences,
     } = usePreferences();
     const { activeRpcConnection } = useConnectionConfig();
     const { isSettingsOpen, openSettings } = useWorkspaceModals();
@@ -91,18 +90,6 @@ export function ConnectionTimeoutDialog() {
         }
         connectionTimeoutDialog.dismiss();
     }, [connectionTimeoutDialog, isSettingsOpen]);
-
-    useEffect(() => {
-        if (
-            rpcStatus !== status.connection.connected ||
-            !showTorrentServerSetup
-        ) {
-            return;
-        }
-        updatePreferences({
-            showTorrentServerSetup: false,
-        });
-    }, [rpcStatus, showTorrentServerSetup, updatePreferences]);
 
     return (
         <ModalEx

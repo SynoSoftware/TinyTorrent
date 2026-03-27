@@ -220,51 +220,35 @@ export class TransmissionRpcTransport {
             (requestInit as RequestInit & { keepalive?: boolean }).keepalive =
                 true;
         }
-        const connectionTimeoutMs = (() => {
-            try {
-                const host = new URL(this.endpoint).hostname.toLowerCase();
-                return host === "127.0.0.1" ||
-                    host === "localhost" ||
-                    host === "::1" ||
-                    host === "0:0:0:0:0:0:0:1"
-                    ? 200
-                    : timing.connection.timeoutMs;
-            } catch {
-                return timing.connection.timeoutMs;
+        let connectionTimeoutMs = timing.connection.timeoutMs;
+        try {
+            const host = new URL(this.endpoint).hostname.toLowerCase();
+            if (
+                host === "127.0.0.1" ||
+                host === "localhost" ||
+                host === "::1" ||
+                host === "0:0:0:0:0:0:0:1"
+            ) {
+                connectionTimeoutMs = timing.connection.localhostTimeoutMs;
             }
-        })();
+        } catch { /* ignore */ }
 
         const attempt = async (retry = false): Promise<TransportFetchOutcome> => {
+            const isInitialConnectionAttempt =
+                !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
+                !retry;
             let connectionTimeoutId: number | undefined;
             try {
-                if (
-                    !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
-                    !retry
-                ) {
+                if (isInitialConnectionAttempt) {
                     connectionTimeoutId = window.setTimeout(() => {
                         try {
                             internalController.abort();
                         } catch { /* ignore */ }
                     }, connectionTimeoutMs);
                 }
-                // SESSION BARRIER: if we don't have a sessionId yet and this is not
-                // a retry attempt, gate so only one leader will perform the probe.
-                if (
-                    !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
-                    !retry
-                ) {
-                    if (!this.sessionRuntime.sessionBarrier) {
-                        // Synchronously install the barrier so concurrent callers
-                        // observe a non-null value and will await the same promise.
-                        let resolveBarrier: () => void = () => {};
-                        let rejectBarrier: (err?: Error) => void = () => {};
-                        this.sessionRuntime.sessionBarrier = new Promise<void>(
-                            (res, rej) => {
-                                resolveBarrier = res;
-                                rejectBarrier = rej;
-                            }
-                        );
 
+                if (isInitialConnectionAttempt) {
+                    if (!this.sessionRuntime.sessionBarrier) {
                         infraLogger.debug({
                             scope: "transport",
                             event: "session_barrier_installed",
@@ -273,18 +257,20 @@ export class TransmissionRpcTransport {
                             details: { endpoint: this.endpoint },
                         });
 
-                        // Leader: attempt a light-weight probe to obtain session id
-                        // before sending POSTs. Abort it when the current request's
-                        // initial connection deadline expires.
-                        (async () => {
+                        this.sessionRuntime.sessionBarrier = (async () => {
                             const leaderController = new AbortController();
+                            const abortLeader = () => {
+                                try {
+                                    leaderController.abort();
+                                } catch { /* ignore */ }
+                            };
                             try {
                                 this.inflightControllers.add(leaderController);
-                                internalController.signal.addEventListener("abort", () => {
-                                    try {
-                                        leaderController.abort();
-                                    } catch { /* ignore */ }
-                                });
+                                internalController.signal.addEventListener(
+                                    "abort",
+                                    abortLeader,
+                                    { once: true },
+                                );
 
                                 let token = await this.probeForSessionId(
                                     leaderController,
@@ -334,22 +320,15 @@ export class TransmissionRpcTransport {
                                 if (token) {
                                     this.sessionId = token;
                                     try {
-                                        this.sessionRuntime.sharedSessionId = token;
+                                        this.sessionRuntime.sharedSessionId =
+                                            token;
                                     } catch { /* ignore */ }
                                 }
-
-                                resolveBarrier();
-                            } catch (err) {
-                                try {
-                                    rejectBarrier(
-                                        err instanceof Error
-                                            ? err
-                                            : new Error(
-                                                  "Session barrier initialization failed"
-                                              )
-                                    );
-                                } catch { /* ignore */ }
                             } finally {
+                                internalController.signal.removeEventListener(
+                                    "abort",
+                                    abortLeader,
+                                );
                                 try {
                                     this.inflightControllers.delete(
                                         leaderController,
@@ -375,120 +354,121 @@ export class TransmissionRpcTransport {
                         // logic as a fallback.
                     }
                 }
-            const headers: Record<string, string> = Object.assign(
-                {},
-                (requestInit.headers as Record<string, string>) ?? {}
-            );
-            const effectiveSessionId =
-                this.sessionId ?? this.sessionRuntime.sharedSessionId;
-            if (effectiveSessionId) {
-                headers["X-Transmission-Session-Id"] =
-                    effectiveSessionId as string;
-            }
-            if (this.authHeader) {
-                headers["Authorization"] = this.authHeader;
-            }
-            requestInit.headers = headers;
 
-            let response: Response;
-            try {
-                response = await fetch(this.endpoint, requestInit);
-            } catch (error) {
-                return this.mapFetchErrorToOutcome(
-                    error,
-                    "Transmission RPC unavailable",
+                const headers: Record<string, string> = Object.assign(
+                    {},
+                    (requestInit.headers as Record<string, string>) ?? {}
                 );
-            } finally {
+                const effectiveSessionId =
+                    this.sessionId ?? this.sessionRuntime.sharedSessionId;
+                if (effectiveSessionId) {
+                    headers["X-Transmission-Session-Id"] =
+                        effectiveSessionId as string;
+                }
+                if (this.authHeader) {
+                    headers["Authorization"] = this.authHeader;
+                }
+                requestInit.headers = headers;
+
+                let response: Response;
                 try {
-                    this.inflightControllers.delete(internalController);
-                } catch { /* ignore */ }
-            }
+                    response = await fetch(this.endpoint, requestInit);
+                } catch (error) {
+                    return this.mapFetchErrorToOutcome(
+                        error,
+                        "Transmission RPC unavailable",
+                    );
+                } finally {
+                    try {
+                        this.inflightControllers.delete(internalController);
+                    } catch { /* ignore */ }
+                }
 
-            // Some tests/mock environments provide a lightweight object
-            // that looks like a Response but lacks `status` or `headers`.
-            // Be defensive: derive numeric status from `status` when
-            // present, otherwise infer from `ok`.
-            const maybeResp = response as Response | undefined | null;
-            const status: number =
-                maybeResp && typeof maybeResp.status === "number"
-                    ? maybeResp.status
-                    : maybeResp && typeof maybeResp.ok === "boolean"
-                    ? maybeResp.ok
-                        ? 200
-                        : 0
-                    : 0;
+                // Some tests/mock environments provide a lightweight object
+                // that looks like a Response but lacks `status` or `headers`.
+                // Be defensive: derive numeric status from `status` when
+                // present, otherwise infer from `ok`.
+                const maybeResp = response as Response | undefined | null;
+                const status: number =
+                    maybeResp && typeof maybeResp.status === "number"
+                        ? maybeResp.status
+                        : maybeResp && typeof maybeResp.ok === "boolean"
+                        ? maybeResp.ok
+                            ? 200
+                            : 0
+                        : 0;
 
-            if (status === 409) {
-                // Try to obtain a session token from headers when available
-                let token: string | null | undefined = undefined;
+                if (status === 409) {
+                    // Try to obtain a session token from headers when available
+                    let token: string | null | undefined = undefined;
+                    try {
+                        const hdrs = (response as Response)?.headers;
+                        if (hdrs && typeof hdrs.get === "function") {
+                            token = hdrs.get("X-Transmission-Session-Id");
+                        }
+                    } catch { /* ignore */ }
+
+                    if (!token) {
+                        try {
+                            // Use a deduped probe so multiple concurrent 409 handlers
+                            // share a single probe network request instead of issuing
+                            // multiple OPTIONS/HEAD/GET probes.
+                            token = await this.probeForSessionId(controller);
+                        } catch { /* ignore */ }
+                    }
+                    if (!token) {
+                        this.sessionId = null;
+                        this.sessionRuntime.sharedSessionId = null;
+                        return {
+                            kind: "session_conflict",
+                            message: "Transmission RPC missing session id",
+                        };
+                    }
+                    this.sessionId = token;
+                    try {
+                        this.sessionRuntime.sharedSessionId = token;
+                    } catch { /* ignore */ }
+                    if (retry) {
+                        this.sessionId = null;
+                        return {
+                            kind: "session_conflict",
+                            message: "Transmission RPC session conflict",
+                        };
+                    }
+                    return attempt(true);
+                }
+
+                if (status === 401) {
+                    return {
+                        kind: "auth_error",
+                        status: 401,
+                        message: "Transmission RPC unauthorized",
+                    };
+                }
+                if (status === 403) {
+                    return {
+                        kind: "auth_error",
+                        status: 403,
+                        message: "Transmission RPC forbidden",
+                    };
+                }
+
+                // Update session id if present on response headers (defensive)
                 try {
                     const hdrs = (response as Response)?.headers;
-                    if (hdrs && typeof hdrs.get === "function") {
-                        token = hdrs.get("X-Transmission-Session-Id");
+                    const currentToken =
+                        hdrs && typeof hdrs.get === "function"
+                            ? hdrs.get("X-Transmission-Session-Id")
+                            : null;
+                    if (currentToken && currentToken !== this.sessionId) {
+                        this.sessionId = currentToken;
+                        try {
+                            this.sessionRuntime.sharedSessionId = currentToken;
+                        } catch { /* ignore */ }
                     }
                 } catch { /* ignore */ }
 
-                if (!token) {
-                    try {
-                        // Use a deduped probe so multiple concurrent 409 handlers
-                        // share a single probe network request instead of issuing
-                        // multiple OPTIONS/HEAD/GET probes.
-                        token = await this.probeForSessionId(controller);
-                    } catch { /* ignore */ }
-                }
-                if (!token) {
-                    this.sessionId = null;
-                    this.sessionRuntime.sharedSessionId = null;
-                    return {
-                        kind: "session_conflict",
-                        message: "Transmission RPC missing session id",
-                    };
-                }
-                this.sessionId = token;
-                try {
-                    this.sessionRuntime.sharedSessionId = token;
-                } catch { /* ignore */ }
-                if (retry) {
-                    this.sessionId = null;
-                    return {
-                        kind: "session_conflict",
-                        message: "Transmission RPC session conflict",
-                    };
-                }
-                return attempt(true);
-            }
-
-            if (status === 401) {
-                return {
-                    kind: "auth_error",
-                    status: 401,
-                    message: "Transmission RPC unauthorized",
-                };
-            }
-            if (status === 403) {
-                return {
-                    kind: "auth_error",
-                    status: 403,
-                    message: "Transmission RPC forbidden",
-                };
-            }
-
-            // Update session id if present on response headers (defensive)
-            try {
-                const hdrs = (response as Response)?.headers;
-                const currentToken =
-                    hdrs && typeof hdrs.get === "function"
-                        ? hdrs.get("X-Transmission-Session-Id")
-                        : null;
-                if (currentToken && currentToken !== this.sessionId) {
-                    this.sessionId = currentToken;
-                    try {
-                        this.sessionRuntime.sharedSessionId = currentToken;
-                    } catch { /* ignore */ }
-                }
-            } catch { /* ignore */ }
-
-            return { kind: "ok", response };
+                return { kind: "ok", response };
             } finally {
                 if (connectionTimeoutId !== undefined) {
                     try {

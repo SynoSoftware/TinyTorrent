@@ -3,12 +3,14 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useState,
     type ReactNode,
 } from "react";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { SettingsTab } from "@/modules/settings/data/settings-tabs";
+import { status } from "@/shared/status";
 import { useSession } from "@/app/context/SessionContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
 
@@ -46,11 +48,27 @@ export function AppShellStateProvider({ children }: { children: ReactNode }) {
         rpcStatus,
         uiCapabilities: { uiMode },
     } = useSession();
-    const { setSettingsTab } = usePreferences();
+    const {
+        preferences: { showTorrentServerSetup },
+        setSettingsTab,
+        updatePreferences,
+    } = usePreferences();
     const [activePart, setActivePart] = useState<FocusPart>("table");
     const [selectedIds, setSelectedIdsState] = useState<string[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    useEffect(() => {
+        if (
+            rpcStatus !== status.connection.connected ||
+            !showTorrentServerSetup
+        ) {
+            return;
+        }
+        updatePreferences({
+            showTorrentServerSetup: false,
+        });
+    }, [rpcStatus, showTorrentServerSetup, updatePreferences]);
 
     const setSelectedIds = useCallback((ids: readonly string[]) => {
         const normalized = Array.from(new Set(ids.filter((id) => Boolean(id))));

@@ -120,6 +120,7 @@ const defaultTimers = {
     action_feedback_start_toast_duration_ms: 900,
     optimistic_checking_grace_ms: 5000,
     rpc_connection_timeout_ms: 1000,
+    rpc_localhost_timeout_ms: 200,
     ws_reconnect: {
         initial_delay_ms: 5000,
         max_delay_ms: 60000,
@@ -672,6 +673,7 @@ const timingSchemas = {
     },
     connection: {
         timeoutMs: n("rpc_connection_timeout_ms", defaultTimers.rpc_connection_timeout_ms),
+        localhostTimeoutMs: n("rpc_localhost_timeout_ms", defaultTimers.rpc_localhost_timeout_ms),
     },
 } as const;
 

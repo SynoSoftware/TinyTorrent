@@ -92,10 +92,7 @@ const renderDialog = () => {
 };
 
 describe("ConnectionTimeoutDialog", () => {
-    let updatePreferencesMock: ReturnType<typeof vi.fn>;
-
     beforeEach(() => {
-        updatePreferencesMock = vi.fn();
         useConnectionConfigMock.mockReturnValue({
             activeRpcConnection: {
                 serverUrl: "http://127.0.0.1:9091",
@@ -134,7 +131,6 @@ describe("ConnectionTimeoutDialog", () => {
             preferences: {
                 showTorrentServerSetup: true,
             },
-            updatePreferences: updatePreferencesMock,
         });
 
         const mounted = renderDialog();
@@ -154,7 +150,6 @@ describe("ConnectionTimeoutDialog", () => {
             preferences: {
                 showTorrentServerSetup: false,
             },
-            updatePreferences: updatePreferencesMock,
         });
 
         const mounted = renderDialog();
@@ -164,34 +159,6 @@ describe("ConnectionTimeoutDialog", () => {
             expect(modal?.getAttribute("data-title")).toBe(
                 "workspace.connection_timeout_dialog.startup_title",
             );
-        } finally {
-            mounted.cleanup();
-        }
-    });
-
-    it("clears setup guidance after a successful connection", () => {
-        usePreferencesMock.mockReturnValue({
-            preferences: {
-                showTorrentServerSetup: true,
-            },
-            updatePreferences: updatePreferencesMock,
-        });
-        useSessionMock.mockReturnValue({
-            connectionTimeoutDialog: {
-                isOpen: false,
-                action: null,
-                retryStatus: null,
-                dismiss: vi.fn(),
-            },
-            reconnect: vi.fn(),
-            rpcStatus: "connected",
-        });
-
-        const mounted = renderDialog();
-        try {
-            expect(updatePreferencesMock).toHaveBeenCalledWith({
-                showTorrentServerSetup: false,
-            });
         } finally {
             mounted.cleanup();
         }
