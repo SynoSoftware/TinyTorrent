@@ -1,18 +1,20 @@
-import { useEffect, type ReactNode } from "react";
-import { Button } from "@heroui/react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Accordion, AccordionItem, Button } from "@heroui/react";
 import { AlertTriangle, Clock3, Download, Play, Sparkles, Server, Settings } from "lucide-react";
+import type { Selection } from "@react-types/shared";
 import { useTranslation } from "react-i18next";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { useWorkspaceModals } from "@/app/context/AppShellStateContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
+import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { status } from "@/shared/status";
+import { detectBrowserPlatform, type BrowserPlatform } from "@/shared/utils/browserPlatform";
+import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { DETAILS, FORM, MODAL } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
-
-const TRANSMISSION_DAEMON_DOWNLOAD_URL = "https://transmissionbt.com/download";
 
 type ConnectionDialogRowProps = {
     icon: typeof Server;
@@ -36,9 +38,28 @@ function ConnectionDialogRow({ icon: Icon, label, children }: ConnectionDialogRo
     );
 }
 
+function getTransmissionDownloadTarget(platform: BrowserPlatform) {
+    if (platform.kind === "macos" || platform.kind === "linux") {
+        return registry.defaults.transmissionDownloads.targets[platform.kind];
+    }
+
+    if (platform.kind === "windows") {
+        if (platform.majorVersion === null || platform.majorVersion >= 10) {
+            return registry.defaults.transmissionDownloads.targets.windows10;
+        }
+
+        if (platform.majorVersion > 6 || (platform.majorVersion === 6 && (platform.minorVersion ?? 0) >= 1)) {
+            return registry.defaults.transmissionDownloads.targets.windows7;
+        }
+    }
+
+    return registry.defaults.transmissionDownloads.targets.fallback;
+}
+
 export function ConnectionTimeoutDialog() {
     const { t } = useTranslation();
     const { connectionTimeoutDialog, reconnect, rpcStatus } = useSession();
+    const [expandedHelpKeys, setExpandedHelpKeys] = useState<Selection>(new Set());
     const {
         preferences: { showTorrentServerSetup },
     } = usePreferences();
@@ -64,15 +85,9 @@ export function ConnectionTimeoutDialog() {
     const remainingRetrySeconds =
         connectionTimeoutDialog.retryStatus?.kind !== "scheduled"
             ? null
-            : Math.max(
-                  0,
-                  Math.ceil(
-                      (connectionTimeoutDialog.retryStatus.retryAtMs -
-                          lastTickAt) /
-                          1000,
-                  ),
-              );
+            : Math.max(0, Math.ceil((connectionTimeoutDialog.retryStatus.retryAtMs - lastTickAt) / 1000));
     void tick;
+    const transmissionDownloadTarget = getTransmissionDownloadTarget(detectBrowserPlatform());
     const footerStatusMessage =
         connectionTimeoutDialog.retryStatus?.kind === "connecting" || rpcStatus === status.connection.idle
             ? t("workspace.connection_timeout_dialog.connecting_status", {
@@ -90,6 +105,33 @@ export function ConnectionTimeoutDialog() {
         }
         connectionTimeoutDialog.dismiss();
     }, [connectionTimeoutDialog, isSettingsOpen]);
+
+    const installAndStartRows = (
+        <>
+            <ConnectionDialogRow icon={Download} label={t("workspace.connection_timeout_dialog.install_option_label")}>
+                <div className={`${FORM.blockRowBetween} gap-tools`}>
+                    <p className={TEXT_ROLE.bodySmall}>{t("workspace.connection_timeout_dialog.install_option_hint")}</p>
+                    <AppTooltip content={transmissionDownloadTarget.url} native>
+                        <Button
+                            as="a"
+                            href={transmissionDownloadTarget.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            color="primary"
+                            variant="flat"
+                            size="sm"
+                            startContent={<Download className={FORM.workflow.actionIcon} />}
+                        >
+                            {t("workspace.connection_timeout_dialog.open_download")}
+                        </Button>
+                    </AppTooltip>
+                </div>
+            </ConnectionDialogRow>
+            <ConnectionDialogRow icon={Play} label={t("workspace.connection_timeout_dialog.start_option_label")}>
+                <p className={TEXT_ROLE.bodySmall}>{t("workspace.connection_timeout_dialog.start_option_hint")}</p>
+            </ConnectionDialogRow>
+        </>
+    );
 
     return (
         <ModalEx
@@ -119,57 +161,59 @@ export function ConnectionTimeoutDialog() {
         >
             <div className={FORM.stackTools}>
                 <p className={TEXT_ROLE.body}>{t(bodyKey)}</p>
-                {showInstallRecommendation ? null : (
-                    <ConnectionDialogRow
-                        icon={Server}
-                        label={t("workspace.connection_timeout_dialog.current_connection_label")}
-                    >
-                        <p className={DETAILS.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
-                    </ConnectionDialogRow>
-                )}
                 {showInstallRecommendation ? (
+                    installAndStartRows
+                ) : (
                     <>
                         <ConnectionDialogRow
-                            icon={Play}
-                            label={t("workspace.connection_timeout_dialog.start_option_label")}
+                            icon={Server}
+                            label={t("workspace.connection_timeout_dialog.current_connection_label")}
                         >
-                            <p className={TEXT_ROLE.bodySmall}>
-                                {t("workspace.connection_timeout_dialog.start_option_hint")}
-                            </p>
+                            <p className={DETAILS.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
                         </ConnectionDialogRow>
                         <ConnectionDialogRow
-                            icon={Download}
-                            label={t("workspace.connection_timeout_dialog.install_option_label")}
+                            icon={Settings}
+                            label={t("workspace.connection_timeout_dialog.check_settings_label")}
                         >
                             <div className={FORM.stackTools}>
                                 <p className={TEXT_ROLE.bodySmall}>
-                                    {t("workspace.connection_timeout_dialog.install_option_hint")}
+                                    {t("workspace.connection_timeout_dialog.settings_hint")}
                                 </p>
                                 <div className={`${FORM.blockRowBetween} gap-tools`}>
-                                    <p className={DETAILS.generalMetricCode}>{TRANSMISSION_DAEMON_DOWNLOAD_URL}</p>
+                                    <p className={DETAILS.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
                                     <Button
-                                        as="a"
-                                        href={TRANSMISSION_DAEMON_DOWNLOAD_URL}
-                                        target="_blank"
-                                        rel="noreferrer"
                                         color="primary"
                                         variant="flat"
                                         size="sm"
-                                        startContent={<Download className={FORM.workflow.actionIcon} />}
+                                        startContent={<Settings className={FORM.workflow.actionIcon} />}
+                                        onPress={openSettingsFromDialog}
                                     >
-                                        {t("workspace.connection_timeout_dialog.open_download")}
+                                        {t("workspace.connection_timeout_dialog.open_settings")}
                                     </Button>
                                 </div>
                             </div>
                         </ConnectionDialogRow>
+                        <Accordion
+                            selectedKeys={expandedHelpKeys}
+                            onSelectionChange={setExpandedHelpKeys}
+                            selectionMode="multiple"
+                            variant="splitted"
+                            className="px-0"
+                            itemClasses={{
+                                base: "px-0",
+                                trigger: "px-0 py-0",
+                                content: "px-0 pb-0 pt-tight",
+                            }}
+                        >
+                            <AccordionItem
+                                key="connection-help"
+                                aria-label={t("workspace.connection_timeout_dialog.more_help_label")}
+                                title={t("workspace.connection_timeout_dialog.more_help_label")}
+                            >
+                                <div className={FORM.stackTools}>{installAndStartRows}</div>
+                            </AccordionItem>
+                        </Accordion>
                     </>
-                ) : (
-                    <ConnectionDialogRow
-                        icon={Settings}
-                        label={t("workspace.connection_timeout_dialog.check_settings_label")}
-                    >
-                        <p className={TEXT_ROLE.bodySmall}>{t("workspace.connection_timeout_dialog.settings_hint")}</p>
-                    </ConnectionDialogRow>
                 )}
             </div>
         </ModalEx>

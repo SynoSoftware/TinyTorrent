@@ -9,6 +9,7 @@ const useWorkspaceModalsMock = vi.hoisted(() => vi.fn());
 const usePreferencesMock = vi.hoisted(() => vi.fn());
 const useSessionMock = vi.hoisted(() => vi.fn());
 const useUiClockMock = vi.hoisted(() => vi.fn());
+const detectBrowserPlatformMock = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
     useTranslation: () => ({
@@ -17,6 +18,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
+    Accordion: ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children),
+    AccordionItem: ({
+        title,
+        children,
+    }: {
+        title?: React.ReactNode;
+        children?: React.ReactNode;
+    }) => React.createElement("div", null, title, children),
     Button: ({ children, href, onPress }: { children?: React.ReactNode; href?: string; onPress?: () => void }) =>
         React.createElement(
             href ? "a" : "button",
@@ -73,6 +82,15 @@ vi.mock("@/shared/hooks/useUiClock", () => ({
     useUiClock: useUiClockMock,
 }));
 
+vi.mock("@/shared/utils/browserPlatform", () => ({
+    detectBrowserPlatform: detectBrowserPlatformMock,
+}));
+
+vi.mock("@/shared/ui/components/AppTooltip", () => ({
+    __esModule: true,
+    default: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+}));
+
 const renderDialog = () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -93,6 +111,11 @@ const renderDialog = () => {
 
 describe("ConnectionTimeoutDialog", () => {
     beforeEach(() => {
+        detectBrowserPlatformMock.mockReturnValue({
+            kind: "windows",
+            majorVersion: 10,
+            minorVersion: 0,
+        });
         useConnectionConfigMock.mockReturnValue({
             activeRpcConnection: {
                 serverUrl: "http://127.0.0.1:9091",
@@ -158,6 +181,53 @@ describe("ConnectionTimeoutDialog", () => {
             expect(modal?.getAttribute("data-open")).toBe("true");
             expect(modal?.getAttribute("data-title")).toBe(
                 "workspace.connection_timeout_dialog.startup_title",
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("shows settings, install, and start guidance when setup guidance is disabled", () => {
+        usePreferencesMock.mockReturnValue({
+            preferences: {
+                showTorrentServerSetup: false,
+            },
+        });
+
+        const mounted = renderDialog();
+        try {
+            expect(mounted.container.textContent).toContain(
+                "workspace.connection_timeout_dialog.current_connection_label",
+            );
+            expect(mounted.container.textContent).toContain(
+                "workspace.connection_timeout_dialog.check_settings_label",
+            );
+            expect(mounted.container.textContent).toContain(
+                "workspace.connection_timeout_dialog.open_settings",
+            );
+            expect(mounted.container.textContent).toContain(
+                "workspace.connection_timeout_dialog.install_option_label",
+            );
+            expect(mounted.container.textContent).toContain(
+                "workspace.connection_timeout_dialog.start_option_label",
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("uses the detected platform-specific Transmission download link", () => {
+        usePreferencesMock.mockReturnValue({
+            preferences: {
+                showTorrentServerSetup: true,
+            },
+        });
+
+        const mounted = renderDialog();
+        try {
+            const downloadLink = mounted.container.querySelector("a[href]");
+            expect(downloadLink?.getAttribute("href")).toBe(
+                "https://github.com/transmission/transmission/releases/download/4.1.1/transmission-4.1.1-x64.msi",
             );
         } finally {
             mounted.cleanup();

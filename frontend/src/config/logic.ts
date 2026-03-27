@@ -74,6 +74,14 @@ const defaultDefaults = {
     rpc_endpoint: "/transmission/rpc",
     magnet_protocol_prefix: "magnet:?",
     download_path_history_limit: 6,
+    transmission_downloads: {
+        release_base_url: "https://github.com/transmission/transmission/releases/download/4.1.1/",
+        fallback_url: "https://transmissionbt.com/download",
+        windows_10_filename: "transmission-4.1.1-x64.msi",
+        windows_7_filename: "transmission-4.1.1-qt5-x64.msi",
+        macos_filename: "Transmission-4.1.1.dmg",
+        linux_filename: "transmission-4.1.1.tar.xz",
+    },
 } as const;
 
 const nonEmpty = (value: unknown, fallback: string) =>
@@ -144,6 +152,64 @@ const defaults = {
                 defaultDefaults.download_path_history_limit,
         ),
     ),
+    transmissionDownloads: (() => {
+        const transmissionDownloadsConfig = asRecord(defaultsConfig.transmission_downloads);
+        const releaseBaseUrl = nonEmpty(
+            transmissionDownloadsConfig.release_base_url,
+            defaultDefaults.transmission_downloads.release_base_url,
+        );
+        const fallbackUrl = nonEmpty(
+            transmissionDownloadsConfig.fallback_url,
+            defaultDefaults.transmission_downloads.fallback_url,
+        );
+        const windows10Filename = nonEmpty(
+            transmissionDownloadsConfig.windows_10_filename,
+            defaultDefaults.transmission_downloads.windows_10_filename,
+        );
+        const windows7Filename = nonEmpty(
+            transmissionDownloadsConfig.windows_7_filename,
+            defaultDefaults.transmission_downloads.windows_7_filename,
+        );
+        const macosFilename = nonEmpty(
+            transmissionDownloadsConfig.macos_filename,
+            defaultDefaults.transmission_downloads.macos_filename,
+        );
+        const linuxFilename = nonEmpty(
+            transmissionDownloadsConfig.linux_filename,
+            defaultDefaults.transmission_downloads.linux_filename,
+        );
+
+        return {
+            fallbackUrl,
+            targets: {
+                windows10: {
+                    platform: "windows",
+                    version: "10+",
+                    url: `${releaseBaseUrl}${windows10Filename}`,
+                },
+                windows7: {
+                    platform: "windows",
+                    version: "7+",
+                    url: `${releaseBaseUrl}${windows7Filename}`,
+                },
+                macos: {
+                    platform: "macos",
+                    version: "current",
+                    url: `${releaseBaseUrl}${macosFilename}`,
+                },
+                linux: {
+                    platform: "linux",
+                    version: "current",
+                    url: `${releaseBaseUrl}${linuxFilename}`,
+                },
+                fallback: {
+                    platform: "fallback",
+                    version: "any",
+                    url: fallbackUrl,
+                },
+            },
+        };
+    })(),
 } as const;
 
 const resolvedPerformanceRaw = readNumberDomainFromSchema(performanceConfig, performanceSchema);

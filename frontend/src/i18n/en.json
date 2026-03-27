@@ -1288,7 +1288,8 @@
             "runtime_body": "TinyTorrent couldn’t reach the torrent server selected in Settings.",
             "current_connection_label": "Current connection",
             "check_settings_label": "What to check",
-            "settings_hint": "Open Settings to review the server address or switch to another server.",
+            "settings_hint": "Review the server address or switch to another server.",
+            "more_help_label": "Set up your torrent server?",
             "start_option_label": "Start Transmission",
             "start_option_hint": "If Transmission is already installed, start transmission-daemon.",
             "install_option_label": "Install Transmission",
@@ -1298,7 +1299,7 @@
             "connecting_status": "Connecting to {{server}}…",
             "open_settings": "Settings",
             "retry_now": "Retry",
-            "open_download": "Download Transmission"
+            "open_download": "Download"
         },
         "stage": {
             "dismiss_card": "Dismiss card",

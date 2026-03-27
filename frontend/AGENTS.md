@@ -110,6 +110,7 @@ Examples of suspicious overlap:
 - “history” state and “display mode” state that end up deciding the same UI copy
 - retry timing owned in two places
 - a setting plus a derived flag that restates the same intent
+- a leaf token or config class that restates a broader semantic surface already owned higher in the tree
 
 ### 5. No Speculative Compatibility
 
@@ -192,6 +193,16 @@ Evaluate solutions in this order:
 4. move logic back to the correct owner if it drifted
 5. add a new surface only if the previous steps fail
 
+For visual token decisions, search in this direction:
+
+1. higher-level semantic owner already used by similar surfaces
+2. sibling usage of the same semantic object
+3. local owner only if the broader owners do not already cover it
+
+Do not branch upward and invent a parallel token locally.
+If a broader owner already expresses the object, move the usage to that owner or delete the stale lower-level token.
+If a useful semantic exists only in another leaf but is clearly shared, bring it down to the common owner, define it once there, and make both leaves consume that single surface.
+
 Skipping earlier steps requires a concrete reason in the final explanation.
 
 ## Frontend Ownership Map
@@ -204,9 +215,10 @@ Use these owners by default.
 - Preferences and persisted UI state: `src/app/context/PreferencesContext.tsx`
 - RPC transport behavior: `src/services/transport.ts`
 - RPC protocol/schema behavior: `src/services/rpc/*`
-- Non-visual product knobs and timers: `src/config/constants.json` and `src/config/logic.ts`
+- Non-visual product knobs and timers: `src/config/constants.json`
+- Shared semantic surface tokens and visual surfaces: `src/config/logic.ts`
 - Global geometry and CSS tokens: `src/index.css`
-- Shared semantic styling roles: `src/shared/ui/uiRoles.ts`
+- Shared non-surface semantic roles: `src/shared/ui/uiRoles.ts`
 
 Do not create a new owner if one of these can absorb the change.
 
@@ -253,28 +265,36 @@ Presentation should not become a hidden policy owner.
 
 ## UI Rules
 
-### Styling Authority
+### Surface Styling Authority
 
-Frontend styling authority is narrow:
+- `src/config/logic.ts` is the single authority for semantic surface styling.
+- `src/config/constants.json` is for non-visual configuration only.
+- Feature code must not author raw CSS for visual treatment.
+- `className`, `itemClasses`, and similar props are not styling authority.
+- `src/shared/ui/uiRoles.ts` must not define surfaces.
+- HeroUI is the control layer, not the surface-selection authority.
+- `src/index.css` owns global geometry and CSS tokens.
+- Prefer reducing token count over preserving local convenience tokens; consolidation reduces drift.
 
-- HeroUI for controls
-- `src/shared/ui/uiRoles.ts` for shared semantic visual roles
-- `src/index.css` for global geometry/tokens
-- `src/config/constants.json` and `src/config/logic.ts` for non-visual knobs only
+Required decision procedure:
 
-Do not invent new styling authorities.
+1. Identify what the object is semantically.
+2. Search `src/config/logic.ts` for an existing token for that semantic object.
+3. In that search, prefer broader shared semantics before narrower leaf-local ones.
+4. If a matching semantic exists only in another leaf but is actually shared, move it into the proper shared location in `src/config/logic.ts` and reuse that one token from both places.
+5. Do not select a token because class strings look similar; select it because the semantic object is the same.
+6. If no match is found after best-effort search, ask before creating a new token.
 
-Hard styling constraints:
+Forbidden:
 
-- color tokens are the only source of truth for color
-- do not inline colors in code, CSS, or markup
-- keep surface tokens reduced; do not add parallel or overlapping surface definitions
-- do not use arbitrary values or inline style systems for visual styling
-- do not write CSS inside `className`
+- choosing tokens by class similarity or visual resemblance
+- creating tokens to match visuals instead of semantics
+- duplicating tokens across leaves
+- falling back to inline CSS or local CSS because the token search was incomplete
 
 ### `className` Rule
 
-`className` is for layout only.
+`className`, `itemClasses`, and similar class-prop maps are for layout only.
 
 Allowed:
 
@@ -294,6 +314,13 @@ Not allowed in feature code:
 - typography recipes
 - custom interaction-state styling
 - arbitrary values such as `bg-[#...]`, `w-[...]`, `text-[...]`, or hand-written CSS fragments
+
+Required solution:
+
+- resolve the visual treatment through the required decision procedure above
+- use surface tokens from `src/config/logic.ts`, not local CSS, to express visual styling
+- if a lower-level token duplicates a broader semantic token, remove the duplicate instead of preserving both
+- keep only layout classes in `className`, `itemClasses`, and similar class-prop maps
 
 Inline `style` is not a styling escape hatch.
 
@@ -326,6 +353,7 @@ External data must be validated and normalized once at the boundary owner:
 
 Pass typed internal data inward. Do not re-parse or re-validate the same shape in leaf code.
 Do not let raw external shapes leak across the boundary.
+Keep external naming at the boundary. Read external `snake_case` there and expose internal `camelCase` keys inward.
 
 ## Service And IO Isolation
 
@@ -377,6 +405,16 @@ Bad candidates:
 - do not add cross-feature deep relative imports
 - do not import from outside `frontend/`
 - do not create new shared modules for one caller
+- use normal TypeScript naming consistently:
+  - variables, functions, local constants, and local hooks: `camelCase`
+  - components, classes, and types: `PascalCase`
+  - service/utility modules: `kebab-case`
+- do not use all-uppercase identifiers
+- only hooks may use `camelCase` filenames; everything else should be `PascalCase` or `kebab-case`
+- do not mix naming styles in the same folder
+- do not create generic filenames such as `helpers.ts`, `utils.ts`, `client.ts`, or `index2.ts`
+- enum-like control-plane vocabularies, their members, and namespace objects use `PascalCase`
+- runtime maps, registries, descriptor objects, and authority records use `camelCase`, not enum-style naming
 
 ## State And Data Modeling
 

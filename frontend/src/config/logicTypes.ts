@@ -142,7 +142,7 @@ export interface DragOverlayRootConfig {
 
 export interface DragOverlayLayerConfig {
     id: string;
-    className: string;
+    className?: string;
     initial: Record<string, number>;
     animate: Record<string, number>;
     exit: Record<string, number>;
