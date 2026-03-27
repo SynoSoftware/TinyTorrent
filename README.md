@@ -4,7 +4,7 @@
 
 **Status:** Early preview — some features are incomplete and may change.
 
-*Launch instantly* in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
+*Launch instantly* in your browser: [https://tt.run.sr](https://tt.run.sr)
 
 ---
 
