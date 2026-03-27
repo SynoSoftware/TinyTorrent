@@ -236,10 +236,9 @@ export function ConnectionCredentialsCard() {
                 // Switching endpoint/profile recreates the session client, and
                 // the Session owner already probes the new client immediately.
                 // Prime that probe so settings-originated connects do not
-                // retry or show the startup timeout dialog, and use the same
-                // explicit reconnect action semantics as later reconnects.
+                // auto-retry, and use the same explicit reconnect action
+                // semantics as later reconnects.
                 primeNextProbe("reconnect", {
-                    suppressTimeoutDialog: true,
                     disableRetry: true,
                 });
                 flushSync(() => {
@@ -254,7 +253,6 @@ export function ConnectionCredentialsCard() {
                 startedAtMs,
             });
             await reconnect({
-                suppressTimeoutDialog: true,
                 disableRetry: true,
             });
         },

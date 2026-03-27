@@ -20,7 +20,6 @@ export type ReportCommandErrorFn = (error?: unknown) => void;
 export type ReportReadErrorFn = (error?: unknown) => void;
 
 export interface RpcReconnectOptions {
-    suppressTimeoutDialog?: boolean;
     disableRetry?: boolean;
 }
 

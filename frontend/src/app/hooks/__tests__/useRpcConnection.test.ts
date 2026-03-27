@@ -77,6 +77,8 @@ const createAbortError = () => {
     return error;
 };
 
+const createConnectionError = () => new TypeError("Failed to fetch");
+
 describe("useRpcConnection", () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -179,7 +181,7 @@ describe("useRpcConnection", () => {
         }
     });
 
-    it("keeps the dialog dismissed across later reconnect failures in the same session", async () => {
+    it("re-arms the timeout dialog for a manual reconnect after dismissal", async () => {
         const probeConnection = vi
             .fn()
             .mockImplementation(() =>
@@ -216,17 +218,71 @@ describe("useRpcConnection", () => {
                     disableRetry: true,
                 });
             });
+
+            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+                false,
+            );
+            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+                null,
+            );
+
             await advance(LOCALHOST_TIMEOUT_MS);
             await act(async () => {});
             await act(async () => {
                 await reconnectPromise;
             });
 
-            expect(latestSnapshot.current?.rpcStatus).toBe(
-                status.connection.error,
-            );
             expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
-                false,
+                true,
+            );
+            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+                "reconnect",
+            );
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("shows the reconnect dialog again when a manual reconnect fails without timing out", async () => {
+        const probeConnection = vi
+            .fn()
+            .mockImplementationOnce(() =>
+                rejectAfter(LOCALHOST_TIMEOUT_MS, createAbortError()),
+            )
+            .mockRejectedValueOnce(createConnectionError());
+
+        useEngineSessionDomainMock.mockReturnValue({
+            probeConnection,
+            resetConnection: vi.fn(),
+        });
+
+        const mounted = renderHookHarness();
+        try {
+            await advance(LOCALHOST_TIMEOUT_MS);
+            await act(async () => {});
+
+            act(() => {
+                latestSnapshot.current?.connectionTimeoutDialog.dismiss();
+            });
+
+            let reconnectPromise:
+                | ReturnType<NonNullable<HookSnapshot>["reconnect"]>
+                | undefined;
+            await act(async () => {
+                reconnectPromise = latestSnapshot.current?.reconnect({
+                    disableRetry: true,
+                });
+            });
+
+            await act(async () => {
+                await reconnectPromise;
+            });
+
+            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+                true,
+            );
+            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+                "reconnect",
             );
         } finally {
             mounted.cleanup();

@@ -191,7 +191,7 @@ describe("ConnectionCredentialsCard", () => {
         }
     });
 
-    it("primes local connect without showing the startup dialog", () => {
+    it("primes local connect without auto-retry", () => {
         const mounted = renderCard();
         try {
             const connectLocalButton = Array.from(
@@ -210,7 +210,6 @@ describe("ConnectionCredentialsCard", () => {
             });
 
             expect(primeNextProbeMock).toHaveBeenCalledWith("reconnect", {
-                suppressTimeoutDialog: true,
                 disableRetry: true,
             });
             expect(updateProfileMock).toHaveBeenCalledWith(

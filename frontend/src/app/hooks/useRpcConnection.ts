@@ -21,7 +21,6 @@ const { timing } = registry;
 type ConnectionAttemptOptions = {
     preserveStatus?: boolean;
     resetConnectionBeforeAttempt?: boolean;
-    suppressTimeoutDialog?: boolean;
     disableRetry?: boolean;
 };
 
@@ -65,7 +64,6 @@ export function useRpcConnection(
     const isMountedRef = useRef(false);
     const connectPromiseRef = useRef<Promise<RpcConnectionOutcome> | null>(null);
     const retryDelayMsRef = useRef(timing.wsReconnect.initialDelayMs);
-    const connectionTimeoutDialogSuppressedRef = useRef(false);
     const nextProbeRequestRef = useRef<PrimedProbeRequest | null>(null);
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
@@ -166,6 +164,8 @@ export function useRpcConnection(
                 } catch (err) {
                     const isTimeout =
                         err instanceof Error && err.name === "AbortError";
+                    const shouldOpenTimeoutDialog =
+                        isTimeout || action === "reconnect";
                     const shouldScheduleRetry =
                         !options?.disableRetry && (isTimeout || action === "probe");
                     infraLogger.error(
@@ -191,11 +191,7 @@ export function useRpcConnection(
                             setRetryStatus(null);
                             resetRetryBackoff();
                         }
-                        if (
-                            isTimeout &&
-                            !options?.suppressTimeoutDialog &&
-                            !connectionTimeoutDialogSuppressedRef.current
-                        ) {
+                        if (shouldOpenTimeoutDialog) {
                             setConnectionTimeoutDialogAction(action);
                             setShowConnectionTimeoutDialog(true);
                         }
@@ -254,7 +250,6 @@ export function useRpcConnection(
 
     useEffect(() => {
         isMountedRef.current = true;
-        connectionTimeoutDialogSuppressedRef.current = false;
         setShowConnectionTimeoutDialog(false);
         setConnectionTimeoutDialogAction(null);
         // `connect` already updates status state on failure. Swallow here to
@@ -264,8 +259,6 @@ export function useRpcConnection(
         const nextAction = nextProbeRequest?.action ?? "probe";
         void connect(nextAction, {
             resetConnectionBeforeAttempt: nextAction === "reconnect",
-            suppressTimeoutDialog:
-                nextProbeRequest?.options?.suppressTimeoutDialog,
             disableRetry: nextProbeRequest?.options?.disableRetry,
         });
         return () => {
@@ -293,12 +286,16 @@ export function useRpcConnection(
     }, [connect, retryStatus, rpcStatus]);
 
     const reconnect = useCallback(
-        (options?: RpcReconnectOptions) =>
-            connect("reconnect", {
+        (options?: RpcReconnectOptions) => {
+            if (isMountedRef.current) {
+                setShowConnectionTimeoutDialog(false);
+                setConnectionTimeoutDialogAction(null);
+            }
+            return connect("reconnect", {
                 resetConnectionBeforeAttempt: true,
-                suppressTimeoutDialog: options?.suppressTimeoutDialog,
                 disableRetry: options?.disableRetry,
-            }),
+            });
+        },
         [connect],
     );
 
@@ -316,7 +313,6 @@ export function useRpcConnection(
         if (!isMountedRef.current) {
             return;
         }
-        connectionTimeoutDialogSuppressedRef.current = true;
         setShowConnectionTimeoutDialog(false);
     }, []);
 
