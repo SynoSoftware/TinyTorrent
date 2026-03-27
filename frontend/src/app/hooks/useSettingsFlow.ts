@@ -91,6 +91,9 @@ const mapSessionToConfig = (
     speed_limit_up_enabled:
         session["speed-limit-up-enabled"] ??
         DEFAULT_SETTINGS_CONFIG.speed_limit_up_enabled,
+    alt_speed_enabled:
+        session["alt-speed-enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.alt_speed_enabled,
     alt_speed_down:
         session["alt-speed-down"] ?? DEFAULT_SETTINGS_CONFIG.alt_speed_down,
     alt_speed_up:
@@ -175,6 +178,7 @@ const mapConfigToSession = (
         "speed-limit-down-enabled": config.speed_limit_down_enabled,
         "speed-limit-up": config.speed_limit_up,
         "speed-limit-up-enabled": config.speed_limit_up_enabled,
+        "alt-speed-enabled": config.alt_speed_enabled,
         "alt-speed-down": config.alt_speed_down,
         "alt-speed-up": config.alt_speed_up,
         "alt-speed-time-enabled": config.alt_speed_time_enabled,

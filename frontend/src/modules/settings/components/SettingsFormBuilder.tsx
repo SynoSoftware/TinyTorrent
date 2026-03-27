@@ -11,7 +11,7 @@ import {
     SingleInputRenderer,
     InputPairRenderer,
     SelectRenderer,
-    DaySelectorRenderer,
+    AltSpeedScheduleRenderer,
     ButtonRowRenderer,
     LanguageRenderer,
     RawConfigRenderer,
@@ -36,7 +36,7 @@ const BLOCK_COMPONENTS: BlockRendererMap = {
     input: SingleInputRenderer,
     "input-pair": InputPairRenderer,
     select: SelectRenderer,
-    "day-selector": DaySelectorRenderer,
+    "alt-speed-schedule": AltSpeedScheduleRenderer,
     "button-row": ButtonRowRenderer,
     language: LanguageRenderer,
     "raw-config": RawConfigRenderer,
@@ -75,8 +75,8 @@ function renderBlock(block: SectionBlock, blockIndex: number) {
                 <Renderer key={`${block.type}-${blockIndex}`} block={block} />
             );
         }
-        case "day-selector": {
-            const Renderer = BLOCK_COMPONENTS["day-selector"];
+        case "alt-speed-schedule": {
+            const Renderer = BLOCK_COMPONENTS["alt-speed-schedule"];
             return (
                 <Renderer key={`${block.type}-${blockIndex}`} block={block} />
             );

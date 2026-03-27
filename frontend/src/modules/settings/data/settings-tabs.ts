@@ -101,8 +101,8 @@ type DividerBlock = {
     type: "divider";
 } & BlockBase;
 
-type DaySelectorBlock = {
-    type: "day-selector";
+type AltSpeedScheduleBlock = {
+    type: "alt-speed-schedule";
     labelKey: string;
 } & BlockBase;
 
@@ -140,7 +140,7 @@ export type SectionBlock =
     | ButtonRowBlock
     | LanguageBlock
     | RawConfigBlock
-    | DaySelectorBlock;
+    | AltSpeedScheduleBlock;
 
 interface SectionDefinition {
     titleKey?: string;
@@ -191,13 +191,11 @@ export const SETTINGS_TABS: TabDefinition[] = [
             },
             {
                 titleKey: "settings.sections.turtle",
-                tone: "warning",
                 blocks: [
                     {
                         type: "switch",
                         labelKey: "settings.labels.turtleMode",
-                        stateKey: "alt_speed_time_enabled",
-                        color: "warning",
+                        stateKey: "alt_speed_enabled",
                     },
                     {
                         type: "input-pair",
@@ -208,6 +206,7 @@ export const SETTINGS_TABS: TabDefinition[] = [
                                 stateKey: "alt_speed_down",
                                 inputType: "number",
                                 variant: "bordered",
+                                dependsOn: "alt_speed_enabled",
                             },
                             {
                                 type: "input",
@@ -215,33 +214,18 @@ export const SETTINGS_TABS: TabDefinition[] = [
                                 stateKey: "alt_speed_up",
                                 inputType: "number",
                                 variant: "bordered",
+                                dependsOn: "alt_speed_enabled",
                             },
                         ],
                     },
                     {
-                        type: "input-pair",
-                        visible: (config) => config.alt_speed_time_enabled,
-                        inputs: [
-                            {
-                                type: "input",
-                                labelKey: "settings.labels.altSpeedStart",
-                                stateKey: "alt_speed_begin",
-                                inputType: "time",
-                                variant: "flat",
-                            },
-                            {
-                                type: "input",
-                                labelKey: "settings.labels.altSpeedEnd",
-                                stateKey: "alt_speed_end",
-                                inputType: "time",
-                                variant: "flat",
-                            },
-                        ],
+                        type: "switch",
+                        labelKey: "settings.labels.altSpeedSchedule",
+                        stateKey: "alt_speed_time_enabled",
                     },
                     {
-                        type: "day-selector",
-                        labelKey: "settings.labels.altSpeedDays",
-                        visible: (config) => config.alt_speed_time_enabled,
+                        type: "alt-speed-schedule",
+                        labelKey: "settings.labels.altSpeedWeeklySchedule",
                     },
                 ],
             },
@@ -536,7 +520,7 @@ export const SETTINGS_TABS: TabDefinition[] = [
     },
 ];
 
-export const ALT_SPEED_DAY_OPTIONS: ReadonlyArray<{
+export const altSpeedDayOptions: ReadonlyArray<{
     id: string;
     mask: number;
     labelKey: string;

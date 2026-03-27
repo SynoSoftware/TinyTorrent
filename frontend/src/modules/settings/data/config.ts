@@ -10,6 +10,7 @@ export interface SettingsConfig {
     speed_limit_down_enabled: boolean;
     speed_limit_up: number;
     speed_limit_up_enabled: boolean;
+    alt_speed_enabled: boolean;
     alt_speed_down: number;
     alt_speed_up: number;
     alt_speed_time_enabled: boolean;

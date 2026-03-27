@@ -1,15 +1,26 @@
-import { Button, Divider, Select, SelectItem, Slider, Switch, cn, } from "@heroui/react";
+import {
+    Button,
+    Divider,
+    Select,
+    SelectItem,
+    Slider,
+    Switch,
+    cn,
+} from "@heroui/react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMemo, type ReactNode } from "react";
 import {
-    ALT_SPEED_DAY_OPTIONS, type InputBlock, type SectionBlock, } from "@/modules/settings/data/settings-tabs";
+    type InputBlock,
+    type SectionBlock,
+} from "@/modules/settings/data/settings-tabs";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
+import { AltSpeedScheduleField } from "@/modules/settings/components/AltSpeedScheduleField";
 import { BufferedInput } from "@/modules/settings/components/BufferedInput";
 import {
     useSettingsFormActions,
@@ -566,67 +577,12 @@ export function InputPairRenderer({
     );
 }
 
-export function DaySelectorRenderer({
+export function AltSpeedScheduleRenderer({
     block,
 }: {
-    block: Extract<SectionBlock, { type: "day-selector" }>;
+    block: Extract<SectionBlock, { type: "alt-speed-schedule" }>;
 }) {
-    const { t } = useTranslation();
-    const { config, fieldStates } = useSettingsFormState();
-    const { onApplySetting } = useSettingsFormActions();
-    const selectedMask = config["alt_speed_time_day"] as number;
-    const fieldError = fieldStates.alt_speed_time_day?.error?.text;
-    const isPending = Boolean(fieldStates.alt_speed_time_day?.pending);
-
-    const toggleDay = (mask: number) => {
-        const nextValue =
-            selectedMask & mask ? selectedMask & ~mask : selectedMask | mask;
-        void onApplySetting("alt_speed_time_day", nextValue);
-    };
-
-    return (
-        <div className={FORM.blockStackTight}>
-            <div className={FORM.blockRowBetween}>
-                <span
-                    className={TEXT_ROLE.labelDense}
-                    style={FORM.trackingWideStyle}
-                >
-                    {t(block.labelKey)}
-                </span>
-            </div>
-            <div className={FORM.daySelectorList}>
-                {ALT_SPEED_DAY_OPTIONS.map((day) => {
-                    const isSelected = Boolean(selectedMask & day.mask);
-                    return (
-                        <Button
-                            key={day.id}
-                            size="md"
-                            variant={isSelected ? "shadow" : "ghost"}
-                            color={isSelected ? "primary" : undefined}
-                            onPress={() => toggleDay(day.mask)}
-                            isDisabled={isPending}
-                            className={cn(
-                                FORM.daySelectorButton,
-                                isSelected
-                                    ? FORM.daySelectorSelected
-                                    : FORM.daySelectorUnselected,
-                            )}
-                            style={FORM.trackingWideStyle}
-                        >
-                            {t(day.labelKey).substring(0, 3)}
-                        </Button>
-                    );
-                })}
-            </div>
-            <ControlFieldHelper
-                helper={
-                    fieldError ? (
-                        <p className={FORM.locationEditorError}>{fieldError}</p>
-                    ) : undefined
-                }
-            />
-        </div>
-    );
+    return <AltSpeedScheduleField block={block} />;
 }
 
 export function SelectRenderer({
