@@ -80,7 +80,7 @@ const DEFAULT_SETTINGS_TAB: SettingsTab = "speed";
 const DEFAULT_TORRENT_TABLE_STATE: TorrentTablePersistenceState | null = null;
 const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
-    commitMode: "paused",
+    commitMode: "start",
     showAddDialog: true,
 };
 const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
