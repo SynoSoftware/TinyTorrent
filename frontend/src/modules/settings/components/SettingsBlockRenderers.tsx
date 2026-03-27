@@ -10,10 +10,7 @@ import { TEXT_ROLE } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
-import {
-    BufferedInput,
-    type BufferedInputCommitOutcome,
-} from "@/modules/settings/components/BufferedInput";
+import { BufferedInput } from "@/modules/settings/components/BufferedInput";
 import {
     useSettingsFormActions,
     useSettingsFormState,
@@ -26,6 +23,32 @@ const { visuals } = registry;
 
 const isSettingsPathField = (stateKey: string) =>
     stateKey === "download_dir" || stateKey === "incomplete_dir";
+
+function ControlFieldHelper({ helper }: { helper?: ReactNode }) {
+    if (!helper) {
+        return null;
+    }
+    return (
+        <div className={FORM.locationEditorFeedbackSlot}>
+            <div className={FORM.locationEditorValidationRow}>
+                {helper}
+            </div>
+        </div>
+    );
+}
+
+function PathFieldHelper({ helper }: { helper?: ReactNode }) {
+    if (!helper) {
+        return null;
+    }
+    return (
+        <div className={FORM.locationEditorFeedbackSlot}>
+            <div className={FORM.locationEditorValidationRow}>
+                {helper}
+            </div>
+        </div>
+    );
+}
 
 function InlineSettingsFieldRow({
     label,
@@ -47,7 +70,7 @@ function InlineSettingsFieldRow({
                     </div>
                     <div className={FORM.locationEditorValueColumn}>{field}</div>
                 </div>
-                {helper}
+                <ControlFieldHelper helper={helper} />
             </div>
         </div>
     );
@@ -68,7 +91,7 @@ function SettingsControlRow({
                 <span className={FORM.switchLabel}>{label}</span>
                 <div className={FORM.systemRowControl}>{control}</div>
             </div>
-            {helper}
+            <ControlFieldHelper helper={helper} />
         </div>
     );
 }
@@ -119,11 +142,18 @@ export function SwitchSliderRenderer({
     block: Extract<SectionBlock, { type: "switch-slider" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsFormState();
+    const { config, fieldStates, updateConfig } = useSettingsFormState();
     const { onApplySetting } = useSettingsFormActions();
 
     const rawValue = config[block.sliderKey] as number;
     const isSwitchOn = config[block.switchKey] as boolean;
+    const switchFieldState = fieldStates[block.switchKey];
+    const sliderFieldState = fieldStates[block.sliderKey];
+    const blockPending = Boolean(
+        switchFieldState?.pending || sliderFieldState?.pending,
+    );
+    const blockError =
+        sliderFieldState?.error?.text ?? switchFieldState?.error?.text;
     const sliderDisabled =
         block.disabledWhenSwitchOff !== false ? !isSwitchOn : false;
 
@@ -139,6 +169,7 @@ export function SwitchSliderRenderer({
                     onValueChange={(val) => {
                         void onApplySetting(block.switchKey, val);
                     }}
+                    isDisabled={blockPending}
                 >
                     <span className={FORM.switchSliderLabel}>
                         {t(block.labelKey)}
@@ -166,10 +197,17 @@ export function SwitchSliderRenderer({
                         void onApplySetting(block.sliderKey, nextValue);
                     }
                 }}
-                isDisabled={sliderDisabled}
+                isDisabled={sliderDisabled || blockPending}
                 color={block.color}
                 classNames={FORM.sliderClassNames}
                 className={FORM.slider}
+            />
+            <ControlFieldHelper
+                helper={
+                    blockError ? (
+                        <p className={FORM.locationEditorError}>{blockError}</p>
+                    ) : undefined
+                }
             />
         </div>
     );
@@ -181,12 +219,8 @@ export function SwitchRenderer({
     block: Extract<SectionBlock, { type: "switch" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsFormState();
-    const {
-        capabilities,
-        onApplySetting,
-        interfaceTab: { isImmersive },
-    } = useSettingsFormActions();
+    const { config, fieldStates } = useSettingsFormState();
+    const { capabilities, onApplySetting } = useSettingsFormActions();
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const blocklistUnsupported =
@@ -197,11 +231,15 @@ export function SwitchRenderer({
         block.stateKey,
         capabilities.versionGatedSettings,
     );
+    const fieldError = fieldStates[block.stateKey]?.error?.text;
+    const fieldPending = Boolean(fieldStates[block.stateKey]?.pending);
     const isDisabled =
         blocklistUnsupported ||
         versionGatedDisabled ||
         baseDisabled ||
-        (block.disabledWhenNotImmersive && !isImmersive);
+        (block.disabledWhenNotImmersive &&
+            config.workspace_style !== "immersive") ||
+        fieldPending;
 
     return (
         <div className={FORM.switchBlock}>
@@ -224,16 +262,21 @@ export function SwitchRenderer({
                     isDisabled={isDisabled}
                 />
             </div>
-            {blocklistUnsupported && (
-                <p className={TEXT_ROLE.caption}>
-                    {t("settings.blocklist.unsupported")}
-                </p>
-            )}
-            {!blocklistUnsupported && versionGatedStatus && isDisabled && (
-                <p className={TEXT_ROLE.caption}>
-                    {getVersionGatedSettingHint(t, versionGatedStatus)}
-                </p>
-            )}
+            <ControlFieldHelper
+                helper={
+                    fieldError ? (
+                        <p className={FORM.locationEditorError}>{fieldError}</p>
+                    ) : blocklistUnsupported ? (
+                        <p className={TEXT_ROLE.caption}>
+                            {t("settings.blocklist.unsupported")}
+                        </p>
+                    ) : versionGatedStatus && versionGatedDisabled ? (
+                        <p className={TEXT_ROLE.caption}>
+                            {getVersionGatedSettingHint(t, versionGatedStatus)}
+                        </p>
+                    ) : undefined
+                }
+            />
         </div>
     );
 }
@@ -241,7 +284,13 @@ export function SwitchRenderer({
 // Extracted to be reusable by InputPair
 export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const { t } = useTranslation();
-    const { config, setFieldDraft } = useSettingsFormState();
+    const {
+        config,
+        fieldStates,
+        setFieldDraft,
+        setFieldError,
+        revertFieldDraft,
+    } = useSettingsFormState();
     const {
         capabilities,
         buttonActions,
@@ -255,12 +304,15 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const blocklistUnsupported =
         block.stateKey === "blocklist_url" && !capabilities.blocklistSupported;
-    const configValue = config[block.stateKey];
-
-    const displayValue =
-        configValue !== undefined && configValue !== null
-            ? String(configValue)
+    const fieldState = fieldStates[block.stateKey];
+    const savedValue = config[block.stateKey];
+    const savedDisplayValue =
+        savedValue !== undefined && savedValue !== null
+            ? String(savedValue)
             : "";
+    const displayValue = fieldState?.draft ?? savedDisplayValue;
+    const fieldError = fieldState?.error?.text;
+    const isPending = Boolean(fieldState?.pending);
     const isMono =
         block.inputType === "number" ||
         (typeof displayValue === "string" &&
@@ -287,7 +339,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
         block.inputType !== "time";
     const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
     const sideActionDisabled =
-        isDisabled || hideBrowseAction || blocklistUnsupported;
+        isDisabled || hideBrowseAction || blocklistUnsupported || isPending;
 
     const handleSideAction = async () => {
         if (!sideAction) return;
@@ -311,47 +363,46 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
         }
     };
 
-    const handleCommit = async (
-        val: string,
-    ): Promise<BufferedInputCommitOutcome> => {
-        const toBufferedOutcome = async (
-            nextValue: SettingsConfig[typeof block.stateKey],
-        ): Promise<BufferedInputCommitOutcome> => {
-            const outcome = await onApplySetting(block.stateKey, nextValue);
-            switch (outcome.status) {
-                case "applied":
-                    return { status: "applied" };
-                case "unsupported":
-                    return { status: "unsupported" };
-                case "failed":
-                    return { status: "failed" };
-                case "cancelled":
-                default:
-                    return { status: "canceled" };
-            }
-        };
-
+    const handleCommit = async (val: string) => {
+        if (isPending) {
+            return;
+        }
         if (block.inputType === "number") {
             if (val === "") {
-                return { status: "rejected_validation" };
+                setFieldError(block.stateKey, {
+                    kind: "validation",
+                    text: t("settings.fields.error_invalid_number"),
+                });
+                return;
             }
             const num = Number(val);
             if (Number.isNaN(num)) {
-                return { status: "rejected_validation" };
+                setFieldError(block.stateKey, {
+                    kind: "validation",
+                    text: t("settings.fields.error_invalid_number"),
+                });
+                return;
             }
-            const currentValue = Number(displayValue);
+            const currentValue = Number(savedDisplayValue);
             if (Number.isFinite(currentValue) && num === currentValue) {
-                setFieldDraft(block.stateKey, null);
-                return { status: "canceled" };
+                revertFieldDraft(block.stateKey);
+                return;
             }
-            return toBufferedOutcome(num as SettingsConfig[typeof block.stateKey]);
+            await onApplySetting(
+                block.stateKey,
+                num as SettingsConfig[typeof block.stateKey],
+            );
+            return;
         }
 
-        if (val === displayValue) {
-            setFieldDraft(block.stateKey, null);
-            return { status: "canceled" };
+        if (val === savedDisplayValue) {
+            revertFieldDraft(block.stateKey);
+            return;
         }
-        return toBufferedOutcome(val as SettingsConfig[typeof block.stateKey]);
+        await onApplySetting(
+            block.stateKey,
+            val as SettingsConfig[typeof block.stateKey],
+        );
     };
 
     const inputNode = (
@@ -363,14 +414,16 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             value={displayValue}
             type={block.inputType}
             aria-label={t(block.labelKey)}
-            isDisabled={isDisabled || blocklistUnsupported}
+            isDisabled={isDisabled || blocklistUnsupported || isPending}
+            onValueChange={(next) => setFieldDraft(block.stateKey, next)}
             onCommit={handleCommit}
-            onDraftChange={(next) => setFieldDraft(block.stateKey, next)}
+            onRevert={() => revertFieldDraft(block.stateKey)}
             classNames={
                 isPathField
                     ? FORM.locationEditorInputClassNames
                     : FORM.builder.settingsBufferedInputClassNames({
-                          disabled: isDisabled || blocklistUnsupported,
+                          disabled:
+                              isDisabled || blocklistUnsupported || isPending,
                           mono: isMono,
                       })
             }
@@ -394,11 +447,13 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
         />
     );
 
-    const blocklistHelper = blocklistUnsupported ? (
+    const helperContent = fieldError ? (
+        <p className={FORM.locationEditorError}>{fieldError}</p>
+    ) : blocklistUnsupported ? (
         <p className={TEXT_ROLE.caption}>
             {t("settings.blocklist.unsupported")}
         </p>
-    ) : null;
+    ) : undefined;
 
     if (!sideAction || hideBrowseAction) {
         if (isPathField) {
@@ -415,7 +470,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                                 {inputNode}
                             </div>
                         </div>
-                        {blocklistHelper}
+                        <PathFieldHelper helper={helperContent} />
                     </div>
                 </div>
             );
@@ -425,7 +480,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 <InlineSettingsFieldRow
                     label={t(block.labelKey)}
                     field={inputNode}
-                    helper={blocklistHelper}
+                    helper={helperContent}
                 />
             );
         }
@@ -433,7 +488,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             <SettingsControlRow
                 label={t(block.labelKey)}
                 control={inputNode}
-                helper={blocklistHelper}
+                helper={helperContent}
             />
         );
     }
@@ -466,7 +521,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                             </Button>
                         </div>
                     </div>
-                    {blocklistHelper}
+                    <PathFieldHelper helper={helperContent} />
                 </div>
             </div>
         ) : (
@@ -488,7 +543,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                         </Button>
                     </>
                 }
-                helper={blocklistHelper}
+                helper={helperContent}
             />
         )
     );
@@ -517,9 +572,11 @@ export function DaySelectorRenderer({
     block: Extract<SectionBlock, { type: "day-selector" }>;
 }) {
     const { t } = useTranslation();
-    const { config } = useSettingsFormState();
+    const { config, fieldStates } = useSettingsFormState();
     const { onApplySetting } = useSettingsFormActions();
     const selectedMask = config["alt_speed_time_day"] as number;
+    const fieldError = fieldStates.alt_speed_time_day?.error?.text;
+    const isPending = Boolean(fieldStates.alt_speed_time_day?.pending);
 
     const toggleDay = (mask: number) => {
         const nextValue =
@@ -547,6 +604,7 @@ export function DaySelectorRenderer({
                             variant={isSelected ? "shadow" : "ghost"}
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
+                            isDisabled={isPending}
                             className={cn(
                                 FORM.daySelectorButton,
                                 isSelected
@@ -560,6 +618,13 @@ export function DaySelectorRenderer({
                     );
                 })}
             </div>
+            <ControlFieldHelper
+                helper={
+                    fieldError ? (
+                        <p className={FORM.locationEditorError}>{fieldError}</p>
+                    ) : undefined
+                }
+            />
         </div>
     );
 }
@@ -570,7 +635,7 @@ export function SelectRenderer({
     block: Extract<SectionBlock, { type: "select" }>;
 }) {
     const { t } = useTranslation();
-    const { config } = useSettingsFormState();
+    const { config, fieldStates } = useSettingsFormState();
     const { capabilities, onApplySetting } = useSettingsFormActions();
     const {
         status: versionGatedStatus,
@@ -579,6 +644,8 @@ export function SelectRenderer({
         block.stateKey,
         capabilities.versionGatedSettings,
     );
+    const fieldError = fieldStates[block.stateKey]?.error?.text;
+    const fieldPending = Boolean(fieldStates[block.stateKey]?.pending);
 
     return (
         <InlineSettingsFieldRow
@@ -594,7 +661,7 @@ export function SelectRenderer({
                             : []
                     }
                     classNames={FORM.selectClassNames}
-                    isDisabled={isDisabled}
+                    isDisabled={isDisabled || fieldPending}
                     aria-label={t(block.labelKey)}
                     onSelectionChange={(keys) => {
                         const [next] = [...keys];
@@ -612,7 +679,9 @@ export function SelectRenderer({
                 </Select>
             }
             helper={
-                versionGatedStatus && isDisabled ? (
+                fieldError ? (
+                    <p className={FORM.locationEditorError}>{fieldError}</p>
+                ) : versionGatedStatus && isDisabled ? (
                     <p className={TEXT_ROLE.caption}>
                         {getVersionGatedSettingHint(t, versionGatedStatus)}
                     </p>

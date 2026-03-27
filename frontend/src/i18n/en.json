@@ -563,10 +563,14 @@
             "verifyOnComplete": "Verify When Download Completes"
         },
         "load_error": "Unable to load settings from server.",
+        "fields": {
+            "error_apply": "Unable to apply this setting.",
+            "error_browse": "Unable to open the folder picker.",
+            "error_invalid_number": "Enter a valid number."
+        },
         "modal": {
             "clipboard_failed": "Clipboard copy failed. Please try again.",
             "clipboard_success": "Configuration JSON copied to clipboard.",
-            "error_browse": "Unable to open the native folder picker.",
             "error_no_tabs": "No configuration tabs are currently available.",
             "error_restore": "Unable to restore insights at this time.",
             "error_apply": "Unable to apply the setting. Please try again.",

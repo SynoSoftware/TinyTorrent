@@ -27,6 +27,8 @@ import {
     writeClipboardOutcome,
 } from "@/shared/utils/clipboard";
 import type {
+    SettingsFieldError,
+    SettingsFieldState,
     SettingsFormActionOutcome,
     SettingsFormActionsContextValue,
     SettingsFormStateContextValue,
@@ -36,13 +38,21 @@ const { timing } = registry;
 type LiveUserPreferencePatch = Partial<
     Pick<
         SettingsConfig,
-        "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+        | "refresh_interval_ms"
+        | "request_timeout_ms"
+        | "table_watermark_enabled"
+        | "workspace_style"
+        | "show_add_torrent_dialog"
+        | "show_torrent_server_setup"
     >
 >;
 const LIVE_PREFERENCE_KEYS = [
     "refresh_interval_ms",
     "request_timeout_ms",
     "table_watermark_enabled",
+    "workspace_style",
+    "show_add_torrent_dialog",
+    "show_torrent_server_setup",
 ] as const satisfies readonly ConfigKey[];
 
 export interface SettingsModalController {
@@ -90,6 +100,10 @@ const SETTINGS_ACTION_FAILED: SettingsFormActionOutcome = {
     reason: "execution_failed",
 };
 
+const isFieldStateEmpty = (state: SettingsFieldState | undefined) =>
+    state == null ||
+    (state.draft === undefined && !state.pending && state.error === undefined);
+
 export function useSettingsModalController(
     viewModel: SettingsModalViewModel,
 ): SettingsModalController {
@@ -101,11 +115,7 @@ export function useSettingsModalController(
         onTestPort,
         capabilities,
         onRestoreInsights,
-        onToggleWorkspaceStyle,
-        isImmersive,
         hasDismissedInsights,
-        showAddTorrentDialog,
-        setShowAddTorrentDialog,
         onApplyUserPreferencesPatch,
         onApplySettingsPatch,
     } = viewModel;
@@ -119,9 +129,9 @@ export function useSettingsModalController(
     const { current: currentDownloadPath, history: downloadPathHistory } =
         useDownloadPaths();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
-    const [inputDrafts, setInputDrafts] = useState<Map<ConfigKey, string>>(
-        () => new Map()
-    );
+    const [fieldStates, setFieldStates] = useState<
+        Partial<Record<ConfigKey, SettingsFieldState>>
+    >({});
     const safeInitialConfig = useMemo(() => {
         if (!currentDownloadPath) {
             return settingsConfig;
@@ -144,7 +154,7 @@ export function useSettingsModalController(
     const resetModalEphemeralState = useCallback(() => {
         setModalError(null);
         setJsonCopyStatus("idle");
-        setInputDrafts(new Map());
+        setFieldStates({});
     }, []);
 
     const {
@@ -187,14 +197,26 @@ export function useSettingsModalController(
         return map;
     }, []);
 
-    const setFieldDraft = useCallback(
-        (key: ConfigKey, draft: string | null) => {
-            setInputDrafts((previous) => {
-                const next = new Map(previous);
-                if (draft === null) {
-                    next.delete(key);
+    const updateFieldState = useCallback(
+        (
+            key: ConfigKey,
+            updater: (
+                current: SettingsFieldState | undefined,
+            ) => SettingsFieldState | undefined,
+        ) => {
+            setFieldStates((previous) => {
+                const nextState = updater(previous[key]);
+                if (
+                    isFieldStateEmpty(previous[key]) &&
+                    isFieldStateEmpty(nextState)
+                ) {
+                    return previous;
+                }
+                const next = { ...previous };
+                if (isFieldStateEmpty(nextState)) {
+                    delete next[key];
                 } else {
-                    next.set(key, draft);
+                    next[key] = nextState;
                 }
                 return next;
             });
@@ -202,12 +224,57 @@ export function useSettingsModalController(
         [],
     );
 
+    const setFieldDraft = useCallback(
+        (key: ConfigKey, draft: string | null) => {
+            updateFieldState(key, (current) => ({
+                ...current,
+                draft: draft ?? undefined,
+                error: undefined,
+            }));
+        },
+        [updateFieldState],
+    );
+
+    const setFieldError = useCallback(
+        (key: ConfigKey, error: SettingsFieldError | null) => {
+            updateFieldState(key, (current) => ({
+                ...current,
+                error: error ?? undefined,
+            }));
+        },
+        [updateFieldState],
+    );
+
+    const revertFieldDraft = useCallback(
+        (key: ConfigKey) => {
+            updateFieldState(key, (current) => ({
+                ...current,
+                draft: undefined,
+                error: undefined,
+            }));
+        },
+        [updateFieldState],
+    );
+
+    const hasDrafts = useMemo(
+        () =>
+            Object.values(fieldStates).some(
+                (fieldState) => fieldState?.draft !== undefined,
+            ),
+        [fieldStates],
+    );
+
     const effectiveConfig = useMemo(() => {
-        if (inputDrafts.size === 0) return config;
+        if (!hasDrafts) return config;
         const patched = {
             ...config,
         } as Record<ConfigKey, SettingsConfig[ConfigKey]>;
-        for (const [key, draft] of inputDrafts.entries()) {
+        for (const [rawKey, fieldState] of Object.entries(fieldStates)) {
+            const draft = fieldState?.draft;
+            if (draft === undefined) {
+                continue;
+            }
+            const key = rawKey as ConfigKey;
             const inputType = configKeyInputTypes.get(key);
             if (inputType === "number") {
                 if (draft.trim() === "") continue;
@@ -219,7 +286,7 @@ export function useSettingsModalController(
             patched[key] = draft;
         }
         return patched as SettingsConfig;
-    }, [config, configKeyInputTypes, inputDrafts]);
+    }, [config, configKeyInputTypes, fieldStates, hasDrafts]);
 
     const configJson = useMemo(
         () => JSON.stringify(effectiveConfig, null, 2),
@@ -274,14 +341,14 @@ export function useSettingsModalController(
     }, [isOpen, resetModalEphemeralState, safeInitialConfig]);
 
     useEffect(() => {
-        if (!isOpen || inputDrafts.size > 0) {
+        if (!isOpen || hasDrafts) {
             return;
         }
         const cancelSync = scheduler.scheduleTimeout(() => {
             setConfig({ ...safeInitialConfig });
         }, 0);
         return cancelSync;
-    }, [inputDrafts.size, isOpen, safeInitialConfig]);
+    }, [hasDrafts, isOpen, safeInitialConfig]);
 
     useEffect(() => {
         if (isOpen) return;
@@ -412,19 +479,6 @@ export function useSettingsModalController(
     const applyLocalPatch = useCallback(
         (patch: Partial<SettingsConfig>) => {
             const normalizedPatch = normalizePatch(patch);
-            const patchKeys = new Set(
-                Object.keys(normalizedPatch) as ConfigKey[],
-            );
-            setInputDrafts((previous) => {
-                if (patchKeys.size === 0) {
-                    return previous;
-                }
-                const next = new Map(previous);
-                for (const key of patchKeys) {
-                    next.delete(key);
-                }
-                return next;
-            });
             setConfig((previous) => {
                 const next = {
                     ...previous,
@@ -461,6 +515,17 @@ export function useSettingsModalController(
                 preferencePatch.table_watermark_enabled =
                     patch.table_watermark_enabled;
             }
+            if (patch.workspace_style !== undefined) {
+                preferencePatch.workspace_style = patch.workspace_style;
+            }
+            if (patch.show_add_torrent_dialog !== undefined) {
+                preferencePatch.show_add_torrent_dialog =
+                    patch.show_add_torrent_dialog;
+            }
+            if (patch.show_torrent_server_setup !== undefined) {
+                preferencePatch.show_torrent_server_setup =
+                    patch.show_torrent_server_setup;
+            }
             if (Object.keys(preferencePatch).length > 0) {
                 onApplyUserPreferencesPatch(preferencePatch);
             }
@@ -484,13 +549,11 @@ export function useSettingsModalController(
             if (
                 Object.keys(sessionPatch).length === 0
             ) {
-                setModalError(null);
                 return SETTINGS_ACTION_APPLIED;
             }
 
             try {
                 await onApplySettingsPatch(sessionPatch);
-                setModalError(null);
                 return SETTINGS_ACTION_APPLIED;
             } catch {
                 const rollbackPatch = {} as Record<
@@ -516,13 +579,6 @@ export function useSettingsModalController(
                     syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
                     applyLivePreferencePatch(normalizedRollbackPatch);
                 }
-                addToast({
-                    title: t("settings.modal.error_apply"),
-                    color: "danger",
-                    severity: "danger",
-                    timeout: timing.ui.toastMs,
-                    hideCloseButton: true,
-                });
                 return SETTINGS_ACTION_FAILED;
             }
         },
@@ -531,24 +587,68 @@ export function useSettingsModalController(
             applyLocalPatch,
             onApplySettingsPatch,
             syncDownloadPathHistory,
-            t,
         ],
     );
 
     const handleApplySetting = useCallback(
-        <K extends ConfigKey>(
+        async <K extends ConfigKey>(
             key: K,
             value: SettingsConfig[K],
-        ): Promise<SettingsFormActionOutcome> =>
-            persistConfigPatch({
+        ): Promise<SettingsFormActionOutcome> => {
+            updateFieldState(key, (current) => ({
+                ...current,
+                pending: true,
+                error: undefined,
+            }));
+
+            const outcome = await persistConfigPatch({
                 [key]: value,
-            } as Partial<SettingsConfig>),
-        [persistConfigPatch],
+            } as Partial<SettingsConfig>);
+
+            if (outcome.status === "applied") {
+                updateFieldState(key, (current) => ({
+                    ...current,
+                    draft: undefined,
+                    pending: false,
+                    error: undefined,
+                }));
+                return outcome;
+            }
+
+            if (outcome.status === "failed") {
+                updateFieldState(key, (current) => ({
+                    ...current,
+                    pending: false,
+                    error: {
+                        kind: "apply",
+                        text: t("settings.fields.error_apply"),
+                    },
+                }));
+                return outcome;
+            }
+
+            updateFieldState(key, (current) => ({
+                ...current,
+                pending: false,
+            }));
+            return outcome;
+        },
+        [persistConfigPatch, t, updateFieldState],
     );
 
     const handleReset = useCallback(() => {
-        void persistConfigPatch({ ...DEFAULT_SETTINGS_CONFIG });
-    }, [persistConfigPatch]);
+        void (async () => {
+            const outcome = await persistConfigPatch({
+                ...DEFAULT_SETTINGS_CONFIG,
+            });
+            if (outcome.status === "applied") {
+                setModalError(null);
+                setFieldStates({});
+                return;
+            }
+            setModalError(t("settings.modal.error_apply"));
+        })();
+    }, [persistConfigPatch, t]);
 
     const handleBrowse = useCallback(
         async (key: ConfigKey) => {
@@ -572,11 +672,24 @@ export function useSettingsModalController(
                 }
                 return handleApplySetting(key, selected);
             } catch {
-                setModalError(t("settings.modal.error_browse"));
+                updateFieldState(key, (current) => ({
+                    ...current,
+                    error: {
+                        kind: "apply",
+                        text: t("settings.fields.error_browse"),
+                    },
+                }));
                 return SETTINGS_ACTION_FAILED;
             }
         },
-        [canBrowseDirectories, canUseShell, config, handleApplySetting, t],
+        [
+            canBrowseDirectories,
+            canUseShell,
+            config,
+            handleApplySetting,
+            t,
+            updateFieldState,
+        ],
     );
 
     const hasVisibleBlocks = useCallback(
@@ -629,15 +742,21 @@ export function useSettingsModalController(
     const settingsFormState = useMemo<SettingsFormStateContextValue>(
         () => ({
             config,
+            fieldStates,
             updateConfig,
             setFieldDraft,
+            setFieldError,
+            revertFieldDraft,
             jsonCopyStatus,
             configJson,
         }),
         [
             config,
+            fieldStates,
             updateConfig,
             setFieldDraft,
+            setFieldError,
+            revertFieldDraft,
             jsonCopyStatus,
             configJson,
         ],
@@ -647,11 +766,7 @@ export function useSettingsModalController(
         () => ({
             capabilities,
             interfaceTab: {
-                isImmersive: Boolean(isImmersive),
                 hasDismissedInsights,
-                showAddTorrentDialog,
-                onToggleWorkspaceStyle,
-                setShowAddTorrentDialog,
             },
             buttonActions,
             canBrowseDirectories,
@@ -662,10 +777,6 @@ export function useSettingsModalController(
         [
             capabilities,
             hasDismissedInsights,
-            isImmersive,
-            showAddTorrentDialog,
-            onToggleWorkspaceStyle,
-            setShowAddTorrentDialog,
             buttonActions,
             canBrowseDirectories,
             handleApplySetting,

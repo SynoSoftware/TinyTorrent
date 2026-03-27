@@ -136,16 +136,17 @@ export interface SettingsModalViewModel {
         versionGatedSettings: VersionGatedSettingSupport;
     };
     onRestoreInsights: () => void;
-    onToggleWorkspaceStyle: () => void;
-    isImmersive: boolean;
     hasDismissedInsights: boolean;
-    showAddTorrentDialog: boolean;
-    setShowAddTorrentDialog: (value: boolean) => void;
     onApplyUserPreferencesPatch: (
         patch: Partial<
             Pick<
                 SettingsConfig,
-                "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+                | "refresh_interval_ms"
+                | "request_timeout_ms"
+                | "table_watermark_enabled"
+                | "workspace_style"
+                | "show_add_torrent_dialog"
+                | "show_torrent_server_setup"
             >
         >
     ) => void;

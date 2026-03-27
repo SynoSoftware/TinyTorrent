@@ -344,12 +344,10 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         preferences: {
             workspaceStyle,
             dismissedHudCardIds,
-            addTorrentDefaults: addTorrentPreferenceDefaults,
         },
         toggleWorkspaceStyle,
         dismissHudCard,
         restoreHudCards,
-        setAddTorrentDefaults,
     } = usePreferences();
     const dismissedHudCardSet = useMemo(
         () => new Set(dismissedHudCardIds),
@@ -504,15 +502,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         applySettingsPatch: settingsFlow.applySettingsPatch,
         isSettingsOpen,
         closeSettings,
-        toggleWorkspaceStyle,
-        workspaceStyle,
         hasDismissedInsights,
-        showAddTorrentDialog: addTorrentPreferenceDefaults.showAddDialog,
-        setShowAddTorrentDialog: (value: boolean) =>
-            setAddTorrentDefaults({
-                ...addTorrentPreferenceDefaults,
-                showAddDialog: value,
-            }),
         restoreHudCards,
     });
 

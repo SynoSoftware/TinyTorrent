@@ -390,7 +390,7 @@ export const FORM = {
     sectionTitle: TEXT_ROLE.headingSection,
     sectionDescription: TEXT_ROLE.caption,
     sectionBody: "p-panel",
-    sectionContentStack: "space-y-stage",
+    sectionContentStack: "space-y-tight",
     bodyStackPanel: "space-y-panel py-panel",
     stackTools: "flex flex-col gap-tools",
     systemRow: "flex flex-col gap-tight",

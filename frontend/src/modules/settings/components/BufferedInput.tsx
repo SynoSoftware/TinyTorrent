@@ -1,77 +1,50 @@
 import { Input } from "@heroui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useRef } from "react";
 import type { ComponentProps } from "react";
 
 type InputProps = ComponentProps<typeof Input>;
 
-export type BufferedInputCommitOutcome =
-    | { status: "applied" }
-    | { status: "rejected_validation" }
-    | { status: "canceled" }
-    | { status: "failed" }
-    | { status: "unsupported" };
-
 interface BufferedInputProps
     extends Omit<InputProps, "value" | "onChange" | "onBlur" | "onKeyDown"> {
     value: string;
-    onCommit: (
-        next: string,
-    ) => BufferedInputCommitOutcome | Promise<BufferedInputCommitOutcome>;
-    onDraftChange?: (next: string) => void;
+    onValueChange: (next: string) => void;
+    onCommit: (next: string) => void | Promise<void>;
+    onRevert?: () => void;
 }
 
 export function BufferedInput({
     value,
+    onValueChange,
     onCommit,
-    onDraftChange,
+    onRevert,
     ...props
 }: BufferedInputProps) {
-    const [draft, setDraft] = useState(value);
-    const [isEditing, setIsEditing] = useState(false);
-    const [pendingCommit, setPendingCommit] = useState(false);
-
-    useEffect(() => {
-        if (!isEditing && !pendingCommit) {
-            setDraft(value);
-        }
-    }, [isEditing, value, pendingCommit]);
-
-    const commit = useCallback(async () => {
-        setPendingCommit(true);
-        try {
-            const outcome = await onCommit(draft);
-            if (outcome.status !== "applied") {
-                setDraft(value);
-                onDraftChange?.(value);
-            }
-        } catch {
-            setDraft(value);
-            onDraftChange?.(value);
-        } finally {
-            setPendingCommit(false);
-            setIsEditing(false);
-        }
-    }, [draft, onCommit, onDraftChange, value]);
+    const skipNextBlurCommitRef = useRef(false);
 
     return (
         <Input
             {...props}
-            value={draft}
+            value={value}
             onChange={(event) => {
-                const next = event.target.value;
-                setDraft(next);
-                onDraftChange?.(next);
-            }}
-            onFocus={() => {
-                setIsEditing(true);
+                onValueChange(event.target.value);
             }}
             onBlur={() => {
-                // trigger commit but don't block UI
-                void commit();
+                if (skipNextBlurCommitRef.current) {
+                    skipNextBlurCommitRef.current = false;
+                    return;
+                }
+                void onCommit(value);
             }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     event.preventDefault();
+                    void onCommit(value);
+                    return;
+                }
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipNextBlurCommitRef.current = true;
+                    onRevert?.();
                     event.currentTarget.blur();
                 }
             }}

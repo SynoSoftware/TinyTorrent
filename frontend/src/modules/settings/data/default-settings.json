@@ -35,6 +35,9 @@
     "autorun_hidden": false,
     "show_splash": true,
     "splash_message": "TinyTorrent is loading...",
+    "workspace_style": "classic",
+    "show_add_torrent_dialog": true,
+    "show_torrent_server_setup": true,
     "table_watermark_enabled": true,
     "refresh_interval_ms": 1000,
     "request_timeout_ms": 10000

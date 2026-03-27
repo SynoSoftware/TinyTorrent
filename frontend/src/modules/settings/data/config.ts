@@ -1,4 +1,5 @@
 import defaultSettingsConfig from "@/modules/settings/data/default-settings.json";
+import type { WorkspaceStyle } from "@/app/context/PreferencesContext";
 
 export interface SettingsConfig {
     peer_port: number;
@@ -33,6 +34,9 @@ export interface SettingsConfig {
     autorun_hidden: boolean;
     show_splash: boolean;
     splash_message: string;
+    workspace_style: WorkspaceStyle;
+    show_add_torrent_dialog: boolean;
+    show_torrent_server_setup: boolean;
     seedRatioLimit: number;
     seedRatioLimited: boolean;
     idleSeedingLimit: number;

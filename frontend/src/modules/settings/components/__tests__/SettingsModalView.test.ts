@@ -256,8 +256,11 @@ const createController = (): SettingsModalController =>
             },
             settingsFormState: {
                 config: {},
+                fieldStates: {},
                 updateConfig: vi.fn(),
                 setFieldDraft: vi.fn(),
+                setFieldError: vi.fn(),
+                revertFieldDraft: vi.fn(),
                 jsonCopyStatus: "idle",
                 configJson: "{}",
             },
@@ -278,11 +281,7 @@ const createController = (): SettingsModalController =>
                     },
                 },
                 interfaceTab: {
-                    isImmersive: false,
                     hasDismissedInsights: false,
-                    showAddTorrentDialog: true,
-                    onToggleWorkspaceStyle: vi.fn(),
-                    setShowAddTorrentDialog: vi.fn(),
                 },
                 buttonActions: {
                     testPort: vi.fn(),

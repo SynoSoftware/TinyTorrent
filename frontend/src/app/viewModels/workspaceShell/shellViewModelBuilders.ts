@@ -307,15 +307,14 @@ export interface SettingsModalViewModelParams {
         refresh_interval_ms: number;
         request_timeout_ms: number;
         table_watermark_enabled: boolean;
+        workspace_style: SettingsConfig["workspace_style"];
+        show_add_torrent_dialog: boolean;
+        show_torrent_server_setup: boolean;
     }>) => void;
     applySettingsPatch: (patch: Partial<SettingsConfig>) => Promise<void>;
     isSettingsOpen: boolean;
     closeSettings: () => void;
-    toggleWorkspaceStyle: () => void;
-    workspaceStyle: WorkspaceStyle;
     hasDismissedInsights: boolean;
-    showAddTorrentDialog: boolean;
-    setShowAddTorrentDialog: (value: boolean) => void;
     restoreHudCards: () => void;
 }
 
@@ -328,11 +327,7 @@ export function useSettingsModalViewModel({
     applySettingsPatch,
     isSettingsOpen,
     closeSettings,
-    toggleWorkspaceStyle,
-    workspaceStyle,
     hasDismissedInsights,
-    showAddTorrentDialog,
-    setShowAddTorrentDialog,
     restoreHudCards,
 }: SettingsModalViewModelParams): SettingsModalViewModel {
     return useMemo(
@@ -344,11 +339,7 @@ export function useSettingsModalViewModel({
             onTestPort: handleTestPort,
             capabilities,
             onRestoreInsights: restoreHudCards,
-            onToggleWorkspaceStyle: toggleWorkspaceStyle,
-            isImmersive: workspaceStyle === "immersive",
             hasDismissedInsights,
-            showAddTorrentDialog,
-            setShowAddTorrentDialog,
             onApplyUserPreferencesPatch: applyUserPreferencesPatch,
             onApplySettingsPatch: applySettingsPatch,
         }),
@@ -361,11 +352,7 @@ export function useSettingsModalViewModel({
             applySettingsPatch,
             isSettingsOpen,
             closeSettings,
-            toggleWorkspaceStyle,
-            workspaceStyle,
             hasDismissedInsights,
-            showAddTorrentDialog,
-            setShowAddTorrentDialog,
             restoreHudCards,
         ],
     );

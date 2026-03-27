@@ -10,13 +10,27 @@ export type SettingsFormActionOutcome =
     | { status: "unsupported"; reason: "capability_unavailable" }
     | { status: "failed"; reason: "execution_failed" };
 
+export interface SettingsFieldError {
+    kind: "validation" | "apply";
+    text: string;
+}
+
+export interface SettingsFieldState {
+    draft?: string;
+    pending?: boolean;
+    error?: SettingsFieldError;
+}
+
 export interface SettingsFormStateContextValue {
     config: SettingsConfig;
+    fieldStates: Partial<Record<ConfigKey, SettingsFieldState>>;
     updateConfig: <K extends ConfigKey>(
         key: K,
         value: SettingsConfig[K]
     ) => void;
     setFieldDraft: (key: ConfigKey, draft: string | null) => void;
+    setFieldError: (key: ConfigKey, error: SettingsFieldError | null) => void;
+    revertFieldDraft: (key: ConfigKey) => void;
     jsonCopyStatus: "idle" | "copied" | "failed";
     configJson: string;
 }
@@ -27,11 +41,7 @@ export interface SettingsFormActionsContextValue {
         versionGatedSettings: VersionGatedSettingSupport;
     };
     interfaceTab: {
-        isImmersive: boolean;
         hasDismissedInsights: boolean;
-        showAddTorrentDialog: boolean;
-        onToggleWorkspaceStyle: () => void;
-        setShowAddTorrentDialog: (value: boolean) => void;
     };
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;

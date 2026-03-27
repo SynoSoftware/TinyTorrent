@@ -41,18 +41,31 @@ const applyPreferencesToConfig = (
         refreshIntervalMs: number;
         requestTimeoutMs: number;
         tableWatermarkEnabled: boolean;
+        workspaceStyle: SettingsConfig["workspace_style"];
+        hasConnectedTorrentServer: boolean;
+        addTorrentDefaults: {
+            showAddDialog: boolean;
+        };
     },
 ): SettingsConfig => ({
     ...config,
     refresh_interval_ms: preferences.refreshIntervalMs,
     request_timeout_ms: preferences.requestTimeoutMs,
     table_watermark_enabled: preferences.tableWatermarkEnabled,
+    workspace_style: preferences.workspaceStyle,
+    show_add_torrent_dialog: preferences.addTorrentDefaults.showAddDialog,
+    show_torrent_server_setup: !preferences.hasConnectedTorrentServer,
 });
 
 type PreferencePayload = Partial<
     Pick<
         SettingsConfig,
-        "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+        | "refresh_interval_ms"
+        | "request_timeout_ms"
+        | "table_watermark_enabled"
+        | "workspace_style"
+        | "show_add_torrent_dialog"
+        | "show_torrent_server_setup"
     >
 >;
 
@@ -243,17 +256,37 @@ export function useSettingsFlow({
         updateRequestTimeout,
     } = useSession();
     const { preferences, updatePreferences } = usePreferences();
+    const settingsPreferenceOverlay = useMemo(
+        () => ({
+            refreshIntervalMs: preferences.refreshIntervalMs,
+            requestTimeoutMs: preferences.requestTimeoutMs,
+            tableWatermarkEnabled: preferences.tableWatermarkEnabled,
+            workspaceStyle: preferences.workspaceStyle,
+            hasConnectedTorrentServer: preferences.hasConnectedTorrentServer,
+            addTorrentDefaults: {
+                showAddDialog: preferences.addTorrentDefaults.showAddDialog,
+            },
+        }),
+        [
+            preferences.refreshIntervalMs,
+            preferences.requestTimeoutMs,
+            preferences.tableWatermarkEnabled,
+            preferences.workspaceStyle,
+            preferences.hasConnectedTorrentServer,
+            preferences.addTorrentDefaults.showAddDialog,
+        ],
+    );
     const [settingsConfigBase, setSettingsConfig] = useState<SettingsConfig>(
         () =>
             applyPreferencesToConfig(
                 { ...DEFAULT_SETTINGS_CONFIG },
-                preferences,
+                settingsPreferenceOverlay,
             ),
     );
 
     const settingsConfig = useMemo(
-        () => applyPreferencesToConfig(settingsConfigBase, preferences),
-        [settingsConfigBase, preferences],
+        () => applyPreferencesToConfig(settingsConfigBase, settingsPreferenceOverlay),
+        [settingsConfigBase, settingsPreferenceOverlay],
     );
     const settingsConfigRef = useRef(settingsConfig);
     const [sessionSettings, setSessionSettings] =
@@ -311,7 +344,7 @@ export function useSettingsFlow({
                     setSettingsConfig(
                         applyPreferencesToConfig(
                             mapSessionToConfig(session),
-                            preferences,
+                            settingsPreferenceOverlay,
                         ),
                     );
                 }
@@ -325,7 +358,12 @@ export function useSettingsFlow({
         return () => {
             active = false;
         };
-    }, [isSettingsOpen, refreshSessionSettings, rpcStatus, preferences]);
+    }, [
+        isSettingsOpen,
+        refreshSessionSettings,
+        rpcStatus,
+        settingsPreferenceOverlay,
+    ]);
 
     const handleTestPort = useCallback(
         async (): Promise<EngineTestPortOutcome> => {
@@ -432,11 +470,24 @@ export function useSettingsFlow({
                 preferencePatch.tableWatermarkEnabled =
                     patch.table_watermark_enabled;
             }
+            if (patch.workspace_style !== undefined) {
+                preferencePatch.workspaceStyle = patch.workspace_style;
+            }
+            if (patch.show_add_torrent_dialog !== undefined) {
+                preferencePatch.addTorrentDefaults = {
+                    ...preferences.addTorrentDefaults,
+                    showAddDialog: patch.show_add_torrent_dialog,
+                };
+            }
+            if (patch.show_torrent_server_setup !== undefined) {
+                preferencePatch.hasConnectedTorrentServer =
+                    !patch.show_torrent_server_setup;
+            }
             if (Object.keys(preferencePatch).length > 0) {
                 updatePreferences(preferencePatch);
             }
         },
-        [updatePreferences],
+        [preferences.addTorrentDefaults, updatePreferences],
     );
 
     return {
