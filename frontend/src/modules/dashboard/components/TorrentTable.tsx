@@ -3,7 +3,6 @@ import { cn } from "@heroui/react";
 import React, { useMemo } from "react";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
-import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ColumnMeasurementLayer } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { ColumnHeaderPreview, TorrentTable_Headers } from "@/modules/dashboard/components/TorrentTable_Headers";
 import TorrentTable_Body from "@/modules/dashboard/components/TorrentTable_Body";
@@ -56,11 +55,11 @@ export function TorrentTable({ viewModel, embedded = false }: TorrentTableProps)
                 onDragEnd={interaction.handleDragEnd}
                 onDragCancel={interaction.handleDragCancel}
             >
-                <GlassPanel layer={1} className={tableShellClass}>
+                <div className={tableShellClass}>
                     <TorrentTable_Headers viewModel={surfaces.headersViewModel} />
 
                     <TorrentTable_Body viewModel={surfaces.bodyViewModel} />
-                </GlassPanel>
+                </div>
                 {surfaces.renderOverlayPortal(
                     <DragOverlay
                         adjustScale={false}

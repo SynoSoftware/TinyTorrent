@@ -45,7 +45,6 @@ export interface SystemPreferences {
 
 export interface AddTorrentDefaultsState {
     commitMode: AddTorrentCommitMode;
-    sequentialDownload: boolean;
     showAddDialog: boolean;
 }
 
@@ -97,7 +96,6 @@ const DEFAULT_TORRENT_TABLE_STATE: TorrentTablePersistenceState | null = null;
 const DEFAULT_SPEED_CHART_LAYOUT: SpeedChartLayoutMode | null = null;
 const DEFAULT_ADD_TORRENT_DEFAULTS: AddTorrentDefaultsState = {
     commitMode: "paused",
-    sequentialDownload: false,
     showAddDialog: true,
 };
 const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
@@ -253,10 +251,6 @@ const sanitizeAddTorrentDefaults = (
     commitMode: isValidCommitMode(defaults?.commitMode)
         ? defaults.commitMode
         : DEFAULT_ADD_TORRENT_DEFAULTS.commitMode,
-    sequentialDownload:
-        typeof defaults?.sequentialDownload === "boolean"
-            ? defaults.sequentialDownload
-            : DEFAULT_ADD_TORRENT_DEFAULTS.sequentialDownload,
     showAddDialog:
         typeof defaults?.showAddDialog === "boolean"
             ? defaults.showAddDialog

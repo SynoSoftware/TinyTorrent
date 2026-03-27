@@ -148,4 +148,38 @@ describe("PreferencesProvider torrent table state", () => {
             mounted.cleanup();
         }
     });
+
+    it("drops the legacy add-dialog sequential default and preserves only supported add defaults", async () => {
+        window.localStorage.setItem(
+            PREFERENCES_STORAGE_KEY,
+            JSON.stringify({
+                addTorrentDefaults: {
+                    commitMode: "start",
+                    sequentialDownload: true,
+                    showAddDialog: false,
+                },
+            }),
+        );
+
+        const mounted = await mountHarness();
+
+        try {
+            expect(
+                mounted.ref.current?.getValue().preferences.addTorrentDefaults,
+            ).toEqual({
+                commitMode: "start",
+                showAddDialog: false,
+            });
+            expect(
+                JSON.parse(
+                    window.localStorage.getItem(PREFERENCES_STORAGE_KEY) as string,
+                ).addTorrentDefaults,
+            ).toEqual({
+                commitMode: "start",
+                showAddDialog: false,
+            });
+        } finally {
+            mounted.cleanup();
+        }
+    });
 });

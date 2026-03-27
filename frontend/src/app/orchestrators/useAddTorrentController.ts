@@ -78,10 +78,9 @@ export interface UseAddTorrentControllerResult {
 export interface AddTorrentDefaultsViewModel {
     downloadDir: string;
     commitMode: AddTorrentDefaultsState["commitMode"];
-    sequentialDownload: AddTorrentDefaultsState["sequentialDownload"];
+    sequentialDownload: boolean;
     showAddDialog: boolean;
     setCommitMode: (value: AddTorrentDefaultsState["commitMode"]) => void;
-    setSequentialDownload: (value: boolean) => void;
     setShowAddDialog: (value: boolean) => void;
 }
 
@@ -134,16 +133,6 @@ export function useAddTorrentController({
         [addTorrentDefaultsState, setAddTorrentDefaults],
     );
 
-    const setSequentialDownload = useCallback(
-        (value: boolean) => {
-            setAddTorrentDefaults({
-                ...addTorrentDefaultsState,
-                sequentialDownload: value,
-            });
-        },
-        [addTorrentDefaultsState, setAddTorrentDefaults],
-    );
-
     const setShowAddDialog = useCallback(
         (value: boolean) => {
             setAddTorrentDefaults({
@@ -158,19 +147,17 @@ export function useAddTorrentController({
         () => ({
             downloadDir: currentDownloadDir,
             commitMode: addTorrentDefaultsState.commitMode,
-            sequentialDownload: addTorrentDefaultsState.sequentialDownload,
+            sequentialDownload: settingsConfig.sequential_download,
             showAddDialog: addTorrentDefaultsState.showAddDialog,
             setCommitMode,
-            setSequentialDownload,
             setShowAddDialog,
         }),
         [
             addTorrentDefaultsState.commitMode,
-            addTorrentDefaultsState.sequentialDownload,
             addTorrentDefaultsState.showAddDialog,
             currentDownloadDir,
+            settingsConfig.sequential_download,
             setCommitMode,
-            setSequentialDownload,
             setShowAddDialog,
         ],
     );
@@ -564,7 +551,7 @@ export function useAddTorrentController({
                         [],
                         [],
                         [],
-                        addTorrentDefaultsState.sequentialDownload,
+                        settingsConfig.sequential_download,
                     ),
                 ),
         });

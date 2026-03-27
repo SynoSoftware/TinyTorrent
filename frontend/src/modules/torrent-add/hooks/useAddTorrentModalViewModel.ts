@@ -59,7 +59,6 @@ export interface UseAddTorrentModalViewModelParams {
     onConfirm: (
         selection: AddTorrentSelection
     ) => Promise<AddTorrentCommandOutcome>;
-    onSequentialDownloadChange: (value: boolean) => void;
     source: AddTorrentSource | null;
 }
 
@@ -136,7 +135,6 @@ export function useAddTorrentModalViewModel({
     isOpen,
     onCancel,
     onConfirm,
-    onSequentialDownloadChange,
     source,
 }: UseAddTorrentModalViewModelParams): UseAddTorrentModalViewModelResult {
     const { t } = useTranslation();
@@ -183,6 +181,7 @@ export function useAddTorrentModalViewModel({
     const [magnetLink, setMagnetLink] = useState(
         source?.kind === "magnet" ? source.magnetLink : "",
     );
+    const [sequential, setSequential] = useState(sequentialDownload);
     const dropActiveRef = useRef(false);
 
     useEffect(() => {
@@ -190,7 +189,8 @@ export function useAddTorrentModalViewModel({
             return;
         }
         setMagnetLink(source?.kind === "magnet" ? source.magnetLink : "");
-    }, [isOpen, source]);
+        setSequential(sequentialDownload);
+    }, [isOpen, sequentialDownload, source]);
 
     const updateDestinationDraft = useCallback((value: string) => {
         setDestinationDraft(value);
@@ -470,7 +470,7 @@ export function useAddTorrentModalViewModel({
                 priorityNormal,
                 priorityLow,
                 options: {
-                    sequential: sequentialDownload,
+                    sequential,
                 },
             });
             if (outcome.status === "queued") {
@@ -487,7 +487,7 @@ export function useAddTorrentModalViewModel({
         priorities,
         remember,
         selectedIndexes,
-        sequentialDownload,
+        sequential,
         submissionDecision.canConfirm,
         magnetLink,
         source,
@@ -597,9 +597,9 @@ export function useAddTorrentModalViewModel({
             canCollapseSettings: true,
             isPanelResizeActive,
             isSettingsCollapsed,
-            sequential: sequentialDownload,
+            sequential,
             setIsPanelResizeActive,
-            setSequential: onSequentialDownloadChange,
+            setSequential,
             settingsPanelRef,
             handleSettingsPanelCollapse,
             handleSettingsPanelExpand,

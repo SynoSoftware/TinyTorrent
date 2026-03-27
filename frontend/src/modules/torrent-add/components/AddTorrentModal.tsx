@@ -37,7 +37,6 @@ export interface AddTorrentModalProps {
     showAddDialog: boolean;
     sequentialDownloadCapability: CapabilityState;
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
-    onSequentialDownloadChange: (value: boolean) => void;
     onShowAddDialogChange: (value: boolean) => void;
     onCancel: () => void;
     onConfirm: (selection: AddTorrentSelection) => Promise<AddTorrentCommandOutcome>;
@@ -65,7 +64,6 @@ export function AddTorrentModal({
     showAddDialog,
     sequentialDownloadCapability,
     onCommitModeChange,
-    onSequentialDownloadChange,
     onShowAddDialogChange,
     onCancel,
     onConfirm,
@@ -78,7 +76,6 @@ export function AddTorrentModal({
         isOpen,
         onCancel,
         onConfirm,
-        onSequentialDownloadChange,
         source,
     });
     const {

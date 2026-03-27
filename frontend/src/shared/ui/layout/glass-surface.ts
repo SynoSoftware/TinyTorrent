@@ -216,8 +216,8 @@ export const SURFACE = {
     menu: SURFACE_MENU,
     atom: SURFACE_ATOM,
 } as const;
-const WORKBENCH_SHELL = `${SURFACE.surface.workbenchShell} surface-layer-2 border border-default/35`;
-const WORKBENCH_CHROME_SHELL = SURFACE.surface.workbenchShell;
+const WORKBENCH_MAIN_SHELL = `${SURFACE.surface.workbenchShell} surface-layer-2 `;
+const WORKBENCH_ISLAND_SHELL = `glass-panel text-foreground ${SURFACE.surface.workbenchShell} border border-default/45`;
 
 export const MODAL = {
     baseClassNames: SURFACE.modal.baseClassNames,
@@ -573,7 +573,7 @@ const CONTEXT_STATUS_BADGE =
 export const TABLE = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     shellPanel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
-    shell: WORKBENCH_CHROME_SHELL,
+    shell: WORKBENCH_ISLAND_SHELL,
     headerGroupRow: "flex w-full min-w-max",
     headerPreviewPadding: "px-(--p-tight)",
     columnHeader: TORRENT_HEADER,
@@ -724,7 +724,7 @@ export const DIAGNOSTIC = {
 const WORKBENCH_NAV = {
     root: "sticky top-0 z-overlay w-full shrink-0 select-none overflow-visible",
     surface: "text-foreground",
-    shell: WORKBENCH_CHROME_SHELL,
+    shell: WORKBENCH_ISLAND_SHELL,
     titlebar: "app-titlebar flex w-full items-stretch",
     titlebarBaseStyle: {
         height: "var(--tt-navbar-h)",
@@ -829,7 +829,7 @@ const WORKBENCH_STATUS = {
     engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
     engineConnectedPulse: "absolute inline-flex rounded-full",
     engineConnectedDot: "relative inline-flex rounded-full bg-current",
-    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_CHROME_SHELL}`,
+    footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${WORKBENCH_ISLAND_SHELL}`,
     main: "flex items-center justify-between gap-stage",
     speedFull: "hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0",
     speedCompact: "flex sm:hidden flex-1 items-center h-full py-tight min-w-0",
@@ -870,8 +870,8 @@ export const WORKBENCH = {
         "absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-pill bg-primary/30 blur-glass opacity-40",
     immersiveBackgroundAccentTop:
         "absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-pill bg-primary/30 blur-glass opacity-35",
-    immersiveNavbarWrap: `${WORKBENCH_CHROME_SHELL} shadow-hud`,
-    immersiveMainWrap: `tt-shell-no-drag ${WORKBENCH_SHELL} flex-1 min-h-0 h-full shadow-hud`,
+    immersiveNavbarWrap: `${WORKBENCH_ISLAND_SHELL} shadow-hud`,
+    immersiveMainWrap: `tt-shell-no-drag ${WORKBENCH_MAIN_SHELL} flex-1 min-h-0 h-full shadow-hud`,
     immersiveMain: "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
     immersiveHudSection: "tt-shell-no-drag grid gap-panel",
     immersiveHudCard:
@@ -883,7 +883,7 @@ export const WORKBENCH = {
     immersiveHudTextWrap: "flex-1",
     immersiveHudTextLabel: `mt-tight ${TEXT_ROLE.bodyStrong}`,
     immersiveHudTextDescription: `mt-panel ${TEXT_ROLE.caption}`,
-    immersiveStatusWrap: `tt-shell-no-drag ${WORKBENCH_CHROME_SHELL} bg-background/75 shadow-hud blur-glass`,
+    immersiveStatusWrap: `tt-shell-no-drag ${WORKBENCH_ISLAND_SHELL} bg-background/75 shadow-hud blur-glass`,
     classicStack: "flex-1 min-h-0 h-full flex flex-col gap-tools",
     classicMainWrap: "tt-shell-no-drag flex-1 min-h-0 h-full",
     classicStatusWrap: "tt-shell-no-drag",
@@ -1157,7 +1157,7 @@ const DETAILS_TABLE = {
     } as const,
 } as const;
 export const DETAILS = {
-    root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${SURFACE.atom.glassBlock} ${SURFACE.atom.shadowBlock}`,
+    root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${WORKBENCH_ISLAND_SHELL}`,
     rootStandalone: "overflow-y-auto",
     body: "flex-1 min-h-0 overflow-y-auto bg-transparent py-tight overlay-scrollbar",
     headerRoot: "grid items-center h-row",

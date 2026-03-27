@@ -603,7 +603,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
             showAddDialog: addTorrentDefaults.showAddDialog,
             sequentialDownloadCapability: capabilities.sequentialDownload,
             onCommitModeChange: addTorrentDefaults.setCommitMode,
-            onSequentialDownloadChange: addTorrentDefaults.setSequentialDownload,
             onShowAddDialogChange: addTorrentDefaults.setShowAddDialog,
             onCancel: closeAddTorrentWindow,
             onConfirm: handleTorrentWindowConfirm,
