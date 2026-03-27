@@ -28,6 +28,7 @@ import { WindowControlButton } from "@/shared/ui/layout/window-control-button";
 import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import Runtime from "@/app/runtime";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
@@ -43,7 +44,6 @@ export function Navbar({ viewModel }: NavbarProps) {
     const {
         filter,
         searchQuery,
-        uiMode,
         setSearchQuery,
         setFilter,
         onAddTorrent,
@@ -65,7 +65,7 @@ export function Navbar({ viewModel }: NavbarProps) {
     } = usePreferences();
     const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
-    const showWindowControls = uiMode === "Full";
+    const showWindowControls = Runtime.isNativeHost;
     const toneButtonClass = {
         primary:
             visuals.status.recipes[visuals.status.keys.tone.primary]?.button ??

@@ -39,6 +39,7 @@ import { useSession, useSessionTelemetry } from "@/app/context/SessionContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { shellAgent } from "@/app/agents/shell-agent";
 import { useHudCards } from "@/app/hooks/useHudCards";
+import Runtime from "@/app/runtime";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
@@ -332,12 +333,12 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
 
     const handleWindowCommand = useCallback(
         (command: "minimize" | "maximize" | "close") => {
-            if (!canUseShell) {
+            if (!Runtime.isNativeHost) {
                 return;
             }
-            void shellAgent.sendWindowCommand(command);
+            void Runtime.nativeShell.sendWindowCommand(command);
         },
-        [canUseShell],
+        [],
     );
 
     const {

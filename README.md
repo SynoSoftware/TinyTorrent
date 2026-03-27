@@ -2,9 +2,15 @@
 
 **A modern BitTorrent client. No frameworks needed. Binary target: <3 MB.**
 
-Launch instantly in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
-*(Early preview — some features are incomplete and may change)*
 
+
+**Status:** Early preview — some features are incomplete and may change
+Launch instantly in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
+
+Frontend runs against a standard `transmission-daemon`. Bugs exist; some features are unfinished and regressions may occur.  
+Single-binary backend development is currently on pause. I will be rewritten.
+
+---
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -30,11 +36,6 @@ Launch instantly in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
 
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20Adapter-purple)]()
 [![Binary Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
-
-
-**Status:** Work in progress.  
-Frontend runs against a standard `transmission-daemon`. Bugs exist; some features are unfinished and regressions may occur.  
-Custom single-binary backend is under active development.
 
 ---
 
