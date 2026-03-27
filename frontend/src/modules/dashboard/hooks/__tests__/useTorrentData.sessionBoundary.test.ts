@@ -5,7 +5,7 @@ import React, {
     useLayoutEffect,
     useRef,
 } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";

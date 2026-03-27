@@ -1,5 +1,6 @@
 import { Button, cn } from "@heroui/react";
 import {
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -259,7 +260,7 @@ export function AltSpeedScheduleField({
         fieldStates.alt_speed_begin?.error?.text ??
         fieldStates.alt_speed_end?.error?.text;
 
-    const commitRange = async (nextRange: ScheduleRange) => {
+    const commitRange = useCallback(async (nextRange: ScheduleRange) => {
         if (committedRange.dayMask !== nextRange.dayMask) {
             const outcome = await onApplySetting(
                 "alt_speed_time_day",
@@ -282,7 +283,12 @@ export function AltSpeedScheduleField({
         if (config.alt_speed_end !== nextEnd) {
             await onApplySetting("alt_speed_end", nextEnd);
         }
-    };
+    }, [
+        committedRange.dayMask,
+        config.alt_speed_begin,
+        config.alt_speed_end,
+        onApplySetting,
+    ]);
 
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
@@ -377,7 +383,7 @@ export function AltSpeedScheduleField({
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
         };
-    }, [interactionMode, previewRange]);
+    }, [commitRange, interactionMode, previewRange]);
 
     const beginDrag = (
         mode: Exclude<InteractionMode, null>,

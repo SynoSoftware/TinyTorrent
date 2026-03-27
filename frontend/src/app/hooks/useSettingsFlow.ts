@@ -328,7 +328,12 @@ export function useSettingsFlow({
             return;
         }
         hasLoadedSettingsForOpenRef.current = false;
-        setSettingsLoadError(false);
+        const resetErrorId = window.setTimeout(() => {
+            setSettingsLoadError(false);
+        }, 0);
+        return () => {
+            window.clearTimeout(resetErrorId);
+        };
     }, [isSettingsOpen]);
 
     useEffect(() => {

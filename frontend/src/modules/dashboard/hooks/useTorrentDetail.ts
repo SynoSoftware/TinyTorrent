@@ -230,11 +230,14 @@ export function useTorrentDetail({
         if (sessionReady) {
             return;
         }
-        clearDetail();
-    }, [clearDetail, sessionReady]);
+        detailRequestRef.current += 1;
+        activeDetailIdRef.current = null;
+        detailTimestampRef.current = 0;
+        detailIdentityRef.current = null;
+    }, [sessionReady]);
 
     return {
-        detailData,
+        detailData: sessionReady ? detailData : null,
         loadDetail,
         refreshDetailData,
         clearDetail,

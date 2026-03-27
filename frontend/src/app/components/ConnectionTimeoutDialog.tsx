@@ -44,7 +44,7 @@ export function ConnectionTimeoutDialog() {
     } = usePreferences();
     const { activeRpcConnection } = useConnectionConfig();
     const { isSettingsOpen, openSettings } = useWorkspaceModals();
-    const { tick } = useUiClock();
+    const { tick, lastTickAt } = useUiClock();
     const isStartupTimeout = connectionTimeoutDialog.action === "probe";
     const showInstallRecommendation = isStartupTimeout && uiCapabilities.isLoopback;
     const showWelcomeCopy = showInstallRecommendation && !hasConnectedTorrentServer;
@@ -67,7 +67,14 @@ export function ConnectionTimeoutDialog() {
     const remainingRetrySeconds =
         connectionTimeoutDialog.retryStatus?.kind !== "scheduled"
             ? null
-            : Math.max(0, Math.ceil((connectionTimeoutDialog.retryStatus.retryAtMs - Date.now()) / 1000));
+            : Math.max(
+                  0,
+                  Math.ceil(
+                      (connectionTimeoutDialog.retryStatus.retryAtMs -
+                          lastTickAt) /
+                          1000,
+                  ),
+              );
     void tick;
     const footerStatusMessage =
         connectionTimeoutDialog.retryStatus?.kind === "connecting" || rpcStatus === status.connection.idle

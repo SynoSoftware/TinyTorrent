@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
@@ -409,8 +409,6 @@ export function useTorrentData({
         [markTransportConnected],
     );
 
-    const runtimeSummary = useMemo(() => deriveTorrentRuntimeSummary(torrents), [torrents]);
-
     useEffect(() => {
         if (!sessionReady) return;
         const subscription = heartbeatDomain.subscribeTable({
@@ -442,18 +440,21 @@ export function useTorrentData({
         snapshotOrderRef.current = [];
         snapshotTimestampRef.current = 0;
         initialLoadRef.current = false;
-        setTorrents([]);
-        setGhosts([]);
-        setIsInitialLoadFinished(false);
     }, [clearAllGhostTimers, sessionReady]);
 
+    const visibleTorrents = sessionReady ? torrents : [];
+    const visibleGhosts = sessionReady ? ghosts : [];
+    const visibleInitialLoadFinished = sessionReady
+        ? isInitialLoadFinished
+        : false;
+
     return {
-        torrents,
-        isInitialLoadFinished,
+        torrents: visibleTorrents,
+        isInitialLoadFinished: visibleInitialLoadFinished,
         refresh,
         mutateTorrents,
-        runtimeSummary,
-        ghostTorrents: ghosts,
+        runtimeSummary: deriveTorrentRuntimeSummary(visibleTorrents),
+        ghostTorrents: visibleGhosts,
         addGhostTorrent,
         removeGhostTorrent,
     };

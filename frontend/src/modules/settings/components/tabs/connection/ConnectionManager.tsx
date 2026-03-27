@@ -29,6 +29,11 @@ type PendingConnectionAction = {
     startedAtMs: number;
 };
 
+type ConnectionDraftOverride = {
+    profileId: ConnectionProfile["id"];
+    draft: ConnectionDraft;
+};
+
 const LOCAL_CONNECTION_DRAFT: ConnectionDraft = {
     scheme: "http",
     host: "localhost",
@@ -71,7 +76,8 @@ function ConnectionFieldRow({ label, children }: ConnectionFieldRowProps) {
 export function ConnectionCredentialsCard() {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [draft, setDraft] = useState<ConnectionDraft>(LOCAL_CONNECTION_DRAFT);
+    const [draftOverride, setDraftOverride] =
+        useState<ConnectionDraftOverride | null>(null);
     const [pendingAction, setPendingAction] =
         useState<PendingConnectionAction | null>(null);
     const { activeProfile, activeRpcConnection, updateProfile } =
@@ -83,20 +89,14 @@ export function ConnectionCredentialsCard() {
         uiCapabilities,
     } = useSession();
 
-    useEffect(() => {
-        setDraft(toConnectionDraft(activeProfile));
-    }, [
-        activeProfile.host,
-        activeProfile.password,
-        activeProfile.port,
-        activeProfile.scheme,
-        activeProfile.username,
-    ]);
-
     const committedDraft = useMemo(
         () => toConnectionDraft(activeProfile),
         [activeProfile],
     );
+    const draft =
+        draftOverride?.profileId === activeProfile.id
+            ? draftOverride.draft
+            : committedDraft;
     const hasDraftChanges = useMemo(
         () => !draftsEqual(draft, committedDraft),
         [committedDraft, draft],
@@ -150,66 +150,70 @@ export function ConnectionCredentialsCard() {
         hasDraftChanges,
         t,
     ]);
+    const visiblePendingAction =
+        rpcStatus === status.connection.connected ? null : pendingAction;
     const connectionStatusLabel = useMemo(() => {
-        if (pendingAction !== null) {
+        if (visiblePendingAction !== null) {
             return t("settings.connection.connecting");
         }
         return rpcStatus === status.connection.connected
             ? t("status_bar.rpc_connected")
             : t("status_bar.rpc_error");
-    }, [pendingAction, rpcStatus, t]);
+    }, [rpcStatus, t, visiblePendingAction]);
     const connectionStatusColor = useMemo<"success" | "warning" | "danger">(
         () => {
-            if (pendingAction !== null) {
+            if (visiblePendingAction !== null) {
                 return "warning";
             }
             return rpcStatus === status.connection.connected
                 ? "success"
                 : "danger";
         },
-        [pendingAction, rpcStatus],
+        [rpcStatus, visiblePendingAction],
     );
     const statusIcon = useMemo(() => {
-        if (pendingAction !== null) {
+        if (visiblePendingAction !== null) {
             return RefreshCw;
         }
         return rpcStatus === status.connection.connected
             ? CheckCircle
             : XCircle;
-    }, [pendingAction, rpcStatus]);
+    }, [rpcStatus, visiblePendingAction]);
     const StatusIcon = statusIcon;
-    const isConnectionBusy = pendingAction !== null;
-    const pendingIntent = pendingAction?.intent ?? null;
+    const isConnectionBusy = visiblePendingAction !== null;
+    const pendingIntent = visiblePendingAction?.intent ?? null;
 
     useEffect(() => {
-        if (pendingAction === null) {
-            return;
-        }
-        if (rpcStatus === status.connection.connected) {
-            setPendingAction(null);
+        if (
+            pendingAction === null ||
+            rpcStatus === status.connection.connected
+        ) {
             return;
         }
         const remainingMs =
             pendingAction.startedAtMs + timing.connection.timeoutMs - Date.now();
-        if (remainingMs <= 0) {
-            setPendingAction(null);
-            return;
-        }
         return scheduler.scheduleTimeout(() => {
             setPendingAction((current) =>
                 current === pendingAction ? null : current,
             );
-        }, remainingMs);
+        }, Math.max(remainingMs, 0));
     }, [pendingAction, rpcStatus]);
 
     const updateDraft = useCallback(
         (patch: Partial<ConnectionDraft>) => {
-            setDraft((previous) => ({
-                ...previous,
-                ...patch,
+            setDraftOverride((previous) => ({
+                profileId: activeProfile.id,
+                draft: {
+                    ...(
+                        previous?.profileId === activeProfile.id
+                            ? previous.draft
+                            : committedDraft
+                    ),
+                    ...patch,
+                },
             }));
         },
-        [],
+        [activeProfile.id, committedDraft],
     );
 
     const handleSubmit = useCallback(
@@ -241,6 +245,7 @@ export function ConnectionCredentialsCard() {
                 flushSync(() => {
                     updateProfile(activeProfile.id, draftToCommit);
                 });
+                setDraftOverride(null);
                 return;
             }
 
@@ -257,9 +262,12 @@ export function ConnectionCredentialsCard() {
     );
 
     const handleConnectLocal = useCallback(() => {
-        setDraft(LOCAL_CONNECTION_DRAFT);
+        setDraftOverride({
+            profileId: activeProfile.id,
+            draft: LOCAL_CONNECTION_DRAFT,
+        });
         void handleSubmit("connect_local", LOCAL_CONNECTION_DRAFT);
-    }, [handleSubmit]);
+    }, [activeProfile.id, handleSubmit]);
 
     const renderStatusChip = (
         <Chip

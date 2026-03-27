@@ -164,13 +164,14 @@ export function useSessionStats({
             return;
         }
         lastHeartbeatTorrentsRef.current = undefined;
-        setSessionStatsIfChanged(null);
-        setLiveTransportStatus("polling");
-    }, [sessionReady, setSessionStatsIfChanged]);
+    }, [sessionReady]);
+
+    const visibleSessionStats = sessionReady ? sessionStats : null;
+    const visibleTransportStatus = sessionReady ? liveTransportStatus : "polling";
 
     return {
-        sessionStats,
+        sessionStats: visibleSessionStats,
         refreshSessionStatsData,
-        liveTransportStatus,
+        liveTransportStatus: visibleTransportStatus,
     };
 }
