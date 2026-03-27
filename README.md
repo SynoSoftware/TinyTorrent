@@ -2,13 +2,9 @@
 
 **A modern BitTorrent client. No frameworks needed. Binary target: <3 MB.**
 
+**Status:** Early preview — some features are incomplete and may change.
 
-
-**Status:** Early preview — some features are incomplete and may change
-Launch instantly in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
-
-Frontend runs against a standard `transmission-daemon`. Bugs exist; some features are unfinished and regressions may occur.  
-Single-binary backend development is currently on pause. I will be rewritten.
+*Launch instantly* in your browser: [https://tt.synapse.sr](https://tt.synapse.sr)
 
 ---
 
