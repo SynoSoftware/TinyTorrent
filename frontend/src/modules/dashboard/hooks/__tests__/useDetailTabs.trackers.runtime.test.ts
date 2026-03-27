@@ -216,4 +216,83 @@ describe("useTorrentDetailTabCoordinator trackers runtime", () => {
             container.remove();
         }
     });
+
+    it("settles when tracker data arrives after the trackers tab already opened on a placeholder detail", async () => {
+        const detail = makeDetail();
+        detail.trackers = undefined;
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+        let renderCount = 0;
+
+        try {
+            flushSync(() => {
+                root.render(
+                    createElement(RuntimeHarness, {
+                        viewModel,
+                        onRender: () => {
+                            renderCount += 1;
+                        },
+                    }),
+                );
+            });
+
+            expect(container.textContent).toContain("torrent_modal.loading");
+
+            detail.trackers = [
+                {
+                    id: 11,
+                    announce: "https://tracker.example/announce",
+                    tier: 0,
+                    announceState: 0,
+                    downloadCount: 0,
+                    hasAnnounced: false,
+                    hasScraped: false,
+                    isBackup: false,
+                    lastAnnouncePeerCount: 0,
+                    lastAnnounceResult: "",
+                    lastAnnounceSucceeded: false,
+                    lastAnnounceTime: 0,
+                    lastAnnounceTimedOut: false,
+                    lastScrapeResult: "",
+                    lastScrapeSucceeded: false,
+                    lastScrapeTime: 0,
+                    lastScrapeTimedOut: false,
+                    leecherCount: 0,
+                    nextAnnounceTime: 0,
+                    scrapeState: 0,
+                    seederCount: 0,
+                    sitename: "",
+                    host: "tracker.example",
+                },
+            ];
+
+            flushSync(() => {
+                root.render(
+                    createElement(RuntimeHarness, {
+                        viewModel,
+                        onRender: () => {
+                            renderCount += 1;
+                        },
+                    }),
+                );
+            });
+
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, 100);
+            });
+
+            expect(renderCount).toBeLessThan(30);
+            expect(container.textContent).toContain(
+                "https://tracker.example/announce",
+            );
+            expect(container.textContent).toContain(
+                "torrent_modal.trackers.add_action",
+            );
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
 });

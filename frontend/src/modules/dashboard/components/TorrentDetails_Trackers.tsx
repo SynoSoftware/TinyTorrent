@@ -16,7 +16,7 @@ import type {
 const { visuals } = registry;
 
 interface TrackersTabProps {
-    viewModel: TorrentDetailsTrackersViewModel;
+    viewModel: TorrentDetailsTrackersViewModel | null;
     isStandalone?: boolean;
 }
 
@@ -162,8 +162,17 @@ export const TrackersTab = ({
     viewModel,
     isStandalone = false,
 }: TrackersTabProps) => {
+    const { t } = useTranslation();
     const shell = (content: ReactNode) =>
         isStandalone ? <GlassPanel className={DETAILS.table.panel}>{content}</GlassPanel> : content;
+
+    if (!viewModel) {
+        return shell(
+            <div className={DETAILS.table.emptyPanel}>
+                <p className={DETAILS.table.emptyText}>{t("torrent_modal.loading")}</p>
+            </div>,
+        );
+    }
 
     const trackerActions = viewModel.actions;
     const trackerState = viewModel.state;

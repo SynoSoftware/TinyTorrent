@@ -82,14 +82,16 @@ vi.mock("@/modules/dashboard/components/TorrentDetails_Trackers", () => ({
                     announce: string;
                 }>;
             };
-        };
+        } | null;
     }) =>
         createElement(
             "div",
             {
                 "data-testid": "trackers-surface",
             },
-            viewModel.data.rows.length > 0
+            !viewModel
+                ? "torrent_modal.loading"
+                : viewModel.data.rows.length > 0
                 ? viewModel.data.rows
                       .map((tracker) => tracker.announce)
                       .join(",")
@@ -281,6 +283,25 @@ describe("useTorrentDetailTabCoordinator trackers tab", () => {
             expect(container.textContent).toContain(
                 "torrent_modal.trackers.copy_all_action:Copy",
             );
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("suppresses trackers header actions while the tab is still loading", () => {
+        const detail = makeDetail();
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(HeaderActionsHarness, { viewModel }));
+            });
+
+            expect(container.textContent).toBe("");
         } finally {
             root.unmount();
             container.remove();

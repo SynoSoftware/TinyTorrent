@@ -111,7 +111,7 @@ export interface TorrentDetailTabSurfaces {
         showPersistentHud: boolean;
     } | null;
     trackers: {
-        viewModel: ReturnType<typeof useTorrentDetailsTrackersViewModel>;
+        viewModel: ReturnType<typeof useTorrentDetailsTrackersViewModel> | null;
         isStandalone?: boolean;
     } | null;
     peers: {
@@ -210,6 +210,7 @@ export const useTorrentDetailTabCoordinator = ({
         onInspectorTabCommandHandled: viewModel.tabs.navigation.onInspectorTabCommandHandled,
     });
     const trackersListRef = useRef<HTMLDivElement | null>(null);
+    const isTrackersDataReady = torrent?.trackers != null;
     const runTrackerMutation = useCallback(
         async (mutate: () => Promise<Pick<TorrentDispatchOutcome, "status">>) => {
             const outcome = await mutate();
@@ -224,8 +225,8 @@ export const useTorrentDetailTabCoordinator = ({
     );
     const trackerCommands = viewModel.tabs.trackers;
     const trackersViewModel = useTorrentDetailsTrackersViewModel({
-        enabled: active === "trackers" && torrent != null,
-        torrentId: trackerCommands.torrentId,
+        enabled: active === "trackers" && torrent != null && isTrackersDataReady,
+        torrentId: active === "trackers" && isTrackersDataReady ? trackerCommands.torrentId : null,
         torrentName: torrent?.name ?? "",
         trackers: torrent?.trackers ?? [],
         emptyMessage:
@@ -297,7 +298,7 @@ export const useTorrentDetailTabCoordinator = ({
                           showPersistentHud: showPiecesHud,
                       },
                       trackers: {
-                          viewModel: trackersViewModel,
+                          viewModel: isTrackersDataReady ? trackersViewModel : null,
                           isStandalone,
                       },
                       peers: {
@@ -320,7 +321,7 @@ export const useTorrentDetailTabCoordinator = ({
                                 }
                               : null,
                   },
-        [isDetailFullscreen, isStandalone, showPiecesHud, t, torrent, trackersViewModel, viewModel],
+        [isDetailFullscreen, isStandalone, isTrackersDataReady, showPiecesHud, t, torrent, trackersViewModel, viewModel],
     );
 
     const visibleTabDefs = useMemo(
@@ -461,9 +462,13 @@ export const useTorrentDetailTabCoordinator = ({
             return actions;
         }
         if (active === "trackers" && surfaces.trackers) {
-            const trackerState = surfaces.trackers.viewModel.state;
-            const trackerLabels = surfaces.trackers.viewModel.labels;
-            const trackerActions = surfaces.trackers.viewModel.actions;
+            const trackersTabViewModel = surfaces.trackers.viewModel;
+            if (!trackersTabViewModel) {
+                return [];
+            }
+            const trackerState = trackersTabViewModel.state;
+            const trackerLabels = trackersTabViewModel.labels;
+            const trackerActions = trackersTabViewModel.actions;
             const canMutate = !trackerState.isMutating;
             const actions: TorrentDetailHeaderAction[] = [];
 
