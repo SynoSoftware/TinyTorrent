@@ -38,28 +38,26 @@ function ConnectionDialogRow({ icon: Icon, label, children }: ConnectionDialogRo
 
 export function ConnectionTimeoutDialog() {
     const { t } = useTranslation();
-    const { connectionTimeoutDialog, reconnect, rpcStatus, uiCapabilities } = useSession();
+    const { connectionTimeoutDialog, reconnect, rpcStatus } = useSession();
     const {
-        preferences: { hasConnectedTorrentServer },
+        preferences: { showTorrentServerSetup },
+        updatePreferences,
     } = usePreferences();
     const { activeRpcConnection } = useConnectionConfig();
     const { isSettingsOpen, openSettings } = useWorkspaceModals();
     const { tick, lastTickAt } = useUiClock();
     const isStartupTimeout = connectionTimeoutDialog.action === "probe";
-    const showInstallRecommendation = isStartupTimeout && uiCapabilities.isLoopback;
-    const showWelcomeCopy = showInstallRecommendation && !hasConnectedTorrentServer;
-    const titleKey = showWelcomeCopy
+    const showInstallRecommendation = showTorrentServerSetup;
+    const titleKey = showInstallRecommendation
         ? "workspace.connection_timeout_dialog.welcome_title"
         : isStartupTimeout
           ? "workspace.connection_timeout_dialog.startup_title"
           : "workspace.connection_timeout_dialog.runtime_title";
-    const bodyKey = showWelcomeCopy
+    const bodyKey = showInstallRecommendation
         ? "workspace.connection_timeout_dialog.welcome_body"
-        : showInstallRecommendation
-          ? "workspace.connection_timeout_dialog.startup_install_body"
-          : isStartupTimeout
-            ? "workspace.connection_timeout_dialog.startup_body"
-            : "workspace.connection_timeout_dialog.runtime_body";
+        : isStartupTimeout
+          ? "workspace.connection_timeout_dialog.startup_body"
+          : "workspace.connection_timeout_dialog.runtime_body";
     const openSettingsFromDialog = () => {
         connectionTimeoutDialog.dismiss();
         openSettings("connection");
@@ -94,12 +92,24 @@ export function ConnectionTimeoutDialog() {
         connectionTimeoutDialog.dismiss();
     }, [connectionTimeoutDialog, isSettingsOpen]);
 
+    useEffect(() => {
+        if (
+            rpcStatus !== status.connection.connected ||
+            !showTorrentServerSetup
+        ) {
+            return;
+        }
+        updatePreferences({
+            showTorrentServerSetup: false,
+        });
+    }, [rpcStatus, showTorrentServerSetup, updatePreferences]);
+
     return (
         <ModalEx
             open={connectionTimeoutDialog.isOpen && !isSettingsOpen}
             onClose={connectionTimeoutDialog.dismiss}
             title={t(titleKey)}
-            icon={showWelcomeCopy ? Sparkles : AlertTriangle}
+            icon={showInstallRecommendation ? Sparkles : AlertTriangle}
             size="sm"
             footerStartContent={
                 footerStatusMessage ? (
@@ -132,16 +142,14 @@ export function ConnectionTimeoutDialog() {
                 )}
                 {showInstallRecommendation ? (
                     <>
-                        {showWelcomeCopy ? null : (
-                            <ConnectionDialogRow
-                                icon={Play}
-                                label={t("workspace.connection_timeout_dialog.start_option_label")}
-                            >
-                                <p className={TEXT_ROLE.bodySmall}>
-                                    {t("workspace.connection_timeout_dialog.start_option_hint")}
-                                </p>
-                            </ConnectionDialogRow>
-                        )}
+                        <ConnectionDialogRow
+                            icon={Play}
+                            label={t("workspace.connection_timeout_dialog.start_option_label")}
+                        >
+                            <p className={TEXT_ROLE.bodySmall}>
+                                {t("workspace.connection_timeout_dialog.start_option_hint")}
+                            </p>
+                        </ConnectionDialogRow>
                         <ConnectionDialogRow
                             icon={Download}
                             label={t("workspace.connection_timeout_dialog.install_option_label")}
@@ -150,7 +158,7 @@ export function ConnectionTimeoutDialog() {
                                 <p className={TEXT_ROLE.bodySmall}>
                                     {t("workspace.connection_timeout_dialog.install_option_hint")}
                                 </p>
-                                <div className={MODAL.dialogFooterGroup}>
+                                <div className={`${FORM.blockRowBetween} gap-tools`}>
                                     <p className={DETAILS.generalMetricCode}>{TRANSMISSION_DAEMON_DOWNLOAD_URL}</p>
                                     <Button
                                         as="a"

@@ -61,21 +61,6 @@ export interface TorrentTablePersistenceState {
 
 const PREFERENCES_STORAGE_KEY = "tiny-torrent.preferences.v1";
 const CURRENT_PREFERENCES_VERSION = 1;
-const LEGACY_USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
-const LEGACY_WORKBENCH_SCALE_KEY = "tiny-torrent.workbench.scale";
-const LEGACY_WORKSPACE_STYLE_KEY = "tiny-torrent.workspace-style";
-const LEGACY_HUD_DISMISSED_KEY = "tiny-torrent.hud-dismissed";
-const SYSTEM_POWER_KEY = "tiny-torrent.system.prevent-sleep";
-const SYSTEM_UPDATE_KEY = "tiny-torrent.system.auto-update";
-const SYSTEM_CLOSE_ACTION_KEY = "tiny-torrent.system.close-action";
-const DETAIL_TAB_KEY = "tt.inspector.active_tab";
-const TABLE_STATE_KEY = "tiny-torrent.table-state.v2.8";
-const SPEED_CHART_LAYOUT_KEY = "speed_chart_layout_pref";
-const ADD_TORRENT_DEFAULTS_KEY = "tt-add-torrent-defaults";
-const ADD_TORRENT_LEGACY_DOWNLOAD_KEY = "tt-add-last-download-dir";
-const ADD_TORRENT_HISTORY_KEY = "tt-add-save-history";
-const CONNECTION_PROFILES_KEY = "tiny-torrent.connection.profiles";
-const CONNECTION_ACTIVE_PROFILE_KEY = "tiny-torrent.connection.active";
 
 export const ZOOM_EVENT_NAME = "tt-zoom-change";
 
@@ -105,46 +90,22 @@ const DEFAULT_REMOVE_TORRENT_DEFAULTS: RemoveTorrentDefaultsState = {
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
 const DEFAULT_ACTIVE_CONNECTION_PROFILE_ID = "";
 
-const LEGACY_STORAGE_KEYS_TO_REMOVE = [
-    LEGACY_USER_PREFERENCES_KEY,
-    LEGACY_WORKBENCH_SCALE_KEY,
-    LEGACY_WORKSPACE_STYLE_KEY,
-    LEGACY_HUD_DISMISSED_KEY,
-    SYSTEM_POWER_KEY,
-    SYSTEM_UPDATE_KEY,
-    SYSTEM_CLOSE_ACTION_KEY,
-    DETAIL_TAB_KEY,
-    TABLE_STATE_KEY,
-    SPEED_CHART_LAYOUT_KEY,
-    ADD_TORRENT_DEFAULTS_KEY,
-    ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
-    ADD_TORRENT_HISTORY_KEY,
-    CONNECTION_PROFILES_KEY,
-    CONNECTION_ACTIVE_PROFILE_KEY,
-];
-
-const removeLegacyPreferences = () => {
-    if (typeof window === "undefined") return;
-    for (const key of LEGACY_STORAGE_KEYS_TO_REMOVE) {
-        window.localStorage.removeItem(key);
-    }
-};
-
 // Final PreferencesState shape (must cover every persisted preference managed by the provider):
 //   version, refreshIntervalMs, requestTimeoutMs, tableWatermarkEnabled,
+//   showTorrentServerSetup,
 //   workbenchScale, workspaceStyle, dismissedHudCardIds,
 //   theme, language,
 //   systemPreferences (preventSleep, autoUpdate, closeAction),
 //   inspectorTab, settingsTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
 //   addTorrentDefaults, addTorrentHistory, removeTorrentDefaults,
 //   connectionProfiles, activeConnectionProfileId.
-// This contract should never shrink without a documented migration path.
+// This contract is the only persisted preferences shape.
 export interface PreferencesState {
     version: number;
     refreshIntervalMs: number;
     requestTimeoutMs: number;
     tableWatermarkEnabled: boolean;
-    hasConnectedTorrentServer: boolean;
+    showTorrentServerSetup: boolean;
     workbenchScale: number;
     workspaceStyle: WorkspaceStyle;
     dismissedHudCardIds: string[];
@@ -170,7 +131,7 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     refreshIntervalMs: DEFAULT_SETTINGS_CONFIG.refresh_interval_ms,
     requestTimeoutMs: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
     tableWatermarkEnabled: DEFAULT_SETTINGS_CONFIG.table_watermark_enabled,
-    hasConnectedTorrentServer: false,
+    showTorrentServerSetup: DEFAULT_SETTINGS_CONFIG.show_torrent_server_setup,
     workbenchScale: DEFAULT_WORKBENCH_SCALE,
     workspaceStyle: "classic",
     dismissedHudCardIds: [],
@@ -198,21 +159,6 @@ const persistPreferences = (payload: PreferencesState) => {
         );
     } catch {
         /* ignore */
-    }
-};
-
-const parseNumber = (value: string | null) => {
-    if (!value) return undefined;
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? undefined : parsed;
-};
-
-const parseJson = <T,>(value: string | null): T | undefined => {
-    if (!value) return undefined;
-    try {
-        return JSON.parse(value) as T;
-    } catch {
-        return undefined;
     }
 };
 
@@ -300,133 +246,6 @@ const isTorrentTableState = (
     return true;
 };
 
-const readLegacyPreferences = (): PreferencesState => {
-    if (typeof window === "undefined") {
-        return DEFAULT_PREFERENCES;
-    }
-    const next: PreferencesState = { ...DEFAULT_PREFERENCES };
-
-    try {
-        const storedUser = window.localStorage.getItem(
-            LEGACY_USER_PREFERENCES_KEY,
-        );
-        if (storedUser) {
-            const parsed = JSON.parse(storedUser) as {
-                refresh_interval_ms?: number;
-                request_timeout_ms?: number;
-                table_watermark_enabled?: boolean;
-            };
-            if (typeof parsed.refresh_interval_ms === "number") {
-                next.refreshIntervalMs = parsed.refresh_interval_ms;
-            }
-            if (typeof parsed.request_timeout_ms === "number") {
-                next.requestTimeoutMs = parsed.request_timeout_ms;
-            }
-            if (typeof parsed.table_watermark_enabled === "boolean") {
-                next.tableWatermarkEnabled = parsed.table_watermark_enabled;
-            }
-        }
-    } catch {
-        /* ignore */
-    }
-
-    const legacyScale = parseNumber(
-        window.localStorage.getItem(LEGACY_WORKBENCH_SCALE_KEY),
-    );
-    if (typeof legacyScale === "number") {
-        next.workbenchScale = clampScale(legacyScale);
-    }
-
-    const legacyStyle = window.localStorage.getItem(LEGACY_WORKSPACE_STYLE_KEY);
-    if (legacyStyle === "immersive") {
-        next.workspaceStyle = "immersive";
-    }
-
-    try {
-        const legacyHud = window.localStorage.getItem(LEGACY_HUD_DISMISSED_KEY);
-        if (legacyHud) {
-            next.dismissedHudCardIds = JSON.parse(legacyHud) as string[];
-        }
-    } catch {
-        /* ignore */
-    }
-
-    const storedPreventSleep = parseJson<boolean>(
-        window.localStorage.getItem(SYSTEM_POWER_KEY),
-    );
-    if (typeof storedPreventSleep === "boolean") {
-        next.systemPreferences.preventSleep = storedPreventSleep;
-    }
-
-    const storedAutoUpdate = parseJson<boolean>(
-        window.localStorage.getItem(SYSTEM_UPDATE_KEY),
-    );
-    if (typeof storedAutoUpdate === "boolean") {
-        next.systemPreferences.autoUpdate = storedAutoUpdate;
-    }
-
-    const storedCloseAction = parseJson<CloseAction>(
-        window.localStorage.getItem(SYSTEM_CLOSE_ACTION_KEY),
-    );
-    if (storedCloseAction === "minimize" || storedCloseAction === "quit") {
-        next.systemPreferences.closeAction = storedCloseAction;
-    }
-
-    const storedInspectorTab = window.localStorage.getItem(DETAIL_TAB_KEY);
-    if (isDetailTabValue(storedInspectorTab)) {
-        next.inspectorTab = storedInspectorTab;
-    }
-
-    const storedTableState = parseJson<TorrentTablePersistenceState>(
-        window.localStorage.getItem(TABLE_STATE_KEY),
-    );
-    if (storedTableState) {
-        next.torrentTableState = storedTableState;
-    }
-
-    const storedLayout = window.localStorage.getItem(SPEED_CHART_LAYOUT_KEY);
-    if (isSpeedChartLayoutMode(storedLayout)) {
-        next.speedChartLayoutMode = storedLayout;
-    }
-
-    const storedAddTorrentDefaults = parseJson<Partial<AddTorrentDefaultsState>>(
-        window.localStorage.getItem(ADD_TORRENT_DEFAULTS_KEY),
-    );
-    next.addTorrentDefaults = sanitizeAddTorrentDefaults(storedAddTorrentDefaults);
-
-    const legacyAddDir =
-        window.localStorage.getItem(
-        ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
-    ) ?? "";
-
-    const storedHistory = parseJson<unknown[]>(
-        window.localStorage.getItem(ADD_TORRENT_HISTORY_KEY),
-    );
-    next.addTorrentHistory = sanitizePathHistory([
-        ...(Array.isArray(storedHistory) ? storedHistory : []),
-        legacyAddDir,
-    ]);
-
-    const storedProfiles = parseJson<unknown[]>(
-        window.localStorage.getItem(CONNECTION_PROFILES_KEY),
-    );
-    if (Array.isArray(storedProfiles)) {
-        next.connectionProfiles = storedProfiles.filter(
-            (entry): entry is ConnectionProfile =>
-                isConnectionProfileValue(entry),
-        );
-    }
-
-    const storedActiveProfile = window.localStorage.getItem(
-        CONNECTION_ACTIVE_PROFILE_KEY,
-    );
-    if (storedActiveProfile) {
-        next.activeConnectionProfileId = storedActiveProfile;
-    }
-
-    return next;
-};
-
 const sanitizePreferences = (
     value: Partial<PreferencesState> | null,
 ): PreferencesState => {
@@ -455,10 +274,10 @@ const sanitizePreferences = (
             typeof value.tableWatermarkEnabled === "boolean"
                 ? value.tableWatermarkEnabled
                 : DEFAULT_PREFERENCES.tableWatermarkEnabled,
-        hasConnectedTorrentServer:
-            typeof value.hasConnectedTorrentServer === "boolean"
-                ? value.hasConnectedTorrentServer
-                : DEFAULT_PREFERENCES.hasConnectedTorrentServer,
+        showTorrentServerSetup:
+            typeof value.showTorrentServerSetup === "boolean"
+                ? value.showTorrentServerSetup
+                : DEFAULT_PREFERENCES.showTorrentServerSetup,
         workbenchScale:
             typeof value.workbenchScale === "number"
                 ? clampScale(value.workbenchScale)
@@ -540,10 +359,7 @@ const readStoredPreferences = (): PreferencesState => {
     } catch {
         /* ignore */
     }
-    const legacy = readLegacyPreferences();
-    persistPreferences(legacy);
-    removeLegacyPreferences();
-    return legacy;
+    return DEFAULT_PREFERENCES;
 };
 
 export const readInitialWorkbenchScale = () =>

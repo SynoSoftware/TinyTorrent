@@ -28,7 +28,6 @@ import { normalizeHost } from "@/app/utils/uiMode";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import Runtime from "@/app/runtime";
 import { shellAgent } from "@/app/agents/shell-agent";
-import { usePreferences } from "@/app/context/PreferencesContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
@@ -119,10 +118,6 @@ const resolveDaemonPathStyle = (
 export function SessionProvider({ children }: SessionProviderProps) {
     const torrentClient = useTorrentClient();
     const {
-        preferences: { hasConnectedTorrentServer },
-        updatePreferences,
-    } = usePreferences();
-    const {
         rpcStatus,
         connectionStatusView,
         reconnect,
@@ -195,13 +190,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
         () => createSpeedHistoryStore(torrentClient),
         [torrentClient],
     );
-
-    useEffect(() => {
-        if (rpcStatus !== status.connection.connected || hasConnectedTorrentServer) {
-            return;
-        }
-        updatePreferences({ hasConnectedTorrentServer: true });
-    }, [hasConnectedTorrentServer, rpcStatus, updatePreferences]);
 
     const sessionValue = useMemo(
         () => ({

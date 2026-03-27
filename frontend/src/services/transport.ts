@@ -220,152 +220,161 @@ export class TransmissionRpcTransport {
             (requestInit as RequestInit & { keepalive?: boolean }).keepalive =
                 true;
         }
+        const connectionTimeoutMs = (() => {
+            try {
+                const host = new URL(this.endpoint).hostname.toLowerCase();
+                return host === "127.0.0.1" ||
+                    host === "localhost" ||
+                    host === "::1" ||
+                    host === "0:0:0:0:0:0:0:1"
+                    ? 200
+                    : timing.connection.timeoutMs;
+            } catch {
+                return timing.connection.timeoutMs;
+            }
+        })();
 
         const attempt = async (retry = false): Promise<TransportFetchOutcome> => {
-            // SESSION BARRIER: if we don't have a sessionId yet and this is not
-            // a retry attempt, gate so only one leader will perform the probe.
-            if (
-                !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
-                !retry
-            ) {
-                if (!this.sessionRuntime.sessionBarrier) {
-                    // Synchronously install the barrier so concurrent callers
-                    // observe a non-null value and will await the same promise.
-                    let resolveBarrier: () => void = () => {};
-                    let rejectBarrier: (err?: Error) => void = () => {};
-                    this.sessionRuntime.sessionBarrier = new Promise<void>(
-                        (res, rej) => {
-                            resolveBarrier = res;
-                            rejectBarrier = rej;
-                        }
-                    );
-
-                    infraLogger.debug({
-                        scope: "transport",
-                        event: "session_barrier_installed",
-                        message:
-                            "Session barrier installed for leader handshake",
-                        details: { endpoint: this.endpoint },
-                    });
-
-                    // Leader: attempt a light-weight probe to obtain session id
-                    // before sending POSTs. Use an independent controller so a
-                    // caller abort won't cancel the leader's probe, but still
-                    // bound it to the normal connection timeout and transport
-                    // abort lifecycle so bad endpoints cannot hang barrier
-                    // initialization indefinitely.
-                    (async () => {
-                        const leaderController = new AbortController();
-                        let leaderTimeoutId: number | undefined;
+            let connectionTimeoutId: number | undefined;
+            try {
+                if (
+                    !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
+                    !retry
+                ) {
+                    connectionTimeoutId = window.setTimeout(() => {
                         try {
-                            this.inflightControllers.add(leaderController);
-                            leaderTimeoutId = window.setTimeout(() => {
-                                try {
-                                    leaderController.abort();
-                                } catch { /* ignore */ }
-                            }, timing.connection.timeoutMs);
-
-                            let token = await this.probeForSessionId(
-                                leaderController,
-                            );
-                            // If a simple GET probe didn't return a session id,
-                            // attempt a direct POST probe to elicit a 409 with
-                            // the X-Transmission-Session-Id header. This is
-                            // necessary because some Transmission servers only
-                            // advertise the session token on POST conflicts.
-                            if (!token) {
-                                try {
-                                    const postHeaders: Record<string, string> =
-                                        {};
-                                    if (this.authHeader)
-                                        postHeaders["Authorization"] =
-                                            this.authHeader;
-                                    postHeaders["Content-Type"] =
-                                        "application/json";
-                                    const probeBody = JSON.stringify({
-                                        method: "session-get",
-                                    });
-                                    const resp = await fetch(this.endpoint, {
-                                        method: "POST",
-                                        headers: postHeaders,
-                                        body: probeBody,
-                                        signal: leaderController.signal,
-                                    });
-                                    const headerToken =
-                                        resp &&
-                                        resp.headers &&
-                                        typeof resp.headers.get === "function"
-                                            ? resp.headers.get(
-                                                  "X-Transmission-Session-Id"
-                                              )
-                                            : null;
-                                    if (headerToken) {
-                                        token = headerToken;
-                                    } else {
-                                        try {
-                                            const txt = await resp.text();
-                                            if (txt) {
-                                                const m = txt.match(
-                                                    /X-Transmission-Session-Id\s*[:=]\s*([A-Za-z0-9_-]+)/i
-                                                );
-                                                if (m && m[1]) token = m[1];
-                                            }
-                                        } catch { /* ignore */ }
-                                    }
-                                } catch { /* ignore */ }
+                            internalController.abort();
+                        } catch { /* ignore */ }
+                    }, connectionTimeoutMs);
+                }
+                // SESSION BARRIER: if we don't have a sessionId yet and this is not
+                // a retry attempt, gate so only one leader will perform the probe.
+                if (
+                    !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
+                    !retry
+                ) {
+                    if (!this.sessionRuntime.sessionBarrier) {
+                        // Synchronously install the barrier so concurrent callers
+                        // observe a non-null value and will await the same promise.
+                        let resolveBarrier: () => void = () => {};
+                        let rejectBarrier: (err?: Error) => void = () => {};
+                        this.sessionRuntime.sessionBarrier = new Promise<void>(
+                            (res, rej) => {
+                                resolveBarrier = res;
+                                rejectBarrier = rej;
                             }
+                        );
 
-                            if (token) {
-                                this.sessionId = token;
-                                try {
-                                    this.sessionRuntime.sharedSessionId = token;
-                                } catch { /* ignore */ }
-                            }
+                        infraLogger.debug({
+                            scope: "transport",
+                            event: "session_barrier_installed",
+                            message:
+                                "Session barrier installed for leader handshake",
+                            details: { endpoint: this.endpoint },
+                        });
 
-                            resolveBarrier();
-                        } catch (err) {
+                        // Leader: attempt a light-weight probe to obtain session id
+                        // before sending POSTs. Abort it when the current request's
+                        // initial connection deadline expires.
+                        (async () => {
+                            const leaderController = new AbortController();
                             try {
-                                rejectBarrier(
-                                    err instanceof Error
-                                        ? err
-                                        : new Error(
-                                              "Session barrier initialization failed"
-                                          )
-                                );
-                            } catch { /* ignore */ }
-                        } finally {
-                            if (leaderTimeoutId !== undefined) {
-                                try {
-                                    window.clearTimeout(leaderTimeoutId);
-                                } catch { /* ignore */ }
-                            }
-                            try {
-                                this.inflightControllers.delete(
+                                this.inflightControllers.add(leaderController);
+                                internalController.signal.addEventListener("abort", () => {
+                                    try {
+                                        leaderController.abort();
+                                    } catch { /* ignore */ }
+                                });
+
+                                let token = await this.probeForSessionId(
                                     leaderController,
                                 );
-                            } catch { /* ignore */ }
-                            // clear barrier after resolution so future handshakes
-                            // may create a new barrier when needed.
-                            this.sessionRuntime.sessionBarrier = null;
-                        }
-                    })();
-                }
+                                if (!token) {
+                                    try {
+                                        const postHeaders: Record<string, string> =
+                                            {};
+                                        if (this.authHeader)
+                                            postHeaders["Authorization"] =
+                                                this.authHeader;
+                                        postHeaders["Content-Type"] =
+                                            "application/json";
+                                        const probeBody = JSON.stringify({
+                                            method: "session-get",
+                                        });
+                                        const resp = await fetch(this.endpoint, {
+                                            method: "POST",
+                                            headers: postHeaders,
+                                            body: probeBody,
+                                            signal: leaderController.signal,
+                                        });
+                                        const headerToken =
+                                            resp &&
+                                            resp.headers &&
+                                            typeof resp.headers.get === "function"
+                                                ? resp.headers.get(
+                                                      "X-Transmission-Session-Id"
+                                                  )
+                                                : null;
+                                        if (headerToken) {
+                                            token = headerToken;
+                                        } else {
+                                            try {
+                                                const txt = await resp.text();
+                                                if (txt) {
+                                                    const m = txt.match(
+                                                        /X-Transmission-Session-Id\s*[:=]\s*([A-Za-z0-9_-]+)/i
+                                                    );
+                                                    if (m && m[1]) token = m[1];
+                                                }
+                                            } catch { /* ignore */ }
+                                        }
+                                    } catch { /* ignore */ }
+                                }
 
-                try {
-                    infraLogger.debug({
-                        scope: "transport",
-                        event: "session_barrier_await",
-                        message:
-                            "Awaiting existing session barrier for worker request",
-                        details: { endpoint: this.endpoint },
-                    });
-                    await this.sessionRuntime.sessionBarrier;
-                } catch {
-                    // If the leader's probe failed, fall through and attempt
-                    // the normal POST flow which will perform the 409/handshake
-                    // logic as a fallback.
+                                if (token) {
+                                    this.sessionId = token;
+                                    try {
+                                        this.sessionRuntime.sharedSessionId = token;
+                                    } catch { /* ignore */ }
+                                }
+
+                                resolveBarrier();
+                            } catch (err) {
+                                try {
+                                    rejectBarrier(
+                                        err instanceof Error
+                                            ? err
+                                            : new Error(
+                                                  "Session barrier initialization failed"
+                                              )
+                                    );
+                                } catch { /* ignore */ }
+                            } finally {
+                                try {
+                                    this.inflightControllers.delete(
+                                        leaderController,
+                                    );
+                                } catch { /* ignore */ }
+                                this.sessionRuntime.sessionBarrier = null;
+                            }
+                        })();
+                    }
+
+                    try {
+                        infraLogger.debug({
+                            scope: "transport",
+                            event: "session_barrier_await",
+                            message:
+                                "Awaiting existing session barrier for worker request",
+                            details: { endpoint: this.endpoint },
+                        });
+                        await this.sessionRuntime.sessionBarrier;
+                    } catch {
+                        // If the leader's probe failed, fall through and attempt
+                        // the normal POST flow which will perform the 409/handshake
+                        // logic as a fallback.
+                    }
                 }
-            }
             const headers: Record<string, string> = Object.assign(
                 {},
                 (requestInit.headers as Record<string, string>) ?? {}
@@ -480,6 +489,13 @@ export class TransmissionRpcTransport {
             } catch { /* ignore */ }
 
             return { kind: "ok", response };
+            } finally {
+                if (connectionTimeoutId !== undefined) {
+                    try {
+                        window.clearTimeout(connectionTimeoutId);
+                    } catch { /* ignore */ }
+                }
+            }
         };
 
         return attempt(false);

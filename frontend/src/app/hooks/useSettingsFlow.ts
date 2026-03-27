@@ -42,7 +42,7 @@ const applyPreferencesToConfig = (
         requestTimeoutMs: number;
         tableWatermarkEnabled: boolean;
         workspaceStyle: SettingsConfig["workspace_style"];
-        hasConnectedTorrentServer: boolean;
+        showTorrentServerSetup: boolean;
         addTorrentDefaults: {
             showAddDialog: boolean;
         };
@@ -54,7 +54,7 @@ const applyPreferencesToConfig = (
     table_watermark_enabled: preferences.tableWatermarkEnabled,
     workspace_style: preferences.workspaceStyle,
     show_add_torrent_dialog: preferences.addTorrentDefaults.showAddDialog,
-    show_torrent_server_setup: !preferences.hasConnectedTorrentServer,
+    show_torrent_server_setup: preferences.showTorrentServerSetup,
 });
 
 type PreferencePayload = Partial<
@@ -290,7 +290,7 @@ export function useSettingsFlow({
             requestTimeoutMs: preferences.requestTimeoutMs,
             tableWatermarkEnabled: preferences.tableWatermarkEnabled,
             workspaceStyle: preferences.workspaceStyle,
-            hasConnectedTorrentServer: preferences.hasConnectedTorrentServer,
+            showTorrentServerSetup: preferences.showTorrentServerSetup,
             addTorrentDefaults: {
                 showAddDialog: preferences.addTorrentDefaults.showAddDialog,
             },
@@ -300,7 +300,7 @@ export function useSettingsFlow({
             preferences.requestTimeoutMs,
             preferences.tableWatermarkEnabled,
             preferences.workspaceStyle,
-            preferences.hasConnectedTorrentServer,
+            preferences.showTorrentServerSetup,
             preferences.addTorrentDefaults.showAddDialog,
         ],
     );
@@ -513,8 +513,8 @@ export function useSettingsFlow({
                 };
             }
             if (patch.show_torrent_server_setup !== undefined) {
-                preferencePatch.hasConnectedTorrentServer =
-                    !patch.show_torrent_server_setup;
+                preferencePatch.showTorrentServerSetup =
+                    patch.show_torrent_server_setup;
             }
             if (Object.keys(preferencePatch).length > 0) {
                 updatePreferences(preferencePatch);

@@ -281,26 +281,6 @@ export class TransmissionAdapter implements EngineAdapter {
         );
     }
 
-    private extractEndpointHost(): string {
-        try {
-            const url = new URL(this.endpoint);
-            return url.hostname.toLowerCase();
-        } catch {
-            return "";
-        }
-    }
-
-    private isLoopbackHost(host: string): boolean {
-        const trimmed = host.trim().toLowerCase();
-        if (!trimmed) return false;
-        return (
-            trimmed === "127.0.0.1" ||
-            trimmed === "localhost" ||
-            trimmed === "::1" ||
-            trimmed === "0:0:0:0:0:0:0:1"
-        );
-    }
-
     public updateRequestTimeout(timeout: number) {
         this.requestTimeout = timeout;
     }
