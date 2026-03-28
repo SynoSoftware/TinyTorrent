@@ -838,7 +838,6 @@ export const zTransmissionSessionSettings = z.object({
             autoOpen: z.boolean().optional(),
             autorunHidden: z.boolean().optional(),
             showSplash: z.boolean().optional(),
-            splashMessage: z.string().optional(),
         })
         .optional(),
 });

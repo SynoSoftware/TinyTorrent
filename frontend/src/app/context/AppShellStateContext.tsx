@@ -5,6 +5,7 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
@@ -57,17 +58,22 @@ export function AppShellStateProvider({ children }: { children: ReactNode }) {
     const [selectedIds, setSelectedIdsState] = useState<string[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const previousRpcStatusRef = useRef(rpcStatus);
 
     useEffect(() => {
-        if (
-            rpcStatus !== status.connection.connected ||
-            !showTorrentServerSetup
-        ) {
+        const previousRpcStatus = previousRpcStatusRef.current;
+        previousRpcStatusRef.current = rpcStatus;
+        if (rpcStatus !== status.connection.connected) {
             return;
         }
-        updatePreferences({
-            showTorrentServerSetup: false,
-        });
+        if (
+            previousRpcStatus !== status.connection.connected &&
+            showTorrentServerSetup
+        ) {
+            updatePreferences({
+                showTorrentServerSetup: false,
+            });
+        }
     }, [rpcStatus, showTorrentServerSetup, updatePreferences]);
 
     const setSelectedIds = useCallback((ids: readonly string[]) => {

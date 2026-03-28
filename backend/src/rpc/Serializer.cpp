@@ -78,8 +78,6 @@ void add_ui_preferences(yyjson_mut_doc *doc, yyjson_mut_val *parent,
                             preferences.hide_ui_when_autorun);
     yyjson_mut_obj_add_bool(doc, ui_root, "showSplash",
                             preferences.show_splash);
-    yyjson_mut_obj_add_str(doc, ui_root, "splashMessage",
-                           preferences.splash_message.c_str());
 }
 
 void add_labels_registry(yyjson_mut_doc *doc, yyjson_mut_val *session,

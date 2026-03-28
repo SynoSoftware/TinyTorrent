@@ -158,6 +158,7 @@ export function useSettingsModalController(
     }, []);
 
     const {
+        rpcStatus,
         uiCapabilities: {
             uiMode,
             canBrowse,
@@ -552,16 +553,13 @@ export function useSettingsModalController(
                 return SETTINGS_ACTION_APPLIED;
             }
 
-            try {
-                await onApplySettingsPatch(sessionPatch);
-                return SETTINGS_ACTION_APPLIED;
-            } catch {
+            if (rpcStatus !== status.connection.connected) {
                 const rollbackPatch = {} as Record<
                     ConfigKey,
                     SettingsConfig[ConfigKey] | undefined
                 >;
-                for (const key of Object.keys(normalizedPatch) as ConfigKey[]) {
-                    if (Object.is(configRef.current[key], normalizedPatch[key])) {
+                for (const key of Object.keys(sessionPatch) as ConfigKey[]) {
+                    if (Object.is(configRef.current[key], sessionPatch[key])) {
                         rollbackPatch[key] = previousConfig[key];
                     }
                 }
@@ -577,7 +575,35 @@ export function useSettingsModalController(
                         return next;
                     });
                     syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
-                    applyLivePreferencePatch(normalizedRollbackPatch);
+                }
+                return SETTINGS_ACTION_FAILED;
+            }
+
+            try {
+                await onApplySettingsPatch(sessionPatch);
+                return SETTINGS_ACTION_APPLIED;
+            } catch {
+                const rollbackPatch = {} as Record<
+                    ConfigKey,
+                    SettingsConfig[ConfigKey] | undefined
+                >;
+                for (const key of Object.keys(sessionPatch) as ConfigKey[]) {
+                    if (Object.is(configRef.current[key], sessionPatch[key])) {
+                        rollbackPatch[key] = previousConfig[key];
+                    }
+                }
+                const normalizedRollbackPatch =
+                    rollbackPatch as Partial<SettingsConfig>;
+                if (Object.keys(normalizedRollbackPatch).length > 0) {
+                    setConfig((current) => {
+                        const next = {
+                            ...current,
+                            ...normalizedRollbackPatch,
+                        };
+                        configRef.current = next;
+                        return next;
+                    });
+                    syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
                 }
                 return SETTINGS_ACTION_FAILED;
             }
@@ -586,6 +612,7 @@ export function useSettingsModalController(
             applyLivePreferencePatch,
             applyLocalPatch,
             onApplySettingsPatch,
+            rpcStatus,
             syncDownloadPathHistory,
         ],
     );

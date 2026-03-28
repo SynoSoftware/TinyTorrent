@@ -1,0 +1,27 @@
+{
+    "version": 1,
+    "defaultAgent": "implementation",
+    "agents": {
+        "implementation": {
+            "instructions": [
+                "Read AGENTS.md files before making changes and follow the most specific one.",
+                "Prefer the minimal architecture that still works.",
+                "Before changing code, inspect surrounding code to understand ownership, data flow, and existing patterns.",
+                "Treat overlapping state, variables, helpers, or concepts as suspicious unless clearly necessary.",
+                "Prefer expressing logic through existing ownership and state instead of introducing parallel structures.",
+                "Remove unnecessary layers, prop drilling, helpers, and indirection when doing so simplifies the code.",
+                "Keep behavior close to where it is used. Prefer explicit local logic over abstraction.",
+                "Treat any API expansion as a regression by default.",
+                "Do not declare a fix complete unless validated or explicitly marked unvalidated."
+            ]
+        },
+        "review": {
+            "instructions": [
+                "Review the diff and reduce it to the minimal architecture that still works.",
+                "Check surrounding code for duplication, overlap, and unnecessary parallel structures.",
+                "Remove unnecessary indirection and API surface.",
+                "Do not introduce new abstractions unless required to simplify."
+            ]
+        }
+    }
+}

@@ -145,6 +145,8 @@ constexpr UINT_PTR kSplashAutoCloseTimerId = 1;
 
 static std::atomic<HWND> g_splash_hwnd{nullptr};
 static std::wstring g_splash_message;
+static constexpr wchar_t kDefaultSplashMessage[] =
+    L"TinyTorrent is loading...";
 static auto g_app_start_time = std::chrono::steady_clock::now();
 constexpr wchar_t kWebView2InstallUrl[] =
     L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
@@ -2639,11 +2641,6 @@ tt::rpc::UiPreferences parse_tray_ui_preferences(yyjson_val *arguments)
     {
         result.show_splash = yyjson_get_bool(value);
     }
-    if (auto *value = yyjson_obj_get(ui_root, "splashMessage");
-        value && yyjson_is_str(value))
-    {
-        result.splash_message = yyjson_get_str(value);
-    }
     return result;
 }
 
@@ -2758,18 +2755,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         if (s->rpc_success)
         {
             state->ui_preferences = s->ui_preferences;
-            std::wstring next_message =
-                widen(state->ui_preferences.splash_message);
-            if (next_message != state->splash_message)
-            {
-                state->splash_message = next_message;
-                auto splash = g_splash_hwnd.load();
-                if (splash)
-                {
-                    g_splash_message = next_message;
-                    InvalidateRect(splash, nullptr, TRUE);
-                }
-            }
             state->ui_attached.store(s->ui_attached);
             if (!state->start_hidden)
             {
@@ -2971,8 +2956,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
                           GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
 
     auto startup_ui_prefs = load_ui_preferences();
-    std::wstring startup_splash_message =
-        widen(startup_ui_prefs.splash_message);
+    std::wstring startup_splash_message = kDefaultSplashMessage;
 
     WNDCLASSEXW wc{sizeof(wc),
                    0,

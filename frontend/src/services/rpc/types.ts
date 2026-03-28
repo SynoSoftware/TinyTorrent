@@ -188,7 +188,6 @@ export interface TransmissionSessionSettings {
         autoOpen?: boolean;
         autorunHidden?: boolean;
         showSplash?: boolean;
-        splashMessage?: string;
     };
 }
 

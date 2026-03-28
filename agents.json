@@ -1,0 +1,3 @@
+{
+    "instructions": "Read and follow the nearest AGENTS.md. If working in frontend/, strictly follow frontend/AGENTS.md. If working in backend/, follow backend/AGENTS.md. Do not mix concerns across boundaries."
+}

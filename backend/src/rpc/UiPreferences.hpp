@@ -14,7 +14,6 @@ struct UiPreferences
     bool auto_open_ui = true;
     bool hide_ui_when_autorun = false;
     bool show_splash = true;
-    std::string splash_message;
 };
 
 class UiPreferencesStore

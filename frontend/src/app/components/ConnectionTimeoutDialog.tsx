@@ -106,11 +106,16 @@ export function ConnectionTimeoutDialog() {
         connectionTimeoutDialog.dismiss();
     }, [connectionTimeoutDialog, isSettingsOpen]);
 
-    const installAndStartRows = (
+    const installRow = (
         <>
             <ConnectionDialogRow icon={Download} label={t("workspace.connection_timeout_dialog.install_option_label")}>
                 <div className={`${FORM.blockRowBetween} gap-tools`}>
-                    <p className={TEXT_ROLE.bodySmall}>{t("workspace.connection_timeout_dialog.install_option_hint")}</p>
+                    <p className={TEXT_ROLE.bodySmall}>
+                        {t("workspace.connection_timeout_dialog.install_option_hint")}
+                        <br />
+                        {t("workspace.connection_timeout_dialog.install_option_hint2")}
+                    </p>
+
                     <AppTooltip content={transmissionDownloadTarget.url} native>
                         <Button
                             as="a"
@@ -126,9 +131,6 @@ export function ConnectionTimeoutDialog() {
                         </Button>
                     </AppTooltip>
                 </div>
-            </ConnectionDialogRow>
-            <ConnectionDialogRow icon={Play} label={t("workspace.connection_timeout_dialog.start_option_label")}>
-                <p className={TEXT_ROLE.bodySmall}>{t("workspace.connection_timeout_dialog.start_option_hint")}</p>
             </ConnectionDialogRow>
         </>
     );
@@ -162,15 +164,9 @@ export function ConnectionTimeoutDialog() {
             <div className={FORM.stackTools}>
                 <p className={TEXT_ROLE.body}>{t(bodyKey)}</p>
                 {showInstallRecommendation ? (
-                    installAndStartRows
+                    installRow
                 ) : (
                     <>
-                        <ConnectionDialogRow
-                            icon={Server}
-                            label={t("workspace.connection_timeout_dialog.current_connection_label")}
-                        >
-                            <p className={DETAILS.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
-                        </ConnectionDialogRow>
                         <ConnectionDialogRow
                             icon={Settings}
                             label={t("workspace.connection_timeout_dialog.check_settings_label")}
@@ -210,7 +206,17 @@ export function ConnectionTimeoutDialog() {
                                 aria-label={t("workspace.connection_timeout_dialog.more_help_label")}
                                 title={t("workspace.connection_timeout_dialog.more_help_label")}
                             >
-                                <div className={FORM.stackTools}>{installAndStartRows}</div>
+                                <div className={FORM.stackTools}>
+                                    {installRow}
+                                    <ConnectionDialogRow
+                                        icon={Play}
+                                        label={t("workspace.connection_timeout_dialog.start_option_label")}
+                                    >
+                                        <p className={TEXT_ROLE.bodySmall}>
+                                            {t("workspace.connection_timeout_dialog.start_option_hint")}
+                                        </p>
+                                    </ConnectionDialogRow>
+                                </div>
                             </AccordionItem>
                         </Accordion>
                     </>

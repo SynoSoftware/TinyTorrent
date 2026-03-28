@@ -85,10 +85,6 @@ UiPreferences UiPreferencesStore::load() const
                    result.hide_ui_when_autorun);
     result.show_splash =
         parse_bool(db_->get_setting("uiShowSplash"), result.show_splash);
-    if (auto message = db_->get_setting("uiSplashMessage"); message)
-    {
-        result.splash_message = *message;
-    }
     return result;
 }
 
@@ -105,15 +101,7 @@ bool UiPreferencesStore::persist(UiPreferences const &preferences) const
         "uiAutorunHidden", bool_to_string(preferences.hide_ui_when_autorun));
     success &= db_->set_setting("uiShowSplash",
                                 bool_to_string(preferences.show_splash));
-    if (preferences.splash_message.empty())
-    {
-        success &= db_->remove_setting("uiSplashMessage");
-    }
-    else
-    {
-        success &= db_->set_setting("uiSplashMessage",
-                                    preferences.splash_message);
-    }
+    success &= db_->remove_setting("uiSplashMessage");
     return success;
 }
 

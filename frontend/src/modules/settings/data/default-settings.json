@@ -41,7 +41,6 @@
     "auto_open_ui": true,
     "autorun_hidden": false,
     "show_splash": true,
-    "splash_message": "TinyTorrent is loading...",
     "workspace_style": "classic",
     "show_add_torrent_dialog": true,
     "show_torrent_server_setup": true,

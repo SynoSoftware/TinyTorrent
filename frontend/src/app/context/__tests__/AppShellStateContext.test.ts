@@ -43,6 +43,17 @@ const renderProvider = () => {
     });
 
     return {
+        rerender: () => {
+            act(() => {
+                root.render(
+                    React.createElement(
+                        AppShellStateProvider,
+                        null,
+                        React.createElement("div"),
+                    ),
+                );
+            });
+        },
         cleanup: () => {
             act(() => {
                 root.unmount();
@@ -107,7 +118,12 @@ describe("AppShellStateContext", () => {
         expectProviderError(() => useWorkspaceModals());
     });
 
-    it("clears setup guidance after the first successful connection", () => {
+    it("clears setup guidance after the first successful connection transition", () => {
+        const sessionState = {
+            rpcStatus: "connecting",
+            uiCapabilities: { uiMode: "Full" as const },
+        };
+        useSessionMock.mockImplementation(() => sessionState);
         usePreferencesMock.mockReturnValue({
             preferences: {
                 showTorrentServerSetup: true,
@@ -118,9 +134,33 @@ describe("AppShellStateContext", () => {
 
         const mounted = renderProvider();
         try {
+            expect(updatePreferencesMock).not.toHaveBeenCalled();
+            sessionState.rpcStatus = "connected";
+            mounted.rerender();
             expect(updatePreferencesMock).toHaveBeenCalledWith({
                 showTorrentServerSetup: false,
             });
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("does not clear setup guidance just because it is enabled while already connected", () => {
+        useSessionMock.mockReturnValue({
+            rpcStatus: "connected",
+            uiCapabilities: { uiMode: "Full" as const },
+        });
+        usePreferencesMock.mockReturnValue({
+            preferences: {
+                showTorrentServerSetup: true,
+            },
+            setSettingsTab: vi.fn(),
+            updatePreferences: updatePreferencesMock,
+        });
+
+        const mounted = renderProvider();
+        try {
+            expect(updatePreferencesMock).not.toHaveBeenCalled();
         } finally {
             mounted.cleanup();
         }

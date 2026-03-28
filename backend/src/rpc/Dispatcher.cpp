@@ -2841,16 +2841,6 @@ bool update_ui_preferences_from_arguments(yyjson_val *arguments,
             updated = true;
         }
     }
-    if (auto *value = yyjson_obj_get(ui_root, "splashMessage");
-        value && yyjson_is_str(value))
-    {
-        std::string message(yyjson_get_str(value));
-        if (message != preferences.splash_message)
-        {
-            preferences.splash_message = std::move(message);
-            updated = true;
-        }
-    }
     return updated;
 }
 

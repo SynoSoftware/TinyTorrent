@@ -188,15 +188,14 @@
     --tt-add-file-col-priority-min-w: calc(var(--tt-status-chip-w) + var(--spacing-tools));
     --tt-add-file-col-priority-w: calc(var(--tt-status-chip-w) + var(--spacing-tools));
     --tt-add-file-table-min-w: calc(
-        var(--tt-add-file-col-select-min-w) + var(--tt-add-file-col-name-min-w) + var(--tt-add-file-col-priority-min-w) +
-            var(--tt-col-meta) + var(--tt-add-file-col-size-min-w)
+        var(--tt-add-file-col-select-min-w) + var(--tt-add-file-col-name-min-w) +
+            var(--tt-add-file-col-priority-min-w) + var(--tt-col-meta) + var(--tt-add-file-col-size-min-w)
     );
 
     /* Responsive file table topology.
        Keep non-name columns compact and allow the name column to absorb free space.
        This prevents non-fullscreen overflow while preserving readability. */
-    --tt-file-grid-template:
-        minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w))
+    --tt-file-grid-template: minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w))
         minmax(var(--tt-add-file-col-name-min-w), 1fr)
         minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w))
         minmax(calc(20 * var(--u) * var(--z)), var(--tt-col-meta))
@@ -1122,7 +1121,6 @@ main .torrent-table-watermark {
     /* Consolidated label typography */
     .text-label {
         font-size: var(--font-size-label);
-        line-height: 1;
     }
 
     /* Shadow tokens for HUD and nav to avoid arbitrary bracket shadows */
@@ -1166,4 +1164,3 @@ main .torrent-table-watermark {
         -webkit-app-region: no-drag;
     }
 }
-

@@ -34,7 +34,6 @@ export interface SettingsConfig {
     auto_open_ui: boolean;
     autorun_hidden: boolean;
     show_splash: boolean;
-    splash_message: string;
     workspace_style: WorkspaceStyle;
     show_add_torrent_dialog: boolean;
     show_torrent_server_setup: boolean;
