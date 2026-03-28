@@ -1,4 +1,10 @@
-import React from "react";
+import React, {
+    forwardRef,
+    useImperativeHandle,
+    useLayoutEffect,
+    useRef,
+    type ForwardedRef,
+} from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -36,8 +42,8 @@ vi.mock("@/app/providers/engineDomains", () => ({
 
 type HookSnapshot = ReturnType<typeof useSetDownloadLocationFlow> | null;
 
-const latestSnapshot: { current: HookSnapshot } = {
-    current: null,
+type HarnessRef = {
+    getValue: () => HookSnapshot;
 };
 
 const torrent: Torrent = {
@@ -56,21 +62,6 @@ const torrent: Torrent = {
     downloadDir: "D:\\Downloads",
 };
 
-function HookHarness({
-    setDownloadLocation,
-}: {
-    setDownloadLocation: (params: {
-        torrent: Torrent;
-        path: string;
-    }) => Promise<TorrentCommandOutcome>;
-}) {
-    latestSnapshot.current = useSetDownloadLocationFlow({
-        torrent,
-        setDownloadLocation,
-    });
-    return null;
-}
-
 const renderHookHarness = (setDownloadLocation: ({
     torrent,
     path,
@@ -78,6 +69,32 @@ const renderHookHarness = (setDownloadLocation: ({
     torrent: Torrent;
     path: string;
 }) => Promise<TorrentCommandOutcome>) => {
+    const HookHarness = forwardRef(function HookHarness(
+        _: object,
+        ref: ForwardedRef<HarnessRef>,
+    ) {
+        const value = useSetDownloadLocationFlow({
+            torrent,
+            setDownloadLocation,
+        });
+        const valueRef = useRef<HookSnapshot>(value);
+
+        useLayoutEffect(() => {
+            valueRef.current = value;
+        }, [value]);
+
+        useImperativeHandle(
+            ref,
+            () => ({
+                getValue: () => valueRef.current,
+            }),
+            [],
+        );
+
+        return null;
+    });
+
+    const ref = React.createRef<HarnessRef>();
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root: Root = createRoot(container);
@@ -85,20 +102,22 @@ const renderHookHarness = (setDownloadLocation: ({
     act(() => {
         flushSync(() => {
             root.render(
-                React.createElement(HookHarness, {
-                    setDownloadLocation,
-                }),
+                React.createElement(HookHarness, { ref }),
             );
         });
     });
 
+    if (!ref.current) {
+        throw new Error("harness_missing");
+    }
+
     return {
+        ref,
         cleanup: () => {
             act(() => {
                 root.unmount();
             });
             container.remove();
-            latestSnapshot.current = null;
         },
     };
 };
@@ -127,7 +146,6 @@ describe("useSetDownloadLocationFlow", () => {
 
     afterEach(() => {
         document.body.innerHTML = "";
-        latestSnapshot.current = null;
         useSessionMock.mockReset();
         useDirectoryPickerMock.mockReset();
         useDownloadPathsMock.mockReset();
@@ -160,7 +178,7 @@ describe("useSetDownloadLocationFlow", () => {
 
         try {
             await act(async () => {
-                await latestSnapshot.current?.applySetDownloadPath({
+                await mounted.ref.current?.getValue()?.applySetDownloadPath({
                     path: "E:\\Incoming",
                 });
             });
@@ -197,7 +215,7 @@ describe("useSetDownloadLocationFlow", () => {
 
         try {
             await act(async () => {
-                await latestSnapshot.current?.applySetDownloadPath({
+                await mounted.ref.current?.getValue()?.applySetDownloadPath({
                     path: "D:\\Downloads",
                 });
             });

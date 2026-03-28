@@ -14,38 +14,45 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
-    Input: ({
-        value,
-        onChange,
-        startContent: _startContent,
-        classNames: _classNames,
-        ...props
-    }: {
+    Input: (inputProps: {
         value?: string;
         onChange?: (event: { currentTarget: { value: string } }) => void;
         startContent?: React.ReactNode;
         classNames?: unknown;
         [key: string]: unknown;
-    }) =>
+    }) => {
+        const { value, onChange, startContent, classNames, ...props } =
+            inputProps;
+        void startContent;
+        void classNames;
+        return (
         React.createElement("input", {
             ...props,
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
                 onChange?.({ currentTarget: { value: event.target.value } }),
-        }),
-    Tabs: ({
-        children,
-        selectedKey: _selectedKey,
-        onSelectionChange: _onSelectionChange,
-        classNames: _classNames,
-        ...props
-    }: {
+        })
+        );
+    },
+    Tabs: (tabsProps: {
         children?: React.ReactNode;
         selectedKey?: unknown;
         onSelectionChange?: unknown;
         classNames?: unknown;
         [key: string]: unknown;
-    }) => React.createElement("div", props, children),
+    }) => {
+        const {
+            children,
+            selectedKey,
+            onSelectionChange,
+            classNames,
+            ...props
+        } = tabsProps;
+        void selectedKey;
+        void onSelectionChange;
+        void classNames;
+        return React.createElement("div", props, children);
+    },
     Tab: ({
         title,
         ...props

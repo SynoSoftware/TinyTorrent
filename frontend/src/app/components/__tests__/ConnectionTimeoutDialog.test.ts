@@ -197,10 +197,10 @@ describe("ConnectionTimeoutDialog", () => {
         const mounted = renderDialog();
         try {
             expect(mounted.container.textContent).toContain(
-                "workspace.connection_timeout_dialog.current_connection_label",
+                "workspace.connection_timeout_dialog.check_settings_label",
             );
             expect(mounted.container.textContent).toContain(
-                "workspace.connection_timeout_dialog.check_settings_label",
+                "http://127.0.0.1:9091",
             );
             expect(mounted.container.textContent).toContain(
                 "workspace.connection_timeout_dialog.open_settings",

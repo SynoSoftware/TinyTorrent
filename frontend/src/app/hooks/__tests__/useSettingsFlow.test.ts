@@ -1,4 +1,10 @@
-import React from "react";
+import React, {
+    forwardRef,
+    useImperativeHandle,
+    useLayoutEffect,
+    useRef,
+    type ForwardedRef,
+} from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -50,20 +56,38 @@ vi.mock("@/services/rpc/version-support", () => ({
 
 type HookSnapshot = ReturnType<typeof useSettingsFlow> | null;
 
-const latestSnapshot: { current: HookSnapshot } = {
-    current: null,
+type HarnessRef = {
+    getValue: () => HookSnapshot;
 };
 
-function HookHarness() {
-    latestSnapshot.current = useSettingsFlow({
-        torrentClient: {} as never,
-        isSettingsOpen: false,
-        isMountedRef: { current: true },
-    });
-    return null;
-}
-
 const renderHookHarness = () => {
+    const HookHarness = forwardRef(function HookHarness(
+        _: object,
+        ref: ForwardedRef<HarnessRef>,
+    ) {
+        const value = useSettingsFlow({
+            torrentClient: {} as never,
+            isSettingsOpen: false,
+            isMountedRef: { current: true },
+        });
+        const valueRef = useRef<HookSnapshot>(value);
+
+        useLayoutEffect(() => {
+            valueRef.current = value;
+        }, [value]);
+
+        useImperativeHandle(
+            ref,
+            () => ({
+                getValue: () => valueRef.current,
+            }),
+            [],
+        );
+
+        return null;
+    });
+
+    const ref = React.createRef<HarnessRef>();
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root: Root = createRoot(container);
@@ -71,23 +95,48 @@ const renderHookHarness = () => {
     const render = () => {
         act(() => {
             flushSync(() => {
-                root.render(React.createElement(HookHarness));
+                root.render(React.createElement(HookHarness, { ref }));
             });
         });
     };
 
     render();
 
+    if (!ref.current) {
+        throw new Error("harness_missing");
+    }
+
     return {
+        ref,
         rerender: render,
         cleanup: () => {
             act(() => {
                 root.unmount();
             });
             container.remove();
-            latestSnapshot.current = null;
         },
     };
+};
+
+const flush = () =>
+    new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+    });
+
+const waitForCondition = async (
+    predicate: () => boolean,
+    timeoutMs = 1000,
+) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (predicate()) {
+            return;
+        }
+        await act(async () => {
+            await flush();
+        });
+    }
+    throw new Error("wait_for_condition_timeout");
 };
 
 describe("useSettingsFlow", () => {
@@ -120,7 +169,6 @@ describe("useSettingsFlow", () => {
 
     afterEach(() => {
         document.body.innerHTML = "";
-        latestSnapshot.current = null;
         Object.assign(globalThis, {
             IS_REACT_ACT_ENVIRONMENT: false,
         });
@@ -130,7 +178,7 @@ describe("useSettingsFlow", () => {
         getVersionGatedSessionValueMock.mockReset();
     });
 
-    it("hydrates the session download dir without waiting for settings to open", () => {
+    it("hydrates the session download dir without waiting for settings to open", async () => {
         const sessionState: {
             reportCommandError: ReturnType<typeof vi.fn>;
             rpcStatus: ConnectionStatus;
@@ -150,7 +198,7 @@ describe("useSettingsFlow", () => {
 
         try {
             expect(
-                latestSnapshot.current?.settingsConfig.download_dir,
+                mounted.ref.current?.getValue()?.settingsConfig.download_dir,
             ).toBe("");
             expect(sessionState.refreshSessionSettings).not.toHaveBeenCalled();
 
@@ -159,9 +207,14 @@ describe("useSettingsFlow", () => {
                 "download-dir": "D:\\SessionDownloads",
             };
             mounted.rerender();
+            await waitForCondition(
+                () =>
+                    mounted.ref.current?.getValue()?.settingsConfig
+                        .download_dir === "D:\\SessionDownloads",
+            );
 
             expect(
-                latestSnapshot.current?.settingsConfig.download_dir,
+                mounted.ref.current?.getValue()?.settingsConfig.download_dir,
             ).toBe("D:\\SessionDownloads");
             expect(sessionState.refreshSessionSettings).not.toHaveBeenCalled();
         } finally {

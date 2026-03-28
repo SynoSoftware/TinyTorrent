@@ -1,4 +1,10 @@
-import React from "react";
+import React, {
+    forwardRef,
+    useImperativeHandle,
+    useLayoutEffect,
+    useRef,
+    type ForwardedRef,
+} from "react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
@@ -21,36 +27,58 @@ vi.mock("@/shared/utils/infraLogger", () => ({
 
 type HookSnapshot = ReturnType<typeof useRpcConnection> | null;
 
-const latestSnapshot: { current: HookSnapshot } = {
-    current: null,
+type HarnessRef = {
+    getValue: () => HookSnapshot;
 };
 
 const LOCALHOST_SUCCESS_MS = 100;
 const LOCALHOST_TIMEOUT_MS = 200;
 
-function HookHarness() {
-    latestSnapshot.current = useRpcConnection();
-    return null;
-}
-
 const renderHookHarness = () => {
+    const HookHarness = forwardRef(function HookHarness(
+        _: object,
+        ref: ForwardedRef<HarnessRef>,
+    ) {
+        const value = useRpcConnection();
+        const valueRef = useRef<HookSnapshot>(value);
+
+        useLayoutEffect(() => {
+            valueRef.current = value;
+        }, [value]);
+
+        useImperativeHandle(
+            ref,
+            () => ({
+                getValue: () => valueRef.current,
+            }),
+            [],
+        );
+
+        return null;
+    });
+
+    const ref = React.createRef<HarnessRef>();
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root: Root = createRoot(container);
 
     act(() => {
         flushSync(() => {
-            root.render(React.createElement(HookHarness));
+            root.render(React.createElement(HookHarness, { ref }));
         });
     });
 
+    if (!ref.current) {
+        throw new Error("harness_missing");
+    }
+
     return {
+        ref,
         cleanup: () => {
             act(() => {
                 root.unmount();
             });
             container.remove();
-            latestSnapshot.current = null;
         },
     };
 };
@@ -92,7 +120,6 @@ describe("useRpcConnection", () => {
         document.body.innerHTML = "";
         useEngineSessionDomainMock.mockReset();
         vi.useRealTimers();
-        latestSnapshot.current = null;
         Object.assign(globalThis, {
             IS_REACT_ACT_ENVIRONMENT: false,
         });
@@ -109,7 +136,7 @@ describe("useRpcConnection", () => {
         const mounted = renderHookHarness();
         try {
             expect(probeConnection).toHaveBeenCalledTimes(1);
-            expect(latestSnapshot.current?.connectionStatusView.state).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionStatusView.state).toBe(
                 "connecting",
             );
         } finally {
@@ -131,17 +158,17 @@ describe("useRpcConnection", () => {
         try {
             await advance(LOCALHOST_TIMEOUT_MS - 1);
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 false,
             );
 
             await advance(1);
             await act(async () => {});
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 true,
             );
-            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.action).toBe(
                 "probe",
             );
         } finally {
@@ -161,20 +188,20 @@ describe("useRpcConnection", () => {
         try {
             await advance(LOCALHOST_SUCCESS_MS);
 
-            expect(latestSnapshot.current?.rpcStatus).toBe(
+            expect(mounted.ref.current?.getValue()?.rpcStatus).toBe(
                 status.connection.connected,
             );
 
             await advance(LOCALHOST_TIMEOUT_MS);
 
-            expect(latestSnapshot.current?.rpcStatus).toBe(
+            expect(mounted.ref.current?.getValue()?.rpcStatus).toBe(
                 status.connection.connected,
             );
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 false,
             );
             expect(
-                latestSnapshot.current?.connectionStatusView.retryStatus,
+                mounted.ref.current?.getValue()?.connectionStatusView.retryStatus,
             ).toBeNull();
         } finally {
             mounted.cleanup();
@@ -198,15 +225,15 @@ describe("useRpcConnection", () => {
             await advance(LOCALHOST_TIMEOUT_MS);
             await act(async () => {});
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 true,
             );
 
             act(() => {
-                latestSnapshot.current?.connectionTimeoutDialog.dismiss();
+                mounted.ref.current?.getValue()?.connectionTimeoutDialog.dismiss();
             });
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 false,
             );
 
@@ -214,15 +241,15 @@ describe("useRpcConnection", () => {
                 | ReturnType<NonNullable<HookSnapshot>["reconnect"]>
                 | undefined;
             await act(async () => {
-                reconnectPromise = latestSnapshot.current?.reconnect({
+                reconnectPromise = mounted.ref.current?.getValue()?.reconnect({
                     disableRetry: true,
                 });
             });
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 false,
             );
-            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.action).toBe(
                 null,
             );
 
@@ -232,10 +259,10 @@ describe("useRpcConnection", () => {
                 await reconnectPromise;
             });
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 true,
             );
-            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.action).toBe(
                 "reconnect",
             );
         } finally {
@@ -262,14 +289,14 @@ describe("useRpcConnection", () => {
             await act(async () => {});
 
             act(() => {
-                latestSnapshot.current?.connectionTimeoutDialog.dismiss();
+                mounted.ref.current?.getValue()?.connectionTimeoutDialog.dismiss();
             });
 
             let reconnectPromise:
                 | ReturnType<NonNullable<HookSnapshot>["reconnect"]>
                 | undefined;
             await act(async () => {
-                reconnectPromise = latestSnapshot.current?.reconnect({
+                reconnectPromise = mounted.ref.current?.getValue()?.reconnect({
                     disableRetry: true,
                 });
             });
@@ -278,10 +305,10 @@ describe("useRpcConnection", () => {
                 await reconnectPromise;
             });
 
-            expect(latestSnapshot.current?.connectionTimeoutDialog.isOpen).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.isOpen).toBe(
                 true,
             );
-            expect(latestSnapshot.current?.connectionTimeoutDialog.action).toBe(
+            expect(mounted.ref.current?.getValue()?.connectionTimeoutDialog.action).toBe(
                 "reconnect",
             );
         } finally {

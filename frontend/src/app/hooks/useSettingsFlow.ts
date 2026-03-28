@@ -12,6 +12,7 @@ import {
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
+import { scheduler } from "@/app/services/scheduler";
 import type { EngineTestPortOutcome } from "@/app/providers/engineDomains";
 import { infraLogger } from "@/shared/utils/infraLogger";
 import {
@@ -342,8 +343,11 @@ export function useSettingsFlow({
         if (!sessionSettings) {
             return;
         }
-        setSettingsLoadError(false);
-        setSettingsConfig(mapSessionToConfig(sessionSettings));
+        const cancelSync = scheduler.scheduleTimeout(() => {
+            setSettingsLoadError(false);
+            setSettingsConfig(mapSessionToConfig(sessionSettings));
+        }, 0);
+        return cancelSync;
     }, [sessionSettings]);
 
     useEffect(() => {

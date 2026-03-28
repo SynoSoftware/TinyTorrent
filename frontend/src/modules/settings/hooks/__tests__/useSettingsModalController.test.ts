@@ -1,4 +1,10 @@
-import React from "react";
+import React, {
+    forwardRef,
+    useImperativeHandle,
+    useLayoutEffect,
+    useRef,
+    type ForwardedRef,
+} from "react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
@@ -75,33 +81,55 @@ vi.mock("@/config/logic", () => ({
 
 type HookSnapshot = ReturnType<typeof useSettingsModalController> | null;
 
-const latestSnapshot: { current: HookSnapshot } = {
-    current: null,
+type HarnessRef = {
+    getValue: () => HookSnapshot;
 };
 
-function HookHarness({ viewModel }: { viewModel: SettingsModalViewModel }) {
-    latestSnapshot.current = useSettingsModalController(viewModel);
-    return null;
-}
-
 const renderHookHarness = (viewModel: SettingsModalViewModel) => {
+    const HookHarness = forwardRef(function HookHarness(
+        _: object,
+        ref: ForwardedRef<HarnessRef>,
+    ) {
+        const value = useSettingsModalController(viewModel);
+        const valueRef = useRef<HookSnapshot>(value);
+
+        useLayoutEffect(() => {
+            valueRef.current = value;
+        }, [value]);
+
+        useImperativeHandle(
+            ref,
+            () => ({
+                getValue: () => valueRef.current,
+            }),
+            [],
+        );
+
+        return null;
+    });
+
+    const ref = React.createRef<HarnessRef>();
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root: Root = createRoot(container);
 
     act(() => {
         flushSync(() => {
-            root.render(React.createElement(HookHarness, { viewModel }));
+            root.render(React.createElement(HookHarness, { ref }));
         });
     });
 
+    if (!ref.current) {
+        throw new Error("harness_missing");
+    }
+
     return {
+        ref,
         cleanup: () => {
             act(() => {
                 root.unmount();
             });
             container.remove();
-            latestSnapshot.current = null;
         },
     };
 };
@@ -198,7 +226,6 @@ describe("useSettingsModalController", () => {
         usePreferencesMock.mockReset();
         useDownloadPathsMock.mockReset();
         vi.useRealTimers();
-        latestSnapshot.current = null;
         Object.assign(globalThis, {
             IS_REACT_ACT_ENVIRONMENT: false,
         });
@@ -218,7 +245,7 @@ describe("useSettingsModalController", () => {
             await advanceTimers(0);
 
             await act(async () => {
-                const controller = latestSnapshot.current;
+                const controller = mounted.ref.current?.getValue();
                 await controller?.modal.settingsFormActions.onApplySetting(
                     "workspace_style",
                     "classic",
@@ -237,10 +264,10 @@ describe("useSettingsModalController", () => {
                 request_timeout_ms: 12000,
             });
             expect(
-                latestSnapshot.current?.modal.settingsFormState.config.workspace_style,
+                mounted.ref.current?.getValue()?.modal.settingsFormState.config.workspace_style,
             ).toBe("classic");
             expect(
-                latestSnapshot.current?.modal.settingsFormState.config.request_timeout_ms,
+                mounted.ref.current?.getValue()?.modal.settingsFormState.config.request_timeout_ms,
             ).toBe(12000);
         } finally {
             mounted.cleanup();
@@ -261,7 +288,7 @@ describe("useSettingsModalController", () => {
             await advanceTimers(0);
 
             act(() => {
-                latestSnapshot.current?.commands.onReset();
+                mounted.ref.current?.getValue()?.commands.onReset();
             });
             await flushMicrotasks();
 
@@ -278,15 +305,15 @@ describe("useSettingsModalController", () => {
                     DEFAULT_SETTINGS_CONFIG.show_torrent_server_setup,
             });
             expect(
-                latestSnapshot.current?.modal.settingsFormState.config.workspace_style,
+                mounted.ref.current?.getValue()?.modal.settingsFormState.config.workspace_style,
             ).toBe(DEFAULT_SETTINGS_CONFIG.workspace_style);
             expect(
-                latestSnapshot.current?.modal.settingsFormState.config.refresh_interval_ms,
+                mounted.ref.current?.getValue()?.modal.settingsFormState.config.refresh_interval_ms,
             ).toBe(DEFAULT_SETTINGS_CONFIG.refresh_interval_ms);
             expect(
-                latestSnapshot.current?.modal.settingsFormState.config.request_timeout_ms,
+                mounted.ref.current?.getValue()?.modal.settingsFormState.config.request_timeout_ms,
             ).toBe(DEFAULT_SETTINGS_CONFIG.request_timeout_ms);
-            expect(latestSnapshot.current?.modal.modalError).toBe(
+            expect(mounted.ref.current?.getValue()?.modal.modalError).toBe(
                 "settings.modal.error_apply",
             );
         } finally {
