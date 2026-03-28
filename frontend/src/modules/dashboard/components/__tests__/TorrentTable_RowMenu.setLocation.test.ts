@@ -88,6 +88,8 @@ vi.mock("@/app/context/AppCommandContext", () => ({
 vi.mock("@/app/context/SessionContext", () => ({
     useSession: () => ({
         daemonPathStyle: "windows",
+        sessionSettings: null,
+        refreshSessionSettings: vi.fn(async () => ({})),
     }),
     useUiModeCapabilities: () => ({
         canOpenFolder: true,

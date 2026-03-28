@@ -143,7 +143,7 @@ export function useAddTorrentModalViewModel({
         daemonPathStyle,
         uiCapabilities: { uiMode, canBrowse },
     } = useSession();
-    const { history: recentPaths, remember } = useDownloadPaths();
+    const { history: recentPaths } = useDownloadPaths();
 
     const formRef = useRef<HTMLFormElement | null>(null);
     const settingsPanelRef = useRef<ImperativePanelHandle | null>(null);
@@ -461,7 +461,7 @@ export function useAddTorrentModalViewModel({
             });
 
         try {
-            const outcome = await onConfirm({
+            await onConfirm({
                 downloadDir: submitDir,
                 commitMode,
                 magnetLink: source?.kind === "magnet" ? magnetLink.trim() : undefined,
@@ -473,9 +473,6 @@ export function useAddTorrentModalViewModel({
                     sequential,
                 },
             });
-            if (outcome.status === "queued") {
-                remember(submitDir);
-            }
         } catch {
             // no-op: command layer owns user-facing error feedback
         }
@@ -485,7 +482,6 @@ export function useAddTorrentModalViewModel({
         files,
         onConfirm,
         priorities,
-        remember,
         selectedIndexes,
         sequential,
         submissionDecision.canConfirm,

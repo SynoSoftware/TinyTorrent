@@ -277,6 +277,7 @@ export function useSettingsFlow({
     const {
         reportCommandError,
         rpcStatus,
+        sessionSettings,
         refreshSessionSettings,
         updateRequestTimeout,
     } = useSession();
@@ -302,11 +303,7 @@ export function useSettingsFlow({
         ],
     );
     const [settingsConfigBase, setSettingsConfig] = useState<SettingsConfig>(
-        () =>
-            applyPreferencesToConfig(
-                { ...DEFAULT_SETTINGS_CONFIG },
-                settingsPreferenceOverlay,
-            ),
+        () => ({ ...DEFAULT_SETTINGS_CONFIG }),
     );
 
     const settingsConfig = useMemo(
@@ -314,11 +311,8 @@ export function useSettingsFlow({
         [settingsConfigBase, settingsPreferenceOverlay],
     );
     const settingsConfigRef = useRef(settingsConfig);
-    const [sessionSettings, setSessionSettings] =
-        useState<TransmissionSessionSettings | null>(null);
     const sessionSettingsRef = useRef<TransmissionSessionSettings | null>(null);
     const settingsPatchQueueRef = useRef(Promise.resolve());
-    const hasLoadedSettingsForOpenRef = useRef(false);
     const [settingsLoadError, setSettingsLoadError] = useState(false);
     const blocklistSupported = useMemo(() => {
         if (!sessionSettings) return true;
@@ -345,41 +339,25 @@ export function useSettingsFlow({
     }, [sessionSettings]);
 
     useEffect(() => {
-        if (isSettingsOpen) {
+        if (!sessionSettings) {
             return;
         }
-        hasLoadedSettingsForOpenRef.current = false;
-        const resetErrorId = window.setTimeout(() => {
-            setSettingsLoadError(false);
-        }, 0);
-        return () => {
-            window.clearTimeout(resetErrorId);
-        };
-    }, [isSettingsOpen]);
+        setSettingsLoadError(false);
+        setSettingsConfig(mapSessionToConfig(sessionSettings));
+    }, [sessionSettings]);
 
     useEffect(() => {
         if (!isSettingsOpen || rpcStatus !== status.connection.connected)
             return;
         let active = true;
-        const shouldSurfaceLoadError = !hasLoadedSettingsForOpenRef.current;
         const loadSettings = async () => {
-            if (active && shouldSurfaceLoadError) {
+            if (active) {
                 setSettingsLoadError(false);
             }
             try {
-                const session = await refreshSessionSettings();
-                setSessionSettings(session);
-                hasLoadedSettingsForOpenRef.current = true;
-                if (active) {
-                    setSettingsConfig(
-                        applyPreferencesToConfig(
-                            mapSessionToConfig(session),
-                            settingsPreferenceOverlay,
-                        ),
-                    );
-                }
+                await refreshSessionSettings();
             } catch {
-                if (active && shouldSurfaceLoadError) {
+                if (active && !sessionSettingsRef.current) {
                     setSettingsLoadError(true);
                 }
             }
@@ -392,7 +370,6 @@ export function useSettingsFlow({
         isSettingsOpen,
         refreshSessionSettings,
         rpcStatus,
-        settingsPreferenceOverlay,
     ]);
 
     const handleTestPort = useCallback(
@@ -432,20 +409,8 @@ export function useSettingsFlow({
                         if (isMountedRef.current) {
                             settingsConfigRef.current = nextConfig;
                             setSettingsConfig(nextConfig);
-                            if (sessionPayload) {
-                                setSessionSettings((prev) => {
-                                    const nextSession = {
-                                        ...(prev ?? {}),
-                                        ...sessionPayload,
-                                    };
-                                    sessionSettingsRef.current = nextSession;
-                                    return nextSession;
-                                });
-                            }
                             try {
-                                const latest = await refreshSessionSettings();
-                                sessionSettingsRef.current = latest;
-                                setSessionSettings(latest);
+                                await refreshSessionSettings();
                             } catch {
                                 // Keep live settings resilient even if post-apply sync fails.
                             }

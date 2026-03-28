@@ -36,6 +36,13 @@ Reject these by default:
 - “just in case” flags, refs, timers, or guards
 - moving logic to a broader layer without proving the bug originates there
 
+No new components without approval:
+
+1. First use what HeroUI already provides.
+2. Check if a similar component already exists and reuse or extend it.
+3. Check existing project packages and use one if suitable.
+4. If none are suitable, stop and explain the approach, the library you would use, why it fits, and any tradeoffs. Then ask for permission before proceeding.
+
 ## Hard Rules
 
 ### 1. One Owner Per Behavior
@@ -275,20 +282,34 @@ Presentation should not become a hidden policy owner.
 - HeroUI is the control layer, not the surface-selection authority.
 - `src/index.css` owns global geometry and CSS tokens.
 - Prefer reducing token count over preserving local convenience tokens; consolidation reduces drift.
+- New semantic tokens must never be introduced without explicit user permission.
 
 Required decision procedure:
 
 1. Identify what the object is semantically.
-2. Search `src/config/logic.ts` for an existing token for that semantic object.
-3. In that search, prefer broader shared semantics before narrower leaf-local ones.
-4. If a matching semantic exists only in another leaf but is actually shared, move it into the proper shared location in `src/config/logic.ts` and reuse that one token from both places.
-5. Do not select a token because class strings look similar; select it because the semantic object is the same.
-6. If no match is found after best-effort search, ask before creating a new token.
+2. Scan all existing semantic tokens related to that object before writing CSS or changing token usage.
+3. Search `src/config/logic.ts` for an existing token for that semantic object.
+4. In that search, prefer broader shared semantics before narrower leaf-local ones.
+5. If a matching semantic exists only in another leaf but is actually shared, move it down to the nearest common semantic owner in `src/config/logic.ts` and make both the old and new usages consume that one shared token.
+6. Do not select a token because class strings look similar; select it because the semantic object is the same.
+7. If no match is found after best-effort search, stop and ask permission before creating a new token.
+
+Token overlap is a defect.
+
+When touching a visual surface, you must check all existing tokens in `src/config/logic.ts` for the same semantic object, not just the local surface. If overlap or near-duplication exists, collapse it to a single shared token.
+
+Required behavior:
+
+1. Collapse overlapping or near-duplicate tokens instead of selecting between them.
+2. Prefer the broadest valid semantic owner that preserves real distinctions.
+3. Remove narrower or leaf-local duplicates and migrate usages to the shared owner.
+4. Do not proceed with changes while overlap in the touched area remains unresolved.
 
 Forbidden:
 
 - choosing tokens by class similarity or visual resemblance
 - creating tokens to match visuals instead of semantics
+- introducing a new token without explicit user approval
 - duplicating tokens across leaves
 - falling back to inline CSS or local CSS because the token search was incomplete
 

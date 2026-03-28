@@ -53,6 +53,7 @@
 4. **Exact Typing** — avoid `any`; prefer strict schema alignment and explicit contracts.
 5. **No Entropy** — no duplicate configurations, no drifting tooling, no convenience shortcuts.
 6. **Frontend Styling Authority** — feature code must not own styling; use shared semantic tokens/primitives only (see `frontend/AGENTS.md`).
+7. **No New Tokens Without Approval** — agents must not introduce new frontend semantic tokens without explicit user permission.
 
 ---
 
@@ -72,6 +73,16 @@
 ---
 
 ## Work Protocol
+
+- Every iteration must begin with enough local familiarization to understand the existing owner, data flow, and adjacent patterns before code is changed.
+  The agent must inspect the surrounding code first so it can identify duplication, overlap, ownership drift, and parallel structures before deciding where to patch.
+
+- The default target is the **minimal architecture that still works**.
+  Prefer the smallest local fix at the natural owner, expressed through existing state and existing boundaries, over new abstractions or broader rewrites.
+  Collapse overlap instead of preserving it, treat API growth as harmful by default, and remove unnecessary indirection rather than layering on helpers, props, or compatibility paths.
+
+- Follow-up iterations are expected to reduce drift, not add “cleanup architecture.”
+  Refactors must simplify the model, reduce touched surface, and remove overlap; they must not introduce broader systems, speculative abstractions, or convenience APIs.
 
 - Before recommending a command for the user to run, the agent must run it itself **if the environment permits** and confirm it succeeds.
 
@@ -105,6 +116,8 @@
 - Agents **must** read and follow:
   - `backend/AGENTS.md` when working on native code
   - `frontend/AGENTS.md` when working on UI or tooling
+
+- For frontend work, the more detailed ownership, overlap, API-surface, and simplification rules in `frontend/AGENTS.md` are mandatory and should be treated as the concrete operating procedure for the iteration rules above.
 
 - Global rules in this file are authoritative unless explicitly overridden by a more specific AGENTS file.
 

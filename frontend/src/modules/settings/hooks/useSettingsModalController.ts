@@ -14,7 +14,6 @@ import {
     type ConfigKey,
     type SettingsConfig,
 } from "@/modules/settings/data/config";
-import { mergeDownloadPaths, useDownloadPaths } from "@/app/hooks/useDownloadPaths";
 import {
     SETTINGS_TABS,
     type ButtonActionKey,
@@ -124,25 +123,13 @@ export function useSettingsModalController(
     const {
         preferences: { settingsTab },
         setSettingsTab,
-        setAddTorrentHistory,
     } = usePreferences();
-    const { current: currentDownloadPath, history: downloadPathHistory } =
-        useDownloadPaths();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
     const [fieldStates, setFieldStates] = useState<
         Partial<Record<ConfigKey, SettingsFieldState>>
     >({});
-    const safeInitialConfig = useMemo(() => {
-        if (!currentDownloadPath) {
-            return settingsConfig;
-        }
-        return {
-            ...settingsConfig,
-            download_dir: currentDownloadPath,
-        };
-    }, [currentDownloadPath, settingsConfig]);
     const [config, setConfig] = useState<SettingsConfig>(() => ({
-        ...safeInitialConfig,
+        ...settingsConfig,
     }));
     const configRef = useRef(config);
     const wasOpenRef = useRef(false);
@@ -334,22 +321,22 @@ export function useSettingsModalController(
 
         wasOpenRef.current = true;
         const cancelInit = scheduler.scheduleTimeout(() => {
-            setConfig({ ...safeInitialConfig });
+            setConfig({ ...settingsConfig });
             setIsMobileMenuOpen(true);
             resetModalEphemeralState();
         }, 0);
         return cancelInit;
-    }, [isOpen, resetModalEphemeralState, safeInitialConfig]);
+    }, [isOpen, resetModalEphemeralState, settingsConfig]);
 
     useEffect(() => {
         if (!isOpen || hasDrafts) {
             return;
         }
         const cancelSync = scheduler.scheduleTimeout(() => {
-            setConfig({ ...safeInitialConfig });
+            setConfig({ ...settingsConfig });
         }, 0);
         return cancelSync;
-    }, [hasDrafts, isOpen, safeInitialConfig]);
+    }, [hasDrafts, isOpen, settingsConfig]);
 
     useEffect(() => {
         if (isOpen) return;
@@ -462,21 +449,6 @@ export function useSettingsModalController(
         [sliderConstraints],
     );
 
-    const syncDownloadPathHistory = useCallback(
-        (downloadDir: string | undefined) => {
-            if (downloadDir === undefined) {
-                return;
-            }
-            const trimmedValue = downloadDir.trim();
-            setAddTorrentHistory(
-                trimmedValue
-                    ? mergeDownloadPaths(downloadPathHistory, downloadDir)
-                    : [],
-            );
-        },
-        [downloadPathHistory, setAddTorrentHistory],
-    );
-
     const applyLocalPatch = useCallback(
         (patch: Partial<SettingsConfig>) => {
             const normalizedPatch = normalizePatch(patch);
@@ -488,10 +460,9 @@ export function useSettingsModalController(
                 configRef.current = next;
                 return next;
             });
-            syncDownloadPathHistory(normalizedPatch.download_dir);
             return normalizedPatch;
         },
-        [normalizePatch, syncDownloadPathHistory],
+        [normalizePatch],
     );
 
     const updateConfig = useCallback(
@@ -574,7 +545,6 @@ export function useSettingsModalController(
                         configRef.current = next;
                         return next;
                     });
-                    syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
                 }
                 return SETTINGS_ACTION_FAILED;
             }
@@ -603,7 +573,6 @@ export function useSettingsModalController(
                         configRef.current = next;
                         return next;
                     });
-                    syncDownloadPathHistory(normalizedRollbackPatch.download_dir);
                 }
                 return SETTINGS_ACTION_FAILED;
             }
@@ -613,7 +582,6 @@ export function useSettingsModalController(
             applyLocalPatch,
             onApplySettingsPatch,
             rpcStatus,
-            syncDownloadPathHistory,
         ],
     );
 

@@ -18,7 +18,6 @@ export function useDownloadPaths() {
         () => addTorrentHistory.slice(0, maxDownloadPaths),
         [addTorrentHistory],
     );
-    const current = history[0] ?? "";
 
     const remember = useCallback(
         (value: string) => {
@@ -30,10 +29,9 @@ export function useDownloadPaths() {
 
     return useMemo(
         () => ({
-            current,
             history,
             remember,
         }),
-        [current, history, remember],
+        [history, remember],
     );
 }

@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import { useSession } from "@/app/context/SessionContext";
+import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import {
     applySetDownloadLocation,
     pickSetDownloadLocationDirectory,
@@ -35,6 +37,11 @@ export function useSetDownloadLocationFlow({
     setDownloadLocation,
 }: UseSetDownloadLocationFlowParams): UseSetDownloadLocationFlowResult {
     const { t } = useTranslation();
+    const {
+        refreshSessionSettings,
+        sessionSettings,
+    } = useSession();
+    const sessionDomain = useEngineSessionDomain();
     const { canPickDirectory, pickDirectory } = useDirectoryPicker();
     const { remember } = useDownloadPaths();
 
@@ -69,11 +76,29 @@ export function useSetDownloadLocationFlow({
                 setDownloadLocation,
                 t,
             });
-            remember(path);
+            const nextDownloadDir = path.trim();
+            remember(nextDownloadDir);
+            if (
+                !nextDownloadDir ||
+                nextDownloadDir === sessionSettings?.["download-dir"]?.trim()
+            ) {
+                return;
+            }
+            try {
+                await sessionDomain.updateSessionSettings({
+                    "download-dir": nextDownloadDir,
+                });
+                await refreshSessionSettings();
+            } catch {
+                // Keep the relocate action successful even if the default path sync fails.
+            }
         },
         [
             remember,
+            refreshSessionSettings,
             setDownloadLocation,
+            sessionDomain,
+            sessionSettings,
             t,
             torrent,
         ],

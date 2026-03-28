@@ -3,6 +3,8 @@ import type { MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { addToast, closeToast } from "@heroui/toast";
+import { useSession } from "@/app/context/SessionContext";
+import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import type { AddTorrentDefaultsState } from "@/app/context/PreferencesContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
@@ -111,6 +113,8 @@ export function useAddTorrentController({
 }: UseAddTorrentControllerParams): UseAddTorrentControllerResult {
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
+    const { refreshSessionSettings } = useSession();
+    const sessionDomain = useEngineSessionDomain();
     const {
         preferences: { addTorrentDefaults: addTorrentDefaultsState },
         setAddTorrentDefaults,
@@ -120,8 +124,8 @@ export function useAddTorrentController({
     const submissionSeqRef = useRef(0);
     const torrentsRef = useRef<Array<Torrent | TorrentDetail>>(torrents);
 
-    const { current, remember } = useDownloadPaths();
-    const currentDownloadDir = current || settingsConfig.download_dir || "";
+    const { remember } = useDownloadPaths();
+    const currentDownloadDir = settingsConfig.download_dir || "";
 
     const setCommitMode = useCallback(
         (value: AddTorrentDefaultsState["commitMode"]) => {
@@ -160,6 +164,25 @@ export function useAddTorrentController({
             setCommitMode,
             setShowAddDialog,
         ],
+    );
+
+    const persistCommittedDownloadDir = useCallback(
+        async (downloadDir: string) => {
+            const nextDownloadDir = downloadDir.trim();
+            remember(nextDownloadDir);
+            if (!nextDownloadDir || nextDownloadDir === currentDownloadDir.trim()) {
+                return;
+            }
+            try {
+                await sessionDomain.updateSessionSettings({
+                    "download-dir": nextDownloadDir,
+                });
+                await refreshSessionSettings();
+            } catch {
+                // Keep the command outcome tied to the user action itself.
+            }
+        },
+        [currentDownloadDir, refreshSessionSettings, remember, sessionDomain],
     );
 
     const showInFlightStatus = useCallback(() => {
@@ -646,6 +669,7 @@ export function useAddTorrentController({
                 });
                 if (submissionOutcome.status === "queued") {
                     closeAddTorrentWindow();
+                    await persistCommittedDownloadDir(downloadDir);
                 }
                 return submissionOutcome;
             }
@@ -680,6 +704,7 @@ export function useAddTorrentController({
             });
             if (submissionOutcome.status === "queued") {
                 closeAddTorrentWindow();
+                await persistCommittedDownloadDir(downloadDir);
             }
             return submissionOutcome;
         },
@@ -690,6 +715,7 @@ export function useAddTorrentController({
             closeAddTorrentWindow,
             dispatch,
             pendingDeletionHashesRef,
+            persistCommittedDownloadDir,
             showInFlightStatus,
             showFeedback,
             t,

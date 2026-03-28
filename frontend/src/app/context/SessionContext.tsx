@@ -61,6 +61,7 @@ export interface SessionContextValue {
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
+    sessionSettings: TransmissionSessionSettings | null;
     daemonPathStyle: DaemonPathStyle;
     uiCapabilities: UiCapabilities;
     engineCapabilities: EngineRuntimeCapabilities;
@@ -206,6 +207,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
+            sessionSettings,
             daemonPathStyle,
             uiCapabilities,
             engineCapabilities,
@@ -224,6 +226,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
+            sessionSettings,
             daemonPathStyle,
             uiCapabilities,
             engineCapabilities,

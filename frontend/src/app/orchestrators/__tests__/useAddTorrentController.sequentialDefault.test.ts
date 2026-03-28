@@ -26,6 +26,9 @@ const dispatchSpy = vi.hoisted(
         >(async () => ({ status: "applied" })),
 );
 const setAddTorrentDefaultsSpy = vi.hoisted(() => vi.fn());
+const useDownloadPathsMock = vi.hoisted(() => vi.fn());
+const refreshSessionSettingsSpy = vi.hoisted(() => vi.fn(async () => ({})));
+const updateSessionSettingsSpy = vi.hoisted(() => vi.fn(async () => {}));
 const parseTorrentFileSpy = vi.hoisted(
     () =>
         vi.fn(async () => ({
@@ -68,10 +71,7 @@ vi.mock("@/app/hooks/useAddModalState", () => ({
 }));
 
 vi.mock("@/app/hooks/useDownloadPaths", () => ({
-    useDownloadPaths: () => ({
-        current: "D:\\Downloads",
-        remember: vi.fn(),
-    }),
+    useDownloadPaths: useDownloadPathsMock,
 }));
 
 vi.mock("@/app/context/PreferencesContext", () => ({
@@ -83,6 +83,18 @@ vi.mock("@/app/context/PreferencesContext", () => ({
             },
         },
         setAddTorrentDefaults: setAddTorrentDefaultsSpy,
+    }),
+}));
+
+vi.mock("@/app/context/SessionContext", () => ({
+    useSession: () => ({
+        refreshSessionSettings: refreshSessionSettingsSpy,
+    }),
+}));
+
+vi.mock("@/app/providers/engineDomains", () => ({
+    useEngineSessionDomain: () => ({
+        updateSessionSettings: updateSessionSettingsSpy,
     }),
 }));
 
@@ -161,6 +173,12 @@ describe("useAddTorrentController sequential default", () => {
     beforeEach(() => {
         dispatchSpy.mockClear();
         setAddTorrentDefaultsSpy.mockClear();
+        refreshSessionSettingsSpy.mockClear();
+        updateSessionSettingsSpy.mockClear();
+        useDownloadPathsMock.mockReturnValue({
+            history: [],
+            remember: vi.fn(),
+        });
         parseTorrentFileSpy.mockClear();
         addModalCallbacks.onOpenAddTorrentFromFile = null;
     });
@@ -192,7 +210,88 @@ describe("useAddTorrentController sequential default", () => {
                     sequentialDownload: true,
                 }),
             );
+            expect(updateSessionSettingsSpy).not.toHaveBeenCalled();
+            expect(refreshSessionSettingsSpy).not.toHaveBeenCalled();
             expect(setAddTorrentDefaultsSpy).not.toHaveBeenCalled();
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("uses the session-backed download dir instead of path history", async () => {
+        useDownloadPathsMock.mockReturnValue({
+            history: ["E:\\HistoryOnly"],
+            remember: vi.fn(),
+        });
+
+        const mounted = await mountHarness();
+
+        try {
+            expect(
+                mounted.ref.current?.getValue().addTorrentDefaults.downloadDir,
+            ).toBe("D:\\Downloads");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("updates the default download dir after a confirmed add path change", async () => {
+        const mounted = await mountHarness();
+
+        try {
+            mounted.ref.current?.getValue().openAddMagnet("magnet:?xt=urn:btih:1234");
+            await flush();
+
+            await mounted.ref.current?.getValue().handleTorrentWindowConfirm({
+                downloadDir: "E:\\Incoming",
+                commitMode: "paused",
+                magnetLink: "magnet:?xt=urn:btih:1234",
+                filesUnwanted: [],
+                priorityHigh: [],
+                priorityNormal: [],
+                priorityLow: [],
+                options: {
+                    sequential: true,
+                },
+            });
+
+            expect(dispatchSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: "ADD_MAGNET_TORRENT",
+                    downloadDir: "E:\\Incoming",
+                }),
+            );
+            expect(updateSessionSettingsSpy).toHaveBeenCalledWith({
+                "download-dir": "E:\\Incoming",
+            });
+            expect(refreshSessionSettingsSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("skips a default-path write when the confirmed path already matches the default", async () => {
+        const mounted = await mountHarness();
+
+        try {
+            mounted.ref.current?.getValue().openAddMagnet("magnet:?xt=urn:btih:1234");
+            await flush();
+
+            await mounted.ref.current?.getValue().handleTorrentWindowConfirm({
+                downloadDir: "D:\\Downloads",
+                commitMode: "paused",
+                magnetLink: "magnet:?xt=urn:btih:1234",
+                filesUnwanted: [],
+                priorityHigh: [],
+                priorityNormal: [],
+                priorityLow: [],
+                options: {
+                    sequential: true,
+                },
+            });
+
+            expect(updateSessionSettingsSpy).not.toHaveBeenCalled();
+            expect(refreshSessionSettingsSpy).not.toHaveBeenCalled();
         } finally {
             mounted.cleanup();
         }
