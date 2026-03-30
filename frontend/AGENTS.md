@@ -212,6 +212,7 @@ Minimum familiarization:
 - inspect the current feature owner
 - inspect adjacent shared owners that already touch the behavior
 - inspect any existing state/config already expressing the same concept
+- If something already exists, find its owner, understand its contract, and reuse it. Do not recreate it locally. If reuse is not possible, explicitly justify why before introducing a new representation.
 - verify that an equivalent helper, module, service, utility, pattern, or library does not already exist
 
 Do not write code before doing this.
