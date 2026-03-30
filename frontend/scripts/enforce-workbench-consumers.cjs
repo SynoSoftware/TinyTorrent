@@ -15,9 +15,9 @@ const checks = [
             "Navbar.tsx",
         ),
         mustInclude: [
-            "WORKBENCH.nav.root",
-            "WORKBENCH.nav.surface",
-            "WORKBENCH.nav.shell",
+            "workbench.nav.root",
+            "workbench.nav.surface",
+            "workbench.nav.shell",
         ],
     },
     {
@@ -30,9 +30,10 @@ const checks = [
             "TorrentTable.tsx",
         ),
         mustInclude: [
-            "TABLE.hostRoot",
-            "TABLE.surface",
-            "TABLE.shell",
+            "tableSurface.hostBorderRadiusStyle",
+            "tableSurface.hostRoot",
+            "tableSurface.shellPanel",
+            "tableSurface.shell",
         ],
     },
     {
@@ -45,8 +46,8 @@ const checks = [
             "StatusBar.tsx",
         ),
         mustInclude: [
-            "WORKBENCH.status.footer",
-            "WORKBENCH.status.surface",
+            "workbench.status.footer",
+            "workbench.status.surface",
         ],
     },
 ];

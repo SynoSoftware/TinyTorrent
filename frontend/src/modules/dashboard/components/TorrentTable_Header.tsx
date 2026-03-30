@@ -6,15 +6,14 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { flexRender, type Column, type Table } from "@tanstack/react-table";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { table } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 const { visuals } = registry;
 
 type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 
-const SUPPORTS_POINTER_EVENTS =
-    typeof window !== "undefined" && "PointerEvent" in window;
+const SUPPORTS_POINTER_EVENTS = typeof window !== "undefined" && "PointerEvent" in window;
 
 // Keep header rendering presentational:
 // - Drag/sort/resize behaviors are still orchestrated by shared hooks; keep exposing only stable handlers/state so the view-model remains the single owner (todo.md task 13).
@@ -41,27 +40,18 @@ const TorrentTable_Header = memo(
         isResizing?: boolean;
     }) => {
         const { column } = header;
-        const canResize =
-            header.column.id !== "selection" &&
-            (column.getCanResize?.() ?? true);
-        const {
-            setNodeRef,
-            attributes,
-            listeners,
-            setActivatorNodeRef,
-            transform,
-            transition,
-            isDragging,
-        } = useSortable({
-            id: header.column.id,
-            disabled: isAnimationSuppressed,
-            animateLayoutChanges: (args) => {
-                if (isAnimationSuppressed) return false;
-                const { wasDragging } = args;
-                if (wasDragging) return false;
-                return defaultAnimateLayoutChanges(args);
-            },
-        });
+        const canResize = header.column.id !== "selection" && (column.getCanResize?.() ?? true);
+        const { setNodeRef, attributes, listeners, setActivatorNodeRef, transform, transition, isDragging } =
+            useSortable({
+                id: header.column.id,
+                disabled: isAnimationSuppressed,
+                animateLayoutChanges: (args) => {
+                    if (isAnimationSuppressed) return false;
+                    const { wasDragging } = args;
+                    if (wasDragging) return false;
+                    return defaultAnimateLayoutChanges(args);
+                },
+            });
         const handleAutoFit = (event: React.MouseEvent) => {
             event.stopPropagation();
             if (column.getCanResize()) {
@@ -98,14 +88,10 @@ const TorrentTable_Header = memo(
             startManualResize(touch.clientX);
         };
 
-        const isColumnResizing =
-            isResizing || column.getIsResizing?.() === true;
+        const isColumnResizing = isResizing || column.getIsResizing?.() === true;
 
         const style: CSSProperties = {
-            transform:
-                transform && !isAnimationSuppressed
-                    ? CSS.Translate.toString(transform)
-                    : undefined,
+            transform: transform && !isAnimationSuppressed ? CSS.Translate.toString(transform) : undefined,
             transition: !isAnimationSuppressed ? transition : undefined,
             width: getColumnWidthCss(column.id, column.getSize()),
             zIndex: isDragging || isOverlay ? 50 : 0,
@@ -120,9 +106,7 @@ const TorrentTable_Header = memo(
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         const handleSortToggle = () => {
             if (!canSort) return;
-            const meta = header.getContext().table.options.meta as
-                | DashboardTableMeta
-                | undefined;
+            const meta = header.getContext().table.options.meta as DashboardTableMeta | undefined;
             if (meta?.handleHeaderSortToggle) {
                 meta.handleHeaderSortToggle(column.id);
                 return;
@@ -146,11 +130,11 @@ const TorrentTable_Header = memo(
                 tabIndex={-1}
                 onContextMenu={onContextMenu}
                 className={cn(
-                    TABLE.columnHeader.cellBase,
-                    canSort ? TABLE.columnHeader.cellSortable : TABLE.columnHeader.cellStatic,
-                    isOverlay ? TABLE.columnHeader.cellOverlay : TABLE.columnHeader.cellDefault,
-                    isOverlay && TABLE.columnHeader.cellOverlayShadow,
-                    isDragging && !isOverlay ? TABLE.columnHeader.cellDragging : TABLE.columnHeader.cellIdle,
+                    table.columnHeader.cellBase,
+                    canSort ? table.columnHeader.cellSortable : table.columnHeader.cellStatic,
+                    isOverlay ? table.columnHeader.cellOverlay : table.columnHeader.cellDefault,
+                    isOverlay && table.columnHeader.cellOverlayShadow,
+                    isDragging && !isOverlay ? table.columnHeader.cellDragging : table.columnHeader.cellIdle,
                 )}
             >
                 <div
@@ -158,23 +142,23 @@ const TorrentTable_Header = memo(
                     {...attributes}
                     {...listeners}
                     className={cn(
-                        TABLE.columnHeader.activatorBase,
-                        isOverlay && TABLE.columnHeader.activatorOverlay,
-                        align === "center" && TABLE.columnHeader.activatorAlignCenter,
-                        align === "end" && TABLE.columnHeader.activatorAlignEnd,
-                        isSelection && TABLE.columnHeader.activatorSelection,
+                        table.columnHeader.activatorBase,
+                        isOverlay && table.columnHeader.activatorOverlay,
+                        align === "center" && table.columnHeader.activatorAlignCenter,
+                        align === "end" && table.columnHeader.activatorAlignEnd,
+                        isSelection && table.columnHeader.activatorSelection,
                     )}
-                    style={TABLE.columnHeader.activatorTrackingStyle}
+                    style={table.columnHeader.activatorTrackingStyle}
                     onPointerUp={canSort ? handleSortPointerUp : undefined}
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon
                         strokeWidth={visuals.icon.strokeWidthDense}
                         className={cn(
-                            TABLE.columnHeader.sortIcon,
+                            table.columnHeader.sortIcon,
                             sortArrowOpacity === "opacity-100"
-                                ? TABLE.columnHeader.sortIconVisible
-                                : TABLE.columnHeader.sortIconHidden,
+                                ? table.columnHeader.sortIconVisible
+                                : table.columnHeader.sortIconHidden,
                         )}
                     />
                 </div>
@@ -186,15 +170,15 @@ const TorrentTable_Header = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className={TABLE.columnHeader.resizeHandle}
+                        className={table.columnHeader.resizeHandle}
                     >
                         <div
                             className={cn(
-                                TABLE.columnHeader.resizeBarBase,
-                                TABLE.columnHeader.resizeBarHover,
-                                isColumnResizing && TABLE.columnHeader.resizeBarActive,
+                                table.columnHeader.resizeBarBase,
+                                table.columnHeader.resizeBarHover,
+                                isColumnResizing && table.columnHeader.resizeBarActive,
                             )}
-                            style={TABLE.columnHeader.resizeBarStyle}
+                            style={table.columnHeader.resizeBarStyle}
                         />
                     </div>
                 )}
@@ -214,5 +198,3 @@ const TorrentTable_Header = memo(
 );
 
 export default TorrentTable_Header;
-
-

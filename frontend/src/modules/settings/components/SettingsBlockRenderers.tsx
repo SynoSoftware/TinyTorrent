@@ -5,10 +5,9 @@ import { useMemo, type ReactNode } from "react";
 import { type InputBlock, type SectionBlock } from "@/modules/settings/data/settings-tabs";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import { registry } from "@/config/logic";
-import { textRole } from "@/config/textRoles";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 import { AltSpeedScheduleField } from "@/modules/settings/components/AltSpeedScheduleField";
 import { BufferedInput } from "@/modules/settings/components/BufferedInput";
 import { useSettingsFormActions, useSettingsFormState } from "@/modules/settings/context/SettingsFormContext";
@@ -22,8 +21,8 @@ function ControlFieldHelper({ helper }: { helper?: ReactNode }) {
         return null;
     }
     return (
-        <div className={FORM.locationEditorFeedbackSlot}>
-            <div className={FORM.locationEditorValidationRow}>{helper}</div>
+        <div className={form.locationEditorFeedbackSlot}>
+            <div className={form.locationEditorValidationRow}>{helper}</div>
         </div>
     );
 }
@@ -33,21 +32,21 @@ function PathFieldHelper({ helper }: { helper?: ReactNode }) {
         return null;
     }
     return (
-        <div className={FORM.locationEditorFeedbackSlot}>
-            <div className={FORM.locationEditorValidationRow}>{helper}</div>
+        <div className={form.locationEditorFeedbackSlot}>
+            <div className={form.locationEditorValidationRow}>{helper}</div>
         </div>
     );
 }
 
 function InlineSettingsFieldRow({ label, field, helper }: { label: string; field: ReactNode; helper?: ReactNode }) {
     return (
-        <div className={FORM.locationEditorRow}>
-            <div className={FORM.locationEditorField}>
-                <div className={FORM.locationEditorLabelInputRow}>
-                    <div className={FORM.locationEditorLabelColumn}>
-                        <span className={FORM.locationEditorInlineLabel}>{label}</span>
+        <div className={form.locationEditorRow}>
+            <div className={form.locationEditorField}>
+                <div className={form.locationEditorLabelInputRow}>
+                    <div className={form.locationEditorLabelColumn}>
+                        <span className={form.locationEditorInlineLabel}>{label}</span>
                     </div>
-                    <div className={FORM.locationEditorValueColumn}>{field}</div>
+                    <div className={form.locationEditorValueColumn}>{field}</div>
                 </div>
                 <ControlFieldHelper helper={helper} />
             </div>
@@ -57,10 +56,10 @@ function InlineSettingsFieldRow({ label, field, helper }: { label: string; field
 
 function SettingsControlRow({ label, control, helper }: { label: string; control: ReactNode; helper?: ReactNode }) {
     return (
-        <div className={FORM.systemRow}>
-            <div className={FORM.switchRow}>
-                <span className={FORM.switchLabel}>{label}</span>
-                <div className={FORM.systemRowControl}>{control}</div>
+        <div className={form.systemRow}>
+            <div className={form.switchRow}>
+                <span className={form.switchLabel}>{label}</span>
+                <div className={form.systemRowControl}>{control}</div>
             </div>
             <ControlFieldHelper helper={helper} />
         </div>
@@ -117,8 +116,8 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
     const sliderValue = Number.isFinite(rawValue) ? rawValue : block.slider.min;
 
     return (
-        <div className={FORM.blockStackTight}>
-            <div className={FORM.blockRowBetween}>
+        <div className={form.blockStackTight}>
+            <div className={form.blockRowBetween}>
                 <Switch
                     size="md"
                     isSelected={isSwitchOn}
@@ -128,9 +127,9 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
                     }}
                     isDisabled={blockPending}
                 >
-                    <span className={FORM.switchSliderLabel}>{t(block.labelKey)}</span>
+                    <span className={form.switchSliderLabel}>{t(block.labelKey)}</span>
                 </Switch>
-                <div className={cn(FORM.sliderValueText, FORM.sliderValueBadge)} style={FORM.sliderValueBadgeStyle}>
+                <div className={cn(form.sliderValueText, form.sliderValueBadge)} style={form.sliderValueBadgeStyle}>
                     {block.valueSuffixKey ? t(block.valueSuffixKey, { value: sliderValue }) : sliderValue}
                 </div>
             </div>
@@ -149,11 +148,11 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
                 }}
                 isDisabled={sliderDisabled || blockPending}
                 color={block.color}
-                classNames={FORM.sliderClassNames}
-                className={FORM.slider}
+                classNames={form.sliderClassNames}
+                className={form.slider}
             />
             <ControlFieldHelper
-                helper={blockError ? <p className={FORM.locationEditorError}>{blockError}</p> : undefined}
+                helper={blockError ? <p className={form.locationEditorError}>{blockError}</p> : undefined}
             />
         </div>
     );
@@ -180,9 +179,9 @@ export function SwitchRenderer({ block }: { block: Extract<SectionBlock, { type:
         fieldPending;
 
     return (
-        <div className={FORM.switchBlock}>
-            <div className={FORM.switchRow}>
-                <span className={cn(FORM.switchLabel, isDisabled && visuals.state.muted)}>{t(block.labelKey)}</span>
+        <div className={form.switchBlock}>
+            <div className={form.switchRow}>
+                <span className={cn(form.switchLabel, isDisabled && visuals.state.muted)}>{t(block.labelKey)}</span>
                 <Switch
                     size="md"
                     color={block.color}
@@ -196,11 +195,13 @@ export function SwitchRenderer({ block }: { block: Extract<SectionBlock, { type:
             <ControlFieldHelper
                 helper={
                     fieldError ? (
-                        <p className={FORM.locationEditorError}>{fieldError}</p>
+                        <p className={form.locationEditorError}>{fieldError}</p>
                     ) : blocklistUnsupported ? (
-                        <p className={textRole.caption}>{t("settings.blocklist.unsupported")}</p>
+                        <p className={visuals.typography.text.caption}>{t("settings.blocklist.unsupported")}</p>
                     ) : versionGatedStatus && versionGatedDisabled ? (
-                        <p className={textRole.caption}>{getVersionGatedSettingHint(t, versionGatedStatus)}</p>
+                        <p className={visuals.typography.text.caption}>
+                            {getVersionGatedSettingHint(t, versionGatedStatus)}
+                        </p>
                     ) : undefined
                 }
             />
@@ -314,27 +315,27 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             onRevert={() => revertFieldDraft(block.stateKey)}
             classNames={
                 isPathField
-                    ? FORM.locationEditorInputClassNames
+                    ? form.locationEditorInputClassNames
                     : {
                           inputWrapper:
                               isDisabled || blocklistUnsupported || isPending
-                                  ? `${FORM.bufferedInputWrapperBase} ${FORM.bufferedInputWrapperDisabled}`
-                                  : `${FORM.bufferedInputWrapperBase} ${FORM.bufferedInputWrapperEnabled}`,
-                          input: isMono ? FORM.bufferedInputTextMono : FORM.bufferedInputTextDefault,
-                          label: FORM.bufferedInputLabel,
+                                  ? `${form.bufferedInputWrapperBase} ${form.bufferedInputWrapperDisabled}`
+                                  : `${form.bufferedInputWrapperBase} ${form.bufferedInputWrapperEnabled}`,
+                          input: isMono ? form.bufferedInputTextMono : form.bufferedInputTextDefault,
+                          label: form.bufferedInputLabel,
                       }
             }
             startContent={
                 isPathField ? (
                     <FolderOpen
                         strokeWidth={visuals.icon.strokeWidth}
-                        className={FORM.locationEditorInputLeadingIcon}
+                        className={form.locationEditorInputLeadingIcon}
                     />
                 ) : undefined
             }
             endContent={
                 block.endIcon ? (
-                    <block.endIcon strokeWidth={visuals.icon.strokeWidth} className={FORM.inputEndIcon} />
+                    <block.endIcon strokeWidth={visuals.icon.strokeWidth} className={form.inputEndIcon} />
                 ) : undefined
             }
             className={block.className}
@@ -342,21 +343,21 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     );
 
     const helperContent = fieldError ? (
-        <p className={FORM.locationEditorError}>{fieldError}</p>
+        <p className={form.locationEditorError}>{fieldError}</p>
     ) : blocklistUnsupported ? (
-        <p className={textRole.caption}>{t("settings.blocklist.unsupported")}</p>
+        <p className={visuals.typography.text.caption}>{t("settings.blocklist.unsupported")}</p>
     ) : undefined;
 
     if (!sideAction || hideBrowseAction) {
         if (isPathField) {
             return (
-                <div className={FORM.locationEditorRow}>
-                    <div className={FORM.locationEditorField}>
-                        <div className={FORM.locationEditorPathRow}>
-                            <div className={FORM.locationEditorHeader}>
-                                <span className={FORM.locationEditorInlineLabel}>{t(block.labelKey)}</span>
+                <div className={form.locationEditorRow}>
+                    <div className={form.locationEditorField}>
+                        <div className={form.locationEditorPathRow}>
+                            <div className={form.locationEditorHeader}>
+                                <span className={form.locationEditorInlineLabel}>{t(block.labelKey)}</span>
                             </div>
-                            <div className={FORM.locationEditorInputWrap}>{inputNode}</div>
+                            <div className={form.locationEditorInputWrap}>{inputNode}</div>
                         </div>
                         <PathFieldHelper helper={helperContent} />
                     </div>
@@ -370,16 +371,16 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     }
 
     return isPathField ? (
-        <div className={FORM.locationEditorRow}>
-            <div className={FORM.locationEditorField}>
-                <div className={FORM.locationEditorPathRow}>
-                    <div className={FORM.locationEditorHeader}>
-                        <span className={FORM.locationEditorInlineLabel}>{t(block.labelKey)}</span>
+        <div className={form.locationEditorRow}>
+            <div className={form.locationEditorField}>
+                <div className={form.locationEditorPathRow}>
+                    <div className={form.locationEditorHeader}>
+                        <span className={form.locationEditorInlineLabel}>{t(block.labelKey)}</span>
                     </div>
-                    <div className={FORM.locationEditorInputWrap}>{inputNode}</div>
+                    <div className={form.locationEditorInputWrap}>{inputNode}</div>
                 </div>
-                <div className={FORM.locationEditorActionRow}>
-                    <div className={FORM.locationEditorBrowseWrap}>
+                <div className={form.locationEditorActionRow}>
+                    <div className={form.locationEditorBrowseWrap}>
                         <Button
                             size="md"
                             variant="flat"
@@ -421,7 +422,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
 
 export function InputPairRenderer({ block }: { block: Extract<SectionBlock, { type: "input-pair" }> }) {
     return (
-        <div className={FORM.blockStackTight}>
+        <div className={form.blockStackTight}>
             {block.inputs.map((inputBlock, idx) => (
                 <SingleInputRenderer key={inputBlock.stateKey || idx} block={inputBlock} />
             ))}
@@ -453,7 +454,7 @@ export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type:
                     variant={block.variant ?? "bordered"}
                     fullWidth
                     selectedKeys={config[block.stateKey] !== undefined ? [String(config[block.stateKey])] : []}
-                    classNames={FORM.selectClassNames}
+                    classNames={form.selectClassNames}
                     isDisabled={isDisabled || fieldPending}
                     aria-label={t(block.labelKey)}
                     onSelectionChange={(keys) => {
@@ -470,9 +471,9 @@ export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type:
             }
             helper={
                 fieldError ? (
-                    <p className={FORM.locationEditorError}>{fieldError}</p>
+                    <p className={form.locationEditorError}>{fieldError}</p>
                 ) : versionGatedStatus && isDisabled ? (
-                    <p className={textRole.caption}>{getVersionGatedSettingHint(t, versionGatedStatus)}</p>
+                    <p className={visuals.typography.text.caption}>{getVersionGatedSettingHint(t, versionGatedStatus)}</p>
                 ) : null
             }
         />
@@ -484,7 +485,7 @@ export function ButtonRowRenderer({ block }: { block: Extract<SectionBlock, { ty
     const { buttonActions } = useSettingsFormActions();
 
     return (
-        <div className={FORM.buttonRow}>
+        <div className={form.buttonRow}>
             {block.buttons.map((btn) => (
                 <Button
                     key={btn.labelKey}
@@ -505,9 +506,9 @@ export function LanguageRenderer({ block }: { block: Extract<SectionBlock, { typ
     const { t } = useTranslation();
     const tooltip = block.descriptionKey ? t(block.descriptionKey) : t("settings.descriptions.language");
     return (
-        <div className={FORM.languageRow}>
+        <div className={form.languageRow}>
             <AppTooltip content={tooltip}>
-                <span className={FORM.systemRowLabel}>{t(block.labelKey)}</span>
+                <span className={form.systemRowLabel}>{t(block.labelKey)}</span>
             </AppTooltip>
             <LanguageMenu />
         </div>
@@ -535,10 +536,10 @@ export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { ty
     };
 
     return (
-        <div className={FORM.blockStackTight}>
-            <div className={FORM.rawConfigHeader}>
+        <div className={form.blockStackTight}>
+            <div className={form.rawConfigHeader}>
                 <AppTooltip content={tooltip}>
-                    <span className={FORM.systemRowLabel}>{t(block.labelKey)}</span>
+                    <span className={form.systemRowLabel}>{t(block.labelKey)}</span>
                 </AppTooltip>
                 <Button
                     size="md"
@@ -555,17 +556,17 @@ export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { ty
                           : t("settings.buttons.copy_config")}
                 </Button>
             </div>
-            <div className={FORM.rawConfigFeedback}>
+            <div className={form.rawConfigFeedback}>
                 {jsonCopyStatus === "copied" && (
-                    <p className={FORM.rawConfigStatusSuccess}>{t("settings.modal.clipboard_success")}</p>
+                    <p className={form.rawConfigStatusSuccess}>{t("settings.modal.clipboard_success")}</p>
                 )}
                 {jsonCopyStatus === "failed" && (
-                    <p className={FORM.rawConfigStatusDanger}>{t("settings.modal.clipboard_failed")}</p>
+                    <p className={form.rawConfigStatusDanger}>{t("settings.modal.clipboard_failed")}</p>
                 )}
             </div>
-            <div className={FORM.rawConfigPanel}>
+            <div className={form.rawConfigPanel}>
                 <textarea
-                    className={cn(FORM.rawConfigCode, FORM.rawConfigTextarea)}
+                    className={cn(form.rawConfigCode, form.rawConfigTextarea)}
                     rows={10}
                     value={configJson}
                     readOnly
@@ -577,5 +578,5 @@ export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { ty
 }
 
 export function DividerRenderer() {
-    return <Divider className={FORM.divider} />;
+    return <Divider className={form.divider} />;
 }

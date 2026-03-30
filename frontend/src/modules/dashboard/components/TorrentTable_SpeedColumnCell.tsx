@@ -6,7 +6,7 @@ import { status } from "@/shared/status";
 import { formatSpeed } from "@/shared/utils/format";
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { table as tableSurface } from "@/shared/ui/layout/glass-surface";
 import { getStatusSpeedHistory } from "@/modules/dashboard/utils/torrentStatus";
 import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
 const { layout, visuals } = registry;
@@ -75,10 +75,10 @@ export function TorrentTable_SpeedCell({ torrent, table, speedHistory }: Torrent
     const speedColorClass = getStatusRecipeText(speedColorKey, visuals.status.keys.speed.idle);
 
     return (
-        <div className={TABLE.speedCell.root}>
+        <div className={tableSurface.speedCell.root}>
             {hasSignal && (
                 <svg
-                    className={cn(TABLE.speedCell.sparkline, speedColorClass)}
+                    className={cn(tableSurface.speedCell.sparkline, speedColorClass)}
                     viewBox={`0 0 ${sparklineWidth} ${sparklineHeight}`}
                     preserveAspectRatio="none"
                     aria-hidden
@@ -93,8 +93,8 @@ export function TorrentTable_SpeedCell({ torrent, table, speedHistory }: Torrent
                 </svg>
             )}
 
-            <div className={TABLE.speedCell.valueRow}>
-                <span className={cn(DENSE_NUMERIC, TABLE.speedCell.valueText, speedColorClass)}>
+            <div className={tableSurface.speedCell.valueRow}>
+                <span className={cn(DENSE_NUMERIC, tableSurface.speedCell.valueText, speedColorClass)}>
                     {speedValue !== null ? formatSpeed(speedValue) : "–"}
                 </span>
             </div>

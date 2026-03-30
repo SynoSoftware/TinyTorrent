@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, RotateCcw, X } from "lucide-react";
 import { registry } from "@/config/logic";
-import { FORM, MODAL } from "@/shared/ui/layout/glass-surface";
+import { form, modal } from "@/shared/ui/layout/glass-surface";
 import { Section } from "@/shared/ui/layout/Section";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
@@ -13,7 +13,6 @@ import { ConnectionCredentialsCard } from "@/modules/settings/components/tabs/co
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
-import { textRole } from "@/config/textRoles";
 import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
@@ -36,28 +35,30 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
     const { safeVisibleTabs, activeTabDefinition, isMobileMenuOpen } = controller.modal;
 
     return (
-        <div className={cn(MODAL.sidebar, !isMobileMenuOpen ? MODAL.sidebarHidden : MODAL.sidebarVisible)}>
-            <div className={MODAL.sidebarHeader}>
-                <h2 className={cn(textRole.headingLarge, MODAL.headingFont)}>{t("settings.modal.title")}</h2>
+        <div className={cn(modal.sidebar, !isMobileMenuOpen ? modal.sidebarHidden : modal.sidebarVisible)}>
+            <div className={modal.sidebarHeader}>
+                <h2 className={cn(visuals.typography.text.headingLarge, modal.headingFont)}>
+                    {t("settings.modal.title")}
+                </h2>
                 <Button
                     isIconOnly
                     variant="shadow"
                     size="md"
-                    className={MODAL.sidebarCloseButton}
+                    className={modal.sidebarCloseButton}
                     onPress={controller.commands.onRequestClose}
                 >
-                    <X strokeWidth={visuals.icon.strokeWidth} className={MODAL.iconMd} />
+                    <X strokeWidth={visuals.icon.strokeWidth} className={modal.iconMd} />
                 </Button>
             </div>
 
-            <div className={MODAL.sidebarBody}>
+            <div className={modal.sidebarBody}>
                 {safeVisibleTabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => controller.commands.onSelectTab(tab.id)}
                         className={cn(
-                            MODAL.tabButtonBase,
-                            activeTabDefinition.id === tab.id ? MODAL.tabButtonActive : MODAL.tabButtonInactive,
+                            modal.tabButtonBase,
+                            activeTabDefinition.id === tab.id ? modal.tabButtonActive : modal.tabButtonInactive,
                         )}
                         style={{
                             fontSize: "var(--icon)",
@@ -66,26 +67,26 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                         <tab.icon
                             strokeWidth={visuals.icon.strokeWidth}
                             className={cn(
-                                MODAL.tabIcon,
-                                activeTabDefinition.id === tab.id ? MODAL.tabIconActive : MODAL.tabIconInactive,
+                                modal.tabIcon,
+                                activeTabDefinition.id === tab.id ? modal.tabIconActive : modal.tabIconInactive,
                             )}
                         />
                         <span>{t(tab.labelKey)}</span>
                         {activeTabDefinition.id === tab.id && (
-                            <motion.div layoutId="activeTabIndicator" className={MODAL.tabIndicator} />
+                            <motion.div layoutId="activeTabIndicator" className={modal.tabIndicator} />
                         )}
                     </button>
                 ))}
             </div>
 
-            <div className={MODAL.versionWrapper}>
-                <div className={FORM.blockStackTight}>
+            <div className={modal.versionWrapper}>
+                <div className={form.blockStackTight}>
                     <Button
                         size="md"
                         variant="light"
                         color="danger"
                         onPress={controller.commands.onReset}
-                        startContent={<RotateCcw strokeWidth={visuals.icon.strokeWidth} className={MODAL.iconSm} />}
+                        startContent={<RotateCcw strokeWidth={visuals.icon.strokeWidth} className={modal.iconSm} />}
                     >
                         {t("settings.modal.footer.reset_defaults")}
                     </Button>
@@ -104,19 +105,21 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
     const { activeTabDefinition } = controller.modal;
 
     return (
-        <div className={MODAL.header}>
-            <div className={MODAL.headerLead}>
+        <div className={modal.header}>
+            <div className={modal.headerLead}>
                 <Button
                     isIconOnly
                     variant="shadow"
                     size="md"
-                    className={MODAL.headerMobileBack}
+                    className={modal.headerMobileBack}
                     onPress={controller.commands.onOpenMobileMenu}
                 >
-                    <ChevronLeft className={MODAL.iconMd} />
+                    <ChevronLeft className={modal.iconMd} />
                 </Button>
-                <div className={MODAL.headerTitleWrap}>
-                    <h1 className={cn(textRole.headingLarge, MODAL.headingFont)}>{t(activeTabDefinition.headerKey)}</h1>
+                <div className={modal.headerTitleWrap}>
+                    <h1 className={cn(visuals.typography.text.headingLarge, modal.headingFont)}>
+                        {t(activeTabDefinition.headerKey)}
+                    </h1>
                 </div>
             </div>
             <ToolbarIconButton
@@ -124,7 +127,7 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
                 ariaLabel={t("torrent_modal.actions.close")}
                 onPress={controller.commands.onRequestClose}
                 iconSize="lg"
-                className={MODAL.desktopClose}
+                className={modal.desktopClose}
             />
         </div>
     );
@@ -136,15 +139,15 @@ interface SettingsContentProps {
 
 const SETTINGS_TAB_CONTENT_ANIMATION = {
     initial: {
-        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
+        opacity: visualizations.surface.fade.base.initial.opacity,
         y: 10,
     },
     animate: {
-        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
+        opacity: visualizations.surface.fade.base.animate.opacity,
         y: 0,
     },
-    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity, y: -10 },
-    transition: { duration: 0.2 },
+    exit: { opacity: visualizations.surface.fade.base.exit.opacity, y: -10 },
+    transition: visualizations.surface.fade.base.transition,
 } as const;
 
 function SettingsContent({ controller }: SettingsContentProps) {
@@ -158,14 +161,14 @@ function SettingsContent({ controller }: SettingsContentProps) {
         settingsFormActions,
     } = controller.modal;
     return (
-        <Section padding="modal" className={MODAL.scrollContent}>
+        <Section padding="modal" className={modal.scrollContent}>
             {tabsFallbackActive && (
-                <AlertPanel severity="warning" className={MODAL.alert}>
+                <AlertPanel severity="warning" className={modal.alert}>
                     {t("settings.modal.error_no_tabs")}
                 </AlertPanel>
             )}
             {modalError && (
-                <AlertPanel severity="danger" className={MODAL.alert}>
+                <AlertPanel severity="danger" className={modal.alert}>
                     {modalError}
                 </AlertPanel>
             )}
@@ -173,10 +176,10 @@ function SettingsContent({ controller }: SettingsContentProps) {
                 <motion.div
                     key={activeTabDefinition.id}
                     {...SETTINGS_TAB_CONTENT_ANIMATION}
-                    className={MODAL.contentStack}
+                    className={modal.contentStack}
                 >
                     {settingsLoadError && (
-                        <AlertPanel severity="warning" className={MODAL.inlineAlert}>
+                        <AlertPanel severity="warning" className={modal.inlineAlert}>
                             {t("settings.load_error")}
                         </AlertPanel>
                     )}
@@ -204,7 +207,7 @@ function SettingsContent({ controller }: SettingsContentProps) {
 
 export function SettingsModalView({ controller }: SettingsModalViewProps) {
     const { isOpen, uiMode } = controller.modal;
-    const modalClassNames = uiMode === "Full" ? MODAL.settingsModalClassNamesFull : MODAL.settingsModalClassNamesRpc;
+    const modalClassNames = uiMode === "Full" ? modal.settingsModalClassNamesFull : modal.settingsModalClassNamesRpc;
 
     return (
         <Modal
@@ -219,10 +222,10 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             classNames={modalClassNames}
             motionProps={interaction.config.modalBloom}
         >
-            <ModalContent className={MODAL.contentWrapper}>
-                <div className={MODAL.layout}>
+            <ModalContent className={modal.contentWrapper}>
+                <div className={modal.layout}>
                     <SettingsSidebar controller={controller} />
-                    <div className={MODAL.mainPane}>
+                    <div className={modal.mainPane}>
                         <SettingsHeader controller={controller} />
                         <SettingsContent controller={controller} />
                     </div>

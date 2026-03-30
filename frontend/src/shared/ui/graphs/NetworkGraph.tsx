@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { buildSplinePathFromPoints, createSplinePoints } from "@/shared/utils/spline";
 import { registry } from "@/config/logic";
-import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
+import { metricChart } from "@/shared/ui/layout/glass-surface";
 const { interaction, visuals } = registry;
 
 const { networkGraph } = interaction.config;
@@ -27,12 +27,11 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
     });
     const idSuffix = useId();
 
-    const colorClass =
-        color.startsWith("text-")
-            ? color
-            : color === "muted"
-              ? METRIC_CHART.graphToneMuted
-              : `text-${color}`;
+    const colorClass = color.startsWith("text-")
+        ? color
+        : color === "muted"
+          ? metricChart.graphToneMuted
+          : `text-${color}`;
 
     const safeColorId = String(color)
         .replace(/[^a-z0-9]+/gi, "-")
@@ -43,10 +42,7 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
     const fadeGradientId = `fade-gradient-${safeColorId}-${idSuffix}`;
 
     const normalizedData = useMemo(() => (data.length ? data : [0]), [data]);
-    const resolvedMaxValue = useMemo(
-        () => Math.max(maxValue ?? 0, ...normalizedData, 1),
-        [maxValue, normalizedData],
-    );
+    const resolvedMaxValue = useMemo(() => Math.max(maxValue ?? 0, ...normalizedData, 1), [maxValue, normalizedData]);
 
     useEffect(() => {
         if (typeof ResizeObserver === "undefined") {
@@ -92,10 +88,7 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
         }
         return `${safeLinePath} L${dimensions.width},${dimensions.height} L0,${dimensions.height} Z`;
     }, [dimensions.height, dimensions.width, points, safeLinePath]);
-    const maskCornerRadius = useMemo(
-        () => dimensions.height * METRIC_CHART.maskCornerRadiusRatio,
-        [dimensions.height],
-    );
+    const maskCornerRadius = useMemo(() => dimensions.height * metricChart.maskCornerRadiusRatio, [dimensions.height]);
 
     return (
         <svg
@@ -119,7 +112,7 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
                 stroke="currentColor"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
-                className={METRIC_CHART.baselineMuted}
+                className={metricChart.baselineMuted}
             />
 
             {data.every((value) => value === 0) && (
@@ -131,22 +124,22 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
                     stroke="currentColor"
                     strokeWidth={2}
                     vectorEffect="non-scaling-stroke"
-                    className={cn(METRIC_CHART.baselineActive, colorClass)}
+                    className={cn(metricChart.baselineActive, colorClass)}
                 />
             )}
             <defs>
                 <filter
                     id={glowId}
-                    x={METRIC_CHART.glowFilterRegion.x}
-                    y={METRIC_CHART.glowFilterRegion.y}
-                    width={METRIC_CHART.glowFilterRegion.width}
-                    height={METRIC_CHART.glowFilterRegion.height}
+                    x={metricChart.glowFilterRegion.x}
+                    y={metricChart.glowFilterRegion.y}
+                    width={metricChart.glowFilterRegion.width}
+                    height={metricChart.glowFilterRegion.height}
                 >
-                    <feGaussianBlur stdDeviation={METRIC_CHART.glowBlurStdDeviation} result="blur" />
+                    <feGaussianBlur stdDeviation={metricChart.glowBlurStdDeviation} result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                    {METRIC_CHART.areaGradientStops.map((stop) => (
+                    {metricChart.areaGradientStops.map((stop) => (
                         <stop
                             key={`area-stop-${stop.offset}`}
                             offset={stop.offset}
@@ -156,7 +149,7 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
                     ))}
                 </linearGradient>
                 <linearGradient id={fadeGradientId} x1="0" y1="0" x2="1" y2="0">
-                    {METRIC_CHART.fillFadeStops.map((stop) => (
+                    {metricChart.fillFadeStops.map((stop) => (
                         <stop
                             key={`fade-stop-${stop.offset}`}
                             offset={stop.offset}
@@ -187,7 +180,7 @@ export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphP
             </defs>
             <path
                 d={areaPath}
-                className={cn(METRIC_CHART.areaMuted, colorClass)}
+                className={cn(metricChart.areaMuted, colorClass)}
                 fill={`url(#${gradId})`}
                 mask={`url(#${fadeMaskId})`}
             />

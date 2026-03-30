@@ -15,63 +15,95 @@ const source = fs.readFileSync(target, "utf8");
 
 const scalarChecks = [
     {
-        constName: "WORKBENCH_SHELL",
+        constName: "workbenchMainShell",
         mustInclude: [
-            "SURFACE.surface.workbenchShell",
+            "surface.surface.workbenchShell",
             "surface-layer-2",
+        ],
+    },
+    {
+        constName: "workbenchIslandShell",
+        mustInclude: [
+            "surface.surface.workbenchShell",
             "border",
-            "border-default/35",
+            "border-default/45",
         ],
     },
 ];
 
 const checks = [
     {
-        objectName: "TABLE",
-        entryKey: "surface",
-        mustInclude: ["SURFACE.role.workbench"],
-    },
-    {
-        objectName: "TABLE",
+        objectName: "table",
         entryKey: "shell",
-        mustInclude: ["WORKBENCH_SHELL"],
+        mustInclude: ["workbenchIslandShell"],
     },
     {
-        objectName: "WORKBENCH",
+        objectName: "workbench",
         entryKey: "nav",
-        mustInclude: ["WORKBENCH_NAV"],
+        mustInclude: ["root:", 'surface: "text-foreground"', "shell: workbenchIslandShell"],
     },
     {
-        objectName: "WORKBENCH",
+        objectName: "workbench",
         entryKey: "status",
-        mustInclude: ["WORKBENCH_STATUS"],
-    },
-];
-const constChecks = [
-    {
-        constName: "WORKBENCH_NAV",
-        entryKey: "surface",
-        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeBottom"],
-    },
-    {
-        constName: "WORKBENCH_NAV",
-        entryKey: "shell",
-        mustInclude: ["WORKBENCH_SHELL"],
-    },
-    {
-        constName: "WORKBENCH_STATUS",
-        entryKey: "surface",
-        mustInclude: ["SURFACE.role.workbench", "SURFACE.chrome.edgeTop"],
-    },
-    {
-        constName: "WORKBENCH_STATUS",
-        entryKey: "footer",
-        mustInclude: ["WORKBENCH_SHELL"],
+        mustInclude: ['surface: "text-foreground"', "footer: `w-full shrink-0 select-none relative z-overlay overflow-visible ${workbenchIslandShell}`"],
     },
 ];
 
 function escapeRegex(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findBraceBlock(text, marker) {
+    const markerIndex = text.indexOf(marker);
+    if (markerIndex < 0) return null;
+    const braceStart = text.indexOf("{", markerIndex);
+    if (braceStart < 0) return null;
+
+    let depth = 0;
+    let inSingle = false;
+    let inDouble = false;
+    let inTemplate = false;
+    let escaped = false;
+
+    for (let i = braceStart; i < text.length; i += 1) {
+        const ch = text[i];
+
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+
+        if (ch === "\\") {
+            escaped = true;
+            continue;
+        }
+
+        if (!inDouble && !inTemplate && ch === "'") {
+            inSingle = !inSingle;
+            continue;
+        }
+        if (!inSingle && !inTemplate && ch === '"') {
+            inDouble = !inDouble;
+            continue;
+        }
+        if (!inSingle && !inDouble && ch === "`") {
+            inTemplate = !inTemplate;
+            continue;
+        }
+
+        if (inSingle || inDouble || inTemplate) continue;
+
+        if (ch === "{") {
+            depth += 1;
+        } else if (ch === "}") {
+            depth -= 1;
+            if (depth === 0) {
+                return text.slice(braceStart + 1, i);
+            }
+        }
+    }
+
+    return null;
 }
 
 function extractObjectBody(objectName) {
@@ -84,21 +116,8 @@ function extractObjectBody(objectName) {
     return match[1];
 }
 
-function extractConstObjectBody(constName) {
-    const pattern = new RegExp(
-        `const ${escapeRegex(constName)} = \\{([\\s\\S]*?)\\} as const;`,
-        "m",
-    );
-    const match = source.match(pattern);
-    if (!match) return null;
-    return match[1];
-}
-
 function extractConstInitializer(constName) {
-    const pattern = new RegExp(
-        `const ${escapeRegex(constName)} = ([\\s\\S]*?);`,
-        "m",
-    );
+    const pattern = new RegExp(`(?:export\\s+)?const ${escapeRegex(constName)} = ([\\s\\S]*?);`, "m");
     const match = source.match(pattern);
     if (!match) return null;
     return match[1];
@@ -116,16 +135,10 @@ function extractEntryBody(objectName, entryKey) {
     return `${entryKey}: ${match[1]}`;
 }
 
-function extractConstEntryBody(constName, entryKey) {
-    const objectBody = extractConstObjectBody(constName);
+function extractNestedObjectBody(objectName, entryKey) {
+    const objectBody = extractObjectBody(objectName);
     if (!objectBody) return null;
-    const pattern = new RegExp(
-        `${escapeRegex(entryKey)}:\\s*([\\s\\S]*?)(?:,\\n|,\\r\\n)`,
-        "m",
-    );
-    const match = objectBody.match(pattern);
-    if (!match) return null;
-    return `${entryKey}: ${match[1]}`;
+    return findBraceBlock(objectBody, `${entryKey}:`);
 }
 
 const failures = [];
@@ -146,7 +159,10 @@ for (const check of scalarChecks) {
 }
 
 for (const check of checks) {
-    const body = extractEntryBody(check.objectName, check.entryKey);
+    const body =
+        check.entryKey === "nav" || check.entryKey === "status"
+            ? extractNestedObjectBody(check.objectName, check.entryKey)
+            : extractEntryBody(check.objectName, check.entryKey);
     if (!body) {
         failures.push(`${check.objectName}.${check.entryKey}: missing entry`);
         continue;
@@ -160,28 +176,13 @@ for (const check of checks) {
     }
 }
 
-for (const check of constChecks) {
-    const body = extractConstEntryBody(check.constName, check.entryKey);
-    if (!body) {
-        failures.push(`${check.constName}.${check.entryKey}: missing entry`);
-        continue;
-    }
-    for (const token of check.mustInclude) {
-        if (!body.includes(token)) {
-            failures.push(
-                `${check.constName}.${check.entryKey}: missing token '${token}'`,
-            );
-        }
-    }
-}
-
 if (failures.length > 0) {
     console.error("\nWorkbench parity violations:\n");
     for (const failure of failures) {
         console.error(` - ${failure}`);
     }
     console.error(
-        "\nFix by composing the workbench triad from SURFACE core/semantic tokens.",
+        "\nFix by composing the workbench triad from surface core/semantic tokens.",
     );
     process.exit(2);
 }

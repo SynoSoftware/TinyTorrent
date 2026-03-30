@@ -15,7 +15,7 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DETAILS, MODAL } from "@/shared/ui/layout/glass-surface";
+import { details, modal } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     ToolbarIconButton,
@@ -90,14 +90,14 @@ export function ModalEx({
     );
     const footerClassName =
         footerStartContent || secondaryAction
-            ? MODAL.dialogFooter
-            : MODAL.footerEnd;
-    const showFooterStartSlot = footerClassName === MODAL.dialogFooter;
+            ? modal.dialogFooter
+            : modal.footerEnd;
+    const showFooterStartSlot = footerClassName === modal.dialogFooter;
     const modalClassNames =
-        resolvedSize === "sm" ? MODAL.compactClassNames : MODAL.baseClassNames;
+        resolvedSize === "sm" ? modal.compactClassNames : modal.baseClassNames;
     const closeAriaLabel = t("torrent_modal.actions.close");
     const bodyClassName =
-        bodyVariant === "flush" ? MODAL.dialogBodyFlush : MODAL.dialogBody;
+        bodyVariant === "flush" ? modal.dialogBodyFlush : modal.dialogBody;
     const resetAndClose = () => {
         setIsMaximized(false);
         onClose();
@@ -127,7 +127,7 @@ export function ModalEx({
     };
 
     const headerControls = (
-        <div className={MODAL.dialogFooterGroup}>
+        <div className={modal.dialogFooterGroup}>
             {maximize ? (
                 <ToolbarIconButton
                     Icon={isMaximized ? Minimize2 : Maximize2}
@@ -181,17 +181,17 @@ export function ModalEx({
             isKeyboardDismissDisabled={disableClose}
         >
             <ModalContent onKeyDownCapture={handleContentKeyDownCapture}>
-                <ModalHeader className={MODAL.dialogHeader}>
-                    <div className={MODAL.dialogHeaderLead}>
+                <ModalHeader className={modal.dialogHeader}>
+                    <div className={modal.dialogHeaderLead}>
                         {TitleIcon ? (
                             <TitleIcon
                                 className={cn(
                                     ICON_SIZE_CLASSES.lg,
-                                    MODAL.headerLeadPrimaryIcon,
+                                    modal.headerLeadPrimaryIcon,
                                 )}
                             />
                         ) : null}
-                        <div className={MODAL.headerTitleWrap}>{title}</div>
+                        <div className={modal.headerTitleWrap}>{title}</div>
                     </div>
                     {headerControls}
                 </ModalHeader>
@@ -199,13 +199,13 @@ export function ModalEx({
                 {hasFooter ? (
                     <ModalFooter className={footerClassName}>
                         {showFooterStartSlot ? (
-                            <div className={DETAILS.generalMetricContent}>
+                            <div className={details.generalMetricContent}>
                                 {footerStartContent ?? (
                                     <span aria-hidden="true">&nbsp;</span>
                                 )}
                             </div>
                         ) : null}
-                        <div className={MODAL.footerButtonRow}>
+                        <div className={modal.footerButtonRow}>
                             {secondaryAction ? (
                                 <Button
                                     variant="light"

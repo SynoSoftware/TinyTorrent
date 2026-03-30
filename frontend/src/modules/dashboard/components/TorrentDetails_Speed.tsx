@@ -4,7 +4,7 @@ import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import { status } from "@/shared/status";
-import { DETAILS } from "@/shared/ui/layout/glass-surface";
+import { details } from "@/shared/ui/layout/glass-surface";
 
 interface SpeedTabProps {
     torrentId: string | number;
@@ -29,18 +29,18 @@ export const SpeedTab = ({
             {isChecking && (
                 <AlertPanel
                     severity="warning"
-                    className={DETAILS.speedCheckingAlert}
+                    className={details.speedCheckingAlert}
                 >
                     {t("labels.status.torrent.checking")}
                 </AlertPanel>
             )}
             {isHistoryEmpty && (
-                <div className={DETAILS.speedCollectingPanel}>
+                <div className={details.speedCollectingPanel}>
                     {t("torrent_modal.speed.collecting_samples")}
                 </div>
             )}
 
-            <div className={DETAILS.speedChartHost}>
+            <div className={details.speedChartHost}>
                 <SpeedChart
                     downHistory={downHistory}
                     upHistory={upHistory}
@@ -51,13 +51,13 @@ export const SpeedTab = ({
     );
 
     return (
-        <div className={DETAILS.speedRoot}>
+        <div className={details.speedRoot}>
             {isStandalone ? (
-                <GlassPanel className={DETAILS.speedStandaloneSurface}>
+                <GlassPanel className={details.speedStandaloneSurface}>
                     {Content}
                 </GlassPanel>
             ) : (
-                <div className={DETAILS.speedEmbeddedSurface}>{Content}</div>
+                <div className={details.speedEmbeddedSurface}>{Content}</div>
             )}
         </div>
     );

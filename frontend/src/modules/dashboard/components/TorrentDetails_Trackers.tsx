@@ -2,13 +2,24 @@
 import { memo, type ReactNode } from "react";
 import { cn } from "@heroui/react";
 import { flexRender } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, Link2, Pencil, RefreshCcw, Trash2, type LucideIcon } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    ChevronsUpDown,
+    Copy,
+    Link2,
+    Pencil,
+    RefreshCcw,
+    Trash2,
+    type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { registry } from "@/config/logic";
+import { uiRoles } from "@/shared/ui/uiRoles";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
-import { CONTEXT_MENU, DETAILS, FORM, INPUT, SURFACE } from "@/shared/ui/layout/glass-surface";
+import { contextMenu, details, form, input, surface } from "@/shared/ui/layout/glass-surface";
 import type {
     TorrentDetailsTrackersViewModel,
     TrackerRowViewModel,
@@ -40,13 +51,10 @@ const sortIcon = (direction: false | "asc" | "desc") => {
 const renderHeaderLabel = (value: unknown) =>
     typeof value === "string" || typeof value === "number" ? String(value) : null;
 
-const TRACKER_ROW_CLASS = cn(
-    DETAILS.table.tableRow,
-    "cursor-default",
-);
+const TRACKER_ROW_CLASS = cn(details.table.tableRow, "cursor-default");
 
 const TRACKER_BODY_CELL_CLASS = cn(
-    DETAILS.table.tableBody,
+    details.table.tableBody,
     visuals.trackerTable.bodyCell,
     "px-tight py-panel align-middle",
 );
@@ -57,119 +65,112 @@ const TRACKER_METRIC_CELL_CLASS = cn(
     "text-right tabular-nums",
 );
 
-const TRACKER_TIME_CELL_CLASS = cn(
-    TRACKER_BODY_CELL_CLASS,
-    visuals.trackerTable.timeCell,
-    "text-right tabular-nums",
-);
+const TRACKER_TIME_CELL_CLASS = cn(TRACKER_BODY_CELL_CLASS, visuals.trackerTable.timeCell, "text-right tabular-nums");
 
-const TrackerRow = memo(({
-    row,
-    onRowClick,
-    onContextMenu,
-}: {
-    row: TrackerRowViewModel;
-    onRowClick: TorrentDetailsTrackersViewModel["actions"]["handleRowClick"];
-    onContextMenu: TorrentDetailsTrackersViewModel["actions"]["openContextMenu"];
-}) => (
-    <tr
-        key={row.key}
-        className={cn(
-            TRACKER_ROW_CLASS,
-            row.selected && visuals.trackerTable.rowSelected,
-        )}
-        onClick={(event) => onRowClick(event, row.key, row.index)}
-        onContextMenu={(event) => onContextMenu(event, row.key, row.index)}
-    >
-        <td className={TRACKER_BODY_CELL_CLASS}>
-            <div className="flex min-w-0 items-center gap-tight">
-                <div className={visuals.trackerTable.statusDot[row.statusTone]} />
-                <span className="truncate">{row.statusLabel}</span>
-            </div>
-        </td>
-        <td className={TRACKER_BODY_CELL_CLASS}>
-            <AppTooltip content={row.announce} native>
-                <div className={cn("min-w-0 truncate", visuals.trackerTable.trackerCell)}>
-                    <span className="truncate">{row.announce}</span>
-                </div>
-            </AppTooltip>
-        </td>
-        <td
-            className={cn(
-                DETAILS.table.tableBody,
-                visuals.trackerTable.bodyCell,
-                visuals.trackerTable.tierCell,
-                "px-tight py-panel align-middle text-center",
-            )}
+const TrackerRow = memo(
+    ({
+        row,
+        onRowClick,
+        onContextMenu,
+    }: {
+        row: TrackerRowViewModel;
+        onRowClick: TorrentDetailsTrackersViewModel["actions"]["handleRowClick"];
+        onContextMenu: TorrentDetailsTrackersViewModel["actions"]["openContextMenu"];
+    }) => (
+        <tr
+            key={row.key}
+            className={cn(TRACKER_ROW_CLASS, row.selected && visuals.trackerTable.rowSelected)}
+            onClick={(event) => onRowClick(event, row.key, row.index)}
+            onContextMenu={(event) => onContextMenu(event, row.key, row.index)}
         >
+            <td className={TRACKER_BODY_CELL_CLASS}>
+                <div className="flex min-w-0 items-center gap-tight">
+                    <div className={visuals.trackerTable.statusDot[row.statusTone]} />
+                    <span className="truncate">{row.statusLabel}</span>
+                </div>
+            </td>
+            <td className={TRACKER_BODY_CELL_CLASS}>
+                <AppTooltip content={row.announce} native>
+                    <div className={cn("min-w-0 truncate", visuals.trackerTable.trackerCell)}>
+                        <span className="truncate">{row.announce}</span>
+                    </div>
+                </AppTooltip>
+            </td>
+            <td
+                className={cn(
+                    details.table.tableBody,
+                    visuals.trackerTable.bodyCell,
+                    visuals.trackerTable.tierCell,
+                    "px-tight py-panel align-middle text-center",
+                )}
+            >
                 <span
                     className={cn(
-                        SURFACE.atom.insetRounded,
+                        surface.atom.insetRounded,
                         visuals.trackerTable.tierBadge,
                         "inline-flex min-w-0 items-center px-tight py-tight",
                     )}
                 >
-                {row.tierLabel}
-            </span>
-        </td>
-        <td className={TRACKER_METRIC_CELL_CLASS}>{row.seedsLabel}</td>
-        <td className={TRACKER_METRIC_CELL_CLASS}>{row.leechesLabel}</td>
-        <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadCountLabel}</td>
-        <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadersLabel}</td>
-        <td className={TRACKER_TIME_CELL_CLASS}>
-            <AppTooltip content={row.lastAnnounceTooltip} native>
-                <span className="truncate">{row.lastAnnounceLabel}</span>
-            </AppTooltip>
-        </td>
-        <td className={TRACKER_TIME_CELL_CLASS}>
-            <AppTooltip content={row.nextAnnounceTooltip} native>
-                <span className="truncate">{row.nextAnnounceLabel}</span>
-            </AppTooltip>
-        </td>
-        <td className={TRACKER_BODY_CELL_CLASS}>
-            <AppTooltip content={row.messageTooltip} native>
-                <div className={cn("truncate", visuals.trackerTable.messageCell)}>{row.messageText}</div>
-            </AppTooltip>
-        </td>
-    </tr>
-), (prevProps, nextProps) => {
-    const prevRow = prevProps.row;
-    const nextRow = nextProps.row;
-    return (
-        prevRow.key === nextRow.key &&
-        prevRow.index === nextRow.index &&
-        prevRow.selected === nextRow.selected &&
-        prevRow.statusTone === nextRow.statusTone &&
-        prevRow.statusLabel === nextRow.statusLabel &&
-        prevRow.announce === nextRow.announce &&
-        prevRow.tierLabel === nextRow.tierLabel &&
-        prevRow.seedsLabel === nextRow.seedsLabel &&
-        prevRow.leechesLabel === nextRow.leechesLabel &&
-        prevRow.downloadCountLabel === nextRow.downloadCountLabel &&
-        prevRow.downloadersLabel === nextRow.downloadersLabel &&
-        prevRow.lastAnnounceLabel === nextRow.lastAnnounceLabel &&
-        prevRow.lastAnnounceTooltip === nextRow.lastAnnounceTooltip &&
-        prevRow.nextAnnounceLabel === nextRow.nextAnnounceLabel &&
-        prevRow.nextAnnounceTooltip === nextRow.nextAnnounceTooltip &&
-        prevRow.messageText === nextRow.messageText &&
-        prevRow.messageTooltip === nextRow.messageTooltip &&
-        prevProps.onRowClick === nextProps.onRowClick &&
-        prevProps.onContextMenu === nextProps.onContextMenu
-    );
-});
+                    {row.tierLabel}
+                </span>
+            </td>
+            <td className={TRACKER_METRIC_CELL_CLASS}>{row.seedsLabel}</td>
+            <td className={TRACKER_METRIC_CELL_CLASS}>{row.leechesLabel}</td>
+            <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadCountLabel}</td>
+            <td className={TRACKER_METRIC_CELL_CLASS}>{row.downloadersLabel}</td>
+            <td className={TRACKER_TIME_CELL_CLASS}>
+                <AppTooltip content={row.lastAnnounceTooltip} native>
+                    <span className="truncate">{row.lastAnnounceLabel}</span>
+                </AppTooltip>
+            </td>
+            <td className={TRACKER_TIME_CELL_CLASS}>
+                <AppTooltip content={row.nextAnnounceTooltip} native>
+                    <span className="truncate">{row.nextAnnounceLabel}</span>
+                </AppTooltip>
+            </td>
+            <td className={TRACKER_BODY_CELL_CLASS}>
+                <AppTooltip content={row.messageTooltip} native>
+                    <div className={cn("truncate", visuals.trackerTable.messageCell)}>{row.messageText}</div>
+                </AppTooltip>
+            </td>
+        </tr>
+    ),
+    (prevProps, nextProps) => {
+        const prevRow = prevProps.row;
+        const nextRow = nextProps.row;
+        return (
+            prevRow.key === nextRow.key &&
+            prevRow.index === nextRow.index &&
+            prevRow.selected === nextRow.selected &&
+            prevRow.statusTone === nextRow.statusTone &&
+            prevRow.statusLabel === nextRow.statusLabel &&
+            prevRow.announce === nextRow.announce &&
+            prevRow.tierLabel === nextRow.tierLabel &&
+            prevRow.seedsLabel === nextRow.seedsLabel &&
+            prevRow.leechesLabel === nextRow.leechesLabel &&
+            prevRow.downloadCountLabel === nextRow.downloadCountLabel &&
+            prevRow.downloadersLabel === nextRow.downloadersLabel &&
+            prevRow.lastAnnounceLabel === nextRow.lastAnnounceLabel &&
+            prevRow.lastAnnounceTooltip === nextRow.lastAnnounceTooltip &&
+            prevRow.nextAnnounceLabel === nextRow.nextAnnounceLabel &&
+            prevRow.nextAnnounceTooltip === nextRow.nextAnnounceTooltip &&
+            prevRow.messageText === nextRow.messageText &&
+            prevRow.messageTooltip === nextRow.messageTooltip &&
+            prevProps.onRowClick === nextProps.onRowClick &&
+            prevProps.onContextMenu === nextProps.onContextMenu
+        );
+    },
+);
 
-export const TrackersTab = ({
-    viewModel,
-    isStandalone = false,
-}: TrackersTabProps) => {
+export const TrackersTab = ({ viewModel, isStandalone = false }: TrackersTabProps) => {
     const { t } = useTranslation();
     const shell = (content: ReactNode) =>
-        isStandalone ? <GlassPanel className={DETAILS.table.panel}>{content}</GlassPanel> : content;
+        isStandalone ? <GlassPanel className={details.table.panel}>{content}</GlassPanel> : content;
 
     if (!viewModel) {
         return shell(
-            <div className={DETAILS.table.emptyPanel}>
-                <p className={DETAILS.table.emptyText}>{t("torrent_modal.loading")}</p>
+            <div className={details.table.emptyPanel}>
+                <p className={details.table.emptyText}>{t("torrent_modal.loading")}</p>
             </div>,
         );
     }
@@ -185,8 +186,8 @@ export const TrackersTab = ({
 
     if (trackerState.isEmpty) {
         return shell(
-            <div className={DETAILS.table.emptyPanel}>
-                <p className={DETAILS.table.emptyText}>{trackerLabels.emptyMessage}</p>
+            <div className={details.table.emptyPanel}>
+                <p className={details.table.emptyText}>{trackerLabels.emptyMessage}</p>
                 <TrackerEditorModal
                     actions={trackerActions}
                     labels={trackerLabels}
@@ -198,22 +199,22 @@ export const TrackersTab = ({
     }
 
     return (
-        <div className={DETAILS.table.root}>
-            <div className={DETAILS.table.body}>
+        <div className={details.table.root}>
+            <div className={details.table.body}>
                 {shell(
                     <div
                         ref={trackerRefs.listRef}
-                        className={cn(DETAILS.table.scroll, "relative outline-none")}
+                        className={cn(details.table.scroll, "relative outline-none")}
                         tabIndex={0}
                         onKeyDown={trackerActions.handleListKeyDown}
                     >
-                        <table className={cn(DETAILS.table.table, "table-fixed")}>
+                        <table className={cn(details.table.table, "table-fixed")}>
                             <colgroup>
                                 {TRACKER_COLUMN_WIDTHS.map((width, index) => (
                                     <col key={`${index}:${width}`} style={{ width }} />
                                 ))}
                             </colgroup>
-                            <thead className={DETAILS.table.tableHeadRow}>
+                            <thead className={details.table.tableHeadRow}>
                                 {trackerTable.headerGroups.map((headerGroup) => (
                                     <tr key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
@@ -235,8 +236,8 @@ export const TrackersTab = ({
                                                     key={header.id}
                                                     scope="col"
                                                     className={cn(
-                                                        DETAILS.table.tableHeadCell,
-                                                        SURFACE.chrome.sticky,
+                                                        details.table.tableHeadCell,
+                                                        surface.chrome.sticky,
                                                         visuals.trackerTable.headerCell,
                                                         "top-0 z-sticky",
                                                     )}
@@ -279,11 +280,7 @@ export const TrackersTab = ({
                             </tbody>
                         </table>
                         {trackerState.contextMenu ? (
-                            <TrackerContextMenu
-                                actions={trackerActions}
-                                labels={trackerLabels}
-                                state={trackerState}
-                            />
+                            <TrackerContextMenu actions={trackerActions} labels={trackerLabels} state={trackerState} />
                         ) : null}
                     </div>,
                 )}
@@ -313,7 +310,7 @@ const TrackerContextMenu = ({
 
     return (
         <div
-            className={CONTEXT_MENU.panel}
+            className={contextMenu.panel}
             style={{
                 top: state.contextMenu.y,
                 left: state.contextMenu.x,
@@ -321,9 +318,9 @@ const TrackerContextMenu = ({
             }}
             onPointerDown={(event) => event.stopPropagation()}
         >
-            <div className={CONTEXT_MENU.header}>
-                <Link2 className={CONTEXT_MENU.headerIcon} />
-                <span className={CONTEXT_MENU.headerText}>{labels.selectionSummary}</span>
+            <div className={contextMenu.header}>
+                <Link2 className={contextMenu.headerIcon} />
+                <span className={contextMenu.headerText}>{labels.selectionSummary}</span>
             </div>
             <ContextButton
                 label={labels.editLabel}
@@ -355,9 +352,7 @@ const TrackerContextMenu = ({
                 disabled={state.isMutating}
             />
             <ContextButton
-                label={
-                    state.selectedCount > 1 ? labels.removeManyLabel : labels.removeLabel
-                }
+                label={state.selectedCount > 1 ? labels.removeManyLabel : labels.removeLabel}
                 icon={Trash2}
                 onPress={() => actions.runContextAction("remove")}
                 danger
@@ -382,7 +377,7 @@ const ContextButton = ({
 }) => (
     <button
         type="button"
-        className={danger ? CONTEXT_MENU.dangerActionButton : CONTEXT_MENU.actionButton}
+        className={danger ? contextMenu.dangerActionButton : contextMenu.actionButton}
         disabled={disabled}
         onClick={() => {
             if (disabled) {
@@ -431,27 +426,24 @@ const TrackerEditorModal = ({
                 disabled: state.isMutating,
             }}
         >
-            <div className={FORM.workflow.fillRoot}>
-                <div className={FORM.workflow.fillSection}>
-                    <label className={FORM.workflow.label}>
-                        <Link2 className={FORM.workflow.labelIcon} />
+            <div className={form.workflow.fillRoot}>
+                <div className={form.workflow.fillSection}>
+                    <label className={form.workflow.label}>
+                        <Link2 className={form.workflow.labelIcon} />
                         {labels.modalFieldLabel}
                     </label>
-                    <div className={FORM.workflow.fillBody}>
-                        <div className={INPUT.fillCodeTextareaFrame}>
+                    <div className={form.workflow.fillBody}>
+                        <div className={input.fillCodeTextareaFrame}>
                             <textarea
                                 ref={trackerInputRef}
                                 autoFocus
                                 value={state.editor.value}
                                 onChange={(event) => actions.setEditorValue(event.target.value)}
                                 placeholder={labels.modalPlaceholder}
-                                className={INPUT.fillCodeTextarea}
+                                className={input.fillCodeTextarea}
                                 spellCheck={false}
                                 onKeyDown={(event) => {
-                                    if (
-                                        event.key === "Enter" &&
-                                        (event.ctrlKey || event.metaKey)
-                                    ) {
+                                    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                                         event.preventDefault();
                                         void actions.submitEditor();
                                     }
@@ -461,9 +453,7 @@ const TrackerEditorModal = ({
                     </div>
                 </div>
                 {state.editor.error ? (
-                    <p className={cn(visuals.typography.textRoles.helper, visuals.trackerTable.modalError)}>
-                        {state.editor.error}
-                    </p>
+                    <p className={cn(visuals.typography.text.helper, uiRoles.text.danger)}>{state.editor.error}</p>
                 ) : null}
             </div>
         </ModalEx>

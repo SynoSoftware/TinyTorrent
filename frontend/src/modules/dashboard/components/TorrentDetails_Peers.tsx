@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { CONTEXT_MENU, DETAILS, MODAL, SURFACE } from "@/shared/ui/layout/glass-surface";
+import { contextMenu, details, modal, surface } from "@/shared/ui/layout/glass-surface";
 import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
@@ -106,28 +106,28 @@ export const PeersTab = ({
     });
 
     const shell = (content: ReactNode) =>
-        isStandalone ? <GlassPanel className={DETAILS.table.panel}>{content}</GlassPanel> : content;
+        isStandalone ? <GlassPanel className={details.table.panel}>{content}</GlassPanel> : content;
 
     if (viewModel.state.isEmpty) {
         return shell(
-            <div className={DETAILS.table.emptyPanel}>
-                <p className={DETAILS.table.emptyText}>{viewModel.labels.emptyMessage}</p>
+            <div className={details.table.emptyPanel}>
+                <p className={details.table.emptyText}>{viewModel.labels.emptyMessage}</p>
             </div>,
         );
     }
 
     return (
-        <div className={DETAILS.table.root}>
-            <div className={DETAILS.table.body}>
+        <div className={details.table.root}>
+            <div className={details.table.body}>
                 {shell(
-                    <div ref={listRef} className={DETAILS.table.scroll}>
-                        <table className={cn(DETAILS.table.table, "table-fixed")}>
+                    <div ref={listRef} className={details.table.scroll}>
+                        <table className={cn(details.table.table, "table-fixed")}>
                             <colgroup>
                                 {PEER_COLUMN_WIDTHS.map((width, index) => (
                                     <col key={`${index}:${width}`} style={{ width }} />
                                 ))}
                             </colgroup>
-                            <thead className={DETAILS.table.tableHeadRow}>
+                            <thead className={details.table.tableHeadRow}>
                                 {viewModel.table.headerGroups.map((headerGroup) => (
                                     <tr key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
@@ -143,8 +143,8 @@ export const PeersTab = ({
                                                     key={header.id}
                                                     scope="col"
                                                     className={cn(
-                                                        DETAILS.table.tableHeadCell,
-                                                        SURFACE.chrome.sticky,
+                                                        details.table.tableHeadCell,
+                                                        surface.chrome.sticky,
                                                         "top-0 z-sticky",
                                                     )}
                                                 >
@@ -188,25 +188,22 @@ export const PeersTab = ({
                                 {viewModel.data.rows.map((row) => (
                                     <tr
                                         key={row.key}
-                                        className={cn(DETAILS.table.tableRow, "cursor-default")}
+                                        className={cn(details.table.tableRow, "cursor-default")}
                                         onContextMenu={(event) => viewModel.actions.openContextMenu(event, row.peer)}
                                     >
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
+                                        <td className={cn(details.table.tableBody, details.table.bodyCell)}>
                                             <span className={cn("block truncate", visuals.detailsTable.valueStrong)}>
                                                 {row.address || "-"}
                                             </span>
                                         </td>
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCellNumeric)}>
+                                        <td className={cn(details.table.tableBody, details.table.bodyCellNumeric)}>
                                             {row.port > 0 ? String(row.port) : "-"}
                                         </td>
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
-                                            <AppTooltip
-                                                content={renderTooltipLines(row.connectionTooltip)}
-                                                dense
-                                            >
+                                        <td className={cn(details.table.tableBody, details.table.bodyCell)}>
+                                            <AppTooltip content={renderTooltipLines(row.connectionTooltip)} dense>
                                                 <span
                                                     className={cn(
-                                                        DETAILS.table.peerRow,
+                                                        details.table.peerRow,
                                                         visuals.detailsTable.valueSecondary,
                                                     )}
                                                 >
@@ -215,7 +212,7 @@ export const PeersTab = ({
                                                         <PhoneIncoming
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                MODAL.iconMd,
+                                                                modal.iconMd,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}
@@ -224,7 +221,7 @@ export const PeersTab = ({
                                                         <PhoneOutgoing
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                MODAL.iconMd,
+                                                                modal.iconMd,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}
@@ -234,7 +231,7 @@ export const PeersTab = ({
                                                         <Lock
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                MODAL.iconMd,
+                                                                modal.iconMd,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}
@@ -243,14 +240,14 @@ export const PeersTab = ({
                                                 </span>
                                             </AppTooltip>
                                         </td>
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
+                                        <td className={cn(details.table.tableBody, details.table.bodyCell)}>
                                             <StateCell
                                                 label={row.stateLabel}
                                                 ariaLabel={row.stateLabel}
                                                 tooltip={row.stateTooltip}
                                             />
                                         </td>
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCell)}>
+                                        <td className={cn(details.table.tableBody, details.table.bodyCell)}>
                                             {row.clientLabel !== "-" ? (
                                                 <TruncatedTooltipText
                                                     value={row.clientLabel}
@@ -260,13 +257,13 @@ export const PeersTab = ({
                                                 <span className={visuals.detailsTable.valueEmpty}>-</span>
                                             )}
                                         </td>
-                                        <td className={cn(DETAILS.table.tableBody, DETAILS.table.bodyCellNumeric)}>
+                                        <td className={cn(details.table.tableBody, details.table.bodyCellNumeric)}>
                                             {row.progressLabel}
                                         </td>
                                         <td
                                             className={cn(
-                                                DETAILS.table.tableBody,
-                                                DETAILS.table.bodyCellNumeric,
+                                                details.table.tableBody,
+                                                details.table.bodyCellNumeric,
                                                 visuals.detailsTable.rateDown,
                                             )}
                                         >
@@ -274,8 +271,8 @@ export const PeersTab = ({
                                         </td>
                                         <td
                                             className={cn(
-                                                DETAILS.table.tableBody,
-                                                DETAILS.table.bodyCellNumeric,
+                                                details.table.tableBody,
+                                                details.table.bodyCellNumeric,
                                                 visuals.detailsTable.rateUp,
                                             )}
                                         >
@@ -283,8 +280,8 @@ export const PeersTab = ({
                                         </td>
                                         <td
                                             className={cn(
-                                                DETAILS.table.tableBody,
-                                                DETAILS.table.bodyCellNumeric,
+                                                details.table.tableBody,
+                                                details.table.bodyCellNumeric,
                                                 visuals.detailsTable.valueMuted,
                                             )}
                                         >
@@ -292,8 +289,8 @@ export const PeersTab = ({
                                         </td>
                                         <td
                                             className={cn(
-                                                DETAILS.table.tableBody,
-                                                DETAILS.table.bodyCellNumeric,
+                                                details.table.tableBody,
+                                                details.table.bodyCellNumeric,
                                                 visuals.detailsTable.valueMuted,
                                             )}
                                         >
@@ -316,7 +313,7 @@ export const PeersTab = ({
                         </table>
                         {viewModel.state.contextMenu ? (
                             <div
-                                className={CONTEXT_MENU.panel}
+                                className={contextMenu.panel}
                                 style={{
                                     top: viewModel.state.contextMenu.y,
                                     left: viewModel.state.contextMenu.x,
@@ -324,16 +321,16 @@ export const PeersTab = ({
                                 }}
                                 onPointerDown={(event) => event.stopPropagation()}
                             >
-                                <div className={CONTEXT_MENU.header}>
-                                    <Info className={CONTEXT_MENU.headerIcon} />
-                                    <span className={CONTEXT_MENU.headerText}>
+                                <div className={contextMenu.header}>
+                                    <Info className={contextMenu.headerIcon} />
+                                    <span className={contextMenu.headerText}>
                                         {viewModel.state.contextMenu.peer.address}
                                     </span>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => viewModel.actions.runContextAction("copy_ip")}
-                                    className={CONTEXT_MENU.actionButton}
+                                    className={contextMenu.actionButton}
                                 >
                                     <Copy
                                         className="toolbar-icon-size-sm shrink-0"
@@ -344,7 +341,7 @@ export const PeersTab = ({
                                 <button
                                     type="button"
                                     onClick={() => viewModel.actions.runContextAction("add_peer")}
-                                    className={CONTEXT_MENU.actionButton}
+                                    className={contextMenu.actionButton}
                                 >
                                     <UserPlus
                                         className="toolbar-icon-size-sm shrink-0"
@@ -355,7 +352,7 @@ export const PeersTab = ({
                                 <button
                                     type="button"
                                     onClick={() => viewModel.actions.runContextAction("ban_ip")}
-                                    className={CONTEXT_MENU.dangerActionButton}
+                                    className={contextMenu.dangerActionButton}
                                 >
                                     <Ban
                                         className="toolbar-icon-size-sm shrink-0"

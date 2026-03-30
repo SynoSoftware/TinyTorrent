@@ -1,6 +1,5 @@
 import constants from "@/config/constants.json";
 import { status } from "@/shared/status";
-import { textRole } from "@/config/textRoles";
 import type {
     DragOverlayConfig,
     DetailsVisualizationsConfig,
@@ -609,10 +608,31 @@ const tableVisualTokens = {
 // `tableVisualTokens.headerBase` is typography-only: casing, scale, tracking and subdued text color.
 // It must NOT include background, padding, grid, border, or rounding.
 //
-const textRoleTokens = {
+const typographyText = {
+    heading: "text-scaled font-bold text-foreground",
+    headingCaps: "text-scaled font-bold uppercase tracking-label text-foreground",
+    headingLarge: "text-navbar font-bold text-foreground",
+    headingSection: "text-scaled font-semibold text-foreground",
+    label: tableVisualTokens.headerBase,
+    labelPrimary: "text-label font-bold uppercase tracking-label text-foreground",
+    labelMuted: "text-label font-semibold uppercase tracking-0-2 text-foreground/40",
+    labelDense: "text-label font-semibold uppercase tracking-0-2 text-foreground/50",
+    body: "text-scaled text-foreground",
+    bodyMuted: "text-scaled text-foreground/70",
+    bodyStrong: "text-scaled font-semibold text-foreground",
+    bodySmall: "text-label text-foreground/70",
+    code: "font-mono text-scaled text-foreground",
+    codeMuted: "font-mono text-label text-foreground/70",
+    codeCaption: "font-mono text-label uppercase tracking-widest text-foreground/70",
+    caption: "text-label text-foreground/60",
+    placeholder: "text-scaled text-foreground/30",
+    link: "text-scaled text-foreground/80 hover:text-foreground underline-offset-2 hover:underline",
+    buttonText: "text-scaled font-semibold text-foreground",
+    statusWarning: "text-scaled font-semibold uppercase tracking-tight text-warning",
+    statusSuccess: "text-scaled text-success",
+    statusError: "text-scaled text-danger",
     primary: "text-scaled font-semibold text-foreground",
     secondary: "text-scaled text-foreground/70",
-    label: `${tableVisualTokens.headerBase} text-label`,
     helper: "text-label text-foreground/60",
 } as const;
 
@@ -660,7 +680,7 @@ const detailsTableVisuals = {
     valueSecondary: "font-medium text-foreground/75",
     valueMuted: "text-foreground/70",
     valueEmpty: "text-foreground/40",
-    stateBadgeText: `${textRole.labelDense} text-foreground/75`,
+    stateBadgeText: `${typographyText.labelDense} text-foreground/75`,
 } as const;
 
 const addTorrentFileIconVisuals = {
@@ -899,6 +919,26 @@ const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
     },
     exit: { opacity: readOpacity(detailsTooltipAnimation?.exit, 0) },
 };
+const surfaceFadeAnimationBase = {
+    initial: {
+        opacity: detailsTooltipOpacityAnimation.initial.opacity,
+    },
+    animate: {
+        opacity: detailsTooltipOpacityAnimation.animate.opacity,
+    },
+    exit: {
+        opacity: detailsTooltipOpacityAnimation.exit.opacity,
+    },
+    transition: { duration: 0.2 },
+} as const;
+const surfaceFadeAnimation = {
+    base: surfaceFadeAnimationBase,
+    overlay: surfaceFadeAnimationBase,
+    backdrop: {
+        ...surfaceFadeAnimationBase,
+        animate: { opacity: 0.7 },
+    },
+} as const;
 
 // Availability heatmap visual tokens (moved from hard-coded literals)
 const detailsAvailabilityHeatmap = detailsVisualizations.availability_heatmap;
@@ -1153,7 +1193,7 @@ const visuals = {
     typography: {
         trackingLabel: trackingLabel,
         headerBase: tableVisualTokens.headerBase,
-        textRoles: textRoleTokens,
+        text: typographyText,
     },
     surface: {
         border: tableVisualTokens.surfaceBorder,
@@ -1182,13 +1222,15 @@ const visuals = {
    DOMAIN: VISUALIZATIONS
 ========================================= */
 const visualizations = {
+    surface: {
+        fade: surfaceFadeAnimation,
+    },
     details: {
         tabContentMaxHeight: detailsTabContentMaxHeight,
         pieceMap: detailsPieceMapConfig,
         eta: detailsEtaConfig,
         scatter: detailsScatterConfig,
         tooltipAnimation: detailsTooltipAnimation,
-        tooltipOpacityAnimation: detailsTooltipOpacityAnimation,
         availabilityHeatmap: detailsAvailabilityHeatmap,
         speedWindowOptions: visualizationPrimitives.speedWindowOptions,
         speedChart: {

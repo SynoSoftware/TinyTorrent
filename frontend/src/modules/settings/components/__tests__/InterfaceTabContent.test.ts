@@ -90,7 +90,7 @@ vi.mock("@/modules/settings/components/SettingsBlockRenderers", () => ({
 }));
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
-    FORM: {
+    form: {
         sectionContentStack: "section-content-stack",
         interfaceRow: "interface-row",
         interfaceRowInfo: "interface-row-info",

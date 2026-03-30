@@ -4,7 +4,7 @@ import { Skeleton } from "@heroui/react";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
 import { registry } from "@/config/logic";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { table } from "@/shared/ui/layout/glass-surface";
 const { layout, visuals } = registry;
 
 interface Props {
@@ -12,25 +12,22 @@ interface Props {
     shortcut?: string;
 }
 
-export const TorrentTable_EmptyState: React.FC<Props> = ({
-    isLoading = false,
-    shortcut = "",
-}) => {
+export const TorrentTable_EmptyState: React.FC<Props> = ({ isLoading = false, shortcut = "" }) => {
     const { t } = useTranslation();
 
     if (isLoading) {
         return (
-            <div className={TABLE.loadingRoot}>
+            <div className={table.loadingRoot}>
                 {Array.from({ length: 10 }).map((_, i) => (
                     <div
                         key={i}
-                        className={TABLE.loadingRow}
+                        className={table.loadingRow}
                         style={{
                             height: layout.table.rowHeight,
                         }}
                     >
-                        <div className={TABLE.loadingSkeletonWrap}>
-                            <Skeleton className={TABLE.loadingSkeleton} />
+                        <div className={table.loadingSkeletonWrap}>
+                            <Skeleton className={table.loadingSkeleton} />
                         </div>
                     </div>
                 ))}
@@ -39,38 +36,25 @@ export const TorrentTable_EmptyState: React.FC<Props> = ({
     }
 
     return (
-        <div className={TABLE.emptyRoot}>
-            <div
-                className={TABLE.emptyHintRow}
-                style={TABLE.emptyHintTrackingStyle}
-            >
-                <StatusIcon
-                    Icon={FileUp}
-                    size="lg"
-                    className={TABLE.emptyIcon}
-                />
+        <div className={table.emptyRoot}>
+            <div className={table.emptyHintRow} style={table.emptyHintTrackingStyle}>
+                <StatusIcon Icon={FileUp} size="lg" className={table.emptyIcon} />
                 <span>{t("table.empty_hint", { shortcut: shortcut })}</span>
             </div>
-            <p
-                className={TABLE.emptySubtext}
-                style={TABLE.emptySubtextTrackingStyle}
-            >
+            <p className={table.emptySubtext} style={table.emptySubtextTrackingStyle}>
                 {t("table.empty_hint_subtext")}
             </p>
-            <div className={TABLE.emptyPreview}>
-                <div
-                    className={visuals.table.headerClass}
-                    style={TABLE.emptyHintTrackingStyle}
-                >
-                    <span className={TABLE.emptyBar} />
+            <div className={table.emptyPreview}>
+                <div className={visuals.table.headerClass} style={table.emptyHintTrackingStyle}>
+                    <span className={table.emptyBar} />
                     <span>{t("table.header_name")}</span>
                     <span>{t("table.header_speed")}</span>
                 </div>
                 {Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className={TABLE.emptyPreviewRow}>
-                        <span className={TABLE.emptyBar} />
-                        <span className={TABLE.emptyBar} />
-                        <span className={TABLE.emptyBar} />
+                    <div key={index} className={table.emptyPreviewRow}>
+                        <span className={table.emptyBar} />
+                        <span className={table.emptyBar} />
+                        <span className={table.emptyBar} />
                     </div>
                 ))}
             </div>
@@ -79,4 +63,3 @@ export const TorrentTable_EmptyState: React.FC<Props> = ({
 };
 
 export default TorrentTable_EmptyState;
-

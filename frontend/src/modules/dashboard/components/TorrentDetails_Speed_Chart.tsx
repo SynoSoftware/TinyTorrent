@@ -10,7 +10,7 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 import { HISTORY_POINTS, getCssToken, useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { cn } from "@heroui/react";
-import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
+import { metricChart } from "@/shared/ui/layout/glass-surface";
 const { visualizations } = registry;
 
 // Use Lucide icons to match project style and theme (color via currentColor)
@@ -278,8 +278,8 @@ const SeriesChart = ({
     }, [tick, size, color, windowMs, buckets, maxRef, palette.placeholder, timedRef]); // Re-run on tick
 
     return (
-        <div ref={containerRef} className={cn(METRIC_CHART.canvasWrap, className)}>
-            <canvas ref={canvasRef} className={METRIC_CHART.canvas} />
+        <div ref={containerRef} className={cn(metricChart.canvasWrap, className)}>
+            <canvas ref={canvasRef} className={metricChart.canvas} />
             {/* Legend overlay removed from per-series chart to avoid referencing parent colors; legend is shown in CombinedChart */}
         </div>
     );
@@ -457,8 +457,8 @@ const CombinedChart = ({
     ]); // Re-run on tick
 
     return (
-        <div ref={containerRef} className={cn(METRIC_CHART.canvasWrap, className)}>
-            <canvas ref={canvasRef} className={METRIC_CHART.canvas} />
+        <div ref={containerRef} className={cn(metricChart.canvasWrap, className)}>
+            <canvas ref={canvasRef} className={metricChart.canvas} />
         </div>
     );
 };
@@ -564,21 +564,21 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
     const upColor = getCssToken(speedChart.upStrokeToken) || palette.success;
 
     return (
-        <div className={METRIC_CHART.root}>
+        <div className={metricChart.root}>
             {/* Header / Controls */}
-            <div className={METRIC_CHART.header}>
-                <div className={METRIC_CHART.metrics}>
-                    <span className={METRIC_CHART.downMetric}>↓ {formatSpeed(latestDown)}</span>
-                    <span className={METRIC_CHART.upMetric}>↑ {formatSpeed(latestUp)}</span>
+            <div className={metricChart.header}>
+                <div className={metricChart.metrics}>
+                    <span className={metricChart.downMetric}>↓ {formatSpeed(latestDown)}</span>
+                    <span className={metricChart.upMetric}>↑ {formatSpeed(latestUp)}</span>
                 </div>
 
-                <div className={METRIC_CHART.controls}>
-                    <ButtonGroup size="md" variant="flat" className={METRIC_CHART.layoutGroup}>
+                <div className={metricChart.controls}>
+                    <ButtonGroup size="md" variant="flat" className={metricChart.layoutGroup}>
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
                             className={
-                                layout === "split" ? METRIC_CHART.layoutButtonActive : METRIC_CHART.layoutButtonInactive
+                                layout === "split" ? metricChart.layoutButtonActive : metricChart.layoutButtonInactive
                             }
                             onPress={() => setLayout("split")}
                             ariaLabel={t("inspector.speed_chart.split_view_aria")}
@@ -588,15 +588,15 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                             iconSize="md"
                             className={
                                 layout === "combined"
-                                    ? METRIC_CHART.layoutButtonActive
-                                    : METRIC_CHART.layoutButtonInactive
+                                    ? metricChart.layoutButtonActive
+                                    : metricChart.layoutButtonInactive
                             }
                             onPress={() => setLayout("combined")}
                             ariaLabel={t("inspector.speed_chart.combined_view_aria")}
                         />
                     </ButtonGroup>
 
-                    <div className={METRIC_CHART.windowGroup}>
+                    <div className={metricChart.windowGroup}>
                         {speedWindowOptions.map((option) => (
                             <Button
                                 key={option.key}
@@ -605,8 +605,8 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                                 color={selectedWindow === option.key ? "secondary" : "default"}
                                 className={
                                     selectedWindow === option.key
-                                        ? METRIC_CHART.windowButtonActive
-                                        : METRIC_CHART.windowButtonInactive
+                                        ? metricChart.windowButtonActive
+                                        : metricChart.windowButtonInactive
                                 }
                                 onPress={() => setSelectedWindow(option.key)}
                             >
@@ -617,17 +617,17 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                 </div>
             </div>
 
-            <div className={METRIC_CHART.content}>
+            <div className={metricChart.content}>
                 {layout === "split" ? (
                     <>
-                        <div className={METRIC_CHART.panel}>
+                        <div className={metricChart.panel}>
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className={cn(METRIC_CHART.panelLabelWrap, METRIC_CHART.panelLabelSuccess)}
+                                className={cn(metricChart.panelLabelWrap, metricChart.panelLabelSuccess)}
                             >
                                 Download
                             </span>
@@ -636,18 +636,18 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                                 timedRef={downTimed}
                                 windowMs={windowMs}
                                 maxRef={downMaxRef}
-                                className={METRIC_CHART.panelSeries}
+                                className={metricChart.panelSeries}
                                 tick={tick} // Passed tick
                             />
                         </div>
-                        <div className={METRIC_CHART.panel}>
+                        <div className={metricChart.panel}>
                             <span
                                 style={{
                                     top: "var(--tt-p-tight)",
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className={cn(METRIC_CHART.panelLabelWrap, METRIC_CHART.panelLabelPrimary)}
+                                className={cn(metricChart.panelLabelWrap, metricChart.panelLabelPrimary)}
                             >
                                 Upload
                             </span>
@@ -656,13 +656,13 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                                 timedRef={upTimed}
                                 windowMs={windowMs}
                                 maxRef={upMaxRef}
-                                className={METRIC_CHART.panelSeries}
+                                className={metricChart.panelSeries}
                                 tick={tick} // Passed tick
                             />
                         </div>
                     </>
                 ) : (
-                    <div className={METRIC_CHART.panel}>
+                    <div className={metricChart.panel}>
                         {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
                             downTimedRef={downTimed}
@@ -670,7 +670,7 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                             downColor={downColor}
                             upColor={upColor}
                             windowMs={windowMs}
-                            className={METRIC_CHART.panelSeries}
+                            className={metricChart.panelSeries}
                             tick={tick} // Passed tick
                         />
                     </div>

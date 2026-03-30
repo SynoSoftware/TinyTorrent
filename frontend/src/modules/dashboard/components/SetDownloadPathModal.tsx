@@ -7,9 +7,8 @@ import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import { normalizeDestinationPathForDaemon } from "@/shared/domain/destinationPath";
 import { resolveDestinationValidationDecision } from "@/shared/domain/destinationValidationPolicy";
 import { registry } from "@/config/logic";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
-import { textRole } from "@/config/textRoles";
 import { DestinationPathEditor, type DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
@@ -249,13 +248,12 @@ export default function SetDownloadPathModal({
             }}
         >
             <form ref={formRef} onSubmit={handleFormSubmit}>
-                <div className={FORM.locationEditorRoot}>
+                <div className={form.locationEditorRoot}>
                     <DestinationPathEditor
                         id="set-download-location-path"
                         label={t(
                             currentPath ? "modals.set_download_location.new_path" : "directory_browser.path_label",
                         )}
-                        labelClassName={textRole.caption}
                         currentPathLabel={t("modals.set_download_location.current_path")}
                         currentPathValue={currentPath}
                         value={path}
@@ -269,8 +267,6 @@ export default function SetDownloadPathModal({
                         isDisabled={isSubmitting}
                         isInvalid={isInputInvalid}
                         manualEntryPrompt={manualEntryPrompt}
-                        inputClassNames={FORM.locationEditorInputClassNames}
-                        inputTextClassName={textRole.codeMuted}
                         feedback={pathFeedbackState}
                         browseAction={
                             canPickDirectory

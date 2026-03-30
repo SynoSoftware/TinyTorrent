@@ -8,7 +8,7 @@ import { usePreferences } from "@/app/context/PreferencesContext";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DeleteConfirmationOutcome } from "@/modules/torrent-remove/types/deleteConfirmation";
 import { useDeleteConfirmationContextOptional } from "@/modules/torrent-remove/context/DeleteConfirmationContext";
-import { FORM, FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { form, formControl } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 
 interface RemoveConfirmationModalProps {
@@ -157,7 +157,7 @@ export function RemoveConfirmationModal({
                 void handleConfirm();
             }}
         >
-            <div className={FORM.stackTools}>
+            <div className={form.stackTools}>
                 <p>
                     {resolvedTorrentCount === 1
                         ? t("remove_modal.single_torrent_message")
@@ -169,7 +169,7 @@ export function RemoveConfirmationModal({
                 <Checkbox
                     isSelected={deleteData}
                     onValueChange={handleDeleteDataChange}
-                    classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                    classNames={formControl.checkboxLabelBodySmallClassNames}
                 >
                     {t("remove_modal.delete_files_option")}
                 </Checkbox>

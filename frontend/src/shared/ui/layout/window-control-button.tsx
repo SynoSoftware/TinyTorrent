@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { SURFACE } from "@/shared/ui/layout/glass-surface";
+import { surface } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     type ToolbarIconSize,
@@ -67,7 +67,7 @@ export const WindowControlButton = forwardRef<
             {Icon && (
                 <Icon
                     strokeWidth={visuals.icon.strokeWidth}
-                    className={cn(SURFACE.atom.textCurrent, iconSizeClass)}
+                    className={cn(surface.atom.textCurrent, iconSizeClass)}
                 />
             )}
         </Button>

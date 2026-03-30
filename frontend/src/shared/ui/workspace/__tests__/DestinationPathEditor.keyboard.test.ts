@@ -134,7 +134,6 @@ function Harness({
         history: ["C:\\Downloads"],
         ariaLabel: "Destination",
         placeholder: "Enter path",
-        inputClassNames: {},
         onValueChange: setValue,
         onEnter,
         label: "Path",

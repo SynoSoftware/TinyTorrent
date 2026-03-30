@@ -18,7 +18,7 @@ import {
     DividerRenderer,
 } from "@/modules/settings/components/SettingsBlockRenderers";
 import type { ReactNode } from "react";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 
 interface SettingsFormBuilderProps {
     tab: TabDefinition;
@@ -139,7 +139,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                         }
                         tone={section.tone}
                     >
-                        <div className={FORM.sectionContentStack}>
+                        <div className={form.sectionContentStack}>
                             {visibleBlocks.map((block, blockIndex) =>
                                 renderBlock(block, blockIndex),
                             )}

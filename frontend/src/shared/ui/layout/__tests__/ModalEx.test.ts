@@ -66,7 +66,7 @@ vi.mock("@/shared/ui/layout/toolbar-button", () => ({
 }));
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
-    MODAL: {
+    modal: {
         compactClassNames: {},
         baseClassNames: {},
         dialogFooter: "dialog-footer",

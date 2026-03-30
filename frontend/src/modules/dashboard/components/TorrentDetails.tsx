@@ -2,7 +2,7 @@ import { cn } from "@heroui/react";
 import { TorrentDetailHeader } from "@/modules/dashboard/components/TorrentDetails_Header";
 import { useTorrentDetailTabCoordinator } from "@/modules/dashboard/hooks/useDetailTabs";
 import { useTorrentDetailHeaderStatus } from "@/modules/dashboard/hooks/useTorrentDetailHeaderStatus";
-import { DETAILS } from "@/shared/ui/layout/glass-surface";
+import { details } from "@/shared/ui/layout/glass-surface";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 import { sanitizeDomIdToken } from "@/shared/utils/dom";
 
@@ -60,8 +60,8 @@ export function TorrentDetails({
         <div
             className={cn(
                 className,
-                DETAILS.root,
-                isStandalone ? DETAILS.rootStandalone : null,
+                details.root,
+                isStandalone ? details.rootStandalone : null,
             )}
             tabIndex={0}
             data-detail-host="true"
@@ -87,8 +87,8 @@ export function TorrentDetails({
             <div
                 id={`${tabDomIdPrefix}-panel-${active}`}
                 className={cn(
-                    DETAILS.body,
-                    active === "speed" ? DETAILS.bodyFill : null,
+                    details.body,
+                    active === "speed" ? details.bodyFill : null,
                 )}
                 role="tabpanel"
                 aria-labelledby={`${tabDomIdPrefix}-tab-${active}`}

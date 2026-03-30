@@ -507,7 +507,8 @@ Bad candidates:
   - variables, functions, local constants, and local hooks: `camelCase`
   - components, classes, and types: `PascalCase`
   - service/utility modules: `kebab-case`
-- do not use all-uppercase identifiers
+- screaming-case identifiers are forbidden in frontend code and scripts
+- do not introduce or preserve all-uppercase identifiers or compatibility aliases such as `FOO_BAR`, `FOO`, or `BAR_BAZ`
 - only hooks may use `camelCase` filenames; everything else should be `PascalCase` or `kebab-case`
 - do not mix naming styles in the same folder
 - do not create generic filenames such as `helpers.ts`, `utils.ts`, `client.ts`, or `index2.ts`

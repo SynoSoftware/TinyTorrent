@@ -12,7 +12,7 @@ import type {
     TorrentDetailHeaderAction,
     TorrentDetailHeaderActionTone,
 } from "@/modules/dashboard/types/torrentDetailHeader";
-import { DETAILS, WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { details, workbench } from "@/shared/ui/layout/glass-surface";
 import { sanitizeDomIdToken } from "@/shared/utils/dom";
 const { visuals } = registry;
 
@@ -75,27 +75,27 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
         success: joinClassNames(
             toneRecipe[toneKeys.success]?.text,
             toneRecipe[toneKeys.success]?.button,
-            WORKBENCH.nav.toneButtonFallback.success,
+            workbench.nav.toneButtonFallback.success,
         ),
         warning: joinClassNames(
             toneRecipe[toneKeys.warning]?.text,
             toneRecipe[toneKeys.warning]?.button,
-            WORKBENCH.nav.toneButtonFallback.warning,
+            workbench.nav.toneButtonFallback.warning,
         ),
         danger: joinClassNames(
             toneRecipe[toneKeys.danger]?.text,
             toneRecipe[toneKeys.danger]?.button,
-            WORKBENCH.nav.toneButtonFallback.danger,
+            workbench.nav.toneButtonFallback.danger,
         ),
         neutral: joinClassNames(
             toneRecipe[toneKeys.neutral]?.text,
             toneRecipe[toneKeys.neutral]?.button,
-            WORKBENCH.nav.toneButtonFallback.neutral,
+            workbench.nav.toneButtonFallback.neutral,
         ),
         default: joinClassNames(
             toneRecipe[toneKeys.neutral]?.text,
             toneRecipe[toneKeys.neutral]?.button,
-            WORKBENCH.nav.toneButtonFallback.neutral,
+            workbench.nav.toneButtonFallback.neutral,
         ),
     } as const;
     const renderedName = truncateTorrentName(torrent?.name, t("general.unknown"));
@@ -126,34 +126,29 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
 
     return (
         <div
-            className={cn(DETAILS.headerRoot, !isStandalone && DETAILS.headerRootEmbedded)}
-            style={DETAILS.headerTrackingStyle}
+            className={cn(details.headerRoot, !isStandalone && details.headerRootEmbedded)}
+            style={details.headerTrackingStyle}
         >
-            <div className={DETAILS.headerLeft}>
+            <div className={details.headerLeft}>
                 <Info
                     strokeWidth={visuals.icon.strokeWidth}
-                    className={`${DETAILS.headerInfoIcon} ${ICON_SIZE_CLASSES.lg}`}
+                    className={`${details.headerInfoIcon} ${ICON_SIZE_CLASSES.lg}`}
                 />
-                <span className={DETAILS.headerTitle}>
+                <span className={details.headerTitle}>
                     {renderedName}
                     {statusLabel ? (
-                        <AppTooltip
-                            content={statusTooltip ?? statusLabel}
-                            dense
-                            placement="top"
-                            native
-                        >
-                            <span className={DETAILS.headerStatus}>
+                        <AppTooltip content={statusTooltip ?? statusLabel} dense placement="top" native>
+                            <span className={details.headerStatus}>
                                 {statusLabel}
-                                {primaryHint ? <em className={DETAILS.headerPrimaryHint}>- {primaryHint}</em> : null}
+                                {primaryHint ? <em className={details.headerPrimaryHint}>- {primaryHint}</em> : null}
                             </span>
                         </AppTooltip>
                     ) : null}
                 </span>
             </div>
 
-            <div className={DETAILS.headerCenter}>
-                <div className={DETAILS.headerTabs} role="tablist" aria-label={t("inspector.panel_label")}>
+            <div className={details.headerCenter}>
+                <div className={details.headerTabs} role="tablist" aria-label={t("inspector.panel_label")}>
                     {tabs.map((tab) => {
                         const isActive = activeTab === tab.id;
 
@@ -168,30 +163,30 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
                                 tabIndex={isActive ? 0 : -1}
                                 onClick={() => onTabChange(tab.id)}
                                 className={cn(
-                                    DETAILS.headerTabBase,
-                                    isActive ? DETAILS.headerTabActive : DETAILS.headerTabInactive,
+                                    details.headerTabBase,
+                                    isActive ? details.headerTabActive : details.headerTabInactive,
                                 )}
                             >
                                 {!isActive && (
                                     <span
                                         aria-hidden="true"
-                                        className={DETAILS.headerTabHoverGlow}
-                                        style={DETAILS.headerTabHoverGlowStyle}
+                                        className={details.headerTabHoverGlow}
+                                        style={details.headerTabHoverGlowStyle}
                                     />
                                 )}
                                 {isActive && (
                                     <span
                                         aria-hidden="true"
-                                        className={DETAILS.headerTabLightBloom}
-                                        style={DETAILS.headerTabLightBloomStyle}
+                                        className={details.headerTabLightBloom}
+                                        style={details.headerTabLightBloomStyle}
                                     />
                                 )}
                                 <span>{t(tab.labelKey)}</span>
                                 {isActive && (
                                     <span
                                         aria-hidden="true"
-                                        className={DETAILS.headerTabLightSource}
-                                        style={DETAILS.headerTabLightSourceStyle}
+                                        className={details.headerTabLightSource}
+                                        style={details.headerTabLightSourceStyle}
                                     />
                                 )}
                             </button>
@@ -200,10 +195,10 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
                 </div>
             </div>
 
-            <div className={DETAILS.headerRight}>
+            <div className={details.headerRight}>
                 {headerActions.length > 0 && (
                     <>
-                        <div className={DETAILS.headerContextActions}>
+                        <div className={details.headerContextActions}>
                             {headerActions.map((action, index) => (
                                 <ToolbarIconButton
                                     key={`tab-header-action-${index}`}
@@ -211,13 +206,13 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
                                     ariaLabel={action.ariaLabel}
                                     title={action.ariaLabel}
                                     onPress={action.onPress}
-                                    className={cn(DETAILS.headerContextActionButton, toneButtonClass[action.tone])}
+                                    className={cn(details.headerContextActionButton, toneButtonClass[action.tone])}
                                     iconSize="md"
                                 />
                             ))}
                         </div>
                         {globalActions.length > 0 && (
-                            <div className={DETAILS.headerContextDivider} aria-hidden="true" />
+                            <div className={details.headerContextDivider} aria-hidden="true" />
                         )}
                     </>
                 )}
@@ -275,9 +270,5 @@ export const TorrentDetailHeader = memo(
         prev.primaryHint === next.primaryHint &&
         areHeaderActionsEqual(prev.headerActions, next.headerActions) &&
         prev.tabs.length === next.tabs.length &&
-        prev.tabs.every(
-            (tab, index) =>
-                tab.id === next.tabs[index]?.id &&
-                tab.labelKey === next.tabs[index]?.labelKey,
-        ),
+        prev.tabs.every((tab, index) => tab.id === next.tabs[index]?.id && tab.labelKey === next.tabs[index]?.labelKey),
 );

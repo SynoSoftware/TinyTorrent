@@ -15,21 +15,21 @@ const targetFile = path.join(
 );
 
 const FEATURE_MAP_EXPORTS = new Set([
-    "MODAL",
-    "FORM",
-    "TABLE",
-    "DIAGNOSTIC",
-    "WORKBENCH",
-    "SPLIT",
-    "CONTEXT_MENU",
-    "METRIC_CHART",
-    "DASHBOARD",
-    "DETAILS",
-    "COMMAND_PALETTE",
-    "FORM_CONTROL",
-    "INPUT",
-    "FILE_BROWSER",
-    "HEATMAP",
+    "modal",
+    "form",
+    "table",
+    "diagnostic",
+    "workbench",
+    "split",
+    "contextMenu",
+    "metricChart",
+    "dashBoard",
+    "details",
+    "commandPalette",
+    "formControl",
+    "input",
+    "fileBrowser",
+    "heatMap",
 ]);
 
 function getPropertyName(propertyName) {

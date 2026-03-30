@@ -31,7 +31,7 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import Runtime from "@/app/runtime";
-import { SURFACE, WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { surface, workbench } from "@/shared/ui/layout/glass-surface";
 import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
@@ -72,18 +72,18 @@ export function Navbar({ viewModel }: NavbarProps) {
     const toneButtonClass = {
         primary:
             visuals.status.recipes[visuals.status.keys.tone.primary]?.button ??
-            WORKBENCH.nav.toneButtonFallback.primary,
+            workbench.nav.toneButtonFallback.primary,
         success:
             visuals.status.recipes[visuals.status.keys.tone.success]?.button ??
-            WORKBENCH.nav.toneButtonFallback.success,
+            workbench.nav.toneButtonFallback.success,
         warning:
             visuals.status.recipes[visuals.status.keys.tone.warning]?.button ??
-            WORKBENCH.nav.toneButtonFallback.warning,
+            workbench.nav.toneButtonFallback.warning,
         danger:
-            visuals.status.recipes[visuals.status.keys.tone.danger]?.button ?? WORKBENCH.nav.toneButtonFallback.danger,
+            visuals.status.recipes[visuals.status.keys.tone.danger]?.button ?? workbench.nav.toneButtonFallback.danger,
         neutral:
             visuals.status.recipes[visuals.status.keys.tone.neutral]?.button ??
-            WORKBENCH.nav.toneButtonFallback.neutral,
+            workbench.nav.toneButtonFallback.neutral,
     };
     const handleFilterSelectionChange = (key: Key) => {
         if (typeof key !== "string") return;
@@ -114,32 +114,32 @@ export function Navbar({ viewModel }: NavbarProps) {
             radius="full"
             selectedKey={filter}
             onSelectionChange={mobile ? handleMobileFilterSelectionChange : handleFilterSelectionChange}
-            classNames={WORKBENCH.nav.filterTabsClassNames}
+            classNames={workbench.nav.filterTabsClassNames}
         >
             <Tab
                 key="all"
                 title={
-                    <div className={WORKBENCH.nav.tabTitle}>
-                        <StatusIcon Icon={ListChecks} size="lg" className={WORKBENCH.nav.tabIcon} />
-                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_all")}</span>
+                    <div className={workbench.nav.tabTitle}>
+                        <StatusIcon Icon={ListChecks} size="lg" className={workbench.nav.tabIcon} />
+                        <span className={workbench.nav.tabLabel}>{t("nav.filter_all")}</span>
                     </div>
                 }
             />
             <Tab
                 key="downloading"
                 title={
-                    <div className={WORKBENCH.nav.tabTitle}>
-                        <StatusIcon Icon={DownloadCloud} size="lg" className={WORKBENCH.nav.tabIcon} />
-                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_downloading")}</span>
+                    <div className={workbench.nav.tabTitle}>
+                        <StatusIcon Icon={DownloadCloud} size="lg" className={workbench.nav.tabIcon} />
+                        <span className={workbench.nav.tabLabel}>{t("nav.filter_downloading")}</span>
                     </div>
                 }
             />
             <Tab
                 key="seeding"
                 title={
-                    <div className={WORKBENCH.nav.tabTitle}>
-                        <StatusIcon Icon={UploadCloud} size="lg" className={WORKBENCH.nav.tabIcon} />
-                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_seeding")}</span>
+                    <div className={workbench.nav.tabTitle}>
+                        <StatusIcon Icon={UploadCloud} size="lg" className={workbench.nav.tabIcon} />
+                        <span className={workbench.nav.tabLabel}>{t("nav.filter_seeding")}</span>
                     </div>
                 }
             />
@@ -147,15 +147,15 @@ export function Navbar({ viewModel }: NavbarProps) {
     );
     const renderSearchInput = (mobile = false) => (
         <Input
-            classNames={WORKBENCH.nav.searchInputClassNames}
-            style={mobile ? undefined : WORKBENCH.nav.searchStyle}
+            classNames={workbench.nav.searchInputClassNames}
+            style={mobile ? undefined : workbench.nav.searchStyle}
             placeholder={t("nav.search_placeholder")}
             size="md"
             value={searchQuery}
             data-command-search="true"
             onFocus={() => setActivePart("search")}
             onChange={(event) => setSearchQuery(event.currentTarget.value)}
-            startContent={<StatusIcon Icon={Search} size="lg" className={WORKBENCH.nav.searchIcon} />}
+            startContent={<StatusIcon Icon={Search} size="lg" className={workbench.nav.searchIcon} />}
         />
     );
     const renderSelectionExtraActions = (mobile = false) => (
@@ -171,7 +171,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         },
                         disabled: !hasSelection,
                         color: "default",
-                        className: emphasizeActions?.forceRecheck ? WORKBENCH.nav.selectionRecheckEmphasis : "",
+                        className: emphasizeActions?.forceRecheck ? workbench.nav.selectionRecheckEmphasis : "",
                     })}
                     {renderMobilePanelButton({
                         Icon: Trash2,
@@ -197,7 +197,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         disabled={!hasSelection}
                         className={cn(
                             toneButtonClass.neutral,
-                            emphasizeActions?.forceRecheck ? WORKBENCH.nav.selectionRecheckEmphasis : "",
+                            emphasizeActions?.forceRecheck ? workbench.nav.selectionRecheckEmphasis : "",
                         )}
                         iconSize="lg"
                     />
@@ -238,49 +238,43 @@ export function Navbar({ viewModel }: NavbarProps) {
             color={color}
             onPress={onPress}
             isDisabled={disabled}
-            className={cn(WORKBENCH.nav.mobileMenuButton, className)}
-            startContent={
-                <StatusIcon
-                    Icon={MobileIcon}
-                    size="md"
-                    className={WORKBENCH.nav.mobileMenuButtonIcon}
-                />
-            }
+            className={cn(workbench.nav.mobileMenuButton, className)}
+            startContent={<StatusIcon Icon={MobileIcon} size="md" className={workbench.nav.mobileMenuButtonIcon} />}
         >
             {label}
         </Button>
     );
 
     return (
-        <header className={cn(WORKBENCH.nav.root, WORKBENCH.nav.surface)}>
+        <header className={cn(workbench.nav.root, workbench.nav.surface)}>
             <div
-                className={WORKBENCH.nav.titlebar}
+                className={workbench.nav.titlebar}
                 style={{
                     ...shellTokens.surfaceStyle,
-                    ...WORKBENCH.nav.titlebarBaseStyle,
-                    gap: showWindowControls ? WORKBENCH.nav.titlebarBaseStyle.gap : 0,
+                    ...workbench.nav.titlebarBaseStyle,
+                    gap: showWindowControls ? workbench.nav.titlebarBaseStyle.gap : 0,
                 }}
             >
                 <div
                     className={cn(
-                        WORKBENCH.nav.shell,
+                        workbench.nav.shell,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
-                        WORKBENCH.nav.main,
+                        workbench.nav.main,
                         !showWindowControls && "w-full",
                     )}
                     style={{
                         ...shellTokens.outerStyle,
                     }}
-                    >
-                        <div className={WORKBENCH.nav.left}>
-                            <div className={WORKBENCH.nav.brandGroup}>
-                            <div className={WORKBENCH.nav.brandIconWrap} style={WORKBENCH.nav.brandIconStyle}>
+                >
+                    <div className={workbench.nav.left}>
+                        <div className={workbench.nav.brandGroup}>
+                            <div className={workbench.nav.brandIconWrap} style={workbench.nav.brandIconStyle}>
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className={WORKBENCH.nav.brandTextWrap}>
-                                <span className={WORKBENCH.nav.brandName}>{t("brand.name")}</span>
-                                <span className={WORKBENCH.nav.brandVersion}>
+                            <div className={workbench.nav.brandTextWrap}>
+                                <span className={workbench.nav.brandName}>{t("brand.name")}</span>
+                                <span className={workbench.nav.brandVersion}>
                                     {t("brand.version", {
                                         version: APP_VERSION,
                                     })}
@@ -288,22 +282,20 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </div>
                         </div>
 
-                        <div className={WORKBENCH.nav.primarySeparator} />
+                        <div className={workbench.nav.primarySeparator} />
 
-                        <div className={WORKBENCH.nav.tabsWrap}>
-                            {renderFilterTabs()}
-                        </div>
+                        <div className={workbench.nav.tabsWrap}>{renderFilterTabs()}</div>
 
-                        <div className={WORKBENCH.nav.searchWrap}>{renderSearchInput()}</div>
+                        <div className={workbench.nav.searchWrap}>{renderSearchInput()}</div>
                     </div>
-                    <div className={WORKBENCH.nav.actions}>
-                        <div className={cn(WORKBENCH.nav.primaryActions, "hidden sm:flex")}>
+                    <div className={workbench.nav.actions}>
+                        <div className={cn(workbench.nav.primaryActions, "hidden sm:flex")}>
                             <ToolbarIconButton
                                 Icon={FileUp}
                                 ariaLabel={t("toolbar.add_torrent")}
                                 title={t("toolbar.add_torrent")}
                                 onPress={onAddTorrent}
-                                className={cn(toneButtonClass.primary, WORKBENCH.nav.primaryActionEmphasis)}
+                                className={cn(toneButtonClass.primary, workbench.nav.primaryActionEmphasis)}
                                 iconSize="lg"
                             />
 
@@ -323,30 +315,31 @@ export function Navbar({ viewModel }: NavbarProps) {
                                         Icon={Plus}
                                         ariaLabel={t("nav.mobile_add_menu_open")}
                                         title={t("nav.mobile_add_menu_open")}
-                                        className={cn(
-                                            toneButtonClass.primary,
-                                            WORKBENCH.nav.primaryActionEmphasis,
-                                        )}
+                                        className={cn(toneButtonClass.primary, workbench.nav.primaryActionEmphasis)}
                                         iconSize="lg"
                                     />
                                 </DropdownTrigger>
                                 <DropdownMenu
                                     aria-label={t("nav.mobile_add_menu_open")}
                                     variant="shadow"
-                                    className={SURFACE.menu.surface}
-                                    classNames={SURFACE.menu.listClassNames}
-                                    itemClasses={SURFACE.menu.itemClassNames}
+                                    className={surface.menu.surface}
+                                    classNames={surface.menu.listClassNames}
+                                    itemClasses={surface.menu.itemClassNames}
                                 >
                                     <DropdownItem
                                         key="add-torrent"
-                                        startContent={<StatusIcon Icon={FileUp} size="md" className={SURFACE.atom.textCurrent} />}
+                                        startContent={
+                                            <StatusIcon Icon={FileUp} size="md" className={surface.atom.textCurrent} />
+                                        }
                                         onPress={handleMobileAddTorrent}
                                     >
                                         {t("toolbar.add_torrent")}
                                     </DropdownItem>
                                     <DropdownItem
                                         key="add-magnet"
-                                        startContent={<StatusIcon Icon={Magnet} size="md" className={SURFACE.atom.textCurrent} />}
+                                        startContent={
+                                            <StatusIcon Icon={Magnet} size="md" className={surface.atom.textCurrent} />
+                                        }
                                         onPress={handleMobileAddMagnet}
                                     >
                                         {t("toolbar.add_magnet")}
@@ -355,16 +348,16 @@ export function Navbar({ viewModel }: NavbarProps) {
                             </Dropdown>
                         </div>
                         <div
-                            className={WORKBENCH.nav.selectionSeparator}
-                            style={WORKBENCH.nav.selectionSeparatorStyle}
+                            className={workbench.nav.selectionSeparator}
+                            style={workbench.nav.selectionSeparatorStyle}
                         />
 
                         <div
                             className={cn(
-                                WORKBENCH.nav.selectionActionsBase,
+                                workbench.nav.selectionActionsBase,
                                 hasSelection
-                                    ? WORKBENCH.nav.selectionActionsEnabled
-                                    : WORKBENCH.nav.selectionActionsDisabled,
+                                    ? workbench.nav.selectionActionsEnabled
+                                    : workbench.nav.selectionActionsDisabled,
                                 "hidden sm:flex",
                             )}
                         >
@@ -385,16 +378,16 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 disabled={!hasSelection}
                                 className={cn(
                                     toneButtonClass.warning,
-                                    emphasizeActions?.pause ? WORKBENCH.nav.selectionPauseEmphasis : "",
+                                    emphasizeActions?.pause ? workbench.nav.selectionPauseEmphasis : "",
                                 )}
                                 iconSize="lg"
                             />
-                            <div className={WORKBENCH.nav.selectionExtraActions}>{renderSelectionExtraActions()}</div>
+                            <div className={workbench.nav.selectionExtraActions}>{renderSelectionExtraActions()}</div>
                         </div>
 
                         <div
-                            className={WORKBENCH.nav.selectionSeparator}
-                            style={WORKBENCH.nav.selectionSeparatorStyle}
+                            className={workbench.nav.selectionSeparator}
+                            style={workbench.nav.selectionSeparatorStyle}
                         />
                         {!showWindowControls ? (
                             <div className="hidden sm:flex">
@@ -405,7 +398,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     })}
                                     title={t("theme.toggle")}
                                     onPress={toggleTheme}
-                                    className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                                    className={cn(workbench.nav.ghostAction, workbench.nav.ghostActionOverflow)}
                                     iconSize="lg"
                                 />
                             </div>
@@ -416,7 +409,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t("toolbar.settings")}
                                 title={t("toolbar.settings")}
                                 onPress={onSettings}
-                                className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                                className={cn(workbench.nav.ghostAction, workbench.nav.ghostActionOverflow)}
                                 iconSize="lg"
                             />
                         </div>
@@ -426,20 +419,20 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t(isMobileMenuOpen ? "nav.mobile_menu_close" : "nav.mobile_menu_open")}
                                 title={t(isMobileMenuOpen ? "nav.mobile_menu_close" : "nav.mobile_menu_open")}
                                 onPress={handleMobileMenuToggle}
-                                className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                                className={cn(workbench.nav.ghostAction, workbench.nav.ghostActionOverflow)}
                                 iconSize="lg"
                             />
                         </div>
                     </div>
 
                     {rehashStatus?.active && (
-                        <div className={WORKBENCH.nav.rehashWrap}>
+                        <div className={workbench.nav.rehashWrap}>
                             <AppTooltip content={`${rehashStatus.label}: ${Math.round(rehashStatus.value)}%`}>
-                                <div className={WORKBENCH.nav.rehashTooltipWrap}>
+                                <div className={workbench.nav.rehashTooltipWrap}>
                                     <SmoothProgressBar
                                         value={Math.min(Math.max(rehashStatus.value, 0), 100)}
-                                        trackClassName={WORKBENCH.nav.rehashTrack}
-                                        indicatorClassName={WORKBENCH.nav.rehashIndicator}
+                                        trackClassName={workbench.nav.rehashTrack}
+                                        indicatorClassName={workbench.nav.rehashIndicator}
                                     />
                                 </div>
                             </AppTooltip>
@@ -449,10 +442,10 @@ export function Navbar({ viewModel }: NavbarProps) {
 
                 {showWindowControls ? (
                     <div
-                        className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.windowControls)}
+                        className={cn(workbench.nav.shell, workbench.nav.windowControls)}
                         style={{
                             ...shellTokens.outerStyle,
-                            ...WORKBENCH.nav.windowControlsStyle,
+                            ...workbench.nav.windowControlsStyle,
                         }}
                     >
                         <WindowControlButton
@@ -490,17 +483,14 @@ export function Navbar({ viewModel }: NavbarProps) {
             </div>
 
             {isMobileMenuOpen ? (
-                <div className={WORKBENCH.nav.mobileStack} data-mobile-navbar="true">
-                    <div
-                        className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.mobilePanel)}
-                        style={shellTokens.outerStyle}
-                    >
-                        <div className={WORKBENCH.nav.mobileSection}>
-                            <div className={WORKBENCH.nav.mobileSearchWrap}>{renderSearchInput(true)}</div>
-                            <div className={WORKBENCH.nav.mobileTabsWrap}>{renderFilterTabs(true)}</div>
+                <div className={workbench.nav.mobileStack} data-mobile-navbar="true">
+                    <div className={cn(workbench.nav.shell, workbench.nav.mobilePanel)} style={shellTokens.outerStyle}>
+                        <div className={workbench.nav.mobileSection}>
+                            <div className={workbench.nav.mobileSearchWrap}>{renderSearchInput(true)}</div>
+                            <div className={workbench.nav.mobileTabsWrap}>{renderFilterTabs(true)}</div>
                         </div>
                         {hasSelection ? (
-                            <div className={WORKBENCH.nav.mobileActionGrid}>
+                            <div className={workbench.nav.mobileActionGrid}>
                                 {renderMobilePanelButton({
                                     Icon: Play,
                                     label: t("toolbar.resume"),
@@ -520,14 +510,12 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     },
                                     disabled: !hasSelection,
                                     color: "warning",
-                                    className: emphasizeActions?.pause
-                                        ? WORKBENCH.nav.selectionPauseEmphasis
-                                        : "",
+                                    className: emphasizeActions?.pause ? workbench.nav.selectionPauseEmphasis : "",
                                 })}
                                 {renderSelectionExtraActions(true)}
                             </div>
                         ) : null}
-                        <div className={WORKBENCH.nav.mobileUtilityActions}>
+                        <div className={workbench.nav.mobileUtilityActions}>
                             {renderMobilePanelButton({
                                 Icon,
                                 label: t("theme.toggle"),

@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { DETAILS, TABLE, SPLIT, WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { details, table, split, workbench } from "@/shared/ui/layout/glass-surface";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { registry } from "@/config/logic";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
@@ -80,11 +80,11 @@ const MAP_CANVAS_INTERACTION_STYLE = {
     pointerEvents: "auto",
 } as const;
 const MAP_SWATCH_TONE_CLASS: Record<SwarmTone, string> = {
-    verified: SPLIT.mapLegendSwatchVerified,
-    common: SPLIT.mapLegendSwatchCommon,
-    rare: SPLIT.mapLegendSwatchRare,
-    dead: SPLIT.mapLegendSwatchDead,
-    missing: SPLIT.mapLegendSwatchMissing,
+    verified: split.mapLegendSwatchVerified,
+    common: split.mapLegendSwatchCommon,
+    rare: split.mapLegendSwatchRare,
+    dead: split.mapLegendSwatchDead,
+    missing: split.mapLegendSwatchMissing,
 } as const;
 
 const getVisibleHudFields = (width: number): PiecesHudFieldId[] => {
@@ -164,19 +164,19 @@ const renderHudStat = ({
     quiet?: boolean;
     tone?: HudTone;
 }) => {
-    const statClass = quiet ? SPLIT.mapHudStatQuiet : SPLIT.mapHudStat;
+    const statClass = quiet ? split.mapHudStatQuiet : split.mapHudStat;
     const valueClass =
         tone === "danger"
-            ? SPLIT.mapHudValueDanger
+            ? split.mapHudValueDanger
             : tone === "warning"
-              ? SPLIT.mapHudValueWarning
+              ? split.mapHudValueWarning
               : quiet
-                ? SPLIT.mapHudValueQuiet
-                : SPLIT.mapHudValue;
+                ? split.mapHudValueQuiet
+                : split.mapHudValue;
     return (
         <div className={statClass}>
             <AppTooltip content={tooltip ?? label}>
-                <span className={SPLIT.mapHudLabel}>{label}</span>
+                <span className={split.mapHudLabel}>{label}</span>
             </AppTooltip>
             <span className={valueClass}>{value}</span>
         </div>
@@ -205,12 +205,12 @@ const getPiecesHudProgressIndicatorClass = (torrent: Torrent, optimisticStatus?:
     const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
 
     if (effectiveState === status.torrent.paused) {
-        return TABLE.columnDefs.progressIndicatorPaused;
+        return table.columnDefs.progressIndicatorPaused;
     }
     if (effectiveState === status.torrent.seeding) {
-        return TABLE.columnDefs.progressIndicatorSeeding;
+        return table.columnDefs.progressIndicatorSeeding;
     }
-    return TABLE.columnDefs.progressIndicatorActive;
+    return table.columnDefs.progressIndicatorActive;
 };
 
 const PiecesHudProgressCell = ({
@@ -225,15 +225,17 @@ const PiecesHudProgressCell = ({
     const completedBytes = torrent.totalSize * progressValue;
 
     return (
-        <div className={`${DETAILS.generalProgressWrap} h-full w-full justify-between px-tight`}>
-            <div className={`${DETAILS.generalProgressMetrics} min-w-0`}>
-                <span className={`${SPLIT.mapHudValue} whitespace-nowrap`}>{progressPercent.toFixed(1)}%</span>
-                <span className={`${TABLE.columnDefs.progressSecondary} whitespace-nowrap`}>{formatBytes(completedBytes)}</span>
+        <div className={`${details.generalProgressWrap} h-full w-full justify-between px-tight`}>
+            <div className={`${details.generalProgressMetrics} min-w-0`}>
+                <span className={`${split.mapHudValue} whitespace-nowrap`}>{progressPercent.toFixed(1)}%</span>
+                <span className={`${table.columnDefs.progressSecondary} whitespace-nowrap`}>
+                    {formatBytes(completedBytes)}
+                </span>
             </div>
             <SmoothProgressBar
                 value={progressPercent}
-                className={`${DETAILS.generalProgressBar} py-tight`}
-                trackClassName={TABLE.columnDefs.progressTrack}
+                className={`${details.generalProgressBar} py-tight`}
+                trackClassName={table.columnDefs.progressTrack}
                 indicatorClassName={getPiecesHudProgressIndicatorClass(torrent, optimisticStatus)}
             />
         </div>
@@ -257,36 +259,36 @@ const PiecesHudSpeedCell = ({
 
     return (
         <div className="relative h-full w-full min-w-0 overflow-visible">
-            <div className={`${WORKBENCH.status.speedCompactGraphWrap} overflow-visible`}>
-                <div className={WORKBENCH.status.speedCompactLayer}>
+            <div className={`${workbench.status.speedCompactGraphWrap} overflow-visible`}>
+                <div className={workbench.status.speedCompactLayer}>
                     <NetworkGraph
                         data={downHistory}
                         color="success"
                         maxValue={sharedMaxValue}
-                        className={WORKBENCH.status.speedCompactDownGraph}
+                        className={workbench.status.speedCompactDownGraph}
                     />
                 </div>
-                <div className={WORKBENCH.status.speedCompactUpLayer}>
+                <div className={workbench.status.speedCompactUpLayer}>
                     <NetworkGraph
                         data={upHistory}
                         color="primary"
                         maxValue={sharedMaxValue}
-                        className={WORKBENCH.status.speedCompactUpGraph}
+                        className={workbench.status.speedCompactUpGraph}
                     />
                 </div>
 
-                <div className={WORKBENCH.status.speedCompactOverlay}>
-                    <div className={WORKBENCH.status.speedCompactOverlayRow}>
-                        <div className={WORKBENCH.status.speedCompactColumn}>
-                            <ArrowDown className={WORKBENCH.status.speedCompactDownIcon} aria-hidden="true" />
-                            <span className={WORKBENCH.status.srOnly}>{t("status_bar.down")}</span>
-                            <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(downSpeed)}</span>
+                <div className={workbench.status.speedCompactOverlay}>
+                    <div className={workbench.status.speedCompactOverlayRow}>
+                        <div className={workbench.status.speedCompactColumn}>
+                            <ArrowDown className={workbench.status.speedCompactDownIcon} aria-hidden="true" />
+                            <span className={workbench.status.srOnly}>{t("status_bar.down")}</span>
+                            <span className={workbench.status.speedCompactValue}>{formatSpeed(downSpeed)}</span>
                         </div>
-                        <div className={WORKBENCH.status.speedCompactDivider} />
-                        <div className={WORKBENCH.status.speedCompactColumn}>
-                            <ArrowUp className={WORKBENCH.status.speedCompactUpIcon} aria-hidden="true" />
-                            <span className={WORKBENCH.status.srOnly}>{t("status_bar.up")}</span>
-                            <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(upSpeed)}</span>
+                        <div className={workbench.status.speedCompactDivider} />
+                        <div className={workbench.status.speedCompactColumn}>
+                            <ArrowUp className={workbench.status.speedCompactUpIcon} aria-hidden="true" />
+                            <span className={workbench.status.srOnly}>{t("status_bar.up")}</span>
+                            <span className={workbench.status.speedCompactValue}>{formatSpeed(upSpeed)}</span>
                         </div>
                     </div>
                 </div>
@@ -373,7 +375,7 @@ const PiecesHud = ({
         }),
     };
     return (
-        <div className={SPLIT.mapHud} style={SPLIT.mapStatsTrackingStyle}>
+        <div className={split.mapHud} style={split.mapStatsTrackingStyle}>
             {visibleFields.map((fieldId) => (
                 <div key={fieldId} className={getHudFieldShellClass(fieldId)} style={getHudFieldShellStyle(fieldId)}>
                     {fieldViews[fieldId]}
@@ -399,11 +401,11 @@ const PiecesTooltip = ({
     }
 
     return (
-        <div ref={tooltipRef} className={SPLIT.mapTooltip} style={tooltipStyle ?? HIDDEN_TOOLTIP_STYLE}>
-            <span className={SPLIT.mapTooltipPrimaryLine}>{tooltipDetail.title}</span>
+        <div ref={tooltipRef} className={split.mapTooltip} style={tooltipStyle ?? HIDDEN_TOOLTIP_STYLE}>
+            <span className={split.mapTooltipPrimaryLine}>{tooltipDetail.title}</span>
             {tooltipDetail.swatches.length > 0 && (
                 <div
-                    className={SPLIT.mapTooltipSwatchGrid}
+                    className={split.mapTooltipSwatchGrid}
                     style={{
                         gap: tooltipDetail.swatchGap,
                         gridTemplateColumns:
@@ -415,7 +417,7 @@ const PiecesTooltip = ({
                     {tooltipDetail.swatches.map((swatch, index) => (
                         <span
                             key={`piece-tooltip-swatch-${index}`}
-                            className={`${SPLIT.mapTooltipSwatch} ${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[swatch.tone as SwarmTone]}`}
+                            className={`${split.mapTooltipSwatch} ${split.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[swatch.tone as SwarmTone]}`}
                             style={{
                                 width: tooltipDetail.swatchSize,
                                 height: tooltipDetail.swatchSize,
@@ -424,10 +426,10 @@ const PiecesTooltip = ({
                     ))}
                 </div>
             )}
-            <div className={SPLIT.mapTooltipInfoStack}>
-                <span className={SPLIT.mapTooltipSecondaryLine}>{tooltipDetail.summary}</span>
+            <div className={split.mapTooltipInfoStack}>
+                <span className={split.mapTooltipSecondaryLine}>{tooltipDetail.summary}</span>
                 {tooltipDetail.availabilityLine && (
-                    <span className={SPLIT.mapTooltipSecondaryLine}>
+                    <span className={split.mapTooltipSecondaryLine}>
                         {t("torrent_modal.stats.availability")}: {tooltipDetail.availabilityLine}
                     </span>
                 )}
@@ -436,44 +438,50 @@ const PiecesTooltip = ({
     );
 };
 
-const PiecesLegend = ({ legendCells, mode, swatchSize, t, inline }: {
+const PiecesLegend = ({
+    legendCells,
+    mode,
+    swatchSize,
+    t,
+    inline,
+}: {
     legendCells: Array<LegendCell | null>;
     mode: DownloadMode;
     swatchSize: number;
     t: Translate;
     inline: boolean;
 }) => (
-    <div className={inline ? SPLIT.mapLegendInline : SPLIT.mapLegendBelow}>
-        <div className={SPLIT.mapLegendShell}>
-            <div className={SPLIT.mapLegendGrid}>
+    <div className={inline ? split.mapLegendInline : split.mapLegendBelow}>
+        <div className={split.mapLegendShell}>
+            <div className={split.mapLegendGrid}>
                 {legendCells.map((cell, index) =>
                     cell ? (
-                        <span key={`piece-map-legend-${cell.key}`} className={SPLIT.mapLegendCell}>
-                            <span className={SPLIT.mapLegendItem}>
+                        <span key={`piece-map-legend-${cell.key}`} className={split.mapLegendCell}>
+                            <span className={split.mapLegendItem}>
                                 <span
-                                    className={`${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[cell.tone]}`}
+                                    className={`${split.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[cell.tone]}`}
                                     style={{
                                         width: swatchSize,
                                         height: swatchSize,
                                     }}
                                 />
-                                <span className={SPLIT.mapLegendText}>{cell.label}</span>
+                                <span className={split.mapLegendText}>{cell.label}</span>
                             </span>
                         </span>
                     ) : (
                         <span
                             key={`piece-map-legend-placeholder-${index}`}
-                            className={`${SPLIT.mapLegendCell} ${SPLIT.mapLegendCellPlaceholder}`}
+                            className={`${split.mapLegendCell} ${split.mapLegendCellPlaceholder}`}
                             aria-hidden="true"
                         >
-                            <span className={SPLIT.mapLegendItem}>.</span>
+                            <span className={split.mapLegendItem}>.</span>
                         </span>
                     ),
                 )}
             </div>
-            <div className={SPLIT.mapLegendMode}>
-                <span className={SPLIT.mapLegendModeLabel}>{t("torrent_modal.piece_map.download_mode")}</span>
-                <span className={SPLIT.mapLegendModeValue}>{t(`torrent_modal.piece_map.mode_${mode}`)}</span>
+            <div className={split.mapLegendMode}>
+                <span className={split.mapLegendModeLabel}>{t("torrent_modal.piece_map.download_mode")}</span>
+                <span className={split.mapLegendModeValue}>{t(`torrent_modal.piece_map.mode_${mode}`)}</span>
             </div>
         </div>
     </div>
@@ -527,11 +535,11 @@ const PiecesView = ({
     }, []);
 
     return (
-        <GlassPanel className={`${TABLE.detailsContentPanel} h-full`}>
-            <div className={TABLE.detailsContentListHost}>
-                <div ref={panelRef} className={SPLIT.mapPanel}>
+        <GlassPanel className={`${table.detailsContentPanel} h-full`}>
+            <div className={table.detailsContentListHost}>
+                <div ref={panelRef} className={split.mapPanel}>
                     {showPersistentHud && (
-                        <div className={SPLIT.mapHudDockRow}>
+                        <div className={split.mapHudDockRow}>
                             <PiecesHud
                                 torrent={torrent}
                                 optimisticStatus={optimisticStatus}
@@ -546,19 +554,25 @@ const PiecesView = ({
                                 t={t}
                             />
                             {showInlineLegend ? (
-                                <PiecesLegend legendCells={legendCells} mode={downloadMode} swatchSize={cellSize} t={t} inline />
+                                <PiecesLegend
+                                    legendCells={legendCells}
+                                    mode={downloadMode}
+                                    swatchSize={cellSize}
+                                    t={t}
+                                    inline
+                                />
                             ) : null}
                         </div>
                     )}
-                    <div ref={rootRef} className={`${SPLIT.mapFrame} ${SPLIT.mapFrameInner}`}>
+                    <div ref={rootRef} className={`${split.mapFrame} ${split.mapFrameInner}`}>
                         <canvas
                             ref={canvasRef}
-                            className={SPLIT.mapCanvasLayer}
+                            className={split.mapCanvasLayer}
                             onMouseMove={handlers.onMouseMove}
                             onMouseLeave={handlers.onMouseLeave}
                             style={MAP_CANVAS_INTERACTION_STYLE}
                         />
-                        <canvas ref={overlayRef} className={SPLIT.mapCanvasOverlayLayer} />
+                        <canvas ref={overlayRef} className={split.mapCanvasOverlayLayer} />
 
                         <PiecesTooltip
                             tooltipDetail={tooltipDetail}
@@ -568,7 +582,13 @@ const PiecesView = ({
                         />
                     </div>
                     {showPersistentHud && !showInlineLegend ? (
-                        <PiecesLegend legendCells={legendCells} mode={downloadMode} swatchSize={cellSize} t={t} inline={false} />
+                        <PiecesLegend
+                            legendCells={legendCells}
+                            mode={downloadMode}
+                            swatchSize={cellSize}
+                            t={t}
+                            inline={false}
+                        />
                     ) : null}
                 </div>
             </div>

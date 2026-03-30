@@ -31,8 +31,8 @@ import {
     type TorrentHeadlineFieldId,
 } from "@/modules/dashboard/utils/torrentHeadlineFields";
 import {
-    DETAILS,
-    FORM_CONTROL,
+    details,
+    formControl,
 } from "@/shared/ui/layout/glass-surface";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -106,13 +106,13 @@ const renderDirectionalPeerValue = ({
     uploadingTo: number | undefined;
     t: ReturnType<typeof useTranslation>["t"];
 }) => (
-    <div className={DETAILS.generalMetricPair}>
+    <div className={details.generalMetricPair}>
         <span>
             {t("torrent_modal.general.values.downloading_from_count", {
                 count: downloadingFrom ?? 0,
             })}
         </span>
-        <span className={DETAILS.generalMetricMuted}>/</span>
+        <span className={details.generalMetricMuted}>/</span>
         <span>
             {t("torrent_modal.general.values.uploading_to_count", {
                 count: uploadingTo ?? 0,
@@ -135,7 +135,7 @@ const SummarySection = ({
 
     const rows = useMemo<DisplayRow[]>(() => {
         const renderValueByFieldId: Record<TorrentHeadlineFieldId, ReactNode> = {
-            name: <span className={DETAILS.generalSummaryName}>{torrent.name}</span>,
+            name: <span className={details.generalSummaryName}>{torrent.name}</span>,
             speed: speedValue !== null ? formatSpeed(speedValue) : t("labels.unknown"),
             queue: formatQueueOrdinal(torrent.queuePosition),
             peers: String(torrent.peerSummary.connected ?? 0),
@@ -143,7 +143,7 @@ const SummarySection = ({
             downloadingFrom: String(torrent.peerSummary.getting ?? 0),
             size: formatBytes(torrent.totalSize),
             status: (
-                <div className={DETAILS.generalSummaryStatus}>
+                <div className={details.generalSummaryStatus}>
                     <TorrentTable_StatusCell torrent={torrent} t={t} optimisticStatus={optimisticStatus} />
                 </div>
             ),
@@ -196,24 +196,24 @@ const SummarySection = ({
 
 function SectionBlock({ title, description, rows, actions, summary = false }: SectionProps & { summary?: boolean }) {
     return (
-        <section className={DETAILS.generalSection}>
-            <div className={DETAILS.generalSectionHeader}>
-                <div className={DETAILS.generalSectionHeading}>
-                    <h3 className={DETAILS.generalSectionTitle}>{title}</h3>
-                    {description ? <p className={DETAILS.generalSectionDescription}>{description}</p> : null}
+        <section className={details.generalSection}>
+            <div className={details.generalSectionHeader}>
+                <div className={details.generalSectionHeading}>
+                    <h3 className={details.generalSectionTitle}>{title}</h3>
+                    {description ? <p className={details.generalSectionDescription}>{description}</p> : null}
                 </div>
                 {actions}
             </div>
-            <div className={summary ? DETAILS.generalSummaryGrid : DETAILS.generalMetricGrid}>
+            <div className={summary ? details.generalSummaryGrid : details.generalMetricGrid}>
                 {rows.map((row) => (
-                    <div key={row.key} className={row.block ? DETAILS.generalMetricRowBlock : DETAILS.generalMetricRow}>
-                        <div className={DETAILS.generalMetricContent}>
-                            <div className={DETAILS.generalMetricLabel}>{row.label}</div>
-                            <div className={row.block ? DETAILS.generalMetricValueBlock : DETAILS.generalMetricValue}>
+                    <div key={row.key} className={row.block ? details.generalMetricRowBlock : details.generalMetricRow}>
+                        <div className={details.generalMetricContent}>
+                            <div className={details.generalMetricLabel}>{row.label}</div>
+                            <div className={row.block ? details.generalMetricValueBlock : details.generalMetricValue}>
                                 {row.value}
                             </div>
                         </div>
-                        {row.actions ? <div className={DETAILS.generalMetricActions}>{row.actions}</div> : null}
+                        {row.actions ? <div className={details.generalMetricActions}>{row.actions}</div> : null}
                     </div>
                 ))}
             </div>
@@ -247,12 +247,12 @@ const getSwarmToneClass = (
     healthState: ReturnType<typeof deriveTorrentSwarmHealth>["healthState"],
 ) => {
     if (healthState === "degraded") {
-        return DETAILS.generalStatusTone.warning;
+        return details.generalStatusTone.warning;
     }
     if (healthState === "unavailable" || healthState === "error") {
-        return DETAILS.generalStatusTone.danger;
+        return details.generalStatusTone.danger;
     }
-    return DETAILS.generalStatusTone.neutral;
+    return details.generalStatusTone.neutral;
 };
 
 export const GeneralTab = ({
@@ -361,7 +361,7 @@ export const GeneralTab = ({
                     typeof primaryTracker?.seederCount === "number" && primaryTracker.seederCount >= 0 ? (
                         String(primaryTracker.seederCount)
                     ) : (
-                        <span className={DETAILS.generalUnavailable}>{unavailableLabel}</span>
+                        <span className={details.generalUnavailable}>{unavailableLabel}</span>
                     ),
             },
             {
@@ -405,18 +405,18 @@ export const GeneralTab = ({
             key: "sequential-download",
             label: t("torrent_modal.controls.title"),
             value: (
-                <div className={DETAILS.generalProgressWrap}>
+                <div className={details.generalProgressWrap}>
                     <Checkbox
                         isSelected={Boolean(torrent.sequentialDownload)}
                         isDisabled={sequentialUiState.disabled}
                         onValueChange={(enabled) => {
                             void onSequentialToggle(enabled);
                         }}
-                        classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                        classNames={formControl.checkboxLabelBodySmallClassNames}
                     >
                         {t("torrent_modal.controls.sequential")}
                     </Checkbox>
-                    <span className={DETAILS.generalMetricMuted}>
+                    <span className={details.generalMetricMuted}>
                         {sequentialHelperText}
                     </span>
                 </div>
@@ -463,7 +463,7 @@ export const GeneralTab = ({
                 key: "swarm-health",
                 label: t("torrent_modal.swarm.fields.health"),
                 value: (
-                    <div className={DETAILS.generalMetricStack}>
+                    <div className={details.generalMetricStack}>
                         <AppTooltip
                             content={healthTooltip}
                             dense
@@ -471,11 +471,11 @@ export const GeneralTab = ({
                         >
                             <span
                                 className={cn(
-                                    DETAILS.generalStatusBadge,
+                                    details.generalStatusBadge,
                                     getSwarmToneClass(swarm.healthState),
                                 )}
                             >
-                                <span className={DETAILS.generalStatusBadgeLabel}>{healthLabel}</span>
+                                <span className={details.generalStatusBadgeLabel}>{healthLabel}</span>
                             </span>
                         </AppTooltip>
                     </div>
@@ -587,7 +587,7 @@ export const GeneralTab = ({
             {
                 key: "save-path",
                 label: t("torrent_modal.labels.save_path"),
-                value: <span className={DETAILS.generalMetricCode}>{setLocation.currentPath}</span>,
+                value: <span className={details.generalMetricCode}>{setLocation.currentPath}</span>,
                 actions: (
                     <ToolbarIconButton
                         Icon={Folder}
@@ -605,7 +605,7 @@ export const GeneralTab = ({
             rows.push({
                 key: "comment",
                 label: t("torrent_modal.general.fields.comment"),
-                value: <div className={DETAILS.generalCommentValue}>{torrent.comment}</div>,
+                value: <div className={details.generalCommentValue}>{torrent.comment}</div>,
                 block: true,
             });
         }
@@ -629,7 +629,7 @@ export const GeneralTab = ({
         rows.push({
             key: "info-hash",
             label: t("torrent_modal.labels.info_hash"),
-            value: <span className={DETAILS.generalMetricCode}>{torrent.hash}</span>,
+            value: <span className={details.generalMetricCode}>{torrent.hash}</span>,
             actions: (
                 <ToolbarIconButton
                     Icon={Copy}
@@ -664,7 +664,7 @@ export const GeneralTab = ({
     ]);
 
     return (
-        <div className={DETAILS.generalRoot}>
+        <div className={details.generalRoot}>
             {isDetailFullscreen ? <SummarySection torrent={torrent} optimisticStatus={optimisticStatus} t={t} /> : null}
             <SectionBlock
                 title={t("torrent_modal.general.sections.transfer")}
@@ -679,7 +679,7 @@ export const GeneralTab = ({
                     actions={
                         <button
                             type="button"
-                            className={DETAILS.generalSectionActionButton}
+                            className={details.generalSectionActionButton}
                             onClick={() => {
                                 setShowSwarmMore((current) => !current);
                             }}

@@ -92,81 +92,81 @@ function expectExactKeys(actual, expected, label) {
     }
 }
 
-const coreBody = findBraceBlock(source, "const GLASS_ROLE_CORE =");
-if (!coreBody) fail("GLASS_ROLE_CORE object not found");
+const coreBody = findBraceBlock(source, "const glassRoleCore =");
+if (!coreBody) fail("glassRoleCore object not found");
 
-const dialBody = findBraceBlock(source, "const GLASS_SURFACE_DIAL =");
-if (!dialBody) fail("GLASS_SURFACE_DIAL object not found");
+const dialBody = findBraceBlock(source, "const glassSurfaceDial =");
+if (!dialBody) fail("glassSurfaceDial object not found");
 expectExactKeys(
     extractKeysByIndent(dialBody, 4),
     ["opacity", "blur", "border", "radius", "elevation"],
-    "GLASS_SURFACE_DIAL",
+    "glassSurfaceDial",
 );
 const dialOpacityBody = findBraceBlock(dialBody, "opacity:");
-if (!dialOpacityBody) fail("GLASS_SURFACE_DIAL.opacity object not found");
+if (!dialOpacityBody) fail("glassSurfaceDial.opacity object not found");
 expectExactKeys(
     extractKeysByIndent(dialOpacityBody, 8),
     ["panel", "workbench", "pane", "modal", "overlay"],
-    "GLASS_SURFACE_DIAL.opacity",
+    "glassSurfaceDial.opacity",
 );
 const dialBlurBody = findBraceBlock(dialBody, "blur:");
-if (!dialBlurBody) fail("GLASS_SURFACE_DIAL.blur object not found");
+if (!dialBlurBody) fail("glassSurfaceDial.blur object not found");
 expectExactKeys(
     extractKeysByIndent(dialBlurBody, 8),
     ["panel", "soft", "floating"],
-    "GLASS_SURFACE_DIAL.blur",
+    "glassSurfaceDial.blur",
 );
 const dialBorderBody = findBraceBlock(dialBody, "border:");
-if (!dialBorderBody) fail("GLASS_SURFACE_DIAL.border object not found");
+if (!dialBorderBody) fail("glassSurfaceDial.border object not found");
 expectExactKeys(
     extractKeysByIndent(dialBorderBody, 8),
     ["soft", "strong"],
-    "GLASS_SURFACE_DIAL.border",
+    "glassSurfaceDial.border",
 );
 const dialRadiusBody = findBraceBlock(dialBody, "radius:");
-if (!dialRadiusBody) fail("GLASS_SURFACE_DIAL.radius object not found");
+if (!dialRadiusBody) fail("glassSurfaceDial.radius object not found");
 expectExactKeys(
     extractKeysByIndent(dialRadiusBody, 8),
     ["panel", "modal", "raised", "full"],
-    "GLASS_SURFACE_DIAL.radius",
+    "glassSurfaceDial.radius",
 );
 const dialElevationBody = findBraceBlock(dialBody, "elevation:");
-if (!dialElevationBody) fail("GLASS_SURFACE_DIAL.elevation object not found");
+if (!dialElevationBody) fail("glassSurfaceDial.elevation object not found");
 expectExactKeys(
     extractKeysByIndent(dialElevationBody, 8),
     ["panel", "overlay", "floating", "menu"],
-    "GLASS_SURFACE_DIAL.elevation",
+    "glassSurfaceDial.elevation",
 );
 
 const coreKeys = extractKeysByIndent(coreBody, 4);
-expectExactKeys(coreKeys, ["surface", "chrome", "state", "text"], "GLASS_ROLE_CORE");
+expectExactKeys(coreKeys, ["surface", "chrome", "state", "text"], "glassRoleCore");
 
 const surfaceBody = findBraceBlock(coreBody, "surface:");
-if (!surfaceBody) fail("GLASS_ROLE_CORE.surface object not found");
+if (!surfaceBody) fail("glassRoleCore.surface object not found");
 expectExactKeys(
     extractKeysByIndent(surfaceBody, 8),
     ["workbench", "panel", "pane", "modal", "inset", "menu", "overlay"],
-    "GLASS_ROLE_CORE.surface",
+    "glassRoleCore.surface",
 );
 
 const chromeBody = findBraceBlock(coreBody, "chrome:");
-if (!chromeBody) fail("GLASS_ROLE_CORE.chrome object not found");
+if (!chromeBody) fail("glassRoleCore.chrome object not found");
 expectExactKeys(
     extractKeysByIndent(chromeBody, 8),
     ["edgeTop", "edgeBottom", "sticky", "divider"],
-    "GLASS_ROLE_CORE.chrome",
+    "glassRoleCore.chrome",
 );
 
 const stateBody = findBraceBlock(coreBody, "state:");
-if (!stateBody) fail("GLASS_ROLE_CORE.state object not found");
+if (!stateBody) fail("glassRoleCore.state object not found");
 expectExactKeys(
     extractKeysByIndent(stateBody, 8),
     ["interactive", "disabled"],
-    "GLASS_ROLE_CORE.state",
+    "glassRoleCore.state",
 );
 
 const textBody = findBraceBlock(coreBody, "text:");
-if (!textBody) fail("GLASS_ROLE_CORE.text object not found");
+if (!textBody) fail("glassRoleCore.text object not found");
 expectExactKeys(
     extractKeysByIndent(textBody, 8),
     [
@@ -179,18 +179,18 @@ expectExactKeys(
         "caption",
         "code",
     ],
-    "GLASS_ROLE_CORE.text",
+    "glassRoleCore.text",
 );
 
-const semanticBody = findBraceBlock(source, "const GLASS_ROLE_SEMANTIC =");
-if (!semanticBody) fail("GLASS_ROLE_SEMANTIC object not found");
+const semanticBody = findBraceBlock(source, "const glassRoleSemantic =");
+if (!semanticBody) fail("glassRoleSemantic object not found");
 expectExactKeys(
     extractKeysByIndent(semanticBody, 4),
     ["surface", "chrome"],
-    "GLASS_ROLE_SEMANTIC",
+    "glassRoleSemantic",
 );
 const semanticSurfaceBody = findBraceBlock(semanticBody, "surface:");
-if (!semanticSurfaceBody) fail("GLASS_ROLE_SEMANTIC.surface object not found");
+if (!semanticSurfaceBody) fail("glassRoleSemantic.surface object not found");
 expectExactKeys(
     extractKeysByIndent(semanticSurfaceBody, 8),
     [
@@ -204,13 +204,13 @@ expectExactKeys(
         "panelWorkflow",
         "sidebarPanel",
     ],
-    "GLASS_ROLE_SEMANTIC.surface",
+    "glassRoleSemantic.surface",
 );
-if (!semanticBody.includes("chrome: GLASS_SEMANTIC_CHROME")) {
-    fail("GLASS_ROLE_SEMANTIC.chrome must point to GLASS_SEMANTIC_CHROME");
+if (!semanticBody.includes("chrome: glassSemanticChrome")) {
+    fail("glassRoleSemantic.chrome must point to glassSemanticChrome");
 }
-const semanticChromeBody = findBraceBlock(source, "const GLASS_SEMANTIC_CHROME =");
-if (!semanticChromeBody) fail("GLASS_SEMANTIC_CHROME object not found");
+const semanticChromeBody = findBraceBlock(source, "const glassSemanticChrome =");
+if (!semanticChromeBody) fail("glassSemanticChrome object not found");
 for (const key of [
     "dividerSoft:",
     "headerBorder:",
@@ -220,12 +220,12 @@ for (const key of [
     "footerActionsPadded:",
 ]) {
     if (!semanticChromeBody.includes(key)) {
-        fail(`GLASS_ROLE_SEMANTIC.chrome missing key ${key.replace(":", "")}`);
+        fail(`glassRoleSemantic.chrome missing key ${key.replace(":", "")}`);
     }
 }
 
-const surfaceExportBody = findBraceBlock(source, "export const SURFACE =");
-if (!surfaceExportBody) fail("SURFACE export object not found");
+const surfaceExportBody = findBraceBlock(source, "export const surface =");
+if (!surfaceExportBody) fail("surface export object not found");
 expectExactKeys(
     extractKeysByIndent(surfaceExportBody, 4),
     [
@@ -241,16 +241,16 @@ expectExactKeys(
         "menu",
         "atom",
     ],
-    "SURFACE",
+    "surface",
 );
-if (!source.includes("role: GLASS_ROLE_CORE.surface")) {
-    fail("SURFACE.role must expose GLASS_ROLE_CORE.surface");
+if (!source.includes("role: glassRoleCore.surface")) {
+    fail("surface.role must expose glassRoleCore.surface");
 }
-if (!source.includes("surface: GLASS_ROLE_SEMANTIC.surface")) {
-    fail("SURFACE.surface must expose GLASS_ROLE_SEMANTIC.surface");
+if (!source.includes("surface: glassRoleSemantic.surface")) {
+    fail("surface.surface must expose glassRoleSemantic.surface");
 }
-if (!source.includes("chromeEx: GLASS_ROLE_SEMANTIC.chrome")) {
-    fail("SURFACE.chromeEx must expose GLASS_ROLE_SEMANTIC.chrome");
+if (!source.includes("chromeEx: glassRoleSemantic.chrome")) {
+    fail("surface.chromeEx must expose glassRoleSemantic.chrome");
 }
 
 console.log("Surface foundation check: core roles and semantic split contract satisfied.");

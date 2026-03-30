@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { table } from "@/shared/ui/layout/glass-surface";
 import {
     FileExplorerTree,
     type FileExplorerToggleCommand,
@@ -10,8 +10,9 @@ import {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import { textRole } from "@/config/textRoles";
+import { registry } from "@/config/logic";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
+const { visuals } = registry;
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
@@ -88,11 +89,11 @@ export const ContentTab = ({ torrent, files, emptyMessage, onFilesToggle, onSetP
 
     if (filesCount === 0) {
         return (
-            <div className={TABLE.detailsContentRoot}>
-                <AlertPanel severity={isLoading ? "info" : "warning"} className={TABLE.detailsContentWarning}>
-                    <div className={textRole.statusWarning}>{emptyMessage}</div>
+            <div className={table.detailsContentRoot}>
+                <AlertPanel severity={isLoading ? "info" : "warning"} className={table.detailsContentWarning}>
+                    <div className={visuals.typography.text.statusWarning}>{emptyMessage}</div>
                     {!isLoading ? (
-                        <div className={TABLE.detailsContentRecoveryNote}>{t("torrent_modal.files_missing_desc")}</div>
+                        <div className={table.detailsContentRecoveryNote}>{t("torrent_modal.files_missing_desc")}</div>
                     ) : null}
                 </AlertPanel>
             </div>

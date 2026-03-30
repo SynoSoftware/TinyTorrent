@@ -1,7 +1,7 @@
 import { Card, CardBody, CardHeader, cn } from "@heroui/react";
 import type { ReactNode } from "react";
 import { registry } from "@/config/logic";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 import type { SettingsSectionTone } from "@/modules/settings/data/settings-tabs";
 const { visuals } = registry;
 
@@ -26,18 +26,18 @@ export function SettingsSection({
             : visuals.status.recipes[visuals.status.keys.tone[tone]].panel;
 
     return (
-        <Card className={cn(FORM.sectionCard, toneClass, className)}>
+        <Card className={cn(form.sectionCard, toneClass, className)}>
             {(title || description) && (
-                <CardHeader className={FORM.sectionHeader}>
-                    <div className={FORM.sectionHeaderStack}>
-                        {title ? <h3 className={FORM.sectionTitle}>{title}</h3> : null}
+                <CardHeader className={form.sectionHeader}>
+                    <div className={form.sectionHeaderStack}>
+                        {title ? <h3 className={form.sectionTitle}>{title}</h3> : null}
                         {description ? (
-                            <p className={FORM.sectionDescription}>{description}</p>
+                            <p className={form.sectionDescription}>{description}</p>
                         ) : null}
                     </div>
                 </CardHeader>
             )}
-            <CardBody className={FORM.sectionBody}>{children}</CardBody>
+            <CardBody className={form.sectionBody}>{children}</CardBody>
         </Card>
     );
 }

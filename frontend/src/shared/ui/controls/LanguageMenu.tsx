@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { registry } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { SURFACE } from "@/shared/ui/layout/glass-surface";
+import { surface } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
@@ -114,7 +114,7 @@ export function LanguageMenu() {
         <Globe
             size={18}
             strokeWidth={visuals.icon.strokeWidth}
-            className={SURFACE.atom.textCurrent}
+            className={surface.atom.textCurrent}
         />
     );
 
@@ -131,8 +131,8 @@ export function LanguageMenu() {
             <DropdownMenu
                 aria-label={t("language.menu_label")}
                 variant="shadow"
-                className={SURFACE.menu.dirPickerSurface}
-                itemClasses={SURFACE.menu.itemSplitClassNames}
+                className={surface.menu.dirPickerSurface}
+                itemClasses={surface.menu.itemSplitClassNames}
             >
                 {languages.map((option) => {
                     const isActive = language === option.code;
@@ -144,11 +144,11 @@ export function LanguageMenu() {
                             isSelected={isActive}
                             className={
                                 isActive
-                                    ? SURFACE.menu.itemSelectedPrimary
+                                    ? surface.menu.itemSelectedPrimary
                                     : undefined
                             }
                             startContent={
-                                <span className={SURFACE.menu.flagInlineWrap}>
+                                <span className={surface.menu.flagInlineWrap}>
                                     {option.flagIcon}
                                 </span>
                             }
@@ -158,7 +158,7 @@ export function LanguageMenu() {
                                         size={22}
                                         strokeWidth={visuals.icon.strokeWidth}
                                         className={
-                                            SURFACE.menu.checkIconPrimary
+                                            surface.menu.checkIconPrimary
                                         }
                                     />
                                 ) : null

@@ -8,7 +8,7 @@ import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
 import { getStatusRecipeText, registry } from "@/config/logic";
-import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
+import { commandPalette } from "@/shared/ui/layout/glass-surface";
 import { commandReason, type TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 const { visuals, visualizations } = registry;
 
@@ -44,34 +44,30 @@ interface CommandPaletteProps {
 }
 
 const OVERLAY_FADE_ANIMATION = {
-    initial: { opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity },
-    animate: { opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity },
-    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity },
-    transition: { duration: 0.2 },
+    ...visualizations.surface.fade.overlay,
 } as const;
 
 const BACKDROP_FADE_ANIMATION = {
-    ...OVERLAY_FADE_ANIMATION,
-    animate: { opacity: 0.7 },
+    ...visualizations.surface.fade.backdrop,
 } as const;
 
 const PANEL_ANIMATION = {
     initial: {
-        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
+        opacity: visualizations.surface.fade.base.initial.opacity,
         y: -6,
         scale: 0.98,
     },
     animate: {
-        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
+        opacity: visualizations.surface.fade.base.animate.opacity,
         y: 0,
         scale: 1,
     },
     exit: {
-        opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity,
+        opacity: visualizations.surface.fade.base.exit.opacity,
         y: -6,
         scale: 0.98,
     },
-    transition: { duration: 0.2 },
+    transition: visualizations.surface.fade.base.transition,
 } as const;
 
 interface CommandPaletteOverlayProps {
@@ -129,10 +125,10 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
     }, [lastOutcome]);
 
     return (
-        <motion.div {...OVERLAY_FADE_ANIMATION} className={COMMAND_PALETTE.overlay}>
-            <motion.div {...BACKDROP_FADE_ANIMATION} className={COMMAND_PALETTE.backdrop} onPointerDown={onClose} />
-            <Section padding="overlay" className={COMMAND_PALETTE.section}>
-                <motion.div {...PANEL_ANIMATION} className={COMMAND_PALETTE.panel}>
+        <motion.div {...OVERLAY_FADE_ANIMATION} className={commandPalette.overlay}>
+            <motion.div {...BACKDROP_FADE_ANIMATION} className={commandPalette.backdrop} onPointerDown={onClose} />
+            <Section padding="overlay" className={commandPalette.section}>
+                <motion.div {...PANEL_ANIMATION} className={commandPalette.panel}>
                     <Command
                         value={query}
                         onValueChange={setQuery}
@@ -145,26 +141,26 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
                     >
                         <Command.Input
                             placeholder={t("command_palette.placeholder")}
-                            className={COMMAND_PALETTE.input}
+                            className={commandPalette.input}
                         />
-                        <Command.List className={COMMAND_PALETTE.list}>
+                        <Command.List className={commandPalette.list}>
                             {groupedActions.map(({ group, entries }) => (
-                                <div key={group} className={COMMAND_PALETTE.groupWrap}>
-                                    <div className={COMMAND_PALETTE.sectionLabel}>{group}</div>
+                                <div key={group} className={commandPalette.groupWrap}>
+                                    <div className={commandPalette.sectionLabel}>{group}</div>
                                     <Command.Group>
                                         {entries.map((action) => (
                                             <Command.Item
                                                 key={action.id}
                                                 value={action.id}
                                                 onSelect={() => void handleSelect(action)}
-                                                className={COMMAND_PALETTE.item}
+                                                className={commandPalette.item}
                                             >
-                                                <div className={COMMAND_PALETTE.itemRow}>
+                                                <div className={commandPalette.itemRow}>
                                                     <span>{action.title}</span>
                                                     {action.shortcut && (
-                                                        <div className={COMMAND_PALETTE.shortcutWrap}>
+                                                        <div className={commandPalette.shortcutWrap}>
                                                             {action.shortcut.map((key) => (
-                                                                <span key={key} className={COMMAND_PALETTE.shortcutKey}>
+                                                                <span key={key} className={commandPalette.shortcutKey}>
                                                                     {key}
                                                                 </span>
                                                             ))}
@@ -172,19 +168,17 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
                                                     )}
                                                 </div>
                                                 {action.description && (
-                                                    <p className={COMMAND_PALETTE.description}>{action.description}</p>
+                                                    <p className={commandPalette.description}>{action.description}</p>
                                                 )}
                                             </Command.Item>
                                         ))}
                                     </Command.Group>
                                 </div>
                             ))}
-                            <Command.Empty className={COMMAND_PALETTE.empty}>
-                                {t("command_palette.empty")}
-                            </Command.Empty>
+                            <Command.Empty className={commandPalette.empty}>{t("command_palette.empty")}</Command.Empty>
                         </Command.List>
                         {outcomeMessage ? (
-                            <div className={cn(COMMAND_PALETTE.outcome, outcomeToneClass)}>{outcomeMessage}</div>
+                            <div className={cn(commandPalette.outcome, outcomeToneClass)}>{outcomeMessage}</div>
                         ) : null}
                     </Command>
                 </motion.div>

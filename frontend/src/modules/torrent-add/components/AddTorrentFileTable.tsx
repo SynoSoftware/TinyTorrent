@@ -15,7 +15,7 @@ import type {
 import type {
     FilePriority,
 } from "@/modules/torrent-add/services/fileSelection";
-import { MODAL } from "@/shared/ui/layout/glass-surface";
+import { modal } from "@/shared/ui/layout/glass-surface";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 
 export const AddTorrentFileTable = () => {
@@ -109,7 +109,7 @@ export const AddTorrentFileTable = () => {
     );
 
     return (
-        <div className={MODAL.workflow.fileTableShell}>
+        <div className={modal.workflow.fileTableShell}>
             <FileExplorerTree viewModel={viewModel} />
         </div>
     );

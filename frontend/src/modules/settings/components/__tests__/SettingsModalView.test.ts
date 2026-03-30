@@ -61,13 +61,23 @@ vi.mock("framer-motion", () => ({
 vi.mock("@/config/logic", () => ({
     registry: {
         interaction: { config: { modalBloom: { variants: {}, transition: {} } } },
-        visuals: { icon: { strokeWidth: 1 } },
+        visuals: {
+            icon: { strokeWidth: 1 },
+            typography: {
+                text: {
+                    headingLarge: "heading-large",
+                },
+            },
+        },
         visualizations: {
-            details: {
-                tooltipOpacityAnimation: {
-                    initial: { opacity: 0 },
-                    animate: { opacity: 1 },
-                    exit: { opacity: 0 },
+            surface: {
+                fade: {
+                    base: {
+                        initial: { opacity: 0 },
+                        animate: { opacity: 1 },
+                        exit: { opacity: 0 },
+                        transition: { duration: 0.2 },
+                    },
                 },
             },
         },
@@ -79,10 +89,10 @@ vi.mock("@/shared/version", () => ({
 }));
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
-    FORM: {
+    form: {
         blockStackTight: "block-stack-tight",
     },
-    MODAL: {
+    modal: {
         sidebar: "sidebar",
         sidebarHidden: "sidebar-hidden",
         sidebarVisible: "sidebar-visible",
@@ -182,13 +192,6 @@ vi.mock("@/modules/settings/components/tabs/system/SystemTabContent", () => ({
 vi.mock("@/modules/settings/components/InterfaceTabContent", () => ({
     InterfaceTabContent: () =>
         React.createElement("div", null, "interface-tab-content"),
-}));
-
-vi.mock("@/config/textRoles", () => ({
-    textRole: {
-        headingLarge: "heading-large",
-        caption: "caption",
-    },
 }));
 
 vi.mock("@/modules/settings/hooks/useSettingsModalController", () => ({

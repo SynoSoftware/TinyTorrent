@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { textRole } from "@/config/textRoles";
+import { registry } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
-import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
+import { metricChart } from "@/shared/ui/layout/glass-surface";
+const { visuals } = registry;
 
 export interface DiskSpaceGaugeProps {
     freeBytes?: number;
@@ -45,31 +46,31 @@ export function DiskSpaceGauge({
     const statusMessage = error ? error : isLoading ? t("modals.disk_gauge.updating") : hint;
 
     const indicatorClasses = isInsufficient
-        ? METRIC_CHART.capacityGauge.indicatorInsufficient
-        : METRIC_CHART.capacityGauge.indicatorNormal;
+        ? metricChart.capacityGauge.indicatorInsufficient
+        : metricChart.capacityGauge.indicatorNormal;
     const containerClasses = isInsufficient
-        ? METRIC_CHART.capacityGauge.containerInsufficient
-        : METRIC_CHART.capacityGauge.containerNormal;
+        ? metricChart.capacityGauge.containerInsufficient
+        : metricChart.capacityGauge.containerNormal;
 
     return (
         <div className={containerClasses}>
-            <div className={METRIC_CHART.capacityGauge.header} style={METRIC_CHART.capacityGauge.headerStyle}>
+            <div className={metricChart.capacityGauge.header} style={metricChart.capacityGauge.headerStyle}>
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span
-                    style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={`${METRIC_CHART.capacityGauge.path} min-w-0 flex-1 text-right truncate`}
+                    style={metricChart.capacityGauge.baseTextStyle}
+                    className={`${metricChart.capacityGauge.path} min-w-0 flex-1 text-right truncate`}
                 >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
-            <div className={METRIC_CHART.capacityGauge.progressWrap}>
+            <div className={metricChart.capacityGauge.progressWrap}>
                 <SmoothProgressBar
                     value={gaugeValue}
-                    trackClassName={METRIC_CHART.capacityGauge.progressTrack}
+                    trackClassName={metricChart.capacityGauge.progressTrack}
                     indicatorClassName={indicatorClasses}
                 />
             </div>
-            <div className={METRIC_CHART.capacityGauge.stats} style={METRIC_CHART.capacityGauge.baseTextStyle}>
+            <div className={metricChart.capacityGauge.stats} style={metricChart.capacityGauge.baseTextStyle}>
                 <span>
                     {t("modals.disk_gauge.used")} {usedBytes !== undefined ? formatBytes(usedBytes) : "-"}
                 </span>
@@ -81,10 +82,10 @@ export function DiskSpaceGauge({
                     {t("modals.disk_gauge.free")} {freeBytes !== undefined ? formatBytes(freeBytes) : "-"}
                 </span>
             </div>
-            <div className={METRIC_CHART.capacityGauge.errorRow}>
+            <div className={metricChart.capacityGauge.errorRow}>
                 <p
-                    style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={error ? textRole.statusError : METRIC_CHART.capacityGauge.hint}
+                    style={metricChart.capacityGauge.baseTextStyle}
+                    className={error ? visuals.typography.text.statusError : metricChart.capacityGauge.hint}
                     aria-live={error ? "assertive" : "polite"}
                 >
                     {statusMessage ?? "\u00A0"}

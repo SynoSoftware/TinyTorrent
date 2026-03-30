@@ -8,8 +8,7 @@ import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { shellAgent, type SystemIntegrationReadOutcome } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { registry } from "@/config/logic";
-import { textRole } from "@/config/textRoles";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
@@ -32,22 +31,22 @@ interface SystemRowProps {
 
 function SystemRow({ label, control, status, helper, disabled }: SystemRowProps) {
     return (
-        <div className={cn(FORM.systemRow, disabled && visuals.state.disabled)}>
-            <div className={FORM.systemRowHeader}>
-                <span className={cn(FORM.systemRowLabel, disabled && visuals.state.muted)}>{label}</span>
-                <div className={FORM.systemRowControl}>
+        <div className={cn(form.systemRow, disabled && visuals.state.disabled)}>
+            <div className={form.systemRowHeader}>
+                <span className={cn(form.systemRowLabel, disabled && visuals.state.muted)}>{label}</span>
+                <div className={form.systemRowControl}>
                     {control}
                     {status}
                 </div>
             </div>
-            {helper && <p className={cn(FORM.systemRowHelper, disabled && visuals.state.muted)}>{helper}</p>}
+            {helper && <p className={cn(form.systemRowHelper, disabled && visuals.state.muted)}>{helper}</p>}
         </div>
     );
 }
 
 function StatusChip({ label, color = "default" }: { label: string; color?: ChipProps["color"] }) {
     return (
-        <Chip size="sm" variant="flat" color={color} radius="sm" className={FORM.systemStatusChip}>
+        <Chip size="sm" variant="flat" color={color} radius="sm" className={form.systemStatusChip}>
             {label}
         </Chip>
     );
@@ -217,16 +216,16 @@ export function SystemTabContent() {
                 title={t("settings.headers.system")}
                 description={t("settings.descriptions.system_integration")}
             >
-                <div className={FORM.systemNoticeStack}>
-                    <p className={FORM.systemNoticeBody}>{t("settings.system.notice")}</p>
-                    <p className={textRole.caption}>{t("settings.system.instructions")}</p>
+                <div className={form.systemNoticeStack}>
+                    <p className={form.systemNoticeBody}>{t("settings.system.notice")}</p>
+                    <p className={visuals.typography.text.caption}>{t("settings.system.instructions")}</p>
                 </div>
             </SettingsSection>
         );
     }
 
     return (
-        <div className={FORM.sectionContentStack}>
+        <div className={form.sectionContentStack}>
             <SettingsSection
                 title={t("settings.sections.system_integration")}
                 description={t("settings.descriptions.system_integration")}

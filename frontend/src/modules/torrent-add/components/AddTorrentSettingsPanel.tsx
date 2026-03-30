@@ -2,9 +2,8 @@ import { Checkbox, Divider } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { HardDrive, Hash, ListOrdered, PauseCircle } from "lucide-react";
 import { getCapabilityHintKey, getCapabilityUiState } from "@/app/types/capabilities";
-import { textRole } from "@/config/textRoles";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
-import { FORM, FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { form, formControl } from "@/shared/ui/layout/glass-surface";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEditor";
 
@@ -18,10 +17,10 @@ export function AddTorrentSettingsPanel() {
             isSelected={settings.sequential}
             onValueChange={settings.setSequential}
             isDisabled={sequentialUiState.disabled}
-            classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+            classNames={formControl.checkboxLabelBodySmallClassNames}
         >
-            <span className={FORM.workflow.flagsItemLabel}>
-                <ListOrdered className={FORM.workflow.flagsIcon} />
+            <span className={form.workflow.flagsItemLabel}>
+                <ListOrdered className={form.workflow.flagsIcon} />
                 {t("modals.add_torrent.sequential_download")}
             </span>
         </Checkbox>
@@ -35,17 +34,17 @@ export function AddTorrentSettingsPanel() {
     );
 
     return (
-        <div className={FORM.workflow.root}>
+        <div className={form.workflow.root}>
             <div
-                className={FORM.workflow.section}
+                className={form.workflow.section}
                 onDrop={settings.onDrop}
                 onDragOver={settings.onDragOver}
                 onDragLeave={settings.onDragLeave}
             >
-                <div className={FORM.switchBlock}>
+                <div className={form.switchBlock}>
                     <AppTooltip content={t("modals.add_torrent.destination_prompt_help")}>
-                        <label className={FORM.workflow.label}>
-                            <HardDrive className={FORM.workflow.labelIcon} /> {t("modals.add_torrent.destination")}
+                        <label className={form.workflow.label}>
+                            <HardDrive className={form.workflow.labelIcon} /> {t("modals.add_torrent.destination")}
                         </label>
                     </AppTooltip>
                 </div>
@@ -53,8 +52,7 @@ export function AddTorrentSettingsPanel() {
                 <DestinationPathEditor
                     id="add-torrent-settings-destination"
                     label={t("directory_browser.path_label")}
-                    labelClassName={textRole.caption}
-                    labelColumnClassName={FORM.locationEditorCompactLabelColumn}
+                    labelColumnClassName={form.locationEditorCompactLabelColumn}
                     value={destinationInput.value}
                     history={destinationInput.history}
                     ariaLabel={t("modals.add_torrent.destination_input_aria")}
@@ -64,8 +62,6 @@ export function AddTorrentSettingsPanel() {
                     onEnter={settings.onEnter}
                     onEscape={destinationInput.onEscape}
                     autoFocus={settings.autoFocusDestination}
-                    inputClassNames={FORM.locationEditorInputClassNames}
-                    inputTextClassName={textRole.codeMuted}
                     feedback={settings.feedback}
                     browseAction={
                         destinationGate.showBrowseAction
@@ -84,23 +80,23 @@ export function AddTorrentSettingsPanel() {
 
             {settings.showTransferFlags && (
                 <>
-                    <Divider className={FORM.workflow.flagsDivider} aria-hidden="true" />
-                    <div className={FORM.workflow.section}>
-                        <label className={FORM.workflow.label}>
-                            <Hash className={FORM.workflow.labelIcon} /> {t("modals.add_torrent.transfer_flags")}
+                    <Divider className={form.workflow.flagsDivider} aria-hidden="true" />
+                    <div className={form.workflow.section}>
+                        <label className={form.workflow.label}>
+                            <Hash className={form.workflow.labelIcon} /> {t("modals.add_torrent.transfer_flags")}
                         </label>
-                        <div className={FORM.workflow.flagsCheckboxes}>
+                        <div className={form.workflow.flagsCheckboxes}>
                             <Checkbox
                                 isSelected={settings.startPaused}
                                 onValueChange={settings.setStartPaused}
-                                classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                                classNames={formControl.checkboxLabelBodySmallClassNames}
                             >
-                                <span className={FORM.workflow.flagsItemLabel}>
-                                    <PauseCircle className={FORM.workflow.flagsIcon} />
+                                <span className={form.workflow.flagsItemLabel}>
+                                    <PauseCircle className={form.workflow.flagsIcon} />
                                     {t("modals.add_torrent.add_paused")}
                                 </span>
                             </Checkbox>
-                            <Divider className={FORM.workflow.flagsItemDivider} />
+                            <Divider className={form.workflow.flagsItemDivider} />
                             {sequentialControl}
                         </div>
                     </div>

@@ -1,10 +1,9 @@
 import { Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { HardDrive } from "lucide-react";
-import { textRole } from "@/config/textRoles";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 import { useAddTorrentModalContext } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { DestinationPathEditor } from "@/shared/ui/workspace/DestinationPathEditor";
 
@@ -13,10 +12,10 @@ export function AddTorrentDestinationGatePanel() {
     const { destinationInput, destinationGate } = useAddTorrentModalContext();
 
     return (
-        <GlassPanel className={FORM.workflow.gatePanel}>
+        <GlassPanel className={form.workflow.gatePanel}>
             <AppTooltip content={t("modals.add_torrent.destination_prompt_help")}>
-                <div className={FORM.workflow.gatePromptRow}>
-                    <HardDrive className={FORM.workflow.gatePromptIcon} />
+                <div className={form.workflow.gatePromptRow}>
+                    <HardDrive className={form.workflow.gatePromptIcon} />
                     <span>{t("modals.add_torrent.destination_prompt_mode_full")}</span>
                 </div>
             </AppTooltip>
@@ -24,8 +23,7 @@ export function AddTorrentDestinationGatePanel() {
             <DestinationPathEditor
                 id="add-torrent-gate-destination"
                 label={t("directory_browser.path_label")}
-                labelClassName={textRole.caption}
-                labelColumnClassName={FORM.locationEditorCompactLabelColumn}
+                labelColumnClassName={form.locationEditorCompactLabelColumn}
                 value={destinationInput.value}
                 history={destinationInput.history}
                 ariaLabel={t("modals.add_torrent.destination_input_aria")}
@@ -35,8 +33,6 @@ export function AddTorrentDestinationGatePanel() {
                 onEnter={destinationGate.onEnter}
                 onEscape={destinationInput.onEscape}
                 autoFocus
-                inputClassNames={FORM.locationEditorInputClassNames}
-                inputTextClassName={textRole.codeMuted}
                 feedback={destinationGate.feedback}
                 browseAction={
                     destinationGate.showBrowseAction
@@ -52,13 +48,13 @@ export function AddTorrentDestinationGatePanel() {
                 }
             />
 
-            <div className={FORM.workflow.gateActionsRow}>
+            <div className={form.workflow.gateActionsRow}>
                 <Button
                     color="primary"
                     variant="shadow"
                     onPress={destinationGate.onConfirm}
                     isDisabled={!destinationGate.isDestinationValid}
-                    className={FORM.workflow.gateConfirmButton}
+                    className={form.workflow.gateConfirmButton}
                 >
                     {t("modals.add_torrent.destination_gate_continue")}
                 </Button>

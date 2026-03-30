@@ -17,7 +17,7 @@ import {
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { formControl } from "@/shared/ui/layout/glass-surface";
 import {
     ArrowDown,
     AlertTriangle,
@@ -220,23 +220,23 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
                     style={STATUS_CHIP_STYLE}
                     classNames={{
                         base: cn(
-                            FORM_CONTROL.statusChipClassNames.base,
+                            formControl.statusChipClassNames.base,
                             classNames?.base,
                         ),
                         content: cn(
-                            FORM_CONTROL.statusChipClassNames.content,
+                            formControl.statusChipClassNames.content,
                             classNames?.content,
                         ),
                     }}
                 >
-                    <div className={FORM_CONTROL.statusChipContent}>
+                    <div className={formControl.statusChipContent}>
                         <StatusIcon
                             Icon={icon}
                             size="md"
                             strokeWidth={visuals.icon.strokeWidthDense}
-                            className={FORM_CONTROL.statusChipCurrentIcon}
+                            className={formControl.statusChipCurrentIcon}
                         />
-                        <span className={FORM_CONTROL.statusChipLabel}>
+                        <span className={formControl.statusChipLabel}>
                             {label}
                         </span>
                         {trailingIcon ? (
@@ -264,7 +264,7 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
     ).healthState;
     const availabilityMeta = AVAILABILITY_META[healthState];
     const healthIconClassName = cn(
-        FORM_CONTROL.statusChipWarningIcon,
+        formControl.statusChipWarningIcon,
         visuals.status.chip.healthTone[healthState],
     );
 
@@ -301,7 +301,7 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
             ? {
                   color: "default",
                   icon: Loader,
-                  classNames: FORM_CONTROL.statusChipMutedPrimaryClassNames,
+                  classNames: formControl.statusChipMutedPrimaryClassNames,
               }
             : null;
     const conf =

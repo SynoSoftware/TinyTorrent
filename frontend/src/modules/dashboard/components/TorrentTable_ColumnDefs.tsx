@@ -29,7 +29,7 @@ import { getTorrentEtaSortValue, getTorrentEtaTableDisplay } from "@/modules/das
 import { TorrentTable_SpeedCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
 import { TorrentTable_StatusCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 import { getEffectiveProgress, TorrentProgressDisplay } from "@/modules/dashboard/components/TorrentProgressDisplay";
-import { TABLE } from "@/shared/ui/layout/glass-surface";
+import { table } from "@/shared/ui/layout/glass-surface";
 import { torrentHeadlineFields } from "@/modules/dashboard/utils/torrentHeadlineFields";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { SpeedHistorySnapshot } from "@/shared/hooks/speedHistoryStore";
@@ -51,9 +51,7 @@ export type ColumnId =
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
-    speedHistoryRef: RefObject<
-        Record<string, SpeedHistorySnapshot | Array<number | null>>
-    >;
+    speedHistoryRef: RefObject<Record<string, SpeedHistorySnapshot | Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
     rowHeight?: number;
     handleHeaderSortToggle?: (columnId: string) => void;
@@ -137,14 +135,14 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.name,
         headerIcon: FileText,
         render: ({ torrent }) => (
-            <div className={TABLE.columnDefs.nameCell}>
+            <div className={table.columnDefs.nameCell}>
                 {torrent.errorString ? (
                     <AppTooltip content={torrent.errorString} native>
                         <span
                             className={cn(
-                                TABLE.columnDefs.nameLabel,
+                                table.columnDefs.nameLabel,
                                 layout.table.fontSize,
-                                torrent.state === status.torrent.paused && TABLE.columnDefs.nameLabelPaused,
+                                torrent.state === status.torrent.paused && table.columnDefs.nameLabelPaused,
                             )}
                         >
                             {torrent.name}
@@ -153,9 +151,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 ) : (
                     <span
                         className={cn(
-                            TABLE.columnDefs.nameLabel,
+                            table.columnDefs.nameLabel,
                             layout.table.fontSize,
-                            torrent.state === status.torrent.paused && TABLE.columnDefs.nameLabelPaused,
+                            torrent.state === status.torrent.paused && table.columnDefs.nameLabelPaused,
                         )}
                     >
                         {torrent.name}
@@ -173,11 +171,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         rpcField: "progress",
         defaultVisible: true,
-        sortAccessor: (torrent, meta) =>
-            getEffectiveProgress(
-                torrent,
-                meta?.optimisticStatuses[torrent.id],
-            ),
+        sortAccessor: (torrent, meta) => getEffectiveProgress(torrent, meta?.optimisticStatuses[torrent.id]),
         headerIcon: Percent,
         render: ({ torrent, optimisticStatus }) => (
             <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />
@@ -195,12 +189,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t, optimisticStatus, table }) => (
-            <TorrentTable_StatusCell
-                torrent={torrent}
-                table={table}
-                t={t}
-                optimisticStatus={optimisticStatus}
-            />
+            <TorrentTable_StatusCell torrent={torrent} table={table} t={t} optimisticStatus={optimisticStatus} />
         ),
     },
 
@@ -215,7 +204,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
         headerIcon: ListOrdered,
         render: ({ torrent }) => (
-            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
+            <span className={cn(table.columnDefs.numericMuted, DENSE_NUMERIC)}>
                 {formatQueueOrdinal(torrent.queuePosition)}
             </span>
         ),
@@ -234,9 +223,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             const eta = getTorrentEtaTableDisplay(torrent, t);
             return (
                 <AppTooltip content={eta.tooltip} native>
-                    <span className={cn(TABLE.columnDefs.numericSoft, DENSE_NUMERIC)}>
-                        {eta.value}
-                    </span>
+                    <span className={cn(table.columnDefs.numericSoft, DENSE_NUMERIC)}>{eta.value}</span>
                 </AppTooltip>
             );
         },
@@ -287,7 +274,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
             return (
                 <AppTooltip content={renderTooltipLines(tooltipLines)} native>
-                    <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>
+                    <span className={cn(table.columnDefs.numericMuted, DENSE_NUMERIC)}>
                         {torrent.peerSummary.connected}
                     </span>
                 </AppTooltip>
@@ -306,7 +293,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.totalSize,
         headerIcon: HardDrive,
         render: ({ torrent }) => (
-            <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>{formatBytes(torrent.totalSize)}</span>
+            <span className={cn(table.columnDefs.numericDim, DENSE_NUMERIC)}>{formatBytes(torrent.totalSize)}</span>
         ),
     },
 
@@ -321,7 +308,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => ratioValue(torrent),
         headerIcon: TrendingUp,
         render: ({ torrent }) => (
-            <span className={cn(TABLE.columnDefs.numericMuted, DENSE_NUMERIC)}>{ratioValue(torrent).toFixed(2)}</span>
+            <span className={cn(table.columnDefs.numericMuted, DENSE_NUMERIC)}>{ratioValue(torrent).toFixed(2)}</span>
         ),
     },
 
@@ -337,7 +324,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Clock,
         render: ({ torrent }) => (
             <AppTooltip content={formatDate(torrent.added)} native>
-                <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
+                <span className={cn(table.columnDefs.numericDim, DENSE_NUMERIC)}>
                     {formatRelativeTime(torrent.added)}
                 </span>
             </AppTooltip>
@@ -357,7 +344,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent, t }) => {
             if (typeof torrent.doneDate !== "number" || torrent.doneDate <= 0) {
                 return (
-                    <span className={cn(TABLE.columnDefs.numericDim, DENSE_TEXT)}>
+                    <span className={cn(table.columnDefs.numericDim, DENSE_TEXT)}>
                         {t("torrent_modal.general.values.not_completed")}
                     </span>
                 );
@@ -365,7 +352,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
             return (
                 <AppTooltip content={formatDate(torrent.doneDate)} native>
-                    <span className={cn(TABLE.columnDefs.numericDim, DENSE_NUMERIC)}>
+                    <span className={cn(table.columnDefs.numericDim, DENSE_NUMERIC)}>
                         {formatRelativeTime(torrent.doneDate)}
                     </span>
                 </AppTooltip>

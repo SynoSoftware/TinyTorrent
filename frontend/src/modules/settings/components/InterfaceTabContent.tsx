@@ -9,15 +9,15 @@ import {
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 
 function InterfaceFieldHelper({ helper }: { helper?: ReactNode }) {
     if (!helper) {
         return null;
     }
     return (
-        <div className={FORM.locationEditorFeedbackSlot}>
-            <div className={FORM.locationEditorValidationRow}>
+        <div className={form.locationEditorFeedbackSlot}>
+            <div className={form.locationEditorValidationRow}>
                 {helper}
             </div>
         </div>
@@ -54,17 +54,17 @@ export function InterfaceTabContent() {
     return (
         <>
             <SettingsSection title={t("settings.sections.dashboard")}>
-                <div className={FORM.sectionContentStack}>
-                    <div className={FORM.systemRow}>
-                        <div className={FORM.interfaceRow}>
-                            <div className={FORM.interfaceRowInfo}>
+                <div className={form.sectionContentStack}>
+                    <div className={form.systemRow}>
+                        <div className={form.interfaceRow}>
+                            <div className={form.interfaceRowInfo}>
                                 <AppTooltip content={t("settings.descriptions.shellStyle")}>
-                                    <span className={FORM.systemRowLabel}>
+                                    <span className={form.systemRowLabel}>
                                         {t("settings.labels.shellStyle")}
                                     </span>
                                 </AppTooltip>
                             </div>
-                            <div className={FORM.interfaceRowActions}>
+                            <div className={form.interfaceRowActions}>
                                 <Button
                                     size="md"
                                     variant={isImmersive ? "light" : "shadow"}
@@ -104,7 +104,7 @@ export function InterfaceTabContent() {
                         <InterfaceFieldHelper
                             helper={
                                 workspaceStyleError ? (
-                                    <p className={FORM.locationEditorError}>
+                                    <p className={form.locationEditorError}>
                                         {workspaceStyleError}
                                     </p>
                                 ) : undefined
@@ -113,10 +113,10 @@ export function InterfaceTabContent() {
                     </div>
 
                     {isImmersive && hasDismissedInsights && (
-                        <div className={FORM.interfaceRow}>
-                            <div className={FORM.interfaceRowInfo}>
+                        <div className={form.interfaceRow}>
+                            <div className={form.interfaceRowInfo}>
                                 <AppTooltip content={t("settings.descriptions.restore_hud")}>
-                                    <span className={FORM.systemRowLabel}>
+                                    <span className={form.systemRowLabel}>
                                         {t("settings.buttons.restore_hud")}
                                     </span>
                                 </AppTooltip>
@@ -136,13 +136,13 @@ export function InterfaceTabContent() {
 
             <SettingsSection
                 title={t("settings.sections.visuals")}
-                className={FORM.sectionMarginTop}
+                className={form.sectionMarginTop}
             >
-                <div className={FORM.blockStackTight}>
-                    <div className={FORM.systemRow}>
-                        <div className={FORM.switchRow}>
+                <div className={form.blockStackTight}>
+                    <div className={form.systemRow}>
+                        <div className={form.switchRow}>
                             <AppTooltip content={t("settings.descriptions.table_watermark")}>
-                                <span className={FORM.systemRowLabel}>
+                                <span className={form.systemRowLabel}>
                                     {t("settings.labels.tableWatermark")}
                                 </span>
                             </AppTooltip>
@@ -161,17 +161,17 @@ export function InterfaceTabContent() {
                         <InterfaceFieldHelper
                             helper={
                                 tableWatermarkError ? (
-                                    <p className={FORM.locationEditorError}>
+                                    <p className={form.locationEditorError}>
                                         {tableWatermarkError}
                                     </p>
                                 ) : undefined
                             }
                         />
                     </div>
-                    <div className={FORM.systemRow}>
-                        <div className={FORM.switchRow}>
+                    <div className={form.systemRow}>
+                        <div className={form.switchRow}>
                             <AppTooltip content={t("settings.descriptions.showAddTorrentDialog")}>
-                                <span className={FORM.systemRowLabel}>
+                                <span className={form.systemRowLabel}>
                                     {t("settings.labels.showAddTorrentDialog")}
                                 </span>
                             </AppTooltip>
@@ -190,17 +190,17 @@ export function InterfaceTabContent() {
                         <InterfaceFieldHelper
                             helper={
                                 showAddDialogError ? (
-                                    <p className={FORM.locationEditorError}>
+                                    <p className={form.locationEditorError}>
                                         {showAddDialogError}
                                     </p>
                                 ) : undefined
                             }
                         />
                     </div>
-                    <div className={FORM.systemRow}>
-                        <div className={FORM.switchRow}>
+                    <div className={form.systemRow}>
+                        <div className={form.switchRow}>
                             <AppTooltip content={t("settings.descriptions.showTorrentServerSetup")}>
-                                <span className={FORM.systemRowLabel}>
+                                <span className={form.systemRowLabel}>
                                     {t("settings.labels.showTorrentServerSetup")}
                                 </span>
                             </AppTooltip>
@@ -219,7 +219,7 @@ export function InterfaceTabContent() {
                         <InterfaceFieldHelper
                             helper={
                                 showServerSetupError ? (
-                                    <p className={FORM.locationEditorError}>
+                                    <p className={form.locationEditorError}>
                                         {showServerSetupError}
                                     </p>
                                 ) : undefined
@@ -231,11 +231,11 @@ export function InterfaceTabContent() {
 
             <SettingsSection
                 title={t("settings.sections.localization")}
-                className={FORM.sectionMarginTop}
+                className={form.sectionMarginTop}
             >
-                <div className={FORM.languageRow}>
+                <div className={form.languageRow}>
                     <AppTooltip content={t("settings.descriptions.language")}>
-                        <span className={FORM.systemRowLabel}>
+                        <span className={form.systemRowLabel}>
                             {t("settings.labels.language")}
                         </span>
                     </AppTooltip>
@@ -245,7 +245,7 @@ export function InterfaceTabContent() {
 
             <SettingsSection
                 title={t("settings.sections.advanced")}
-                className={FORM.sectionMarginTop}
+                className={form.sectionMarginTop}
             >
                 <RawConfigRenderer
                     block={{

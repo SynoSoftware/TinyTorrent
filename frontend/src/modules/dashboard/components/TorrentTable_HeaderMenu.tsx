@@ -11,8 +11,8 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import {
-    FORM_CONTROL,
-    SURFACE,
+    formControl,
+    surface,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 
@@ -66,18 +66,18 @@ export default function TorrentTable_HeaderMenu({
                 </DropdownTrigger>
                 <DropdownMenu
                     variant="shadow"
-                    classNames={SURFACE.menu.listClassNames}
-                    itemClasses={SURFACE.menu.itemClassNames}
+                    classNames={surface.menu.listClassNames}
+                    itemClasses={surface.menu.itemClassNames}
                     className={cn(
-                        SURFACE.menu.surface,
-                        SURFACE.menu.minWidthSurface,
+                        surface.menu.surface,
+                        surface.menu.minWidthSurface,
                     )}
                 >
                     <DropdownItem
                         key="hide-column"
                         color="danger"
                         isDisabled={!isHeaderMenuHideEnabled}
-                        className={SURFACE.menu.itemStrong}
+                        className={surface.menu.itemStrong}
                         onPress={() =>
                             handleHeaderMenuAction(() =>
                                 headerMenuActiveColumn?.toggleVisibility(false),
@@ -88,7 +88,7 @@ export default function TorrentTable_HeaderMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="fit-all-columns"
-                        className={SURFACE.menu.itemStrong}
+                        className={surface.menu.itemStrong}
                         onPress={() =>
                             handleHeaderMenuAction(autoFitAllColumns)
                         }
@@ -114,9 +114,9 @@ export default function TorrentTable_HeaderMenu({
                                 <DropdownItem
                                     key={item.column.id}
                                     className={cn(
-                                        SURFACE.menu.itemNested,
+                                        surface.menu.itemNested,
                                         item.isPinned &&
-                                            SURFACE.menu.itemPinned,
+                                            surface.menu.itemPinned,
                                     )}
                                     closeOnSelect={false}
                                     onPress={toggleColumnVisibility}
@@ -141,7 +141,7 @@ export default function TorrentTable_HeaderMenu({
                                                     toggleColumnVisibility()
                                                 }
                                                 classNames={
-                                                    FORM_CONTROL.checkboxMarginRightClassNames
+                                                    formControl.checkboxMarginRightClassNames
                                                 }
                                             />
                                         </span>

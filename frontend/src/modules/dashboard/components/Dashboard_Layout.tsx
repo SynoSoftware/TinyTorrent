@@ -1,20 +1,18 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { cn } from "@heroui/react";
-import {
-    Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle, } from "react-resizable-panels";
+import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusState } from "@/app/context/AppShellStateContext";
 
 import { TorrentTable } from "@/modules/dashboard/components/TorrentTable";
 import { TorrentDetails } from "@/modules/dashboard/components/TorrentDetails";
-import {
-    DetailOpenProvider, type DetailOpenMode, } from "@/modules/dashboard/context/DetailOpenContext";
+import { DetailOpenProvider, type DetailOpenMode } from "@/modules/dashboard/context/DetailOpenContext";
 import { registry } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { Section } from "@/shared/ui/layout/Section";
-import { DASHBOARD } from "@/shared/ui/layout/glass-surface";
+import { dashBoard } from "@/shared/ui/layout/glass-surface";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 import { isEditableKeyboardTarget } from "@/shared/utils/dom";
@@ -30,9 +28,7 @@ const ANIMATION = {
 } as const;
 
 const OVERLAY_FADE_ANIMATION = {
-    initial: { opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity },
-    animate: { opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity },
-    exit: { opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity },
+    ...visualizations.surface.fade.overlay,
     transition: ANIMATION.entry,
 } as const;
 
@@ -49,15 +45,15 @@ const DROP_OVERLAY_ACCENT_ANIMATION = {
 
 const FULLSCREEN_PANEL_ANIMATION = {
     initial: {
-        opacity: visualizations.details.tooltipOpacityAnimation.initial.opacity,
+        opacity: visualizations.surface.fade.base.initial.opacity,
         scale: 0.96,
     },
     animate: {
-        opacity: visualizations.details.tooltipOpacityAnimation.animate.opacity,
+        opacity: visualizations.surface.fade.base.animate.opacity,
         scale: 1,
     },
     exit: {
-        opacity: visualizations.details.tooltipOpacityAnimation.exit.opacity,
+        opacity: visualizations.surface.fade.base.exit.opacity,
         scale: 0.96,
     },
     transition: { duration: 0.25 },
@@ -71,11 +67,7 @@ type RequestedDetailPresentation = DetailOpenMode;
 export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const { workspaceStyle, table, detail, detailSplitDirection } = viewModel;
     const { tableWatermarkEnabled, isDropActive = false } = table;
-    const {
-        detailData,
-        handleRequestDetails,
-        closeDetail,
-    } = detail;
+    const { detailData, handleRequestDetails, closeDetail } = detail;
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
 
@@ -89,8 +81,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const focusReturnRef = useRef<string | null>(null);
     const [requestedDetailPresentation, setRequestedDetailPresentation] =
         useState<RequestedDetailPresentation>("docked");
-    const [isViewportForcedFullscreen, setIsViewportForcedFullscreen] =
-        useState(false);
+    const [isViewportForcedFullscreen, setIsViewportForcedFullscreen] = useState(false);
     const isDetailOpen = Boolean(detailData);
     const inspectorBreakpointPx = layout.details.inspectorBreakpointPx;
     const effectiveDetailPresentation: RequestedDetailPresentation = isDetailOpen
@@ -98,23 +89,14 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             ? "fullscreen"
             : requestedDetailPresentation
         : requestedDetailPresentation;
-    const isDetailFullscreenActive =
-        isDetailOpen && effectiveDetailPresentation === "fullscreen";
-    const isDockedInspectorActive =
-        isDetailOpen && effectiveDetailPresentation === "docked";
+    const isDetailFullscreenActive = isDetailOpen && effectiveDetailPresentation === "fullscreen";
+    const isDockedInspectorActive = isDetailOpen && effectiveDetailPresentation === "docked";
     const showDockedInspectorShell = !isViewportForcedFullscreen;
     const canShowPresentationToggle = !isViewportForcedFullscreen;
-    const shouldRestoreInspectorFocus =
-        isDetailOpen && activePart === "inspector";
+    const shouldRestoreInspectorFocus = isDetailOpen && activePart === "inspector";
 
-    const focusTable = useCallback(
-        () => setActivePart("table"),
-        [setActivePart],
-    );
-    const focusInspector = useCallback(
-        () => setActivePart("inspector"),
-        [setActivePart],
-    );
+    const focusTable = useCallback(() => setActivePart("table"), [setActivePart]);
+    const focusInspector = useCallback(() => setActivePart("inspector"), [setActivePart]);
 
     const handleDetailOpen = useCallback(
         (torrent: Torrent, mode: DetailOpenMode) => {
@@ -169,9 +151,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         if (isDetailOpen || typeof document === "undefined") return;
         const pendingId = focusReturnRef.current;
         if (!pendingId) return;
-        const rowElement = document.querySelector<HTMLElement>(
-            `[data-torrent-row="${pendingId}"]`,
-        );
+        const rowElement = document.querySelector<HTMLElement>(`[data-torrent-row="${pendingId}"]`);
         rowElement?.focus();
         focusReturnRef.current = null;
     }, [isDetailOpen]);
@@ -193,9 +173,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             return;
         }
         const handle = window.requestAnimationFrame(() => {
-            document
-                .querySelector<HTMLElement>("[data-detail-host='true']")
-                ?.focus();
+            document.querySelector<HTMLElement>("[data-detail-host='true']")?.focus();
         });
         return () => window.cancelAnimationFrame(handle);
     }, [effectiveDetailPresentation, shouldRestoreInspectorFocus]);
@@ -205,16 +183,13 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const getShellStyles = () => {
         return {
             // Always include a subtle top border to prevent jump when focus highlight appears
-            className: cn(DASHBOARD.root),
+            className: cn(dashBoard.root),
             // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
     };
 
     const getContentStyles = () => ({
-        className: cn(
-            DASHBOARD.content,
-            !isImmersiveShell && DASHBOARD.contentClassicSurface,
-        ),
+        className: cn(dashBoard.content, !isImmersiveShell && dashBoard.contentClassicSurface),
         style: isImmersiveShell
             ? undefined
             : {
@@ -226,30 +201,20 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const dropOverlay = (
         <AnimatePresence>
             {isDropActive && (
-                <motion.div
-                    className={DASHBOARD.dropOverlay}
-                    {...OVERLAY_FADE_ANIMATION}
-                >
+                <motion.div className={dashBoard.dropOverlay} {...OVERLAY_FADE_ANIMATION}>
                     <motion.div
-                        className={DASHBOARD.dropOverlayAccent}
+                        className={dashBoard.dropOverlayAccent}
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
                         {...DROP_OVERLAY_ACCENT_ANIMATION}
                     />
-                    <div
-                        className={cn(
-                            DASHBOARD.dropOverlayIconWrap,
-                            ui.dropOverlay.role,
-                        )}
-                    >
+                    <div className={cn(dashBoard.dropOverlayIconWrap, ui.dropOverlay.role)}>
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
                             strokeWidth={visuals.icon.strokeWidth}
-                            className={DASHBOARD.dropOverlayIconTone}
+                            className={dashBoard.dropOverlayIconTone}
                         />
-                        <span className={ui.dropOverlay.titleRole}>
-                            {t("drop_overlay.title")}
-                        </span>
+                        <span className={ui.dropOverlay.titleRole}>{t("drop_overlay.title")}</span>
                     </div>
                 </motion.div>
             )}
@@ -260,23 +225,20 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className={DASHBOARD.panelGroup}
+            className={dashBoard.panelGroup}
             style={shellTokens.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
-            <Panel className={DASHBOARD.mainPanel}>
+            <Panel className={dashBoard.mainPanel}>
                 <div {...getShellStyles()} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
-                            className={DASHBOARD.tableHost}
+                            className={dashBoard.tableHost}
                             style={{
                                 borderRadius: `${shellTokens.innerRadius}px`,
                             }}
                         >
-                            <div
-                                className={DASHBOARD.tableContent}
-                                style={{ borderRadius: "inherit" }}
-                            >
+                            <div className={dashBoard.tableContent} style={{ borderRadius: "inherit" }}>
                                 <DetailOpenProvider
                                     value={{
                                         openDetail: handleDetailOpen,
@@ -299,14 +261,12 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             {showDockedInspectorShell && (
                 <>
                     {/* --- RESIZE HANDLE (The Gap) --- */}
-                        <PanelResizeHandle
-                            className={cn(
-                                DASHBOARD.resizeHandleBase,
-                                isHorizontalSplit
-                                    ? DASHBOARD.resizeHandleHorizontal
-                                    : DASHBOARD.resizeHandleVertical,
-                                !isDetailOpen && "pointer-events-none opacity-0",
-                            )}
+                    <PanelResizeHandle
+                        className={cn(
+                            dashBoard.resizeHandleBase,
+                            isHorizontalSplit ? dashBoard.resizeHandleHorizontal : dashBoard.resizeHandleVertical,
+                            !isDetailOpen && "pointer-events-none opacity-0",
+                        )}
                         hitAreaMargins={{
                             coarse: shellTokens.handleHitArea,
                             fine: shellTokens.handleHitArea,
@@ -315,9 +275,9 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             flexBasis: isDetailOpen ? "var(--tt-gap)" : "0px",
                         }}
                     >
-                        <div className={DASHBOARD.resizeHandleInner}>
+                        <div className={dashBoard.resizeHandleInner}>
                             <div
-                                className={DASHBOARD.resizeHandleBar}
+                                className={dashBoard.resizeHandleBar}
                                 style={
                                     isHorizontalSplit
                                         ? {
@@ -342,23 +302,21 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                         defaultSize={34}
                         onPointerDown={focusInspector}
                         className={cn(
-                            DASHBOARD.inspectorPanelBase,
-                            isHorizontalSplit
-                                ? DASHBOARD.inspectorPanelHorizontal
-                                : DASHBOARD.inspectorPanelVertical,
+                            dashBoard.inspectorPanelBase,
+                            isHorizontalSplit ? dashBoard.inspectorPanelHorizontal : dashBoard.inspectorPanelVertical,
                         )}
                     >
                         <div {...getShellStyles()}>
                             <div {...getContentStyles()}>
                                 {isDockedInspectorActive ? (
                                     <div
-                                        className={DASHBOARD.inspectorContent}
+                                        className={dashBoard.inspectorContent}
                                         style={{
                                             borderRadius: `${shellTokens.innerRadius}px`,
                                         }}
                                     >
                                         <motion.div
-                                            className={DASHBOARD.inspectorContent}
+                                            className={dashBoard.inspectorContent}
                                             initial={false}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={ANIMATION.entry}
@@ -366,11 +324,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                                             <TorrentDetails
                                                 viewModel={detail}
                                                 isDetailFullscreen={false}
-                                                onPopout={
-                                                    canShowPresentationToggle
-                                                        ? handleDetailPopout
-                                                        : undefined
-                                                }
+                                                onPopout={canShowPresentationToggle ? handleDetailPopout : undefined}
                                                 onClose={handleDetailClose}
                                             />
                                         </motion.div>
@@ -389,44 +343,30 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const fullscreenCloseOnly = isViewportForcedFullscreen;
 
     return (
-        <Section className={DASHBOARD.section}>
-            {tableWatermarkEnabled && (
-                <div
-                    aria-hidden="true"
-                    className={DASHBOARD.desktopWatermark}
-                />
-            )}
+        <Section className={dashBoard.section}>
+            {tableWatermarkEnabled && <div aria-hidden="true" className={dashBoard.desktopWatermark} />}
             {layoutContent}
-            {/* --- FULLSCREEN MODAL --- */}
+            {/* --- FULLSCREEN modal --- */}
             <AnimatePresence initial={false}>
                 {detailData && isDetailFullscreenActive && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className={DASHBOARD.fullscreenOverlay}
+                        className={dashBoard.fullscreenOverlay}
                         {...OVERLAY_FADE_ANIMATION}
                         transition={{ duration: 0.25 }}
                     >
-                        <Section
-                            padding={fullscreenPadding}
-                            className={DASHBOARD.fullscreenSection}
-                        >
-                            <div className={DASHBOARD.fullscreenBackdrop} />
+                        <Section padding={fullscreenPadding} className={dashBoard.fullscreenSection}>
+                            <div className={dashBoard.fullscreenBackdrop} />
                             <motion.div
-                                className={DASHBOARD.fullscreenPanel}
+                                className={dashBoard.fullscreenPanel}
                                 style={{ borderRadius: fullscreenRadius }}
                                 {...FULLSCREEN_PANEL_ANIMATION}
                             >
                                 <TorrentDetails
                                     viewModel={detail}
-                                    isDetailFullscreen={
-                                        isDetailFullscreenActive
-                                    }
+                                    isDetailFullscreen={isDetailFullscreenActive}
                                     isStandalone={true}
-                                    onDock={
-                                        fullscreenCloseOnly
-                                            ? undefined
-                                            : handleDetailDock
-                                    }
+                                    onDock={fullscreenCloseOnly ? undefined : handleDetailDock}
                                     onPopout={undefined}
                                     onClose={handleDetailClose}
                                 />
@@ -438,7 +378,3 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
         </Section>
     );
 }
-
-
-
-

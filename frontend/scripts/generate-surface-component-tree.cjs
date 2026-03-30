@@ -9,7 +9,7 @@ const outDir = path.join(root, "reports", "generated");
 const outFile = path.join(outDir, "surface-component-tree.generated.md");
 
 const GLASS_IMPORT_PATH = "@/shared/ui/layout/glass-surface";
-const TEXT_IMPORT_PATH = "@/config/textRoles";
+const LOGIC_IMPORT_PATH = "@/config/logic";
 
 const args = new Set(process.argv.slice(2));
 const includeAll = args.has("--all");
@@ -65,7 +65,7 @@ function expressionText(expr) {
 function collectImports(sf) {
     const tokenAuthorities = new Set();
     let hasGlassImport = false;
-    let hasTextImport = false;
+    let hasLogicImport = false;
 
     for (const stmt of sf.statements) {
         if (!ts.isImportDeclaration(stmt)) continue;
@@ -76,11 +76,11 @@ function collectImports(sf) {
         if (moduleText === GLASS_IMPORT_PATH) {
             hasGlassImport = true;
         }
-        if (moduleText === TEXT_IMPORT_PATH) {
-            hasTextImport = true;
+        if (moduleText === LOGIC_IMPORT_PATH) {
+            hasLogicImport = true;
         }
 
-        if (moduleText !== GLASS_IMPORT_PATH && moduleText !== TEXT_IMPORT_PATH) {
+        if (moduleText !== GLASS_IMPORT_PATH && moduleText !== LOGIC_IMPORT_PATH) {
             continue;
         }
 
@@ -89,7 +89,12 @@ function collectImports(sf) {
         }
     }
 
-    return { tokenAuthorities, hasGlassImport, hasTextImport };
+    if (hasLogicImport) {
+        tokenAuthorities.add("visuals");
+        tokenAuthorities.add("registry");
+    }
+
+    return { tokenAuthorities, hasGlassImport };
 }
 
 function extractTokenRefsFromText(text, authorities) {
@@ -242,12 +247,8 @@ function main() {
 
         const content = fs.readFileSync(file, "utf8");
         const sf = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-        const { tokenAuthorities, hasGlassImport, hasTextImport } = collectImports(sf);
+        const { tokenAuthorities, hasGlassImport } = collectImports(sf);
         if (!hasGlassImport) continue;
-
-        if (hasTextImport) {
-            tokenAuthorities.add("textRole");
-        }
 
         const trees = collectJsxTokens(sf, tokenAuthorities);
         if (trees.length === 0) continue;

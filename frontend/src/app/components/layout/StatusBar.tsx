@@ -15,7 +15,6 @@ import {
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { textRole } from "@/config/textRoles";
 import { uiRoles } from "@/shared/ui/uiRoles";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
@@ -25,7 +24,7 @@ import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getStatusRecipeText, registry } from "@/config/logic";
 import { status as appStatus } from "@/shared/status";
-import { WORKBENCH as workbench } from "@/shared/ui/layout/glass-surface";
+import { workbench as workbench } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 import type { NetworkTelemetry } from "@/services/rpc/entities";
@@ -94,7 +93,7 @@ function StatGroup({
                 className,
             )}
         >
-            <span className={cn(textRole.labelDense, uiRoles.text.subtle)}>{label}</span>
+            <span className={cn(visuals.typography.text.labelDense, uiRoles.text.subtle)}>{label}</span>
             <div className={workbench.status.statValueRow}>
                 <AppTooltip content={value} native>
                     <span className={cn(workbench.status.statValueText)}>{value}</span>

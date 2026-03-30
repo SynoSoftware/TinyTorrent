@@ -75,21 +75,21 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         virtualCanvas: "",
         virtualRow: "",
     },
-    FORM_CONTROL: {
+    formControl: {
         checkboxPrimaryClassNames: {},
         priorityHeaderSelectClassNames: {},
     },
-    DETAILS: {
+    details: {
         headerContextActionButton: "",
     },
-    SURFACE: {
+    surface: {
         menu: {
             surface: "",
             listClassNames: {},
             itemClassNames: {},
         },
     },
-    TABLE: {
+    table: {
         columnHeaderLabel: "",
         columnHeaderIcon: "",
     },

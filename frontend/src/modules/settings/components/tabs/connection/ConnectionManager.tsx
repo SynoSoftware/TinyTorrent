@@ -6,13 +6,12 @@ import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { scheduler } from "@/app/services/scheduler";
 import { registry } from "@/config/logic";
-import { textRole } from "@/config/textRoles";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { isLoopbackHost } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
 import { status } from "@/shared/status";
-import { FORM, MODAL } from "@/shared/ui/layout/glass-surface";
+import { form, modal } from "@/shared/ui/layout/glass-surface";
 
 const { timing, visuals } = registry;
 const AUTO_PROFILE_LABEL_PATTERN = /^Connection \d+$/;
@@ -61,11 +60,11 @@ interface ConnectionFieldRowProps {
 
 function ConnectionFieldRow({ label, children }: ConnectionFieldRowProps) {
     return (
-        <div className={FORM.locationEditorLabelInputRow}>
-            <div className={FORM.locationEditorLabelColumn}>
-                <span className={FORM.locationEditorInlineLabel}>{label}</span>
+        <div className={form.locationEditorLabelInputRow}>
+            <div className={form.locationEditorLabelColumn}>
+                <span className={form.locationEditorInlineLabel}>{label}</span>
             </div>
-            <div className={FORM.locationEditorValueColumn}>{children}</div>
+            <div className={form.locationEditorValueColumn}>{children}</div>
         </div>
     );
 }
@@ -226,8 +225,8 @@ export function ConnectionCredentialsCard() {
             size="lg"
             variant="flat"
             color={connectionStatusColor}
-            className={FORM.systemStatusChip}
-            startContent={<StatusIcon strokeWidth={visuals.icon.strokeWidth} className={FORM.connection.iconSmall} />}
+            className={form.systemStatusChip}
+            startContent={<StatusIcon strokeWidth={visuals.icon.strokeWidth} className={form.connection.iconSmall} />}
         >
             {connectionStatusLabel}
         </Chip>
@@ -235,20 +234,20 @@ export function ConnectionCredentialsCard() {
 
     if (showCompactLocalCard) {
         return (
-            <div className={FORM.sectionContentStack}>
-                <div className={FORM.connection.topRow}>
-                    <div className={FORM.sectionHeaderStack}>
-                        <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
-                        <p className={FORM.connection.profileEndpoint}>{currentServerUrl}</p>
+            <div className={form.sectionContentStack}>
+                <div className={form.connection.topRow}>
+                    <div className={form.sectionHeaderStack}>
+                        <h3 className={form.connection.profileTitle}>{profileLabel}</h3>
+                        <p className={form.connection.profileEndpoint}>{currentServerUrl}</p>
                     </div>
-                    <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
+                    <div className={modal.dialogFooterGroup}>{renderStatusChip}</div>
                 </div>
-                <div className={FORM.interfaceRowActions}>
+                <div className={form.interfaceRowActions}>
                     <Button size="md" variant="ghost" onPress={() => setShowAdvanced(true)}>
                         {t("settings.connection.show_advanced")}
                     </Button>
                 </div>
-                <p className={textRole.caption}>{t("settings.connection.local_mode_info")}</p>
+                <p className={visuals.typography.text.caption}>{t("settings.connection.local_mode_info")}</p>
             </div>
         );
     }
@@ -257,15 +256,15 @@ export function ConnectionCredentialsCard() {
     const primaryActionIntent: ConnectionSubmitIntent = hasDraftChanges ? "connect" : "reconnect";
 
     return (
-        <div className={FORM.sectionContentStack}>
-            <div className={FORM.connection.topRow}>
-                <div className={FORM.sectionHeaderStack}>
-                    <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
-                    <p className={FORM.connection.profileEndpoint}>{currentServerUrl}</p>
+        <div className={form.sectionContentStack}>
+            <div className={form.connection.topRow}>
+                <div className={form.sectionHeaderStack}>
+                    <h3 className={form.connection.profileTitle}>{profileLabel}</h3>
+                    <p className={form.connection.profileEndpoint}>{currentServerUrl}</p>
                 </div>
-                <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
+                <div className={modal.dialogFooterGroup}>{renderStatusChip}</div>
             </div>
-            <div className={FORM.blockStackTight}>
+            <div className={form.blockStackTight}>
                 <ConnectionFieldRow label={t("settings.connection.host")}>
                     <Input
                         aria-label={t("settings.connection.host")}
@@ -273,7 +272,7 @@ export function ConnectionCredentialsCard() {
                         size="md"
                         value={draft.host}
                         onChange={(event) => updateDraft({ host: event.target.value })}
-                        className={FORM.connection.inputHeight}
+                        className={form.connection.inputHeight}
                         isDisabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
@@ -285,7 +284,7 @@ export function ConnectionCredentialsCard() {
                         type="text"
                         value={draft.port}
                         onChange={(event) => updateDraft({ port: event.target.value })}
-                        className={FORM.connection.inputHeight}
+                        className={form.connection.inputHeight}
                         isDisabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
@@ -311,10 +310,10 @@ export function ConnectionCredentialsCard() {
                     />
                 </ConnectionFieldRow>
                 {insecureAuthNotice !== null && (
-                    <p className={FORM.connection.insecureAuthWarning}>{insecureAuthNotice}</p>
+                    <p className={form.connection.insecureAuthWarning}>{insecureAuthNotice}</p>
                 )}
-                <div className={FORM.inputActionRow}>
-                    <div className={FORM.interfaceRowActions}>
+                <div className={form.inputActionRow}>
+                    <div className={form.interfaceRowActions}>
                         {showConnectLocalAction && (
                             <Button
                                 variant="bordered"
@@ -341,7 +340,7 @@ export function ConnectionCredentialsCard() {
                                 pendingIntent === primaryActionIntent ? undefined : (
                                     <RefreshCw
                                         strokeWidth={visuals.icon.strokeWidth}
-                                        className={FORM.connection.iconSmall}
+                                        className={form.connection.iconSmall}
                                     />
                                 )
                             }
@@ -351,12 +350,12 @@ export function ConnectionCredentialsCard() {
                     </div>
                 </div>
                 {rpcStatus === status.connection.connected && (
-                    <div className={FORM.connection.statusFooter}>
-                        <div className={FORM.connection.statusFooterRow}>
-                            <Monitor strokeWidth={visuals.icon.strokeWidth} className={FORM.workflow.statusInfoIcon} />
-                            <div className={FORM.stackTools}>
-                                <p className={textRole.bodyStrong}>{t(modeLabelKey)}</p>
-                                <p className={textRole.bodySmall}>{t(modeSummaryKey)}</p>
+                    <div className={form.connection.statusFooter}>
+                        <div className={form.connection.statusFooterRow}>
+                            <Monitor strokeWidth={visuals.icon.strokeWidth} className={form.workflow.statusInfoIcon} />
+                            <div className={form.stackTools}>
+                                <p className={visuals.typography.text.bodyStrong}>{t(modeLabelKey)}</p>
+                                <p className={visuals.typography.text.bodySmall}>{t(modeSummaryKey)}</p>
                             </div>
                         </div>
                     </div>

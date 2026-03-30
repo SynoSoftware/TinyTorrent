@@ -1,10 +1,12 @@
 import { Autocomplete, AutocompleteItem, Button } from "@heroui/react";
 import { FolderOpen } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key, type KeyboardEvent } from "react";
+import { registry } from "@/config/logic";
 import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { FORM } from "@/shared/ui/layout/glass-surface";
+import { form } from "@/shared/ui/layout/glass-surface";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
+const { visuals } = registry;
 
 export type DestinationPathFeedback =
     | { kind: "gauge"; freeSpace: { path: string; sizeBytes: number; totalSize: number } }
@@ -24,10 +26,8 @@ interface DestinationPathEditorProps {
     history: string[];
     ariaLabel: string;
     placeholder: string;
-    inputClassNames: Record<string, string>;
     onValueChange: (value: string) => void;
     label?: string;
-    labelClassName?: string;
     labelColumnClassName?: string;
     currentPathLabel?: string;
     currentPathValue?: string;
@@ -39,7 +39,6 @@ interface DestinationPathEditorProps {
     isDisabled?: boolean;
     isInvalid?: boolean;
     manualEntryPrompt?: string;
-    inputTextClassName?: string;
     feedback?: DestinationPathFeedback;
     browseAction?: BrowseAction;
 }
@@ -59,15 +58,13 @@ type AutocompleteProps = {
     isDisabled: boolean;
     isInvalid: boolean;
     manualEntryPrompt?: string;
-    inputClassNames: Record<string, string>;
-    inputTextClassName?: string;
 };
 
 const sameHistoryItems = (left: AutocompleteProps["historyItems"], right: AutocompleteProps["historyItems"]) =>
     left.length === right.length && left.every((item, index) => item.key === right[index]?.key && item.label === right[index]?.label);
 
 const feedbackMessageClass = (tone: Exclude<DestinationPathFeedback, { kind: "gauge" }>["tone"]) =>
-    tone === "warning" || tone === "danger" ? FORM.locationEditorValidationWarning : FORM.locationEditorValidationHint;
+    tone === "warning" || tone === "danger" ? form.locationEditorValidationWarning : form.locationEditorValidationHint;
 
 const PathAutocomplete = memo(function PathAutocomplete({
     id,
@@ -84,8 +81,6 @@ const PathAutocomplete = memo(function PathAutocomplete({
     isDisabled,
     isInvalid,
     manualEntryPrompt,
-    inputClassNames,
-    inputTextClassName,
 }: AutocompleteProps) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -163,13 +158,13 @@ const PathAutocomplete = memo(function PathAutocomplete({
             <Autocomplete
                 id={id}
                 aria-label={ariaLabel}
-                className={inputTextClassName}
+                className={visuals.typography.text.codeMuted}
                 items={filteredHistoryItems}
                 inputValue={value}
                 selectedKey={selectedKey}
                 inputProps={{
-                    classNames: inputClassNames,
-                    startContent: <FolderOpen className={FORM.locationEditorInputLeadingIcon} />,
+                    classNames: form.locationEditorInputClassNames,
+                    startContent: <FolderOpen className={form.locationEditorInputLeadingIcon} />,
                 }}
                 onInputChange={handleInputChange}
                 onSelectionChange={handleSelectionChange}
@@ -207,9 +202,7 @@ const PathAutocomplete = memo(function PathAutocomplete({
     prev.selectOnFocus === next.selectOnFocus &&
     prev.isDisabled === next.isDisabled &&
     prev.isInvalid === next.isInvalid &&
-    prev.manualEntryPrompt === next.manualEntryPrompt &&
-    prev.inputClassNames === next.inputClassNames &&
-    prev.inputTextClassName === next.inputTextClassName);
+    prev.manualEntryPrompt === next.manualEntryPrompt);
 
 export function DestinationPathEditor({
     id,
@@ -218,7 +211,6 @@ export function DestinationPathEditor({
     ariaLabel,
     placeholder,
     label,
-    labelClassName,
     labelColumnClassName,
     currentPathLabel,
     currentPathValue,
@@ -231,8 +223,6 @@ export function DestinationPathEditor({
     isDisabled = false,
     isInvalid = false,
     manualEntryPrompt,
-    inputClassNames,
-    inputTextClassName,
     feedback,
     browseAction,
 }: DestinationPathEditorProps) {
@@ -256,8 +246,6 @@ export function DestinationPathEditor({
             isDisabled={isDisabled}
             isInvalid={isInvalid}
             manualEntryPrompt={manualEntryPrompt}
-            inputClassNames={inputClassNames}
-            inputTextClassName={inputTextClassName}
         />
     );
     const rawBrowseButton = !browseAction ? null : (
@@ -280,40 +268,40 @@ export function DestinationPathEditor({
             totalBytes={feedback.freeSpace.totalSize}
         />
     ) : (
-        <div className={FORM.locationEditorValidationRow}>
+        <div className={form.locationEditorValidationRow}>
             <span className={feedbackMessageClass(feedback.tone)}>{feedback.message}</span>
         </div>
     );
 
     return (
-        <div className={FORM.locationEditorRow} data-destination-editor-root-id={id}>
-            <div className={FORM.locationEditorField}>
-                <div className={FORM.locationEditorPathRow}>
+        <div className={form.locationEditorRow} data-destination-editor-root-id={id}>
+            <div className={form.locationEditorField}>
+                <div className={form.locationEditorPathRow}>
                     {currentPathValue ? (
-                        <div className={FORM.locationEditorInlineRow}>
-                            <div className={FORM.locationEditorLabelColumn}>
-                                <span className={FORM.locationEditorInlineLabel}>{currentPathLabel}</span>
+                        <div className={form.locationEditorInlineRow}>
+                            <div className={form.locationEditorLabelColumn}>
+                                <span className={form.locationEditorInlineLabel}>{currentPathLabel}</span>
                             </div>
-                            <div className={FORM.locationEditorValueColumn}>
-                                <span className={FORM.locationEditorInlineValue}>{currentPathValue}</span>
+                            <div className={form.locationEditorValueColumn}>
+                                <span className={form.locationEditorInlineValue}>{currentPathValue}</span>
                             </div>
                         </div>
                     ) : null}
-                    <div className={FORM.locationEditorLabelInputRow}>
-                        <div className={labelColumnClassName ?? FORM.locationEditorLabelColumn}>
-                            <label htmlFor={id} className={labelClassName ?? FORM.locationEditorInlineLabel}>
+                    <div className={form.locationEditorLabelInputRow}>
+                        <div className={labelColumnClassName ?? form.locationEditorLabelColumn}>
+                            <label htmlFor={id} className={visuals.typography.text.caption}>
                                 {label}
                             </label>
                         </div>
-                        <div className={FORM.locationEditorValueColumn}>{autocomplete}</div>
+                        <div className={form.locationEditorValueColumn}>{autocomplete}</div>
                     </div>
                     {browseButton ? (
-                        <div className={FORM.locationEditorActionRow}>
-                            <div className={FORM.locationEditorBrowseWrap}>{browseButton}</div>
+                        <div className={form.locationEditorActionRow}>
+                            <div className={form.locationEditorBrowseWrap}>{browseButton}</div>
                         </div>
                     ) : null}
                 </div>
-                {feedbackContent ? <div className={FORM.locationEditorFeedbackSlot}>{feedbackContent}</div> : null}
+                {feedbackContent ? <div className={form.locationEditorFeedbackSlot}>{feedbackContent}</div> : null}
             </div>
         </div>
     );

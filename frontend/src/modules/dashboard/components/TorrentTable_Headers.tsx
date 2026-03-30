@@ -4,13 +4,8 @@ import type { HeaderGroup, Table } from "@tanstack/react-table";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { cn } from "@heroui/react";
-import {
-    TableHeaderContent,
-    getColumnWidthCss,
-} from "@/modules/dashboard/components/TorrentTable_Shared";
-import {
-    TABLE,
-} from "@/shared/ui/layout/glass-surface";
+import { TableHeaderContent, getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { table } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "@/modules/dashboard/components/TorrentTable_Header";
 
@@ -31,11 +26,11 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                TABLE.columnHeader.cellBase,
-                TABLE.columnHeader.cellOverlay,
-                TABLE.columnHeader.cellOverlayShadow,
-                TABLE.columnHeader.cellIdle,
-                TABLE.headerPreviewPadding,
+                table.columnHeader.cellBase,
+                table.columnHeader.cellOverlay,
+                table.columnHeader.cellOverlayShadow,
+                table.columnHeader.cellIdle,
+                table.headerPreviewPadding,
             )}
             style={{
                 width: getColumnWidthCss(column.id, column.getSize()),
@@ -56,9 +51,7 @@ export interface TorrentTableHeadersProps {
     viewModel: TorrentTableHeadersViewModel;
 }
 
-export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
-    viewModel,
-}) => {
+export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({ viewModel }) => {
     const {
         headerContainerClass,
         handlers: {
@@ -68,66 +61,38 @@ export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
             handleColumnResizeStart,
         },
         table: { headerSortableIds, tableApi, getTableTotalWidthCss },
-        state: {
-            columnSizingInfo,
-            hookActiveResizeColumnId,
-            isAnimationSuppressed,
-        },
+        state: { columnSizingInfo, hookActiveResizeColumnId, isAnimationSuppressed },
     } = viewModel;
     return (
-        <div
-            className={headerContainerClass}
-            onContextMenu={handleHeaderContainerContextMenu}
-        >
-            <SortableContext
-                items={headerSortableIds}
-                strategy={horizontalListSortingStrategy}
-            >
-                {tableApi
-                    .getHeaderGroups()
-                    .map((headerGroup: HeaderGroup<Torrent>) => (
-                        <div
-                            key={headerGroup.id}
-                            className={TABLE.headerGroupRow}
-                            style={{
-                                width: getTableTotalWidthCss(
-                                    tableApi.getTotalSize(),
-                                ),
-                            }}
-                        >
-                            {headerGroup.headers.map(
-                                (header: TorrentTableHeader) => (
-                                    <TorrentTable_Header
-                                        key={header.id}
-                                        header={header}
-                                        isAnimationSuppressed={
-                                            isAnimationSuppressed
-                                        }
-                                        onContextMenu={(e: React.MouseEvent) =>
-                                            handleHeaderContextMenu(
-                                                e,
-                                                header.column.id,
-                                            )
-                                        }
-                                        onAutoFitColumn={
-                                            handleColumnAutoFitRequest
-                                        }
-                                        onResizeStart={handleColumnResizeStart}
-                                        isResizing={
-                                            columnSizingInfo.isResizingColumn ===
-                                                header.column.id ||
-                                            hookActiveResizeColumnId ===
-                                                header.column.id
-                                        }
-                                    />
-                                ),
-                            )}
-                        </div>
-                    ))}
+        <div className={headerContainerClass} onContextMenu={handleHeaderContainerContextMenu}>
+            <SortableContext items={headerSortableIds} strategy={horizontalListSortingStrategy}>
+                {tableApi.getHeaderGroups().map((headerGroup: HeaderGroup<Torrent>) => (
+                    <div
+                        key={headerGroup.id}
+                        className={table.headerGroupRow}
+                        style={{
+                            width: getTableTotalWidthCss(tableApi.getTotalSize()),
+                        }}
+                    >
+                        {headerGroup.headers.map((header: TorrentTableHeader) => (
+                            <TorrentTable_Header
+                                key={header.id}
+                                header={header}
+                                isAnimationSuppressed={isAnimationSuppressed}
+                                onContextMenu={(e: React.MouseEvent) => handleHeaderContextMenu(e, header.column.id)}
+                                onAutoFitColumn={handleColumnAutoFitRequest}
+                                onResizeStart={handleColumnResizeStart}
+                                isResizing={
+                                    columnSizingInfo.isResizingColumn === header.column.id ||
+                                    hookActiveResizeColumnId === header.column.id
+                                }
+                            />
+                        ))}
+                    </div>
+                ))}
             </SortableContext>
         </div>
     );
 };
 
 export default TorrentTable_Headers;
-

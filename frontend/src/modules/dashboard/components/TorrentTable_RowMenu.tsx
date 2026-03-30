@@ -1,22 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import {
-    Checkbox,
-    Dropdown,
-    DropdownTrigger,
-    DropdownMenu,
-    DropdownItem,
-    cn,
-} from "@heroui/react";
+import { Checkbox, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
+import { getCapabilityUiState, type CapabilityState } from "@/app/types/capabilities";
 import {
-    getCapabilityUiState,
-    type CapabilityState,
-} from "@/app/types/capabilities";
-import {
-    CONTEXT_MENU as contextMenuStyles,
-    FORM_CONTROL as formControlStyles,
-    SURFACE as menuSurfaceStyles,
+    contextMenu as contextMenuStyles,
+    formControl as formControlStyles,
+    surface as menuSurfaceStyles,
 } from "@/shared/ui/layout/glass-surface";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import type {
@@ -30,14 +20,10 @@ import { rowMenuKey } from "@/modules/dashboard/types/torrentTableSurfaces";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
-import {
-    useTorrentCommands,
-} from "@/app/context/AppCommandContext";
+import { useTorrentCommands } from "@/app/context/AppCommandContext";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
-import {
-    resolveSetDownloadLocationPolicy,
-} from "@/modules/dashboard/domain/torrentRelocation";
+import { resolveSetDownloadLocationPolicy } from "@/modules/dashboard/domain/torrentRelocation";
 import { useSetDownloadLocationFlow } from "@/modules/dashboard/hooks/useSetDownloadLocationFlow";
 
 type RowMenuAction = {
@@ -94,12 +80,8 @@ export default function TorrentTable_RowMenu({ viewModel }: TorrentTableRowMenuP
                     <TorrentTable_RowMenuInner
                         contextMenu={contextMenu}
                         contextTorrent={contextTorrent}
-                        sequentialDownloadCapability={
-                            sequentialDownloadCapability
-                        }
-                        setLocationPolicy={resolveSetDownloadLocationPolicy(
-                            contextTorrent,
-                        )}
+                        sequentialDownloadCapability={sequentialDownloadCapability}
+                        setLocationPolicy={resolveSetDownloadLocationPolicy(contextTorrent)}
                         onClose={onClose}
                         handleContextMenuAction={handleContextMenuAction}
                         queueMenuActions={queueMenuActions}
@@ -139,9 +121,7 @@ function TorrentTable_RowMenuInner({
     sequentialDownloadCapability: CapabilityState;
     setLocationPolicy: ReturnType<typeof resolveSetDownloadLocationPolicy>;
     onClose: () => void;
-    handleContextMenuAction: (
-        key: RowContextMenuKey,
-    ) => Promise<TorrentCommandOutcome>;
+    handleContextMenuAction: (key: RowContextMenuKey) => Promise<TorrentCommandOutcome>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
     onRequestSetDownloadLocation: (torrent: Torrent) => void;
@@ -150,9 +130,7 @@ function TorrentTable_RowMenuInner({
     const { clipboardWriteSupported, canOpenFolder } = useUiModeCapabilities();
     const { showFeedback } = useActionFeedback();
     const shouldShowOpenFolder = canOpenFolder;
-    const sequentialUiState = getCapabilityUiState(
-        sequentialDownloadCapability,
-    );
+    const sequentialUiState = getCapabilityUiState(sequentialDownloadCapability);
 
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
@@ -184,13 +162,7 @@ function TorrentTable_RowMenuInner({
             showOpenFolder: shouldShowOpenFolder,
             openFolderDisabled: !(contextTorrent.savePath || contextTorrent.downloadDir),
         };
-    }, [
-        t,
-        queueMenuActions,
-        getContextMenuShortcut,
-        shouldShowOpenFolder,
-        contextTorrent,
-    ]);
+    }, [t, queueMenuActions, getContextMenuShortcut, shouldShowOpenFolder, contextTorrent]);
 
     const handleMenuClose = () => {
         onClose();
@@ -209,13 +181,7 @@ function TorrentTable_RowMenuInner({
                 showFeedback(t("toolbar.feedback.failed"), "danger");
             }
         },
-        [
-            contextTorrent,
-            handleContextMenuAction,
-            onRequestSetDownloadLocation,
-            showFeedback,
-            t,
-        ],
+        [contextTorrent, handleContextMenuAction, onRequestSetDownloadLocation, showFeedback, t],
     );
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
@@ -235,13 +201,8 @@ function TorrentTable_RowMenuInner({
         );
 
         if (sequentialUiState.supported) {
-            const sequentialEnabled = Boolean(
-                contextTorrent.sequentialDownload,
-            );
-            const toggleSequentialDownload = () =>
-                void handleMenuActionPress(
-                    rowMenuKey.toggleSequentialDownload,
-                );
+            const sequentialEnabled = Boolean(contextTorrent.sequentialDownload);
+            const toggleSequentialDownload = () => void handleMenuActionPress(rowMenuKey.toggleSequentialDownload);
             items.push(
                 <DropdownItem
                     key={rowMenuKey.toggleSequentialDownload}
@@ -252,9 +213,7 @@ function TorrentTable_RowMenuInner({
                             <Checkbox
                                 isSelected={sequentialEnabled}
                                 disableAnimation
-                                classNames={
-                                    formControlStyles.checkboxMarginRightClassNames
-                                }
+                                classNames={formControlStyles.checkboxMarginRightClassNames}
                             />
                         </span>
                     }
@@ -307,9 +266,7 @@ function TorrentTable_RowMenuInner({
                 <DropdownItem
                     key={rowMenuKey.openFolder}
                     isDisabled={rowMenuViewModel.openFolderDisabled}
-                    onPress={() =>
-                        void handleMenuActionPress(rowMenuKey.openFolder)
-                    }
+                    onPress={() => void handleMenuActionPress(rowMenuKey.openFolder)}
                 >
                     {t("table.actions.open_folder")}
                 </DropdownItem>,
@@ -319,9 +276,7 @@ function TorrentTable_RowMenuInner({
         items.push(
             <DropdownItem
                 key={rowMenuKey.setDownloadLocation}
-                onPress={() =>
-                    void handleMenuActionPress(rowMenuKey.setDownloadLocation)
-                }
+                onPress={() => void handleMenuActionPress(rowMenuKey.setDownloadLocation)}
                 textValue={t(setLocationPolicy.actionLabelKey)}
             >
                 {t(setLocationPolicy.actionLabelKey)}
@@ -344,9 +299,7 @@ function TorrentTable_RowMenuInner({
                 key={rowMenuKey.copyMagnet}
                 isDisabled={!clipboardWriteSupported}
                 shortcut={getContextMenuShortcut(rowMenuKey.copyMagnet)}
-                onPress={() =>
-                    void handleMenuActionPress(rowMenuKey.copyMagnet)
-                }
+                onPress={() => void handleMenuActionPress(rowMenuKey.copyMagnet)}
             >
                 {t("table.actions.copy_magnet")}
             </DropdownItem>,
@@ -420,4 +373,3 @@ function TorrentTable_RowMenuInner({
         </Dropdown>
     );
 }
-

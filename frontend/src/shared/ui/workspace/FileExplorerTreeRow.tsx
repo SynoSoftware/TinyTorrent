@@ -16,16 +16,17 @@ import {
 import { Card, CardBody, CardHeader, Checkbox, Select, SelectItem, cn } from "@heroui/react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
+import { registry } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { ProgressCell } from "@/shared/ui/components/SmoothProgressBar";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import { textRole } from "@/config/textRoles";
-import { FILE_BROWSER, FORM_CONTROL, FORM, TABLE } from "@/shared/ui/layout/glass-surface";
+import { fileBrowser, formControl, form, table } from "@/shared/ui/layout/glass-surface";
 import {
     fileExplorerPriorityValues,
     getFileExplorerSelectablePriorityKeys,
 } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import type { FileExplorerPrioritySelectKey } from "@/shared/ui/workspace/fileExplorerTreeTypes";
+const { visuals } = registry;
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const prioritySelectOptions = [
@@ -81,18 +82,18 @@ interface FileExplorerTreeRowProps {
 const getFileIcon = (filename: string) => {
     const extension = filename.split(".").pop()?.toLowerCase();
     if (["mp4", "mkv", "avi", "mov", "webm"].includes(extension || "")) {
-        return <FileVideo className={FILE_BROWSER.iconVideo} />;
+        return <FileVideo className={fileBrowser.iconVideo} />;
     }
     if (["mp3", "wav", "flac", "aac"].includes(extension || "")) {
-        return <FileAudio className={FILE_BROWSER.iconAudio} />;
+        return <FileAudio className={fileBrowser.iconAudio} />;
     }
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension || "")) {
-        return <FileImage className={FILE_BROWSER.iconImage} />;
+        return <FileImage className={fileBrowser.iconImage} />;
     }
     if (["txt", "md", "pdf", "doc", "docx"].includes(extension || "")) {
-        return <FileText className={FILE_BROWSER.iconText} />;
+        return <FileText className={fileBrowser.iconText} />;
     }
-    return <FileIcon className={FILE_BROWSER.iconDefault} />;
+    return <FileIcon className={fileBrowser.iconDefault} />;
 };
 
 export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
@@ -109,7 +110,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     const displayProgress = Math.max(0, Math.min(progress / 100, 1));
     const completedBytes = row.node.bytesCompleted ?? row.node.totalSize * displayProgress;
     const renderedIcon = row.node.isFolder ? (
-        <Folder className={FILE_BROWSER.rowFolderIcon} />
+        <Folder className={fileBrowser.rowFolderIcon} />
     ) : (
         getFileIcon(row.node.name)
     );
@@ -133,7 +134,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             }
             variant="bordered"
             size="sm"
-            classNames={FORM_CONTROL.prioritySelectClassNames}
+            classNames={formControl.prioritySelectClassNames}
         >
             {renderedPriorityOptions.map((option) => {
                 const Icon = option.icon;
@@ -150,7 +151,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             progressPercent={progress}
             completedBytes={completedBytes}
             indicatorClassName={
-                row.isWanted ? TABLE.columnDefs.progressIndicatorActive : TABLE.columnDefs.progressIndicatorPaused
+                row.isWanted ? table.columnDefs.progressIndicatorActive : table.columnDefs.progressIndicatorPaused
             }
             ariaLabel={t("labels.download_progress")}
         />
@@ -159,26 +160,26 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     if (layout === "card") {
         return (
             <Card
-                className={cn(FORM.sectionCard, !row.isWanted && FILE_BROWSER.rowDimmed)}
+                className={cn(form.sectionCard, !row.isWanted && fileBrowser.rowDimmed)}
                 style={
                     {
                         "--tt-file-depth": String(row.node.depth),
                     } as CSSProperties
                 }
             >
-                <CardHeader className={cn(FORM.sectionHeader, FILE_BROWSER.cardHeader)}>
-                    <div className={FILE_BROWSER.cardHeaderContent}>
-                        <div className={FILE_BROWSER.rowCheckboxWrap}>
+                <CardHeader className={cn(form.sectionHeader, fileBrowser.cardHeader)}>
+                    <div className={fileBrowser.cardHeaderContent}>
+                        <div className={fileBrowser.rowCheckboxWrap}>
                             <Checkbox
                                 size="sm"
                                 radius="sm"
                                 isSelected={row.isSelected}
                                 isIndeterminate={row.isIndeterminate}
                                 onValueChange={onWantedChange}
-                                classNames={FORM_CONTROL.checkboxPrimaryClassNames}
+                                classNames={formControl.checkboxPrimaryClassNames}
                             />
                         </div>
-                        <div className={FILE_BROWSER.cardNameGroup}>
+                        <div className={fileBrowser.cardNameGroup}>
                             {row.node.isFolder ? (
                                 <button
                                     type="button"
@@ -186,39 +187,39 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                                         event.stopPropagation();
                                         onToggleExpand();
                                     }}
-                                    className={FILE_BROWSER.chevronButton}
+                                    className={fileBrowser.chevronButton}
                                 >
                                     {row.isExpanded ? (
-                                        <ChevronDown className={FILE_BROWSER.iconSmall} />
+                                        <ChevronDown className={fileBrowser.iconSmall} />
                                     ) : (
-                                        <ChevronRight className={FILE_BROWSER.iconSmall} />
+                                        <ChevronRight className={fileBrowser.iconSmall} />
                                     )}
                                 </button>
                             ) : (
-                                <div className={FILE_BROWSER.rowIndentSpacer} />
+                                <div className={fileBrowser.rowIndentSpacer} />
                             )}
-                            <div className={FILE_BROWSER.rowIconWrap}>{renderedIcon}</div>
-                            <div className={FILE_BROWSER.cardNameContent}>
+                            <div className={fileBrowser.rowIconWrap}>{renderedIcon}</div>
+                            <div className={fileBrowser.cardNameContent}>
                                 <AppTooltip content={row.node.name}>
                                     {row.node.isFolder ? (
                                         <button
                                             type="button"
-                                            className={cn(FORM.sectionTitle, FILE_BROWSER.cardTitleButton)}
+                                            className={cn(form.sectionTitle, fileBrowser.cardTitleButton)}
                                             onClick={onToggleExpand}
                                         >
                                             {row.node.name}
                                         </button>
                                     ) : (
-                                        <span className={cn(FORM.sectionTitle, FILE_BROWSER.cardTitleText)}>
+                                        <span className={cn(form.sectionTitle, fileBrowser.cardTitleText)}>
                                             {row.node.name}
                                         </span>
                                     )}
                                 </AppTooltip>
                                 <p
                                     className={cn(
-                                        FORM.sectionDescription,
-                                        textRole.caption,
-                                        FILE_BROWSER.cardDescription,
+                                        form.sectionDescription,
+                                        visuals.typography.text.caption,
+                                        fileBrowser.cardDescription,
                                     )}
                                 >
                                     {row.node.path}
@@ -227,11 +228,11 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                         </div>
                     </div>
                 </CardHeader>
-                <CardBody className={cn(FORM.sectionBody, FILE_BROWSER.cardBody)}>
-                    {renderedProgress ? <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div> : null}
-                    <div className={FILE_BROWSER.cardFooter}>
-                        <div className={FILE_BROWSER.cardFooterGroup}>{renderedPriorityControl}</div>
-                        <div className={FILE_BROWSER.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
+                <CardBody className={cn(form.sectionBody, fileBrowser.cardBody)}>
+                    {renderedProgress ? <div className={fileBrowser.rowProgressWrap}>{renderedProgress}</div> : null}
+                    <div className={fileBrowser.cardFooter}>
+                        <div className={fileBrowser.cardFooterGroup}>{renderedPriorityControl}</div>
+                        <div className={fileBrowser.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
                     </div>
                 </CardBody>
             </Card>
@@ -240,7 +241,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 
     return (
         <div
-            className={cn(FILE_BROWSER.row, !row.isWanted && FILE_BROWSER.rowDimmed)}
+            className={cn(fileBrowser.row, !row.isWanted && fileBrowser.rowDimmed)}
             style={
                 {
                     "--tt-file-depth": String(row.node.depth),
@@ -248,18 +249,18 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 } as CSSProperties
             }
         >
-            <div className={FILE_BROWSER.rowCheckboxWrap}>
+            <div className={fileBrowser.rowCheckboxWrap}>
                 <Checkbox
                     size="sm"
                     radius="sm"
                     isSelected={row.isSelected}
                     isIndeterminate={row.isIndeterminate}
                     onValueChange={onWantedChange}
-                    classNames={FORM_CONTROL.checkboxPrimaryClassNames}
+                    classNames={formControl.checkboxPrimaryClassNames}
                 />
             </div>
 
-            <div className={FILE_BROWSER.rowNameCell}>
+            <div className={fileBrowser.rowNameCell}>
                 {row.node.isFolder ? (
                     <button
                         type="button"
@@ -267,25 +268,25 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             event.stopPropagation();
                             onToggleExpand();
                         }}
-                        className={FILE_BROWSER.chevronButton}
+                        className={fileBrowser.chevronButton}
                     >
                         {row.isExpanded ? (
-                            <ChevronDown className={FILE_BROWSER.iconSmall} />
+                            <ChevronDown className={fileBrowser.iconSmall} />
                         ) : (
-                            <ChevronRight className={FILE_BROWSER.iconSmall} />
+                            <ChevronRight className={fileBrowser.iconSmall} />
                         )}
                     </button>
                 ) : (
-                    <div className={FILE_BROWSER.rowIndentSpacer} />
+                    <div className={fileBrowser.rowIndentSpacer} />
                 )}
 
-                <div className={FILE_BROWSER.rowIconWrap}>{renderedIcon}</div>
+                <div className={fileBrowser.rowIconWrap}>{renderedIcon}</div>
 
                 <AppTooltip content={row.node.name}>
                     <span
                         className={cn(
-                            FILE_BROWSER.rowNameBase,
-                            row.node.isFolder ? FILE_BROWSER.rowNameFolder : FILE_BROWSER.rowNameFile,
+                            fileBrowser.rowNameBase,
+                            row.node.isFolder ? fileBrowser.rowNameFolder : fileBrowser.rowNameFile,
                         )}
                         onClick={row.node.isFolder ? onToggleExpand : undefined}
                     >
@@ -294,11 +295,11 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 </AppTooltip>
             </div>
 
-            <div className={FILE_BROWSER.rowPriorityWrap}>{renderedPriorityControl}</div>
+            <div className={fileBrowser.rowPriorityWrap}>{renderedPriorityControl}</div>
 
-            {renderedProgress ? <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div> : null}
+            {renderedProgress ? <div className={fileBrowser.rowProgressWrap}>{renderedProgress}</div> : null}
 
-            <div className={FILE_BROWSER.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
+            <div className={fileBrowser.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
         </div>
     );
 });

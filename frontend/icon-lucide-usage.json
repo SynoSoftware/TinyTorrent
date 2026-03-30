@@ -1,0 +1,2272 @@
+[
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 29,
+    "text": "<Icon className={form.workflow.statusInfoIcon} />"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 62,
+    "text": "const [expandedHelpKeys, setExpandedHelpKeys] = useState<Selection>(new Set());"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 111,
+    "text": "<ConnectionDialogRow icon={Download} label={t(\"workspace.connection_timeout_dialog.install_option_label\")}>"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 119,
+    "text": "<AppTooltip content={transmissionDownloadTarget.url} native>"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 120,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 128,
+    "text": "startContent={<Download className={form.workflow.actionIcon} />}"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 139,
+    "text": "<ModalEx"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 148,
+    "text": "<Clock3 className={form.workflow.statusInfoIcon} />"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 172,
+    "text": "<ConnectionDialogRow"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 182,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 186,
+    "text": "startContent={<Settings className={form.workflow.actionIcon} />}"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 194,
+    "text": "<Accordion"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 206,
+    "text": "<AccordionItem"
+  },
+  {
+    "file": "src\\app\\components\\ConnectionTimeoutDialog.tsx",
+    "line": 213,
+    "text": "<ConnectionDialogRow"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 110,
+    "text": "<Tabs"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 119,
+    "text": "<Tab"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 123,
+    "text": "<StatusIcon Icon={ListChecks} size=\"lg\" className={workbench.nav.tabIcon} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 128,
+    "text": "<Tab"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 132,
+    "text": "<StatusIcon Icon={DownloadCloud} size=\"lg\" className={workbench.nav.tabIcon} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 137,
+    "text": "<Tab"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 141,
+    "text": "<StatusIcon Icon={UploadCloud} size=\"lg\" className={workbench.nav.tabIcon} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 149,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 158,
+    "text": "startContent={<StatusIcon Icon={Search} size=\"lg\" className={workbench.nav.searchIcon} />}"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 189,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 204,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 235,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 242,
+    "text": "startContent={<StatusIcon Icon={MobileIcon} size=\"md\" className={workbench.nav.mobileMenuButtonIcon} />}"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 273,
+    "text": "<TinyTorrentIcon title={t(\"brand.name\")} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 293,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 302,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 312,
+    "text": "<Dropdown placement=\"bottom-end\" backdrop=\"transparent\">"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 313,
+    "text": "<DropdownTrigger>"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 314,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 322,
+    "text": "<DropdownMenu"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 329,
+    "text": "<DropdownItem"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 332,
+    "text": "<StatusIcon Icon={FileUp} size=\"md\" className={surface.atom.textCurrent} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 338,
+    "text": "<DropdownItem"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 341,
+    "text": "<StatusIcon Icon={Magnet} size=\"md\" className={surface.atom.textCurrent} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 364,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 373,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 394,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 407,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 417,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 430,
+    "text": "<AppTooltip content={`${rehashStatus.label}: ${Math.round(rehashStatus.value)}%`}>"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 432,
+    "text": "<SmoothProgressBar"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 451,
+    "text": "<WindowControlButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 460,
+    "text": "<WindowControlButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 467,
+    "text": "<WindowControlButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\Navbar.tsx",
+    "line": 474,
+    "text": "<WindowControlButton"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 44,
+    "text": "const TRANSPORT_LABELS: Record<StatusBarTransportStatus, string> = {"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 98,
+    "text": "<AppTooltip content={value} native>"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 101,
+    "text": "{Icon && <StatusIcon Icon={Icon} size=\"md\" className={workbench.status.statIcon} />}"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 127,
+    "text": "<AppTooltip content={title} native>"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 129,
+    "text": "<StatusIcon Icon={Icon} size=\"md\" className={workbench.status.iconCurrent} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 163,
+    "text": "<NetworkGraph data={history} color={tone} className={workbench.status.speedModuleGraphCanvas} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 167,
+    "text": "<StatusIcon Icon={Icon} size=\"xl\" className={workbench.status.iconCurrent} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 246,
+    "text": "<TelemetryIcon"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 255,
+    "text": "<TelemetryIcon"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 271,
+    "text": "<TelemetryIcon"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 281,
+    "text": "<TelemetryIcon Icon={Component} tone={discoveryTone} title={t(\"status_bar.swarm_tooltip\")} />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 312,
+    "text": "return <StatusIcon Icon={RefreshCw} size=\"lg\" className={workbench.status.iconMuted} />;"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 315,
+    "text": "return <StatusIcon Icon={AlertCircle} size=\"lg\" />;"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 317,
+    "text": "return <StatusIcon Icon={EngineIcon} size=\"lg\" className={workbench.status.iconCurrent} />;"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 372,
+    "text": "<AppTooltip content={tooltip} native>"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 461,
+    "text": "<StatGroup"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 471,
+    "text": "<SpeedModule"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 479,
+    "text": "<SpeedModule"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 492,
+    "text": "<NetworkGraph"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 499,
+    "text": "<NetworkGraph"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 511,
+    "text": "<ArrowDown className={workbench.status.speedCompactDownIcon} aria-hidden=\"true\" />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 517,
+    "text": "<ArrowUp className={workbench.status.speedCompactUpIcon} aria-hidden=\"true\" />"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 533,
+    "text": "<StatusTelemetryGrid"
+  },
+  {
+    "file": "src\\app\\components\\layout\\StatusBar.tsx",
+    "line": 541,
+    "text": "<EngineControlChip"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 54,
+    "text": "const renderNavbar = () => <MemoNavbar viewModel={navbar} />;"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 56,
+    "text": "const renderModeLayoutSection = () => <MemoDashboardLayout viewModel={dashboard} />;"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 58,
+    "text": "const renderStatusBarSection = () => <StatusBar viewModel={statusBarViewModel} />;"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 61,
+    "text": "<DeleteConfirmationProvider value={deleteConfirmationContextValue}>"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 62,
+    "text": "<RemoveConfirmationModal />"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 93,
+    "text": "<Section"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 138,
+    "text": "<AnimatePresence>"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 179,
+    "text": "<StatusIcon"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 193,
+    "text": "<StatusIcon"
+  },
+  {
+    "file": "src\\app\\components\\WorkspaceShell.tsx",
+    "line": 245,
+    "text": "<MemoSettingsModal viewModel={settingsModal} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 82,
+    "text": "const detailPanelRef = useRef<ImperativePanelHandle | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 85,
+    "text": "useState<RequestedDetailPresentation>(\"docked\");"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 156,
+    "text": "const rowElement = document.querySelector<HTMLElement>(`[data-torrent-row=\"${pendingId}\"]`);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 178,
+    "text": "document.querySelector<HTMLElement>(\"[data-detail-host='true']\")?.focus();"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 204,
+    "text": "<AnimatePresence>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 213,
+    "text": "<StatusIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 227,
+    "text": "<PanelGroup"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 234,
+    "text": "<Panel className={dashBoard.mainPanel}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 244,
+    "text": "<DetailOpenProvider"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 249,
+    "text": "<TorrentTable"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 266,
+    "text": "<PanelResizeHandle"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 299,
+    "text": "<Panel"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 326,
+    "text": "<TorrentDetails"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 348,
+    "text": "<Section className={dashBoard.section}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 352,
+    "text": "<AnimatePresence initial={false}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 360,
+    "text": "<Section padding={fullscreenPadding} className={dashBoard.fullscreenSection}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\Dashboard_Layout.tsx",
+    "line": 367,
+    "text": "<TorrentDetails"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\SetDownloadPathModal.tsx",
+    "line": 116,
+    "text": "const formRef = useRef<HTMLFormElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\SetDownloadPathModal.tsx",
+    "line": 216,
+    "text": "async (event: FormEvent<HTMLFormElement>) => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\SetDownloadPathModal.tsx",
+    "line": 231,
+    "text": "<ModalEx"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\SetDownloadPathModal.tsx",
+    "line": 252,
+    "text": "<DestinationPathEditor"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 136,
+    "text": "const rows = useMemo<DisplayRow[]>(() => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 137,
+    "text": "const renderValueByFieldId: Record<TorrentHeadlineFieldId, ReactNode> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 159,
+    "text": "<AppTooltip content={eta.tooltip}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 163,
+    "text": "progress: <TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />,"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 165,
+    "text": "<AppTooltip content={formatDate(torrent.added)}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 188,
+    "text": "<SectionBlock"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 316,
+    "text": "const transferRows = useMemo<DisplayRow[]>(() => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 409,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 442,
+    "text": "const swarmRows = useMemo<DisplayRow[]>(() => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 467,
+    "text": "<AppTooltip"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 559,
+    "text": "const informationRows = useMemo<DisplayRow[]>(() => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 592,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 634,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 668,
+    "text": "{isDetailFullscreen ? <SummarySection torrent={torrent} optimisticStatus={optimisticStatus} t={t} /> : null}"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 669,
+    "text": "<SectionBlock"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 675,
+    "text": "<SectionBlock"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 696,
+    "text": "<SectionBlock"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_General.tsx",
+    "line": 701,
+    "text": "<SetDownloadPathModal"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 47,
+    "text": "tabs: Array<Pick<TorrentDetailTabDefinition, \"id\" | \"labelKey\">>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 74,
+    "text": "const toneButtonClass: Record<TorrentDetailHeaderActionTone, string> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 133,
+    "text": "<Info"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 140,
+    "text": "<AppTooltip content={statusTooltip ?? statusLabel} dense placement=\"top\" native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 203,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Header.tsx",
+    "line": 220,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 61,
+    "text": "<AppTooltip content={value} dense>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 84,
+    "text": "<AppTooltip content={renderTooltipLines(tooltip)} dense>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 98,
+    "text": "const listRef = useRef<HTMLDivElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 109,
+    "text": "isStandalone ? <GlassPanel className={details.table.panel}>{content}</GlassPanel> : content;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 161,
+    "text": "<Icon className=\"toolbar-icon-size-sm shrink-0\" />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 203,
+    "text": "<AppTooltip content={renderTooltipLines(row.connectionTooltip)} dense>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 212,
+    "text": "<PhoneIncoming"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 221,
+    "text": "<PhoneOutgoing"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 231,
+    "text": "<Lock"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 244,
+    "text": "<StateCell"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 252,
+    "text": "<TruncatedTooltipText"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 325,
+    "text": "<Info className={contextMenu.headerIcon} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 335,
+    "text": "<Copy"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 346,
+    "text": "<UserPlus"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Peers.tsx",
+    "line": 357,
+    "text": "<Ban"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 68,
+    "text": "type TooltipDetail = NonNullable<PiecesMapViewModel[\"tooltipDetail\"]>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 82,
+    "text": "const MAP_SWATCH_TONE_CLASS: Record<SwarmTone, string> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 115,
+    "text": "}): Array<LegendCell | null> =>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 178,
+    "text": "<AppTooltip content={tooltip ?? label}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 235,
+    "text": "<SmoothProgressBar"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 264,
+    "text": "<NetworkGraph"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 272,
+    "text": "<NetworkGraph"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 283,
+    "text": "<ArrowDown className={workbench.status.speedCompactDownIcon} aria-hidden=\"true\" />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 289,
+    "text": "<ArrowUp className={workbench.status.speedCompactUpIcon} aria-hidden=\"true\" />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 327,
+    "text": "const fieldViews: Record<PiecesHudFieldId, ReactNode> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 329,
+    "text": "cell: <PiecesHudProgressCell torrent={torrent} optimisticStatus={optimisticStatus} />,"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 366,
+    "text": "<PiecesHudSpeedCell"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 448,
+    "text": "legendCells: Array<LegendCell | null>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 498,
+    "text": "const panelRef = useRef<HTMLDivElement>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 538,
+    "text": "<GlassPanel className={`${table.detailsContentPanel} h-full`}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 543,
+    "text": "<PiecesHud"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 557,
+    "text": "<PiecesLegend"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 577,
+    "text": "<PiecesTooltip"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 585,
+    "text": "<PiecesLegend"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Pieces.tsx",
+    "line": 624,
+    "text": "<PiecesView"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 27,
+    "text": "timedRef: React.MutableRefObject<TimedValue[]>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 137,
+    "text": "const ref = useRef<HTMLDivElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 183,
+    "text": "const canvasRef = useRef<HTMLCanvasElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 289,
+    "text": "downTimedRef: React.MutableRefObject<TimedValue[]>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 290,
+    "text": "upTimedRef: React.MutableRefObject<TimedValue[]>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 307,
+    "text": "const canvasRef = useRef<HTMLCanvasElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 485,
+    "text": "const [selectedWindow, setSelectedWindow] = useState<SpeedWindowKey>(\"1m\");"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 506,
+    "text": "const downTimed = useRef<TimedValue[]>([]);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 507,
+    "text": "const upTimed = useRef<TimedValue[]>([]);"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 520,
+    "text": "const trySeed = (hist: number[], targetRef: React.MutableRefObject<TimedValue[]>, key: \"down\" | \"up\") => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 576,
+    "text": "<ButtonGroup size=\"md\" variant=\"flat\" className={metricChart.layoutGroup}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 577,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 586,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 601,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 634,
+    "text": "<SeriesChart"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 654,
+    "text": "<SeriesChart"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Speed_Chart.tsx",
+    "line": 667,
+    "text": "<CombinedChart"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 93,
+    "text": "<AppTooltip content={row.announce} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 122,
+    "text": "<AppTooltip content={row.lastAnnounceTooltip} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 127,
+    "text": "<AppTooltip content={row.nextAnnounceTooltip} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 132,
+    "text": "<AppTooltip content={row.messageTooltip} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 168,
+    "text": "isStandalone ? <GlassPanel className={details.table.panel}>{content}</GlassPanel> : content;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 191,
+    "text": "<TrackerEditorModal"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 256,
+    "text": "<Icon className=\"toolbar-icon-size-sm shrink-0\" />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 273,
+    "text": "<TrackerRow"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 283,
+    "text": "<TrackerContextMenu actions={trackerActions} labels={trackerLabels} state={trackerState} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 288,
+    "text": "<TrackerEditorModal"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 322,
+    "text": "<Link2 className={contextMenu.headerIcon} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 325,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 331,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 337,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 343,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 348,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 354,
+    "text": "<ContextButton"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 389,
+    "text": "<Icon className=\"toolbar-icon-size-sm shrink-0\" strokeWidth={visuals.icon.strokeWidth} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 408,
+    "text": "<ModalEx"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentDetails_Trackers.tsx",
+    "line": 432,
+    "text": "<Link2 className={form.workflow.labelIcon} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 17,
+    "text": "export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 53,
+    "text": "<Skeleton className={table.loadingSkeleton} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 61,
+    "text": "<StatusIcon Icon={FileUp} size=\"lg\" className={table.emptyIcon} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 85,
+    "text": "<DndContext"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 93,
+    "text": "<SortableContext items={rowIds} strategy={verticalListSortingStrategy}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 119,
+    "text": "<DragOverlay adjustScale={false} dropAnimation={null} className={overlayClassName}>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Body.tsx",
+    "line": 148,
+    "text": "<TableCellContent key={cell.id} cell={cell} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 54,
+    "text": "speedHistoryRef: RefObject<Record<string, SpeedHistorySnapshot | Array<number | null>>>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 64,
+    "text": "table: Table<Torrent>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 127,
+    "text": "export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 140,
+    "text": "<AppTooltip content={torrent.errorString} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 177,
+    "text": "<TorrentProgressDisplay torrent={torrent} optimisticStatus={optimisticStatus} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 225,
+    "text": "<AppTooltip content={eta.tooltip} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 276,
+    "text": "<AppTooltip content={renderTooltipLines(tooltipLines)} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 326,
+    "text": "<AppTooltip content={formatDate(torrent.added)} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_ColumnDefs.tsx",
+    "line": 354,
+    "text": "<AppTooltip content={formatDate(torrent.doneDate)} native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_EmptyState.tsx",
+    "line": 15,
+    "text": "export const TorrentTable_EmptyState: React.FC<Props> = ({ isLoading = false, shortcut = \"\" }) => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_EmptyState.tsx",
+    "line": 30,
+    "text": "<Skeleton className={table.loadingSkeleton} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_EmptyState.tsx",
+    "line": 41,
+    "text": "<StatusIcon Icon={FileUp} size=\"lg\" className={table.emptyIcon} />"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Header.tsx",
+    "line": 14,
+    "text": "type TorrentTableHeader = ReturnType<Table<Torrent>[\"getFlatHeaders\"]>[number];"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Header.tsx",
+    "line": 37,
+    "text": "onAutoFitColumn?: (column: Column<Torrent>) => void;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Header.tsx",
+    "line": 38,
+    "text": "onResizeStart?: (column: Column<Torrent>, clientX: number) => void;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Header.tsx",
+    "line": 155,
+    "text": "<SortArrowIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 12,
+    "text": "type TorrentTableHeader = ReturnType<Table<Torrent>[\"getFlatHeaders\"]>[number];"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 13,
+    "text": "type TorrentTableCell = ReturnType<Row<Torrent>[\"getVisibleCells\"]>[number];"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 157,
+    "text": "<SortArrowIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 237,
+    "text": "rows: Row<Torrent>[];"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 238,
+    "text": "measureLayerRef: React.Ref<HTMLDivElement>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 248,
+    "text": "<TableHeaderContent"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_Shared.tsx",
+    "line": 258,
+    "text": "<TableCellContent"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 61,
+    "text": "const AVAILABILITY_META: Record<TorrentHealthState, AvailabilityMeta> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 101,
+    "text": "const statusMap: Record<TorrentPresentationVisualState, StatusMeta> = {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 197,
+    "text": "table?: Table<Torrent>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 215,
+    "text": "<AppTooltip content={tooltip} dense placement=\"top\" native>"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 216,
+    "text": "<Chip"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 233,
+    "text": "<StatusIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\components\\TorrentTable_StatusColumnCell.tsx",
+    "line": 243,
+    "text": "<StatusIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 25,
+    "text": "speedHistoryRef: RefObject<Record<string, SpeedHistorySnapshot | Array<number | null>>>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 28,
+    "text": "}): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 29,
+    "text": "const tableMeta = useMemo<DashboardTableMeta>("
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 38,
+    "text": "const columns = useMemo<ColumnDef<Torrent>[]>(() => {"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 56,
+    "text": "<HeaderIcon"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 76,
+    "text": "<CellRenderer"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 85,
+    "text": "} as ColumnDef<Torrent>;"
+  },
+  {
+    "file": "src\\modules\\dashboard\\hooks\\useTorrentTableColumns.tsx",
+    "line": 87,
+    "text": "return cols.filter(Boolean) as ColumnDef<Torrent>[];"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 51,
+    "text": "<ControlFieldHelper helper={helper} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 64,
+    "text": "<ControlFieldHelper helper={helper} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 87,
+    "text": "status: NonNullable<ReturnType<typeof getVersionGatedSettingStatus>>,"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 103,
+    "text": "export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, { type: \"switch-slider\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 121,
+    "text": "<Switch"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 136,
+    "text": "<Slider"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 154,
+    "text": "<ControlFieldHelper"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 161,
+    "text": "export function SwitchRenderer({ block }: { block: Extract<SectionBlock, { type: \"switch\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 185,
+    "text": "<Switch"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 195,
+    "text": "<ControlFieldHelper"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 304,
+    "text": "<BufferedInput"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 330,
+    "text": "<FolderOpen"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 362,
+    "text": "<PathFieldHelper helper={helperContent} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 368,
+    "text": "return <InlineSettingsFieldRow label={t(block.labelKey)} field={inputNode} helper={helperContent} />;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 370,
+    "text": "return <SettingsControlRow label={t(block.labelKey)} control={inputNode} helper={helperContent} />;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 384,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 396,
+    "text": "<PathFieldHelper helper={helperContent} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 400,
+    "text": "<SettingsControlRow"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 405,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 423,
+    "text": "export function InputPairRenderer({ block }: { block: Extract<SectionBlock, { type: \"input-pair\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 427,
+    "text": "<SingleInputRenderer key={inputBlock.stateKey || idx} block={inputBlock} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 433,
+    "text": "export function AltSpeedScheduleRenderer({ block }: { block: Extract<SectionBlock, { type: \"alt-speed-schedule\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 434,
+    "text": "return <AltSpeedScheduleField block={block} />;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 437,
+    "text": "export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type: \"select\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 449,
+    "text": "<InlineSettingsFieldRow"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 452,
+    "text": "<Select"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 468,
+    "text": "<SelectItem key={opt.key}>{t(opt.labelKey)}</SelectItem>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 483,
+    "text": "export function ButtonRowRenderer({ block }: { block: Extract<SectionBlock, { type: \"button-row\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 490,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 505,
+    "text": "export function LanguageRenderer({ block }: { block: Extract<SectionBlock, { type: \"language\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 510,
+    "text": "<AppTooltip content={tooltip}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 513,
+    "text": "<LanguageMenu />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 518,
+    "text": "export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { type: \"raw-config\" }> }) {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 541,
+    "text": "<AppTooltip content={tooltip}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 544,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsBlockRenderers.tsx",
+    "line": 581,
+    "text": "return <Divider className={form.divider} />;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 43,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 50,
+    "text": "<X strokeWidth={visuals.icon.strokeWidth} className={modal.iconMd} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 84,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 89,
+    "text": "startContent={<RotateCcw strokeWidth={visuals.icon.strokeWidth} className={modal.iconSm} />}"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 110,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 117,
+    "text": "<ChevronLeft className={modal.iconMd} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 125,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 164,
+    "text": "<Section padding=\"modal\" className={modal.scrollContent}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 166,
+    "text": "<AlertPanel severity=\"warning\" className={modal.alert}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 171,
+    "text": "<AlertPanel severity=\"danger\" className={modal.alert}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 175,
+    "text": "<AnimatePresence mode=\"wait\">"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 182,
+    "text": "<AlertPanel severity=\"warning\" className={modal.inlineAlert}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 186,
+    "text": "<SettingsFormProvider stateValue={settingsFormState} actionsValue={settingsFormActions}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 188,
+    "text": "<SettingsSection"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 192,
+    "text": "<ConnectionCredentialsCard />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 195,
+    "text": "<SystemTabContent />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 197,
+    "text": "<InterfaceTabContent />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 199,
+    "text": "<SettingsFormBuilder tab={activeTabDefinition} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 213,
+    "text": "<Modal"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 225,
+    "text": "<ModalContent className={modal.contentWrapper}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 227,
+    "text": "<SettingsSidebar controller={controller} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 229,
+    "text": "<SettingsHeader controller={controller} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 230,
+    "text": "<SettingsContent controller={controller} />"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\SettingsModalView.tsx",
+    "line": 240,
+    "text": "return <SettingsModalView controller={controller} />;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 19,
+    "text": "type ConnectionDraft = Pick<ConnectionProfile, \"scheme\" | \"host\" | \"port\" | \"username\" | \"password\">;"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 75,
+    "text": "const [draftOverride, setDraftOverride] = useState<ConnectionDraftOverride | null>(null);"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 76,
+    "text": "const [pendingAction, setPendingAction] = useState<PendingConnectionAction | null>(null);"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 161,
+    "text": "(patch: Partial<ConnectionDraft>) => {"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 224,
+    "text": "<Chip"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 229,
+    "text": "startContent={<StatusIcon strokeWidth={visuals.icon.strokeWidth} className={form.connection.iconSmall} />}"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 246,
+    "text": "<Button size=\"md\" variant=\"ghost\" onPress={() => setShowAdvanced(true)}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 268,
+    "text": "<ConnectionFieldRow label={t(\"settings.connection.host\")}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 269,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 279,
+    "text": "<ConnectionFieldRow label={t(\"settings.connection.port\")}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 280,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 291,
+    "text": "<ConnectionFieldRow label={t(\"settings.connection.username\")}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 292,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 301,
+    "text": "<ConnectionFieldRow label={t(\"settings.connection.password\")}>"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 302,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 318,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 330,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 341,
+    "text": "<RefreshCw"
+  },
+  {
+    "file": "src\\modules\\settings\\components\\tabs\\connection\\ConnectionManager.tsx",
+    "line": 355,
+    "text": "<Monitor strokeWidth={visuals.icon.strokeWidth} className={form.workflow.statusInfoIcon} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentDestinationGatePanel.tsx",
+    "line": 15,
+    "text": "<GlassPanel className={form.workflow.gatePanel}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentDestinationGatePanel.tsx",
+    "line": 16,
+    "text": "<AppTooltip content={t(\"modals.add_torrent.destination_prompt_help\")}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentDestinationGatePanel.tsx",
+    "line": 18,
+    "text": "<HardDrive className={form.workflow.gatePromptIcon} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentDestinationGatePanel.tsx",
+    "line": 23,
+    "text": "<DestinationPathEditor"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentDestinationGatePanel.tsx",
+    "line": 52,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 41,
+    "text": "onConfirm: (selection: AddTorrentSelection) => Promise<AddTorrentCommandOutcome>;"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 97,
+    "text": "const magnetInputRef = useRef<HTMLTextAreaElement | null>(null);"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 99,
+    "text": "const destinationInput = document.querySelector<HTMLInputElement>("
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 123,
+    "text": "(event: ReactKeyboardEvent<HTMLTextAreaElement>) => {"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 158,
+    "text": "(event: ReactKeyboardEvent<HTMLDivElement>) => {"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 256,
+    "text": "<ModalEx"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 265,
+    "text": "<AddTorrentModalContextProvider value={modalContextValue}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 276,
+    "text": "<AddTorrentDestinationGatePanel />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 291,
+    "text": "<FolderOpen className={modalStyles.workflow.iconLgPrimary} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 303,
+    "text": "<LayoutGroup>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 314,
+    "text": "<PanelGroup direction=\"horizontal\" className={modalStyles.workflow.panelGroup}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 315,
+    "text": "<Panel"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 327,
+    "text": "<AddTorrentSettingsPanel />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 329,
+    "text": "<PanelResizeHandle"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 347,
+    "text": "<Panel"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 357,
+    "text": "<Magnet className={formStyles.workflow.labelIcon} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 379,
+    "text": "<AddTorrentFileTable />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 389,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 398,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentModal.tsx",
+    "line": 405,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 16,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 23,
+    "text": "<ListOrdered className={form.workflow.flagsIcon} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 29,
+    "text": "<AppTooltip content={sequentialHint}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 45,
+    "text": "<AppTooltip content={t(\"modals.add_torrent.destination_prompt_help\")}>"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 47,
+    "text": "<HardDrive className={form.workflow.labelIcon} /> {t(\"modals.add_torrent.destination\")}"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 52,
+    "text": "<DestinationPathEditor"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 83,
+    "text": "<Divider className={form.workflow.flagsDivider} aria-hidden=\"true\" />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 86,
+    "text": "<Hash className={form.workflow.labelIcon} /> {t(\"modals.add_torrent.transfer_flags\")}"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 89,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 95,
+    "text": "<PauseCircle className={form.workflow.flagsIcon} />"
+  },
+  {
+    "file": "src\\modules\\torrent-add\\components\\AddTorrentSettingsPanel.tsx",
+    "line": 99,
+    "text": "<Divider className={form.workflow.flagsItemDivider} />"
+  },
+  {
+    "file": "src\\modules\\torrent-remove\\components\\RemoveConfirmationModal.tsx",
+    "line": 20,
+    "text": ") => Promise<DeleteConfirmationOutcome | TorrentCommandOutcome>;"
+  },
+  {
+    "file": "src\\modules\\torrent-remove\\components\\RemoveConfirmationModal.tsx",
+    "line": 118,
+    "text": "<ModalEx"
+  },
+  {
+    "file": "src\\modules\\torrent-remove\\components\\RemoveConfirmationModal.tsx",
+    "line": 169,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 26,
+    "text": "type FlagProps = SVGProps<SVGSVGElement>;"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 92,
+    "text": "{ code: \"en\", labelKey: \"language.english\", flagIcon: <UsFlagIcon /> },"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 93,
+    "text": "{ code: \"nl\", labelKey: \"language.dutch\", flagIcon: <NlFlagIcon /> },"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 94,
+    "text": "{ code: \"es\", labelKey: \"language.spanish\", flagIcon: <EsFlagIcon /> },"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 95,
+    "text": "{ code: \"zh\", labelKey: \"language.chinese\", flagIcon: <ZhFlagIcon /> },"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 114,
+    "text": "<Globe"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 122,
+    "text": "<Dropdown placement=\"bottom-end\" backdrop=\"transparent\">"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 123,
+    "text": "<DropdownTrigger>"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 124,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 131,
+    "text": "<DropdownMenu"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 141,
+    "text": "<DropdownItem"
+  },
+  {
+    "file": "src\\shared\\ui\\controls\\LanguageMenu.tsx",
+    "line": 157,
+    "text": "<Check"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 24,
+    "text": "type HeroModalSize = NonNullable<ModalProps[\"size\"]>;"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 51,
+    "text": "onKeyDownCapture?: (event: ReactKeyboardEvent<HTMLDivElement>) => void;"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 113,
+    "text": "event: ReactKeyboardEvent<HTMLDivElement>,"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 132,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 144,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 154,
+    "text": "<Modal"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 183,
+    "text": "<ModalContent onKeyDownCapture={handleContentKeyDownCapture}>"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 184,
+    "text": "<ModalHeader className={modal.dialogHeader}>"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 187,
+    "text": "<TitleIcon"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 198,
+    "text": "<ModalBody className={bodyClassName}>{children}</ModalBody>"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 200,
+    "text": "<ModalFooter className={footerClassName}>"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 210,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 220,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\ModalEx.tsx",
+    "line": 231,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 14,
+    "text": "export const ICON_SIZE_CLASSES: Record<ToolbarIconSize, string> = {"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 22,
+    "text": "export const ICON_SIZE_VARS: Record<ToolbarIconSize, string> = {"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 30,
+    "text": "extends Omit<ComponentPropsWithoutRef<typeof Button>, \"isIconOnly\"> {"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 69,
+    "text": "<Icon"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 83,
+    "text": "const element = node as ReactElement<IconElementProps>;"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 107,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\toolbar-button.tsx",
+    "line": 126,
+    "text": "<AppTooltip content={title} native>"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\window-control-button.tsx",
+    "line": 16,
+    "text": "const VARIANT_CLASSES: Record<WindowControlButtonVariant, string> = {"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\window-control-button.tsx",
+    "line": 51,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\window-control-button.tsx",
+    "line": 68,
+    "text": "<Icon"
+  },
+  {
+    "file": "src\\shared\\ui\\layout\\window-control-button.tsx",
+    "line": 77,
+    "text": "<AppTooltip content={title}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 66,
+    "text": "const feedbackMessageClass = (tone: Exclude<DestinationPathFeedback, { kind: \"gauge\" }>[\"tone\"]) =>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 85,
+    "text": "const rootRef = useRef<HTMLDivElement | null>(null);"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 138,
+    "text": "const handleKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 158,
+    "text": "<Autocomplete"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 167,
+    "text": "startContent: <FolderOpen className={form.locationEditorInputLeadingIcon} />,"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 184,
+    "text": "{(item) => <AutocompleteItem key={item.key}>{item.label}</AutocompleteItem>}"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 190,
+    "text": "<AppTooltip content={manualEntryPrompt}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 234,
+    "text": "<PathAutocomplete"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 252,
+    "text": "<Button"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\DestinationPathEditor.tsx",
+    "line": 265,
+    "text": "<DiskSpaceGauge"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 66,
+    "text": "const parentRef = useRef<HTMLDivElement>(null);"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 67,
+    "text": "const toolbarRef = useRef<HTMLDivElement>(null);"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 68,
+    "text": "const toolbarLeadRef = useRef<HTMLDivElement>(null);"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 69,
+    "text": "const selectionMeasureRef = useRef<HTMLSpanElement>(null);"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 234,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 242,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 253,
+    "text": "<Dropdown>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 254,
+    "text": "<DropdownTrigger>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 255,
+    "text": "<ToolbarIconButton"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 263,
+    "text": "<DropdownMenu"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 273,
+    "text": "<DropdownItem key=\"all\">{t(\"status.all\")}</DropdownItem>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 274,
+    "text": "<DropdownItem key=\"video\">{t(\"types.video\")}</DropdownItem>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 275,
+    "text": "<DropdownItem key=\"audio\">{t(\"types.audio\")}</DropdownItem>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 278,
+    "text": "<Input"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 282,
+    "text": "startContent={<Search className={fileBrowser.iconDefault} />}"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 312,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 321,
+    "text": "<FileText className={table.columnHeaderIcon} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 325,
+    "text": "<Select"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 332,
+    "text": "startContent={<ListOrdered className={table.columnHeaderIcon} />}"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 348,
+    "text": "<SelectItem key={option.key} startContent={<Icon className={option.iconClass} />}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 357,
+    "text": "<Percent className={table.columnHeaderIcon} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 362,
+    "text": "<HardDrive className={table.columnHeaderIcon} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 371,
+    "text": "<Search className={fileBrowser.emptyIcon} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTree.tsx",
+    "line": 407,
+    "text": "<FileExplorerTreeRow"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 85,
+    "text": "return <FileVideo className={fileBrowser.iconVideo} />;"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 88,
+    "text": "return <FileAudio className={fileBrowser.iconAudio} />;"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 91,
+    "text": "return <FileImage className={fileBrowser.iconImage} />;"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 94,
+    "text": "return <FileText className={fileBrowser.iconText} />;"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 96,
+    "text": "return <FileIcon className={fileBrowser.iconDefault} />;"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 113,
+    "text": "<Folder className={fileBrowser.rowFolderIcon} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 122,
+    "text": "<Select"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 142,
+    "text": "<SelectItem key={option.key} startContent={<Icon className={option.iconClass} />}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 150,
+    "text": "<ProgressCell"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 162,
+    "text": "<Card"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 170,
+    "text": "<CardHeader className={cn(form.sectionHeader, fileBrowser.cardHeader)}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 173,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 193,
+    "text": "<ChevronDown className={fileBrowser.iconSmall} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 195,
+    "text": "<ChevronRight className={fileBrowser.iconSmall} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 203,
+    "text": "<AppTooltip content={row.node.name}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 231,
+    "text": "<CardBody className={cn(form.sectionBody, fileBrowser.cardBody)}>"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 253,
+    "text": "<Checkbox"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 274,
+    "text": "<ChevronDown className={fileBrowser.iconSmall} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 276,
+    "text": "<ChevronRight className={fileBrowser.iconSmall} />"
+  },
+  {
+    "file": "src\\shared\\ui\\workspace\\FileExplorerTreeRow.tsx",
+    "line": 285,
+    "text": "<AppTooltip content={row.node.name}>"
+  }
+]

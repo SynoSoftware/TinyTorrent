@@ -8,13 +8,13 @@ import { useWorkspaceModals } from "@/app/context/AppShellStateContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
 import { registry } from "@/config/logic";
-import { textRole } from "@/config/textRoles";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { status } from "@/shared/status";
 import { detectBrowserPlatform, type BrowserPlatform } from "@/shared/utils/browserPlatform";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { DETAILS, FORM, MODAL } from "@/shared/ui/layout/glass-surface";
+import { details, form, modal } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
+const { visuals } = registry;
 
 type ConnectionDialogRowProps = {
     icon: typeof Server;
@@ -24,12 +24,12 @@ type ConnectionDialogRowProps = {
 
 function ConnectionDialogRow({ icon: Icon, label, children }: ConnectionDialogRowProps) {
     return (
-        <div className={MODAL.dialogInsetItem}>
-            <div className={FORM.connection.statusFooterRow}>
-                <Icon className={FORM.workflow.statusInfoIcon} />
-                <div className={DETAILS.generalMetricContent}>
-                    <div className={FORM.stackTools}>
-                        <p className={textRole.caption}>{label}</p>
+        <div className={modal.dialogInsetItem}>
+            <div className={form.connection.statusFooterRow}>
+                <Icon className={form.workflow.statusInfoIcon} />
+                <div className={details.generalMetricContent}>
+                    <div className={form.stackTools}>
+                        <p className={visuals.typography.text.caption}>{label}</p>
                         {children}
                     </div>
                 </div>
@@ -109,8 +109,8 @@ export function ConnectionTimeoutDialog() {
     const installRow = (
         <>
             <ConnectionDialogRow icon={Download} label={t("workspace.connection_timeout_dialog.install_option_label")}>
-                <div className={`${FORM.blockRowBetween} gap-tools`}>
-                    <p className={textRole.bodySmall}>
+                <div className={`${form.blockRowBetween} gap-tools`}>
+                    <p className={visuals.typography.text.bodySmall}>
                         {t("workspace.connection_timeout_dialog.install_option_hint")}
                         <br />
                         {t("workspace.connection_timeout_dialog.install_option_hint2")}
@@ -125,7 +125,7 @@ export function ConnectionTimeoutDialog() {
                             color="primary"
                             variant="flat"
                             size="sm"
-                            startContent={<Download className={FORM.workflow.actionIcon} />}
+                            startContent={<Download className={form.workflow.actionIcon} />}
                         >
                             {t("workspace.connection_timeout_dialog.open_download")}
                         </Button>
@@ -144,9 +144,11 @@ export function ConnectionTimeoutDialog() {
             size="sm"
             footerStartContent={
                 footerStatusMessage ? (
-                    <div className={MODAL.dialogFooterGroup}>
-                        <Clock3 className={FORM.workflow.statusInfoIcon} />
-                        <p className={textRole.bodySmall}>{footerStatusMessage}</p>
+                    <div className={modal.dialogFooterGroup}>
+                        <Clock3 className={form.workflow.statusInfoIcon} />
+                        <p className={visuals.typography.text.bodySmall}>
+                            {footerStatusMessage}
+                        </p>
                     </div>
                 ) : null
             }
@@ -161,8 +163,8 @@ export function ConnectionTimeoutDialog() {
                 },
             }}
         >
-            <div className={FORM.stackTools}>
-                <p className={textRole.body}>{t(bodyKey)}</p>
+            <div className={form.stackTools}>
+                <p className={visuals.typography.text.body}>{t(bodyKey)}</p>
                 {showInstallRecommendation ? (
                     installRow
                 ) : (
@@ -171,17 +173,17 @@ export function ConnectionTimeoutDialog() {
                             icon={Settings}
                             label={t("workspace.connection_timeout_dialog.check_settings_label")}
                         >
-                            <div className={FORM.stackTools}>
-                                <p className={textRole.bodySmall}>
+                            <div className={form.stackTools}>
+                                <p className={visuals.typography.text.bodySmall}>
                                     {t("workspace.connection_timeout_dialog.settings_hint")}
                                 </p>
-                                <div className={`${FORM.blockRowBetween} gap-tools`}>
-                                    <p className={DETAILS.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
+                                <div className={`${form.blockRowBetween} gap-tools`}>
+                                    <p className={details.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
                                     <Button
                                         color="primary"
                                         variant="flat"
                                         size="sm"
-                                        startContent={<Settings className={FORM.workflow.actionIcon} />}
+                                        startContent={<Settings className={form.workflow.actionIcon} />}
                                         onPress={openSettingsFromDialog}
                                     >
                                         {t("workspace.connection_timeout_dialog.open_settings")}
@@ -206,13 +208,13 @@ export function ConnectionTimeoutDialog() {
                                 aria-label={t("workspace.connection_timeout_dialog.more_help_label")}
                                 title={t("workspace.connection_timeout_dialog.more_help_label")}
                             >
-                                <div className={FORM.stackTools}>
+                                <div className={form.stackTools}>
                                     {installRow}
                                     <ConnectionDialogRow
                                         icon={Play}
                                         label={t("workspace.connection_timeout_dialog.start_option_label")}
                                     >
-                                        <p className={textRole.bodySmall}>
+                                        <p className={visuals.typography.text.bodySmall}>
                                             {t("workspace.connection_timeout_dialog.start_option_hint")}
                                         </p>
                                     </ConnectionDialogRow>

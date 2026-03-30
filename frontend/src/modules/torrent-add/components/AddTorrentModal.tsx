@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { Button, Checkbox, cn } from "@heroui/react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
-import { textRole } from "@/config/textRoles";
 
 const SETTINGS_PANEL_DEFAULT = 40;
 const SETTINGS_PANEL_MIN = 25;
@@ -15,8 +14,8 @@ const DESTINATION_INPUT_ID = "add-torrent-settings-destination";
 
 import { FolderOpen, HardDrive, Magnet, type LucideIcon } from "lucide-react";
 
-import { FORM, INPUT, MODAL } from "@/shared/ui/layout/glass-surface";
-import { FORM_CONTROL } from "@/shared/ui/layout/glass-surface";
+import { form as formStyles, input, modal as modalStyles } from "@/shared/ui/layout/glass-surface";
+import { formControl } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommitMode, AddTorrentSelection, AddTorrentSource } from "@/modules/torrent-add/types";
 import type { AddTorrentCommandOutcome } from "@/app/orchestrators/useAddTorrentController";
@@ -25,7 +24,7 @@ import { AddTorrentDestinationGatePanel } from "@/modules/torrent-add/components
 import { AddTorrentSettingsPanel } from "@/modules/torrent-add/components/AddTorrentSettingsPanel";
 import { AddTorrentModalContextProvider } from "@/modules/torrent-add/components/AddTorrentModalContext";
 import { useAddTorrentModalViewModel } from "@/modules/torrent-add/hooks/useAddTorrentModalViewModel";
-const { interaction } = registry;
+const { interaction, visuals } = registry;
 
 export interface AddTorrentModalProps {
     isOpen: boolean;
@@ -139,11 +138,13 @@ export function AddTorrentModal({
         : t("modals.add_torrent.title");
     const modalTitleContent = (
         <>
-            <span className={cn(textRole.headingCaps, "truncate")}>{modalTitle}</span>
+            <span className={cn(visuals.typography.text.headingCaps, "truncate")}>{modalTitle}</span>
             {sourceLabel ? (
                 <span
                     className={
-                        showDestinationGate ? MODAL.workflow.sourceLabelCaption : MODAL.workflow.sourceMutedLabel
+                        showDestinationGate
+                            ? modalStyles.workflow.sourceLabelCaption
+                            : modalStyles.workflow.sourceMutedLabel
                     }
                 >
                     {sourceLabel}
@@ -264,14 +265,14 @@ export function AddTorrentModal({
             <AddTorrentModalContextProvider value={modalContextValue}>
                 {showDestinationGate ? (
                     <div
-                        className={MODAL.workflow.gateRoot}
+                        className={modalStyles.workflow.gateRoot}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onKeyDown={handleDestinationGateKeyDown}
                     >
-                        <div className={MODAL.workflow.gateBody}>
-                            <div className={MODAL.workflow.gateContent}>
+                        <div className={modalStyles.workflow.gateBody}>
+                            <div className={modalStyles.workflow.gateContent}>
                                 <AddTorrentDestinationGatePanel />
                             </div>
                         </div>
@@ -279,16 +280,16 @@ export function AddTorrentModal({
                 ) : (
                     <form
                         ref={formRef}
-                        className={MODAL.workflow.formRoot}
+                        className={modalStyles.workflow.formRoot}
                         onSubmit={handleFormSubmit}
                         onKeyDown={handleFormKeyDown}
                     >
-                        <div className={MODAL.workflow.body}>
+                        <div className={modalStyles.workflow.body}>
                             {dropActive ? (
-                                <div className={MODAL.workflow.dropOverlay}>
-                                    <div className={MODAL.workflow.dropOverlayChip}>
-                                        <FolderOpen className={MODAL.workflow.iconLgPrimary} />
-                                        <span className={textRole.heading}>
+                                <div className={modalStyles.workflow.dropOverlay}>
+                                    <div className={modalStyles.workflow.dropOverlayChip}>
+                                        <FolderOpen className={modalStyles.workflow.iconLgPrimary} />
+                                        <span className={visuals.typography.text.heading}>
                                             {hasDestination
                                                 ? t("modals.add_torrent.drop_to_change_destination")
                                                 : uiMode === "Rpc"
@@ -301,13 +302,16 @@ export function AddTorrentModal({
 
                             <LayoutGroup>
                                 <motion.div
-                                    className={cn(MODAL.addTorrentBodyPanelsBase, MODAL.addTorrentBodyPanelsFullscreen)}
+                                    className={cn(
+                                        modalStyles.addTorrentBodyPanelsBase,
+                                        modalStyles.addTorrentBodyPanelsFullscreen,
+                                    )}
                                     initial={false}
                                     animate={FULL_CONTENT_ANIMATION.visible}
                                     transition={FULL_CONTENT_ANIMATION.transition}
                                     style={{ pointerEvents: "auto" }}
                                 >
-                                    <PanelGroup direction="horizontal" className={MODAL.workflow.panelGroup}>
+                                    <PanelGroup direction="horizontal" className={modalStyles.workflow.panelGroup}>
                                         <Panel
                                             ref={settingsPanelRef}
                                             defaultSize={SETTINGS_PANEL_DEFAULT}
@@ -316,23 +320,26 @@ export function AddTorrentModal({
                                             onCollapse={handleSettingsPanelCollapse}
                                             onExpand={handleSettingsPanelExpand}
                                             className={cn(
-                                                MODAL.workflow.settingsPanel,
-                                                isSettingsCollapsed && MODAL.workflow.settingsPanelCollapsed,
+                                                modalStyles.workflow.settingsPanel,
+                                                isSettingsCollapsed && modalStyles.workflow.settingsPanelCollapsed,
                                             )}
                                         >
                                             <AddTorrentSettingsPanel />
                                         </Panel>
                                         <PanelResizeHandle
                                             onDragging={isSettingsCollapsed ? undefined : setIsPanelResizeActive}
-                                            className={cn(MODAL.workflow.paneHandle, MODAL.workflow.paneHandleEnabled)}
+                                            className={cn(
+                                                modalStyles.workflow.paneHandle,
+                                                modalStyles.workflow.paneHandleEnabled,
+                                            )}
                                         >
-                                            <div className={MODAL.workflow.resizeHandleBarWrap}>
+                                            <div className={modalStyles.workflow.resizeHandleBarWrap}>
                                                 <div
                                                     className={cn(
-                                                        MODAL.workflow.resizeHandleBarBase,
+                                                        modalStyles.workflow.resizeHandleBarBase,
                                                         isPanelResizeActive
-                                                            ? MODAL.workflow.resizeHandleBarActive
-                                                            : MODAL.workflow.resizeHandleBarIdle,
+                                                            ? modalStyles.workflow.resizeHandleBarActive
+                                                            : modalStyles.workflow.resizeHandleBarIdle,
                                                     )}
                                                 />
                                             </div>
@@ -340,18 +347,18 @@ export function AddTorrentModal({
                                         <Panel
                                             defaultSize={FILE_PANEL_DEFAULT}
                                             minSize={FILE_PANEL_MIN}
-                                            className={MODAL.workflow.filePanel}
+                                            className={modalStyles.workflow.filePanel}
                                         >
-                                            <div className={MODAL.workflow.filePanelContent}>
+                                            <div className={modalStyles.workflow.filePanelContent}>
                                                 {isMagnetMode ? (
-                                                    <div className={FORM.workflow.fillRoot}>
-                                                        <div className={FORM.workflow.fillSection}>
-                                                            <label className={FORM.workflow.label}>
-                                                                <Magnet className={FORM.workflow.labelIcon} />
+                                                    <div className={formStyles.workflow.fillRoot}>
+                                                        <div className={formStyles.workflow.fillSection}>
+                                                            <label className={formStyles.workflow.label}>
+                                                                <Magnet className={formStyles.workflow.labelIcon} />
                                                                 {t("modals.magnet_label")}
                                                             </label>
-                                                            <div className={FORM.workflow.fillBody}>
-                                                                <div className={INPUT.fillCodeTextareaFrame}>
+                                                            <div className={formStyles.workflow.fillBody}>
+                                                                <div className={input.fillCodeTextareaFrame}>
                                                                     <textarea
                                                                         ref={magnetInputRef}
                                                                         autoFocus
@@ -360,7 +367,7 @@ export function AddTorrentModal({
                                                                             magnet.setValue(event.target.value)
                                                                         }
                                                                         placeholder={t("modals.add_magnet.placeholder")}
-                                                                        className={INPUT.fillCodeTextarea}
+                                                                        className={input.fillCodeTextarea}
                                                                         spellCheck={false}
                                                                         onKeyDown={handleMagnetInputKeyDown}
                                                                     />
@@ -377,21 +384,21 @@ export function AddTorrentModal({
                                 </motion.div>
                             </LayoutGroup>
                         </div>
-                        <div className={MODAL.workflow.footer}>
+                        <div className={modalStyles.workflow.footer}>
                             {!isMagnetMode ? (
                                 <Checkbox
                                     isSelected={!showAddDialog}
                                     onValueChange={(value) => onShowAddDialogChange(!value)}
-                                    classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
+                                    classNames={formControl.checkboxLabelBodySmallClassNames}
                                 >
                                     {t("modals.add_torrent.dont_show_again")}
                                 </Checkbox>
                             ) : null}
-                            <div className={MODAL.footerButtonRow}>
+                            <div className={modalStyles.footerButtonRow}>
                                 <Button
                                     variant="light"
                                     onPress={handleModalCancel}
-                                    className={MODAL.workflow.cancelButton}
+                                    className={modalStyles.workflow.cancelButton}
                                 >
                                     {t("modals.cancel")}
                                 </Button>
@@ -400,7 +407,7 @@ export function AddTorrentModal({
                                     variant="shadow"
                                     onPress={requestSubmit}
                                     isDisabled={!canConfirm}
-                                    className={MODAL.workflow.primaryButton}
+                                    className={modalStyles.workflow.primaryButton}
                                 >
                                     {primaryActionLabel}
                                 </Button>

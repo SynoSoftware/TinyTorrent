@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { SURFACE } from "@/shared/ui/layout/glass-surface";
+import { surface } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
@@ -68,7 +68,7 @@ const ToolbarIconButtonBase = forwardRef<
             return (
                 <Icon
                     strokeWidth={strokeWidth}
-                    className={cn(SURFACE.atom.textCurrent, iconClass)}
+                    className={cn(surface.atom.textCurrent, iconClass)}
                     style={{ width: sizeVar, height: sizeVar }}
                 />
             );
@@ -91,7 +91,7 @@ const ToolbarIconButtonBase = forwardRef<
             return cloneElement(element, {
                 className: cn(
                     iconClass,
-                    SURFACE.atom.textCurrent,
+                    surface.atom.textCurrent,
                     elProps.className,
                 ),
                 style: mergedStyle,
@@ -99,7 +99,7 @@ const ToolbarIconButtonBase = forwardRef<
         }
 
         return (
-            <span className={cn(iconClass, SURFACE.atom.textCurrent)}>{node}</span>
+            <span className={cn(iconClass, surface.atom.textCurrent)}>{node}</span>
         );
     })();
 
