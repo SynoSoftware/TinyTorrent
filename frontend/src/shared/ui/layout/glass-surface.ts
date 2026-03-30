@@ -1,6 +1,6 @@
 import { registry } from "@/config/logic";
-const { visuals } = registry;
-const text = visuals.typography.text;
+const { visuals, tokens: designTokens } = registry;
+const text = designTokens.primitive.typography.text;
 
 // Static styling authority only.
 // No functions, no params, no branching.
@@ -8,30 +8,22 @@ const text = visuals.typography.text;
 // Surface dimension only: container shape, background, elevation, blur.
 // Static strings only. No runtime composition helpers.
 
-const transition = visuals.transitions;
+const transition = designTokens.primitive.motion;
 
-const glassSurfaceDial = {
-    opacity: {
-        panel: "bg-content1/10",
-        workbench: "bg-transparent",
-        pane: "bg-content1/55",
-        modal: "bg-content1/80",
-        overlay: "bg-background/90",
-    },
-    blur: {
-        panel: "blur-glass",
-        soft: "backdrop-blur-sm",
-        floating: "backdrop-blur-xl",
-    },
-    border: {
-        soft: "border border-default/10",
-        strong: "border border-default/20",
-    },
+const primitiveTokens = {
     radius: {
         panel: "rounded-panel",
         modal: "rounded-modal",
         raised: "rounded-2xl",
         full: "rounded-full",
+        pill: "rounded-pill",
+        tight: "rounded-tight",
+        medium: "rounded-md",
+    },
+    blur: {
+        panel: "blur-glass",
+        soft: "backdrop-blur-sm",
+        floating: "backdrop-blur-xl",
     },
     elevation: {
         panel: "shadow-small",
@@ -39,31 +31,24 @@ const glassSurfaceDial = {
         floating: "shadow-visual-large",
         menu: "shadow-menu-large",
     },
+    opacity: {
+        canvas: "bg-transparent",
+        subtle: "bg-content1/10",
+        raised: "bg-content1/55",
+        modal: "bg-content1/80",
+        overlay: "bg-background/90",
+        codeInline: "bg-content1/20",
+    },
+    border: {
+        subtle: "border border-default/10",
+        default: "border border-default/20",
+        strong: "border border-default/50",
+    },
+    motion: designTokens.primitive.motion,
+    typography: designTokens.primitive.typography,
 } as const;
 
-const glassPaneSurface = `flex flex-col min-h-0 overflow-hidden ${glassSurfaceDial.radius.panel} ${glassSurfaceDial.border.strong} ${glassSurfaceDial.elevation.panel} ${glassSurfaceDial.opacity.pane}`;
-const glassOverlaySurface = `${glassSurfaceDial.border.strong} ${glassSurfaceDial.opacity.overlay} ${glassSurfaceDial.blur.floating} ${glassSurfaceDial.elevation.overlay}`;
-
-const glassRoleCore = {
-    surface: {
-        workbench: `glass-panel surface-layer-1 text-foreground ${glassSurfaceDial.opacity.workbench}`,
-        panel: `${glassSurfaceDial.radius.panel} ${glassSurfaceDial.border.soft} overflow-hidden ${glassSurfaceDial.opacity.panel}`,
-        pane: glassPaneSurface,
-        modal: `glass-panel surface-layer-2 text-foreground ${glassSurfaceDial.elevation.floating} ${glassSurfaceDial.radius.modal} flex flex-col overflow-hidden ${glassSurfaceDial.border.strong}`,
-        inset: `surface-layer-1 ${glassSurfaceDial.radius.panel} p-tight`,
-        menu: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${glassSurfaceDial.elevation.menu} ${glassSurfaceDial.radius.modal} ${glassSurfaceDial.border.strong} p-tight`,
-        overlay: glassOverlaySurface,
-    },
-    chrome: {
-        edgeTop: "border-t border-default/50",
-        edgeBottom: "border-b border-default/50",
-        sticky: `sticky top-0 z-sticky bg-background/80 ${glassSurfaceDial.blur.soft}`,
-        divider: "border-default/20",
-    },
-    state: {
-        interactive: visuals.interactive.buttonDefault,
-        disabled: visuals.state.disabled,
-    },
+const semanticTokens = {
     text: {
         heading: text.heading,
         headingSection: text.headingSection,
@@ -74,10 +59,38 @@ const glassRoleCore = {
         caption: text.caption,
         code: text.code,
     },
+    state: {
+        disabled: visuals.state.disabled,
+        muted: visuals.state.muted,
+        ghost: visuals.state.ghost,
+    },
+    border: {
+        subtle: primitiveTokens.border.subtle,
+        default: primitiveTokens.border.default,
+        strong: primitiveTokens.border.strong,
+    },
+    chrome: {
+        edgeTop: "border-t border-default/50",
+        edgeBottom: "border-b border-default/50",
+        divider: "border-default/20",
+        sticky: `sticky top-0 z-sticky bg-background/80 ${primitiveTokens.blur.soft}`,
+    },
+    surface: {
+        canvas: primitiveTokens.opacity.canvas,
+        subtle: primitiveTokens.opacity.subtle,
+        raised: primitiveTokens.opacity.raised,
+        modal: primitiveTokens.opacity.modal,
+        overlay: primitiveTokens.opacity.overlay,
+    },
+} as const;
+
+export const tokens = {
+    primitive: primitiveTokens,
+    semantic: semanticTokens,
 } as const;
 
 const menuSurfaceList = "overflow-hidden outline-none ring-0";
-export const menuItemSurface =
+const menuItemSurface =
     "rounded-panel px-panel py-tight text-scaled font-medium cursor-pointer " +
     "outline-none focus:outline-none focus-visible:outline-none " +
     "ring-0 focus:ring-0 focus-visible:ring-0 " +
@@ -90,7 +103,7 @@ const menuListClassNames = {
     list: menuSurfaceList,
 } as const;
 const menuItemClassNames = { base: menuItemSurface } as const;
-const menuSectionHeading = glassRoleCore.text.label;
+const menuSectionHeading = semanticTokens.text.label;
 const menuPanelHeader = `px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools`;
 const menuPanelHeaderIcon = "text-foreground/30";
 const menuPanelHeaderText = `${text.label} text-foreground/40 truncate`;
@@ -112,116 +125,180 @@ const tableHeaderPattern = {
     iconCell: "border-b border-default/10 py-panel pl-panel pr-tight",
     statusCell: "border-b border-default/10 py-panel pl-tight pr-panel text-right",
 } as const;
-const panelSurfaceInsetFrame = `${glassSurfaceDial.radius.panel} ${glassSurfaceDial.border.soft} overflow-hidden`;
+const workbenchShell = `acrylic shadow-inner ${primitiveTokens.elevation.panel}`;
+const panelInset = `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`;
+const panelRaised = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.subtle}`;
+const panelInfo = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.canvas}`;
+const panelWorkflow = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.raised}`;
+const panelSidebar = `flex flex-col border-r ${visuals.surface.border} ${semanticTokens.surface.raised} ${primitiveTokens.blur.panel}`;
+const statusModulePanel = `${primitiveTokens.radius.modal} border ${visuals.surface.border} ${semanticTokens.surface.subtle} ${primitiveTokens.blur.soft}`;
 const modalBaseClassNames = {
-    base: glassRoleCore.surface.modal,
+    base: `glass-panel surface-layer-2 text-foreground ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.modal} flex flex-col overflow-hidden ${primitiveTokens.border.default}`,
 } as const;
 const modalCompactClassNames = {
-    base: `${glassRoleCore.surface.modal} w-full max-w-modal-compact`,
+    base: `${modalBaseClassNames.base} w-full max-w-modal-compact`,
 } as const;
 const modalBaseWrapperHiddenClassNames = {
-    base: glassRoleCore.surface.modal,
+    base: modalBaseClassNames.base,
     wrapper: "overflow-hidden",
 } as const;
 const modalChromeClassNames = {
     body: "p-tight",
-    header: `p-none select-none ${glassSurfaceDial.blur.panel}`,
+    header: `p-none select-none ${primitiveTokens.blur.panel}`,
     footer: "p-none select-none",
 } as const;
-const surfaceTooltip = {
-    content: `${glassSurfaceDial.opacity.modal} border ${visuals.surface.border} ${glassSurfaceDial.blur.floating} ${glassSurfaceDial.elevation.floating} ${glassSurfaceDial.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
-    arrow: glassSurfaceDial.opacity.modal,
+const tooltipControl = {
+    content: `${semanticTokens.surface.modal} border ${visuals.surface.border} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
+    arrow: semanticTokens.surface.modal,
 } as const;
-const mapOverlaySurface = `${glassSurfaceDial.border.strong} ${glassSurfaceDial.opacity.pane} ${glassSurfaceDial.blur.floating} ${glassSurfaceDial.elevation.overlay}`;
-const mapOverlayRadius = glassSurfaceDial.radius.raised;
+const mapOverlaySurface = `${primitiveTokens.border.default} ${semanticTokens.surface.raised} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.overlay}`;
+const mapOverlayRadius = primitiveTokens.radius.raised;
 const mapOverlayCard = `${mapOverlaySurface} ${mapOverlayRadius} px-panel py-tight`;
-const glassSemanticChrome = {
-    dividerSoft: visuals.surface.border,
-    headerBorder: glassRoleCore.chrome.edgeBottom,
-    footerBorder: glassRoleCore.chrome.edgeTop,
-    dialogHeader: `${glassRoleCore.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
-    dialogFooter: `${glassRoleCore.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
-    workflowFooter: `${glassRoleCore.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-center sm:justify-between`,
-    headerPassive: `${glassRoleCore.chrome.edgeBottom} select-none`,
-    footerEnd: `${glassRoleCore.chrome.edgeTop} flex justify-end gap-tools`,
-    footerActionsPadded: `${glassRoleCore.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
+const controlChrome = {
+    dialogHeader: `${semanticTokens.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
+    dialogFooter: `${semanticTokens.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
+    workflowFooter: `${semanticTokens.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-center sm:justify-between`,
+    headerPassive: `${semanticTokens.chrome.edgeBottom} select-none`,
+    footerEnd: `${semanticTokens.chrome.edgeTop} flex justify-end gap-tools`,
+    footerActionsPadded: `${semanticTokens.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
 } as const;
-const surfaceModal = {
-    baseClassNames: modalBaseClassNames,
-    compactClassNames: modalCompactClassNames,
-    baseWrapperHiddenClassNames: modalBaseWrapperHiddenClassNames,
-    chromeClassNames: modalChromeClassNames,
-    baseClass: glassRoleCore.surface.modal,
-} as const;
-const surfaceMenu = {
-    surface: glassRoleCore.surface.menu,
-    dirPickerSurface: `min-w-dir-picker ${glassRoleCore.surface.menu}`,
-    minWidthSurface: "min-w-(--tt-menu-min-width)",
-    listClassNames: menuListClassNames,
-    itemClassNames: menuItemClassNames,
-    itemSplitClassNames: {
-        base: `${menuItemSurface} flex items-center justify-between`,
-    } as const,
-    itemStrong: "font-semibold",
-    itemNested: "pl-stage",
-    itemPinned: "font-semibold text-foreground",
-    itemSelectedPrimary: "bg-primary/15 text-primary",
-    flagInlineWrap: "text-lg leading-none",
-    checkIconPrimary: "text-primary",
-    sectionHeading: menuSectionHeading,
-    panelHeader: menuPanelHeader,
-    panelHeaderIcon: menuPanelHeaderIcon,
-    panelHeaderText: menuPanelHeaderText,
-    actionButton: menuActionButton,
-    dangerActionButton: menuActionButtonDanger,
-} as const;
-const surfaceAtom = {
-    iconButton: `surface-layer-1 ${glassSurfaceDial.border.soft}`,
-    textCurrent: "text-current",
-    objectContain: "object-contain",
-    codeInline: "bg-content1/20 px-tight py-tight rounded",
-    insetRounded: glassRoleCore.surface.inset,
-    insetRoundedFull: `surface-layer-1 ${glassSurfaceDial.radius.full} p-tight`,
-    insetBorderedItem: `${glassSurfaceDial.radius.panel} ${glassSurfaceDial.border.strong} p-tight`,
-    progressTrack: "bg-content2/50 h-full",
-    progressIndicatorPaused: "bg-gradient-to-r from-warning/50 to-warning",
-    progressIndicatorSeeding: "bg-gradient-to-r from-primary/50 to-primary",
-    progressIndicatorActive: "bg-gradient-to-r from-success/50 to-success",
-    glassPanel: "glass-panel surface-layer-1 text-foreground",
-    shadowBlock: glassSurfaceDial.elevation.panel,
-    shadowPanel: glassSurfaceDial.elevation.overlay,
-    glassBlock: "acrylic shadow-inner",
-} as const;
-const rolePanelInsetBase = `${panelSurfaceInsetFrame} ${glassSurfaceDial.opacity.panel}`;
-const rolePanelBordered = `${glassSurfaceDial.radius.raised} border ${visuals.surface.border} ${glassSurfaceDial.opacity.panel}`;
-const rolePanelInfo = `${glassSurfaceDial.radius.raised} border ${visuals.surface.border} ${glassSurfaceDial.opacity.workbench}`;
-const glassRoleSemantic = {
-    surface: {
-        workbenchShell: `${surfaceAtom.glassBlock} ${surfaceAtom.shadowBlock}`,
-        panelInset: rolePanelInsetBase,
-        tooltip: surfaceTooltip.content,
-        statusModule: `${glassSurfaceDial.radius.modal} border ${visuals.surface.border} ${glassSurfaceDial.opacity.panel} ${glassSurfaceDial.blur.soft}`,
-        panelRaised: rolePanelBordered,
-        panelMuted: rolePanelBordered,
-        panelInfo: rolePanelInfo,
-        panelWorkflow: `${glassSurfaceDial.radius.raised} border ${visuals.surface.border} ${glassSurfaceDial.opacity.pane}`,
-        sidebarPanel: `flex flex-col border-r ${visuals.surface.border} ${glassSurfaceDial.opacity.pane} ${glassSurfaceDial.blur.panel}`,
+const controlBase = {
+    panel: {
+        workbench: `glass-panel surface-layer-1 text-foreground ${semanticTokens.surface.canvas}`,
+        base: `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`,
+        pane: `flex flex-col min-h-0 overflow-hidden ${primitiveTokens.radius.panel} ${primitiveTokens.border.default} ${primitiveTokens.elevation.panel} ${semanticTokens.surface.raised}`,
+        inset: `surface-layer-1 ${primitiveTokens.radius.panel} p-tight`,
+        insetFull: `surface-layer-1 ${primitiveTokens.radius.full} p-tight`,
+        insetBordered: `${primitiveTokens.radius.panel} ${primitiveTokens.border.default} p-tight`,
+        raised: panelRaised,
+        info: panelInfo,
+        workflow: panelWorkflow,
+        sidebar: panelSidebar,
+        statusModule: statusModulePanel,
+        overlay: `${primitiveTokens.border.default} ${semanticTokens.surface.overlay} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.overlay}`,
+        glass: "glass-panel surface-layer-1 text-foreground",
     },
-    chrome: glassSemanticChrome,
+    modal: {
+        surface: {
+            baseClassNames: modalBaseClassNames,
+            compactClassNames: modalCompactClassNames,
+            baseWrapperHiddenClassNames: modalBaseWrapperHiddenClassNames,
+            chromeClassNames: modalChromeClassNames,
+            baseClass: modalBaseClassNames.base,
+        },
+        chrome: {
+            default: modalChromeClassNames,
+            dialog: controlChrome,
+        },
+    },
+    menu: {
+        surface: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
+        dirPickerSurface: `min-w-dir-picker glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
+        minWidthSurface: "min-w-(--tt-menu-min-width)",
+        list: {
+            classNames: menuListClassNames,
+        },
+        item: {
+            base: menuItemSurface,
+            split: {
+                base: `${menuItemSurface} flex items-center justify-between`,
+            } as const,
+            strong: "font-semibold",
+            nested: "pl-stage",
+            pinned: "font-semibold text-foreground",
+            selectedPrimary: "bg-primary/15 text-primary",
+            flagInlineWrap: "text-lg leading-none",
+            checkIconPrimary: "text-primary",
+        },
+        chrome: {
+            sectionHeading: menuSectionHeading,
+            header: menuPanelHeader,
+            headerIcon: menuPanelHeaderIcon,
+            headerText: menuPanelHeaderText,
+        },
+        action: {
+            base: menuActionButton,
+            danger: menuActionButtonDanger,
+        },
+    },
+    tooltip: tooltipControl,
+    table: {
+        header: tableHeaderPattern,
+        contextStatusBadge:
+            "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight",
+        progress: {
+            track: "bg-content2/50 h-full",
+            paused: "bg-gradient-to-r from-warning/50 to-warning",
+            seeding: "bg-gradient-to-r from-primary/50 to-primary",
+            active: "bg-gradient-to-r from-success/50 to-success",
+        },
+        shadowOverlay: primitiveTokens.elevation.overlay,
+    },
+    statusChip: statusChipPattern,
 } as const;
-
 export const surface = {
-    dial: glassSurfaceDial,
-    role: glassRoleCore.surface,
-    surface: glassRoleSemantic.surface,
-    state: glassRoleCore.state,
-    text: glassRoleCore.text,
-    tooltip: surfaceTooltip,
-    chrome: glassRoleCore.chrome,
-    chromeEx: glassRoleSemantic.chrome,
-    modal: surfaceModal,
-    menu: surfaceMenu,
-    atom: surfaceAtom,
+    // Temporary non-authoritative shell for current imports. Source of truth is `tokens` + `control`.
+    dial: tokens.primitive,
+    role: {
+        workbench: controlBase.panel.workbench,
+        panel: controlBase.panel.base,
+        pane: controlBase.panel.pane,
+        modal: controlBase.modal.surface.baseClass,
+        inset: controlBase.panel.inset,
+        menu: controlBase.menu.surface,
+        overlay: controlBase.panel.overlay,
+    },
+    surface: {
+        workbenchShell: workbenchShell,
+        panelInset: controlBase.panel.base,
+        tooltip: controlBase.tooltip.content,
+        statusModule: controlBase.panel.statusModule,
+        panelRaised: controlBase.panel.raised,
+        panelMuted: controlBase.panel.raised,
+        panelInfo: controlBase.panel.info,
+        panelWorkflow: controlBase.panel.workflow,
+        sidebarPanel: controlBase.panel.sidebar,
+    },
+    state: tokens.semantic.state,
+    text: tokens.semantic.text,
+    tooltip: controlBase.tooltip,
+    chrome: tokens.semantic.chrome,
+    chromeEx: controlBase.modal.chrome.dialog,
+    modal: controlBase.modal.surface,
+    menu: {
+        surface: controlBase.menu.surface,
+        dirPickerSurface: controlBase.menu.dirPickerSurface,
+        minWidthSurface: controlBase.menu.minWidthSurface,
+        listClassNames: controlBase.menu.list.classNames,
+        itemClassNames: { base: controlBase.menu.item.base } as const,
+        itemSplitClassNames: controlBase.menu.item.split,
+        itemStrong: controlBase.menu.item.strong,
+        itemNested: controlBase.menu.item.nested,
+        itemPinned: controlBase.menu.item.pinned,
+        itemSelectedPrimary: controlBase.menu.item.selectedPrimary,
+        flagInlineWrap: controlBase.menu.item.flagInlineWrap,
+        checkIconPrimary: controlBase.menu.item.checkIconPrimary,
+        sectionHeading: controlBase.menu.chrome.sectionHeading,
+        panelHeader: controlBase.menu.chrome.header,
+        panelHeaderIcon: controlBase.menu.chrome.headerIcon,
+        panelHeaderText: controlBase.menu.chrome.headerText,
+        actionButton: controlBase.menu.action.base,
+        dangerActionButton: controlBase.menu.action.danger,
+    },
+    atom: {
+        textCurrent: "text-current",
+        objectContain: "object-contain",
+        codeInline: `${primitiveTokens.opacity.codeInline} px-tight py-tight rounded`,
+        insetRounded: controlBase.panel.inset,
+        insetRoundedFull: controlBase.panel.insetFull,
+        insetBorderedItem: controlBase.panel.insetBordered,
+        glassPanel: controlBase.panel.glass,
+        shadowPanel: controlBase.table.shadowOverlay,
+        progressTrack: controlBase.table.progress.track,
+        progressIndicatorPaused: controlBase.table.progress.paused,
+        progressIndicatorSeeding: controlBase.table.progress.seeding,
+        progressIndicatorActive: controlBase.table.progress.active,
+    },
 } as const;
 
 const bgTransparent = "bg-transparent";
@@ -230,14 +307,14 @@ const bgBackground90 = "bg-background/90";
 const bgContent110 = "bg-content1/10";
 const bgContent120 = "bg-content1/20";
 const bgPrimary10 = "bg-primary/10";
-const roundedPanel = glassSurfaceDial.radius.panel;
-const roundedRaised = glassSurfaceDial.radius.raised;
-const roundedFull = glassSurfaceDial.radius.full;
-const roundedPill = "rounded-pill";
-const roundedTight = "rounded-tight";
-const roundedMedium = "rounded-md";
-export const workbenchMainShell = `${surface.surface.workbenchShell} surface-layer-2 `;
-export const workbenchIslandShell = `glass-panel text-foreground ${surface.surface.workbenchShell} border border-default/45`;
+const roundedPanel = primitiveTokens.radius.panel;
+const roundedRaised = primitiveTokens.radius.raised;
+const roundedFull = primitiveTokens.radius.full;
+const roundedPill = primitiveTokens.radius.pill;
+const roundedTight = primitiveTokens.radius.tight;
+const roundedMedium = primitiveTokens.radius.medium;
+const workbenchMainShell = `${surface.surface.workbenchShell} surface-layer-2 `;
+const workbenchIslandShell = `glass-panel text-foreground ${surface.surface.workbenchShell} border border-default/45`;
 
 export const modal = {
     baseClassNames: surface.modal.baseClassNames,
@@ -548,8 +625,7 @@ const torrentHeader = {
     resizeBarHover: "group-hover:bg-primary/50",
     resizeBarActive: "bg-primary h-resize-h",
 } as const;
-const contextStatusBadge =
-    "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight";
+const contextStatusBadge = controlBase.table.contextStatusBadge;
 export const table = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     shellPanel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
@@ -1257,6 +1333,41 @@ export const input = {
     fillCodeTextareaFrame: `${form.locationEditorInputClassNames.inputWrapper} flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden ${roundedPanel}`,
     fillCodeTextarea: `${text.code} overlay-scrollbar box-border block h-full min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent p-panel leading-tight text-foreground placeholder:text-foreground/30 outline-none`,
 } as const;
+
+export const control = {
+    panel: controlBase.panel,
+    modal: {
+        ...controlBase.modal,
+        wrapper: {
+            hidden: modalBaseWrapperHiddenClassNames.wrapper,
+        },
+    },
+    menu: controlBase.menu,
+    tooltip: controlBase.tooltip,
+    table: controlBase.table,
+    input,
+    checkbox: {
+        primaryClassNames: formControl.checkboxPrimaryClassNames,
+        marginRightClassNames: formControl.checkboxMarginRightClassNames,
+        bodySmallLabelClassNames: formControl.checkboxLabelBodySmallClassNames,
+    },
+    select: {
+        priorityClassNames: formControl.prioritySelectClassNames,
+        priorityHeaderClassNames: formControl.priorityHeaderSelectClassNames,
+    },
+    statusChip: {
+        base: controlBase.statusChip.base,
+        content: controlBase.statusChip.content,
+        container: controlBase.statusChip.container,
+        contentWrap: controlBase.statusChip.contentWrap,
+        warningIcon: controlBase.statusChip.warningIcon,
+        currentIcon: controlBase.statusChip.currentIcon,
+        label: controlBase.statusChip.label,
+        classNames: formControl.statusChipClassNames,
+        mutedPrimaryClassNames: formControl.statusChipMutedPrimaryClassNames,
+    },
+} as const;
+
 export const fileBrowser = {
     container: "flex flex-col h-full min-h-0 overflow-auto relative scrollbar-hide",
     toolbar: "relative flex items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30 shrink-0",

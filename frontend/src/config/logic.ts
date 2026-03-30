@@ -1139,6 +1139,50 @@ export const getStatusRecipeText = (key: keyof typeof statusVisuals, fallbackKey
     statusVisuals[key]?.text ?? statusVisuals[fallbackKey]?.text ?? "";
 
 /* =========================================
+   DOMAIN: TOKENS
+========================================= */
+const tokens = {
+    primitive: {
+        motion: transitionTokens,
+        typography: {
+            trackingLabel: trackingLabel,
+            headerBase: tableVisualTokens.headerBase,
+            text: typographyText,
+        },
+        icon: iconTokens,
+    },
+    semantic: {
+        interactive: interactiveRecipe,
+        state: visualState,
+        status: {
+            keys: statusVisualKeys,
+            recipes: statusVisuals,
+            chip: {
+                layout: statusChip,
+                style: statusChipStyle,
+                healthTone: statusHealthChipTone,
+            },
+        },
+        surface: {
+            border: tableVisualTokens.surfaceBorder,
+        },
+    },
+} as const;
+
+/* =========================================
+   DOMAIN: CONTROL
+========================================= */
+const control = {
+    table: {
+        headerClass: tableHeaderClass,
+        cellBaseClass: tableVisualTokens.cellBaseClass,
+        cellPaddingClass: tableVisualTokens.cellPaddingClass,
+        cellClass: tableVisualTokens.cellClass,
+        rowClass: tableVisualTokens.rowClass,
+    },
+} as const;
+
+/* =========================================
    DOMAIN: PERFORMANCE
 ========================================= */
 const performance = resolvedPerformance;
@@ -1178,38 +1222,14 @@ const interaction = {
    DOMAIN: VISUALS
 ========================================= */
 const visuals = {
-    status: {
-        keys: statusVisualKeys,
-        recipes: statusVisuals,
-        chip: {
-            layout: statusChip,
-            style: statusChipStyle,
-            healthTone: statusHealthChipTone,
-        },
-    },
-    transitions: transitionTokens,
-    interactive: interactiveRecipe,
-    state: visualState,
-    typography: {
-        trackingLabel: trackingLabel,
-        headerBase: tableVisualTokens.headerBase,
-        text: typographyText,
-    },
-    surface: {
-        border: tableVisualTokens.surfaceBorder,
-    },
-    table: {
-        headerClass: tableHeaderClass,
-        cellBaseClass: tableVisualTokens.cellBaseClass,
-        cellPaddingClass: tableVisualTokens.cellPaddingClass,
-        cellClass: tableVisualTokens.cellClass,
-        rowClass: tableVisualTokens.rowClass,
-    },
-    icon: {
-        size: iconTokens.size,
-        strokeWidth: iconTokens.strokeWidth,
-        strokeWidthDense: iconTokens.strokeWidthDense,
-    },
+    status: tokens.semantic.status,
+    transitions: tokens.primitive.motion,
+    interactive: tokens.semantic.interactive,
+    state: tokens.semantic.state,
+    typography: tokens.primitive.typography,
+    surface: tokens.semantic.surface,
+    table: control.table,
+    icon: tokens.primitive.icon,
     workspace: {
         hud: workspaceHudVisuals,
     },
@@ -1276,6 +1296,8 @@ export const registry = {
     layout,
     shell,
     interaction,
+    tokens,
+    control,
     visuals,
     visualizations,
     ui,
