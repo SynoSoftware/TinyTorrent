@@ -86,7 +86,10 @@ export function TorrentDetails({
 
             <div
                 id={`${tabDomIdPrefix}-panel-${active}`}
-                className={DETAILS.body}
+                className={cn(
+                    DETAILS.body,
+                    active === "speed" ? DETAILS.bodyFill : null,
+                )}
                 role="tabpanel"
                 aria-labelledby={`${tabDomIdPrefix}-tab-${active}`}
             >

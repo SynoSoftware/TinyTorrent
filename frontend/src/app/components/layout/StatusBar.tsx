@@ -417,6 +417,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
     const isSelection = selectedCount > 0;
 
     const { down: downloadHistory, up: uploadHistory } = useSessionSpeedHistory();
+    const compactSpeedGraphMaxValue = Math.max(1, ...downloadHistory, ...uploadHistory);
 
     // Determine a localized server type label for the control tooltip.
     const modeLabel =
@@ -486,6 +487,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                                 <NetworkGraph
                                     data={downloadHistory}
                                     color="success"
+                                    maxValue={compactSpeedGraphMaxValue}
                                     className={WORKBENCH.status.speedCompactDownGraph}
                                 />
                             </div>
@@ -493,6 +495,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                                 <NetworkGraph
                                     data={uploadHistory}
                                     color="primary"
+                                    maxValue={compactSpeedGraphMaxValue}
                                     className={WORKBENCH.status.speedCompactUpGraph}
                                 />
                             </div>

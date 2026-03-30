@@ -1,8 +1,9 @@
-import { Input, Tab, Tabs, cn } from "@heroui/react";
-import type { Key } from "react";
+import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs, cn } from "@heroui/react";
+import { useState, type Key } from "react";
 import {
     DownloadCloud,
     ListChecks,
+    Menu,
     Pause,
     Play,
     RotateCcw,
@@ -13,6 +14,7 @@ import {
     Minimize,
     Maximize,
     Moon,
+    Plus,
     Sun,
     X,
     FileUp,
@@ -29,7 +31,7 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import Runtime from "@/app/runtime";
-import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { SURFACE, WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
@@ -63,6 +65,7 @@ export function Navbar({ viewModel }: NavbarProps) {
         preferences: { theme },
         toggleTheme,
     } = usePreferences();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const isDark = theme === "dark";
     const Icon = isDark ? Moon : Sun;
     const showWindowControls = Runtime.isNativeHost;
@@ -87,6 +90,166 @@ export function Navbar({ viewModel }: NavbarProps) {
         if (!isDashboardFilter(key)) return;
         setFilter(key);
     };
+    const handleMobileMenuToggle = () => setIsMobileMenuOpen((current) => !current);
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const handleMobileFilterSelectionChange = (key: Key) => {
+        handleFilterSelectionChange(key);
+        closeMobileMenu();
+    };
+    const handleMobileThemeToggle = () => {
+        toggleTheme();
+        closeMobileMenu();
+    };
+    const handleMobileSettings = () => {
+        closeMobileMenu();
+        onSettings();
+    };
+    const handleMobileAddTorrent = () => onAddTorrent();
+    const handleMobileAddMagnet = () => onAddMagnet();
+    const renderFilterTabs = (mobile = false) => (
+        <Tabs
+            aria-label={t("nav.filter_aria")}
+            variant="light"
+            size="lg"
+            radius="full"
+            selectedKey={filter}
+            onSelectionChange={mobile ? handleMobileFilterSelectionChange : handleFilterSelectionChange}
+            classNames={WORKBENCH.nav.filterTabsClassNames}
+        >
+            <Tab
+                key="all"
+                title={
+                    <div className={WORKBENCH.nav.tabTitle}>
+                        <StatusIcon Icon={ListChecks} size="lg" className={WORKBENCH.nav.tabIcon} />
+                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_all")}</span>
+                    </div>
+                }
+            />
+            <Tab
+                key="downloading"
+                title={
+                    <div className={WORKBENCH.nav.tabTitle}>
+                        <StatusIcon Icon={DownloadCloud} size="lg" className={WORKBENCH.nav.tabIcon} />
+                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_downloading")}</span>
+                    </div>
+                }
+            />
+            <Tab
+                key="seeding"
+                title={
+                    <div className={WORKBENCH.nav.tabTitle}>
+                        <StatusIcon Icon={UploadCloud} size="lg" className={WORKBENCH.nav.tabIcon} />
+                        <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_seeding")}</span>
+                    </div>
+                }
+            />
+        </Tabs>
+    );
+    const renderSearchInput = (mobile = false) => (
+        <Input
+            classNames={WORKBENCH.nav.searchInputClassNames}
+            style={mobile ? undefined : WORKBENCH.nav.searchStyle}
+            placeholder={t("nav.search_placeholder")}
+            size="md"
+            value={searchQuery}
+            data-command-search="true"
+            onFocus={() => setActivePart("search")}
+            onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            startContent={<StatusIcon Icon={Search} size="lg" className={WORKBENCH.nav.searchIcon} />}
+        />
+    );
+    const renderSelectionExtraActions = (mobile = false) => (
+        <>
+            {mobile ? (
+                <>
+                    {renderMobilePanelButton({
+                        Icon: RotateCcw,
+                        label: t("toolbar.recheck"),
+                        onPress: () => {
+                            closeMobileMenu();
+                            selectionActions.ensureValid();
+                        },
+                        disabled: !hasSelection,
+                        color: "default",
+                        className: emphasizeActions?.forceRecheck ? WORKBENCH.nav.selectionRecheckEmphasis : "",
+                    })}
+                    {renderMobilePanelButton({
+                        Icon: Trash2,
+                        label: t("toolbar.remove"),
+                        onPress: () => {
+                            closeMobileMenu();
+                            selectionActions.ensureRemoved();
+                        },
+                        disabled: !hasSelection,
+                        color: "danger",
+                    })}
+                </>
+            ) : (
+                <>
+                    <ToolbarIconButton
+                        Icon={RotateCcw}
+                        ariaLabel={t("toolbar.recheck")}
+                        title={t("toolbar.recheck")}
+                        onPress={() => {
+                            if (mobile) closeMobileMenu();
+                            selectionActions.ensureValid();
+                        }}
+                        disabled={!hasSelection}
+                        className={cn(
+                            toneButtonClass.neutral,
+                            emphasizeActions?.forceRecheck ? WORKBENCH.nav.selectionRecheckEmphasis : "",
+                        )}
+                        iconSize="lg"
+                    />
+                    <ToolbarIconButton
+                        Icon={Trash2}
+                        ariaLabel={t("toolbar.remove")}
+                        title={t("toolbar.remove")}
+                        onPress={() => {
+                            if (mobile) closeMobileMenu();
+                            selectionActions.ensureRemoved();
+                        }}
+                        disabled={!hasSelection}
+                        className={toneButtonClass.danger}
+                        iconSize="lg"
+                    />
+                </>
+            )}
+        </>
+    );
+    const renderMobilePanelButton = ({
+        Icon: MobileIcon,
+        label,
+        onPress,
+        disabled = false,
+        color = "default",
+        className,
+    }: {
+        Icon: typeof Play;
+        label: string;
+        onPress: () => void;
+        disabled?: boolean;
+        color?: "default" | "primary" | "success" | "warning" | "danger";
+        className?: string;
+    }) => (
+        <Button
+            size="md"
+            variant="light"
+            color={color}
+            onPress={onPress}
+            isDisabled={disabled}
+            className={cn(WORKBENCH.nav.mobileMenuButton, className)}
+            startContent={
+                <StatusIcon
+                    Icon={MobileIcon}
+                    size="md"
+                    className={WORKBENCH.nav.mobileMenuButtonIcon}
+                />
+            }
+        >
+            {label}
+        </Button>
+    );
 
     return (
         <header className={cn(WORKBENCH.nav.root, WORKBENCH.nav.surface)}>
@@ -109,9 +272,9 @@ export function Navbar({ viewModel }: NavbarProps) {
                     style={{
                         ...shellTokens.outerStyle,
                     }}
-                >
-                    <div className={WORKBENCH.nav.left}>
-                        <div className={WORKBENCH.nav.brandGroup}>
+                    >
+                        <div className={WORKBENCH.nav.left}>
+                            <div className={WORKBENCH.nav.brandGroup}>
                             <div className={WORKBENCH.nav.brandIconWrap} style={WORKBENCH.nav.brandIconStyle}>
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
@@ -128,73 +291,13 @@ export function Navbar({ viewModel }: NavbarProps) {
                         <div className={WORKBENCH.nav.primarySeparator} />
 
                         <div className={WORKBENCH.nav.tabsWrap}>
-                            <Tabs
-                                aria-label={t("nav.filter_aria")}
-                                variant="light"
-                                size="lg"
-                                radius="full"
-                                selectedKey={filter}
-                                onSelectionChange={handleFilterSelectionChange}
-                                classNames={WORKBENCH.nav.filterTabsClassNames}
-                            >
-                                <Tab
-                                    key="all"
-                                    title={
-                                        <div className={WORKBENCH.nav.tabTitle}>
-                                            <StatusIcon Icon={ListChecks} size="lg" className={WORKBENCH.nav.tabIcon} />
-                                            <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_all")}</span>
-                                        </div>
-                                    }
-                                />
-                                <Tab
-                                    key="downloading"
-                                    title={
-                                        <div className={WORKBENCH.nav.tabTitle}>
-                                            <StatusIcon
-                                                Icon={DownloadCloud}
-                                                size="lg"
-                                                className={WORKBENCH.nav.tabIcon}
-                                            />
-                                            <span className={WORKBENCH.nav.tabLabel}>
-                                                {t("nav.filter_downloading")}
-                                            </span>
-                                        </div>
-                                    }
-                                />
-                                <Tab
-                                    key="seeding"
-                                    title={
-                                        <div className={WORKBENCH.nav.tabTitle}>
-                                            <StatusIcon
-                                                Icon={UploadCloud}
-                                                size="lg"
-                                                className={WORKBENCH.nav.tabIcon}
-                                            />
-                                            <span className={WORKBENCH.nav.tabLabel}>{t("nav.filter_seeding")}</span>
-                                        </div>
-                                    }
-                                />
-                            </Tabs>
+                            {renderFilterTabs()}
                         </div>
 
-                        <div className={WORKBENCH.nav.searchWrap}>
-                            <Input
-                                classNames={WORKBENCH.nav.searchInputClassNames}
-                                style={WORKBENCH.nav.searchStyle}
-                                placeholder={t("nav.search_placeholder")}
-                                size="md"
-                                value={searchQuery}
-                                data-command-search="true"
-                                onFocus={() => setActivePart("search")}
-                                onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                                startContent={
-                                    <StatusIcon Icon={Search} size="lg" className={WORKBENCH.nav.searchIcon} />
-                                }
-                            />
-                        </div>
+                        <div className={WORKBENCH.nav.searchWrap}>{renderSearchInput()}</div>
                     </div>
                     <div className={WORKBENCH.nav.actions}>
-                        <div className={WORKBENCH.nav.primaryActions}>
+                        <div className={cn(WORKBENCH.nav.primaryActions, "hidden sm:flex")}>
                             <ToolbarIconButton
                                 Icon={FileUp}
                                 ariaLabel={t("toolbar.add_torrent")}
@@ -213,12 +316,50 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 iconSize="lg"
                             />
                         </div>
+                        <div className="flex sm:hidden">
+                            <Dropdown placement="bottom-end" backdrop="transparent">
+                                <DropdownTrigger>
+                                    <ToolbarIconButton
+                                        Icon={Plus}
+                                        ariaLabel={t("nav.mobile_add_menu_open")}
+                                        title={t("nav.mobile_add_menu_open")}
+                                        className={cn(
+                                            toneButtonClass.primary,
+                                            WORKBENCH.nav.primaryActionEmphasis,
+                                        )}
+                                        iconSize="lg"
+                                    />
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label={t("nav.mobile_add_menu_open")}
+                                    variant="shadow"
+                                    className={SURFACE.menu.surface}
+                                    classNames={SURFACE.menu.listClassNames}
+                                    itemClasses={SURFACE.menu.itemClassNames}
+                                >
+                                    <DropdownItem
+                                        key="add-torrent"
+                                        startContent={<StatusIcon Icon={FileUp} size="md" className={SURFACE.atom.textCurrent} />}
+                                        onPress={handleMobileAddTorrent}
+                                    >
+                                        {t("toolbar.add_torrent")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="add-magnet"
+                                        startContent={<StatusIcon Icon={Magnet} size="md" className={SURFACE.atom.textCurrent} />}
+                                        onPress={handleMobileAddMagnet}
+                                    >
+                                        {t("toolbar.add_magnet")}
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </div>
                         <div
                             className={WORKBENCH.nav.selectionSeparator}
                             style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
 
-                        <div className={WORKBENCH.nav.builder.selectionActionsClass(hasSelection)}>
+                        <div className={cn(WORKBENCH.nav.builder.selectionActionsClass(hasSelection), "hidden sm:flex")}>
                             <ToolbarIconButton
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}
@@ -240,29 +381,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 )}
                                 iconSize="lg"
                             />
-                            <div className={WORKBENCH.nav.selectionExtraActions}>
-                                <ToolbarIconButton
-                                    Icon={RotateCcw}
-                                    ariaLabel={t("toolbar.recheck")}
-                                    title={t("toolbar.recheck")}
-                                    onPress={selectionActions.ensureValid}
-                                    disabled={!hasSelection}
-                                    className={cn(
-                                        toneButtonClass.neutral,
-                                        emphasizeActions?.forceRecheck ? WORKBENCH.nav.selectionRecheckEmphasis : "",
-                                    )}
-                                    iconSize="lg"
-                                />
-                                <ToolbarIconButton
-                                    Icon={Trash2}
-                                    ariaLabel={t("toolbar.remove")}
-                                    title={t("toolbar.remove")}
-                                    onPress={selectionActions.ensureRemoved}
-                                    disabled={!hasSelection}
-                                    className={toneButtonClass.danger}
-                                    iconSize="lg"
-                                />
-                            </div>
+                            <div className={WORKBENCH.nav.selectionExtraActions}>{renderSelectionExtraActions()}</div>
                         </div>
 
                         <div
@@ -270,25 +389,39 @@ export function Navbar({ viewModel }: NavbarProps) {
                             style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
                         {!showWindowControls ? (
+                            <div className="hidden sm:flex">
+                                <ToolbarIconButton
+                                    Icon={Icon}
+                                    ariaLabel={t("theme.toggle_label", {
+                                        value: isDark ? t("theme.dark") : t("theme.light"),
+                                    })}
+                                    title={t("theme.toggle")}
+                                    onPress={toggleTheme}
+                                    className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                                    iconSize="lg"
+                                />
+                            </div>
+                        ) : null}
+                        <div className="hidden sm:flex">
                             <ToolbarIconButton
-                                Icon={Icon}
-                                ariaLabel={t("theme.toggle_label", {
-                                    value: isDark ? t("theme.dark") : t("theme.light"),
-                                })}
-                                title={t("theme.toggle")}
-                                onPress={toggleTheme}
+                                Icon={Settings}
+                                ariaLabel={t("toolbar.settings")}
+                                title={t("toolbar.settings")}
+                                onPress={onSettings}
                                 className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
                                 iconSize="lg"
                             />
-                        ) : null}
-                        <ToolbarIconButton
-                            Icon={Settings}
-                            ariaLabel={t("toolbar.settings")}
-                            title={t("toolbar.settings")}
-                            onPress={onSettings}
-                            className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
-                            iconSize="lg"
-                        />
+                        </div>
+                        <div className="sm:hidden">
+                            <ToolbarIconButton
+                                Icon={isMobileMenuOpen ? X : Menu}
+                                ariaLabel={t(isMobileMenuOpen ? "nav.mobile_menu_close" : "nav.mobile_menu_open")}
+                                title={t(isMobileMenuOpen ? "nav.mobile_menu_close" : "nav.mobile_menu_open")}
+                                onPress={handleMobileMenuToggle}
+                                className={cn(WORKBENCH.nav.ghostAction, WORKBENCH.nav.ghostActionOverflow)}
+                                iconSize="lg"
+                            />
+                        </div>
                     </div>
 
                     {rehashStatus?.active && (
@@ -347,6 +480,60 @@ export function Navbar({ viewModel }: NavbarProps) {
                     </div>
                 ) : null}
             </div>
+
+            {isMobileMenuOpen ? (
+                <div className={WORKBENCH.nav.mobileStack} data-mobile-navbar="true">
+                    <div
+                        className={cn(WORKBENCH.nav.shell, WORKBENCH.nav.mobilePanel)}
+                        style={shellTokens.outerStyle}
+                    >
+                        <div className={WORKBENCH.nav.mobileSection}>
+                            <div className={WORKBENCH.nav.mobileSearchWrap}>{renderSearchInput(true)}</div>
+                            <div className={WORKBENCH.nav.mobileTabsWrap}>{renderFilterTabs(true)}</div>
+                        </div>
+                        {hasSelection ? (
+                            <div className={WORKBENCH.nav.mobileActionGrid}>
+                                {renderMobilePanelButton({
+                                    Icon: Play,
+                                    label: t("toolbar.resume"),
+                                    onPress: () => {
+                                        closeMobileMenu();
+                                        selectionActions.ensureActive();
+                                    },
+                                    disabled: !hasSelection,
+                                    color: "success",
+                                })}
+                                {renderMobilePanelButton({
+                                    Icon: Pause,
+                                    label: t("toolbar.pause"),
+                                    onPress: () => {
+                                        closeMobileMenu();
+                                        selectionActions.ensurePaused();
+                                    },
+                                    disabled: !hasSelection,
+                                    color: "warning",
+                                    className: emphasizeActions?.pause
+                                        ? WORKBENCH.nav.selectionPauseEmphasis
+                                        : "",
+                                })}
+                                {renderSelectionExtraActions(true)}
+                            </div>
+                        ) : null}
+                        <div className={WORKBENCH.nav.mobileUtilityActions}>
+                            {renderMobilePanelButton({
+                                Icon,
+                                label: t("theme.toggle"),
+                                onPress: handleMobileThemeToggle,
+                            })}
+                            {renderMobilePanelButton({
+                                Icon: Settings,
+                                label: t("toolbar.settings"),
+                                onPress: handleMobileSettings,
+                            })}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </header>
     );
 }

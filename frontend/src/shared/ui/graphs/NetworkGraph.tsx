@@ -3,8 +3,7 @@
 import { cn } from "@heroui/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import {
-    buildSplinePathFromPoints, createSplinePoints, } from "@/shared/utils/spline";
+import { buildSplinePathFromPoints, createSplinePoints } from "@/shared/utils/spline";
 import { registry } from "@/config/logic";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 const { interaction, visuals } = registry;
@@ -17,9 +16,10 @@ interface NetworkGraphProps {
     data: number[];
     color: string;
     className?: string;
+    maxValue?: number;
 }
 
-export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
+export const NetworkGraph = ({ data, color, className, maxValue }: NetworkGraphProps) => {
     const containerRef = useRef<SVGSVGElement>(null);
     const [dimensions, setDimensions] = useState({
         width: GRAPH_WIDTH,
@@ -27,26 +27,25 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
     });
     const idSuffix = useId();
 
-    // HeroUI semantic color names (text-* exists for all of these)
     const colorClass =
-        typeof color === "string"
-            ? color.startsWith("text-")
-                ? color
-                : color === "muted"
-                ? "text-foreground/30"
-                : `text-${color}`
-            : "text-primary";
+        color.startsWith("text-")
+            ? color
+            : color === "muted"
+              ? METRIC_CHART.graphToneMuted
+              : `text-${color}`;
 
     const safeColorId = String(color)
         .replace(/[^a-z0-9]+/gi, "-")
         .toLowerCase();
     const glowId = `glow-${safeColorId}-${idSuffix}`;
     const gradId = `grad-${safeColorId}-${idSuffix}`;
+    const fadeMaskId = `fade-mask-${safeColorId}-${idSuffix}`;
+    const fadeGradientId = `fade-gradient-${safeColorId}-${idSuffix}`;
 
     const normalizedData = useMemo(() => (data.length ? data : [0]), [data]);
-    const maxValue = useMemo(
-        () => Math.max(...normalizedData, 1),
-        [normalizedData],
+    const resolvedMaxValue = useMemo(
+        () => Math.max(maxValue ?? 0, ...normalizedData, 1),
+        [maxValue, normalizedData],
     );
 
     useEffect(() => {
@@ -63,9 +62,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
             const width = node.clientWidth || GRAPH_WIDTH;
             const height = node.clientHeight || GRAPH_HEIGHT;
             setDimensions((current) =>
-                current.width === width && current.height === height
-                    ? current
-                    : { width, height },
+                current.width === width && current.height === height ? current : { width, height },
             );
         };
 
@@ -82,21 +79,12 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
     }, []);
 
     const points = useMemo(
-        () =>
-            createSplinePoints(
-                normalizedData,
-                dimensions.width,
-                dimensions.height,
-                maxValue,
-            ),
-        [dimensions.height, dimensions.width, maxValue, normalizedData],
+        () => createSplinePoints(normalizedData, dimensions.width, dimensions.height, resolvedMaxValue),
+        [dimensions.height, dimensions.width, normalizedData, resolvedMaxValue],
     );
     const safeLinePath = useMemo(() => {
         const linePath = buildSplinePathFromPoints(points);
-        return (
-            linePath ||
-            `M0,${dimensions.height} L${dimensions.width},${dimensions.height}`
-        );
+        return linePath || `M0,${dimensions.height} L${dimensions.width},${dimensions.height}`;
     }, [dimensions.height, dimensions.width, points]);
     const areaPath = useMemo(() => {
         if (points.length > 0) {
@@ -104,6 +92,10 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         }
         return `${safeLinePath} L${dimensions.width},${dimensions.height} L0,${dimensions.height} Z`;
     }, [dimensions.height, dimensions.width, points, safeLinePath]);
+    const maskCornerRadius = useMemo(
+        () => dimensions.height * METRIC_CHART.maskCornerRadiusRatio,
+        [dimensions.height],
+    );
 
     return (
         <svg
@@ -116,7 +108,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 "overflow-visible",
                 // Apply resolved HeroUI color class (supports tokens and text-* values)
                 colorClass,
-                className
+                className,
             )}
         >
             <line
@@ -143,19 +135,61 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 />
             )}
             <defs>
-                <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="2" result="blur" />
+                <filter
+                    id={glowId}
+                    x={METRIC_CHART.glowFilterRegion.x}
+                    y={METRIC_CHART.glowFilterRegion.y}
+                    width={METRIC_CHART.glowFilterRegion.width}
+                    height={METRIC_CHART.glowFilterRegion.height}
+                >
+                    <feGaussianBlur stdDeviation={METRIC_CHART.glowBlurStdDeviation} result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
-                    <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                    {METRIC_CHART.areaGradientStops.map((stop) => (
+                        <stop
+                            key={`area-stop-${stop.offset}`}
+                            offset={stop.offset}
+                            stopColor="currentColor"
+                            stopOpacity={stop.opacity}
+                        />
+                    ))}
                 </linearGradient>
+                <linearGradient id={fadeGradientId} x1="0" y1="0" x2="1" y2="0">
+                    {METRIC_CHART.fillFadeStops.map((stop) => (
+                        <stop
+                            key={`fade-stop-${stop.offset}`}
+                            offset={stop.offset}
+                            stopColor="white"
+                            stopOpacity={stop.opacity}
+                        />
+                    ))}
+                </linearGradient>
+                <mask
+                    id={fadeMaskId}
+                    maskUnits="userSpaceOnUse"
+                    maskContentUnits="userSpaceOnUse"
+                    x={0}
+                    y={0}
+                    width={dimensions.width}
+                    height={dimensions.height}
+                >
+                    <rect
+                        x="0"
+                        y="0"
+                        width={dimensions.width}
+                        height={dimensions.height}
+                        rx={maskCornerRadius}
+                        ry={maskCornerRadius}
+                        fill={`url(#${fadeGradientId})`}
+                    />
+                </mask>
             </defs>
             <path
                 d={areaPath}
                 className={cn(METRIC_CHART.areaMuted, colorClass)}
                 fill={`url(#${gradId})`}
+                mask={`url(#${fadeMaskId})`}
             />
             <path
                 d={safeLinePath}
@@ -171,4 +205,3 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         </svg>
     );
 };
-

@@ -89,6 +89,10 @@ const DEFAULT_REMOVE_TORRENT_DEFAULTS: RemoveTorrentDefaultsState = {
 };
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
 const DEFAULT_ACTIVE_CONNECTION_PROFILE_ID = "";
+const DEFAULT_TORRENT_FILE_TREE_EXPANDED_IDS_BY_TORRENT: Record<
+    string,
+    string[]
+> = {};
 
 // Final PreferencesState shape (must cover every persisted preference managed by the provider):
 //   version, refreshIntervalMs, requestTimeoutMs, tableWatermarkEnabled,
@@ -98,7 +102,7 @@ const DEFAULT_ACTIVE_CONNECTION_PROFILE_ID = "";
 //   systemPreferences (preventSleep, autoUpdate, closeAction),
 //   inspectorTab, settingsTab, generalDetailsAdvanced, torrentTableState, speedChartLayoutMode,
 //   addTorrentDefaults, addTorrentHistory, removeTorrentDefaults,
-//   connectionProfiles, activeConnectionProfileId.
+//   connectionProfiles, activeConnectionProfileId, torrentFileTreeExpandedIdsByTorrent.
 // This contract is the only persisted preferences shape.
 export interface PreferencesState {
     version: number;
@@ -122,6 +126,7 @@ export interface PreferencesState {
     removeTorrentDefaults: RemoveTorrentDefaultsState;
     connectionProfiles: ConnectionProfile[];
     activeConnectionProfileId: string;
+    torrentFileTreeExpandedIdsByTorrent: Record<string, string[]>;
 }
 
 type PreferencesPatch = Partial<Omit<PreferencesState, "version">>;
@@ -148,6 +153,8 @@ const DEFAULT_PREFERENCES: PreferencesState = {
     removeTorrentDefaults: DEFAULT_REMOVE_TORRENT_DEFAULTS,
     connectionProfiles: DEFAULT_CONNECTION_PROFILES,
     activeConnectionProfileId: DEFAULT_ACTIVE_CONNECTION_PROFILE_ID,
+    torrentFileTreeExpandedIdsByTorrent:
+        DEFAULT_TORRENT_FILE_TREE_EXPANDED_IDS_BY_TORRENT,
 };
 
 const persistPreferences = (payload: PreferencesState) => {
@@ -259,6 +266,26 @@ const sanitizePreferences = (
     const removeTorrentDefaults = sanitizeRemoveTorrentDefaults(
         value.removeTorrentDefaults,
     );
+    const torrentFileTreeExpandedIdsByTorrent = Object.fromEntries(
+        Object.entries(value.torrentFileTreeExpandedIdsByTorrent ?? {}).flatMap(
+            ([torrentKey, expandedIds]) => {
+                if (
+                    typeof torrentKey !== "string" ||
+                    torrentKey.trim() === "" ||
+                    !Array.isArray(expandedIds)
+                ) {
+                    return [];
+                }
+                const nextExpandedIds = expandedIds.filter(
+                    (entry): entry is string =>
+                        typeof entry === "string" && entry.length > 0,
+                );
+                return nextExpandedIds.length > 0
+                    ? [[torrentKey, nextExpandedIds]]
+                    : [];
+            },
+        ),
+    );
 
     return {
         version: CURRENT_PREFERENCES_VERSION,
@@ -341,6 +368,7 @@ const sanitizePreferences = (
             typeof value.activeConnectionProfileId === "string"
                 ? value.activeConnectionProfileId
                 : DEFAULT_ACTIVE_CONNECTION_PROFILE_ID,
+        torrentFileTreeExpandedIdsByTorrent,
     };
 };
 
@@ -388,6 +416,10 @@ export interface PreferencesContextValue {
     setSpeedChartLayoutMode: (mode: SpeedChartLayoutMode | null) => void;
     setAddTorrentDefaults: (defaults: AddTorrentDefaultsState) => void;
     setAddTorrentHistory: (history: string[]) => void;
+    setTorrentFileTreeExpandedIds: (
+        torrentKey: string,
+        expandedIds: readonly string[],
+    ) => void;
 }
 
 interface PreferencesContextInternalValue extends PreferencesContextValue {
@@ -540,6 +572,32 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         [updatePreferences],
     );
 
+    const setTorrentFileTreeExpandedIds = useCallback(
+        (torrentKey: string, expandedIds: readonly string[]) => {
+            const normalizedTorrentKey = torrentKey.trim();
+            if (!normalizedTorrentKey) {
+                return;
+            }
+            const nextExpandedIds = expandedIds.filter(
+                (entry) => typeof entry === "string" && entry.length > 0,
+            );
+            modifyPreferences((prev) => {
+                const nextByTorrent = {
+                    ...prev.torrentFileTreeExpandedIdsByTorrent,
+                };
+                if (nextExpandedIds.length > 0) {
+                    nextByTorrent[normalizedTorrentKey] = [...nextExpandedIds];
+                } else {
+                    delete nextByTorrent[normalizedTorrentKey];
+                }
+                return {
+                    torrentFileTreeExpandedIdsByTorrent: nextByTorrent,
+                };
+            });
+        },
+        [modifyPreferences],
+    );
+
     const setConnectionProfiles = useCallback(
         (profiles: ConnectionProfile[]) => {
             updatePreferences({ connectionProfiles: profiles });
@@ -623,6 +681,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setSpeedChartLayoutMode,
             setAddTorrentDefaults,
             setAddTorrentHistory,
+            setTorrentFileTreeExpandedIds,
             setConnectionProfiles,
             setActiveProfileId,
         }),
@@ -647,6 +706,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             setSpeedChartLayoutMode,
             setAddTorrentDefaults,
             setAddTorrentHistory,
+            setTorrentFileTreeExpandedIds,
             setConnectionProfiles,
             setActiveProfileId,
         ],

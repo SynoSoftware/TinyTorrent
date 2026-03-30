@@ -3,6 +3,7 @@ import type {
     TransmissionTorrentDetail,
     TransmissionTorrentFile,
     TransmissionTorrentFileStat,
+    TransmissionPriority,
     TransmissionTorrentPeer,
     TransmissionPeerSourceCounts,
     TransmissionTorrentTracker,
@@ -30,11 +31,19 @@ const STATUS_MAP: Record<number, TorrentTransportStatus> = {
     7: status.torrent.paused,
 };
 
+const isTransportStatus = (value: string): value is TorrentTransportStatus =>
+    value === status.torrent.paused ||
+    value === status.torrent.checking ||
+    value === status.torrent.queued ||
+    value === status.torrent.downloading ||
+    value === status.torrent.seeding ||
+    value === status.torrent.error;
+
 const normalizeStatus = (
     rawStatus: number | TorrentTransportStatus | undefined,
 ): TorrentTransportStatus => {
     if (typeof rawStatus === "string") {
-        return rawStatus;
+        return isTransportStatus(rawStatus) ? rawStatus : status.torrent.paused;
     }
     if (typeof rawStatus === "number") {
         return STATUS_MAP[rawStatus] ?? status.torrent.paused;
@@ -65,9 +74,13 @@ const isCheckingStatusNum = (statusNum: unknown) => statusNum === 1 || statusNum
 
 export const deriveTorrentState = (base: TorrentTransportStatus, torrent: TransmissionTorrent): TorrentTransportStatus => {
     const statusNum = typeof torrent.status === "number" ? torrent.status : undefined;
+    const rawStatusWasUiOnlyStalled =
+        (torrent as { status: unknown }).status === status.torrent.stalled;
     const statusIndicatesChecking = isCheckingStatusNum(statusNum);
     const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
     const currentlyVerifying = isVerifying || statusIndicatesChecking;
+    const hasWantedDataRemaining =
+        typeof torrent.leftUntilDone === "number" && torrent.leftUntilDone > 0;
 
     // 1) Active verify is authoritative over stale/local error flags.
     // Transmission may keep error=3 while a manual recheck is in progress.
@@ -82,20 +95,31 @@ export const deriveTorrentState = (base: TorrentTransportStatus, torrent: Transm
     }
 
     // 3) Base states that must never be overridden
-    if (base === status.torrent.paused || base === status.torrent.checking || base === status.torrent.queued) {
+    if (
+        !rawStatusWasUiOnlyStalled &&
+        (base === status.torrent.paused || base === status.torrent.checking || base === status.torrent.queued)
+    ) {
         return base;
+    }
+
+    // 4) Re-opened wanted files must move a previously seeded torrent back to
+    // downloading so table status and speed columns reflect the resumed work.
+    if (hasWantedDataRemaining) {
+        return status.torrent.downloading;
     }
 
     // Contract:
     // - RPC normalization exposes daemon-grounded state only.
     // - UI-derived presentation states such as "stalled" are not assigned here.
     // - Heartbeat transport policy may depend on these normalized states.
-    return torrent.percentDone === 1 ? status.torrent.seeding : base;
+    return base === status.torrent.seeding || torrent.percentDone === 1 || torrent.isFinished === true
+        ? status.torrent.seeding
+        : base;
 };
 
-const mapPriority = (priority?: number): LibtorrentPriority => {
-    const normalized = typeof priority === "number" ? priority : 0;
-    if (normalized <= -1) return 0;
+const mapPriority = (priority?: TransmissionPriority): LibtorrentPriority => {
+    const normalized = priority ?? 0;
+    if (normalized <= -1) return 1;
     if (normalized === 0) return 4;
     return 7;
 };

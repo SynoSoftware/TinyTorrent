@@ -74,6 +74,13 @@ const createMockClient = (commandLog: string[]): EngineAdapter => ({
         commandLog.push(`queue-bottom:${ids.join(",")}`);
     }),
     updateFileSelection: vi.fn(async () => {}),
+    setFilePriority: vi.fn(
+        async (id: string, indexes: number[], priority: number) => {
+            commandLog.push(
+                `file-priority:${id}:${indexes.join(",")}:${String(priority)}`,
+            );
+        },
+    ),
     setSequentialDownload: vi.fn(async (id: string, enabled: boolean) => {
         commandLog.push(`set-sequential:${id}:${String(enabled)}`);
     }),
@@ -438,6 +445,29 @@ describe("torrentDispatch command flow", () => {
         expect(refreshTorrents).not.toHaveBeenCalled();
         expect(refreshSessionStatsData).not.toHaveBeenCalled();
         expect(refreshDetailData).not.toHaveBeenCalled();
+    });
+
+    it("refreshes table and detail state after a file priority change", async () => {
+        const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const dispatch = createTorrentDispatch({
+            client: createMockClient(commandLog),
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.setFilesPriority("t-priority-1", [2], 7),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual(["file-priority:t-priority-1:2:7"]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(1);
+        expect(refreshSessionStatsData).toHaveBeenCalledTimes(1);
+        expect(refreshDetailData).toHaveBeenCalledTimes(1);
     });
 
     it("lowers queue reorder to exact backend order for a non-contiguous packet moved to the end", async () => {

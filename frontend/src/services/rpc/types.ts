@@ -1,4 +1,5 @@
 export type RpcTorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type TransmissionPriority = -1 | 0 | 1;
 
 export interface TransmissionPeerSourceCounts {
     fromCache?: number;
@@ -68,7 +69,7 @@ export interface TransmissionTorrentFile {
 
 export interface TransmissionTorrentFileStat {
     wanted: boolean;
-    priority: number;
+    priority: TransmissionPriority;
 }
 
 export interface TransmissionTorrentTracker {

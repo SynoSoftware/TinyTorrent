@@ -149,6 +149,49 @@ describe("PreferencesProvider torrent table state", () => {
         }
     });
 
+    it("persists and restores torrent file tree expansion by torrent key", async () => {
+        const mounted = await mountHarness();
+
+        try {
+            mounted.ref.current?.getValue().setTorrentFileTreeExpandedIds(
+                "hash-123",
+                ["folder-a", "folder-a/subfolder-b"],
+            );
+            await flush();
+
+            const stored = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
+            expect(stored).not.toBeNull();
+            expect(
+                JSON.parse(stored as string).torrentFileTreeExpandedIdsByTorrent,
+            ).toEqual({
+                "hash-123": ["folder-a", "folder-a/subfolder-b"],
+            });
+        } finally {
+            mounted.cleanup();
+        }
+
+        window.localStorage.setItem(
+            PREFERENCES_STORAGE_KEY,
+            JSON.stringify({
+                torrentFileTreeExpandedIdsByTorrent: {
+                    "hash-123": ["folder-a", "folder-a/subfolder-b"],
+                },
+            }),
+        );
+
+        const restored = await mountHarness();
+        try {
+            expect(
+                restored.ref.current?.getValue().preferences
+                    .torrentFileTreeExpandedIdsByTorrent,
+            ).toEqual({
+                "hash-123": ["folder-a", "folder-a/subfolder-b"],
+            });
+        } finally {
+            restored.cleanup();
+        }
+    });
+
     it("drops the legacy add-dialog sequential default and preserves only supported add defaults", async () => {
         window.localStorage.setItem(
             PREFERENCES_STORAGE_KEY,

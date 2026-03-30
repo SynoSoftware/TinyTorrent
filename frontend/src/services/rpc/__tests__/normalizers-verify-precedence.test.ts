@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { status } from "@/shared/status";
-import { deriveTorrentState } from "@/services/rpc/normalizers";
+import { deriveTorrentState, normalizeTorrent } from "@/services/rpc/normalizers";
 import type { TransmissionTorrent } from "@/services/rpc/types";
 
 const makeTorrent = (
@@ -48,5 +48,45 @@ describe("deriveTorrentState verify precedence", () => {
             status.torrent.error,
         );
     });
-});
 
+    it("returns downloading when a seeded torrent has wanted bytes remaining again", () => {
+        const torrent = makeTorrent({
+            percentDone: 1,
+            status: 6,
+            leftUntilDone: 512,
+            isFinished: false,
+            rateDownload: 128,
+        });
+
+        expect(deriveTorrentState(status.torrent.seeding, torrent)).toBe(
+            status.torrent.downloading,
+        );
+    });
+
+    it("keeps seeding when no wanted bytes remain even if isFinished is still false", () => {
+        const torrent = makeTorrent({
+            percentDone: 1,
+            status: 6,
+            leftUntilDone: 0,
+            isFinished: false,
+            rateDownload: 0,
+        });
+
+        expect(deriveTorrentState(status.torrent.seeding, torrent)).toBe(
+            status.torrent.seeding,
+        );
+    });
+
+    it("never admits ui-only stalled as transport truth for completed torrents", () => {
+        const torrent = makeTorrent({
+            percentDone: 1,
+            isFinished: true,
+            leftUntilDone: 0,
+        }) as unknown as TransmissionTorrent;
+        (torrent as { status: unknown }).status = "stalled";
+
+        expect(normalizeTorrent(torrent).state).toBe(
+            status.torrent.seeding,
+        );
+    });
+});

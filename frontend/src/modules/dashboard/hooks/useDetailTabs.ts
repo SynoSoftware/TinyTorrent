@@ -99,6 +99,7 @@ export interface TorrentDetailTabSurfaces {
         isStandalone?: boolean;
     } | null;
     pieces: {
+        torrent: NonNullable<DashboardDetailViewModel["detailData"]>;
         torrentKey: string | number;
         piecePercent: number;
         pieceCount?: number;
@@ -109,6 +110,7 @@ export interface TorrentDetailTabSurfaces {
         downloadSpeed: number;
         uploadSpeed: number;
         showPersistentHud: boolean;
+        optimisticStatus: DashboardDetailViewModel["optimisticStatus"];
     } | null;
     trackers: {
         viewModel: ReturnType<typeof useTorrentDetailsTrackersViewModel> | null;
@@ -128,6 +130,15 @@ export interface TorrentDetailTabSurfaces {
         isStandalone?: boolean;
     } | null;
 }
+
+const getDetailSurfaceIdentity = (
+    torrent: DashboardDetailViewModel["detailData"],
+) => {
+    if (!torrent) {
+        return "detail:none";
+    }
+    return String(torrent.id ?? torrent.hash ?? "detail:unknown");
+};
 
 export interface TorrentDetailTabDefinition {
     id: DetailTab;
@@ -165,13 +176,7 @@ export const TAB_DEFS: readonly TorrentDetailTabDefinition[] = [
         id: "peers",
         labelKey: "inspector.tab.peers",
         isVisible: (surfaces) => surfaces.peers !== null,
-        render: (surfaces) =>
-            surfaces.peers
-                ? createElement(PeersTab, {
-                      key: String(surfaces.peers.torrentId ?? "peers"),
-                      ...surfaces.peers,
-                  })
-                : null,
+        render: (surfaces) => (surfaces.peers ? createElement(PeersTab, surfaces.peers) : null),
     },
     {
         id: "speed",
@@ -286,6 +291,7 @@ export const useTorrentDetailTabCoordinator = ({
                           isStandalone,
                       },
                       pieces: {
+                          torrent,
                           torrentKey: torrent.id,
                           piecePercent: torrent.progress ?? 0,
                           pieceCount: torrent.pieceCount,
@@ -296,6 +302,7 @@ export const useTorrentDetailTabCoordinator = ({
                           downloadSpeed: torrent.speed.down,
                           uploadSpeed: torrent.speed.up,
                           showPersistentHud: showPiecesHud,
+                          optimisticStatus: viewModel.optimisticStatus,
                       },
                       trackers: {
                           viewModel: isTrackersDataReady ? trackersViewModel : null,
@@ -389,7 +396,23 @@ export const useTorrentDetailTabCoordinator = ({
     );
 
     const activeDefinition = visibleTabDefs.find((definition) => definition.id === active) ?? visibleTabDefs[0];
-    const activeSurface = activeDefinition ? activeDefinition.render(surfaces) : null;
+    const detailSurfaceIdentity = getDetailSurfaceIdentity(torrent);
+    const activeSurfaceWrapperClassName =
+        active === "speed"
+            ? "flex flex-1 min-h-0 flex-col"
+            : active === "pieces"
+              ? "h-full min-h-0"
+              : undefined;
+    const activeSurface = activeDefinition
+        ? createElement(
+              "div",
+              {
+                  key: `${active}:${detailSurfaceIdentity}`,
+                  className: activeSurfaceWrapperClassName,
+              },
+              activeDefinition.render(surfaces),
+          )
+        : null;
 
     const headerActions = useMemo<TorrentDetailHeaderAction[]>(() => {
         if (active === "general" && surfaces.general) {

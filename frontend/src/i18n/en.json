@@ -304,6 +304,9 @@
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
         "filter_aria": "Filter",
+        "mobile_add_menu_open": "Open add menu",
+        "mobile_menu_close": "Close navigation menu",
+        "mobile_menu_open": "Open navigation menu",
         "search_placeholder": "Filter torrents..."
     },
     "peers": {
@@ -857,6 +860,7 @@
         "high": "High",
         "normal": "Normal",
         "low": "Low",
+        "mixed": "Mixed priorities",
         "skip": "Skip",
         "dont_download": "Do Not Download"
     },

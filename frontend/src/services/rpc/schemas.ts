@@ -216,7 +216,7 @@ const zTransmissionTorrentFileStat = z
             .transform((value) =>
                 typeof value === "boolean" ? value : value === 1
             ),
-        priority: z.number(),
+        priority: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
     })
     .passthrough();
 

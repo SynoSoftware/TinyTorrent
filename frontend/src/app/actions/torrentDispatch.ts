@@ -416,7 +416,9 @@ const dispatchHandlers: DispatchHandlerTable = {
             return dispatchOutcome.applied();
         },
         refresh: {
+            refreshTorrents: true,
             refreshDetail: true,
+            refreshStats: true,
         },
     },
     SET_TORRENT_SEQUENTIAL: {

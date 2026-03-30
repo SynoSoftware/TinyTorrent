@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import { AlertPanel } from "@/shared/ui/layout/AlertPanel";
 import { TABLE } from "@/shared/ui/layout/glass-surface";
 import {
@@ -28,12 +29,22 @@ interface ContentTabProps {
 }
 
 export const ContentTab = ({
+    torrent,
     files,
     emptyMessage,
     onFilesToggle,
     onSetPriority,
 }: ContentTabProps) => {
     const { t } = useTranslation();
+    const {
+        preferences: { torrentFileTreeExpandedIdsByTorrent },
+        setTorrentFileTreeExpandedIds,
+    } = usePreferences();
+    const torrentTreeKey = torrent.hash || torrent.id;
+    const initialExpandedIds =
+        torrentTreeKey.length > 0
+            ? (torrentFileTreeExpandedIdsByTorrent[torrentTreeKey] ?? [])
+            : [];
     const fileToggleCommand = React.useCallback<FileExplorerToggleCommand>(
         async (indexes: number[], wanted: boolean) => {
             if (!onFilesToggle) {
@@ -63,15 +74,27 @@ export const ContentTab = ({
     const fileExplorerViewModel = useMemo(
         () => ({
             files: explorer.files,
+            initialExpandedIds,
             emptyMessage,
             showProgress: true,
             onFilesToggle: explorer.toggle,
+            onExpandedIdsChange:
+                torrentTreeKey.length > 0
+                    ? (expandedIds: readonly string[]) =>
+                          setTorrentFileTreeExpandedIds(
+                              torrentTreeKey,
+                              expandedIds,
+                          )
+                    : undefined,
             onSetPriority,
         }),
         [
             explorer.files,
+            initialExpandedIds,
             explorer.toggle,
             emptyMessage,
+            setTorrentFileTreeExpandedIds,
+            torrentTreeKey,
             onSetPriority,
         ],
     );

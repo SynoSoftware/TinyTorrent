@@ -36,7 +36,7 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import {
     fileExplorerPriorityValues,
-    getFileExplorerPriorityKey,
+    getFileExplorerSelectablePriorityKeys,
 } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import type { FileExplorerPrioritySelectKey } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 
@@ -77,6 +77,10 @@ export const prioritySelectOptions = [
     iconClass: string;
     value: LibtorrentPriority | "skip";
 }>;
+
+const priorityOptionsByKey = new Map(
+    prioritySelectOptions.map((option) => [option.key, option] as const),
+);
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
@@ -128,10 +132,16 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     ) : (
         getFileIcon(row.node.name)
     );
+    const selectablePriorityKeys = getFileExplorerSelectablePriorityKeys(
+        !row.allowsSkipPriority,
+    );
+    const renderedPriorityOptions = selectablePriorityKeys
+        .map((key) => priorityOptionsByKey.get(key))
+        .filter((option) => option != null);
     const renderedPriorityControl = (
         <Select
             aria-label={t("fields.priority")}
-            selectedKeys={new Set([getFileExplorerPriorityKey(row.priority, row.isWanted)])}
+            selectedKeys={row.prioritySelection}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
                 if (!next) return;
@@ -139,11 +149,16 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 if (!option) return;
                 onSetPriority(option.value, row.node.descendantIndexes);
             }}
+            placeholder={
+                row.node.isFolder && row.prioritySelection.size === 0
+                    ? t("priority.mixed")
+                    : t("fields.priority")
+            }
             variant="bordered"
             size="sm"
             classNames={FORM_CONTROL.prioritySelectClassNames}
         >
-            {prioritySelectOptions.map((option) => {
+            {renderedPriorityOptions.map((option) => {
                 const Icon = option.icon;
                 return (
                     <SelectItem

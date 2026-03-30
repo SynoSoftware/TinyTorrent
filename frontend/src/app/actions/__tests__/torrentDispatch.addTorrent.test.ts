@@ -102,4 +102,39 @@ describe("torrentDispatch add-torrent", () => {
         expect(client.verify).not.toHaveBeenCalled();
         expect(client.resume).not.toHaveBeenCalled();
     });
+
+    it("keeps unwanted-first-file and high-priority-next-file independent when sequential download is enabled", async () => {
+        const client = createMockClient();
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents: async () => {},
+            refreshSessionStatsData: async () => {},
+            refreshDetailData: async () => {},
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.addTorrentFromFile(
+                "base64-metainfo",
+                "D:\\Downloads",
+                false,
+                [0],
+                [1],
+                [2, 3],
+                [4],
+                true,
+            ),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(client.addTorrent).toHaveBeenCalledWith({
+            metainfo: "base64-metainfo",
+            downloadDir: "D:\\Downloads",
+            paused: false,
+            sequentialDownload: true,
+            filesUnwanted: [0],
+            priorityHigh: [1],
+            priorityNormal: [2, 3],
+            priorityLow: [4],
+        });
+    });
 });

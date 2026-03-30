@@ -22,7 +22,8 @@ type SpeedTableMeta = {
 
 interface TorrentTableSpeedColumnCellProps {
     torrent: Torrent;
-    table: Table<Torrent>;
+    table?: Table<Torrent>;
+    speedHistory?: SpeedHistorySnapshot | Array<number | null>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -33,16 +34,16 @@ export const getTorrentCompactSpeedValue = (torrent: Torrent) => {
     return isDownloading ? torrent.speed.down : isSeeding ? torrent.speed.up : null;
 };
 
-export function TorrentTable_SpeedCell({ torrent, table }: TorrentTableSpeedColumnCellProps) {
+export function TorrentTable_SpeedCell({ torrent, table, speedHistory }: TorrentTableSpeedColumnCellProps) {
     const isDownloading = torrent.state === status.torrent.downloading;
     const isSeeding = torrent.state === status.torrent.seeding;
 
     const speedValue = getTorrentCompactSpeedValue(torrent);
 
-    const meta = table.options.meta as SpeedTableMeta | undefined;
-    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id];
-    const speedHistory = useMemo(() => getStatusSpeedHistory(torrent, rawHistory), [rawHistory, torrent]);
-    const relevantHistory = isSeeding ? speedHistory.up : speedHistory.down;
+    const meta = table?.options.meta as SpeedTableMeta | undefined;
+    const rawHistory = speedHistory ?? meta?.speedHistoryRef?.current?.[torrent.id];
+    const normalizedSpeedHistory = useMemo(() => getStatusSpeedHistory(torrent, rawHistory), [rawHistory, torrent]);
+    const relevantHistory = isSeeding ? normalizedSpeedHistory.up : normalizedSpeedHistory.down;
     const hasSignal = speedValue !== null && relevantHistory.length >= 2;
     const maxSpeed = useMemo(() => (hasSignal ? Math.max(...relevantHistory) : 0), [hasSignal, relevantHistory]);
 

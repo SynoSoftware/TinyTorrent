@@ -73,4 +73,34 @@ describe("TorrentTable_SpeedCell", () => {
             container.remove();
         }
     });
+
+    it("can render from a direct speed history snapshot without table metadata", () => {
+        const torrent = makeTorrent();
+        const seededDownHistory = new Array(performance.historyDataPoints).fill(0);
+        const seededUpHistory = new Array(performance.historyDataPoints).fill(0);
+
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(
+                    createElement(TorrentTable_SpeedCell, {
+                        torrent,
+                        speedHistory: {
+                            down: seededDownHistory,
+                            up: seededUpHistory,
+                        },
+                    }),
+                );
+            });
+
+            expect(container.querySelector("svg")).not.toBeNull();
+            expect(container.textContent).toContain("0 B/s");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
 });

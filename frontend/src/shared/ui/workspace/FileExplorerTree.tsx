@@ -17,7 +17,7 @@ import type { FileExplorerFilterMode, FileExplorerTreeViewModel } from "@/shared
 import { FILE_BROWSER, FORM_CONTROL, DETAILS, SURFACE, TABLE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { FileExplorerTreeRow, prioritySelectOptions } from "@/shared/ui/workspace/FileExplorerTreeRow";
-import { fileExplorerPriorityValues, getFileExplorerPriorityKey } from "@/shared/ui/workspace/fileExplorerTreeModel";
+import { getFileExplorerPrioritySelection } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import { useFileExplorerTreeState } from "@/shared/ui/workspace/useFileExplorerTreeState";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 
@@ -55,6 +55,8 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
         files,
         wantedByIndex,
         priorityByIndex,
+        initialExpandedIds,
+        onExpandedIdsChange,
         showProgress = false,
         search,
         onFilesToggle,
@@ -112,6 +114,8 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
     } = useFileExplorerTreeState(files, {
         wantedByIndex,
         priorityByIndex,
+        initialExpandedIds,
+        onExpandedIdsChange,
         searchQuery: search?.value,
     });
     const controlledSearchValue = search?.value ?? searchQuery;
@@ -133,15 +137,12 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
     );
 
     const headerPrioritySelection = useMemo(() => {
-        const keys = new Set<string>(
-            allVisibleIndexes.map((index) => {
-                const priority = (filePriorityMap.get(index) ??
-                    fileExplorerPriorityValues.normal) as LibtorrentPriority;
-                const isWanted = Boolean(fileWantedMap.get(index));
-                return getFileExplorerPriorityKey(priority, isWanted);
-            }),
+        return getFileExplorerPrioritySelection(
+            allVisibleIndexes,
+            filePriorityMap,
+            fileWantedMap,
+            true,
         );
-        return keys.size === 1 ? keys : new Set<string>();
     }, [allVisibleIndexes, filePriorityMap, fileWantedMap]);
 
     const gridTemplateColumns = showProgress
@@ -153,7 +154,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
     const isIndeterminate = !isAllSelected && allVisibleIndexes.some((index) => Boolean(fileWantedMap.get(index)));
 
     const applyPriorityToIndexes = useCallback(
-        (indexesToUpdate: number[], priority: LibtorrentPriority | "skip") => {
+        async (indexesToUpdate: number[], priority: LibtorrentPriority | "skip") => {
             if (indexesToUpdate.length === 0) return;
 
             if (priority === "skip") {
@@ -161,9 +162,17 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                 return;
             }
 
-            void onSetPriority?.(indexesToUpdate, priority);
+            const skippedIndexes = indexesToUpdate.filter((index) => !fileWantedMap.get(index));
+            if (skippedIndexes.length > 0) {
+                const toggleOutcome = await onFilesToggle(skippedIndexes, true);
+                if (toggleOutcome.status !== "success") {
+                    return;
+                }
+            }
+
+            await onSetPriority?.(indexesToUpdate, priority);
         },
-        [onFilesToggle, onSetPriority],
+        [fileWantedMap, onFilesToggle, onSetPriority],
     );
 
     const handleSetPriority = useCallback(
@@ -316,7 +325,12 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                     <div className={`${TABLE.columnHeaderLabel} ${FILE_BROWSER.headerCellCenter}`}>
                         <Select
                             aria-label={t("fields.priority")}
-                            placeholder={t("fields.priority")}
+                            placeholder={
+                                allVisibleIndexes.length > 0 &&
+                                headerPrioritySelection.size === 0
+                                    ? t("priority.mixed")
+                                    : t("fields.priority")
+                            }
                             startContent={<ListOrdered className={TABLE.columnHeaderIcon} />}
                             selectedKeys={headerPrioritySelection}
                             onSelectionChange={(keys) => {
@@ -364,6 +378,7 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                 <div className={FILE_BROWSER.virtualCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                         const node = visibleNodes[virtualRow.index];
+                        const allowsSkipPriority = !node.isFolder;
                         const rowViewModel = {
                             node,
                             isExpanded: expandedIds.has(node.id),
@@ -372,8 +387,13 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                                 !node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))) &&
                                 node.descendantIndexes.some((index) => Boolean(fileWantedMap.get(index))),
                             isWanted: node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))),
-                            priority: (filePriorityMap.get(node.descendantIndexes[0]) ??
-                                fileExplorerPriorityValues.normal) as LibtorrentPriority,
+                            prioritySelection: getFileExplorerPrioritySelection(
+                                node.descendantIndexes,
+                                filePriorityMap,
+                                fileWantedMap,
+                                allowsSkipPriority,
+                            ),
+                            allowsSkipPriority,
                         };
                         return (
                             <div

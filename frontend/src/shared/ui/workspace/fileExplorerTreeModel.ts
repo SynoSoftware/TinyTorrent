@@ -12,6 +12,11 @@ export const fileExplorerPriorityValues = {
     low: 1 as LibtorrentPriority,
 } as const;
 
+const fileExplorerSelectablePriorityKeys = {
+    file: ["high", "normal", "low", "skip"],
+    folder: ["high", "normal", "low"],
+} as const satisfies Record<string, readonly FileExplorerPrioritySelectKey[]>;
+
 const fileExplorerPriorityThresholds = {
     high: 6,
     low: 2,
@@ -25,6 +30,41 @@ export const getFileExplorerPriorityKey = (
     if (priority >= fileExplorerPriorityThresholds.high) return "high";
     if (priority <= fileExplorerPriorityThresholds.low) return "low";
     return "normal";
+};
+
+export const getFileExplorerSelectablePriorityKeys = (
+    isFolder: boolean,
+): readonly FileExplorerPrioritySelectKey[] =>
+    isFolder
+        ? fileExplorerSelectablePriorityKeys.folder
+        : fileExplorerSelectablePriorityKeys.file;
+
+export const getFileExplorerPrioritySelection = (
+    indexes: readonly number[],
+    priorityByIndex: ReadonlyMap<number, LibtorrentPriority>,
+    wantedByIndex: ReadonlyMap<number, boolean>,
+    allowsSkipPriority: boolean,
+): Set<FileExplorerPrioritySelectKey> => {
+    const keys = new Set<FileExplorerPrioritySelectKey>();
+    for (const index of indexes) {
+        const priority = priorityByIndex.get(index) ?? fileExplorerPriorityValues.normal;
+        const key = getFileExplorerPriorityKey(priority, Boolean(wantedByIndex.get(index)));
+        keys.add(key);
+        if (keys.size > 1) {
+            return new Set<FileExplorerPrioritySelectKey>();
+        }
+    }
+
+    if (!keys.size) {
+        return new Set<FileExplorerPrioritySelectKey>();
+    }
+
+    const [key] = keys;
+    if (!allowsSkipPriority && key === "skip") {
+        return new Set<FileExplorerPrioritySelectKey>();
+    }
+
+    return new Set<FileExplorerPrioritySelectKey>([key]);
 };
 
 const VIDEO_FILE_PATTERN = /\.(mp4|mkv|avi|mov|wmv)$/i;

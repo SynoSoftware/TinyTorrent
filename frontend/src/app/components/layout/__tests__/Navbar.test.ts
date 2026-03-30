@@ -1,6 +1,8 @@
 import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Navbar } from "@/app/components/layout/Navbar";
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -14,6 +16,72 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
+    Button: ({
+        children,
+        onPress,
+        onClick,
+        isDisabled,
+        disabled,
+        startContent,
+        ...props
+    }: {
+        children?: React.ReactNode;
+        onPress?: () => void;
+        onClick?: () => void;
+        isDisabled?: boolean;
+        disabled?: boolean;
+        startContent?: React.ReactNode;
+        [key: string]: unknown;
+    }) =>
+        React.createElement(
+            "button",
+            {
+                ...props,
+                disabled: disabled ?? isDisabled,
+                onClick: onClick ?? onPress,
+            },
+            startContent,
+            children,
+        ),
+    Dropdown: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement(React.Fragment, null, children),
+    DropdownTrigger: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement(React.Fragment, null, children),
+    DropdownMenu: ({
+        children,
+        classNames,
+        itemClasses,
+        ...props
+    }: {
+        children?: React.ReactNode;
+        classNames?: unknown;
+        itemClasses?: unknown;
+        [key: string]: unknown;
+    }) => {
+        void classNames;
+        void itemClasses;
+        return React.createElement("div", props, children);
+    },
+    DropdownItem: ({
+        children,
+        onPress,
+        startContent,
+        ...props
+    }: {
+        children?: React.ReactNode;
+        onPress?: () => void;
+        startContent?: React.ReactNode;
+        [key: string]: unknown;
+    }) =>
+        React.createElement(
+            "button",
+            {
+                ...props,
+                onClick: onPress,
+            },
+            startContent,
+            children,
+        ),
     Input: (inputProps: {
         value?: string;
         onChange?: (event: { currentTarget: { value: string } }) => void;
@@ -182,8 +250,20 @@ const createViewModel = (
 });
 
 describe("Navbar", () => {
+    let container: HTMLDivElement;
+    let root: Root;
+
     beforeEach(() => {
         isNativeHostMock = false;
+        container = document.createElement("div");
+        document.body.appendChild(container);
+        root = createRoot(container);
+    });
+
+    afterEach(() => {
+        root.unmount();
+        container.remove();
+        document.body.innerHTML = "";
     });
 
     it("hides the last island in browser mode", () => {
@@ -210,5 +290,47 @@ describe("Navbar", () => {
         expect(markup).toContain("toolbar.minimize");
         expect(markup).toContain("toolbar.maximize");
         expect(markup).toContain("toolbar.close");
+    });
+
+    it("renders a burger trigger for phone navigation and keeps the menu closed by default", () => {
+        const markup = renderToStaticMarkup(
+            React.createElement(Navbar, {
+                viewModel: createViewModel({ uiMode: "Rpc" }),
+            }),
+        );
+
+        expect(markup).toContain("nav.mobile_menu_open");
+        expect(markup).not.toContain('data-mobile-navbar="true"');
+    });
+
+    it("opens the phone menu from the burger trigger", () => {
+        flushSync(() => {
+            root.render(
+                React.createElement(Navbar, {
+                    viewModel: createViewModel({ uiMode: "Rpc" }),
+                }),
+            );
+        });
+
+        expect(container.querySelector('[data-mobile-navbar="true"]')).toBeNull();
+
+        const trigger = container.querySelector(
+            'button[aria-label="nav.mobile_menu_open"]',
+        );
+
+        expect(trigger).not.toBeNull();
+
+        flushSync(() => {
+            trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+
+        const mobileMenu = container.querySelector('[data-mobile-navbar="true"]');
+
+        expect(mobileMenu).not.toBeNull();
+        expect(mobileMenu?.textContent).toContain("toolbar.settings");
+        expect(
+            mobileMenu?.querySelector('input[placeholder="nav.search_placeholder"]'),
+        ).not.toBeNull();
+        expect(mobileMenu?.textContent).not.toContain("toolbar.resume");
     });
 });

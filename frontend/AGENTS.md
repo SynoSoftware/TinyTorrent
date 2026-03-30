@@ -283,6 +283,7 @@ Presentation should not become a hidden policy owner.
 - `src/index.css` owns global geometry and CSS tokens.
 - Prefer reducing token count over preserving local convenience tokens; consolidation reduces drift.
 - New semantic tokens must never be introduced without explicit user permission.
+- `src/shared/ui/layout/glass-surface.ts` must be fully static. No functions, no params, no branching. If styling depends on runtime state, move that logic out and expose only static variants there.
 
 Required decision procedure:
 

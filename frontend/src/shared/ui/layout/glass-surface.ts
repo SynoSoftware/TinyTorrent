@@ -2,6 +2,10 @@ import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED, withColor, withOpacity } from "@/config/textRoles";
 const { visuals } = registry;
 
+// Static styling authority only.
+// No functions, no params, no branching.
+// If styling depends on runtime state, move that logic out and expose only static variants here.
+
 const transition = visuals.transitions;
 
 const GLASS_SURFACE_DIAL = {
@@ -177,7 +181,7 @@ const SURFACE_ATOM = {
     insetRounded: GLASS_ROLE_CORE.surface.inset,
     insetRoundedFull: `surface-layer-1 ${GLASS_SURFACE_DIAL.radius.full} p-tight`,
     insetBorderedItem: `${GLASS_SURFACE_DIAL.radius.panel} ${GLASS_SURFACE_DIAL.border.strong} p-tight`,
-    progressTrack: "bg-content1/20 h-full",
+    progressTrack: "bg-content2/50 h-full",
     progressIndicatorPaused: "bg-gradient-to-r from-warning/50 to-warning",
     progressIndicatorSeeding: "bg-gradient-to-r from-primary/50 to-primary",
     progressIndicatorActive: "bg-gradient-to-r from-success/50 to-success",
@@ -730,9 +734,9 @@ const WORKBENCH_NAV = {
         height: "var(--tt-navbar-h)",
         gap: "var(--spacing-panel)",
     } as const,
-    main: "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative",
-    left: "flex items-center gap-tools min-w-0",
-    brandGroup: "flex items-center gap-tools pr-tight",
+    main: "flex grow h-full min-w-0 items-center justify-between gap-panel sm:gap-stage py-tight relative",
+    left: "flex items-center gap-tight sm:gap-tools min-w-0",
+    brandGroup: "flex items-center gap-tight sm:gap-tools pr-tight",
     brandIconWrap: "flex items-center justify-center",
     brandIconStyle: {
         width: "var(--tt-brand-icon-size)",
@@ -752,8 +756,8 @@ const WORKBENCH_NAV = {
         fontSize: "var(--tt-fz-navbar)",
     } as const,
     searchIcon: "text-default-400",
-    actions: `flex items-center gap-tools ${transition.medium} shrink-0 opacity-100`,
-    primaryActions: "flex items-center gap-tools min-w-0",
+    actions: `flex items-center gap-tight sm:gap-tools ${transition.medium} shrink-0 opacity-100`,
+    primaryActions: "flex items-center gap-tight sm:gap-tools min-w-0",
     primaryActionEmphasis: "ring-1 ring-primary/20",
     selectionSeparator: "hidden sm:flex w-px bg-default-200/50 mx-tight",
     selectionSeparatorStyle: {
@@ -765,6 +769,15 @@ const WORKBENCH_NAV = {
     ghostAction: `text-default-400 ${visuals.interactive.buttonGhost}`,
     ghostActionOverflow: "overflow-visible",
     themeMobileWrap: "flex md:hidden",
+    mobileStack: "mt-panel flex sm:hidden",
+    mobilePanel: "flex min-w-0 flex-1 flex-col gap-panel py-panel",
+    mobileSection: "flex flex-col gap-tools",
+    mobileTabsWrap: "min-w-0",
+    mobileSearchWrap: "w-full",
+    mobileActionGrid: "grid grid-cols-2 gap-tools",
+    mobileMenuButton: "h-button justify-start px-panel",
+    mobileMenuButtonIcon: "text-current",
+    mobileUtilityActions: "grid grid-cols-2 gap-tools",
     rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
     rehashTooltipWrap: "relative group cursor-help",
     rehashTrack: "h-track bg-transparent",
@@ -844,7 +857,7 @@ const WORKBENCH_STATUS = {
     speedCompactDownIcon: "toolbar-icon-size-md text-success",
     speedCompactUpIcon: "toolbar-icon-size-md text-primary",
     speedCompactValue: `${TEXT_ROLE.heading} tracking-tight leading-none`,
-    speedCompactDivider: "w-px h-nav bg-content1/10 mx-tight",
+    speedCompactDivider: "w-px bg-content1/10 mx-tight",
     right: "flex shrink-0 items-center border-l border-content1/10 gap-stage",
     telemetryGrid: "grid gap-x-stage gap-y-tight",
 } as const;
@@ -914,6 +927,7 @@ export const SPLIT = {
     mapHudValueQuiet: withOpacity(TEXT_ROLE.code, 55),
     mapHudValueWarning: withColor(TEXT_ROLE.code, "warning"),
     mapHudValueDanger: withColor(TEXT_ROLE.code, "danger"),
+    mapLegendText: GLASS_ROLE_CORE.text.muted,
     mapLegendShell: "flex h-full items-stretch gap-panel",
     mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel self-center",
     mapLegendCell: "flex min-w-0 items-center gap-tight",
@@ -1036,10 +1050,30 @@ export const METRIC_CHART = {
     content: "flex-1 min-h-0 flex flex-col gap-panel",
     panel: `flex-1 min-h-0 flex flex-col ${SURFACE.role.panel} p-panel relative`,
     panelLabelWrap: "absolute z-panel pointer-events-none",
-    panelSeries: "flex-1",
+    panelSeries: "flex-1 min-h-0",
+    graphToneMuted: "text-foreground/30",
+    graphToneFallback: "text-primary",
     baselineMuted: "opacity-10",
     baselineActive: "opacity-60",
     areaMuted: "opacity-20",
+    glowBlurStdDeviation: 2,
+    glowFilterRegion: {
+        x: "-20%",
+        y: "-20%",
+        width: "140%",
+        height: "140%",
+    } as const,
+    areaGradientStops: [
+        { offset: "0%", opacity: "0.5" },
+        { offset: "100%", opacity: "0" },
+    ] as const,
+    fillFadeStops: [
+        { offset: "0%", opacity: "0" },
+        { offset: "10%", opacity: "1" },
+        { offset: "90%", opacity: "1" },
+        { offset: "100%", opacity: "0" },
+    ] as const,
+    maskCornerRadiusRatio: 0.2,
     progressBar: {
         track: "relative h-full overflow-hidden rounded-full bg-content1/20",
         indicator: `absolute inset-y-0 left-0 transform origin-left rounded-full ${transition.slow} ease-out`,
@@ -1160,6 +1194,7 @@ export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${WORKBENCH_ISLAND_SHELL}`,
     rootStandalone: "overflow-y-auto",
     body: "flex-1 min-h-0 overflow-y-auto bg-transparent py-tight overlay-scrollbar",
+    bodyFill: "flex flex-col overflow-hidden",
     headerRoot: "grid items-center h-row",
     headerRootEmbedded: "bg-content1/80 border-b border-default/10",
     headerTrackingStyle: {
@@ -1185,7 +1220,7 @@ export const DETAILS = {
     headerContextActionButton:
         "border border-primary/30 bg-transparent text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0",
     headerContextDivider: "h-status-chip w-px bg-foreground/12 mx-tight",
-    speedRoot: "h-full flex flex-col",
+    speedRoot: "flex-1 min-h-0 flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
     speedEmbeddedSurface: "flex-1 h-full p-stage flex flex-col min-h-0",
     speedChartHost: "flex-1 min-h-0",

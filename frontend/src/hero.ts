@@ -40,27 +40,27 @@ export default heroui({
                 danger: "#D64545",
 
                 // Base page + text
-                background: "#F3FBF6", // Minty white
+                background: "#F3F7FA", // Cool paper blue-gray
                 foreground: "#1C1C1C", // High contrast text
 
                 // REVISED: Desaturated divider to prevent "Cartoonish" look
-                divider: "#D1E0D6",
+                divider: "#CCD6DE",
                 focus: "#4DF1FF",
 
                 // Surface levels
                 content1: "#FFFFFF", // Pure white cards
-                content2: "#F6FDF9", // Very subtle tint
-                content3: "#ECF9F2",
-                content4: "#D1FAE5", // High contrast accent surface
+                content2: "#E4ECF2", // Soft cool-gray surface with clearer separation from white
+                content3: "#E2EBF2",
+                content4: "#D3E0EA", // Stronger cool surface separation
 
                 // Neutral Grays (Important for borders/secondary text)
                 default: {
-                    100: "#F0F5F2",
-                    200: "#E1E8E4",
-                    300: "#D2DBD6",
-                    400: "#C3CEC8",
-                    500: "#A5B0AA", // Base gray text
-                    600: "#86908B",
+                    100: "#EEF3F6",
+                    200: "#DEE6EC",
+                    300: "#CCD6DE",
+                    400: "#B7C3CC",
+                    500: "#98A4AE", // Base gray text
+                    600: "#76828D",
                     foreground: "#1C1C1C",
                 },
             },

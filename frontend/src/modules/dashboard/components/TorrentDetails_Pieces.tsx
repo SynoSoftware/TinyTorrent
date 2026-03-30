@@ -1,17 +1,32 @@
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { TABLE, SPLIT } from "@/shared/ui/layout/glass-surface";
+import { DETAILS, TABLE, SPLIT, WORKBENCH } from "@/shared/ui/layout/glass-surface";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { TEXT_ROLE } from "@/config/textRoles";
 import { registry } from "@/config/logic";
-import { formatSpeed } from "@/shared/utils/format";
+import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import { usePiecesMapViewModel, type PiecesMapViewModel } from "@/modules/dashboard/hooks/usePiecesMapViewModel";
+import { getEffectiveProgress } from "@/modules/dashboard/components/TorrentProgressDisplay";
+import { TORRENTTABLE_COLUMN_DEFS } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
+import { getColumnWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import type { OptimisticStatusEntry } from "@/modules/dashboard/types/contracts";
+import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
+import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
+import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
+import { status } from "@/shared/status";
+import { getEffectiveTorrentState } from "@/modules/dashboard/utils/torrentStatus";
+import { formatBytes, formatSpeed } from "@/shared/utils/format";
 
 const { visualizations } = registry;
 const PIECE_MAP_HUD = visualizations.details.pieceMap.hud;
+const HUD_RICH_FIELD_WIDTH = getColumnWidthCss(
+    TORRENTTABLE_COLUMN_DEFS.progress.id,
+    TORRENTTABLE_COLUMN_DEFS.progress.width ?? TORRENTTABLE_COLUMN_DEFS.progress.minSize ?? 110,
+);
 
 interface PiecesTabProps {
+    torrent: Torrent;
     torrentKey: string | number;
     piecePercent: number;
     pieceCount?: number;
@@ -22,29 +37,32 @@ interface PiecesTabProps {
     downloadSpeed: number;
     uploadSpeed: number;
     showPersistentHud: boolean;
+    optimisticStatus?: OptimisticStatusEntry;
 }
 
 type PiecesViewProps = {
     viewModel: PiecesMapViewModel;
+    torrent: Torrent;
+    optimisticStatus?: OptimisticStatusEntry;
     sequentialDownload: boolean;
     showPersistentHud: boolean;
 };
 
 type PiecesHudFieldId =
+    | "progress"
     | "verified"
     | "missing"
     | "unavailable"
     | "rare"
     | "pieces"
     | "piece_size"
-    | "download"
-    | "upload";
+    | "speed";
 
 type SwarmTone = "verified" | "common" | "rare" | "dead" | "missing";
 type LegendCell = {
     key: string;
     label: string;
-    swatch: { background: string; opacity?: number };
+    swatch: { background: string; borderColor?: string; backgroundImage?: string };
 };
 type DownloadMode = "sequential" | "random";
 type TooltipDetail = NonNullable<PiecesMapViewModel["tooltipDetail"]>;
@@ -60,24 +78,21 @@ const HIDDEN_TOOLTIP_STYLE = {
 
 const getVisibleHudFields = (width: number): PiecesHudFieldId[] => {
     if (width < PIECE_MAP_HUD.field_breakpoints_px.compact) {
-        return ["verified", "missing", "unavailable"];
+        return ["verified", "missing", "progress"];
     }
     if (width < PIECE_MAP_HUD.field_breakpoints_px.compact_plus) {
-        return ["verified", "missing", "unavailable", "rare"];
+        return ["verified", "missing", "unavailable", "progress"];
     }
     if (width < PIECE_MAP_HUD.field_breakpoints_px.summary) {
-        return ["verified", "missing", "unavailable", "rare", "pieces"];
+        return ["verified", "missing", "unavailable", "rare", "progress"];
     }
     if (width < PIECE_MAP_HUD.field_breakpoints_px.summary_plus) {
-        return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size"];
+        return ["verified", "missing", "unavailable", "rare", "pieces", "progress"];
     }
     if (width < PIECE_MAP_HUD.field_breakpoints_px.extended) {
-        return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size", "download"];
+        return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size", "progress"];
     }
-    if (width < PIECE_MAP_HUD.field_breakpoints_px.wide) {
-        return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size", "download"];
-    }
-    return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size", "download", "upload"];
+    return ["verified", "missing", "unavailable", "rare", "pieces", "piece_size", "speed", "progress"];
 };
 
 const buildLegendCells = ({
@@ -88,18 +103,20 @@ const buildLegendCells = ({
     availabilityMissing: boolean;
     palette: Palette;
     t: Translate;
-}): Array<LegendCell | null> =>
-    availabilityMissing
+}): Array<LegendCell | null> => {
+    const getSwatch = (tone: SwarmTone) => resolveMapAvailabilitySwatchVisual({ palette, tone });
+
+    return availabilityMissing
         ? [
               {
                   key: "verified",
                   label: t("torrent_modal.stats.verified"),
-                  swatch: { background: palette.success },
+                  swatch: getSwatch("verified"),
               },
               {
                   key: "missing",
                   label: t("torrent_modal.stats.missing"),
-                  swatch: { background: palette.foreground, opacity: 0.2 },
+                  swatch: getSwatch("missing"),
               },
               null,
               null,
@@ -108,60 +125,63 @@ const buildLegendCells = ({
               {
                   key: "verified",
                   label: t("torrent_modal.stats.verified"),
-                  swatch: { background: palette.success },
+                  swatch: getSwatch("verified"),
               },
               {
                   key: "common",
                   label: t("torrent_modal.availability.legend_common"),
-                  swatch: { background: palette.primary, opacity: 0.35 },
+                  swatch: getSwatch("common"),
               },
               {
                   key: "rare",
                   label: t("torrent_modal.availability.legend_rare"),
-                  swatch: { background: palette.warning },
+                  swatch: getSwatch("rare"),
               },
               {
                   key: "dead",
                   label: t("torrent_modal.piece_map.legend_dead"),
-                  swatch: { background: palette.danger },
+                  swatch: getSwatch("dead"),
               },
           ];
-
-const resolveSwatchVisual = (palette: Palette, tone: SwarmTone) => {
-    if (tone === "verified") {
-        return {
-            color: palette.success,
-            borderColor: undefined as string | undefined,
-        };
-    }
-    if (tone === "common") {
-        return {
-            color: `color-mix(in oklab, ${palette.primary} 35%, transparent)`,
-            borderColor: undefined as string | undefined,
-        };
-    }
-    if (tone === "rare") {
-        return {
-            color: `color-mix(in oklab, ${palette.warning} 75%, transparent)`,
-            borderColor: undefined as string | undefined,
-        };
-    }
-    if (tone === "dead") {
-        return {
-            color: `color-mix(in oklab, ${palette.foreground} 12%, transparent)`,
-            borderColor: palette.danger,
-        };
-    }
-    return {
-        color: `color-mix(in oklab, ${palette.foreground} 18%, transparent)`,
-        borderColor: undefined as string | undefined,
-    };
 };
 
-const resolveRarePattern = (palette: Palette, tone: SwarmTone) =>
-    tone === "rare"
-        ? `repeating-linear-gradient(135deg, color-mix(in oklab, ${palette.foreground} 22%, transparent) 0 1px, transparent 1px 4px)`
-        : undefined;
+const resolveMapAvailabilitySwatchVisual = (params: {
+    palette: Palette;
+    tone: SwarmTone;
+}) => {
+    switch (params.tone) {
+        case "verified":
+            return {
+                background: params.palette.success,
+                borderColor: undefined as string | undefined,
+                backgroundImage: undefined as string | undefined,
+            };
+        case "common":
+            return {
+                background: `color-mix(in oklab, ${params.palette.primary} 35%, transparent)`,
+                borderColor: undefined as string | undefined,
+                backgroundImage: undefined as string | undefined,
+            };
+        case "rare":
+            return {
+                background: `color-mix(in oklab, ${params.palette.warning} 75%, transparent)`,
+                borderColor: undefined as string | undefined,
+                backgroundImage: `repeating-linear-gradient(135deg, color-mix(in oklab, ${params.palette.foreground} 22%, transparent) 0 1px, transparent 1px 4px)`,
+            };
+        case "dead":
+            return {
+                background: `color-mix(in oklab, ${params.palette.foreground} 12%, transparent)`,
+                borderColor: params.palette.danger,
+                backgroundImage: undefined as string | undefined,
+            };
+        default:
+            return {
+                background: `color-mix(in oklab, ${params.palette.foreground} 18%, transparent)`,
+                borderColor: undefined as string | undefined,
+                backgroundImage: undefined as string | undefined,
+            };
+    }
+};
 
 const renderHudStat = ({
     label,
@@ -188,47 +208,159 @@ const renderHudStat = ({
     return (
         <div className={statClass}>
             <AppTooltip content={tooltip ?? label}>
-                <span className={SPLIT.mapHudLabel}>
-                    {label}
-                </span>
+                <span className={SPLIT.mapHudLabel}>{label}</span>
             </AppTooltip>
             <span className={valueClass}>{value}</span>
         </div>
     );
 };
 
+const renderHudCell = ({ cell, className = "overflow-hidden" }: { cell: ReactNode; className?: string }) => (
+    <div className={`flex h-full w-full min-w-0 ${className}`}>{cell}</div>
+);
+
+const getHudFieldShellClass = (fieldId: PiecesHudFieldId) =>
+    fieldId === "speed"
+        ? "flex h-full shrink-0 min-w-0 overflow-visible"
+        : fieldId === "progress"
+          ? "flex h-full shrink-0 min-w-0 overflow-hidden"
+          : "flex min-w-0 overflow-hidden";
+
+const getHudFieldShellStyle = (fieldId: PiecesHudFieldId) =>
+    fieldId === "progress" || fieldId === "speed"
+        ? ({
+              width: HUD_RICH_FIELD_WIDTH,
+          } as const)
+        : undefined;
+
+const getPiecesHudProgressIndicatorClass = (torrent: Torrent, optimisticStatus?: OptimisticStatusEntry) => {
+    const effectiveState = getEffectiveTorrentState(torrent, optimisticStatus);
+
+    if (effectiveState === status.torrent.paused) {
+        return TABLE.columnDefs.progressIndicatorPaused;
+    }
+    if (effectiveState === status.torrent.seeding) {
+        return TABLE.columnDefs.progressIndicatorSeeding;
+    }
+    return TABLE.columnDefs.progressIndicatorActive;
+};
+
+const PiecesHudProgressCell = ({
+    torrent,
+    optimisticStatus,
+}: {
+    torrent: Torrent;
+    optimisticStatus?: OptimisticStatusEntry;
+}) => {
+    const progressValue = getEffectiveProgress(torrent, optimisticStatus);
+    const progressPercent = progressValue * 100;
+    const completedBytes = torrent.totalSize * progressValue;
+
+    return (
+        <div className={`${DETAILS.generalProgressWrap} h-full w-full justify-between px-tight`}>
+            <div className={`${DETAILS.generalProgressMetrics} min-w-0`}>
+                <span className={`${SPLIT.mapHudValue} whitespace-nowrap`}>{progressPercent.toFixed(1)}%</span>
+                <span className={`${TABLE.columnDefs.progressSecondary} whitespace-nowrap`}>{formatBytes(completedBytes)}</span>
+            </div>
+            <SmoothProgressBar
+                value={progressPercent}
+                className={`${DETAILS.generalProgressBar} py-tight`}
+                trackClassName={TABLE.columnDefs.progressTrack}
+                indicatorClassName={getPiecesHudProgressIndicatorClass(torrent, optimisticStatus)}
+            />
+        </div>
+    );
+};
+
+const PiecesHudSpeedCell = ({
+    downHistory,
+    upHistory,
+    downSpeed,
+    upSpeed,
+    t,
+}: {
+    downHistory: number[];
+    upHistory: number[];
+    downSpeed: number;
+    upSpeed: number;
+    t: Translate;
+}) => {
+    const sharedMaxValue = useMemo(() => Math.max(1, ...downHistory, ...upHistory), [downHistory, upHistory]);
+
+    return (
+        <div className="relative h-full w-full min-w-0 overflow-visible">
+            <div className={`${WORKBENCH.status.speedCompactGraphWrap} overflow-visible`}>
+                <div className={WORKBENCH.status.speedCompactLayer}>
+                    <NetworkGraph
+                        data={downHistory}
+                        color="success"
+                        maxValue={sharedMaxValue}
+                        className={WORKBENCH.status.speedCompactDownGraph}
+                    />
+                </div>
+                <div className={WORKBENCH.status.speedCompactUpLayer}>
+                    <NetworkGraph
+                        data={upHistory}
+                        color="primary"
+                        maxValue={sharedMaxValue}
+                        className={WORKBENCH.status.speedCompactUpGraph}
+                    />
+                </div>
+
+                <div className={WORKBENCH.status.speedCompactOverlay}>
+                    <div className={WORKBENCH.status.speedCompactOverlayRow}>
+                        <div className={WORKBENCH.status.speedCompactColumn}>
+                            <ArrowDown className={WORKBENCH.status.speedCompactDownIcon} aria-hidden="true" />
+                            <span className={WORKBENCH.status.srOnly}>{t("status_bar.down")}</span>
+                            <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(downSpeed)}</span>
+                        </div>
+                        <div className={WORKBENCH.status.speedCompactDivider} />
+                        <div className={WORKBENCH.status.speedCompactColumn}>
+                            <ArrowUp className={WORKBENCH.status.speedCompactUpIcon} aria-hidden="true" />
+                            <span className={WORKBENCH.status.srOnly}>{t("status_bar.up")}</span>
+                            <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(upSpeed)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const PiecesHud = ({
+    torrent,
+    optimisticStatus,
     visibleFields,
-    downloadSpeed,
-    uploadSpeed,
     totalPieces,
     pieceSizeLabel,
     verifiedCount,
-    verifiedPercent,
     missingCount,
     rareCount,
     deadCount,
     availabilityMissing,
     t,
 }: {
+    torrent: Torrent;
+    optimisticStatus?: OptimisticStatusEntry;
     visibleFields: readonly PiecesHudFieldId[];
-    downloadSpeed: number;
-    uploadSpeed: number;
     totalPieces: number;
     pieceSizeLabel: string;
     verifiedCount: number;
-    verifiedPercent: number;
     missingCount: number;
     rareCount: number;
     deadCount: number;
     availabilityMissing: boolean;
     t: Translate;
 }) => {
+    const { down, up } = useEngineSpeedHistory(String(torrent.id ?? torrent.hash ?? ""));
     const unknownLabel = t("labels.unknown");
     const fieldViews: Record<PiecesHudFieldId, ReactNode> = {
+        progress: renderHudCell({
+            cell: <PiecesHudProgressCell torrent={torrent} optimisticStatus={optimisticStatus} />,
+        }),
         verified: renderHudStat({
             label: t("torrent_modal.stats.verified"),
-            value: `${verifiedPercent}% (${verifiedCount})`,
+            value: verifiedCount,
             tooltip: t("torrent_modal.pieces_hud.tooltips.verified"),
         }),
         missing: renderHudStat({
@@ -259,22 +391,25 @@ const PiecesHud = ({
             label: t("torrent_modal.stats.piece_size"),
             value: pieceSizeLabel,
         }),
-        download: renderHudStat({
-            label: t("torrent_modal.pieces_hud.labels.download"),
-            value: formatSpeed(downloadSpeed),
-            quiet: downloadSpeed <= 0,
-        }),
-        upload: renderHudStat({
-            label: t("torrent_modal.pieces_hud.labels.upload"),
-            value: formatSpeed(uploadSpeed),
-            quiet: uploadSpeed <= 0,
+        speed: renderHudCell({
+            cell: (
+                <PiecesHudSpeedCell
+                    downHistory={down}
+                    upHistory={up}
+                    downSpeed={torrent.speed.down}
+                    upSpeed={torrent.speed.up}
+                    t={t}
+                />
+            ),
+            className: "overflow-visible",
         }),
     };
-
     return (
         <div className={SPLIT.mapHud} style={SPLIT.mapStatsTrackingStyle}>
             {visibleFields.map((fieldId) => (
-                <div key={fieldId}>{fieldViews[fieldId]}</div>
+                <div key={fieldId} className={getHudFieldShellClass(fieldId)} style={getHudFieldShellStyle(fieldId)}>
+                    {fieldViews[fieldId]}
+                </div>
             ))}
         </div>
     );
@@ -309,16 +444,19 @@ const PiecesTooltip = ({
                     })}
                 >
                     {tooltipDetail.swatches.map((swatch, index) => {
-                        const visual = resolveSwatchVisual(palette, swatch.tone);
+                        const visual = resolveMapAvailabilitySwatchVisual({
+                            palette,
+                            tone: swatch.tone as SwarmTone,
+                        });
                         return (
                             <span
                                 key={`piece-tooltip-swatch-${index}`}
                                 className={SPLIT.mapTooltipSwatch}
                                 style={SPLIT.builder.legendSwatchStyle({
-                                    background: visual.color,
+                                    background: visual.background,
                                     size: tooltipDetail.swatchSize,
                                     borderColor: visual.borderColor,
-                                    backgroundImage: resolveRarePattern(palette, swatch.tone),
+                                    backgroundImage: visual.backgroundImage,
                                 })}
                             />
                         );
@@ -359,7 +497,7 @@ const PiecesLegend = ({
                                     className={SPLIT.mapLegendSwatch}
                                     style={SPLIT.builder.legendSwatchStyle(cell.swatch)}
                                 />
-                                <span className={TEXT_ROLE.bodyMuted}>{cell.label}</span>
+                                <span className={SPLIT.mapLegendText}>{cell.label}</span>
                             </span>
                         </span>
                     ) : (
@@ -374,32 +512,29 @@ const PiecesLegend = ({
                 )}
             </div>
             <div className={SPLIT.mapLegendMode}>
-                <span className={SPLIT.mapLegendModeLabel}>
-                    {t("torrent_modal.piece_map.download_mode")}
-                </span>
-                <span className={SPLIT.mapLegendModeValue}>
-                    {t(`torrent_modal.piece_map.mode_${mode}`)}
-                </span>
+                <span className={SPLIT.mapLegendModeLabel}>{t("torrent_modal.piece_map.download_mode")}</span>
+                <span className={SPLIT.mapLegendModeValue}>{t(`torrent_modal.piece_map.mode_${mode}`)}</span>
             </div>
         </div>
     </div>
 );
 
-const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: PiecesViewProps) => {
+const PiecesView = ({
+    viewModel,
+    torrent,
+    optimisticStatus,
+    sequentialDownload,
+    showPersistentHud,
+}: PiecesViewProps) => {
     const { t } = useTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
-    const [panelWidth, setPanelWidth] = useState<number>(
-        PIECE_MAP_HUD.legend_inline_min_width_px,
-    );
+    const [panelWidth, setPanelWidth] = useState<number>(PIECE_MAP_HUD.legend_inline_min_width_px);
     const {
         refs: { rootRef, canvasRef, overlayRef, tooltipRef },
         palette,
-        downloadSpeed,
-        uploadSpeed,
         totalPieces,
         pieceSizeLabel,
         verifiedCount,
-        verifiedPercent,
         missingCount,
         rareCount,
         deadCount,
@@ -411,8 +546,7 @@ const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: Pieces
     const legendCells = buildLegendCells({ availabilityMissing, palette, t });
     const downloadMode: DownloadMode = sequentialDownload ? "sequential" : "random";
     const visibleFields = useMemo(() => getVisibleHudFields(panelWidth), [panelWidth]);
-    const showInlineLegend =
-        panelWidth >= PIECE_MAP_HUD.legend_inline_min_width_px;
+    const showInlineLegend = panelWidth >= PIECE_MAP_HUD.field_breakpoints_px.compact_plus;
 
     useEffect(() => {
         const element = panelRef.current;
@@ -439,13 +573,12 @@ const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: Pieces
                     {showPersistentHud && (
                         <div className={SPLIT.mapHudDockRow}>
                             <PiecesHud
+                                torrent={torrent}
+                                optimisticStatus={optimisticStatus}
                                 visibleFields={visibleFields}
-                                downloadSpeed={downloadSpeed}
-                                uploadSpeed={uploadSpeed}
                                 totalPieces={totalPieces}
                                 pieceSizeLabel={pieceSizeLabel}
                                 verifiedCount={verifiedCount}
-                                verifiedPercent={verifiedPercent}
                                 missingCount={missingCount}
                                 rareCount={rareCount}
                                 deadCount={deadCount}
@@ -453,12 +586,7 @@ const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: Pieces
                                 t={t}
                             />
                             {showInlineLegend ? (
-                                <PiecesLegend
-                                    legendCells={legendCells}
-                                    mode={downloadMode}
-                                    t={t}
-                                    inline
-                                />
+                                <PiecesLegend legendCells={legendCells} mode={downloadMode} t={t} inline />
                             ) : null}
                         </div>
                     )}
@@ -481,12 +609,7 @@ const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: Pieces
                         />
                     </div>
                     {showPersistentHud && !showInlineLegend ? (
-                        <PiecesLegend
-                            legendCells={legendCells}
-                            mode={downloadMode}
-                            t={t}
-                            inline={false}
-                        />
+                        <PiecesLegend legendCells={legendCells} mode={downloadMode} t={t} inline={false} />
                     ) : null}
                 </div>
             </div>
@@ -495,6 +618,7 @@ const PiecesView = ({ viewModel, sequentialDownload, showPersistentHud }: Pieces
 };
 
 export const PiecesTab = ({
+    torrent,
     torrentKey,
     piecePercent,
     pieceCount,
@@ -505,6 +629,7 @@ export const PiecesTab = ({
     downloadSpeed,
     uploadSpeed,
     showPersistentHud = true,
+    optimisticStatus,
 }: PiecesTabProps) => {
     const viewModel = usePiecesMapViewModel({
         torrentKey,
@@ -519,6 +644,8 @@ export const PiecesTab = ({
     return (
         <PiecesView
             viewModel={viewModel}
+            torrent={torrent}
+            optimisticStatus={optimisticStatus}
             sequentialDownload={sequentialDownload}
             showPersistentHud={showPersistentHud}
         />

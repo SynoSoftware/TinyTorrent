@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -10,7 +10,7 @@ import type {
 } from "@/services/rpc/entities";
 import { commandOutcome } from "@/app/context/AppCommandContext";
 
-let inspectorTabMock: "general" | "pieces" | "trackers" | "peers" = "trackers";
+let inspectorTabMock: "general" | "pieces" | "trackers" | "peers" | "speed" = "trackers";
 const setInspectorTabMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
@@ -66,7 +66,16 @@ vi.mock("@/modules/dashboard/components/TorrentDetails_Peers", () => ({
 }));
 
 vi.mock("@/modules/dashboard/components/TorrentDetails_Speed", () => ({
-    SpeedTab: () => null,
+    SpeedTab: ({ torrentId }: { torrentId: string | number }) => {
+        const [mountedTorrentId] = useState(() => String(torrentId));
+        return createElement(
+            "div",
+            {
+                "data-testid": "speed-surface",
+            },
+            mountedTorrentId,
+        );
+    },
 }));
 
 vi.mock("@/modules/dashboard/components/TorrentDetails_Trackers", () => ({
@@ -453,6 +462,57 @@ describe("useTorrentDetailTabCoordinator peers tab", () => {
     });
 });
 
+describe("useTorrentDetailTabCoordinator speed tab", () => {
+    it("switches the active speed surface to the newly selected torrent", () => {
+        inspectorTabMock = "speed";
+        const detailA = {
+            ...makeDetail(),
+            id: "torrent-a",
+            hash: "hash-a",
+        } satisfies TorrentDetailEntity;
+        const detailB = {
+            ...makeDetail(),
+            id: "torrent-b",
+            hash: "hash-b",
+        } satisfies TorrentDetailEntity;
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(
+                    createElement(CoordinatorHarness, {
+                        viewModel: createViewModel(detailA),
+                    }),
+                );
+            });
+
+            expect(container.textContent).toContain("torrent-a");
+
+            flushSync(() => {
+                root.render(
+                    createElement(CoordinatorHarness, {
+                        viewModel: createViewModel(detailB),
+                    }),
+                );
+            });
+
+            expect(container.textContent).toContain("torrent-b");
+            expect(container.textContent).not.toContain("torrent-a");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+        setInspectorTabMock.mockReset();
+        inspectorTabMock = "speed";
+    });
+});
+
 describe("useTorrentDetailTabCoordinator pieces tab header actions", () => {
     afterEach(() => {
         document.body.innerHTML = "";
@@ -479,6 +539,27 @@ describe("useTorrentDetailTabCoordinator pieces tab header actions", () => {
             expect(container.textContent).toContain("torrent_modal.piece_map.hide_hud");
             expect(container.textContent).toContain("torrent_modal.piece_map.switch_to_random");
             expect(container.textContent).toContain("Shuffle");
+        } finally {
+            root.unmount();
+            container.remove();
+        }
+    });
+
+    it("keeps the pieces surface wrapper at full height", () => {
+        inspectorTabMock = "pieces";
+        const detail = makeDetail();
+        const viewModel = createViewModel(detail);
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root: Root = createRoot(container);
+
+        try {
+            flushSync(() => {
+                root.render(createElement(CoordinatorHarness, { viewModel }));
+            });
+
+            expect(container.firstElementChild?.firstElementChild).not.toBeNull();
+            expect(container.firstElementChild?.firstElementChild?.className).toContain("h-full");
         } finally {
             root.unmount();
             container.remove();

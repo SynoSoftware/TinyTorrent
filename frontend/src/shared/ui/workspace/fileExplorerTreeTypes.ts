@@ -22,6 +22,8 @@ export interface FileExplorerTreeViewModel {
     files: FileExplorerEntry[];
     wantedByIndex?: ReadonlyMap<number, boolean>;
     priorityByIndex?: ReadonlyMap<number, LibtorrentPriority>;
+    initialExpandedIds?: readonly string[];
+    onExpandedIdsChange?: (expandedIds: readonly string[]) => void;
     showProgress?: boolean;
     search?: {
         value: string;
@@ -59,5 +61,6 @@ export interface FileNodeRowViewModel {
     isSelected: boolean;
     isIndeterminate: boolean;
     isWanted: boolean;
-    priority: LibtorrentPriority;
+    prioritySelection: ReadonlySet<FileExplorerPrioritySelectKey>;
+    allowsSkipPriority: boolean;
 }

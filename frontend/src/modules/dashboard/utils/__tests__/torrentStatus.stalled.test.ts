@@ -227,6 +227,37 @@ describe("torrent stalled presentation", () => {
         );
     });
 
+    it("keeps seeding with connected peers out of stalled while exposing connected idle seeding", () => {
+        const torrent = makeTorrent({
+            state: status.torrent.seeding,
+            peerSummary: { connected: 3, getting: 0, sending: 0 },
+        });
+        getTorrentStatusPresentation(
+            torrent,
+            t,
+            undefined,
+            { down: [], up: fullIdleHistory.up },
+        );
+        vi.advanceTimersByTime(stalledObservationWindowMs);
+
+        const presentation = getTorrentStatusPresentation(
+            torrent,
+            t,
+            undefined,
+            { down: [], up: fullIdleHistory.up },
+        );
+
+        expect(presentation.transportState).toBe(status.torrent.seeding);
+        expect(presentation.overlayState).toBeNull();
+        expect(presentation.startupGrace).toBe(false);
+        expect(presentation.visualState).toBe(status.torrent.seeding);
+        expect(presentation.isIdleSeeding).toBe(true);
+        expect(presentation.label).toBe("table.status_seed");
+        expect(presentation.tooltip).toBe(
+            "table.status_seed • table.status_waiting_for_peers • table.status_no_data_transfer",
+        );
+    });
+
     it("auto-recovers from stalled when useful transfer resumes", () => {
         const idleTorrent = makeTorrent();
         getTorrentStatusPresentation(

@@ -54,6 +54,7 @@ type HarnessRef = {
     getRowAnnounce: (index: number) => string;
     getRowStatusLabel: (index: number) => string;
     getRowDownloadCountLabel: (index: number) => string;
+    reannounceTorrent: () => Promise<void>;
     getSelectionCount: () => number;
     getCanRemove: () => boolean;
     getCanEdit: () => boolean;
@@ -123,6 +124,8 @@ const ViewModelHarness = forwardRef<
                     viewModelRef.current.data.rows[index]?.statusLabel ?? "",
                 getRowDownloadCountLabel: (index: number) =>
                     viewModelRef.current.data.rows[index]?.downloadCountLabel ?? "",
+                reannounceTorrent: () =>
+                    viewModelRef.current.actions.reannounceTorrent(),
                 getSelectionCount: () => viewModelRef.current.state.selectedCount,
                 getCanRemove: () => viewModelRef.current.state.canRemove,
                 getCanEdit: () => viewModelRef.current.state.canEdit,
@@ -289,6 +292,47 @@ describe("useTorrentDetailsTrackersViewModel", () => {
                 "torrent_modal.trackers.status_timeout",
             );
             expect(harness.getRowDownloadCountLabel(0)).toBe("7");
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("reannounces the torrent and reflects an active announce state from refreshed tracker data", async () => {
+        const mounted = await mountHarness([
+            makeTracker({
+                id: 7,
+                announce: "https://tracker-a/announce",
+                announceState: 1,
+                nextAnnounceTime: 180,
+            }),
+        ]);
+        try {
+            const harness = mounted.ref.current;
+            if (!harness) {
+                throw new Error("harness_missing");
+            }
+
+            await harness.reannounceTorrent();
+            await waitForCondition(() => reannounceMock.mock.calls.length === 1);
+            expect(reannounceMock).toHaveBeenCalledWith("torrent-1");
+
+            mounted.rerender([
+                makeTracker({
+                    id: 7,
+                    announce: "https://tracker-a/announce",
+                    announceState: 3,
+                    nextAnnounceTime: 180,
+                }),
+            ]);
+
+            await waitForCondition(
+                () =>
+                    harness.getRowStatusLabel(0) ===
+                    "torrent_modal.trackers.status_announcing",
+            );
+            expect(harness.getRowStatusLabel(0)).toBe(
+                "torrent_modal.trackers.status_announcing",
+            );
         } finally {
             mounted.cleanup();
         }

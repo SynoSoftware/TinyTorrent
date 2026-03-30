@@ -15,6 +15,12 @@ type ActiveTransportState =
     | typeof status.torrent.seeding;
 type TorrentPresentationVisualState = TorrentStatus | "connecting";
 type TorrentOverlayState = typeof status.torrent.stalled;
+type TorrentPresentationMode =
+    | "moving"
+    | "connecting"
+    | "stalled"
+    | "idle-seeding"
+    | "transport";
 
 export type TorrentSpeedHistory = {
     down: readonly number[];
@@ -316,6 +322,43 @@ const getStallTooltip = (
     return `${t("table.status_waiting_for_peers")} • ${reason}`;
 };
 
+const getPresentationLabelState = (params: {
+    mode: TorrentPresentationMode;
+    transportState: TorrentTransportStatus | null;
+    overlayState: TorrentOverlayState | null;
+}): TorrentStatus | null => {
+    if (params.mode === "stalled") {
+        return params.overlayState;
+    }
+    if (params.mode === "transport" || params.mode === "idle-seeding") {
+        return params.transportState;
+    }
+    return null;
+};
+
+const getPresentationLabel = (params: {
+    mode: TorrentPresentationMode;
+    transportState: TorrentTransportStatus | null;
+    overlayState: TorrentOverlayState | null;
+    t: TFunction;
+}) => {
+    if (params.mode === "connecting") {
+        return params.t("labels.status.torrent.connecting");
+    }
+
+    const labelState = getPresentationLabelState(params);
+    if (!labelState) {
+        return null;
+    }
+
+    const statusLabelKey = getTorrentStatusLabelKey(labelState);
+    if (statusLabelKey != null) {
+        return params.t(statusLabelKey);
+    }
+
+    return labelState.length > 0 ? labelState : null;
+};
+
 export const getStatusSpeedHistory = (
     torrent: Pick<Torrent, "state">,
     rawHistory?: RawTorrentSpeedHistory,
@@ -349,7 +392,9 @@ const isSpeedHistorySnapshot = (
 type StatusViewState = Omit<
     TorrentStatusPresentation,
     "label" | "tooltip"
->;
+> & {
+    mode: TorrentPresentationMode;
+};
 
 const deriveStatusView = (
     torrent: Pick<
@@ -361,6 +406,7 @@ const deriveStatusView = (
 ): StatusViewState => {
     if (optimisticStatus?.operation === "moving") {
         return {
+            mode: "moving",
             transportState: null,
             overlayState: null,
             startupGrace: false,
@@ -404,11 +450,22 @@ const deriveStatusView = (
         transportState === status.torrent.seeding &&
         overlayState == null &&
         idleSeedingObservation?.credibleIdle === true;
-    const visualState = startupGrace
+    const mode: TorrentPresentationMode = startupGrace
         ? "connecting"
-        : overlayState ?? transportState;
+        : overlayState === status.torrent.stalled
+          ? "stalled"
+          : isIdleSeeding
+            ? "idle-seeding"
+            : "transport";
+    const visualState =
+        mode === "connecting"
+            ? "connecting"
+            : mode === "stalled"
+              ? status.torrent.stalled
+              : transportState;
 
     return {
+        mode,
         transportState,
         overlayState,
         startupGrace,
@@ -445,6 +502,7 @@ export const getTorrentStatusPresentation = (
     speedHistory?: TorrentSpeedHistory,
 ): TorrentStatusPresentation => {
     const {
+        mode,
         transportState,
         overlayState,
         startupGrace,
@@ -457,7 +515,7 @@ export const getTorrentStatusPresentation = (
         speedHistory,
     );
 
-    if (isOptimisticMoving) {
+    if (mode === "moving" && isOptimisticMoving) {
         const label = t("table.status_moving");
         return {
             transportState,
@@ -471,20 +529,12 @@ export const getTorrentStatusPresentation = (
         };
     }
 
-    const labelState: TorrentStatus | null =
-        startupGrace
-            ? null
-            : overlayState ?? transportState;
-    const statusLabelKey =
-        startupGrace ? null : getTorrentStatusLabelKey(labelState);
-    const label =
-        startupGrace
-            ? t("labels.status.torrent.connecting")
-            : statusLabelKey != null
-            ? t(statusLabelKey)
-            : typeof labelState === "string" && labelState.length > 0
-              ? labelState
-                : null;
+    const label = getPresentationLabel({
+        mode,
+        transportState,
+        overlayState,
+        t,
+    });
 
     if (!label) {
         return {
@@ -508,11 +558,11 @@ export const getTorrentStatusPresentation = (
         isOptimisticMoving,
         label,
         tooltip:
-            startupGrace
+            mode === "connecting"
                 ? t("labels.status.torrent.connecting")
-                : overlayState === status.torrent.stalled
+                : mode === "stalled"
                 ? getStallTooltip(torrent, t)
-                : isIdleSeeding
+                : mode === "idle-seeding"
                 ? `${label} • ${getStallTooltip(torrent, t)}`
                 : torrent.errorString && torrent.errorString.trim().length > 0
                   ? torrent.errorString
