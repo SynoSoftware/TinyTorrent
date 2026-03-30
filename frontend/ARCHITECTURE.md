@@ -18,10 +18,10 @@ This file is the *single source of truth* for the frontend’s structure followi
 
 ## 3. Framework Choices & Patterns
 
-- **React 19 + TypeScript + Vite:** entry via `main.tsx`, orchestrated by `App`. The root handles providers (session, preferences, recovery, orchestrators) and delegates rendering to view-model-driven shells.
+- **React 19 + TypeScript + Vite:** entry via `main.tsx`, orchestrated by `App`. The root handles providers (session, preferences, orchestrators) and delegates rendering to view-model-driven shells.
 - **Tailwind v4 + HeroUI:** only semantic tokens (`p-panel`, `gap-stage`, etc.) are allowed—no inline literals. Geometry tokens live in `constants.json` → `@theme` → `logic.ts` → components.
 - **Framer Motion** is required when UI transitions express state changes (lists, modals, inspector). Motion props belong to view components but consume view-model state.
-- **React Context + Orchestrators:** `TorrentCommandContext`, `LifecycleContext`, `RecoveryContext`, etc., orchestrate flows and funnel everything through single control planes (selection, recovery, preferences). UI components subscribe to view-model outputs only.
+- **React Context + Orchestrators:** `TorrentCommandContext`, `LifecycleContext`, and related providers/orchestrators funnel everything through single control planes (selection, recovery, preferences). UI components subscribe to view-model outputs only.
 - **RPC Services:** `engine-adapter`, `rpc-base`, `transport`, `heartbeat` expose a single `sessionStats/rpcStatus/uiMode` pipeline. No webs, no custom tokens—just Transmission RPC with Basic Auth.
 - **Adapters:** Shell interactions go through a single ShellAgent adapter (strategy spelled out in TODO 3). No other module imports `NativeShell` directly.
 
