@@ -119,12 +119,6 @@ export type DetailsVisualizationsConfig = {
     tooltip_animation: MotionProps;
 };
 
-export type TooltipOpacityAnimation = {
-    initial: { opacity: number };
-    animate: { opacity: number };
-    exit: { opacity: number };
-};
-
 export interface DragOverlayRootConfig {
     initialScale: number;
     activeScale: number;

@@ -9,7 +9,6 @@ import type {
     ShellTokens,
     StatusVisualKeyFromKeys,
     StatusVisualRecipe,
-    TooltipOpacityAnimation,
 } from "@/config/logicTypes";
 import {
     adaptTransition,
@@ -910,33 +909,80 @@ const detailsPieceMapConfig = detailsVisualizations.piece_map;
 const detailsEtaConfig = detailsVisualizations.eta;
 const detailsScatterConfig = detailsVisualizations.scatter;
 const detailsTooltipAnimation = detailsVisualizations.tooltip_animation;
-const detailsTooltipOpacityAnimation: TooltipOpacityAnimation = {
-    initial: {
-        opacity: readOpacity(detailsTooltipAnimation?.initial, 0),
-    },
-    animate: {
-        opacity: readOpacity(detailsTooltipAnimation?.animate, 1),
-    },
-    exit: { opacity: readOpacity(detailsTooltipAnimation?.exit, 0) },
-};
-const surfaceFadeAnimationBase = {
-    initial: {
-        opacity: detailsTooltipOpacityAnimation.initial.opacity,
-    },
-    animate: {
-        opacity: detailsTooltipOpacityAnimation.animate.opacity,
-    },
-    exit: {
-        opacity: detailsTooltipOpacityAnimation.exit.opacity,
-    },
-    transition: { duration: 0.2 },
-} as const;
+const surfaceFadeInitialOpacity = readOpacity(detailsTooltipAnimation?.initial, 0);
+const surfaceFadeAnimateOpacity = readOpacity(detailsTooltipAnimation?.animate, 1);
+const surfaceFadeExitOpacity = readOpacity(detailsTooltipAnimation?.exit, 0);
 const surfaceFadeAnimation = {
-    base: surfaceFadeAnimationBase,
-    overlay: surfaceFadeAnimationBase,
+    base: {
+        initial: {
+            opacity: surfaceFadeInitialOpacity,
+        },
+        animate: {
+            opacity: surfaceFadeAnimateOpacity,
+        },
+        exit: {
+            opacity: surfaceFadeExitOpacity,
+        },
+        transition: { duration: 0.2 },
+    },
     backdrop: {
-        ...surfaceFadeAnimationBase,
-        animate: { opacity: 0.7 },
+        initial: {
+            opacity: surfaceFadeInitialOpacity,
+        },
+        animate: {
+            opacity: 0.7,
+        },
+        exit: {
+            opacity: surfaceFadeExitOpacity,
+        },
+        transition: { duration: 0.2 },
+    },
+    panel: {
+        initial: {
+            opacity: surfaceFadeInitialOpacity,
+            y: -6,
+            scale: 0.98,
+        },
+        animate: {
+            opacity: surfaceFadeAnimateOpacity,
+            y: 0,
+            scale: 1,
+        },
+        exit: {
+            opacity: surfaceFadeExitOpacity,
+            y: -6,
+            scale: 0.98,
+        },
+        transition: { duration: 0.2 },
+    },
+    fullscreenPanel: {
+        initial: {
+            opacity: surfaceFadeInitialOpacity,
+            scale: 0.96,
+        },
+        animate: {
+            opacity: surfaceFadeAnimateOpacity,
+            scale: 1,
+        },
+        exit: {
+            opacity: surfaceFadeExitOpacity,
+            scale: 0.96,
+        },
+        transition: { duration: 0.25 },
+    },
+} as const;
+const surfaceAccentAnimation = {
+    pulse: {
+        initial: { scale: 0.96, opacity: 0.4 },
+        animate: { scale: 1, opacity: 0.8 },
+        exit: { opacity: 0 },
+        transition: {
+            type: "spring",
+            stiffness: 240,
+            damping: 26,
+            repeat: Infinity,
+            repeatType: "reverse",
+        },
     },
 } as const;
 
@@ -1163,8 +1209,10 @@ const tokens = {
                 healthTone: statusHealthChipTone,
             },
         },
+        border: {
+            default: tableVisualTokens.surfaceBorder,
+        },
         surface: {
-            border: tableVisualTokens.surfaceBorder,
         },
     },
 } as const;
@@ -1227,7 +1275,10 @@ const visuals = {
     interactive: tokens.semantic.interactive,
     state: tokens.semantic.state,
     typography: tokens.primitive.typography,
-    surface: tokens.semantic.surface,
+    surface: {
+        ...tokens.semantic.surface,
+        border: tokens.semantic.border.default,
+    },
     table: control.table,
     icon: tokens.primitive.icon,
     workspace: {
@@ -1244,13 +1295,13 @@ const visuals = {
 const visualizations = {
     surface: {
         fade: surfaceFadeAnimation,
+        accent: surfaceAccentAnimation,
     },
     details: {
         tabContentMaxHeight: detailsTabContentMaxHeight,
         pieceMap: detailsPieceMapConfig,
         eta: detailsEtaConfig,
         scatter: detailsScatterConfig,
-        tooltipAnimation: detailsTooltipAnimation,
         availabilityHeatmap: detailsAvailabilityHeatmap,
         speedWindowOptions: visualizationPrimitives.speedWindowOptions,
         speedChart: {

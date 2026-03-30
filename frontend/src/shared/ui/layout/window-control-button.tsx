@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { surface } from "@/shared/ui/layout/glass-surface";
+import { control, surface } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     type ToolbarIconSize,
@@ -12,11 +12,6 @@ import {
 const { visuals } = registry;
 
 export type WindowControlButtonVariant = "neutral" | "danger";
-
-const VARIANT_CLASSES: Record<WindowControlButtonVariant, string> = {
-    neutral: "text-foreground/60 hover:text-foreground hover:bg-primary/10",
-    danger: "text-foreground/60 hover:text-danger hover:bg-danger/20",
-};
 
 export type WindowControlButtonProps = Omit<
     ComponentPropsWithoutRef<typeof Button>,
@@ -46,6 +41,10 @@ export const WindowControlButton = forwardRef<
     const { disabled, ...buttonProps } = restProps;
     const iconSizeClass =
         ICON_SIZE_CLASSES[iconSize as ToolbarIconSize];
+    const toneClass =
+        tone === "danger"
+            ? control.menu.action.windowButtonDanger
+            : control.menu.action.windowButtonNeutral;
 
     const button = (
         <Button
@@ -54,9 +53,8 @@ export const WindowControlButton = forwardRef<
             variant="ghost"
             radius="none"
             className={cn(
-                "flex h-full items-center justify-center rounded-none border-0 px-0 transition-none",
-                VARIANT_CLASSES[tone],
-                "window-control-button-width",
+                control.menu.action.windowButtonBase,
+                toneClass,
                 className,
                 disabled && visuals.state.disabled
             )}

@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { registry } from "@/config/logic";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { surface } from "@/shared/ui/layout/glass-surface";
+import { control, surface } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
@@ -112,7 +112,7 @@ const ToolbarIconButtonBase = forwardRef<
             disableRipple
             disableAnimation
             className={cn(
-                `p-tight inline-flex items-center justify-center ${visuals.transitions.fast} toolbar-icon-hit`,
+                control.menu.action.iconButton,
                 className
             )}
             aria-label={ariaLabel}

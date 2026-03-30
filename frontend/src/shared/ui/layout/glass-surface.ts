@@ -1,6 +1,7 @@
 import { registry } from "@/config/logic";
 const { visuals, tokens: designTokens } = registry;
 const text = designTokens.primitive.typography.text;
+const borderToken = designTokens.semantic.border.default;
 
 // Static styling authority only.
 // No functions, no params, no branching.
@@ -127,11 +128,11 @@ const tableHeaderPattern = {
 } as const;
 const workbenchShell = `acrylic shadow-inner ${primitiveTokens.elevation.panel}`;
 const panelInset = `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`;
-const panelRaised = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.subtle}`;
-const panelInfo = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.canvas}`;
-const panelWorkflow = `${primitiveTokens.radius.raised} border ${visuals.surface.border} ${semanticTokens.surface.raised}`;
-const panelSidebar = `flex flex-col border-r ${visuals.surface.border} ${semanticTokens.surface.raised} ${primitiveTokens.blur.panel}`;
-const statusModulePanel = `${primitiveTokens.radius.modal} border ${visuals.surface.border} ${semanticTokens.surface.subtle} ${primitiveTokens.blur.soft}`;
+const panelRaised = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.subtle}`;
+const panelInfo = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.canvas}`;
+const panelWorkflow = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.raised}`;
+const panelSidebar = `flex flex-col border-r ${borderToken} ${semanticTokens.surface.raised} ${primitiveTokens.blur.panel}`;
+const statusModulePanel = `${primitiveTokens.radius.modal} border ${borderToken} ${semanticTokens.surface.subtle} ${primitiveTokens.blur.soft}`;
 const modalBaseClassNames = {
     base: `glass-panel surface-layer-2 text-foreground ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.modal} flex flex-col overflow-hidden ${primitiveTokens.border.default}`,
 } as const;
@@ -148,7 +149,7 @@ const modalChromeClassNames = {
     footer: "p-none select-none",
 } as const;
 const tooltipControl = {
-    content: `${semanticTokens.surface.modal} border ${visuals.surface.border} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
+    content: `${semanticTokens.surface.modal} border ${borderToken} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: semanticTokens.surface.modal,
 } as const;
 const mapOverlaySurface = `${primitiveTokens.border.default} ${semanticTokens.surface.raised} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.overlay}`;
@@ -162,142 +163,161 @@ const controlChrome = {
     footerEnd: `${semanticTokens.chrome.edgeTop} flex justify-end gap-tools`,
     footerActionsPadded: `${semanticTokens.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
 } as const;
-const controlBase = {
-    panel: {
-        workbench: `glass-panel surface-layer-1 text-foreground ${semanticTokens.surface.canvas}`,
-        base: `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`,
-        pane: `flex flex-col min-h-0 overflow-hidden ${primitiveTokens.radius.panel} ${primitiveTokens.border.default} ${primitiveTokens.elevation.panel} ${semanticTokens.surface.raised}`,
-        inset: `surface-layer-1 ${primitiveTokens.radius.panel} p-tight`,
-        insetFull: `surface-layer-1 ${primitiveTokens.radius.full} p-tight`,
-        insetBordered: `${primitiveTokens.radius.panel} ${primitiveTokens.border.default} p-tight`,
-        raised: panelRaised,
-        info: panelInfo,
-        workflow: panelWorkflow,
-        sidebar: panelSidebar,
-        statusModule: statusModulePanel,
-        overlay: `${primitiveTokens.border.default} ${semanticTokens.surface.overlay} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.overlay}`,
-        glass: "glass-panel surface-layer-1 text-foreground",
-    },
-    modal: {
-        surface: {
-            baseClassNames: modalBaseClassNames,
-            compactClassNames: modalCompactClassNames,
-            baseWrapperHiddenClassNames: modalBaseWrapperHiddenClassNames,
-            chromeClassNames: modalChromeClassNames,
-            baseClass: modalBaseClassNames.base,
-        },
-        chrome: {
-            default: modalChromeClassNames,
-            dialog: controlChrome,
-        },
-    },
-    menu: {
-        surface: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
-        dirPickerSurface: `min-w-dir-picker glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
-        minWidthSurface: "min-w-(--tt-menu-min-width)",
-        list: {
-            classNames: menuListClassNames,
-        },
-        item: {
-            base: menuItemSurface,
-            split: {
-                base: `${menuItemSurface} flex items-center justify-between`,
-            } as const,
-            strong: "font-semibold",
-            nested: "pl-stage",
-            pinned: "font-semibold text-foreground",
-            selectedPrimary: "bg-primary/15 text-primary",
-            flagInlineWrap: "text-lg leading-none",
-            checkIconPrimary: "text-primary",
-        },
-        chrome: {
-            sectionHeading: menuSectionHeading,
-            header: menuPanelHeader,
-            headerIcon: menuPanelHeaderIcon,
-            headerText: menuPanelHeaderText,
-        },
-        action: {
-            base: menuActionButton,
-            danger: menuActionButtonDanger,
-        },
-    },
-    tooltip: tooltipControl,
-    table: {
-        header: tableHeaderPattern,
-        contextStatusBadge:
-            "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight",
-        progress: {
-            track: "bg-content2/50 h-full",
-            paused: "bg-gradient-to-r from-warning/50 to-warning",
-            seeding: "bg-gradient-to-r from-primary/50 to-primary",
-            active: "bg-gradient-to-r from-success/50 to-success",
-        },
-        shadowOverlay: primitiveTokens.elevation.overlay,
-    },
-    statusChip: statusChipPattern,
+const modalLayoutControl = {
+    contentWrapper: "h-full flex flex-col",
+    row: "flex flex-row flex-1 min-h-0 overflow-hidden relative",
+    headerLead: "flex min-w-0 flex-1 items-center gap-panel",
+    titleWrap: "flex min-w-0 flex-col overflow-hidden",
+    body: "flex flex-col gap-stage p-panel",
+    bodyFlush: "flex min-h-0 flex-1 flex-col p-none overflow-hidden",
+    sectionStack: "flex flex-col gap-tight",
+    insetStack: "flex flex-col gap-tight",
+    insetItem: `${primitiveTokens.radius.panel} ${primitiveTokens.border.default} p-tight`,
+    locationRow: `flex items-center gap-tools surface-layer-1 ${primitiveTokens.radius.panel} p-tight`,
+    footerButtonRow: "flex gap-tools ml-auto",
+    footerGroup: "flex shrink-0 items-center gap-tools",
+    contentStack: "flex flex-col space-y-stage sm:space-y-stage pb-stage",
+    scrollContent: "flex-1 min-h-0 overflow-y-auto scrollbar-hide",
 } as const;
+const panelControl = {
+    canvas: "glass-panel surface-layer-0 text-foreground",
+    workbench: `glass-panel surface-layer-1 text-foreground ${semanticTokens.surface.canvas}`,
+    base: `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`,
+    pane: `flex flex-col min-h-0 overflow-hidden ${primitiveTokens.radius.panel} ${primitiveTokens.border.default} ${primitiveTokens.elevation.panel} ${semanticTokens.surface.raised}`,
+    inset: `surface-layer-1 ${primitiveTokens.radius.panel} p-tight`,
+    insetFull: `surface-layer-1 ${primitiveTokens.radius.full} p-tight`,
+    insetBordered: `${primitiveTokens.radius.panel} ${primitiveTokens.border.default} p-tight`,
+    raised: panelRaised,
+    info: panelInfo,
+    workflow: panelWorkflow,
+    sidebar: panelSidebar,
+    statusModule: statusModulePanel,
+    overlay: `${primitiveTokens.border.default} ${semanticTokens.surface.overlay} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.overlay}`,
+    glass: "glass-panel surface-layer-1 text-foreground",
+    floating: "glass-panel surface-layer-2 text-foreground",
+} as const;
+const modalControl = {
+    surface: {
+        baseClassNames: modalBaseClassNames,
+        compactClassNames: modalCompactClassNames,
+        baseWrapperHiddenClassNames: modalBaseWrapperHiddenClassNames,
+        chromeClassNames: modalChromeClassNames,
+        baseClass: modalBaseClassNames.base,
+    },
+    chrome: {
+        default: modalChromeClassNames,
+        dialog: controlChrome,
+    },
+} as const;
+const menuControl = {
+    surface: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
+    dirPickerSurface: `min-w-dir-picker glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
+    minWidthSurface: "min-w-(--tt-menu-min-width)",
+    list: {
+        classNames: menuListClassNames,
+    },
+    item: {
+        base: menuItemSurface,
+        split: {
+            base: `${menuItemSurface} flex items-center justify-between`,
+        } as const,
+        strong: "font-semibold",
+        nested: "pl-stage",
+        pinned: "font-semibold text-foreground",
+        selectedPrimary: "bg-primary/15 text-primary",
+        flagInlineWrap: "text-lg leading-none",
+        checkIconPrimary: "text-primary",
+    },
+    chrome: {
+        sectionHeading: menuSectionHeading,
+        header: menuPanelHeader,
+        headerIcon: menuPanelHeaderIcon,
+        headerText: menuPanelHeaderText,
+    },
+    action: {
+        iconButton: `p-tight inline-flex items-center justify-center ${transition.fast} toolbar-icon-hit`,
+        windowButtonBase: "flex h-full items-center justify-center rounded-none border-0 px-0 transition-none window-control-button-width",
+        windowButtonNeutral: "text-foreground/60 hover:text-foreground hover:bg-primary/10",
+        windowButtonDanger: "text-foreground/60 hover:text-danger hover:bg-danger/20",
+        base: menuActionButton,
+        danger: menuActionButtonDanger,
+    },
+} as const;
+const tableControl = {
+    header: tableHeaderPattern,
+    contextStatusBadge:
+        "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight",
+    progress: {
+        track: "bg-content2/50 h-full",
+        paused: "bg-gradient-to-r from-warning/50 to-warning",
+        seeding: "bg-gradient-to-r from-primary/50 to-primary",
+        active: "bg-gradient-to-r from-success/50 to-success",
+    },
+    shadowOverlay: primitiveTokens.elevation.overlay,
+} as const;
+const statusChipControl = statusChipPattern;
 export const surface = {
     // Temporary non-authoritative shell for current imports. Source of truth is `tokens` + `control`.
     dial: tokens.primitive,
     role: {
-        workbench: controlBase.panel.workbench,
-        panel: controlBase.panel.base,
-        pane: controlBase.panel.pane,
-        modal: controlBase.modal.surface.baseClass,
-        inset: controlBase.panel.inset,
-        menu: controlBase.menu.surface,
-        overlay: controlBase.panel.overlay,
+        workbench: panelControl.workbench,
+        panel: panelControl.base,
+        pane: panelControl.pane,
+        modal: modalControl.surface.baseClass,
+        inset: panelControl.inset,
+        menu: menuControl.surface,
+        overlay: panelControl.overlay,
     },
     surface: {
         workbenchShell: workbenchShell,
-        panelInset: controlBase.panel.base,
-        tooltip: controlBase.tooltip.content,
-        statusModule: controlBase.panel.statusModule,
-        panelRaised: controlBase.panel.raised,
-        panelMuted: controlBase.panel.raised,
-        panelInfo: controlBase.panel.info,
-        panelWorkflow: controlBase.panel.workflow,
-        sidebarPanel: controlBase.panel.sidebar,
+        panelInset: panelControl.base,
+        tooltip: tooltipControl.content,
+        statusModule: panelControl.statusModule,
+        panelRaised: panelControl.raised,
+        panelMuted: panelControl.raised,
+        panelInfo: panelControl.info,
+        panelWorkflow: panelControl.workflow,
+        sidebarPanel: panelControl.sidebar,
     },
     state: tokens.semantic.state,
     text: tokens.semantic.text,
-    tooltip: controlBase.tooltip,
+    tooltip: tooltipControl,
     chrome: tokens.semantic.chrome,
-    chromeEx: controlBase.modal.chrome.dialog,
-    modal: controlBase.modal.surface,
+    chromeEx: modalControl.chrome.dialog,
+    modal: modalControl.surface,
     menu: {
-        surface: controlBase.menu.surface,
-        dirPickerSurface: controlBase.menu.dirPickerSurface,
-        minWidthSurface: controlBase.menu.minWidthSurface,
-        listClassNames: controlBase.menu.list.classNames,
-        itemClassNames: { base: controlBase.menu.item.base } as const,
-        itemSplitClassNames: controlBase.menu.item.split,
-        itemStrong: controlBase.menu.item.strong,
-        itemNested: controlBase.menu.item.nested,
-        itemPinned: controlBase.menu.item.pinned,
-        itemSelectedPrimary: controlBase.menu.item.selectedPrimary,
-        flagInlineWrap: controlBase.menu.item.flagInlineWrap,
-        checkIconPrimary: controlBase.menu.item.checkIconPrimary,
-        sectionHeading: controlBase.menu.chrome.sectionHeading,
-        panelHeader: controlBase.menu.chrome.header,
-        panelHeaderIcon: controlBase.menu.chrome.headerIcon,
-        panelHeaderText: controlBase.menu.chrome.headerText,
-        actionButton: controlBase.menu.action.base,
-        dangerActionButton: controlBase.menu.action.danger,
+        surface: menuControl.surface,
+        dirPickerSurface: menuControl.dirPickerSurface,
+        minWidthSurface: menuControl.minWidthSurface,
+        listClassNames: menuControl.list.classNames,
+        itemClassNames: { base: menuControl.item.base } as const,
+        itemSplitClassNames: menuControl.item.split,
+        itemStrong: menuControl.item.strong,
+        itemNested: menuControl.item.nested,
+        itemPinned: menuControl.item.pinned,
+        itemSelectedPrimary: menuControl.item.selectedPrimary,
+        flagInlineWrap: menuControl.item.flagInlineWrap,
+        checkIconPrimary: menuControl.item.checkIconPrimary,
+        sectionHeading: menuControl.chrome.sectionHeading,
+        panelHeader: menuControl.chrome.header,
+        panelHeaderIcon: menuControl.chrome.headerIcon,
+        panelHeaderText: menuControl.chrome.headerText,
+        actionButton: menuControl.action.base,
+        dangerActionButton: menuControl.action.danger,
     },
     atom: {
         textCurrent: "text-current",
         objectContain: "object-contain",
         codeInline: `${primitiveTokens.opacity.codeInline} px-tight py-tight rounded`,
-        insetRounded: controlBase.panel.inset,
-        insetRoundedFull: controlBase.panel.insetFull,
-        insetBorderedItem: controlBase.panel.insetBordered,
-        glassPanel: controlBase.panel.glass,
-        shadowPanel: controlBase.table.shadowOverlay,
-        progressTrack: controlBase.table.progress.track,
-        progressIndicatorPaused: controlBase.table.progress.paused,
-        progressIndicatorSeeding: controlBase.table.progress.seeding,
-        progressIndicatorActive: controlBase.table.progress.active,
+        insetRounded: panelControl.inset,
+        insetRoundedFull: panelControl.insetFull,
+        insetBorderedItem: panelControl.insetBordered,
+        glassPanel: panelControl.glass,
+        shadowPanel: tableControl.shadowOverlay,
+        progressTrack: tableControl.progress.track,
+        progressIndicatorPaused: tableControl.progress.paused,
+        progressIndicatorSeeding: tableControl.progress.seeding,
+        progressIndicatorActive: tableControl.progress.active,
     },
 } as const;
 
@@ -313,8 +333,8 @@ const roundedFull = primitiveTokens.radius.full;
 const roundedPill = primitiveTokens.radius.pill;
 const roundedTight = primitiveTokens.radius.tight;
 const roundedMedium = primitiveTokens.radius.medium;
-const workbenchMainShell = `${surface.surface.workbenchShell} surface-layer-2 `;
-const workbenchIslandShell = `glass-panel text-foreground ${surface.surface.workbenchShell} border border-default/45`;
+const workbenchMainShell = `${workbenchShell} surface-layer-2 `;
+const workbenchIslandShell = `glass-panel text-foreground ${workbenchShell} border border-default/45`;
 
 export const modal = {
     baseClassNames: surface.modal.baseClassNames,
@@ -625,7 +645,50 @@ const torrentHeader = {
     resizeBarHover: "group-hover:bg-primary/50",
     resizeBarActive: "bg-primary h-resize-h",
 } as const;
-const contextStatusBadge = controlBase.table.contextStatusBadge;
+const contextStatusBadge = tableControl.contextStatusBadge;
+const tableShellControl = {
+    base: "relative flex-1 h-full min-h-0 flex flex-col",
+    panel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
+    island: workbenchIslandShell,
+} as const;
+const tableHostControl = {
+    root: "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
+    scroll: "relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar",
+    scrollStyle: {
+        scrollbarGutter: "stable",
+    } as const,
+    canvas: "relative w-full min-w-max",
+} as const;
+const tableRowControl = {
+    base: "group hover:bg-primary/5",
+    content: registry.control.table.rowClass.content,
+    hover: registry.control.table.rowClass.hover,
+    selected: registry.control.table.rowClass.selected,
+    context: registry.control.table.rowClass.context,
+    dragging: registry.control.table.rowClass.dragging,
+    dragCursorEnabled: registry.control.table.rowClass.dragCursorEnabled,
+    dragCursorDisabled: registry.control.table.rowClass.dragCursorDisabled,
+    shell: registry.control.table.rowClass.shell,
+} as const;
+const tableDragOverlayControl = {
+    base: `pointer-events-none absolute inset-x-0 ${panelControl.overlay} px-panel box-border`,
+    ghost: `pointer-events-none absolute inset-x-0 ${roundedPanel} border border-default/10 bg-content1/50 px-panel box-border opacity-70 backdrop-blur-md`,
+    badge: `pointer-events-none absolute right-tight top-tight ${roundedFull} border border-default/15 ${bgBackground90} px-tight py-1 text-label font-semibold text-foreground/80 shadow-small backdrop-blur-md`,
+    content: "flex h-full w-full items-center",
+    shadow: tableControl.shadowOverlay,
+} as const;
+const tableProgressControl = {
+    frame: "relative h-full overflow-hidden rounded-full bg-content1/20",
+    indicator: "absolute inset-y-0 left-0 transform origin-left rounded-full transition-all duration-300 ease-out",
+    cell: "flex flex-col gap-tight w-full min-w-0 py-tight overflow-hidden",
+    track: tableControl.progress.track,
+    paused: tableControl.progress.paused,
+    seeding: tableControl.progress.seeding,
+    active: tableControl.progress.active,
+    bar: "h-indicator",
+    metricsRow: "flex min-w-0 items-end justify-between gap-tight font-medium opacity-80",
+    secondary: "text-foreground/40",
+} as const;
 export const table = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     shellPanel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
@@ -974,7 +1037,7 @@ export const split = {
     mapLegendGrid: "grid grid-cols-2 grid-rows-2 gap-panel self-center",
     mapLegendCell: "flex min-w-0 items-center gap-tight",
     mapLegendCellPlaceholder: "invisible",
-    mapLegendMode: `flex min-w-0 flex-col justify-center gap-tight border-l ${visuals.surface.border} pl-panel`,
+    mapLegendMode: `flex min-w-0 flex-col justify-center gap-tight border-l ${borderToken} pl-panel`,
     mapLegendModeLabel: "text-label text-foreground/45",
     mapLegendModeValue: text.code,
     mapFrame: "relative z-panel flex-1 min-h-0 overflow-hidden mt-panel",
@@ -1005,13 +1068,13 @@ export const contextMenu = {
     header: surface.menu.panelHeader,
     headerIcon: surface.menu.panelHeaderIcon,
     headerText: surface.menu.panelHeaderText,
-    sectionHeading: `border-t ${visuals.surface.border} pt-panel`,
-    sectionHeadingStrong: `border-t ${visuals.surface.border} mt-tight pt-tight font-bold`,
+    sectionHeading: `border-t ${borderToken} pt-panel`,
+    sectionHeadingStrong: `border-t ${borderToken} mt-tight pt-tight font-bold`,
     sectionHeadingTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
     } as const,
     sectionNestedItem: "pl-stage",
-    editorItem: `border-t ${visuals.surface.border} p-0`,
+    editorItem: `border-t ${borderToken} p-0`,
     editorWrap: "px-panel pt-panel",
     actionButton: surface.menu.actionButton,
     dangerActionButton: surface.menu.dangerActionButton,
@@ -1066,7 +1129,7 @@ export const metricChart = {
     } as const,
     capacityGauge: {
         container: "space-y-tight rounded-xl border bg-content1/15 p-tight",
-        containerNormal: `space-y-tight rounded-xl border bg-content1/15 p-tight ${visuals.surface.border}`,
+        containerNormal: `space-y-tight rounded-xl border bg-content1/15 p-tight ${borderToken}`,
         containerInsufficient: "space-y-tight rounded-xl border bg-content1/15 p-tight border-danger/40 bg-danger/5",
         header: `flex items-center justify-between ${text.labelDense} text-foreground/60`,
         headerStyle: {
@@ -1112,7 +1175,7 @@ export const dashBoard = {
     fullscreenOverlay: "fixed inset-0 z-dnd",
     fullscreenSection: "relative h-full flex items-center justify-center",
     fullscreenBackdrop: "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
-    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${visuals.surface.border} shadow-medium`,
+    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${borderToken} shadow-medium`,
 } as const;
 const detailsTable = {
     root: "flex h-full flex-col gap-panel",
@@ -1217,7 +1280,7 @@ export const details = {
     speedEmbeddedSurface: "flex-1 h-full p-stage flex flex-col min-h-0",
     speedChartHost: "flex-1 min-h-0",
     speedCheckingAlert: "mb-tight shrink-0 text-scaled text-warning",
-    speedCollectingPanel: `mb-tight shrink-0 rounded-2xl border ${visuals.surface.border} bg-background/20 p-panel text-scaled text-foreground/50`,
+    speedCollectingPanel: `mb-tight shrink-0 rounded-2xl border ${borderToken} bg-background/20 p-panel text-scaled text-foreground/50`,
     generalRoot: "flex flex-col gap-stage px-stage pb-stage",
     generalSection: `flex flex-col gap-panel p-panel ${surface.surface.panelInfo}`,
     generalSectionHeader: "flex items-center justify-between gap-tools",
@@ -1335,36 +1398,198 @@ export const input = {
 } as const;
 
 export const control = {
-    panel: controlBase.panel,
+    panel: {
+        glass: panelControl.glass,
+        canvas: panelControl.canvas,
+        island: workbenchIslandShell,
+        base: panelControl.base,
+        pane: panelControl.pane,
+        inset: panelControl.inset,
+        insetFull: panelControl.insetFull,
+        insetBordered: panelControl.insetBordered,
+        raised: panelControl.raised,
+        info: panelControl.info,
+        workflow: panelControl.workflow,
+        sidebar: panelControl.sidebar,
+        overlay: panelControl.overlay,
+        module: panelControl.statusModule,
+        floating: panelControl.floating,
+    },
     modal: {
-        ...controlBase.modal,
+        surface: {
+            base: modalControl.surface.baseClass,
+        },
+        layout: {
+            contentWrapper: modalLayoutControl.contentWrapper,
+            row: modalLayoutControl.row,
+            headerLead: modalLayoutControl.headerLead,
+            titleWrap: modalLayoutControl.titleWrap,
+            body: modalLayoutControl.body,
+            bodyFlush: modalLayoutControl.bodyFlush,
+            sectionStack: modalLayoutControl.sectionStack,
+            insetStack: modalLayoutControl.insetStack,
+            insetItem: modalLayoutControl.insetItem,
+            locationRow: modalLayoutControl.locationRow,
+            footerButtonRow: modalLayoutControl.footerButtonRow,
+            footerGroup: modalLayoutControl.footerGroup,
+            contentStack: modalLayoutControl.contentStack,
+            scrollContent: modalLayoutControl.scrollContent,
+        },
+        size: {
+            compact: "w-full max-w-modal-compact",
+        },
         wrapper: {
             hidden: modalBaseWrapperHiddenClassNames.wrapper,
         },
+        chrome: {
+            default: modalChromeClassNames,
+            dialog: {
+                header: controlChrome.dialogHeader,
+                footer: controlChrome.dialogFooter,
+                footerEnd: controlChrome.footerEnd,
+                footerActionsPadded: controlChrome.footerActionsPadded,
+                workflowFooter: controlChrome.workflowFooter,
+                headerPassive: controlChrome.headerPassive,
+            },
+        },
     },
-    menu: controlBase.menu,
-    tooltip: controlBase.tooltip,
-    table: controlBase.table,
-    input,
+    menu: {
+        surface: {
+            base: menuControl.surface,
+            picker: menuControl.dirPickerSurface,
+        },
+        list: {
+            base: menuSurfaceList,
+            classNames: menuListClassNames,
+        },
+        item: {
+            base: menuControl.item.base,
+            classNames: menuItemClassNames,
+            split: menuControl.item.split,
+            strong: menuControl.item.strong,
+            nested: menuControl.item.nested,
+            pinned: menuControl.item.pinned,
+            selectedPrimary: menuControl.item.selectedPrimary,
+            flagInlineWrap: menuControl.item.flagInlineWrap,
+            checkIconPrimary: menuControl.item.checkIconPrimary,
+        },
+        chrome: {
+            sectionHeading: menuControl.chrome.sectionHeading,
+            header: menuControl.chrome.header,
+            headerIcon: menuControl.chrome.headerIcon,
+            headerText: menuControl.chrome.headerText,
+        },
+        action: {
+            iconButton: menuControl.action.iconButton,
+            windowButtonBase: menuControl.action.windowButtonBase,
+            windowButtonNeutral: menuControl.action.windowButtonNeutral,
+            windowButtonDanger: menuControl.action.windowButtonDanger,
+            base: menuControl.action.base,
+            danger: menuControl.action.danger,
+        },
+    },
+    tooltip: tooltipControl,
+    table: {
+        shell: {
+            base: tableShellControl.base,
+            panel: tableShellControl.panel,
+            island: tableShellControl.island,
+        },
+        header: {
+            row: `flex w-full ${semanticTokens.chrome.edgeBottom} ${semanticTokens.chrome.sticky}`,
+            groupRow: "flex w-full min-w-max",
+            previewPadding: "px-(--p-tight)",
+            compactCell: tableHeaderPattern.compactCell,
+            sectionDividerCell: tableHeaderPattern.sectionDividerCell,
+            iconCell: tableHeaderPattern.iconCell,
+            statusCell: tableHeaderPattern.statusCell,
+            column: torrentHeader,
+        },
+        host: {
+            root: tableHostControl.root,
+            scroll: tableHostControl.scroll,
+            scrollStyle: tableHostControl.scrollStyle,
+            canvas: tableHostControl.canvas,
+        },
+        row: tableRowControl,
+        dragOverlay: {
+            base: tableDragOverlayControl.base,
+            ghost: tableDragOverlayControl.ghost,
+            badge: tableDragOverlayControl.badge,
+            content: tableDragOverlayControl.content,
+            shadow: tableDragOverlayControl.shadow,
+        },
+        progress: tableProgressControl,
+        statusChip: {
+            context: tableControl.contextStatusBadge,
+        },
+    },
+    input: {
+        mono: {
+            input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
+            inputWrapper: `surface-layer-1 ${transition.fast} shadow-none group-hover:border-default/10`,
+        },
+        emphasized: {
+            inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
+            content: "",
+            input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
+        },
+        textarea: {
+            codeClassNames: {
+                inputWrapper:
+                    "surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 focus-within:border-primary/60",
+                base: "w-full",
+                innerWrapper: "w-full",
+                input: `${text.code} bg-transparent p-panel text-foreground placeholder:text-foreground/30`,
+            } as const,
+            fillFrame:
+                `surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 ` +
+                `focus-within:border-primary/60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden ${roundedPanel}`,
+            fill: `${text.code} overlay-scrollbar box-border block h-full min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent p-panel leading-tight text-foreground placeholder:text-foreground/30 outline-none`,
+        },
+    },
     checkbox: {
-        primaryClassNames: formControl.checkboxPrimaryClassNames,
-        marginRightClassNames: formControl.checkboxMarginRightClassNames,
-        bodySmallLabelClassNames: formControl.checkboxLabelBodySmallClassNames,
+        primary: { wrapper: "after:bg-primary" } as const,
+        withBodySmallLabel: {
+            base: "items-center",
+            label: text.bodySmall,
+        } as const,
     },
     select: {
-        priorityClassNames: formControl.prioritySelectClassNames,
-        priorityHeaderClassNames: formControl.priorityHeaderSelectClassNames,
+        priority: {
+            base: "min-w-status-chip",
+            mainWrapper: "min-w-status-chip",
+            trigger:
+                "border border-primary/30 bg-transparent text-foreground/70 transition-colors duration-150 " +
+                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 " +
+                "focus-visible:ring-offset-0 min-w-status-chip rounded-full border-default/50 px-tight text-foreground/85",
+            value: `${text.bodySmall} leading-none text-foreground/85`,
+            selectorIcon: "toolbar-icon-size-sm shrink-0 text-foreground/60",
+        } as const,
+        priorityHeader: {
+            base: "min-w-status-chip",
+            mainWrapper: "min-w-status-chip",
+            trigger: "min-w-status-chip border-b border-default/60 bg-transparent px-tight text-foreground/85",
+            value: `${text.labelDense} leading-none text-foreground/85`,
+            selectorIcon: "toolbar-icon-size-sm shrink-0 text-foreground/50",
+        } as const,
     },
     statusChip: {
-        base: controlBase.statusChip.base,
-        content: controlBase.statusChip.content,
-        container: controlBase.statusChip.container,
-        contentWrap: controlBase.statusChip.contentWrap,
-        warningIcon: controlBase.statusChip.warningIcon,
-        currentIcon: controlBase.statusChip.currentIcon,
-        label: controlBase.statusChip.label,
-        classNames: formControl.statusChipClassNames,
-        mutedPrimaryClassNames: formControl.statusChipMutedPrimaryClassNames,
+        base: statusChipControl.base,
+        content: statusChipControl.content,
+        container: statusChipControl.container,
+        contentWrap: statusChipControl.contentWrap,
+        warningIcon: statusChipControl.warningIcon,
+        currentIcon: statusChipControl.currentIcon,
+        label: statusChipControl.label,
+        classNames: {
+            base: statusChipPattern.base,
+            content: statusChipPattern.content,
+        } as const,
+        mutedPrimary: {
+            base: `${statusChipPattern.base} border border-primary/18 bg-primary/8 dark:border-primary/22 dark:bg-primary/12`,
+            content: `${statusChipPattern.content} text-primary/72 dark:text-primary/62`,
+        } as const,
     },
 } as const;
 

@@ -157,9 +157,7 @@ export function LanguageMenu() {
                                     <Check
                                         size={22}
                                         strokeWidth={visuals.icon.strokeWidth}
-                                        className={
-                                            surface.menu.checkIconPrimary
-                                        }
+                                        className={surface.menu.checkIconPrimary}
                                     />
                                 ) : null
                             }

@@ -9,7 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { registry } from "@/config/logic";
-import { surface } from "@/shared/ui/layout/glass-surface";
+import { control } from "@/shared/ui/layout/glass-surface";
 
 type HeroTooltipProps = ComponentProps<typeof Tooltip>;
 type AppTooltipProps = HeroTooltipProps & {
@@ -302,12 +302,12 @@ export function AppTooltip({
                 base: cn("pointer-events-none", classNames?.base),
                 content: cn(
                     "pointer-events-none",
-                    surface.tooltip.content,
+                    control.tooltip.content,
                     classNames?.content,
                 ),
                 arrow: cn(
                     "pointer-events-none",
-                    surface.tooltip.arrow,
+                    control.tooltip.arrow,
                     classNames?.arrow,
                 ),
             }}

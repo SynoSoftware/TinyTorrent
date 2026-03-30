@@ -1,8 +1,7 @@
 import { cn } from "@heroui/react";
 import { type CSSProperties } from "react";
 import { registry } from "@/config/logic";
-import { metricChart } from "@/shared/ui/layout/glass-surface";
-import { table } from "@/shared/ui/layout/glass-surface";
+import { control } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
 
 const clamp = (value: number) => Math.min(Math.max(value, 0), 100);
@@ -32,7 +31,7 @@ export function SmoothProgressBar({
     const clampedValue = clamp(value);
     return (
         <div
-            className={cn(metricChart.progressBar.track, trackClassName, className)}
+            className={cn(control.table.progress.frame, trackClassName, className)}
             style={trackStyle}
             role="progressbar"
             aria-valuenow={clampedValue}
@@ -41,7 +40,7 @@ export function SmoothProgressBar({
             aria-label={ariaLabel}
         >
             <div
-                className={cn(metricChart.progressBar.indicator, indicatorClassName)}
+                className={cn(control.table.progress.indicator, indicatorClassName)}
                 style={{
                     width: `${clampedValue}%`,
                     ...indicatorStyle,
@@ -60,15 +59,15 @@ interface ProgressCellProps {
 
 export function ProgressCell({ progressPercent, completedBytes, indicatorClassName, ariaLabel }: ProgressCellProps) {
     return (
-        <div className={table.columnDefs.progressCell}>
-            <div className={cn(table.columnDefs.progressMetricsRow, denseNumericClass)}>
+        <div className={control.table.progress.cell}>
+            <div className={cn(control.table.progress.metricsRow, denseNumericClass)}>
                 <span>{progressPercent.toFixed(1)}%</span>
-                <span className={table.columnDefs.progressSecondary}>{formatBytes(completedBytes)}</span>
+                <span className={control.table.progress.secondary}>{formatBytes(completedBytes)}</span>
             </div>
             <SmoothProgressBar
                 value={progressPercent}
-                className={table.columnDefs.progressBar}
-                trackClassName={table.columnDefs.progressTrack}
+                className={control.table.progress.bar}
+                trackClassName={control.table.progress.track}
                 indicatorClassName={indicatorClassName}
                 aria-label={ariaLabel}
             />

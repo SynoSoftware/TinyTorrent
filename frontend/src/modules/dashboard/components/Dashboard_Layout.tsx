@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, type Transition } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { cn } from "@heroui/react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
@@ -18,46 +18,7 @@ import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 import { isEditableKeyboardTarget } from "@/shared/utils/dom";
 const { layout, shell, visuals, visualizations, ui } = registry;
 
-const ANIMATION = {
-    spring: {
-        type: "spring",
-        stiffness: 240,
-        damping: 26,
-    } as Transition,
-    entry: { duration: 0.2 },
-} as const;
-
-const OVERLAY_FADE_ANIMATION = {
-    ...visualizations.surface.fade.overlay,
-    transition: ANIMATION.entry,
-} as const;
-
-const DROP_OVERLAY_ACCENT_ANIMATION = {
-    initial: { scale: 0.96, opacity: 0.4 },
-    animate: { scale: 1, opacity: 0.8 },
-    exit: { opacity: 0 },
-    transition: {
-        ...ANIMATION.spring,
-        repeat: Infinity,
-        repeatType: "reverse" as const,
-    },
-} as const;
-
-const FULLSCREEN_PANEL_ANIMATION = {
-    initial: {
-        opacity: visualizations.surface.fade.base.initial.opacity,
-        scale: 0.96,
-    },
-    animate: {
-        opacity: visualizations.surface.fade.base.animate.opacity,
-        scale: 1,
-    },
-    exit: {
-        opacity: visualizations.surface.fade.base.exit.opacity,
-        scale: 0.96,
-    },
-    transition: { duration: 0.25 },
-} as const;
+const fadeBase = visualizations.surface.fade.base;
 interface DashboardLayoutProps {
     viewModel: DashboardViewModel;
 }
@@ -201,11 +162,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
     const dropOverlay = (
         <AnimatePresence>
             {isDropActive && (
-                <motion.div className={dashBoard.dropOverlay} {...OVERLAY_FADE_ANIMATION}>
+                <motion.div className={dashBoard.dropOverlay} {...fadeBase}>
                     <motion.div
                         className={dashBoard.dropOverlayAccent}
                         // affordance only — do not apply surfaceStyle here; parent surface is workbench
-                        {...DROP_OVERLAY_ACCENT_ANIMATION}
+                        {...visualizations.surface.accent.pulse}
                     />
                     <div className={cn(dashBoard.dropOverlayIconWrap, ui.dropOverlay.role)}>
                         <StatusIcon
@@ -319,7 +280,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                                             className={dashBoard.inspectorContent}
                                             initial={false}
                                             animate={{ opacity: 1, y: 0 }}
-                                            transition={ANIMATION.entry}
+                                            transition={fadeBase.transition}
                                         >
                                             <TorrentDetails
                                                 viewModel={detail}
@@ -352,7 +313,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
                         className={dashBoard.fullscreenOverlay}
-                        {...OVERLAY_FADE_ANIMATION}
+                        {...fadeBase}
                         transition={{ duration: 0.25 }}
                     >
                         <Section padding={fullscreenPadding} className={dashBoard.fullscreenSection}>
@@ -360,7 +321,7 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                             <motion.div
                                 className={dashBoard.fullscreenPanel}
                                 style={{ borderRadius: fullscreenRadius }}
-                                {...FULLSCREEN_PANEL_ANIMATION}
+                                {...visualizations.surface.fade.fullscreenPanel}
                             >
                                 <TorrentDetails
                                     viewModel={detail}

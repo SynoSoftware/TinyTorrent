@@ -43,33 +43,6 @@ interface CommandPaletteProps {
     getContextActions?: (context: CommandPaletteContext) => CommandAction[];
 }
 
-const OVERLAY_FADE_ANIMATION = {
-    ...visualizations.surface.fade.overlay,
-} as const;
-
-const BACKDROP_FADE_ANIMATION = {
-    ...visualizations.surface.fade.backdrop,
-} as const;
-
-const PANEL_ANIMATION = {
-    initial: {
-        opacity: visualizations.surface.fade.base.initial.opacity,
-        y: -6,
-        scale: 0.98,
-    },
-    animate: {
-        opacity: visualizations.surface.fade.base.animate.opacity,
-        y: 0,
-        scale: 1,
-    },
-    exit: {
-        opacity: visualizations.surface.fade.base.exit.opacity,
-        y: -6,
-        scale: 0.98,
-    },
-    transition: visualizations.surface.fade.base.transition,
-} as const;
-
 interface CommandPaletteOverlayProps {
     groupedActions: Array<{ group: string; entries: CommandAction[] }>;
     onClose: () => void;
@@ -125,10 +98,14 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
     }, [lastOutcome]);
 
     return (
-        <motion.div {...OVERLAY_FADE_ANIMATION} className={commandPalette.overlay}>
-            <motion.div {...BACKDROP_FADE_ANIMATION} className={commandPalette.backdrop} onPointerDown={onClose} />
+        <motion.div {...visualizations.surface.fade.base} className={commandPalette.overlay}>
+            <motion.div
+                {...visualizations.surface.fade.backdrop}
+                className={commandPalette.backdrop}
+                onPointerDown={onClose}
+            />
             <Section padding="overlay" className={commandPalette.section}>
-                <motion.div {...PANEL_ANIMATION} className={commandPalette.panel}>
+                <motion.div {...visualizations.surface.fade.panel} className={commandPalette.panel}>
                     <Command
                         value={query}
                         onValueChange={setQuery}
