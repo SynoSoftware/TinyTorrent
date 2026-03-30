@@ -14,11 +14,8 @@ import { registry } from "@/config/logic";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { Section, type SectionPadding } from "@/shared/ui/layout/Section";
 import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
-import type {
-    StatusBarViewModel,
-    WorkspaceShellViewModel,
-} from "@/app/viewModels/useAppViewModel";
-import { TEXT_ROLE } from "@/config/textRoles";
+import type { StatusBarViewModel, WorkspaceShellViewModel } from "@/app/viewModels/useAppViewModel";
+import { textRole } from "@/config/textRoles";
 const { shell } = registry;
 
 const HUD_COLUMNS = {
@@ -37,10 +34,7 @@ interface WorkspaceShellProps {
     statusBarViewModel: StatusBarViewModel;
 }
 
-export function WorkspaceShell({
-    workspaceViewModel,
-    statusBarViewModel,
-}: WorkspaceShellProps) {
+export function WorkspaceShell({ workspaceViewModel, statusBarViewModel }: WorkspaceShellProps) {
     const {
         dragAndDrop,
         workspaceStyle: workspaceStyleControls,
@@ -60,13 +54,9 @@ export function WorkspaceShell({
 
     const renderNavbar = () => <MemoNavbar viewModel={navbar} />;
 
-    const renderModeLayoutSection = () => (
-        <MemoDashboardLayout viewModel={dashboard} />
-    );
+    const renderModeLayoutSection = () => <MemoDashboardLayout viewModel={dashboard} />;
 
-    const renderStatusBarSection = () => (
-        <StatusBar viewModel={statusBarViewModel} />
-    );
+    const renderStatusBarSection = () => <StatusBar viewModel={statusBarViewModel} />;
 
     const renderDeleteModal = () => (
         <DeleteConfirmationProvider value={deleteConfirmationContextValue}>
@@ -81,16 +71,9 @@ export function WorkspaceShell({
     };
     const immersive = shell.immersive;
 
-    const hudGridClass =
-        HUD_COLUMNS[
-            Math.min(visibleHudCards.length, 3) as keyof typeof HUD_COLUMNS
-        ] ?? "grid-cols-1";
+    const hudGridClass = HUD_COLUMNS[Math.min(visibleHudCards.length, 3) as keyof typeof HUD_COLUMNS] ?? "grid-cols-1";
     const shellSectionPadding: SectionPadding =
-        isImmersiveShell && !isNativeHost
-            ? "shell"
-            : !isImmersiveShell && !isNativeHost
-              ? "panel"
-              : "none";
+        isImmersiveShell && !isNativeHost ? "shell" : !isImmersiveShell && !isNativeHost ? "panel" : "none";
 
     return (
         <div {...getRootProps()} className={WORKBENCH.root}>
@@ -99,16 +82,10 @@ export function WorkspaceShell({
             {isImmersiveShell && !isNativeHost && (
                 <div className={WORKBENCH.immersiveBackgroundRoot}>
                     <div className={WORKBENCH.immersiveBackgroundBase} />
-                    <div
-                        className={WORKBENCH.immersiveBackgroundPrimaryBlend}
-                    />
-                    <div
-                        className={WORKBENCH.immersiveBackgroundSecondaryBlend}
-                    />{" "}
+                    <div className={WORKBENCH.immersiveBackgroundPrimaryBlend} />
+                    <div className={WORKBENCH.immersiveBackgroundSecondaryBlend} />{" "}
                     <div className={WORKBENCH.immersiveBackgroundNoise} />
-                    <div
-                        className={WORKBENCH.immersiveBackgroundAccentBottom}
-                    />{" "}
+                    <div className={WORKBENCH.immersiveBackgroundAccentBottom} />{" "}
                     <div className={WORKBENCH.immersiveBackgroundAccentTop} />
                 </div>
             )}
@@ -120,15 +97,9 @@ export function WorkspaceShell({
                     className={cn(
                         WORKBENCH.section,
                         isNativeHost && WORKBENCH.nativeShellBody,
-                        isImmersiveShell
-                            ? WORKBENCH.sectionGapImmersive
-                            : WORKBENCH.sectionGapClassic,
+                        isImmersiveShell ? WORKBENCH.sectionGapImmersive : WORKBENCH.sectionGapClassic,
                     )}
-                    style={
-                        isImmersiveShell && !isNativeHost
-                            ? { maxWidth: "var(--tt-shell-main-max-w)" }
-                            : undefined
-                    }
+                    style={isImmersiveShell && !isNativeHost ? { maxWidth: "var(--tt-shell-main-max-w)" } : undefined}
                 >
                     {isImmersiveShell ? (
                         <div
@@ -147,21 +118,14 @@ export function WorkspaceShell({
                     {isImmersiveShell ? (
                         <>
                             <div
-                                className={cn(
-                                    WORKBENCH.immersiveMainWrap,
-                                    isNativeHost && WORKBENCH.nativeShellInner,
-                                )}
+                                className={cn(WORKBENCH.immersiveMainWrap, isNativeHost && WORKBENCH.nativeShellInner)}
                                 style={{
                                     borderRadius: `${immersive.mainOuterRadius}px`,
                                     padding: `${immersive.mainPadding}px`,
                                 }}
                             >
                                 <main
-                                    className={cn(
-                                        WORKBENCH.immersiveMain,
-                                        isNativeHost &&
-                                            WORKBENCH.nativeShellMain,
-                                    )}
+                                    className={cn(WORKBENCH.immersiveMain, isNativeHost && WORKBENCH.nativeShellMain)}
                                     style={{
                                         borderRadius: `${immersive.mainInnerRadius}px`,
                                         padding: `${immersive.mainContentPadding}px`,
@@ -171,12 +135,7 @@ export function WorkspaceShell({
                                 </main>
                             </div>
                             {visibleHudCards.length > 0 ? (
-                                <section
-                                    className={cn(
-                                        WORKBENCH.immersiveHudSection,
-                                        hudGridClass,
-                                    )}
-                                >
+                                <section className={cn(WORKBENCH.immersiveHudSection, hudGridClass)}>
                                     <AnimatePresence>
                                         {visibleHudCards.map((card) => {
                                             const Icon = card.icon;
@@ -203,46 +162,29 @@ export function WorkspaceShell({
                                                         duration: 0.2,
                                                     }}
                                                     whileHover={{ y: -4 }}
-                                                    className={cn(
-                                                        WORKBENCH.immersiveHudCard,
-                                                        card.surfaceClass,
-                                                    )}
+                                                    className={cn(WORKBENCH.immersiveHudCard, card.surfaceClass)}
                                                     style={{
                                                         borderRadius: `${immersive.hudCardRadius}px`,
                                                     }}
                                                 >
                                                     <button
                                                         type="button"
-                                                        onClick={() =>
-                                                            dismissHudCard(
-                                                                card.id,
-                                                            )
-                                                        }
-                                                        className={
-                                                            WORKBENCH.immersiveHudDismissButton
-                                                        }
+                                                        onClick={() => dismissHudCard(card.id)}
+                                                        className={WORKBENCH.immersiveHudDismissButton}
                                                         style={{
                                                             right: "var(--spacing-tight)",
                                                             top: "var(--spacing-tight)",
                                                         }}
-                                                        aria-label={t(
-                                                            "workspace.stage.dismiss_card",
-                                                        )}
+                                                        aria-label={t("workspace.stage.dismiss_card")}
                                                     >
                                                         <StatusIcon
                                                             Icon={X}
                                                             size="md"
-                                                            className={
-                                                                WORKBENCH.iconCurrent
-                                                            }
+                                                            className={WORKBENCH.iconCurrent}
                                                         />
                                                     </button>
 
-                                                    <div
-                                                        className={
-                                                            WORKBENCH.immersiveHudCardContent
-                                                        }
-                                                    >
+                                                    <div className={WORKBENCH.immersiveHudCardContent}>
                                                         <div
                                                             className={cn(
                                                                 WORKBENCH.immersiveHudIconWrap,
@@ -252,46 +194,19 @@ export function WorkspaceShell({
                                                             <StatusIcon
                                                                 Icon={Icon}
                                                                 size="lg"
-                                                                className={
-                                                                    WORKBENCH.iconCurrent
-                                                                }
+                                                                className={WORKBENCH.iconCurrent}
                                                             />
                                                         </div>
 
-                                                        <div
-                                                            className={
-                                                                WORKBENCH.immersiveHudTextWrap
-                                                            }
-                                                        >
-                                                            <p
-                                                                className={
-                                                                    TEXT_ROLE.caption
-                                                                }
-                                                            >
+                                                        <div className={WORKBENCH.immersiveHudTextWrap}>
+                                                            <p className={textRole.caption}> {card.title} </p>
+                                                            <p className={WORKBENCH.immersiveHudTextLabel}>
                                                                 {" "}
-                                                                {
-                                                                    card.title
-                                                                }{" "}
+                                                                {card.label}{" "}
                                                             </p>
-                                                            <p
-                                                                className={
-                                                                    WORKBENCH.immersiveHudTextLabel
-                                                                }
-                                                            >
+                                                            <p className={WORKBENCH.immersiveHudTextDescription}>
                                                                 {" "}
-                                                                {
-                                                                    card.label
-                                                                }{" "}
-                                                            </p>
-                                                            <p
-                                                                className={
-                                                                    WORKBENCH.immersiveHudTextDescription
-                                                                }
-                                                            >
-                                                                {" "}
-                                                                {
-                                                                    card.description
-                                                                }{" "}
+                                                                {card.description}{" "}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -305,23 +220,19 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                            className={WORKBENCH.immersiveStatusWrap}
-                            style={{
+                                className={WORKBENCH.immersiveStatusWrap}
+                                style={{
                                     borderRadius: `${immersive.chromeRadius}px`,
                                     padding: `${immersive.chromePadding}px`,
-                            }}
-                        >
+                                }}
+                            >
                                 {renderStatusBarSection()}
                             </div>
                         </>
                     ) : (
                         <div className={WORKBENCH.classicStack}>
-                            <div className={WORKBENCH.classicMainWrap}>
-                                {renderModeLayoutSection()}
-                            </div>
-                            <div className={WORKBENCH.classicStatusWrap}>
-                                {renderStatusBarSection()}
-                            </div>
+                            <div className={WORKBENCH.classicMainWrap}>{renderModeLayoutSection()}</div>
+                            <div className={WORKBENCH.classicStatusWrap}>{renderStatusBarSection()}</div>
                         </div>
                     )}
                 </Section>
@@ -333,4 +244,3 @@ export function WorkspaceShell({
         </div>
     );
 }
-

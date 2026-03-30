@@ -7,13 +7,9 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import type { FocusPart } from "@/app/context/AppShellStateContext";
 import type { CommandId } from "@/app/commandCatalog";
 import { Section } from "@/shared/ui/layout/Section";
-import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { getStatusRecipeText, registry } from "@/config/logic";
 import { COMMAND_PALETTE } from "@/shared/ui/layout/glass-surface";
-import {
-    commandReason,
-    type TorrentCommandOutcome,
-} from "@/app/context/AppCommandContext";
+import { commandReason, type TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 const { visuals, visualizations } = registry;
 
 const commandActionExceptionReason = "exception" as const;
@@ -25,10 +21,7 @@ export type CommandActionOutcome =
           reason: typeof commandActionExceptionReason;
       };
 
-type NonSuccessCommandActionOutcome = Exclude<
-    CommandActionOutcome,
-    { status: "success" }
->;
+type NonSuccessCommandActionOutcome = Exclude<CommandActionOutcome, { status: "success" }>;
 
 export interface CommandAction {
     id: CommandId;
@@ -128,18 +121,10 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
     const outcomeToneClass = useMemo(() => {
         if (!lastOutcome) return "";
         const toneKey =
-            lastOutcome.status === "failed"
-                ? visuals.status.keys.tone.danger
-                : visuals.status.keys.tone.warning;
+            lastOutcome.status === "failed" ? visuals.status.keys.tone.danger : visuals.status.keys.tone.warning;
         return (
-            getStatusRecipeText(
-                toneKey,
-                visuals.status.keys.tone.warning,
-            ) ||
-            getStatusRecipeText(
-                visuals.status.keys.tone.muted,
-                visuals.status.keys.tone.warning,
-            )
+            getStatusRecipeText(toneKey, visuals.status.keys.tone.warning) ||
+            getStatusRecipeText(visuals.status.keys.tone.muted, visuals.status.keys.tone.warning)
         );
     }, [lastOutcome]);
 
@@ -165,7 +150,7 @@ function CommandPaletteOverlay({ groupedActions, onClose }: CommandPaletteOverla
                         <Command.List className={COMMAND_PALETTE.list}>
                             {groupedActions.map(({ group, entries }) => (
                                 <div key={group} className={COMMAND_PALETTE.groupWrap}>
-                                    <div className={TEXT_ROLE_EXTENDED.commandSection}>{group}</div>
+                                    <div className={COMMAND_PALETTE.sectionLabel}>{group}</div>
                                     <Command.Group>
                                         {entries.map((action) => (
                                             <Command.Item
@@ -249,5 +234,3 @@ export function CommandPalette({ isOpen, onOpenChange, actions, getContextAction
         </AnimatePresence>
     );
 }
-
-

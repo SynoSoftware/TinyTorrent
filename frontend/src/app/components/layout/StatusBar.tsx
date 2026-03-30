@@ -1,9 +1,22 @@
-import { ArrowDown, ArrowUp, Network, ArrowUpDown, Component, Files, Activity, HardDrive, Cog as TransmissionIcon, RefreshCw, AlertCircle, type LucideIcon, } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    Network,
+    ArrowUpDown,
+    Component,
+    Files,
+    Activity,
+    HardDrive,
+    Cog as TransmissionIcon,
+    RefreshCw,
+    AlertCircle,
+    type LucideIcon,
+} from "lucide-react";
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
-
+import { textRole } from "@/config/textRoles";
+import { uiRoles } from "@/shared/ui/uiRoles";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
@@ -12,16 +25,13 @@ import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getStatusRecipeText, registry } from "@/config/logic";
 import { status as appStatus } from "@/shared/status";
-import { WORKBENCH } from "@/shared/ui/layout/glass-surface";
+import { WORKBENCH as workbench } from "@/shared/ui/layout/glass-surface";
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 import type { NetworkTelemetry } from "@/services/rpc/entities";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
-import type {
-    StatusBarTransportStatus,
-    StatusBarViewModel,
-} from "@/app/viewModels/useAppViewModel";
+import type { StatusBarTransportStatus, StatusBarViewModel } from "@/app/viewModels/useAppViewModel";
 import type { StatusIconProps } from "@/shared/ui/components/StatusIcon";
 const { shell, visuals, ui } = registry;
 
@@ -79,19 +89,17 @@ function StatGroup({
     return (
         <div
             className={cn(
-                WORKBENCH.status.statGroup,
-                align === "end" ? WORKBENCH.status.statGroupEnd : WORKBENCH.status.statGroupStart,
+                workbench.status.statGroup,
+                align === "end" ? workbench.status.statGroupEnd : workbench.status.statGroupStart,
                 className,
             )}
         >
-            <span className={TEXT_ROLE_EXTENDED.statusBarLabel}>{label}</span>
-            <div className={WORKBENCH.status.statValueRow}>
+            <span className={cn(textRole.labelDense, uiRoles.text.subtle)}>{label}</span>
+            <div className={workbench.status.statValueRow}>
                 <AppTooltip content={value} native>
-                    <span className={cn(WORKBENCH.status.statValueText)}>
-                        {value}
-                    </span>
+                    <span className={cn(workbench.status.statValueText)}>{value}</span>
                 </AppTooltip>
-                {Icon && <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.statIcon} />}
+                {Icon && <StatusIcon Icon={Icon} size="md" className={workbench.status.statIcon} />}
             </div>
         </div>
     );
@@ -114,13 +122,12 @@ function TelemetryIcon({
               : tone === "bad"
                 ? appStatus.connection.error
                 : visuals.status.keys.tone.muted;
-    const toneClass =
-        getStatusRecipeText(toneKey, visuals.status.keys.tone.muted);
+    const toneClass = getStatusRecipeText(toneKey, visuals.status.keys.tone.muted);
 
     return (
         <AppTooltip content={title} native>
-            <span className={cn(WORKBENCH.status.telemetryIconWrap, toneClass)}>
-                <StatusIcon Icon={Icon} size="md" className={WORKBENCH.status.iconCurrent} />
+            <span className={cn(workbench.status.telemetryIconWrap, toneClass)}>
+                <StatusIcon Icon={Icon} size="md" className={workbench.status.iconCurrent} />
             </span>
         </AppTooltip>
     );
@@ -147,33 +154,29 @@ function SpeedModule({
 }) {
     const { t } = useTranslation();
     const iconToneKey = tone === "success" ? visuals.status.keys.tone.success : visuals.status.keys.tone.primary;
-    const iconToneClass =
-        getStatusRecipeText(
-            iconToneKey,
-            visuals.status.keys.tone.primary,
-        );
+    const iconToneClass = getStatusRecipeText(iconToneKey, visuals.status.keys.tone.primary);
 
     return (
         <>
-            <div className={WORKBENCH.status.speedModule}>
-                <div className={WORKBENCH.status.speedModuleGraphWrap}>
-                    <div className={WORKBENCH.status.speedModuleGraph} style={{ minWidth: ui.bases.statusbar.min100 }}>
-                        <NetworkGraph data={history} color={tone} className={WORKBENCH.status.speedModuleGraphCanvas} />
-                        <div className={WORKBENCH.status.speedModuleOverlay}>
-                            <div className={WORKBENCH.status.speedModuleOverlayRow}>
-                                <div className={cn(WORKBENCH.status.speedModuleIconWrap, iconToneClass)}>
-                                    <StatusIcon Icon={Icon} size="xl" className={WORKBENCH.status.iconCurrent} />
+            <div className={workbench.status.speedModule}>
+                <div className={workbench.status.speedModuleGraphWrap}>
+                    <div className={workbench.status.speedModuleGraph} style={{ minWidth: ui.bases.statusbar.min100 }}>
+                        <NetworkGraph data={history} color={tone} className={workbench.status.speedModuleGraphCanvas} />
+                        <div className={workbench.status.speedModuleOverlay}>
+                            <div className={workbench.status.speedModuleOverlayRow}>
+                                <div className={cn(workbench.status.speedModuleIconWrap, iconToneClass)}>
+                                    <StatusIcon Icon={Icon} size="xl" className={workbench.status.iconCurrent} />
                                 </div>
-                                <div className={WORKBENCH.status.speedModuleTextWrap}>
-                                    <span className={WORKBENCH.status.speedModuleLabel}>{t(labelKey)}</span>
-                                    <span className={WORKBENCH.status.speedModuleValue}>{formatSpeed(value)}</span>
+                                <div className={workbench.status.speedModuleTextWrap}>
+                                    <span className={workbench.status.speedModuleLabel}>{t(labelKey)}</span>
+                                    <span className={workbench.status.speedModuleValue}>{formatSpeed(value)}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            {separator && <div className={WORKBENCH.status.speedSeparator} style={{ height: "var(--tt-sep-h)" }} />}
+            {separator && <div className={workbench.status.speedSeparator} style={{ height: "var(--tt-sep-h)" }} />}
         </>
     );
 }
@@ -233,7 +236,7 @@ function StatusTelemetryGrid({
 
     return (
         <div
-            className={WORKBENCH.status.telemetryGrid}
+            className={workbench.status.telemetryGrid}
             style={{
                 gridTemplateColumns: "repeat(2, auto)",
                 gridTemplateRows: "repeat(2, auto)",
@@ -307,12 +310,12 @@ function EngineControlChip({
 
     const renderEngineLogo = () => {
         if (rpcStatus === appStatus.connection.idle) {
-            return <StatusIcon Icon={RefreshCw} size="lg" className={WORKBENCH.status.iconMuted} />;
+            return <StatusIcon Icon={RefreshCw} size="lg" className={workbench.status.iconMuted} />;
         }
         if (rpcStatus === appStatus.connection.error) {
             return <StatusIcon Icon={AlertCircle} size="lg" />;
         }
-        return <StatusIcon Icon={EngineIcon} size="lg" className={WORKBENCH.status.iconCurrent} />;
+        return <StatusIcon Icon={EngineIcon} size="lg" className={workbench.status.iconCurrent} />;
     };
 
     const button = (
@@ -324,7 +327,7 @@ function EngineControlChip({
                 }
             }}
             className={cn(
-                WORKBENCH.status.engineButton,
+                workbench.status.engineButton,
                 statusVisual.bg,
                 statusVisual.border,
                 statusVisual.text,
@@ -338,9 +341,9 @@ function EngineControlChip({
             {renderEngineLogo()}
 
             {rpcStatus === appStatus.connection.connected && (
-                <span className={WORKBENCH.status.engineConnectedWrap}>
+                <span className={workbench.status.engineConnectedWrap}>
                     <motion.span
-                        className={cn(WORKBENCH.status.engineConnectedPulse, statusVisual.glow)}
+                        className={cn(workbench.status.engineConnectedPulse, statusVisual.glow)}
                         style={{
                             width: "var(--tt-dot-size)",
                             height: "var(--tt-dot-size)",
@@ -355,7 +358,7 @@ function EngineControlChip({
                         }}
                     />
                     <span
-                        className={WORKBENCH.status.engineConnectedDot}
+                        className={workbench.status.engineConnectedDot}
                         style={{
                             width: "var(--tt-dot-size)",
                             height: "var(--tt-dot-size)",
@@ -366,7 +369,11 @@ function EngineControlChip({
         </button>
     );
 
-    return <AppTooltip content={tooltip} native>{button}</AppTooltip>;
+    return (
+        <AppTooltip content={tooltip} native>
+            {button}
+        </AppTooltip>
+    );
 }
 
 /* ------------------------------------------------------------------ */
@@ -440,13 +447,13 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
     return (
         <footer
-            className={cn(WORKBENCH.status.footer, WORKBENCH.status.surface)}
+            className={cn(workbench.status.footer, workbench.status.surface)}
             style={{
                 ...shellTokens.outerStyle,
             }}
         >
             <div
-                className={WORKBENCH.status.main}
+                className={workbench.status.main}
                 style={{
                     ...shellTokens.surfaceStyle,
                     height: "var(--tt-statusbar-h)",
@@ -456,12 +463,12 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                     label={torrentStatLabel}
                     value={torrentStatValue}
                     Icon={isSelection ? Files : Activity}
-                    className={WORKBENCH.status.statGroupDesktop}
+                    className={workbench.status.statGroupDesktop}
                     align="end"
                 />
 
                 {/* LEFT: SPEEDS - full (shown at sm+) */}
-                <div className={WORKBENCH.status.speedFull}>
+                <div className={workbench.status.speedFull}>
                     <SpeedModule
                         labelKey="status_bar.down"
                         value={downSpeed}
@@ -480,39 +487,37 @@ export function StatusBar({ viewModel }: StatusBarProps) {
                 </div>
 
                 {/* LEFT: SPEEDS - compact (xs) */}
-                <div className={WORKBENCH.status.speedCompact}>
-                    <div className={WORKBENCH.status.speedCompactGraphWrap}>
-                        <div className={WORKBENCH.status.speedCompactLayer}>
-                            <div className={WORKBENCH.status.speedCompactLayer}>
-                                <NetworkGraph
-                                    data={downloadHistory}
-                                    color="success"
-                                    maxValue={compactSpeedGraphMaxValue}
-                                    className={WORKBENCH.status.speedCompactDownGraph}
-                                />
-                            </div>
-                            <div className={WORKBENCH.status.speedCompactUpLayer}>
+                <div className={workbench.status.speedCompact}>
+                    <div className={workbench.status.speedCompactGraphWrap}>
+                        <div className={workbench.status.speedCompactLayer}>
+                            <NetworkGraph
+                                data={downloadHistory}
+                                color="success"
+                                maxValue={compactSpeedGraphMaxValue}
+                                className={workbench.status.speedCompactDownGraph}
+                            />
+                            <div className={workbench.status.speedCompactUpLayer}>
                                 <NetworkGraph
                                     data={uploadHistory}
                                     color="primary"
                                     maxValue={compactSpeedGraphMaxValue}
-                                    className={WORKBENCH.status.speedCompactUpGraph}
+                                    className={workbench.status.speedCompactUpGraph}
                                 />
                             </div>
                         </div>
 
-                        <div className={WORKBENCH.status.speedCompactOverlay}>
-                            <div className={WORKBENCH.status.speedCompactOverlayRow}>
-                                <div className={WORKBENCH.status.speedCompactColumn}>
-                                    <ArrowDown className={WORKBENCH.status.speedCompactDownIcon} aria-hidden="true" />
-                                    <span className={WORKBENCH.status.srOnly}>{t("status_bar.down")}</span>
-                                    <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(downSpeed)}</span>
+                        <div className={workbench.status.speedCompactOverlay}>
+                            <div className={workbench.status.speedCompactOverlayRow}>
+                                <div className={workbench.status.speedCompactColumn}>
+                                    <ArrowDown className={workbench.status.speedCompactDownIcon} aria-hidden="true" />
+                                    <span className={workbench.status.srOnly}>{t("status_bar.down")}</span>
+                                    <span className={workbench.status.speedCompactValue}>{formatSpeed(downSpeed)}</span>
                                 </div>
-                                <div className={WORKBENCH.status.speedCompactDivider} />
-                                <div className={WORKBENCH.status.speedCompactColumn}>
-                                    <ArrowUp className={WORKBENCH.status.speedCompactUpIcon} aria-hidden="true" />
-                                    <span className={WORKBENCH.status.srOnly}>{t("status_bar.up")}</span>
-                                    <span className={WORKBENCH.status.speedCompactValue}>{formatSpeed(upSpeed)}</span>
+                                <div className={workbench.status.speedCompactDivider} />
+                                <div className={workbench.status.speedCompactColumn}>
+                                    <ArrowUp className={workbench.status.speedCompactUpIcon} aria-hidden="true" />
+                                    <span className={workbench.status.srOnly}>{t("status_bar.up")}</span>
+                                    <span className={workbench.status.speedCompactValue}>{formatSpeed(upSpeed)}</span>
                                 </div>
                             </div>
                         </div>
@@ -521,7 +526,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
 
                 {/* RIGHT: HUD */}
                 <div
-                    className={WORKBENCH.status.right}
+                    className={workbench.status.right}
                     style={{
                         height: "var(--tt-statusbar-h)",
                     }}
@@ -545,4 +550,3 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         </footer>
     );
 }
-

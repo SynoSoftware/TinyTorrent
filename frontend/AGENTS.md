@@ -1,7 +1,26 @@
 # TinyTorrent Frontend AGENTS.md
 
 This file governs work inside `frontend/`.
-Root `AGENTS.md` still applies. If this file conflicts with the root file, the root file wins.
+Root `AGENTS.md` still applies. If a rule in the root AGENTS.md conflicts with frontend-specific constraints:
+
+- Do not override the root rule.
+- Do not implement a workaround.
+- Report the conflict to the user.
+- Propose a concrete resolution.
+- Stop execution of any task, until the conflict is resolved.
+
+AGENTS.md defines evergreen policy, not task-specific instructions.
+
+When editing AGENTS.md:
+
+- Only add rules that are general, reusable, and independent of the current codebase state.
+- Do not include migration steps, repo-specific cleanup instructions, or temporary guidance.
+- If a requested change is task-specific, do not insert it into AGENTS.md; instead, explain why it belongs outside (e.g. in a task, PR, or migration plan).
+
+When proposing additions:
+
+- Prefer minimal, enforceable rules over explanations or examples.
+- Do not expand AGENTS.md with content that depends on the current migration stage or existing code structure.
 
 ## Purpose
 
@@ -15,6 +34,15 @@ The default good change in this repo:
 - adds no new abstraction unless there is a clear immediate need
 
 If a solution is clever, broad, or highly structured, it is probably wrong for this codebase.
+
+## Formatting Discipline
+
+Preserve unrelated code formatting.
+
+- Do not reformat lines, wrapping, spacing, import layout, or text structure outside the code required for the task.
+- Do not produce formatting-only churn in touched files unless the user explicitly asks for formatting cleanup.
+- When editing an existing file, follow that file's local coding style for line breaks, spacing, naming, and layout.
+- If the local style is inconsistent, match the nearest surrounding code instead of normalizing the whole file.
 
 ## Default Bias
 
@@ -274,16 +302,63 @@ Presentation should not become a hidden policy owner.
 
 ### Surface Styling Authority
 
-- `src/config/logic.ts` is the single authority for semantic surface styling.
+- `src/config/logic.ts` is the single authority for non-rendering visual product configuration and shared visual recipes that are not styling dimensions.
 - `src/config/constants.json` is for non-visual configuration only.
 - Feature code must not author raw CSS for visual treatment.
 - `className`, `itemClasses`, and similar props are not styling authority.
-- `src/shared/ui/uiRoles.ts` must not define surfaces.
 - HeroUI is the control layer, not the surface-selection authority.
 - `src/index.css` owns global geometry and CSS tokens.
 - Prefer reducing token count over preserving local convenience tokens; consolidation reduces drift.
 - New semantic tokens must never be introduced without explicit user permission.
-- `src/shared/ui/layout/glass-surface.ts` must be fully static. No functions, no params, no branching. If styling depends on runtime state, move that logic out and expose only static variants there.
+- Styling is organized by dimension, each with a single authority:
+  - `src/shared/ui/layout/glass-surface.ts` → surface
+    container shape, background, elevation, blur
+- `src/shared/ui/uiRoles.ts` → non-surface semantic roles  
+  composable appearance modifiers (tone, emphasis, edge) that can be applied to any surface  
+  examples: text color, opacity, emphasis levels
+- No dimension may be defined in more than one place.
+- No shared authority file may define more than one dimension.
+- Composition of dimensions is allowed only at usage sites (components), not inside authority files.
+- `src/shared/ui/layout/glass-surface.ts` and `src/shared/ui/uiRoles.ts` must be fully static.
+  Styling exports must be static strings only.
+  No functions, no params, no branching, no runtime composition helpers.
+
+All UI styling must be expressed as composition of dimensions, not specialized tokens.
+
+Example:
+
+`SURFACE.panel + uiRoles.text.muted`
+
+If a style can be expressed via composition, a dedicated token must not exist.
+
+Shared styling should trend toward fewer composable tokens over time.
+
+Shared styling must not include feature or usage semantics.
+
+Forbidden in shared: feature- or usage-shaped naming.
+
+Examples: `settings*`, `workflow*`, `sidebar*`, `table*`, `command*`, `tracker*`, and similar names that describe where something is used instead of how it looks.
+
+Inline visual classes are not allowed in feature code.
+
+Examples of forbidden usage:
+
+- `text-foreground/70`
+- `border-default/20`
+
+All visual styling must come from `glass-surface.ts` or `uiRoles.ts`.
+
+Each dimension must remain small and finite:
+
+- surfaces: about 5-10 variants
+- tones: about 5-8 variants
+
+If this grows, collapse instead of adding.
+
+Each visual intent must have exactly one representation.
+Multiple tokens expressing the same idea are not allowed.
+
+When multiple valid tokens could express the same visual intent, prefer the most composable valid representation. If still tied, prefer the broader shared token. If still tied, prefer the one already most used in the UI.
 
 Required decision procedure:
 

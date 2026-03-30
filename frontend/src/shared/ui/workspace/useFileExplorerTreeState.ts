@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
     FileExplorerEntry,
     FileExplorerFilterMode,
@@ -40,7 +40,10 @@ export const useFileExplorerTreeState = (
 ) => {
     const wantedByIndexOverride = overrides?.wantedByIndex;
     const priorityByIndexOverride = overrides?.priorityByIndex;
-    const initialExpandedIds = overrides?.initialExpandedIds ?? [];
+    const initialExpandedIds = useMemo(
+        () => overrides?.initialExpandedIds ?? [],
+        [overrides?.initialExpandedIds],
+    );
     const onExpandedIdsChange = overrides?.onExpandedIdsChange;
     const [searchQueryState, setSearchQuery] = useState("");
     const [filterMode, setFilterMode] = useState<FileExplorerFilterMode>("all");
@@ -48,19 +51,6 @@ export const useFileExplorerTreeState = (
         () => new Set(initialExpandedIds),
     );
     const searchQuery = overrides?.searchQuery ?? searchQueryState;
-    const initialExpandedIdSet = useMemo(
-        () => new Set(initialExpandedIds),
-        [initialExpandedIds],
-    );
-
-    useEffect(() => {
-        setExpandedIds((current) =>
-            areStringSetsEqual(current, initialExpandedIdSet)
-                ? current
-                : initialExpandedIdSet,
-        );
-    }, [initialExpandedIdSet]);
-
     const filteredFiles = useMemo(
         () => filterEntries(files, searchQuery, filterMode),
         [files, searchQuery, filterMode],

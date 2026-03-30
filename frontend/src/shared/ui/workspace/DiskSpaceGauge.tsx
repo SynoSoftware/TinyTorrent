@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
@@ -84,7 +84,7 @@ export function DiskSpaceGauge({
             <div className={METRIC_CHART.capacityGauge.errorRow}>
                 <p
                     style={METRIC_CHART.capacityGauge.baseTextStyle}
-                    className={error ? TEXT_ROLE.statusError : METRIC_CHART.capacityGauge.hint}
+                    className={error ? textRole.statusError : METRIC_CHART.capacityGauge.hint}
                     aria-live={error ? "assertive" : "polite"}
                 >
                     {statusMessage ?? "\u00A0"}

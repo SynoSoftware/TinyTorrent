@@ -13,27 +13,14 @@ import {
     Minus,
     X,
 } from "lucide-react";
-import {
-    Card,
-    CardBody,
-    CardHeader,
-    Checkbox,
-    Select,
-    SelectItem,
-    cn,
-} from "@heroui/react";
+import { Card, CardBody, CardHeader, Checkbox, Select, SelectItem, cn } from "@heroui/react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { formatBytes } from "@/shared/utils/format";
 import { ProgressCell } from "@/shared/ui/components/SmoothProgressBar";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import { TEXT_ROLE } from "@/config/textRoles";
-import {
-    FILE_BROWSER,
-    FORM_CONTROL,
-    FORM,
-    TABLE,
-} from "@/shared/ui/layout/glass-surface";
+import { textRole } from "@/config/textRoles";
+import { FILE_BROWSER, FORM_CONTROL, FORM, TABLE } from "@/shared/ui/layout/glass-surface";
 import {
     fileExplorerPriorityValues,
     getFileExplorerSelectablePriorityKeys,
@@ -78,9 +65,7 @@ export const prioritySelectOptions = [
     value: LibtorrentPriority | "skip";
 }>;
 
-const priorityOptionsByKey = new Map(
-    prioritySelectOptions.map((option) => [option.key, option] as const),
-);
+const priorityOptionsByKey = new Map(prioritySelectOptions.map((option) => [option.key, option] as const));
 
 interface FileExplorerTreeRowProps {
     row: FileNodeRowViewModel;
@@ -89,10 +74,7 @@ interface FileExplorerTreeRowProps {
     layout: "table" | "card";
     onToggleExpand: () => void;
     onWantedChange: (wanted: boolean) => void;
-    onSetPriority: (
-        priority: LibtorrentPriority | "skip",
-        indexes?: number[],
-    ) => void;
+    onSetPriority: (priority: LibtorrentPriority | "skip", indexes?: number[]) => void;
     t: (key: string) => string;
 }
 
@@ -125,16 +107,13 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 }: FileExplorerTreeRowProps) {
     const progress = row.node.progress;
     const displayProgress = Math.max(0, Math.min(progress / 100, 1));
-    const completedBytes =
-        row.node.bytesCompleted ?? row.node.totalSize * displayProgress;
+    const completedBytes = row.node.bytesCompleted ?? row.node.totalSize * displayProgress;
     const renderedIcon = row.node.isFolder ? (
         <Folder className={FILE_BROWSER.rowFolderIcon} />
     ) : (
         getFileIcon(row.node.name)
     );
-    const selectablePriorityKeys = getFileExplorerSelectablePriorityKeys(
-        !row.allowsSkipPriority,
-    );
+    const selectablePriorityKeys = getFileExplorerSelectablePriorityKeys(!row.allowsSkipPriority);
     const renderedPriorityOptions = selectablePriorityKeys
         .map((key) => priorityOptionsByKey.get(key))
         .filter((option) => option != null);
@@ -150,9 +129,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 onSetPriority(option.value, row.node.descendantIndexes);
             }}
             placeholder={
-                row.node.isFolder && row.prioritySelection.size === 0
-                    ? t("priority.mixed")
-                    : t("fields.priority")
+                row.node.isFolder && row.prioritySelection.size === 0 ? t("priority.mixed") : t("fields.priority")
             }
             variant="bordered"
             size="sm"
@@ -161,10 +138,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             {renderedPriorityOptions.map((option) => {
                 const Icon = option.icon;
                 return (
-                    <SelectItem
-                        key={option.key}
-                        startContent={<Icon className={option.iconClass} />}
-                    >
+                    <SelectItem key={option.key} startContent={<Icon className={option.iconClass} />}>
                         {t(option.labelKey)}
                     </SelectItem>
                 );
@@ -176,9 +150,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             progressPercent={progress}
             completedBytes={completedBytes}
             indicatorClassName={
-                row.isWanted
-                    ? TABLE.columnDefs.progressIndicatorActive
-                    : TABLE.columnDefs.progressIndicatorPaused
+                row.isWanted ? TABLE.columnDefs.progressIndicatorActive : TABLE.columnDefs.progressIndicatorPaused
             }
             ariaLabel={t("labels.download_progress")}
         />
@@ -187,10 +159,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     if (layout === "card") {
         return (
             <Card
-                className={cn(
-                    FORM.sectionCard,
-                    !row.isWanted && FILE_BROWSER.rowDimmed,
-                )}
+                className={cn(FORM.sectionCard, !row.isWanted && FILE_BROWSER.rowDimmed)}
                 style={
                     {
                         "--tt-file-depth": String(row.node.depth),
@@ -234,21 +203,13 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                                     {row.node.isFolder ? (
                                         <button
                                             type="button"
-                                            className={cn(
-                                                FORM.sectionTitle,
-                                                FILE_BROWSER.cardTitleButton,
-                                            )}
+                                            className={cn(FORM.sectionTitle, FILE_BROWSER.cardTitleButton)}
                                             onClick={onToggleExpand}
                                         >
                                             {row.node.name}
                                         </button>
                                     ) : (
-                                        <span
-                                            className={cn(
-                                                FORM.sectionTitle,
-                                                FILE_BROWSER.cardTitleText,
-                                            )}
-                                        >
+                                        <span className={cn(FORM.sectionTitle, FILE_BROWSER.cardTitleText)}>
                                             {row.node.name}
                                         </span>
                                     )}
@@ -256,7 +217,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                                 <p
                                     className={cn(
                                         FORM.sectionDescription,
-                                        TEXT_ROLE.caption,
+                                        textRole.caption,
                                         FILE_BROWSER.cardDescription,
                                     )}
                                 >
@@ -267,18 +228,10 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     </div>
                 </CardHeader>
                 <CardBody className={cn(FORM.sectionBody, FILE_BROWSER.cardBody)}>
-                    {renderedProgress ? (
-                        <div className={FILE_BROWSER.rowProgressWrap}>
-                            {renderedProgress}
-                        </div>
-                    ) : null}
+                    {renderedProgress ? <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div> : null}
                     <div className={FILE_BROWSER.cardFooter}>
-                        <div className={FILE_BROWSER.cardFooterGroup}>
-                            {renderedPriorityControl}
-                        </div>
-                        <div className={FILE_BROWSER.rowSizeText}>
-                            {formatBytes(row.node.totalSize)}
-                        </div>
+                        <div className={FILE_BROWSER.cardFooterGroup}>{renderedPriorityControl}</div>
+                        <div className={FILE_BROWSER.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
                     </div>
                 </CardBody>
             </Card>
@@ -287,10 +240,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 
     return (
         <div
-            className={cn(
-                FILE_BROWSER.row,
-                !row.isWanted && FILE_BROWSER.rowDimmed,
-            )}
+            className={cn(FILE_BROWSER.row, !row.isWanted && FILE_BROWSER.rowDimmed)}
             style={
                 {
                     "--tt-file-depth": String(row.node.depth),
@@ -335,9 +285,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     <span
                         className={cn(
                             FILE_BROWSER.rowNameBase,
-                            row.node.isFolder
-                                ? FILE_BROWSER.rowNameFolder
-                                : FILE_BROWSER.rowNameFile,
+                            row.node.isFolder ? FILE_BROWSER.rowNameFolder : FILE_BROWSER.rowNameFile,
                         )}
                         onClick={row.node.isFolder ? onToggleExpand : undefined}
                     >
@@ -348,13 +296,9 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
 
             <div className={FILE_BROWSER.rowPriorityWrap}>{renderedPriorityControl}</div>
 
-            {renderedProgress ? (
-                <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div>
-            ) : null}
+            {renderedProgress ? <div className={FILE_BROWSER.rowProgressWrap}>{renderedProgress}</div> : null}
 
-            <div className={FILE_BROWSER.rowSizeText}>
-                {formatBytes(row.node.totalSize)}
-            </div>
+            <div className={FILE_BROWSER.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
         </div>
     );
 });

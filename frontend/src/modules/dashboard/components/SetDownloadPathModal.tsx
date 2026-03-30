@@ -9,7 +9,7 @@ import { resolveDestinationValidationDecision } from "@/shared/domain/destinatio
 import { registry } from "@/config/logic";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 import { formatBytes } from "@/shared/utils/format";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { DestinationPathEditor, type DestinationPathFeedback } from "@/shared/ui/workspace/DestinationPathEditor";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import { useDestinationPathValidation } from "@/shared/hooks/useDestinationPathValidation";
@@ -64,10 +64,7 @@ const resolvePathFeedbackState = ({
         };
     }
 
-    if (
-        applyDecision.blockReason === "invalid" &&
-        applyDecision.blockMessageKey
-    ) {
+    if (applyDecision.blockReason === "invalid" && applyDecision.blockMessageKey) {
         return {
             kind: "message",
             message: t(applyDecision.blockMessageKey),
@@ -133,10 +130,7 @@ export default function SetDownloadPathModal({
             return;
         }
         wasOpenRef.current = true;
-        const nextPath = normalizeDestinationPathForDaemon(
-            initialPath,
-            daemonPathStyle,
-        );
+        const nextPath = normalizeDestinationPathForDaemon(initialPath, daemonPathStyle);
         setPath(nextPath);
         setIsSubmitting(false);
         setSubmitError(null);
@@ -188,8 +182,7 @@ export default function SetDownloadPathModal({
         applyDecision,
         t,
     });
-    const isInputInvalid =
-        Boolean(submitError) || applyDecision.blockReason === "invalid";
+    const isInputInvalid = Boolean(submitError) || applyDecision.blockReason === "invalid";
 
     const handleApply = useCallback(async () => {
         if (isSubmitting) return;
@@ -198,9 +191,7 @@ export default function SetDownloadPathModal({
                 return;
             }
             setSubmitError(
-                applyDecision.blockMessageKey
-                    ? t(applyDecision.blockMessageKey)
-                    : t("directory_browser.error"),
+                applyDecision.blockMessageKey ? t(applyDecision.blockMessageKey) : t("directory_browser.error"),
             );
             return;
         }
@@ -216,13 +207,7 @@ export default function SetDownloadPathModal({
         } finally {
             setIsSubmitting(false);
         }
-    }, [
-        applyDecision,
-        isSubmitting,
-        onApply,
-        onClose,
-        t,
-    ]);
+    }, [applyDecision, isSubmitting, onApply, onClose, t]);
 
     const handleClose = useCallback(() => {
         if (isSubmitting) return;
@@ -268,11 +253,9 @@ export default function SetDownloadPathModal({
                     <DestinationPathEditor
                         id="set-download-location-path"
                         label={t(
-                            currentPath
-                                ? "modals.set_download_location.new_path"
-                                : "directory_browser.path_label",
+                            currentPath ? "modals.set_download_location.new_path" : "directory_browser.path_label",
                         )}
-                        labelClassName={TEXT_ROLE.caption}
+                        labelClassName={textRole.caption}
                         currentPathLabel={t("modals.set_download_location.current_path")}
                         currentPathValue={currentPath}
                         value={path}
@@ -287,7 +270,7 @@ export default function SetDownloadPathModal({
                         isInvalid={isInputInvalid}
                         manualEntryPrompt={manualEntryPrompt}
                         inputClassNames={FORM.locationEditorInputClassNames}
-                        inputTextClassName={TEXT_ROLE.codeMuted}
+                        inputTextClassName={textRole.codeMuted}
                         feedback={pathFeedbackState}
                         browseAction={
                             canPickDirectory
@@ -306,4 +289,3 @@ export default function SetDownloadPathModal({
         </ModalEx>
     );
 }
-

@@ -1627,6 +1627,7 @@ export interface PiecesMapViewModel {
         tooltipRef: RefObject<HTMLDivElement | null>;
     };
     palette: ReturnType<typeof useCanvasPalette>;
+    cellSize: number;
     downloadSpeed: number;
     uploadSpeed: number;
     totalPieces: number;
@@ -2025,6 +2026,7 @@ export function usePiecesMapViewModel({
             tooltipRef,
         },
         palette,
+        cellSize,
         downloadSpeed,
         uploadSpeed,
         totalPieces,

@@ -246,8 +246,7 @@ function main() {
         if (!hasGlassImport) continue;
 
         if (hasTextImport) {
-            tokenAuthorities.add("TEXT_ROLE");
-            tokenAuthorities.add("TEXT_ROLE_EXTENDED");
+            tokenAuthorities.add("textRole");
         }
 
         const trees = collectJsxTokens(sf, tokenAuthorities);

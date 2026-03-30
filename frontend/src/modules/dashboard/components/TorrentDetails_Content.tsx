@@ -10,17 +10,14 @@ import {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { TorrentDetailEntity as TorrentDetail } from "@/services/rpc/entities";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { useFileExplorerViewModel } from "@/modules/dashboard/viewModels/useFileExplorerViewModel";
 
 interface ContentTabProps {
     torrent: Pick<TorrentDetail, "id" | "hash" | "savePath" | "downloadDir">;
     files?: TorrentFileEntity[];
     emptyMessage: string;
-    onFilesToggle?: (
-        indexes: number[],
-        wanted: boolean,
-    ) => Promise<void> | void;
+    onFilesToggle?: (indexes: number[], wanted: boolean) => Promise<void> | void;
     onSetPriority?: (
         indexes: number[],
         priority: import("@/services/rpc/entities").LibtorrentPriority,
@@ -28,23 +25,17 @@ interface ContentTabProps {
     isStandalone?: boolean;
 }
 
-export const ContentTab = ({
-    torrent,
-    files,
-    emptyMessage,
-    onFilesToggle,
-    onSetPriority,
-}: ContentTabProps) => {
+export const ContentTab = ({ torrent, files, emptyMessage, onFilesToggle, onSetPriority }: ContentTabProps) => {
     const { t } = useTranslation();
     const {
         preferences: { torrentFileTreeExpandedIdsByTorrent },
         setTorrentFileTreeExpandedIds,
     } = usePreferences();
     const torrentTreeKey = torrent.hash || torrent.id;
-    const initialExpandedIds =
-        torrentTreeKey.length > 0
-            ? (torrentFileTreeExpandedIdsByTorrent[torrentTreeKey] ?? [])
-            : [];
+    const initialExpandedIds = useMemo(
+        () => (torrentTreeKey.length > 0 ? (torrentFileTreeExpandedIdsByTorrent[torrentTreeKey] ?? []) : []),
+        [torrentTreeKey, torrentFileTreeExpandedIdsByTorrent],
+    );
     const fileToggleCommand = React.useCallback<FileExplorerToggleCommand>(
         async (indexes: number[], wanted: boolean) => {
             if (!onFilesToggle) {
@@ -80,11 +71,7 @@ export const ContentTab = ({
             onFilesToggle: explorer.toggle,
             onExpandedIdsChange:
                 torrentTreeKey.length > 0
-                    ? (expandedIds: readonly string[]) =>
-                          setTorrentFileTreeExpandedIds(
-                              torrentTreeKey,
-                              expandedIds,
-                          )
+                    ? (expandedIds: readonly string[]) => setTorrentFileTreeExpandedIds(torrentTreeKey, expandedIds)
                     : undefined,
             onSetPriority,
         }),
@@ -102,25 +89,15 @@ export const ContentTab = ({
     if (filesCount === 0) {
         return (
             <div className={TABLE.detailsContentRoot}>
-                <AlertPanel
-                    severity={isLoading ? "info" : "warning"}
-                    className={TABLE.detailsContentWarning}
-                >
-                    <div className={TEXT_ROLE.statusWarning}>
-                        {emptyMessage}
-                    </div>
+                <AlertPanel severity={isLoading ? "info" : "warning"} className={TABLE.detailsContentWarning}>
+                    <div className={textRole.statusWarning}>{emptyMessage}</div>
                     {!isLoading ? (
-                        <div className={TABLE.detailsContentRecoveryNote}>
-                            {t("torrent_modal.files_missing_desc")}
-                        </div>
+                        <div className={TABLE.detailsContentRecoveryNote}>{t("torrent_modal.files_missing_desc")}</div>
                     ) : null}
                 </AlertPanel>
             </div>
         );
     }
 
-    return <FileExplorerTree viewModel={fileExplorerViewModel} />;
+    return <FileExplorerTree key={torrentTreeKey} viewModel={fileExplorerViewModel} />;
 };
-
-
-

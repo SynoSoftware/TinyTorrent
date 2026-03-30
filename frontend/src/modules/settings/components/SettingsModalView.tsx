@@ -13,7 +13,7 @@ import { ConnectionCredentialsCard } from "@/modules/settings/components/tabs/co
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
@@ -38,7 +38,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
     return (
         <div className={cn(MODAL.sidebar, !isMobileMenuOpen ? MODAL.sidebarHidden : MODAL.sidebarVisible)}>
             <div className={MODAL.sidebarHeader}>
-                <h2 className={cn(TEXT_ROLE.headingLarge, MODAL.headingFont)}>{t("settings.modal.title")}</h2>
+                <h2 className={cn(textRole.headingLarge, MODAL.headingFont)}>{t("settings.modal.title")}</h2>
                 <Button
                     isIconOnly
                     variant="shadow"
@@ -116,9 +116,7 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
                     <ChevronLeft className={MODAL.iconMd} />
                 </Button>
                 <div className={MODAL.headerTitleWrap}>
-                    <h1 className={cn(TEXT_ROLE.headingLarge, MODAL.headingFont)}>
-                        {t(activeTabDefinition.headerKey)}
-                    </h1>
+                    <h1 className={cn(textRole.headingLarge, MODAL.headingFont)}>{t(activeTabDefinition.headerKey)}</h1>
                 </div>
             </div>
             <ToolbarIconButton

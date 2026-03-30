@@ -436,14 +436,10 @@ const PiecesTooltip = ({
     );
 };
 
-const PiecesLegend = ({
-    legendCells,
-    mode,
-    t,
-    inline,
-}: {
+const PiecesLegend = ({ legendCells, mode, swatchSize, t, inline }: {
     legendCells: Array<LegendCell | null>;
     mode: DownloadMode;
+    swatchSize: number;
     t: Translate;
     inline: boolean;
 }) => (
@@ -454,7 +450,13 @@ const PiecesLegend = ({
                     cell ? (
                         <span key={`piece-map-legend-${cell.key}`} className={SPLIT.mapLegendCell}>
                             <span className={SPLIT.mapLegendItem}>
-                                <span className={`${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[cell.tone]}`} />
+                                <span
+                                    className={`${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[cell.tone]}`}
+                                    style={{
+                                        width: swatchSize,
+                                        height: swatchSize,
+                                    }}
+                                />
                                 <span className={SPLIT.mapLegendText}>{cell.label}</span>
                             </span>
                         </span>
@@ -489,6 +491,7 @@ const PiecesView = ({
     const [panelWidth, setPanelWidth] = useState<number>(PIECE_MAP_HUD.legend_inline_min_width_px);
     const {
         refs: { rootRef, canvasRef, overlayRef, tooltipRef },
+        cellSize,
         totalPieces,
         pieceSizeLabel,
         verifiedCount,
@@ -543,7 +546,7 @@ const PiecesView = ({
                                 t={t}
                             />
                             {showInlineLegend ? (
-                                <PiecesLegend legendCells={legendCells} mode={downloadMode} t={t} inline />
+                                <PiecesLegend legendCells={legendCells} mode={downloadMode} swatchSize={cellSize} t={t} inline />
                             ) : null}
                         </div>
                     )}
@@ -565,7 +568,7 @@ const PiecesView = ({
                         />
                     </div>
                     {showPersistentHud && !showInlineLegend ? (
-                        <PiecesLegend legendCells={legendCells} mode={downloadMode} t={t} inline={false} />
+                        <PiecesLegend legendCells={legendCells} mode={downloadMode} swatchSize={cellSize} t={t} inline={false} />
                     ) : null}
                 </div>
             </div>

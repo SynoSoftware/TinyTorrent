@@ -6,7 +6,7 @@ import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { scheduler } from "@/app/services/scheduler";
 import { registry } from "@/config/logic";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { isLoopbackHost } from "@/app/utils/uiMode";
@@ -17,10 +17,7 @@ import { FORM, MODAL } from "@/shared/ui/layout/glass-surface";
 const { timing, visuals } = registry;
 const AUTO_PROFILE_LABEL_PATTERN = /^Connection \d+$/;
 
-type ConnectionDraft = Pick<
-    ConnectionProfile,
-    "scheme" | "host" | "port" | "username" | "password"
->;
+type ConnectionDraft = Pick<ConnectionProfile, "scheme" | "host" | "port" | "username" | "password">;
 
 type ConnectionSubmitIntent = "connect" | "connect_local" | "reconnect";
 
@@ -76,42 +73,22 @@ function ConnectionFieldRow({ label, children }: ConnectionFieldRowProps) {
 export function ConnectionCredentialsCard() {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [draftOverride, setDraftOverride] =
-        useState<ConnectionDraftOverride | null>(null);
-    const [pendingAction, setPendingAction] =
-        useState<PendingConnectionAction | null>(null);
-    const { activeProfile, activeRpcConnection, updateProfile } =
-        useConnectionConfig();
-    const {
-        primeNextProbe,
-        reconnect,
-        rpcStatus,
-        uiCapabilities,
-    } = useSession();
+    const [draftOverride, setDraftOverride] = useState<ConnectionDraftOverride | null>(null);
+    const [pendingAction, setPendingAction] = useState<PendingConnectionAction | null>(null);
+    const { activeProfile, activeRpcConnection, updateProfile } = useConnectionConfig();
+    const { primeNextProbe, reconnect, rpcStatus, uiCapabilities } = useSession();
 
-    const committedDraft = useMemo(
-        () => toConnectionDraft(activeProfile),
-        [activeProfile],
-    );
-    const draft =
-        draftOverride?.profileId === activeProfile.id
-            ? draftOverride.draft
-            : committedDraft;
-    const hasDraftChanges = useMemo(
-        () => !draftsEqual(draft, committedDraft),
-        [committedDraft, draft],
-    );
-    const isDraftValid =
-        draft.host.trim().length > 0 && draft.port.trim().length > 0;
+    const committedDraft = useMemo(() => toConnectionDraft(activeProfile), [activeProfile]);
+    const draft = draftOverride?.profileId === activeProfile.id ? draftOverride.draft : committedDraft;
+    const hasDraftChanges = useMemo(() => !draftsEqual(draft, committedDraft), [committedDraft, draft]);
+    const isDraftValid = draft.host.trim().length > 0 && draft.port.trim().length > 0;
     const currentServerUrl = activeRpcConnection.serverUrl;
     const isCurrentLoopback = uiCapabilities.isLoopback;
     const isDraftLoopback = isLoopbackHost(draft.host);
     const isDraftLocalDefaults = draftsEqual(draft, LOCAL_CONNECTION_DRAFT);
-    const showConnectLocalAction =
-        !isCurrentLoopback && !isDraftLocalDefaults;
+    const showConnectLocalAction = !isCurrentLoopback && !isDraftLocalDefaults;
     const isFullMode = uiCapabilities.uiMode === "Full";
-    const showCompactLocalCard =
-        isFullMode && isCurrentLoopback && !showAdvanced && !hasDraftChanges;
+    const showCompactLocalCard = isFullMode && isCurrentLoopback && !showAdvanced && !hasDraftChanges;
     const modeLabelKey = isFullMode
         ? "settings.connection.ui_mode_full_label"
         : "settings.connection.ui_mode_rpc_label";
@@ -144,59 +121,41 @@ export function ConnectionCredentialsCard() {
             return t("settings.connection.insecure_http_warning");
         }
         return null;
-    }, [
-        currentConnectionUsesInsecureBasicAuth,
-        draftUsesInsecureBasicAuth,
-        hasDraftChanges,
-        t,
-    ]);
-    const visiblePendingAction =
-        rpcStatus === status.connection.connected ? null : pendingAction;
+    }, [currentConnectionUsesInsecureBasicAuth, draftUsesInsecureBasicAuth, hasDraftChanges, t]);
+    const visiblePendingAction = rpcStatus === status.connection.connected ? null : pendingAction;
     const connectionStatusLabel = useMemo(() => {
         if (visiblePendingAction !== null) {
             return t("settings.connection.connecting");
         }
-        return rpcStatus === status.connection.connected
-            ? t("status_bar.rpc_connected")
-            : t("status_bar.rpc_error");
+        return rpcStatus === status.connection.connected ? t("status_bar.rpc_connected") : t("status_bar.rpc_error");
     }, [rpcStatus, t, visiblePendingAction]);
-    const connectionStatusColor = useMemo<"success" | "warning" | "danger">(
-        () => {
-            if (visiblePendingAction !== null) {
-                return "warning";
-            }
-            return rpcStatus === status.connection.connected
-                ? "success"
-                : "danger";
-        },
-        [rpcStatus, visiblePendingAction],
-    );
+    const connectionStatusColor = useMemo<"success" | "warning" | "danger">(() => {
+        if (visiblePendingAction !== null) {
+            return "warning";
+        }
+        return rpcStatus === status.connection.connected ? "success" : "danger";
+    }, [rpcStatus, visiblePendingAction]);
     const statusIcon = useMemo(() => {
         if (visiblePendingAction !== null) {
             return RefreshCw;
         }
-        return rpcStatus === status.connection.connected
-            ? CheckCircle
-            : XCircle;
+        return rpcStatus === status.connection.connected ? CheckCircle : XCircle;
     }, [rpcStatus, visiblePendingAction]);
     const StatusIcon = statusIcon;
     const isConnectionBusy = visiblePendingAction !== null;
     const pendingIntent = visiblePendingAction?.intent ?? null;
 
     useEffect(() => {
-        if (
-            pendingAction === null ||
-            rpcStatus === status.connection.connected
-        ) {
+        if (pendingAction === null || rpcStatus === status.connection.connected) {
             return;
         }
-        const remainingMs =
-            pendingAction.startedAtMs + timing.connection.timeoutMs - Date.now();
-        return scheduler.scheduleTimeout(() => {
-            setPendingAction((current) =>
-                current === pendingAction ? null : current,
-            );
-        }, Math.max(remainingMs, 0));
+        const remainingMs = pendingAction.startedAtMs + timing.connection.timeoutMs - Date.now();
+        return scheduler.scheduleTimeout(
+            () => {
+                setPendingAction((current) => (current === pendingAction ? null : current));
+            },
+            Math.max(remainingMs, 0),
+        );
     }, [pendingAction, rpcStatus]);
 
     const updateDraft = useCallback(
@@ -204,11 +163,7 @@ export function ConnectionCredentialsCard() {
             setDraftOverride((previous) => ({
                 profileId: activeProfile.id,
                 draft: {
-                    ...(
-                        previous?.profileId === activeProfile.id
-                            ? previous.draft
-                            : committedDraft
-                    ),
+                    ...(previous?.profileId === activeProfile.id ? previous.draft : committedDraft),
                     ...patch,
                 },
             }));
@@ -221,8 +176,7 @@ export function ConnectionCredentialsCard() {
             const draftToCommit = nextDraft ?? draft;
             if (
                 intent !== "reconnect" &&
-                (draftToCommit.host.trim().length === 0 ||
-                    draftToCommit.port.trim().length === 0)
+                (draftToCommit.host.trim().length === 0 || draftToCommit.port.trim().length === 0)
             ) {
                 return;
             }
@@ -273,12 +227,7 @@ export function ConnectionCredentialsCard() {
             variant="flat"
             color={connectionStatusColor}
             className={FORM.systemStatusChip}
-            startContent={
-                <StatusIcon
-                    strokeWidth={visuals.icon.strokeWidth}
-                    className={FORM.connection.iconSmall}
-                />
-            }
+            startContent={<StatusIcon strokeWidth={visuals.icon.strokeWidth} className={FORM.connection.iconSmall} />}
         >
             {connectionStatusLabel}
         </Chip>
@@ -289,46 +238,30 @@ export function ConnectionCredentialsCard() {
             <div className={FORM.sectionContentStack}>
                 <div className={FORM.connection.topRow}>
                     <div className={FORM.sectionHeaderStack}>
-                        <h3 className={FORM.connection.profileTitle}>
-                            {profileLabel}
-                        </h3>
-                        <p className={FORM.connection.profileEndpoint}>
-                            {currentServerUrl}
-                        </p>
+                        <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
+                        <p className={FORM.connection.profileEndpoint}>{currentServerUrl}</p>
                     </div>
                     <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
                 </div>
                 <div className={FORM.interfaceRowActions}>
-                    <Button
-                        size="md"
-                        variant="ghost"
-                        onPress={() => setShowAdvanced(true)}
-                    >
+                    <Button size="md" variant="ghost" onPress={() => setShowAdvanced(true)}>
                         {t("settings.connection.show_advanced")}
                     </Button>
                 </div>
-                <p className={TEXT_ROLE.caption}>
-                    {t("settings.connection.local_mode_info")}
-                </p>
+                <p className={textRole.caption}>{t("settings.connection.local_mode_info")}</p>
             </div>
         );
     }
 
-    const primaryActionLabel = hasDraftChanges
-        ? t("settings.connection.connect")
-        : t("settings.connection.reconnect");
-    const primaryActionIntent: ConnectionSubmitIntent = hasDraftChanges
-        ? "connect"
-        : "reconnect";
+    const primaryActionLabel = hasDraftChanges ? t("settings.connection.connect") : t("settings.connection.reconnect");
+    const primaryActionIntent: ConnectionSubmitIntent = hasDraftChanges ? "connect" : "reconnect";
 
     return (
         <div className={FORM.sectionContentStack}>
             <div className={FORM.connection.topRow}>
                 <div className={FORM.sectionHeaderStack}>
                     <h3 className={FORM.connection.profileTitle}>{profileLabel}</h3>
-                    <p className={FORM.connection.profileEndpoint}>
-                        {currentServerUrl}
-                    </p>
+                    <p className={FORM.connection.profileEndpoint}>{currentServerUrl}</p>
                 </div>
                 <div className={MODAL.dialogFooterGroup}>{renderStatusChip}</div>
             </div>
@@ -339,9 +272,7 @@ export function ConnectionCredentialsCard() {
                         variant="bordered"
                         size="md"
                         value={draft.host}
-                        onChange={(event) =>
-                            updateDraft({ host: event.target.value })
-                        }
+                        onChange={(event) => updateDraft({ host: event.target.value })}
                         className={FORM.connection.inputHeight}
                         isDisabled={isConnectionBusy}
                     />
@@ -353,9 +284,7 @@ export function ConnectionCredentialsCard() {
                         size="md"
                         type="text"
                         value={draft.port}
-                        onChange={(event) =>
-                            updateDraft({ port: event.target.value })
-                        }
+                        onChange={(event) => updateDraft({ port: event.target.value })}
                         className={FORM.connection.inputHeight}
                         isDisabled={isConnectionBusy}
                     />
@@ -366,9 +295,7 @@ export function ConnectionCredentialsCard() {
                         variant="bordered"
                         size="md"
                         value={draft.username}
-                        onChange={(event) =>
-                            updateDraft({ username: event.target.value })
-                        }
+                        onChange={(event) => updateDraft({ username: event.target.value })}
                         isDisabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
@@ -379,16 +306,12 @@ export function ConnectionCredentialsCard() {
                         size="md"
                         type="password"
                         value={draft.password}
-                        onChange={(event) =>
-                            updateDraft({ password: event.target.value })
-                        }
+                        onChange={(event) => updateDraft({ password: event.target.value })}
                         isDisabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
                 {insecureAuthNotice !== null && (
-                    <p className={FORM.connection.insecureAuthWarning}>
-                        {insecureAuthNotice}
-                    </p>
+                    <p className={FORM.connection.insecureAuthWarning}>{insecureAuthNotice}</p>
                 )}
                 <div className={FORM.inputActionRow}>
                     <div className={FORM.interfaceRowActions}>
@@ -412,11 +335,7 @@ export function ConnectionCredentialsCard() {
                                 void handleSubmit(primaryActionIntent);
                             }}
                             type="button"
-                            isDisabled={
-                                isConnectionBusy ||
-                                (primaryActionIntent === "connect" &&
-                                    !isDraftValid)
-                            }
+                            isDisabled={isConnectionBusy || (primaryActionIntent === "connect" && !isDraftValid)}
                             isLoading={pendingIntent === primaryActionIntent}
                             startContent={
                                 pendingIntent === primaryActionIntent ? undefined : (
@@ -434,17 +353,10 @@ export function ConnectionCredentialsCard() {
                 {rpcStatus === status.connection.connected && (
                     <div className={FORM.connection.statusFooter}>
                         <div className={FORM.connection.statusFooterRow}>
-                            <Monitor
-                                strokeWidth={visuals.icon.strokeWidth}
-                                className={FORM.workflow.statusInfoIcon}
-                            />
+                            <Monitor strokeWidth={visuals.icon.strokeWidth} className={FORM.workflow.statusInfoIcon} />
                             <div className={FORM.stackTools}>
-                                <p className={TEXT_ROLE.bodyStrong}>
-                                    {t(modeLabelKey)}
-                                </p>
-                                <p className={TEXT_ROLE.bodySmall}>
-                                    {t(modeSummaryKey)}
-                                </p>
+                                <p className={textRole.bodyStrong}>{t(modeLabelKey)}</p>
+                                <p className={textRole.bodySmall}>{t(modeSummaryKey)}</p>
                             </div>
                         </div>
                     </div>

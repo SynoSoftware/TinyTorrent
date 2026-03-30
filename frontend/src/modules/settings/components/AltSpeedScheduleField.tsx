@@ -16,6 +16,7 @@ import {
     useSettingsFormActions,
     useSettingsFormState,
 } from "@/modules/settings/context/SettingsFormContext";
+import { SURFACE } from "@/shared/ui/layout/glass-surface";
 import { uiRoles } from "@/shared/ui/uiRoles";
 
 const dayMinutes = 24 * 60;
@@ -562,7 +563,7 @@ export function AltSpeedScheduleField({
             <div
                 aria-disabled={isDisabled}
                 className={cn(
-                    uiRoles.surfaces.panel,
+                    SURFACE.surface.panelRaised,
                     schedulerEnabled ? uiRoles.text.primary : uiRoles.text.subtle,
                 )}
                 style={panelStyle}
@@ -578,12 +579,12 @@ export function AltSpeedScheduleField({
                         </span>
                     ))}
                 </div>
-                <div className={uiRoles.surfaces.panel} style={railPanelStyle}>
+                <div className={SURFACE.surface.panelRaised} style={railPanelStyle}>
                     <div style={isDisabled ? disabledContentStyle : undefined}>
                         <div
                             ref={railRef}
                             data-alt-speed-track="true"
-                            className={cn(uiRoles.surfaces.inset, uiRoles.borders.subtle)}
+                            className={SURFACE.atom.insetBorderedItem}
                             onClick={handleRailClick}
                             onMouseEnter={() => setIsRailActive(true)}
                             onMouseLeave={() => {
@@ -726,7 +727,7 @@ export function AltSpeedScheduleField({
                     </div>
                 </div>
                 <div style={isDisabled ? disabledContentStyle : undefined}>
-                    <div className={cn(uiRoles.surfaces.inset, uiRoles.borders.subtle)} style={presetsPanelStyle}>
+                    <div className={SURFACE.atom.insetBorderedItem} style={presetsPanelStyle}>
                         <span className={uiRoles.text.subtle}>
                             {t("settings.labels.altSpeedPresetGroup")}
                         </span>

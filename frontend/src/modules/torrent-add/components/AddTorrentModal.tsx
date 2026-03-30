@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Checkbox, cn } from "@heroui/react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
-import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 
 const SETTINGS_PANEL_DEFAULT = 40;
 const SETTINGS_PANEL_MIN = 25;
@@ -78,24 +78,8 @@ export function AddTorrentModal({
         onConfirm,
         source,
     });
-    const {
-        modal,
-        destination,
-        magnet,
-        dragDrop,
-        table,
-        settings,
-        submission,
-        source: sourceViewModel,
-    } = viewModel;
-    const {
-        formRef,
-        handleFormKeyDown,
-        handleFormSubmit,
-        handleModalCancel,
-        modalSize,
-        requestSubmit,
-    } = modal;
+    const { modal, destination, magnet, dragDrop, table, settings, submission, source: sourceViewModel } = viewModel;
+    const { formRef, handleFormKeyDown, handleFormSubmit, handleModalCancel, modalSize, requestSubmit } = modal;
     const { hasDestination, showDestinationGate, uiMode } = destination;
     const isMagnetMode = source?.kind === "magnet";
     const { dropActive, handleDragLeave, handleDragOver, handleDrop } = dragDrop;
@@ -155,7 +139,7 @@ export function AddTorrentModal({
         : t("modals.add_torrent.title");
     const modalTitleContent = (
         <>
-            <span className={`${TEXT_ROLE_EXTENDED.modalTitle} truncate`}>{modalTitle}</span>
+            <span className={cn(textRole.headingCaps, "truncate")}>{modalTitle}</span>
             {sourceLabel ? (
                 <span
                     className={
@@ -226,8 +210,7 @@ export function AddTorrentModal({
             onEnter: requestSubmit,
             feedback: destination.step2Feedback,
             startPaused: commitMode === "paused",
-            setStartPaused: (next: boolean) =>
-                onCommitModeChange(next ? "paused" : "start"),
+            setStartPaused: (next: boolean) => onCommitModeChange(next ? "paused" : "start"),
             showTransferFlags: true,
             sequentialDownloadCapability,
             autoFocusDestination: source?.kind !== "magnet",
@@ -256,13 +239,7 @@ export function AddTorrentModal({
             onRowSelectionChange: table.onRowSelectionChange,
             onSetPriority: table.onSetPriority,
         }),
-        [
-            table.files,
-            table.priorities,
-            table.rowSelection,
-            table.onRowSelectionChange,
-            table.onSetPriority,
-        ],
+        [table.files, table.priorities, table.rowSelection, table.onRowSelectionChange, table.onSetPriority],
     );
     const modalContextValue = useMemo(
         () => ({
@@ -311,7 +288,7 @@ export function AddTorrentModal({
                                 <div className={MODAL.workflow.dropOverlay}>
                                     <div className={MODAL.workflow.dropOverlayChip}>
                                         <FolderOpen className={MODAL.workflow.iconLgPrimary} />
-                                        <span className={TEXT_ROLE.heading}>
+                                        <span className={textRole.heading}>
                                             {hasDestination
                                                 ? t("modals.add_torrent.drop_to_change_destination")
                                                 : uiMode === "Rpc"
@@ -404,12 +381,8 @@ export function AddTorrentModal({
                             {!isMagnetMode ? (
                                 <Checkbox
                                     isSelected={!showAddDialog}
-                                    onValueChange={(value) =>
-                                        onShowAddDialogChange(!value)
-                                    }
-                                    classNames={
-                                        FORM_CONTROL.checkboxLabelBodySmallClassNames
-                                    }
+                                    onValueChange={(value) => onShowAddDialogChange(!value)}
+                                    classNames={FORM_CONTROL.checkboxLabelBodySmallClassNames}
                                 >
                                     {t("modals.add_torrent.dont_show_again")}
                                 </Checkbox>
@@ -439,4 +412,3 @@ export function AddTorrentModal({
         </ModalEx>
     );
 }
-

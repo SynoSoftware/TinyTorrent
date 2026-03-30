@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import {
     FORM_CONTROL,
     SURFACE,
-    CONTEXT_MENU,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 

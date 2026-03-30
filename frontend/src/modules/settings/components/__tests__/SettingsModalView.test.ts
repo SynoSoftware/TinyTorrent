@@ -185,7 +185,7 @@ vi.mock("@/modules/settings/components/InterfaceTabContent", () => ({
 }));
 
 vi.mock("@/config/textRoles", () => ({
-    TEXT_ROLE: {
+    textRole: {
         headingLarge: "heading-large",
         caption: "caption",
     },

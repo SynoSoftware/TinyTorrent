@@ -7,13 +7,8 @@ import { formatDurationMs, formatSpeed } from "@/shared/utils/format";
 import { scheduler } from "@/app/services/scheduler";
 import { registry } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-import {
-    HISTORY_POINTS,
-    getCssToken,
-    useCanvasPalette,
-} from "@/modules/dashboard/hooks/utils/canvasUtils";
+import { HISTORY_POINTS, getCssToken, useCanvasPalette } from "@/modules/dashboard/hooks/utils/canvasUtils";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
 import { cn } from "@heroui/react";
 import { METRIC_CHART } from "@/shared/ui/layout/glass-surface";
 const { visualizations } = registry;
@@ -49,18 +44,13 @@ const nowMs = () => {
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
 /** Data Processing Utilities */
-const resampleTimed = (
-    history: TimedValue[],
-    windowMs: number,
-    buckets: number,
-): number[] => {
+const resampleTimed = (history: TimedValue[], windowMs: number, buckets: number): number[] => {
     // Current time drives the window, NOT the last data point.
     // This ensures the graph scrolls left even if no new data comes in.
     const end = nowMs();
     const start = end - windowMs;
 
-    if (!history.length || buckets <= 0)
-        return Array(Math.max(buckets, 0)).fill(0);
+    if (!history.length || buckets <= 0) return Array(Math.max(buckets, 0)).fill(0);
 
     const bucketMs = windowMs / buckets;
     const sums = Array(buckets).fill(0);
@@ -68,10 +58,7 @@ const resampleTimed = (
 
     for (const item of history) {
         if (item.ts < start || item.ts > end) continue;
-        const idx = Math.min(
-            buckets - 1,
-            Math.floor((item.ts - start) / bucketMs),
-        );
+        const idx = Math.min(buckets - 1, Math.floor((item.ts - start) / bucketMs));
         sums[idx] += item.value;
         counts[idx] += 1;
     }
@@ -79,12 +66,7 @@ const resampleTimed = (
     return sums.map((sum, i) => (counts[i] ? sum / counts[i] : 0));
 };
 
-const buildPoints = (
-    values: number[],
-    width: number,
-    height: number,
-    maxValue: number,
-): Point[] => {
+const buildPoints = (values: number[], width: number, height: number, maxValue: number): Point[] => {
     if (!values.length || width <= 0 || height <= 0) return [];
     const spacing = values.length > 1 ? width / (values.length - 1) : width;
     const denom = Math.max(maxValue, speedChart.canvasDenomFloor);
@@ -111,11 +93,7 @@ const strokeSmooth = (ctx: CanvasRenderingContext2D, points: Point[]) => {
     ctx.lineTo(last.x, last.y);
 };
 
-const fillSmooth = (
-    ctx: CanvasRenderingContext2D,
-    points: Point[],
-    height: number,
-) => {
+const fillSmooth = (ctx: CanvasRenderingContext2D, points: Point[], height: number) => {
     if (points.length < 2) return;
     ctx.beginPath();
     ctx.moveTo(points[0].x, height);
@@ -135,24 +113,12 @@ const fillSmooth = (
     ctx.closePath();
 };
 
-const createGradient = (
-    ctx: CanvasRenderingContext2D,
-    height: number,
-    color: string,
-) => {
+const createGradient = (ctx: CanvasRenderingContext2D, height: number, color: string) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     try {
-        const topTransparentPct = `${Math.round(
-            (1 - speedChart.fillAlpha) * 100,
-        )}%`;
-        gradient.addColorStop(
-            0,
-            `color-mix(in srgb, ${color}, transparent ${topTransparentPct})`,
-        );
-        gradient.addColorStop(
-            1,
-            `color-mix(in srgb, ${color}, transparent 100%)`,
-        );
+        const topTransparentPct = `${Math.round((1 - speedChart.fillAlpha) * 100)}%`;
+        gradient.addColorStop(0, `color-mix(in srgb, ${color}, transparent ${topTransparentPct})`);
+        gradient.addColorStop(1, `color-mix(in srgb, ${color}, transparent 100%)`);
     } catch {
         gradient.addColorStop(0, `rgba(127,127,127,${speedChart.fillAlpha})`);
         gradient.addColorStop(1, "rgba(127,127,127,0)");
@@ -219,15 +185,11 @@ const SeriesChart = ({
     const palette = useCanvasPalette();
 
     // We remove useMemo here for values/points because they MUST change on every tick to scroll
-    const buckets = useMemo(
-        () => computeBucketsFromWidth(size.width),
-        [size.width],
-    );
+    const buckets = useMemo(() => computeBucketsFromWidth(size.width), [size.width]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || size.width === 0 || size.height === 0 || !buckets)
-            return;
+        if (!canvas || size.width === 0 || size.height === 0 || !buckets) return;
 
         // 1. Calculate values based on CURRENT TIME (tick)
         const values = resampleTimed(timedRef.current, windowMs, buckets);
@@ -237,12 +199,7 @@ const SeriesChart = ({
         maxRef.current = Math.max(maxRef.current * speedChart.smoothDecay, peak);
 
         // 3. Build Points
-        const points = buildPoints(
-            values,
-            size.width,
-            size.height,
-            maxRef.current,
-        );
+        const points = buildPoints(values, size.width, size.height, maxRef.current);
 
         // 4. Draw
         const ctx = canvas.getContext("2d");
@@ -285,12 +242,8 @@ const SeriesChart = ({
 
             // Horizontal: per-series MAX line (placed at correct Y based on maxRef)
             const denom = Math.max(maxRef.current, speedChart.canvasDenomFloor);
-            const seriesMaxYRaw =
-                size.height - clamp01(maxRef.current / denom) * size.height;
-            const seriesMaxY = Math.min(
-                size.height - 8,
-                Math.max(8, seriesMaxYRaw),
-            );
+            const seriesMaxYRaw = size.height - clamp01(maxRef.current / denom) * size.height;
+            const seriesMaxY = Math.min(size.height - 8, Math.max(8, seriesMaxYRaw));
             ctx.beginPath();
             ctx.moveTo(0, seriesMaxY + 0.5);
             ctx.lineTo(size.width, seriesMaxY + 0.5);
@@ -309,9 +262,7 @@ const SeriesChart = ({
             // Labels: MAX at right (for this single series) and Now anchor
             ctx.setLineDash([]);
             ctx.globalAlpha = 1;
-            const rootFontSize = parseFloat(
-                getComputedStyle(document.documentElement).fontSize || "16",
-            );
+            const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize || "16");
             const labelFontSize = Math.max(12, Math.round(rootFontSize));
             ctx.font = `${labelFontSize}px Inter, system-ui, sans-serif`;
             ctx.textAlign = "right";
@@ -324,22 +275,10 @@ const SeriesChart = ({
         } finally {
             ctx.restore();
         }
-    }, [
-        tick,
-        size,
-        color,
-        windowMs,
-        buckets,
-        maxRef,
-        palette.placeholder,
-        timedRef,
-    ]); // Re-run on tick
+    }, [tick, size, color, windowMs, buckets, maxRef, palette.placeholder, timedRef]); // Re-run on tick
 
     return (
-        <div
-            ref={containerRef}
-            className={cn(METRIC_CHART.canvasWrap, className)}
-        >
+        <div ref={containerRef} className={cn(METRIC_CHART.canvasWrap, className)}>
             <canvas ref={canvasRef} className={METRIC_CHART.canvas} />
             {/* Legend overlay removed from per-series chart to avoid referencing parent colors; legend is shown in CombinedChart */}
         </div>
@@ -371,22 +310,14 @@ const CombinedChart = ({
     const maxRef = useRef(1024);
     const downMaxRefLocal = useRef(1024);
     const upMaxRefLocal = useRef(1024);
-    const buckets = useMemo(
-        () => computeBucketsFromWidth(size.width),
-        [size.width],
-    );
+    const buckets = useMemo(() => computeBucketsFromWidth(size.width), [size.width]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || size.width === 0 || size.height === 0 || !buckets)
-            return;
+        if (!canvas || size.width === 0 || size.height === 0 || !buckets) return;
 
         // 1. Calculate values
-        const downValues = resampleTimed(
-            downTimedRef.current,
-            windowMs,
-            buckets,
-        );
+        const downValues = resampleTimed(downTimedRef.current, windowMs, buckets);
         const upValues = resampleTimed(upTimedRef.current, windowMs, buckets);
 
         // 2. Scaling
@@ -396,28 +327,12 @@ const CombinedChart = ({
         maxRef.current = Math.max(maxRef.current * speedChart.smoothDecay, peak);
 
         // Maintain smoothed per-series max values for labeling
-        downMaxRefLocal.current = Math.max(
-            downMaxRefLocal.current * speedChart.smoothDecay,
-            downPeak,
-        );
-        upMaxRefLocal.current = Math.max(
-            upMaxRefLocal.current * speedChart.smoothDecay,
-            upPeak,
-        );
+        downMaxRefLocal.current = Math.max(downMaxRefLocal.current * speedChart.smoothDecay, downPeak);
+        upMaxRefLocal.current = Math.max(upMaxRefLocal.current * speedChart.smoothDecay, upPeak);
 
         // 3. Points
-        const downPoints = buildPoints(
-            downValues,
-            size.width,
-            size.height,
-            maxRef.current,
-        );
-        const upPoints = buildPoints(
-            upValues,
-            size.width,
-            size.height,
-            maxRef.current,
-        );
+        const downPoints = buildPoints(downValues, size.width, size.height, maxRef.current);
+        const upPoints = buildPoints(upValues, size.width, size.height, maxRef.current);
 
         // 4. Draw
         const ctx = canvas.getContext("2d");
@@ -481,16 +396,9 @@ const CombinedChart = ({
 
             // Per-series MAX dashed lines (placed at the correct Y position)
             const denom = Math.max(maxRef.current, speedChart.canvasDenomFloor);
-            const yDownMaxRaw =
-                size.height -
-                clamp01(downMaxRefLocal.current / denom) * size.height;
-            const yUpMaxRaw =
-                size.height -
-                clamp01(upMaxRefLocal.current / denom) * size.height;
-            const yDownMax = Math.min(
-                size.height - 8,
-                Math.max(8, yDownMaxRaw),
-            );
+            const yDownMaxRaw = size.height - clamp01(downMaxRefLocal.current / denom) * size.height;
+            const yUpMaxRaw = size.height - clamp01(upMaxRefLocal.current / denom) * size.height;
+            const yDownMax = Math.min(size.height - 8, Math.max(8, yDownMaxRaw));
             const yUpMax = Math.min(size.height - 8, Math.max(8, yUpMaxRaw));
 
             ctx.setLineDash([3, 4]);
@@ -506,9 +414,7 @@ const CombinedChart = ({
             // Labels: per-series MAX at right edge, and small 'Now' anchor
             ctx.setLineDash([]);
             ctx.globalAlpha = 1;
-            const rootFontSize = parseFloat(
-                getComputedStyle(document.documentElement).fontSize || "16",
-            );
+            const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize || "16");
             const labelFontSize = Math.max(12, Math.round(rootFontSize));
             ctx.font = `${labelFontSize}px Inter, system-ui, sans-serif`;
             ctx.textAlign = "right";
@@ -528,10 +434,7 @@ const CombinedChart = ({
             ctx.textBaseline = "bottom";
             ctx.globalAlpha = 0.6;
             ctx.fillStyle = palette.foreground || "rgba(255,255,255,0.6)";
-            ctx.font = `${Math.max(
-                10,
-                labelFontSize - 2,
-            )}px Inter, system-ui, sans-serif`;
+            ctx.font = `${Math.max(10, labelFontSize - 2)}px Inter, system-ui, sans-serif`;
             ctx.textAlign = "left";
             ctx.fillText(leftLabel, 6, size.height - 4);
             ctx.textAlign = "center";
@@ -554,10 +457,7 @@ const CombinedChart = ({
     ]); // Re-run on tick
 
     return (
-        <div
-            ref={containerRef}
-            className={cn(METRIC_CHART.canvasWrap, className)}
-        >
+        <div ref={containerRef} className={cn(METRIC_CHART.canvasWrap, className)}>
             <canvas ref={canvasRef} className={METRIC_CHART.canvas} />
         </div>
     );
@@ -569,11 +469,7 @@ const CombinedChart = ({
 
 // Layout preference is persisted inside PreferencesProvider.
 
-export const SpeedChart = ({
-    downHistory,
-    upHistory,
-    isStandalone = false,
-}: SpeedChartProps) => {
+export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: SpeedChartProps) => {
     const { t } = useTranslation();
     // NOTE:
     // `tick` is used ONLY to invalidate canvas rendering.
@@ -599,15 +495,12 @@ export const SpeedChart = ({
         [setSpeedChartLayoutMode],
     );
 
-    const layout: LayoutMode =
-        speedChartLayoutMode ?? (isStandalone ? "split" : "combined");
+    const layout: LayoutMode = speedChartLayoutMode ?? (isStandalone ? "split" : "combined");
 
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
 
-    const windowOption =
-        speedWindowOptions.find((option) => option.key === selectedWindow) ??
-        speedWindowOptions[0];
+    const windowOption = speedWindowOptions.find((option) => option.key === selectedWindow) ?? speedWindowOptions[0];
     const windowMs = windowOption.minutes * 60_000;
 
     const downTimed = useRef<TimedValue[]>([]);
@@ -624,11 +517,7 @@ export const SpeedChart = ({
         // spread across the current window). This gives an instant filled
         // chart without claiming backend truth — synthetic points are
         // visually helpful and will age out naturally.
-        const trySeed = (
-            hist: number[],
-            targetRef: React.MutableRefObject<TimedValue[]>,
-            key: "down" | "up",
-        ) => {
+        const trySeed = (hist: number[], targetRef: React.MutableRefObject<TimedValue[]>, key: "down" | "up") => {
             if (seededRef.current[key]) return;
             if (!hist || hist.length === 0) return;
 
@@ -671,8 +560,7 @@ export const SpeedChart = ({
         }
     }, [latestDown, latestUp, windowMs, downHistory, upHistory]); // ONLY runs when network data or engine history changes
 
-    const downColor =
-        getCssToken(speedChart.downStrokeToken) || palette.primary;
+    const downColor = getCssToken(speedChart.downStrokeToken) || palette.primary;
     const upColor = getCssToken(speedChart.upStrokeToken) || palette.success;
 
     return (
@@ -680,32 +568,20 @@ export const SpeedChart = ({
             {/* Header / Controls */}
             <div className={METRIC_CHART.header}>
                 <div className={METRIC_CHART.metrics}>
-                    <span className={METRIC_CHART.downMetric}>
-                        ↓ {formatSpeed(latestDown)}
-                    </span>
-                    <span className={METRIC_CHART.upMetric}>
-                        ↑ {formatSpeed(latestUp)}
-                    </span>
+                    <span className={METRIC_CHART.downMetric}>↓ {formatSpeed(latestDown)}</span>
+                    <span className={METRIC_CHART.upMetric}>↑ {formatSpeed(latestUp)}</span>
                 </div>
 
                 <div className={METRIC_CHART.controls}>
-                    <ButtonGroup
-                        size="md"
-                        variant="flat"
-                        className={METRIC_CHART.layoutGroup}
-                    >
+                    <ButtonGroup size="md" variant="flat" className={METRIC_CHART.layoutGroup}>
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
                             className={
-                                layout === "split"
-                                    ? METRIC_CHART.layoutButtonActive
-                                    : METRIC_CHART.layoutButtonInactive
+                                layout === "split" ? METRIC_CHART.layoutButtonActive : METRIC_CHART.layoutButtonInactive
                             }
                             onPress={() => setLayout("split")}
-                            ariaLabel={t(
-                                "inspector.speed_chart.split_view_aria",
-                            )}
+                            ariaLabel={t("inspector.speed_chart.split_view_aria")}
                         />
                         <ToolbarIconButton
                             Icon={Layers}
@@ -716,9 +592,7 @@ export const SpeedChart = ({
                                     : METRIC_CHART.layoutButtonInactive
                             }
                             onPress={() => setLayout("combined")}
-                            ariaLabel={t(
-                                "inspector.speed_chart.combined_view_aria",
-                            )}
+                            ariaLabel={t("inspector.speed_chart.combined_view_aria")}
                         />
                     </ButtonGroup>
 
@@ -727,16 +601,8 @@ export const SpeedChart = ({
                             <Button
                                 key={option.key}
                                 size="md"
-                                variant={
-                                    selectedWindow === option.key
-                                        ? "solid"
-                                        : "light"
-                                }
-                                color={
-                                    selectedWindow === option.key
-                                        ? "secondary"
-                                        : "default"
-                                }
+                                variant={selectedWindow === option.key ? "solid" : "light"}
+                                color={selectedWindow === option.key ? "secondary" : "default"}
                                 className={
                                     selectedWindow === option.key
                                         ? METRIC_CHART.windowButtonActive
@@ -761,10 +627,7 @@ export const SpeedChart = ({
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className={cn(
-                                    METRIC_CHART.panelLabelWrap,
-                                    TEXT_ROLE_EXTENDED.chartLabelSuccess,
-                                )}
+                                className={cn(METRIC_CHART.panelLabelWrap, METRIC_CHART.panelLabelSuccess)}
                             >
                                 Download
                             </span>
@@ -784,10 +647,7 @@ export const SpeedChart = ({
                                     left: "var(--tt-p-panel)",
                                     fontSize: "var(--tt-fz-label)",
                                 }}
-                                className={cn(
-                                    METRIC_CHART.panelLabelWrap,
-                                    TEXT_ROLE_EXTENDED.chartLabelPrimary,
-                                )}
+                                className={cn(METRIC_CHART.panelLabelWrap, METRIC_CHART.panelLabelPrimary)}
                             >
                                 Upload
                             </span>
@@ -819,6 +679,3 @@ export const SpeedChart = ({
         </div>
     );
 };
-
-
-

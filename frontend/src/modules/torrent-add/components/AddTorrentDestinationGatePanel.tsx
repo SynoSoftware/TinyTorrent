@@ -1,7 +1,7 @@
 import { Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { HardDrive } from "lucide-react";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import { FORM } from "@/shared/ui/layout/glass-surface";
@@ -17,16 +17,14 @@ export function AddTorrentDestinationGatePanel() {
             <AppTooltip content={t("modals.add_torrent.destination_prompt_help")}>
                 <div className={FORM.workflow.gatePromptRow}>
                     <HardDrive className={FORM.workflow.gatePromptIcon} />
-                    <span>
-                        {t("modals.add_torrent.destination_prompt_mode_full")}
-                    </span>
+                    <span>{t("modals.add_torrent.destination_prompt_mode_full")}</span>
                 </div>
             </AppTooltip>
 
             <DestinationPathEditor
                 id="add-torrent-gate-destination"
                 label={t("directory_browser.path_label")}
-                labelClassName={TEXT_ROLE.caption}
+                labelClassName={textRole.caption}
                 labelColumnClassName={FORM.locationEditorCompactLabelColumn}
                 value={destinationInput.value}
                 history={destinationInput.history}
@@ -38,7 +36,7 @@ export function AddTorrentDestinationGatePanel() {
                 onEscape={destinationInput.onEscape}
                 autoFocus
                 inputClassNames={FORM.locationEditorInputClassNames}
-                inputTextClassName={TEXT_ROLE.codeMuted}
+                inputTextClassName={textRole.codeMuted}
                 feedback={destinationGate.feedback}
                 browseAction={
                     destinationGate.showBrowseAction

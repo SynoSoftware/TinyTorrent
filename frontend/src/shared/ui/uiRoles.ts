@@ -1,21 +1,15 @@
+// Tone/emphasis styling authority only.
+// Static strings only.
+// No functions, no params, no runtime composition helpers.
+// This file must not define surfaces, container geometry, borders, elevation, or blur.
+
 export const uiRoles = {
-    surfaces: {
-        panel: "rounded-panel border border-default/20 bg-content1/10",
-        card: "rounded-2xl border border-default/20 bg-content1/15 shadow-small",
-        overlay: "rounded-2xl border border-default/20 bg-background/90 backdrop-blur-xl shadow-medium",
-        inset: "rounded-panel bg-content1/20",
-    },
     text: {
         primary: "text-foreground",
-        secondary: "text-foreground/80",
+        secondary: "text-foreground/70",
         muted: "text-foreground/60",
-        subtle: "text-foreground/45",
+        subtle: "text-foreground/50",
         danger: "text-danger",
-    },
-    borders: {
-        subtle: "border border-default/10",
-        default: "border border-default/20",
-        strong: "border border-default/35",
     },
 } as const;
 

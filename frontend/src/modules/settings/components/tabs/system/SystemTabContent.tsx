@@ -5,11 +5,10 @@ import { useTranslation } from "react-i18next";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import {
-    shellAgent, type SystemIntegrationReadOutcome, } from "@/app/agents/shell-agent";
+import { shellAgent, type SystemIntegrationReadOutcome } from "@/app/agents/shell-agent";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { registry } from "@/config/logic";
-import { TEXT_ROLE } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import { FORM } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
@@ -31,58 +30,24 @@ interface SystemRowProps {
     disabled?: boolean;
 }
 
-function SystemRow({
-    label,
-    control,
-    status,
-    helper,
-    disabled,
-}: SystemRowProps) {
+function SystemRow({ label, control, status, helper, disabled }: SystemRowProps) {
     return (
         <div className={cn(FORM.systemRow, disabled && visuals.state.disabled)}>
             <div className={FORM.systemRowHeader}>
-                <span
-                    className={cn(
-                        FORM.systemRowLabel,
-                        disabled && visuals.state.muted,
-                    )}
-                >
-                    {label}
-                </span>
+                <span className={cn(FORM.systemRowLabel, disabled && visuals.state.muted)}>{label}</span>
                 <div className={FORM.systemRowControl}>
                     {control}
                     {status}
                 </div>
             </div>
-            {helper && (
-                <p
-                    className={cn(
-                        FORM.systemRowHelper,
-                        disabled && visuals.state.muted,
-                    )}
-                >
-                    {helper}
-                </p>
-            )}
+            {helper && <p className={cn(FORM.systemRowHelper, disabled && visuals.state.muted)}>{helper}</p>}
         </div>
     );
 }
 
-function StatusChip({
-    label,
-    color = "default",
-}: {
-    label: string;
-    color?: ChipProps["color"];
-}) {
+function StatusChip({ label, color = "default" }: { label: string; color?: ChipProps["color"] }) {
     return (
-        <Chip
-            size="sm"
-            variant="flat"
-            color={color}
-            radius="sm"
-            className={FORM.systemStatusChip}
-        >
+        <Chip size="sm" variant="flat" color={color} radius="sm" className={FORM.systemStatusChip}>
             {label}
         </Chip>
     );
@@ -96,42 +61,36 @@ export function SystemTabContent() {
         autorun: false,
         associations: false,
     });
-    const [integrationReadStatus, setIntegrationReadStatus] = useState<
-        "ok" | "unsupported" | "failed"
-    >("ok");
+    const [integrationReadStatus, setIntegrationReadStatus] = useState<"ok" | "unsupported" | "failed">("ok");
     const [integrationLoading, setIntegrationLoading] = useState(true);
     const [associationPending, setAssociationPending] = useState(false);
-    const [autorunErrorMessage, setAutorunErrorMessage] = useState<
-        string | null
-    >(null);
+    const [autorunErrorMessage, setAutorunErrorMessage] = useState<string | null>(null);
     const canUseShell = uiMode === "Full" && shellAgentAvailable;
 
-    const refreshIntegration =
-        useCallback(async (): Promise<SystemIntegrationReadOutcome> => {
-            if (!canUseShell) {
-                setIntegrationReadStatus("unsupported");
-                setIntegrationLoading(false);
-                return { status: "unsupported" };
+    const refreshIntegration = useCallback(async (): Promise<SystemIntegrationReadOutcome> => {
+        if (!canUseShell) {
+            setIntegrationReadStatus("unsupported");
+            setIntegrationLoading(false);
+            return { status: "unsupported" };
+        }
+        setIntegrationLoading(true);
+        try {
+            const outcome = await shellAgent.getSystemIntegrationStatusReadOutcome();
+            setIntegrationReadStatus(outcome.status);
+            if (outcome.status === "ok") {
+                setIntegrationStatus({
+                    autorun: Boolean(outcome.value.autorun),
+                    associations: Boolean(outcome.value.associations),
+                });
             }
-            setIntegrationLoading(true);
-            try {
-                const outcome =
-                    await shellAgent.getSystemIntegrationStatusReadOutcome();
-                setIntegrationReadStatus(outcome.status);
-                if (outcome.status === "ok") {
-                    setIntegrationStatus({
-                        autorun: Boolean(outcome.value.autorun),
-                        associations: Boolean(outcome.value.associations),
-                    });
-                }
-                return outcome;
-            } catch {
-                setIntegrationReadStatus("failed");
-                return { status: "failed" };
-            } finally {
-                setIntegrationLoading(false);
-            }
-        }, [canUseShell]);
+            return outcome;
+        } catch {
+            setIntegrationReadStatus("failed");
+            return { status: "failed" };
+        } finally {
+            setIntegrationLoading(false);
+        }
+    }, [canUseShell]);
 
     useEffect(() => {
         if (!canUseShell) {
@@ -146,30 +105,26 @@ export function SystemTabContent() {
         setIntegrationStatus((prev) => ({ ...prev, autorun: next }));
     }, []);
 
-    const autorunToggle = useAsyncToggle(
-        Boolean(integrationStatus.autorun),
-        setAutorunState,
-        async (next) => {
-            if (!canUseShell) {
-                return {
-                    status: "unsupported",
-                    reason: "shell_unavailable",
-                } as const;
-            }
-            await shellAgent.setSystemIntegration({ autorun: next });
-            const refreshOutcome = await refreshIntegration();
-            if (refreshOutcome.status === "unsupported") {
-                return {
-                    status: "unsupported",
-                    reason: "shell_unavailable",
-                } as const;
-            }
-            if (refreshOutcome.status === "failed") {
-                throw new Error("settings.system.integration_read_failed");
-            }
-            return { status: "applied" } as const;
-        },
-    );
+    const autorunToggle = useAsyncToggle(Boolean(integrationStatus.autorun), setAutorunState, async (next) => {
+        if (!canUseShell) {
+            return {
+                status: "unsupported",
+                reason: "shell_unavailable",
+            } as const;
+        }
+        await shellAgent.setSystemIntegration({ autorun: next });
+        const refreshOutcome = await refreshIntegration();
+        if (refreshOutcome.status === "unsupported") {
+            return {
+                status: "unsupported",
+                reason: "shell_unavailable",
+            } as const;
+        }
+        if (refreshOutcome.status === "failed") {
+            throw new Error("settings.system.integration_read_failed");
+        }
+        return { status: "applied" } as const;
+    });
 
     const handleAutorunValueChange = useCallback(
         (next: boolean) => {
@@ -180,16 +135,12 @@ export function SystemTabContent() {
                     return;
                 }
                 if (outcome.status === "unsupported") {
-                    setAutorunErrorMessage(
-                        t("settings.system.autorun_toggle_unsupported"),
-                    );
+                    setAutorunErrorMessage(t("settings.system.autorun_toggle_unsupported"));
                     void refreshIntegration();
                     return;
                 }
                 if (outcome.status === "failed") {
-                    setAutorunErrorMessage(
-                        t("settings.system.autorun_toggle_failed"),
-                    );
+                    setAutorunErrorMessage(t("settings.system.autorun_toggle_failed"));
                     void refreshIntegration();
                     return;
                 }
@@ -228,9 +179,7 @@ export function SystemTabContent() {
     const associationChipColor =
         integrationReadStatus === "failed"
             ? "warning"
-            : integrationReadStatus === "ok" &&
-                !integrationLoading &&
-                integrationStatus.associations
+            : integrationReadStatus === "ok" && !integrationLoading && integrationStatus.associations
               ? "success"
               : integrationReadStatus === "ok" && !integrationLoading
                 ? "danger"
@@ -239,9 +188,7 @@ export function SystemTabContent() {
     const associationButtonLabel = integrationStatus.associations
         ? t("settings.system.refreshAssociation")
         : t("settings.system.repairAssociation");
-    const handleAssociationAction = integrationStatus.associations
-        ? handleAssociationRefresh
-        : handleAssociationRepair;
+    const handleAssociationAction = integrationStatus.associations ? handleAssociationRefresh : handleAssociationRepair;
 
     const autorunLabel =
         !canUseShell || integrationReadStatus === "unsupported"
@@ -255,10 +202,7 @@ export function SystemTabContent() {
                   : t("settings.system.autorun_disabled");
 
     const autorunDisabled =
-        !canUseShell ||
-        integrationLoading ||
-        autorunToggle.pending ||
-        integrationReadStatus !== "ok";
+        !canUseShell || integrationLoading || autorunToggle.pending || integrationReadStatus !== "ok";
 
     const integrationReadHelper =
         integrationReadStatus === "failed"
@@ -274,12 +218,8 @@ export function SystemTabContent() {
                 description={t("settings.descriptions.system_integration")}
             >
                 <div className={FORM.systemNoticeStack}>
-                    <p className={FORM.systemNoticeBody}>
-                        {t("settings.system.notice")}
-                    </p>
-                    <p className={TEXT_ROLE.caption}>
-                        {t("settings.system.instructions")}
-                    </p>
+                    <p className={FORM.systemNoticeBody}>{t("settings.system.notice")}</p>
+                    <p className={textRole.caption}>{t("settings.system.instructions")}</p>
                 </div>
             </SettingsSection>
         );
@@ -299,28 +239,16 @@ export function SystemTabContent() {
                             variant="bordered"
                             radius="full"
                             onPress={handleAssociationAction}
-                            isDisabled={
-                                associationPending ||
-                                !canUseShell ||
-                                integrationLoading
-                            }
+                            isDisabled={associationPending || !canUseShell || integrationLoading}
                         >
                             {associationButtonLabel}
                         </Button>
                     }
-                    status={
-                        <StatusChip
-                            label={associationLabel}
-                            color={associationChipColor}
-                        />
-                    }
+                    status={<StatusChip label={associationLabel} color={associationChipColor} />}
                     helper={integrationReadHelper}
                 />
             </SettingsSection>
-            <SettingsSection
-                title={t("settings.sections.startup")}
-                description={t("settings.descriptions.startup")}
-            >
+            <SettingsSection title={t("settings.sections.startup")} description={t("settings.descriptions.startup")}>
                 <SystemRow
                     label={t("settings.labels.launchOnStartup")}
                     control={
@@ -339,4 +267,3 @@ export function SystemTabContent() {
         </div>
     );
 }
-

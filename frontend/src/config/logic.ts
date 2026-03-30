@@ -1,6 +1,6 @@
 import constants from "@/config/constants.json";
 import { status } from "@/shared/status";
-import { TEXT_ROLE_EXTENDED } from "@/config/textRoles";
+import { textRole } from "@/config/textRoles";
 import type {
     DragOverlayConfig,
     DetailsVisualizationsConfig,
@@ -660,7 +660,7 @@ const detailsTableVisuals = {
     valueSecondary: "font-medium text-foreground/75",
     valueMuted: "text-foreground/70",
     valueEmpty: "text-foreground/40",
-    stateBadgeText: `${TEXT_ROLE_EXTENDED.badge} text-foreground/75`,
+    stateBadgeText: `${textRole.labelDense} text-foreground/75`,
 } as const;
 
 const addTorrentFileIconVisuals = {
