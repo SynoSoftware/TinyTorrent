@@ -297,7 +297,13 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
 
                 <div className={FILE_BROWSER.toolbarSpacer} />
 
-                <div className={FILE_BROWSER.builder.selectionSummaryClass(shouldShowSelectionSummary)}>
+                <div
+                    className={
+                        shouldShowSelectionSummary
+                            ? "flex items-center gap-tools transition-all duration-200 opacity-100"
+                            : "flex items-center gap-tools transition-all duration-200 opacity-0 pointer-events-none"
+                    }
+                >
                     <span className={FILE_BROWSER.toolbarSelectionCount}>
                         {`${selectedIndexes.size} ${t("statusbar.selected_count")}`}
                     </span>

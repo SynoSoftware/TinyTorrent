@@ -432,11 +432,16 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             classNames={
                 isPathField
                     ? FORM.locationEditorInputClassNames
-                    : FORM.builder.settingsBufferedInputClassNames({
-                          disabled:
-                              isDisabled || blocklistUnsupported || isPending,
-                          mono: isMono,
-                      })
+                    : {
+                          inputWrapper:
+                              isDisabled || blocklistUnsupported || isPending
+                                  ? `${FORM.bufferedInputWrapperBase} ${FORM.bufferedInputWrapperDisabled}`
+                                  : `${FORM.bufferedInputWrapperBase} ${FORM.bufferedInputWrapperEnabled}`,
+                          input: isMono
+                              ? FORM.bufferedInputTextMono
+                              : FORM.bufferedInputTextDefault,
+                          label: FORM.bufferedInputLabel,
+                      }
             }
             startContent={
                 isPathField ? (

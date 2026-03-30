@@ -62,11 +62,10 @@ type SwarmTone = "verified" | "common" | "rare" | "dead" | "missing";
 type LegendCell = {
     key: string;
     label: string;
-    swatch: { background: string; borderColor?: string; backgroundImage?: string };
+    tone: SwarmTone;
 };
 type DownloadMode = "sequential" | "random";
 type TooltipDetail = NonNullable<PiecesMapViewModel["tooltipDetail"]>;
-type Palette = PiecesMapViewModel["palette"];
 type Translate = ReturnType<typeof useTranslation>["t"];
 type HudTone = "default" | "warning" | "danger";
 
@@ -74,6 +73,18 @@ const HIDDEN_TOOLTIP_STYLE = {
     left: 0,
     top: 0,
     visibility: "hidden",
+} as const;
+const MAP_CANVAS_INTERACTION_STYLE = {
+    cursor: "default",
+    touchAction: "none",
+    pointerEvents: "auto",
+} as const;
+const MAP_SWATCH_TONE_CLASS: Record<SwarmTone, string> = {
+    verified: SPLIT.mapLegendSwatchVerified,
+    common: SPLIT.mapLegendSwatchCommon,
+    rare: SPLIT.mapLegendSwatchRare,
+    dead: SPLIT.mapLegendSwatchDead,
+    missing: SPLIT.mapLegendSwatchMissing,
 } as const;
 
 const getVisibleHudFields = (width: number): PiecesHudFieldId[] => {
@@ -97,26 +108,22 @@ const getVisibleHudFields = (width: number): PiecesHudFieldId[] => {
 
 const buildLegendCells = ({
     availabilityMissing,
-    palette,
     t,
 }: {
     availabilityMissing: boolean;
-    palette: Palette;
     t: Translate;
-}): Array<LegendCell | null> => {
-    const getSwatch = (tone: SwarmTone) => resolveMapAvailabilitySwatchVisual({ palette, tone });
-
-    return availabilityMissing
+}): Array<LegendCell | null> =>
+    availabilityMissing
         ? [
               {
                   key: "verified",
                   label: t("torrent_modal.stats.verified"),
-                  swatch: getSwatch("verified"),
+                  tone: "verified",
               },
               {
                   key: "missing",
                   label: t("torrent_modal.stats.missing"),
-                  swatch: getSwatch("missing"),
+                  tone: "missing",
               },
               null,
               null,
@@ -125,63 +132,24 @@ const buildLegendCells = ({
               {
                   key: "verified",
                   label: t("torrent_modal.stats.verified"),
-                  swatch: getSwatch("verified"),
+                  tone: "verified",
               },
               {
                   key: "common",
                   label: t("torrent_modal.availability.legend_common"),
-                  swatch: getSwatch("common"),
+                  tone: "common",
               },
               {
                   key: "rare",
                   label: t("torrent_modal.availability.legend_rare"),
-                  swatch: getSwatch("rare"),
+                  tone: "rare",
               },
               {
                   key: "dead",
                   label: t("torrent_modal.piece_map.legend_dead"),
-                  swatch: getSwatch("dead"),
+                  tone: "dead",
               },
           ];
-};
-
-const resolveMapAvailabilitySwatchVisual = (params: {
-    palette: Palette;
-    tone: SwarmTone;
-}) => {
-    switch (params.tone) {
-        case "verified":
-            return {
-                background: params.palette.success,
-                borderColor: undefined as string | undefined,
-                backgroundImage: undefined as string | undefined,
-            };
-        case "common":
-            return {
-                background: `color-mix(in oklab, ${params.palette.primary} 35%, transparent)`,
-                borderColor: undefined as string | undefined,
-                backgroundImage: undefined as string | undefined,
-            };
-        case "rare":
-            return {
-                background: `color-mix(in oklab, ${params.palette.warning} 75%, transparent)`,
-                borderColor: undefined as string | undefined,
-                backgroundImage: `repeating-linear-gradient(135deg, color-mix(in oklab, ${params.palette.foreground} 22%, transparent) 0 1px, transparent 1px 4px)`,
-            };
-        case "dead":
-            return {
-                background: `color-mix(in oklab, ${params.palette.foreground} 12%, transparent)`,
-                borderColor: params.palette.danger,
-                backgroundImage: undefined as string | undefined,
-            };
-        default:
-            return {
-                background: `color-mix(in oklab, ${params.palette.foreground} 18%, transparent)`,
-                borderColor: undefined as string | undefined,
-                backgroundImage: undefined as string | undefined,
-            };
-    }
-};
 
 const renderHudStat = ({
     label,
@@ -419,13 +387,11 @@ const PiecesTooltip = ({
     tooltipDetail,
     tooltipRef,
     tooltipStyle,
-    palette,
     t,
 }: {
     tooltipDetail: TooltipDetail | null;
     tooltipRef: PiecesMapViewModel["refs"]["tooltipRef"];
     tooltipStyle: PiecesMapViewModel["tooltipStyle"];
-    palette: Palette;
     t: Translate;
 }) => {
     if (!tooltipDetail) {
@@ -438,29 +404,24 @@ const PiecesTooltip = ({
             {tooltipDetail.swatches.length > 0 && (
                 <div
                     className={SPLIT.mapTooltipSwatchGrid}
-                    style={SPLIT.builder.swatchGridStyle({
+                    style={{
                         gap: tooltipDetail.swatchGap,
-                        columns: tooltipDetail.swatchColumns,
-                    })}
+                        gridTemplateColumns:
+                            tooltipDetail.swatchColumns > 0
+                                ? `repeat(${Math.max(1, Math.floor(tooltipDetail.swatchColumns))}, max-content)`
+                                : undefined,
+                    }}
                 >
-                    {tooltipDetail.swatches.map((swatch, index) => {
-                        const visual = resolveMapAvailabilitySwatchVisual({
-                            palette,
-                            tone: swatch.tone as SwarmTone,
-                        });
-                        return (
-                            <span
-                                key={`piece-tooltip-swatch-${index}`}
-                                className={SPLIT.mapTooltipSwatch}
-                                style={SPLIT.builder.legendSwatchStyle({
-                                    background: visual.background,
-                                    size: tooltipDetail.swatchSize,
-                                    borderColor: visual.borderColor,
-                                    backgroundImage: visual.backgroundImage,
-                                })}
-                            />
-                        );
-                    })}
+                    {tooltipDetail.swatches.map((swatch, index) => (
+                        <span
+                            key={`piece-tooltip-swatch-${index}`}
+                            className={`${SPLIT.mapTooltipSwatch} ${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[swatch.tone as SwarmTone]}`}
+                            style={{
+                                width: tooltipDetail.swatchSize,
+                                height: tooltipDetail.swatchSize,
+                            }}
+                        />
+                    ))}
                 </div>
             )}
             <div className={SPLIT.mapTooltipInfoStack}>
@@ -493,10 +454,7 @@ const PiecesLegend = ({
                     cell ? (
                         <span key={`piece-map-legend-${cell.key}`} className={SPLIT.mapLegendCell}>
                             <span className={SPLIT.mapLegendItem}>
-                                <span
-                                    className={SPLIT.mapLegendSwatch}
-                                    style={SPLIT.builder.legendSwatchStyle(cell.swatch)}
-                                />
+                                <span className={`${SPLIT.mapLegendSwatch} ${MAP_SWATCH_TONE_CLASS[cell.tone]}`} />
                                 <span className={SPLIT.mapLegendText}>{cell.label}</span>
                             </span>
                         </span>
@@ -531,7 +489,6 @@ const PiecesView = ({
     const [panelWidth, setPanelWidth] = useState<number>(PIECE_MAP_HUD.legend_inline_min_width_px);
     const {
         refs: { rootRef, canvasRef, overlayRef, tooltipRef },
-        palette,
         totalPieces,
         pieceSizeLabel,
         verifiedCount,
@@ -543,7 +500,7 @@ const PiecesView = ({
         tooltipStyle,
         handlers,
     } = viewModel;
-    const legendCells = buildLegendCells({ availabilityMissing, palette, t });
+    const legendCells = buildLegendCells({ availabilityMissing, t });
     const downloadMode: DownloadMode = sequentialDownload ? "sequential" : "random";
     const visibleFields = useMemo(() => getVisibleHudFields(panelWidth), [panelWidth]);
     const showInlineLegend = panelWidth >= PIECE_MAP_HUD.field_breakpoints_px.compact_plus;
@@ -596,7 +553,7 @@ const PiecesView = ({
                             className={SPLIT.mapCanvasLayer}
                             onMouseMove={handlers.onMouseMove}
                             onMouseLeave={handlers.onMouseLeave}
-                            style={SPLIT.builder.canvasInteractionStyle("default")}
+                            style={MAP_CANVAS_INTERACTION_STYLE}
                         />
                         <canvas ref={overlayRef} className={SPLIT.mapCanvasOverlayLayer} />
 
@@ -604,7 +561,6 @@ const PiecesView = ({
                             tooltipDetail={tooltipDetail}
                             tooltipRef={tooltipRef}
                             tooltipStyle={tooltipStyle}
-                            palette={palette}
                             t={t}
                         />
                     </div>

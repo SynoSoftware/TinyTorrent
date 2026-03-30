@@ -31,11 +31,10 @@ export const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                TABLE.columnHeader.builder.cellClass({
-                    canSort: false,
-                    isOverlay: true,
-                    isDragging: false,
-                }),
+                TABLE.columnHeader.cellBase,
+                TABLE.columnHeader.cellOverlay,
+                TABLE.columnHeader.cellOverlayShadow,
+                TABLE.columnHeader.cellIdle,
                 TABLE.headerPreviewPadding,
             )}
             style={{

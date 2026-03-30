@@ -56,10 +56,13 @@ export default function TorrentTable_HeaderMenu({
             >
                 <DropdownTrigger>
                     <div
-                        style={CONTEXT_MENU.builder.anchorStyle({
+                        style={{
+                            position: "fixed",
                             top: headerMenuTriggerRect.top,
                             left: headerMenuTriggerRect.left,
-                        })}
+                            width: 0,
+                            height: 0,
+                        }}
                     />
                 </DropdownTrigger>
                 <DropdownMenu

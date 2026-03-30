@@ -314,10 +314,11 @@ const TrackerContextMenu = ({
     return (
         <div
             className={CONTEXT_MENU.panel}
-            style={CONTEXT_MENU.builder.panelStyle({
-                x: state.contextMenu.x,
-                y: state.contextMenu.y,
-            })}
+            style={{
+                top: state.contextMenu.y,
+                left: state.contextMenu.x,
+                minWidth: 200,
+            }}
             onPointerDown={(event) => event.stopPropagation()}
         >
             <div className={CONTEXT_MENU.header}>

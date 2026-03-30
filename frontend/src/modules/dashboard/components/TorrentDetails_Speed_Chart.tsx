@@ -697,9 +697,11 @@ export const SpeedChart = ({
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
-                            className={METRIC_CHART.builder.layoutButtonClass(
-                                layout === "split",
-                            )}
+                            className={
+                                layout === "split"
+                                    ? METRIC_CHART.layoutButtonActive
+                                    : METRIC_CHART.layoutButtonInactive
+                            }
                             onPress={() => setLayout("split")}
                             ariaLabel={t(
                                 "inspector.speed_chart.split_view_aria",
@@ -708,9 +710,11 @@ export const SpeedChart = ({
                         <ToolbarIconButton
                             Icon={Layers}
                             iconSize="md"
-                            className={METRIC_CHART.builder.layoutButtonClass(
-                                layout === "combined",
-                            )}
+                            className={
+                                layout === "combined"
+                                    ? METRIC_CHART.layoutButtonActive
+                                    : METRIC_CHART.layoutButtonInactive
+                            }
                             onPress={() => setLayout("combined")}
                             ariaLabel={t(
                                 "inspector.speed_chart.combined_view_aria",
@@ -733,9 +737,11 @@ export const SpeedChart = ({
                                         ? "secondary"
                                         : "default"
                                 }
-                                className={METRIC_CHART.builder.windowButtonClass(
-                                    selectedWindow === option.key,
-                                )}
+                                className={
+                                    selectedWindow === option.key
+                                        ? METRIC_CHART.windowButtonActive
+                                        : METRIC_CHART.windowButtonInactive
+                                }
                                 onPress={() => setSelectedWindow(option.key)}
                             >
                                 {option.label}

@@ -359,7 +359,15 @@ export function Navbar({ viewModel }: NavbarProps) {
                             style={WORKBENCH.nav.selectionSeparatorStyle}
                         />
 
-                        <div className={cn(WORKBENCH.nav.builder.selectionActionsClass(hasSelection), "hidden sm:flex")}>
+                        <div
+                            className={cn(
+                                WORKBENCH.nav.selectionActionsBase,
+                                hasSelection
+                                    ? WORKBENCH.nav.selectionActionsEnabled
+                                    : WORKBENCH.nav.selectionActionsDisabled,
+                                "hidden sm:flex",
+                            )}
+                        >
                             <ToolbarIconButton
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}

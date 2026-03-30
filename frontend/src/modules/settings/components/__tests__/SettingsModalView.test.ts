@@ -123,9 +123,9 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         contentWrapper: "content-wrapper",
         layout: "layout",
         mainPane: "main-pane",
-        builder: {
-            settingsModalClassNames: () => ({}),
-        },
+        settingsModalBaseFull: "settings-modal-base-full",
+        settingsModalBaseRpc: "settings-modal-base-rpc",
+        settingsModalWrapper: "settings-modal-wrapper",
     },
 }));
 

@@ -125,7 +125,10 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
     }
 
     return (
-        <div className={DETAILS.builder.headerClass(isStandalone)} style={DETAILS.headerTrackingStyle}>
+        <div
+            className={cn(DETAILS.headerRoot, !isStandalone && DETAILS.headerRootEmbedded)}
+            style={DETAILS.headerTrackingStyle}
+        >
             <div className={DETAILS.headerLeft}>
                 <Info
                     strokeWidth={visuals.icon.strokeWidth}
@@ -164,20 +167,23 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
                                 aria-controls={`${tabDomIdPrefix}-panel-${tab.id}`}
                                 tabIndex={isActive ? 0 : -1}
                                 onClick={() => onTabChange(tab.id)}
-                                className={DETAILS.builder.headerTabButtonClass(isActive)}
+                                className={cn(
+                                    DETAILS.headerTabBase,
+                                    isActive ? DETAILS.headerTabActive : DETAILS.headerTabInactive,
+                                )}
                             >
                                 {!isActive && (
                                     <span
                                         aria-hidden="true"
                                         className={DETAILS.headerTabHoverGlow}
-                                        style={DETAILS.builder.headerTabHoverGlowStyle()}
+                                        style={DETAILS.headerTabHoverGlowStyle}
                                     />
                                 )}
                                 {isActive && (
                                     <span
                                         aria-hidden="true"
                                         className={DETAILS.headerTabLightBloom}
-                                        style={DETAILS.builder.headerTabLightBloomStyle()}
+                                        style={DETAILS.headerTabLightBloomStyle}
                                     />
                                 )}
                                 <span>{t(tab.labelKey)}</span>
@@ -185,7 +191,7 @@ const TorrentDetailHeaderComponent = (props: TorrentDetailHeaderProps) => {
                                     <span
                                         aria-hidden="true"
                                         className={DETAILS.headerTabLightSource}
-                                        style={DETAILS.builder.headerTabLightSourceStyle()}
+                                        style={DETAILS.headerTabLightSourceStyle}
                                     />
                                 )}
                             </button>

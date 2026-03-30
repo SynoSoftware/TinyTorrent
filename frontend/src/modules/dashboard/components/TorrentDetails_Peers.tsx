@@ -317,10 +317,11 @@ export const PeersTab = ({
                         {viewModel.state.contextMenu ? (
                             <div
                                 className={CONTEXT_MENU.panel}
-                                style={CONTEXT_MENU.builder.panelStyle({
-                                    x: viewModel.state.contextMenu.x,
-                                    y: viewModel.state.contextMenu.y,
-                                })}
+                                style={{
+                                    top: viewModel.state.contextMenu.y,
+                                    left: viewModel.state.contextMenu.x,
+                                    minWidth: 200,
+                                }}
                                 onPointerDown={(event) => event.stopPropagation()}
                             >
                                 <div className={CONTEXT_MENU.header}>

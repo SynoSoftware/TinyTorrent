@@ -2,7 +2,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Checkbox } from "@heroui/react";
+import { Button, Checkbox, cn } from "@heroui/react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
 import { TEXT_ROLE, TEXT_ROLE_EXTENDED } from "@/config/textRoles";
@@ -324,7 +324,7 @@ export function AddTorrentModal({
 
                             <LayoutGroup>
                                 <motion.div
-                                    className={MODAL.builder.bodyPanelsClass(true)}
+                                    className={cn(MODAL.addTorrentBodyPanelsBase, MODAL.addTorrentBodyPanelsFullscreen)}
                                     initial={false}
                                     animate={FULL_CONTENT_ANIMATION.visible}
                                     transition={FULL_CONTENT_ANIMATION.transition}
@@ -338,20 +338,25 @@ export function AddTorrentModal({
                                             collapsible={canCollapseSettings}
                                             onCollapse={handleSettingsPanelCollapse}
                                             onExpand={handleSettingsPanelExpand}
-                                            className={MODAL.builder.settingsPanelClass(isSettingsCollapsed)}
+                                            className={cn(
+                                                MODAL.workflow.settingsPanel,
+                                                isSettingsCollapsed && MODAL.workflow.settingsPanelCollapsed,
+                                            )}
                                         >
                                             <AddTorrentSettingsPanel />
                                         </Panel>
                                         <PanelResizeHandle
                                             onDragging={isSettingsCollapsed ? undefined : setIsPanelResizeActive}
-                                            className={MODAL.builder.paneHandleClass()}
+                                            className={cn(MODAL.workflow.paneHandle, MODAL.workflow.paneHandleEnabled)}
                                         >
                                             <div className={MODAL.workflow.resizeHandleBarWrap}>
                                                 <div
-                                                    className={MODAL.builder.resizeHandleBarClass({
-                                                        isSettingsCollapsed,
-                                                        isPanelResizeActive,
-                                                    })}
+                                                    className={cn(
+                                                        MODAL.workflow.resizeHandleBarBase,
+                                                        isPanelResizeActive
+                                                            ? MODAL.workflow.resizeHandleBarActive
+                                                            : MODAL.workflow.resizeHandleBarIdle,
+                                                    )}
                                                 />
                                             </div>
                                         </PanelResizeHandle>

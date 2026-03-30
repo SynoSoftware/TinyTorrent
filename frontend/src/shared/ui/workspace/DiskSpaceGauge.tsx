@@ -44,8 +44,12 @@ export function DiskSpaceGauge({
 
     const statusMessage = error ? error : isLoading ? t("modals.disk_gauge.updating") : hint;
 
-    const indicatorClasses = METRIC_CHART.capacityGauge.builder.indicatorClass(Boolean(isInsufficient));
-    const containerClasses = METRIC_CHART.capacityGauge.builder.containerClass(Boolean(isInsufficient));
+    const indicatorClasses = isInsufficient
+        ? METRIC_CHART.capacityGauge.indicatorInsufficient
+        : METRIC_CHART.capacityGauge.indicatorNormal;
+    const containerClasses = isInsufficient
+        ? METRIC_CHART.capacityGauge.containerInsufficient
+        : METRIC_CHART.capacityGauge.containerNormal;
 
     return (
         <div className={containerClasses}>

@@ -62,7 +62,6 @@ const FULLSCREEN_PANEL_ANIMATION = {
     },
     transition: { duration: 0.25 },
 } as const;
-
 interface DashboardLayoutProps {
     viewModel: DashboardViewModel;
 }
@@ -300,13 +299,14 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
             {showDockedInspectorShell && (
                 <>
                     {/* --- RESIZE HANDLE (The Gap) --- */}
-                    <PanelResizeHandle
-                        className={cn(
-                            DASHBOARD.builder.resizeHandleClass(
-                                isHorizontalSplit,
-                            ),
-                            !isDetailOpen && "pointer-events-none opacity-0",
-                        )}
+                        <PanelResizeHandle
+                            className={cn(
+                                DASHBOARD.resizeHandleBase,
+                                isHorizontalSplit
+                                    ? DASHBOARD.resizeHandleHorizontal
+                                    : DASHBOARD.resizeHandleVertical,
+                                !isDetailOpen && "pointer-events-none opacity-0",
+                            )}
                         hitAreaMargins={{
                             coarse: shellTokens.handleHitArea,
                             fine: shellTokens.handleHitArea,
@@ -341,8 +341,11 @@ export function Dashboard_Layout({ viewModel }: DashboardLayoutProps) {
                         minSize={26}
                         defaultSize={34}
                         onPointerDown={focusInspector}
-                        className={DASHBOARD.builder.inspectorPanelClass(
-                            isHorizontalSplit,
+                        className={cn(
+                            DASHBOARD.inspectorPanelBase,
+                            isHorizontalSplit
+                                ? DASHBOARD.inspectorPanelHorizontal
+                                : DASHBOARD.inspectorPanelVertical,
                         )}
                     >
                         <div {...getShellStyles()}>

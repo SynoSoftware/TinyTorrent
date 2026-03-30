@@ -206,6 +206,7 @@ function SettingsContent({ controller }: SettingsContentProps) {
 
 export function SettingsModalView({ controller }: SettingsModalViewProps) {
     const { isOpen, uiMode } = controller.modal;
+    const modalClassNames = uiMode === "Full" ? MODAL.settingsModalClassNamesFull : MODAL.settingsModalClassNamesRpc;
 
     return (
         <Modal
@@ -217,7 +218,7 @@ export function SettingsModalView({ controller }: SettingsModalViewProps) {
             hideCloseButton
             isDismissable={false}
             isKeyboardDismissDisabled={false}
-            classNames={MODAL.builder.settingsModalClassNames(uiMode === "Full")}
+            classNames={modalClassNames}
             motionProps={interaction.config.modalBloom}
         >
             <ModalContent className={MODAL.contentWrapper}>

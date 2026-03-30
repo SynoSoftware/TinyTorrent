@@ -60,6 +60,9 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         toolbarSpacer: "",
         toolbarSelectionCount: "",
         toolbarSelectionMeasure: "",
+        selectionSummaryBase: "",
+        selectionSummaryVisible: "",
+        selectionSummaryHidden: "",
         headerRow: "",
         headerCheckboxWrap: "",
         headerCellName: "",
@@ -71,9 +74,6 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         emptyText: "",
         virtualCanvas: "",
         virtualRow: "",
-        builder: {
-            selectionSummaryClass: () => "",
-        },
     },
     FORM_CONTROL: {
         checkboxPrimaryClassNames: {},

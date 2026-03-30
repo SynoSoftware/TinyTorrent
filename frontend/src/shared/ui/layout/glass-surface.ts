@@ -229,10 +229,20 @@ export const MODAL = {
     settingsModalBaseFull: `${SURFACE.modal.baseClass} flex flex-row max-h-full max-w-full`,
     settingsModalBaseRpc: `${SURFACE.modal.baseClass} flex flex-row h-settings max-h-settings min-h-settings`,
     settingsModalWrapper: "overflow-hidden",
+    settingsModalClassNamesFull: {
+        base: `${SURFACE.modal.baseClass} flex flex-row max-h-full max-w-full`,
+        wrapper: "overflow-hidden",
+    } as const,
+    settingsModalClassNamesRpc: {
+        base: `${SURFACE.modal.baseClass} flex flex-row h-settings max-h-settings min-h-settings`,
+        wrapper: "overflow-hidden",
+    } as const,
     addTorrentModalBase: `${SURFACE.modal.baseClass} w-full`,
     addTorrentModalHeightFull: "h-full",
     addTorrentModalHeightDefault: "max-h-modal-body",
     addTorrentModalChromeClassNames: SURFACE.modal.chromeClassNames,
+    addTorrentBodyPanelsBase: "flex flex-col flex-1 min-h-settings",
+    addTorrentBodyPanelsFullscreen: "h-full min-h-0",
     sidebar: `${SURFACE.surface.sidebarPanel} ${transition.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
@@ -322,6 +332,10 @@ export const MODAL = {
         panelGroup: "flex-1 min-h-0",
         paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
         paneHandleEnabled: "cursor-col-resize",
+        settingsPanelCollapsed: "min-w-0 w-0",
+        resizeHandleBarBase: `h-full w-divider ${transition.fast}`,
+        resizeHandleBarActive: "bg-primary",
+        resizeHandleBarIdle: "bg-primary/70 group-hover:bg-primary/85",
         resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
         settingsPanel: `${SURFACE.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
         filePanel:
@@ -341,41 +355,7 @@ export const MODAL = {
             content: `${TEXT_ROLE.code} font-bold`,
         } as const,
     } as const,
-    builder: {
-        paneHandleClass: () => `${MODAL.workflow.paneHandle} ${MODAL.workflow.paneHandleEnabled}`,
-        bodyPanelsClass: (isFullscreen: boolean) =>
-            isFullscreen ? "flex flex-col flex-1 min-h-settings h-full min-h-0" : "flex flex-col flex-1 min-h-settings",
-        settingsPanelClass: (isSettingsCollapsed: boolean) =>
-            [MODAL.workflow.settingsPanel, isSettingsCollapsed ? "min-w-0 w-0" : ""].filter(Boolean).join(" "),
-        settingsModalClassNames: (isFullMode: boolean) =>
-            ({
-                base: isFullMode ? MODAL.settingsModalBaseFull : MODAL.settingsModalBaseRpc,
-                wrapper: MODAL.settingsModalWrapper,
-            }) as const,
-        addTorrentModalClassNames: (params: { showDestinationGate: boolean; isFullscreen: boolean }) =>
-            ({
-                ...MODAL.addTorrentModalChromeClassNames,
-                base: `${MODAL.addTorrentModalBase} ${!params.showDestinationGate && params.isFullscreen ? MODAL.addTorrentModalHeightFull : MODAL.addTorrentModalHeightDefault}`,
-            }) as const,
-        resizeHandleBarClass: (params: { isSettingsCollapsed: boolean; isPanelResizeActive: boolean }) =>
-            `h-full w-divider ${transition.fast} ${
-                params.isPanelResizeActive ? "bg-primary" : "bg-primary/70 group-hover:bg-primary/85"
-            }`,
-    } as const,
 } as const;
-const FORM_STATUS_TONE_CLASS = (statusKind: string) =>
-    statusKind === "danger" ? "text-danger" : statusKind === "warning" ? "text-warning" : "text-foreground/60";
-// Justification: settings input semantics depend on state (`disabled`, `mono`);
-// this builder prevents repeated inline classNames objects in renderers.
-const SETTINGS_BUFFERED_INPUT_CLASS_NAMES = (params: { disabled: boolean; mono: boolean }) => ({
-    inputWrapper: params.disabled
-        ? `h-button ${transition.fast} ${visuals.state.disabled}`
-        : `h-button ${transition.fast} group-hover:border-primary/50`,
-    input: params.mono
-        ? `${withOpacity(TEXT_ROLE.body, 90)} font-mono tracking-tight`
-        : `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
-    label: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
-});
 const SETTINGS_TRACKING_STYLE = {
     wide: {
         letterSpacing: "var(--tt-tracking-wide)",
@@ -417,6 +397,12 @@ export const FORM = {
     sliderValueBadgeStyle: SETTINGS_SLIDER_VALUE_BADGE_STYLE,
     sliderValueText: withOpacity(TEXT_ROLE.code, 80),
     slider: "opacity-90",
+    bufferedInputWrapperBase: `h-button ${transition.fast}`,
+    bufferedInputWrapperEnabled: "group-hover:border-primary/50",
+    bufferedInputWrapperDisabled: visuals.state.disabled,
+    bufferedInputTextMono: `${withOpacity(TEXT_ROLE.body, 90)} font-mono tracking-tight`,
+    bufferedInputTextDefault: `${withOpacity(TEXT_ROLE.body, 90)} font-medium`,
+    bufferedInputLabel: `${TEXT_ROLE_EXTENDED.settingsLabel} font-medium mb-tight`,
     inputActionRow: "flex w-full items-end gap-tools justify-end",
     inputActionFill: "flex-1 min-w-0",
     inputEndIcon: "text-foreground/40 shrink-0 toolbar-icon-size-sm",
@@ -516,10 +502,6 @@ export const FORM = {
         statusFooterRow: "flex items-start gap-tools",
         insecureAuthWarning: withColor(TEXT_ROLE.caption, "warning"),
     } as const,
-    builder: {
-        statusToneClass: FORM_STATUS_TONE_CLASS,
-        settingsBufferedInputClassNames: SETTINGS_BUFFERED_INPUT_CLASS_NAMES,
-    } as const,
 } as const;
 const TORRENT_HEADER_CELL_BASE_CLASS = `relative flex items-center h-row border-r border-content1/10 ${transition.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`;
 const TORRENT_HEADER_ACTIVATOR_BASE_CLASS =
@@ -533,45 +515,29 @@ const TORRENT_HEADER_RESIZE_BAR_STYLE = {
     width: "var(--tt-divider-width)",
 } as const;
 const TORRENT_HEADER = {
+    cellBase: TORRENT_HEADER_CELL_BASE_CLASS,
+    cellSortable: "cursor-pointer hover:bg-content1/10",
+    cellStatic: "cursor-default",
+    cellOverlay: "bg-content1/90 cursor-grabbing",
+    cellDefault: "bg-transparent",
+    cellOverlayShadow: SURFACE.atom.shadowPanel,
+    cellDragging: "opacity-30",
+    cellIdle: "opacity-100",
+    activatorBase: TORRENT_HEADER_ACTIVATOR_BASE_CLASS,
+    activatorOverlay: "text-foreground",
+    activatorAlignCenter: "justify-center",
+    activatorAlignEnd: "justify-end",
+    activatorSelection: "justify-center",
     activatorTrackingStyle: TORRENT_HEADER_ACTIVATOR_TRACKING_STYLE,
+    sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
+    sortIconVisible: "opacity-100",
+    sortIconHidden: "opacity-0",
     resizeHandle: TORRENT_HEADER_RESIZE_HANDLE_CLASS,
     resizeBarStyle: TORRENT_HEADER_RESIZE_BAR_STYLE,
-    builder: {
-        cellClass: (params: { canSort: boolean; isOverlay: boolean; isDragging: boolean }) =>
-            [
-                TORRENT_HEADER_CELL_BASE_CLASS,
-                params.canSort ? "cursor-pointer hover:bg-content1/10" : "cursor-default",
-                params.isOverlay ? "bg-content1/90 cursor-grabbing" : "bg-transparent",
-                params.isOverlay ? SURFACE.atom.shadowPanel : "",
-                params.isDragging && !params.isOverlay ? "opacity-30" : "opacity-100",
-            ]
-                .filter(Boolean)
-                .join(" "),
-        activatorClass: (params: { isOverlay: boolean; align: "start" | "center" | "end"; isSelection: boolean }) =>
-            [
-                TORRENT_HEADER_ACTIVATOR_BASE_CLASS,
-                params.isOverlay ? "text-foreground" : "",
-                params.align === "center" ? "justify-center" : "",
-                params.align === "end" ? "justify-end" : "",
-                params.isSelection ? "justify-center" : "",
-            ]
-                .filter(Boolean)
-                .join(" "),
-        sortIconClass: (visible: boolean) =>
-            `text-primary shrink-0 toolbar-icon-size-sm ${visible ? "opacity-100" : "opacity-0"}`,
-        resizeBarClass: (isResizing: boolean) =>
-            [
-                `bg-foreground/10 ${transition.fast} rounded-full h-resize-h`,
-                "group-hover:bg-primary/50",
-                isResizing ? "bg-primary h-resize-h" : "",
-            ]
-                .filter(Boolean)
-                .join(" "),
-    } as const,
+    resizeBarBase: `bg-foreground/10 ${transition.fast} rounded-full h-resize-h`,
+    resizeBarHover: "group-hover:bg-primary/50",
+    resizeBarActive: "bg-primary h-resize-h",
 } as const;
-const TABLE_DETAILS_CONTENT_SCROLL_STYLE = (maxHeight: number) => ({
-    maxHeight,
-});
 const CONTEXT_STATUS_BADGE =
     "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight";
 export const TABLE = {
@@ -663,9 +629,6 @@ export const TABLE = {
     detailsContentRecoveryNote: `${withColor(TEXT_ROLE.caption, "warning")} text-warning/80 mb-tight`,
     detailsContentSectionHeader: `border-b border-default/10 px-panel py-panel ${TEXT_ROLE.labelPrimary}`,
     detailsContentListHost: "flex-1 min-h-0 overflow-hidden",
-    builder: {
-        detailsContentScrollStyle: TABLE_DETAILS_CONTENT_SCROLL_STYLE,
-    } as const,
 } as const;
 export const DIAGNOSTIC = {
     statusChipClassNames: {
@@ -807,12 +770,9 @@ const WORKBENCH_NAV = {
         input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
         inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${transition.fast}`,
     } as const,
-    builder: {
-        selectionActionsClass: (hasSelection: boolean) =>
-            hasSelection
-                ? `flex items-center gap-tools ${transition.medium} opacity-100`
-                : `flex items-center gap-tools ${transition.medium} opacity-30 pointer-events-none grayscale`,
-    } as const,
+    selectionActionsBase: `flex items-center gap-tools ${transition.medium}`,
+    selectionActionsEnabled: "opacity-100",
+    selectionActionsDisabled: "opacity-30 pointer-events-none grayscale",
 } as const;
 const WORKBENCH_STATUS = {
     surface: "text-foreground",
@@ -947,48 +907,17 @@ export const SPLIT = {
     mapTooltipSwatch: "inline-block",
     mapLegendItem: "flex items-center gap-tight whitespace-nowrap leading-none min-w-0",
     mapLegendSwatch: "inline-block rounded-panel",
+    mapLegendSwatchVerified: "bg-success",
+    mapLegendSwatchCommon: "bg-primary/35",
+    mapLegendSwatchRare:
+        "bg-warning/75 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.22)_0_1px,transparent_1px_4px)]",
+    mapLegendSwatchDead: "border border-danger bg-foreground/12",
+    mapLegendSwatchMissing: "bg-foreground/18",
     mapLegendInline: `ml-auto flex h-full shrink-0 ${MAP_OVERLAY_CARD}`,
     mapLegendBelow: `mt-panel shrink-0 self-end ${MAP_OVERLAY_CARD}`,
     mapHudDockRow: "flex w-full min-w-0 flex-nowrap items-stretch gap-panel pb-tight",
     mapPanel: "flex flex-col h-full w-full p-tight",
-    builder: {
-        canvasInteractionStyle: (cursor: string) =>
-            ({
-                cursor,
-                touchAction: "none",
-                pointerEvents: "auto",
-            }) as const,
-        legendSwatchStyle: (params: {
-            background: string;
-            borderColor?: string;
-            opacity?: number;
-            size?: number;
-            backgroundImage?: string;
-        }) =>
-            ({
-                width: params.size ?? 14,
-                height: params.size ?? 14,
-                background: params.background,
-                backgroundImage: params.backgroundImage,
-                boxSizing: "border-box",
-                borderWidth: params.borderColor ? "var(--tt-divider-width)" : 0,
-                borderStyle: params.borderColor ? "solid" : "none",
-                borderColor: params.borderColor,
-                opacity: params.opacity,
-                display: "inline-block",
-            }) as const,
-        swatchGridStyle: (params: { gap: number; columns?: number }) =>
-            ({
-                columnGap: params.gap,
-                rowGap: params.gap,
-                gridTemplateColumns:
-                    params.columns && params.columns > 0
-                        ? `repeat(${Math.max(1, Math.floor(params.columns))}, max-content)`
-                        : undefined,
-            }) as const,
-    } as const,
 } as const;
-const CONTEXT_MENU_PANEL_STYLE = { minWidth: 200 } as const;
 export const CONTEXT_MENU = {
     panel: `pointer-events-auto absolute z-popover ${SURFACE.role.menu}`,
     header: SURFACE.menu.panelHeader,
@@ -1004,38 +933,7 @@ export const CONTEXT_MENU = {
     editorWrap: "px-panel pt-panel",
     actionButton: SURFACE.menu.actionButton,
     dangerActionButton: SURFACE.menu.dangerActionButton,
-    builder: {
-        anchorStyle: (params: { top: number; left: number }) =>
-            ({
-                position: "fixed",
-                top: params.top,
-                left: params.left,
-                width: 0,
-                height: 0,
-            }) as const,
-        panelStyle: (params: { x: number; y: number }) => ({
-            top: params.y,
-            left: params.x,
-            ...CONTEXT_MENU_PANEL_STYLE,
-        }),
-    } as const,
 } as const;
-const METRIC_CHART_LAYOUT_BUTTON_CLASS = (active: boolean) =>
-    active
-        ? "rounded-tight bg-background shadow-small text-foreground"
-        : "rounded-tight bg-transparent text-foreground/50";
-const METRIC_CHART_WINDOW_BUTTON_CLASS = (active: boolean) =>
-    active
-        ? "rounded-pill px-tight min-w-0 font-medium bg-foreground text-background shadow-small"
-        : "rounded-pill px-tight min-w-0 font-medium text-foreground/60";
-const METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS = (isInsufficient: boolean) =>
-    isInsufficient
-        ? `${METRIC_CHART.capacityGauge.container} border-danger/40 bg-danger/5`
-        : `${METRIC_CHART.capacityGauge.container} ${visuals.surface.border}`;
-const METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS = (isInsufficient: boolean) =>
-    isInsufficient
-        ? "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
-        : "h-full rounded-full bg-gradient-to-r from-success/50 to-success";
 export const METRIC_CHART = {
     canvasWrap: "w-full relative min-h-0",
     canvas: "block w-full h-full",
@@ -1046,7 +944,11 @@ export const METRIC_CHART = {
     upMetric: "flex items-center gap-tight text-primary font-bold",
     controls: "flex items-center gap-tight",
     layoutGroup: "bg-content1/20 rounded-panel p-tight gap-none mr-tight",
+    layoutButtonActive: "rounded-tight bg-background shadow-small text-foreground",
+    layoutButtonInactive: "rounded-tight bg-transparent text-foreground/50",
     windowGroup: "flex bg-content1/20 rounded-pill p-tight",
+    windowButtonActive: "rounded-pill px-tight min-w-0 font-medium bg-foreground text-background shadow-small",
+    windowButtonInactive: "rounded-pill px-tight min-w-0 font-medium text-foreground/60",
     content: "flex-1 min-h-0 flex flex-col gap-panel",
     panel: `flex-1 min-h-0 flex flex-col ${SURFACE.role.panel} p-panel relative`,
     panelLabelWrap: "absolute z-panel pointer-events-none",
@@ -1080,6 +982,8 @@ export const METRIC_CHART = {
     } as const,
     capacityGauge: {
         container: "space-y-tight rounded-xl border bg-content1/15 p-tight",
+        containerNormal: `space-y-tight rounded-xl border bg-content1/15 p-tight ${visuals.surface.border}`,
+        containerInsufficient: "space-y-tight rounded-xl border bg-content1/15 p-tight border-danger/40 bg-danger/5",
         header: `flex items-center justify-between ${TEXT_ROLE.labelDense} text-foreground/60`,
         headerStyle: {
             fontSize: "var(--tt-font-size-base)",
@@ -1094,22 +998,10 @@ export const METRIC_CHART = {
         hint: `${TEXT_ROLE.caption} text-foreground/50`,
         errorRow: "flex items-center justify-between gap-tools",
         progressTrack: "h-full bg-content1/20",
-        builder: {
-            containerClass: METRIC_CHART_CAPACITY_GAUGE_CONTAINER_CLASS,
-            indicatorClass: METRIC_CHART_CAPACITY_GAUGE_INDICATOR_CLASS,
-        } as const,
-    } as const,
-    builder: {
-        layoutButtonClass: METRIC_CHART_LAYOUT_BUTTON_CLASS,
-        windowButtonClass: METRIC_CHART_WINDOW_BUTTON_CLASS,
+        indicatorNormal: "h-full rounded-full bg-gradient-to-r from-success/50 to-success",
+        indicatorInsufficient: "h-full rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70",
     } as const,
 } as const;
-const DASHBOARD_RESIZE_HANDLE_CLASS = (isHorizontalSplit: boolean) =>
-    isHorizontalSplit
-        ? `group relative z-panel ${transition.fast} focus:outline-none cursor-col-resize`
-        : `group relative z-panel ${transition.fast} focus:outline-none cursor-row-resize`;
-const DASHBOARD_INSPECTOR_PANEL_CLASS = (isHorizontalSplit: boolean) =>
-    isHorizontalSplit ? "overflow-hidden shadow-medium h-full" : "overflow-hidden shadow-medium w-full";
 export const DASHBOARD = {
     root: `relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${transition.medium} border-t border-default/10 bg-transparent`,
     content: "relative flex-1 min-h-0 w-full h-full overflow-hidden",
@@ -1121,25 +1013,23 @@ export const DASHBOARD = {
     panelGroup: "flex-1 min-h-0 h-full w-full relative overflow-hidden rounded-2xl",
     mainPanel: "relative flex-1 min-h-0 shadow-medium",
     tableHost: "relative z-panel h-full min-h-0 overflow-hidden",
+    resizeHandleBase: `group relative z-panel ${transition.fast} focus:outline-none`,
+    resizeHandleHorizontal: "cursor-col-resize",
+    resizeHandleVertical: "cursor-row-resize",
     desktopWatermark: "torrent-table-watermark absolute inset-0 z-floor pointer-events-none",
     tableContent: "relative z-panel h-full min-h-0",
     resizeHandleInner: "absolute inset-0 flex items-center justify-center",
     resizeHandleBar: `${transition.fast} bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50`,
+    inspectorPanelBase: "overflow-hidden shadow-medium",
+    inspectorPanelHorizontal: "h-full",
+    inspectorPanelVertical: "w-full",
     inspectorContent: "h-full min-h-0 flex-1",
     section: "relative flex-1 min-h-0 h-full overflow-hidden",
     fullscreenOverlay: "fixed inset-0 z-dnd",
     fullscreenSection: "relative h-full flex items-center justify-center",
     fullscreenBackdrop: "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
     fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${visuals.surface.border} shadow-medium`,
-    builder: {
-        resizeHandleClass: DASHBOARD_RESIZE_HANDLE_CLASS,
-        inspectorPanelClass: DASHBOARD_INSPECTOR_PANEL_CLASS,
-    } as const,
 } as const;
-const DETAIL_TABLE_AVAILABILITY_DOT_CLASS = (isOnline: boolean) =>
-    isOnline
-        ? "size-dot rounded-full shadow-dot bg-success shadow-success/50"
-        : "size-dot rounded-full shadow-dot bg-warning shadow-warning/50";
 const DETAILS_TABLE_BODY_CELL = "px-tight py-panel align-middle";
 const DETAILS_TABLE_BODY_CELL_NUMERIC = `${DETAILS_TABLE_BODY_CELL} text-right tabular-nums`;
 const DETAILS_TABLE_STATE_BADGE =
@@ -1186,9 +1076,6 @@ const DETAILS_TABLE = {
         input: "font-mono",
         inputWrapper: "bg-background/40",
     } as const,
-    builder: {
-        availabilityDotClass: DETAIL_TABLE_AVAILABILITY_DOT_CLASS,
-    } as const,
 } as const;
 export const DETAILS = {
     root: `h-full min-h-0 flex flex-col outline-none rounded-2xl ${WORKBENCH_ISLAND_SHELL}`,
@@ -1213,8 +1100,32 @@ export const DETAILS = {
     headerTabInactive: "bg-transparent hover:text-foreground/85",
     headerTabHoverGlow:
         "pointer-events-none absolute left-0 right-0 rounded-full bg-foreground/10 blur-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100",
+    headerTabHoverGlowStyle: {
+        left: "var(--spacing-tight)",
+        right: "var(--spacing-tight)",
+        bottom: "calc(var(--spacing-tight) * 0.35)",
+        height: "calc(var(--spacing-panel) * 0.9)",
+    } as const,
     headerTabLightBloom: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary/30 blur-lg opacity-100",
+    headerTabLightBloomStyle: {
+        left: "var(--spacing-tight)",
+        right: "var(--spacing-tight)",
+        bottom: "calc(var(--spacing-tight) * 0.15)",
+        height: "calc(var(--spacing-panel) * 1.05)",
+        boxShadow:
+            "0 calc(var(--tt-divider-width) * 1.5) calc(var(--spacing-panel) * 0.7) rgba(var(--heroui-primary-500), 0.22)",
+    } as const,
     headerTabLightSource: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary",
+    headerTabLightSourceStyle: {
+        left: "var(--spacing-tight)",
+        right: "var(--spacing-tight)",
+        bottom: "calc(var(--spacing-tight) * 0.7)",
+        height: "calc(var(--tt-divider-width) * 1.25)",
+        opacity: 0.98,
+        filter: "blur(0.4px)",
+        boxShadow:
+            "0 0 calc(var(--tt-divider-width) * 1.8) rgba(var(--heroui-primary-500), 0.9), 0 0 calc(var(--spacing-tight) * 0.65) rgba(var(--heroui-primary-500), 0.36)",
+    } as const,
     headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
     headerContextActions: "flex shrink-0 items-center gap-tight",
     headerContextActionButton:
@@ -1268,41 +1179,6 @@ export const DETAILS = {
     generalProgressIndicatorSeeding: TABLE.columnDefs.progressIndicatorSeeding,
     generalProgressIndicatorActive: TABLE.columnDefs.progressIndicatorActive,
     table: DETAILS_TABLE,
-    builder: {
-        headerClass: (isStandalone: boolean) =>
-            isStandalone ? DETAILS.headerRoot : `${DETAILS.headerRoot} ${DETAILS.headerRootEmbedded}`,
-        headerTabButtonClass: (isActive: boolean) =>
-            isActive
-                ? `${DETAILS.headerTabBase} ${DETAILS.headerTabActive}`
-                : `${DETAILS.headerTabBase} ${DETAILS.headerTabInactive}`,
-        headerTabHoverGlowStyle: () =>
-            ({
-                left: "var(--spacing-tight)",
-                right: "var(--spacing-tight)",
-                bottom: "calc(var(--spacing-tight) * 0.35)",
-                height: "calc(var(--spacing-panel) * 0.9)",
-            }) as const,
-        headerTabLightBloomStyle: () =>
-            ({
-                left: "var(--spacing-tight)",
-                right: "var(--spacing-tight)",
-                bottom: "calc(var(--spacing-tight) * 0.15)",
-                height: "calc(var(--spacing-panel) * 1.05)",
-                boxShadow:
-                    "0 calc(var(--tt-divider-width) * 1.5) calc(var(--spacing-panel) * 0.7) rgba(var(--heroui-primary-500), 0.22)",
-            }) as const,
-        headerTabLightSourceStyle: () =>
-            ({
-                left: "var(--spacing-tight)",
-                right: "var(--spacing-tight)",
-                bottom: "calc(var(--spacing-tight) * 0.7)",
-                height: "calc(var(--tt-divider-width) * 1.25)",
-                opacity: 0.98,
-                filter: "blur(0.4px)",
-                boxShadow:
-                    "0 0 calc(var(--tt-divider-width) * 1.8) rgba(var(--heroui-primary-500), 0.9), 0 0 calc(var(--spacing-tight) * 0.65) rgba(var(--heroui-primary-500), 0.36)",
-            }) as const,
-    } as const,
 } as const;
 
 export const COMMAND_PALETTE = {
@@ -1435,15 +1311,7 @@ export const FILE_BROWSER = {
     iconDefault: "toolbar-icon-size-md text-default-400",
     iconSmall: "toolbar-icon-size-md",
     chevronButton: `file-tree-chevron-hit text-default-400 rounded-full hover:text-foreground hover:bg-default-200/50 ${transition.fast}`,
-    builder: {
-        selectionSummaryClass: (hasSelection: boolean) =>
-            hasSelection
-                ? `flex items-center gap-tools ${transition.medium} opacity-100`
-                : `flex items-center gap-tools ${transition.medium} opacity-0 pointer-events-none`,
-    } as const,
 } as const;
-const HEATMAP_CANVAS_FRAME_CLASS = `${SURFACE.surface.panelRaised} p-tight ${transition.medium}`;
-const HEATMAP_CANVAS_PULSE_CLASS = "opacity-70 shadow-availability ring-1 ring-primary/40";
 export const HEATMAP = {
     empty: `${SURFACE.surface.panelRaised} p-panel text-center`,
     emptyMuted: withOpacity(TEXT_ROLE.body, 50),
@@ -1462,9 +1330,5 @@ export const HEATMAP = {
     canvas: "w-full h-auto block rounded-2xl cursor-crosshair",
     labelTrackingStyle: {
         letterSpacing: "var(--tt-tracking-ultra)",
-    } as const,
-    builder: {
-        canvasFrameClass: (isZooming: boolean) =>
-            isZooming ? `${HEATMAP_CANVAS_FRAME_CLASS} ${HEATMAP_CANVAS_PULSE_CLASS}` : HEATMAP_CANVAS_FRAME_CLASS,
     } as const,
 } as const;

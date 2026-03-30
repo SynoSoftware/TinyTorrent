@@ -1,6 +1,7 @@
 import React, { memo, type CSSProperties } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { flexRender, type Column, type Table } from "@tanstack/react-table";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
@@ -144,29 +145,36 @@ const TorrentTable_Header = memo(
                 role="columnheader"
                 tabIndex={-1}
                 onContextMenu={onContextMenu}
-                className={TABLE.columnHeader.builder.cellClass({
-                    canSort,
-                    isOverlay,
-                    isDragging,
-                })}
+                className={cn(
+                    TABLE.columnHeader.cellBase,
+                    canSort ? TABLE.columnHeader.cellSortable : TABLE.columnHeader.cellStatic,
+                    isOverlay ? TABLE.columnHeader.cellOverlay : TABLE.columnHeader.cellDefault,
+                    isOverlay && TABLE.columnHeader.cellOverlayShadow,
+                    isDragging && !isOverlay ? TABLE.columnHeader.cellDragging : TABLE.columnHeader.cellIdle,
+                )}
             >
                 <div
                     ref={setActivatorNodeRef}
                     {...attributes}
                     {...listeners}
-                    className={TABLE.columnHeader.builder.activatorClass({
-                        isOverlay,
-                        align,
-                        isSelection,
-                    })}
+                    className={cn(
+                        TABLE.columnHeader.activatorBase,
+                        isOverlay && TABLE.columnHeader.activatorOverlay,
+                        align === "center" && TABLE.columnHeader.activatorAlignCenter,
+                        align === "end" && TABLE.columnHeader.activatorAlignEnd,
+                        isSelection && TABLE.columnHeader.activatorSelection,
+                    )}
                     style={TABLE.columnHeader.activatorTrackingStyle}
                     onPointerUp={canSort ? handleSortPointerUp : undefined}
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     <SortArrowIcon
                         strokeWidth={visuals.icon.strokeWidthDense}
-                        className={TABLE.columnHeader.builder.sortIconClass(
-                            sortArrowOpacity === "opacity-100",
+                        className={cn(
+                            TABLE.columnHeader.sortIcon,
+                            sortArrowOpacity === "opacity-100"
+                                ? TABLE.columnHeader.sortIconVisible
+                                : TABLE.columnHeader.sortIconHidden,
                         )}
                     />
                 </div>
@@ -181,8 +189,10 @@ const TorrentTable_Header = memo(
                         className={TABLE.columnHeader.resizeHandle}
                     >
                         <div
-                            className={TABLE.columnHeader.builder.resizeBarClass(
-                                isColumnResizing,
+                            className={cn(
+                                TABLE.columnHeader.resizeBarBase,
+                                TABLE.columnHeader.resizeBarHover,
+                                isColumnResizing && TABLE.columnHeader.resizeBarActive,
                             )}
                             style={TABLE.columnHeader.resizeBarStyle}
                         />

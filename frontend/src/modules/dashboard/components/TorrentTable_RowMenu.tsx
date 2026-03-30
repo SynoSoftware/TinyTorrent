@@ -400,10 +400,13 @@ function TorrentTable_RowMenuInner({
         >
             <DropdownTrigger>
                 <div
-                    style={contextMenuStyles.builder.anchorStyle({
+                    style={{
+                        position: "fixed",
                         top: rect.top,
                         left: rect.left,
-                    })}
+                        width: 0,
+                        height: 0,
+                    }}
                 />
             </DropdownTrigger>
             <DropdownMenu
