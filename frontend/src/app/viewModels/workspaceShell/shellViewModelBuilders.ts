@@ -62,7 +62,7 @@ export interface DashboardViewModelParams {
     ) => Promise<void>;
     handleFilePriorityChange: (
         indexes: number[],
-        priority: import("@/services/rpc/entities").LibtorrentPriority,
+        priority: import("@/services/rpc/entities").TransmissionPriority,
     ) => Promise<void>;
     trackerCommands: Omit<
         DashboardViewModel["detail"]["tabs"]["trackers"],

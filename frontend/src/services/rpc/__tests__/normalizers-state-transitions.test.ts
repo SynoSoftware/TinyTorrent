@@ -15,4 +15,8 @@ describe("normalizer state transitions", () => {
         expect(enforceStateTransition(status.torrent.downloading, status.torrent.checking)).toBe(status.torrent.checking);
         expect(enforceStateTransition(status.torrent.seeding, status.torrent.checking)).toBe(status.torrent.checking);
     });
+
+    it("allows a seeded torrent to reopen into downloading", () => {
+        expect(enforceStateTransition(status.torrent.seeding, status.torrent.downloading)).toBe(status.torrent.downloading);
+    });
 });

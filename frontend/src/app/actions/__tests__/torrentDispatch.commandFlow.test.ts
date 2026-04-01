@@ -460,11 +460,57 @@ describe("torrentDispatch command flow", () => {
         });
 
         const outcome = await dispatch(
-            TorrentIntents.setFilesPriority("t-priority-1", [2], 7),
+            TorrentIntents.setFilesPriority("t-priority-1", [2], 1),
         );
 
         expect(outcome).toEqual({ status: "applied" });
-        expect(commandLog).toEqual(["file-priority:t-priority-1:2:7"]);
+        expect(commandLog).toEqual(["file-priority:t-priority-1:2:1"]);
+        expect(refreshTorrents).toHaveBeenCalledTimes(1);
+        expect(refreshSessionStatsData).toHaveBeenCalledTimes(1);
+        expect(refreshDetailData).toHaveBeenCalledTimes(1);
+    });
+
+    it("dispatches file wanted mutation through adapter without extra transport actions", async () => {
+        const commandLog: string[] = [];
+        const refreshTorrents = vi.fn(async () => {});
+        const refreshSessionStatsData = vi.fn(async () => {});
+        const refreshDetailData = vi.fn(async () => {});
+        const client = createMockClient(commandLog);
+        client.updateFileSelection = vi.fn(async (id: string, indexes: number[], wanted: boolean) => {
+            commandLog.push(`file-wanted:${id}:${indexes.join(",")}:${String(wanted)}`);
+        });
+        client.getTorrentDetails = vi.fn(async () => ({
+            id: "t-files-1",
+            hash: "hash-files-1",
+            name: "files-1",
+            state: status.torrent.downloading,
+            speed: { down: 0, up: 0 },
+            peerSummary: { connected: 0 },
+            totalSize: 10,
+            eta: -1,
+            ratio: 0,
+            uploaded: 0,
+            downloaded: 0,
+            leftUntilDone: 10,
+            added: Date.now(),
+            files: [
+                { index: 2, name: "a.bin", wanted: true, priority: 0 as const, length: 5, bytesCompleted: 1 },
+                { index: 3, name: "b.bin", wanted: true, priority: 0 as const, length: 5, bytesCompleted: 1 },
+            ],
+        }));
+        const dispatch = createTorrentDispatch({
+            client,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+        });
+
+        const outcome = await dispatch(
+            TorrentIntents.setFilesWanted("t-files-1", [2, 3], true),
+        );
+
+        expect(outcome).toEqual({ status: "applied" });
+        expect(commandLog).toEqual(["file-wanted:t-files-1:2,3:true"]);
         expect(refreshTorrents).toHaveBeenCalledTimes(1);
         expect(refreshSessionStatsData).toHaveBeenCalledTimes(1);
         expect(refreshDetailData).toHaveBeenCalledTimes(1);

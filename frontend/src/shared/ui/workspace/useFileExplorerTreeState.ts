@@ -3,7 +3,7 @@ import type {
     FileExplorerEntry,
     FileExplorerFilterMode,
 } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import type { LibtorrentPriority } from "@/services/rpc/entities";
+import type { TransmissionPriority } from "@/services/rpc/entities";
 import {
     buildTree,
     collectFolderIds,
@@ -13,7 +13,7 @@ import {
 
 type FileExplorerTreeStateOverrides = {
     wantedByIndex?: ReadonlyMap<number, boolean>;
-    priorityByIndex?: ReadonlyMap<number, LibtorrentPriority>;
+    priorityByIndex?: ReadonlyMap<number, TransmissionPriority>;
     searchQuery?: string;
     initialExpandedIds?: readonly string[];
     onExpandedIdsChange?: (expandedIds: readonly string[]) => void;
@@ -77,8 +77,8 @@ export const useFileExplorerTreeState = (
         if (priorityByIndexOverride) {
             return priorityByIndexOverride;
         }
-        const map = new Map<number, LibtorrentPriority>();
-        files.forEach((file) => map.set(file.index, file.priority ?? 4));
+        const map = new Map<number, TransmissionPriority>();
+        files.forEach((file) => map.set(file.index, file.priority ?? 0));
         return map;
     }, [files, priorityByIndexOverride]);
 

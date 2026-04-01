@@ -35,6 +35,54 @@ type TransportSessionRuntime = {
     sessionBarrier: Promise<void> | null;
 };
 
+type RpcTraceEntry = {
+    seq: number;
+    ts: string;
+    stage: "request" | "response" | "failure";
+    method: string;
+    attempt: number;
+    payload?: unknown;
+    httpStatus?: number;
+    outcomeKind?: TransportOutcomeKind;
+    responseBody?: unknown;
+    daemonState?: unknown;
+    message?: string;
+};
+
+type TracedTorrentState = {
+    id?: number;
+    hashString?: string;
+    name?: string;
+    status?: number;
+    percentDone?: number;
+    leftUntilDone?: number;
+    rateDownload?: number;
+    isFinished?: boolean;
+    sizeWhenDone?: number;
+    totalSize?: number;
+};
+
+type RpcTraceRequest = {
+    method: string;
+    arguments: unknown;
+};
+
+type RpcTraceFocusRuntime = {
+    armedTorrentIds: number[];
+    activeTorrentId?: number;
+    pendingEntries: RpcTraceEntry[];
+};
+
+const rpcTraceSessionStorageKey = "tt-debug-rpc-cycle-trace";
+const tracedRpcMethods = new Set([
+    "torrent-set",
+    "torrent-start",
+    "torrent-start-now",
+    "torrent-stop",
+    "torrent-get",
+]);
+const rpcTracePendingEntryLimit = 24;
+
 const transportSessionRuntimeByKey = new Map<string, TransportSessionRuntime>();
 
 const getTransportSessionRuntime = (key: string): TransportSessionRuntime => {
@@ -52,6 +100,292 @@ const getTransportSessionRuntime = (key: string): TransportSessionRuntime => {
 export function resetTransportSessionRuntimeOwner() {
     transportSessionRuntimeByKey.clear();
 }
+
+const getRpcTraceRuntime = () => {
+    const traceGlobal = globalThis as typeof globalThis & {
+        __ttRpcTrace?: RpcTraceEntry[];
+        __ttRpcTraceSeq?: number;
+        __ttRpcTraceFocus?: RpcTraceFocusRuntime;
+    };
+    if (!traceGlobal.__ttRpcTraceFocus) {
+        traceGlobal.__ttRpcTraceFocus = {
+            armedTorrentIds: [],
+            activeTorrentId: undefined,
+            pendingEntries: [],
+        };
+    }
+    return traceGlobal.__ttRpcTraceFocus;
+};
+
+const isRpcTraceEnabled = (): boolean => {
+    try {
+        return (
+            typeof sessionStorage !== "undefined" &&
+            sessionStorage.getItem(rpcTraceSessionStorageKey) === "1"
+        );
+    } catch {
+        return false;
+    }
+};
+
+const parseRpcTraceRequest = (
+    requestInit: RequestInit,
+): RpcTraceRequest | null => {
+    const body = requestInit.body;
+    if (typeof body !== "string") {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(body) as {
+            method?: unknown;
+            arguments?: unknown;
+        };
+        if (typeof parsed.method !== "string") {
+            return null;
+        }
+        return {
+            method: parsed.method,
+            arguments: parsed.arguments ?? {},
+        };
+    } catch {
+        return null;
+    }
+};
+
+const readTraceResponseBody = async (response: Response): Promise<unknown> => {
+    try {
+        const clone = response.clone();
+        try {
+            return await clone.json();
+        } catch {
+            try {
+                const text = await clone.text();
+                return text.length ? text : null;
+            } catch {
+                return undefined;
+            }
+        }
+    } catch {
+        return undefined;
+    }
+};
+
+const summarizeTorrentGetState = (responseBody: unknown): TracedTorrentState[] | undefined => {
+    if (!responseBody || typeof responseBody !== "object") {
+        return undefined;
+    }
+    const response = responseBody as {
+        result?: unknown;
+        arguments?: unknown;
+    };
+    if (response.result !== "success") {
+        return undefined;
+    }
+    const args =
+        response.arguments && typeof response.arguments === "object"
+            ? (response.arguments as { torrents?: unknown })
+            : null;
+    if (!args || !Array.isArray(args.torrents)) {
+        return undefined;
+    }
+
+    return args.torrents.map((torrent) => {
+        if (!torrent || typeof torrent !== "object") {
+            return torrent;
+        }
+        const record = torrent as Record<string, unknown>;
+        const files = Array.isArray(record.files) ? record.files : [];
+        const fileStats = Array.isArray(record.fileStats) ? record.fileStats : [];
+        return {
+            id: record.id,
+            hashString: record.hashString,
+            name: record.name,
+            status: record.status,
+            percentDone: record.percentDone,
+            leftUntilDone: record.leftUntilDone,
+            rateDownload: record.rateDownload,
+            isFinished: record.isFinished,
+            sizeWhenDone:
+                typeof record.sizeWhenDone === "number"
+                    ? record.sizeWhenDone
+                    : undefined,
+            totalSize:
+                typeof record.totalSize === "number"
+                    ? record.totalSize
+                    : undefined,
+        };
+    });
+};
+
+const appendRpcTraceEntry = (traceEntry: RpcTraceEntry): void => {
+    const traceGlobal = globalThis as typeof globalThis & {
+        __ttRpcTrace?: RpcTraceEntry[];
+        __ttRpcTraceSeq?: number;
+    };
+    if (!Array.isArray(traceGlobal.__ttRpcTrace)) {
+        traceGlobal.__ttRpcTrace = [];
+    }
+    traceGlobal.__ttRpcTrace.push(traceEntry);
+    infraLogger.debug({
+        scope: "transport",
+        event: "rpc_trace",
+        message: "Transmission RPC trace entry recorded",
+        details: {
+            seq: traceEntry.seq,
+            stage: traceEntry.stage,
+            method: traceEntry.method,
+            attempt: traceEntry.attempt,
+            httpStatus: traceEntry.httpStatus,
+            outcomeKind: traceEntry.outcomeKind,
+            hasDaemonState: traceEntry.daemonState !== undefined,
+        },
+    }, traceEntry);
+};
+
+const queuePendingRpcTraceEntry = (traceEntry: RpcTraceEntry): void => {
+    const runtime = getRpcTraceRuntime();
+    runtime.pendingEntries.push(traceEntry);
+    if (runtime.pendingEntries.length > rpcTracePendingEntryLimit) {
+        runtime.pendingEntries.splice(
+            0,
+            runtime.pendingEntries.length - rpcTracePendingEntryLimit,
+        );
+    }
+};
+
+const flushPendingRpcTraceEntries = (): void => {
+    const runtime = getRpcTraceRuntime();
+    if (runtime.pendingEntries.length === 0) {
+        return;
+    }
+    for (const entry of runtime.pendingEntries) {
+        appendRpcTraceEntry(entry);
+    }
+    runtime.pendingEntries.length = 0;
+};
+
+const extractTraceIds = (payload: unknown): number[] => {
+    if (!payload || typeof payload !== "object") {
+        return [];
+    }
+    const ids = (payload as { ids?: unknown }).ids;
+    if (!Array.isArray(ids)) {
+        return [];
+    }
+    return ids.filter(
+        (id): id is number => typeof id === "number" && Number.isFinite(id),
+    );
+};
+
+const isIncompleteAllUnwantedSeedingState = (
+    torrent: TracedTorrentState,
+): boolean =>
+    torrent.status === 6 &&
+    torrent.leftUntilDone === 0 &&
+    torrent.isFinished === false &&
+    typeof torrent.sizeWhenDone === "number" &&
+    typeof torrent.totalSize === "number" &&
+    torrent.sizeWhenDone < torrent.totalSize;
+
+const activateFocusedTrace = (
+    torrentId: number,
+    traceEntry: RpcTraceEntry,
+): void => {
+    const runtime = getRpcTraceRuntime();
+    runtime.activeTorrentId = torrentId;
+    runtime.armedTorrentIds = runtime.armedTorrentIds.filter(
+        (id) => id !== torrentId,
+    );
+    flushPendingRpcTraceEntries();
+    appendRpcTraceEntry(traceEntry);
+};
+
+const recordRpcTrace = (entry: Omit<RpcTraceEntry, "seq" | "ts">): void => {
+    if (!isRpcTraceEnabled()) {
+        return;
+    }
+    const traceGlobal = globalThis as typeof globalThis & {
+        __ttRpcTraceSeq?: number;
+    };
+    const seq = (traceGlobal.__ttRpcTraceSeq ?? 0) + 1;
+    traceGlobal.__ttRpcTraceSeq = seq;
+    const traceEntry: RpcTraceEntry = {
+        seq,
+        ts: new Date().toISOString(),
+        ...entry,
+    };
+    const runtime = getRpcTraceRuntime();
+
+    if (traceEntry.method !== "torrent-get") {
+        const ids = extractTraceIds(traceEntry.payload);
+        const isFilesWantedMutation =
+            traceEntry.method === "torrent-set" &&
+            traceEntry.payload != null &&
+            typeof traceEntry.payload === "object" &&
+            Array.isArray(
+                (traceEntry.payload as { "files-wanted"?: unknown })[
+                    "files-wanted"
+                ],
+            );
+        if (
+            runtime.activeTorrentId === undefined &&
+            isFilesWantedMutation
+        ) {
+            const armedTargetId = ids.find((id) =>
+                runtime.armedTorrentIds.includes(id),
+            );
+            if (armedTargetId !== undefined) {
+                activateFocusedTrace(armedTargetId, traceEntry);
+                return;
+            }
+        }
+        if (
+            runtime.activeTorrentId !== undefined &&
+            ids.includes(runtime.activeTorrentId)
+        ) {
+            appendRpcTraceEntry(traceEntry);
+            return;
+        }
+        queuePendingRpcTraceEntry(traceEntry);
+        return;
+    }
+
+    const daemonState = Array.isArray(traceEntry.daemonState)
+        ? (traceEntry.daemonState as TracedTorrentState[])
+        : [];
+    if (daemonState.length === 0) {
+        queuePendingRpcTraceEntry(traceEntry);
+        return;
+    }
+
+    for (const torrent of daemonState) {
+        if (
+            typeof torrent.id === "number" &&
+            isIncompleteAllUnwantedSeedingState(torrent) &&
+            !runtime.armedTorrentIds.includes(torrent.id)
+        ) {
+            runtime.armedTorrentIds.push(torrent.id);
+        }
+    }
+
+    if (runtime.activeTorrentId === undefined) {
+        queuePendingRpcTraceEntry(traceEntry);
+        return;
+    }
+
+    const activeTorrent = daemonState.find(
+        (torrent) => torrent.id === runtime.activeTorrentId,
+    );
+    if (!activeTorrent) {
+        return;
+    }
+
+    appendRpcTraceEntry({
+        ...traceEntry,
+        daemonState: [activeTorrent],
+        responseBody: undefined,
+    });
+};
 
 export class TransmissionRpcTransport {
     private sessionId: string | null = null;
@@ -194,6 +528,11 @@ export class TransmissionRpcTransport {
         controller?: AbortController,
         keepalive = false
     ): Promise<TransportFetchOutcome> {
+        const traceRequest = parseRpcTraceRequest(requestInit);
+        const shouldTrace =
+            traceRequest !== null &&
+            isRpcTraceEnabled() &&
+            tracedRpcMethods.has(traceRequest.method);
         // Create an internal controller so we can always abort the underlying
         // fetch if needed (reset/abortAll). If a caller provided a controller,
         // wire it to abort the internal controller as well.
@@ -234,6 +573,14 @@ export class TransmissionRpcTransport {
         } catch { /* ignore */ }
 
         const attempt = async (retry = false): Promise<TransportFetchOutcome> => {
+            if (shouldTrace && traceRequest) {
+                recordRpcTrace({
+                    stage: "request",
+                    method: traceRequest.method,
+                    attempt: retry ? 2 : 1,
+                    payload: traceRequest.arguments,
+                });
+            }
             const isInitialConnectionAttempt =
                 !(this.sessionId ?? this.sessionRuntime.sharedSessionId) &&
                 !retry;
@@ -374,10 +721,21 @@ export class TransmissionRpcTransport {
                 try {
                     response = await fetch(this.endpoint, requestInit);
                 } catch (error) {
-                    return this.mapFetchErrorToOutcome(
+                    const outcome = this.mapFetchErrorToOutcome(
                         error,
                         "Transmission RPC unavailable",
                     );
+                    if (shouldTrace && traceRequest) {
+                        recordRpcTrace({
+                            stage: "failure",
+                            method: traceRequest.method,
+                            attempt: retry ? 2 : 1,
+                            payload: traceRequest.arguments,
+                            outcomeKind: outcome.kind,
+                            message: outcome.message,
+                        });
+                    }
+                    return outcome;
                 } finally {
                     try {
                         this.inflightControllers.delete(internalController);
@@ -397,6 +755,24 @@ export class TransmissionRpcTransport {
                             ? 200
                             : 0
                         : 0;
+                const responseBody =
+                    shouldTrace && traceRequest
+                        ? await readTraceResponseBody(response)
+                        : undefined;
+                if (shouldTrace && traceRequest) {
+                    recordRpcTrace({
+                        stage: "response",
+                        method: traceRequest.method,
+                        attempt: retry ? 2 : 1,
+                        payload: traceRequest.arguments,
+                        httpStatus: status,
+                        responseBody,
+                        daemonState:
+                            traceRequest.method === "torrent-get"
+                                ? summarizeTorrentGetState(responseBody)
+                                : undefined,
+                    });
+                }
 
                 if (status === 409) {
                     // Try to obtain a session token from headers when available

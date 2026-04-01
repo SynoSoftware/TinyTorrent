@@ -12,7 +12,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import type { LibtorrentPriority } from "@/services/rpc/entities";
+import type { TransmissionPriority } from "@/services/rpc/entities";
 import type { FileExplorerFilterMode, FileExplorerTreeViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
 import { fileBrowser, formControl, details, surface, table } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -135,53 +135,42 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
         () => Array.from(new Set(visibleNodes.flatMap((node) => node.descendantIndexes))),
         [visibleNodes],
     );
+    const getWantedTargetIndexes = useCallback(
+        (indexes: readonly number[]) => indexes.filter((index) => Boolean(fileWantedMap.get(index))),
+        [fileWantedMap],
+    );
+    const visibleWantedIndexes = useMemo(
+        () => getWantedTargetIndexes(allVisibleIndexes),
+        [allVisibleIndexes, getWantedTargetIndexes],
+    );
 
     const headerPrioritySelection = useMemo(() => {
-        return getFileExplorerPrioritySelection(allVisibleIndexes, filePriorityMap, fileWantedMap, true);
-    }, [allVisibleIndexes, filePriorityMap, fileWantedMap]);
+        const selectionIndexes = visibleWantedIndexes.length > 0 ? visibleWantedIndexes : allVisibleIndexes;
+        return getFileExplorerPrioritySelection(selectionIndexes, filePriorityMap);
+    }, [allVisibleIndexes, filePriorityMap, visibleWantedIndexes]);
 
     const gridTemplateColumns = showProgress
-        ? "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w)) minmax(calc(20 * var(--u) * var(--z)), var(--tt-col-meta)) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))"
-        : "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w)) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))";
+        ? "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w)) minmax(calc(20 * var(--u) * var(--z)), var(--tt-col-meta)) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w))"
+        : "minmax(var(--tt-add-file-col-select-min-w), var(--tt-add-file-col-select-w)) minmax(var(--tt-add-file-col-name-min-w), 1fr) minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w)) minmax(var(--tt-add-file-col-priority-min-w), var(--tt-add-file-col-priority-w))";
 
     const isAllSelected =
         allVisibleIndexes.length > 0 && allVisibleIndexes.every((index) => Boolean(fileWantedMap.get(index)));
     const isIndeterminate = !isAllSelected && allVisibleIndexes.some((index) => Boolean(fileWantedMap.get(index)));
 
-    const applyPriorityToIndexes = useCallback(
-        async (indexesToUpdate: number[], priority: LibtorrentPriority | "skip") => {
-            if (indexesToUpdate.length === 0) return;
-
-            if (priority === "skip") {
-                void onFilesToggle(indexesToUpdate, false);
-                return;
-            }
-
-            const skippedIndexes = indexesToUpdate.filter((index) => !fileWantedMap.get(index));
-            if (skippedIndexes.length > 0) {
-                const toggleOutcome = await onFilesToggle(skippedIndexes, true);
-                if (toggleOutcome.status !== "success") {
-                    return;
-                }
-            }
-
-            await onSetPriority?.(indexesToUpdate, priority);
-        },
-        [fileWantedMap, onFilesToggle, onSetPriority],
-    );
-
     const handleSetPriority = useCallback(
-        (priority: LibtorrentPriority | "skip", targetIndexes?: number[]) => {
-            applyPriorityToIndexes(targetIndexes ?? [], priority);
+        (priority: TransmissionPriority, targetIndexes?: number[]) => {
+            const indexesToUpdate = targetIndexes ?? [];
+            if (indexesToUpdate.length === 0) return;
+            void onSetPriority?.(indexesToUpdate, priority);
         },
-        [applyPriorityToIndexes],
+        [onSetPriority],
     );
 
     const handleSetVisiblePriority = useCallback(
-        (priority: LibtorrentPriority | "skip") => {
-            applyPriorityToIndexes(allVisibleIndexes, priority);
+        (priority: TransmissionPriority) => {
+            handleSetPriority(priority, visibleWantedIndexes);
         },
-        [allVisibleIndexes, applyPriorityToIndexes],
+        [handleSetPriority, visibleWantedIndexes],
     );
 
     const handleSelectAll = useCallback(
@@ -321,9 +310,20 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                         <FileText className={table.columnHeaderIcon} />
                         <span>{t("fields.name")}</span>
                     </div>
+                    <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellEnd}`}>
+                        <HardDrive className={table.columnHeaderIcon} />
+                        <span>{t("fields.size")}</span>
+                    </div>
+                    {showProgress ? (
+                        <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellCenter}`}>
+                            <Percent className={table.columnHeaderIcon} />
+                            <span>{t("fields.progress")}</span>
+                        </div>
+                    ) : null}
                     <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellCenter}`}>
                         <Select
                             aria-label={t("fields.priority")}
+                            isDisabled={!onSetPriority || visibleWantedIndexes.length === 0}
                             placeholder={
                                 allVisibleIndexes.length > 0 && headerPrioritySelection.size === 0
                                     ? t("priority.mixed")
@@ -352,16 +352,6 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                             })}
                         </Select>
                     </div>
-                    {showProgress ? (
-                        <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellCenter}`}>
-                            <Percent className={table.columnHeaderIcon} />
-                            <span>{t("fields.progress")}</span>
-                        </div>
-                    ) : null}
-                    <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellEnd}`}>
-                        <HardDrive className={table.columnHeaderIcon} />
-                        <span>{t("fields.size")}</span>
-                    </div>
                 </div>
             ) : null}
 
@@ -376,22 +366,20 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                 <div className={fileBrowser.virtualCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                         const node = visibleNodes[virtualRow.index];
-                        const allowsSkipPriority = !node.isFolder;
+                        const isWanted = node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index)));
+                        const priorityTargetIndexes = getWantedTargetIndexes(node.descendantIndexes);
+                        const prioritySelectionIndexes =
+                            priorityTargetIndexes.length > 0 ? priorityTargetIndexes : node.descendantIndexes;
                         const rowViewModel = {
                             node,
                             isExpanded: expandedIds.has(node.id),
-                            isSelected: node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))),
+                            isWanted,
                             isIndeterminate:
-                                !node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))) &&
+                                !isWanted &&
                                 node.descendantIndexes.some((index) => Boolean(fileWantedMap.get(index))),
-                            isWanted: node.descendantIndexes.every((index) => Boolean(fileWantedMap.get(index))),
-                            prioritySelection: getFileExplorerPrioritySelection(
-                                node.descendantIndexes,
-                                filePriorityMap,
-                                fileWantedMap,
-                                allowsSkipPriority,
-                            ),
-                            allowsSkipPriority,
+                            prioritySelection: getFileExplorerPrioritySelection(prioritySelectionIndexes, filePriorityMap),
+                            priorityTargetIndexes,
+                            isPriorityEnabled: Boolean(onSetPriority) && priorityTargetIndexes.length > 0,
                         };
                         return (
                             <div

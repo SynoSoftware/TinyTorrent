@@ -860,9 +860,7 @@
         "high": "High",
         "normal": "Normal",
         "low": "Low",
-        "mixed": "Mixed priorities",
-        "skip": "Skip",
-        "dont_download": "Do Not Download"
+        "mixed": "Mixed priorities"
     },
     "toolbar": {
         "add_magnet": "Add Magnet",

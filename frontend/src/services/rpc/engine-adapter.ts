@@ -91,7 +91,7 @@ export interface EngineAdapter {
     setFilePriority?(
         id: string,
         indexes: number[],
-        priority: import("./entities").LibtorrentPriority,
+        priority: import("./entities").TransmissionPriority,
     ): Promise<void>;
     setTorrentLocation?(
         id: string,

@@ -49,7 +49,7 @@ vi.mock("@/shared/ui/layout/toolbar-button", () => ({
 }));
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
-    FILE_BROWSER: {
+    fileBrowser: {
         container: "",
         toolbar: "",
         toolbarLead: "",
@@ -135,10 +135,12 @@ vi.mock("@heroui/react", () => ({
     Select: ({
         onSelectionChange,
         children,
+        isDisabled,
         "aria-label": ariaLabel,
     }: {
         onSelectionChange?: (keys: Set<React.Key>) => void;
         children?: React.ReactNode;
+        isDisabled?: boolean;
         "aria-label"?: string;
     }) =>
         React.createElement(
@@ -149,7 +151,11 @@ vi.mock("@heroui/react", () => ({
                 {
                     type: "button",
                     "data-testid": ariaLabel,
-                    onClick: () => onSelectionChange?.(new Set(["normal"])),
+                    disabled: isDisabled,
+                    onClick: () => {
+                        if (isDisabled) return;
+                        onSelectionChange?.(new Set(["normal"]));
+                    },
                 },
                 "select-normal",
             ),
@@ -170,41 +176,43 @@ vi.mock("@/shared/ui/workspace/FileExplorerTreeRow", () => ({
             labelKey: "priority.high",
             icon: () => null,
             iconClass: "",
-            value: 7,
+            value: 1,
         },
         {
             key: "normal",
             labelKey: "priority.normal",
             icon: () => null,
             iconClass: "",
-            value: 4,
+            value: 0,
         },
         {
             key: "low",
             labelKey: "priority.low",
             icon: () => null,
             iconClass: "",
-            value: 1,
-        },
-        {
-            key: "skip",
-            labelKey: "priority.dont_download",
-            icon: () => null,
-            iconClass: "",
-            value: "skip",
+            value: -1,
         },
     ],
     FileExplorerTreeRow: ({
+        row,
         onSetPriority,
     }: {
-        onSetPriority: (priority: 1 | 4 | 7 | "skip", indexes?: number[]) => void;
+        row: {
+            isPriorityEnabled: boolean;
+            priorityTargetIndexes: readonly number[];
+        };
+        onSetPriority: (priority: -1 | 0 | 1, indexes?: number[]) => void;
     }) =>
         React.createElement(
             "button",
             {
                 type: "button",
                 "data-testid": "row-priority-normal",
-                onClick: () => onSetPriority(4, [1]),
+                disabled: !row.isPriorityEnabled,
+                onClick: () => {
+                    if (!row.isPriorityEnabled) return;
+                    onSetPriority(0, [...row.priorityTargetIndexes]);
+                },
             },
             "row-priority-normal",
         ),
@@ -244,20 +252,26 @@ describe("FileExplorerTree priority changes", () => {
             collapseAll: vi.fn(),
             visibleNodes: [
                 {
-                    id: "folder/file-1",
-                    name: "file-1.mkv",
-                    path: "folder/file-1.mkv",
-                    isFolder: false,
-                    depth: 1,
+                    id: "folder",
+                    name: "folder",
+                    path: "folder",
+                    isFolder: true,
+                    depth: 0,
                     children: [],
-                    descendantIndexes: [1],
-                    totalSize: 1024,
+                    descendantIndexes: [0, 1],
+                    totalSize: 2048,
                     bytesCompleted: 0,
                     progress: 0,
                 },
             ],
-            fileWantedMap: new Map([[1, false]]),
-            filePriorityMap: new Map([[1, 4]]),
+            fileWantedMap: new Map([
+                [0, false],
+                [1, false],
+            ]),
+            filePriorityMap: new Map([
+                [0, 0],
+                [1, 0],
+            ]),
         });
     });
 
@@ -266,18 +280,47 @@ describe("FileExplorerTree priority changes", () => {
         document.body.innerHTML = "";
     });
 
-    it("re-enables skipped files before applying a row priority change", async () => {
-        const calls: string[] = [];
-        const onFilesToggle = vi.fn(async () => {
-            calls.push("toggle");
-            return { status: "success" } as const;
-        });
-        const onSetPriority = vi.fn(async () => {
-            calls.push("priority");
+    it("routes row priority changes directly to onSetPriority", async () => {
+        const onFilesToggle = vi.fn(async () => ({ status: "success" } as const));
+        const onSetPriority = vi.fn(async () => undefined);
+        mocks.useFileExplorerTreeState.mockReturnValue({
+            searchQuery: "",
+            setSearchQuery: vi.fn(),
+            filterMode: "all",
+            setFilterMode: vi.fn(),
+            expandedIds: new Set<string>(),
+            toggleExpand: vi.fn(),
+            expandAll: vi.fn(),
+            collapseAll: vi.fn(),
+            visibleNodes: [
+                {
+                    id: "folder",
+                    name: "folder",
+                    path: "folder",
+                    isFolder: true,
+                    depth: 0,
+                    children: [],
+                    descendantIndexes: [0, 1],
+                    totalSize: 2048,
+                    bytesCompleted: 0,
+                    progress: 0,
+                },
+            ],
+            fileWantedMap: new Map([
+                [0, true],
+                [1, false],
+            ]),
+            filePriorityMap: new Map([
+                [0, 0],
+                [1, 0],
+            ]),
         });
 
         const mounted = mountTree({
-            files: [{ index: 1, name: "folder/file-1.mkv", length: 1024, wanted: false, priority: 4 }],
+            files: [
+                { index: 0, name: "folder/file-1.mkv", length: 1024, wanted: true, priority: 0 },
+                { index: 1, name: "folder/file-2.mkv", length: 1024, wanted: false, priority: 0 },
+            ],
             onFilesToggle,
             onSetPriority,
         });
@@ -292,26 +335,54 @@ describe("FileExplorerTree priority changes", () => {
                 button.click();
             });
 
-            expect(onFilesToggle).toHaveBeenCalledWith([1], true);
-            expect(onSetPriority).toHaveBeenCalledWith([1], 4);
-            expect(calls).toEqual(["toggle", "priority"]);
+            expect(onFilesToggle).not.toHaveBeenCalled();
+            expect(onSetPriority).toHaveBeenCalledWith([0], 0);
         } finally {
             mounted.cleanup();
         }
     });
 
-    it("re-enables skipped files before applying the header priority change", async () => {
-        const calls: string[] = [];
-        const onFilesToggle = vi.fn(async () => {
-            calls.push("toggle");
-            return { status: "success" } as const;
-        });
-        const onSetPriority = vi.fn(async () => {
-            calls.push("priority");
+    it("routes header priority changes to the wanted subset only", async () => {
+        const onFilesToggle = vi.fn(async () => ({ status: "success" } as const));
+        const onSetPriority = vi.fn(async () => undefined);
+        mocks.useFileExplorerTreeState.mockReturnValue({
+            searchQuery: "",
+            setSearchQuery: vi.fn(),
+            filterMode: "all",
+            setFilterMode: vi.fn(),
+            expandedIds: new Set<string>(),
+            toggleExpand: vi.fn(),
+            expandAll: vi.fn(),
+            collapseAll: vi.fn(),
+            visibleNodes: [
+                {
+                    id: "folder",
+                    name: "folder",
+                    path: "folder",
+                    isFolder: true,
+                    depth: 0,
+                    children: [],
+                    descendantIndexes: [0, 1],
+                    totalSize: 2048,
+                    bytesCompleted: 0,
+                    progress: 0,
+                },
+            ],
+            fileWantedMap: new Map([
+                [0, true],
+                [1, false],
+            ]),
+            filePriorityMap: new Map([
+                [0, 0],
+                [1, 0],
+            ]),
         });
 
         const mounted = mountTree({
-            files: [{ index: 1, name: "folder/file-1.mkv", length: 1024, wanted: false, priority: 4 }],
+            files: [
+                { index: 0, name: "folder/file-1.mkv", length: 1024, wanted: true, priority: 0 },
+                { index: 1, name: "folder/file-2.mkv", length: 1024, wanted: false, priority: 0 },
+            ],
             onFilesToggle,
             onSetPriority,
         });
@@ -326,9 +397,71 @@ describe("FileExplorerTree priority changes", () => {
                 button.click();
             });
 
-            expect(onFilesToggle).toHaveBeenCalledWith([1], true);
-            expect(onSetPriority).toHaveBeenCalledWith([1], 4);
-            expect(calls).toEqual(["toggle", "priority"]);
+            expect(onFilesToggle).not.toHaveBeenCalled();
+            expect(onSetPriority).toHaveBeenCalledWith([0], 0);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("disables priority changes when no wanted targets exist", async () => {
+        const onFilesToggle = vi.fn(async () => ({ status: "success" } as const));
+        const onSetPriority = vi.fn(async () => undefined);
+
+        const mounted = mountTree({
+            files: [
+                { index: 0, name: "folder/file-1.mkv", length: 1024, wanted: false, priority: 0 },
+                { index: 1, name: "folder/file-2.mkv", length: 1024, wanted: false, priority: 0 },
+            ],
+            onFilesToggle,
+            onSetPriority,
+        });
+
+        try {
+            const headerButton = mounted.container.querySelector('[data-testid="fields.priority"]');
+            const rowButton = mounted.container.querySelector('[data-testid="row-priority-normal"]');
+            if (!(headerButton instanceof HTMLButtonElement) || !(rowButton instanceof HTMLButtonElement)) {
+                throw new Error("priority_button_missing");
+            }
+
+            await act(async () => {
+                headerButton.click();
+                rowButton.click();
+            });
+
+            expect(headerButton.disabled).toBe(true);
+            expect(rowButton.disabled).toBe(true);
+            expect(onSetPriority).not.toHaveBeenCalled();
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("renders header columns in name, size, progress, priority order", () => {
+        const onFilesToggle = vi.fn(async () => ({ status: "success" } as const));
+        const onSetPriority = vi.fn(async () => undefined);
+
+        const mounted = mountTree({
+            files: [
+                { index: 0, name: "folder/file-1.mkv", length: 1024, wanted: false, priority: 0, bytesCompleted: 256 },
+                { index: 1, name: "folder/file-2.mkv", length: 1024, wanted: false, priority: 0, bytesCompleted: 512 },
+            ],
+            onFilesToggle,
+            onSetPriority,
+            showProgress: true,
+        });
+
+        try {
+            const text = mounted.container.textContent ?? "";
+            const nameIndex = text.indexOf("fields.name");
+            const sizeIndex = text.indexOf("fields.size");
+            const progressIndex = text.indexOf("fields.progress");
+            const priorityIndex = text.indexOf("select-normal");
+
+            expect(nameIndex).toBeGreaterThanOrEqual(0);
+            expect(sizeIndex).toBeGreaterThan(nameIndex);
+            expect(progressIndex).toBeGreaterThan(sizeIndex);
+            expect(priorityIndex).toBeGreaterThan(progressIndex);
         } finally {
             mounted.cleanup();
         }

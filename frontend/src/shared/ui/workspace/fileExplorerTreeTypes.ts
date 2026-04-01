@@ -1,5 +1,5 @@
 import type {
-    LibtorrentPriority,
+    TransmissionPriority,
     TorrentFileEntity,
 } from "@/services/rpc/entities";
 
@@ -21,7 +21,7 @@ export type FileExplorerToggleCommand = (
 export interface FileExplorerTreeViewModel {
     files: FileExplorerEntry[];
     wantedByIndex?: ReadonlyMap<number, boolean>;
-    priorityByIndex?: ReadonlyMap<number, LibtorrentPriority>;
+    priorityByIndex?: ReadonlyMap<number, TransmissionPriority>;
     initialExpandedIds?: readonly string[];
     onExpandedIdsChange?: (expandedIds: readonly string[]) => void;
     showProgress?: boolean;
@@ -33,12 +33,12 @@ export interface FileExplorerTreeViewModel {
     onFilesToggle: FileExplorerToggleCommand;
     onSetPriority?: (
         indexes: number[],
-        priority: LibtorrentPriority,
+        priority: TransmissionPriority,
     ) => Promise<void> | void;
 }
 
 export type FileExplorerFilterMode = "all" | "video" | "audio";
-export type FileExplorerPrioritySelectKey = "high" | "normal" | "low" | "skip";
+export type FileExplorerPrioritySelectKey = "high" | "normal" | "low";
 
 export interface FileNode {
     id: string;
@@ -58,9 +58,9 @@ export interface FileNode {
 export interface FileNodeRowViewModel {
     node: FileNode;
     isExpanded: boolean;
-    isSelected: boolean;
-    isIndeterminate: boolean;
     isWanted: boolean;
+    isIndeterminate: boolean;
     prioritySelection: ReadonlySet<FileExplorerPrioritySelectKey>;
-    allowsSkipPriority: boolean;
+    priorityTargetIndexes: readonly number[];
+    isPriorityEnabled: boolean;
 }

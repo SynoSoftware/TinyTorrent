@@ -11,11 +11,10 @@ import {
     FileVideo,
     Folder,
     Minus,
-    X,
 } from "lucide-react";
 import { Card, CardBody, CardHeader, Checkbox, Select, SelectItem, cn } from "@heroui/react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import type { LibtorrentPriority } from "@/services/rpc/entities";
+import type { TransmissionPriority } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { ProgressCell } from "@/shared/ui/components/SmoothProgressBar";
@@ -51,19 +50,12 @@ export const prioritySelectOptions = [
         iconClass: "toolbar-icon-size-md text-warning",
         value: fileExplorerPriorityValues.low,
     },
-    {
-        key: "skip",
-        labelKey: "priority.dont_download",
-        icon: X,
-        iconClass: "toolbar-icon-size-md",
-        value: "skip" as const,
-    },
 ] as const satisfies ReadonlyArray<{
     key: FileExplorerPrioritySelectKey;
     labelKey: string;
     icon: typeof ArrowUp;
     iconClass: string;
-    value: LibtorrentPriority | "skip";
+    value: TransmissionPriority;
 }>;
 
 const priorityOptionsByKey = new Map(prioritySelectOptions.map((option) => [option.key, option] as const));
@@ -75,7 +67,7 @@ interface FileExplorerTreeRowProps {
     layout: "table" | "card";
     onToggleExpand: () => void;
     onWantedChange: (wanted: boolean) => void;
-    onSetPriority: (priority: LibtorrentPriority | "skip", indexes?: number[]) => void;
+    onSetPriority: (priority: TransmissionPriority, indexes?: number[]) => void;
     t: (key: string) => string;
 }
 
@@ -114,20 +106,21 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     ) : (
         getFileIcon(row.node.name)
     );
-    const selectablePriorityKeys = getFileExplorerSelectablePriorityKeys(!row.allowsSkipPriority);
+    const selectablePriorityKeys = getFileExplorerSelectablePriorityKeys(row.node.isFolder);
     const renderedPriorityOptions = selectablePriorityKeys
         .map((key) => priorityOptionsByKey.get(key))
         .filter((option) => option != null);
     const renderedPriorityControl = (
         <Select
             aria-label={t("fields.priority")}
+            isDisabled={!row.isPriorityEnabled}
             selectedKeys={row.prioritySelection}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
                 if (!next) return;
                 const option = prioritySelectOptions.find((candidate) => candidate.key === next);
                 if (!option) return;
-                onSetPriority(option.value, row.node.descendantIndexes);
+                onSetPriority(option.value, [...row.priorityTargetIndexes]);
             }}
             placeholder={
                 row.node.isFolder && row.prioritySelection.size === 0 ? t("priority.mixed") : t("fields.priority")
@@ -173,7 +166,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                             <Checkbox
                                 size="sm"
                                 radius="sm"
-                                isSelected={row.isSelected}
+                                isSelected={row.isWanted}
                                 isIndeterminate={row.isIndeterminate}
                                 onValueChange={onWantedChange}
                                 classNames={formControl.checkboxPrimaryClassNames}
@@ -231,8 +224,8 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 <CardBody className={cn(form.sectionBody, fileBrowser.cardBody)}>
                     {renderedProgress ? <div className={fileBrowser.rowProgressWrap}>{renderedProgress}</div> : null}
                     <div className={fileBrowser.cardFooter}>
-                        <div className={fileBrowser.cardFooterGroup}>{renderedPriorityControl}</div>
                         <div className={fileBrowser.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
+                        <div className={fileBrowser.cardFooterGroup}>{renderedPriorityControl}</div>
                     </div>
                 </CardBody>
             </Card>
@@ -253,7 +246,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                 <Checkbox
                     size="sm"
                     radius="sm"
-                    isSelected={row.isSelected}
+                    isSelected={row.isWanted}
                     isIndeterminate={row.isIndeterminate}
                     onValueChange={onWantedChange}
                     classNames={formControl.checkboxPrimaryClassNames}
@@ -294,12 +287,11 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
                     </span>
                 </AppTooltip>
             </div>
-
-            <div className={fileBrowser.rowPriorityWrap}>{renderedPriorityControl}</div>
+            <div className={fileBrowser.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
 
             {renderedProgress ? <div className={fileBrowser.rowProgressWrap}>{renderedProgress}</div> : null}
 
-            <div className={fileBrowser.rowSizeText}>{formatBytes(row.node.totalSize)}</div>
+            <div className={fileBrowser.rowPriorityWrap}>{renderedPriorityControl}</div>
         </div>
     );
 });

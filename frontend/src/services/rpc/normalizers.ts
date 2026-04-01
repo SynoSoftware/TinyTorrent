@@ -3,13 +3,11 @@ import type {
     TransmissionTorrentDetail,
     TransmissionTorrentFile,
     TransmissionTorrentFileStat,
-    TransmissionPriority,
     TransmissionTorrentPeer,
     TransmissionPeerSourceCounts,
     TransmissionTorrentTracker,
 } from "@/services/rpc/types";
 import type {
-    LibtorrentPriority,
     TorrentDetailEntity,
     TorrentEntity,
     TorrentFileEntity,
@@ -79,9 +77,6 @@ export const deriveTorrentState = (base: TorrentTransportStatus, torrent: Transm
     const statusIndicatesChecking = isCheckingStatusNum(statusNum);
     const isVerifying = typeof torrent.recheckProgress === "number" && torrent.recheckProgress > 0;
     const currentlyVerifying = isVerifying || statusIndicatesChecking;
-    const hasWantedDataRemaining =
-        typeof torrent.leftUntilDone === "number" && torrent.leftUntilDone > 0;
-
     // 1) Active verify is authoritative over stale/local error flags.
     // Transmission may keep error=3 while a manual recheck is in progress.
     // If we keep returning ERROR here, UI never shows checking/progress.
@@ -102,12 +97,6 @@ export const deriveTorrentState = (base: TorrentTransportStatus, torrent: Transm
         return base;
     }
 
-    // 4) Re-opened wanted files must move a previously seeded torrent back to
-    // downloading so table status and speed columns reflect the resumed work.
-    if (hasWantedDataRemaining) {
-        return status.torrent.downloading;
-    }
-
     // Contract:
     // - RPC normalization exposes daemon-grounded state only.
     // - UI-derived presentation states such as "stalled" are not assigned here.
@@ -115,13 +104,6 @@ export const deriveTorrentState = (base: TorrentTransportStatus, torrent: Transm
     return base === status.torrent.seeding || torrent.percentDone === 1 || torrent.isFinished === true
         ? status.torrent.seeding
         : base;
-};
-
-const mapPriority = (priority?: TransmissionPriority): LibtorrentPriority => {
-    const normalized = priority ?? 0;
-    if (normalized <= -1) return 1;
-    if (normalized === 0) return 4;
-    return 7;
 };
 
 const sanitizeFileName = (value: string | undefined, index: number) => {
@@ -177,7 +159,7 @@ const zipFileEntities = (detail: TransmissionTorrentDetail): TorrentFileEntity[]
             length,
             bytesCompleted,
             progress,
-            priority: mapPriority(stat?.priority),
+            priority: stat?.priority ?? 0,
             wanted: stat?.wanted ?? true,
         });
     }
@@ -465,6 +447,7 @@ export const ALLOWED_STATE_TRANSITIONS: Record<TorrentTransportStatus, TorrentTr
     ],
     [status.torrent.seeding]: [
         status.torrent.seeding,
+        status.torrent.downloading,
         status.torrent.queued,
         status.torrent.checking,
         status.torrent.paused,

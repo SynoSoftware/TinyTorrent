@@ -2,13 +2,14 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type {
     TorrentDetailEntity as TorrentDetail,
-    LibtorrentPriority,
+    TransmissionPriority,
 } from "@/services/rpc/entities";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import type { TorrentDispatchOutcome } from "@/app/actions/torrentDispatch";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
+
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;
     mutateDetail: (
@@ -19,7 +20,7 @@ interface UseDetailControlsParams {
     registerPendingFilePriority: (
         torrentId: string,
         indexes: number[],
-        priority: LibtorrentPriority,
+        priority: TransmissionPriority,
     ) => number;
     clearPendingFilePriority: (
         torrentId: string,
@@ -40,22 +41,29 @@ export function useDetailControls({
     const { showFeedback } = useActionFeedback();
     const { sequentialDownload, superSeeding } = capabilities;
 
-    const handleFileSelectionChange = useCallback(
-        async (indexes: number[], wanted: boolean) => {
-            if (!detailData) return;
+    const getBoundedFileIndexes = useCallback(
+        (indexes: number[]) => {
+            if (!detailData) return [];
             const availableIndexes = new Set(
                 detailData.files?.map((file) => file.index) ?? [],
             );
             const validIndexes = indexes.filter((index) =>
                 availableIndexes.has(index),
             );
-            if (!validIndexes.length) return;
+            if (!validIndexes.length) return [];
             const fileCount = detailData.files?.length ?? 0;
-            const boundedIndexes = validIndexes.filter(
+            return validIndexes.filter(
                 (index) => index >= 0 && index < fileCount,
             );
-            if (!boundedIndexes.length) return;
+        },
+        [detailData],
+    );
 
+    const applyFileSelectionChange = useCallback(
+        async (indexes: number[], wanted: boolean) => {
+            if (!detailData) return false;
+            const boundedIndexes = getBoundedFileIndexes(indexes);
+            if (!boundedIndexes.length) return false;
             mutateDetail((current) => {
                 if (!current.files) return current;
                 const updatedFiles = current.files.map((file) =>
@@ -82,9 +90,19 @@ export function useDetailControls({
                     );
                     return { ...current, files: updatedFiles };
                 });
+                return false;
             }
+
+            return true;
         },
-        [detailData, mutateDetail, dispatch],
+        [detailData, dispatch, getBoundedFileIndexes, mutateDetail],
+    );
+
+    const handleFileSelectionChange = useCallback(
+        async (indexes: number[], wanted: boolean) => {
+            await applyFileSelectionChange(indexes, wanted);
+        },
+        [applyFileSelectionChange],
     );
 
     const handleSequentialToggle = useCallback(
@@ -110,31 +128,34 @@ export function useDetailControls({
     );
 
     const handleFilePriorityChange = useCallback(
-        async (indexes: number[], priority: LibtorrentPriority) => {
+        async (indexes: number[], priority: TransmissionPriority) => {
             if (!detailData) return;
-            const availableIndexes = new Set(
-                detailData.files?.map((file) => file.index) ?? [],
-            );
-            const validIndexes = indexes.filter((index) =>
-                availableIndexes.has(index),
-            );
-            if (!validIndexes.length) return;
-            const fileCount = detailData.files?.length ?? 0;
-            const boundedIndexes = validIndexes.filter(
-                (index) => index >= 0 && index < fileCount,
-            );
+            const boundedIndexes = getBoundedFileIndexes(indexes);
             if (!boundedIndexes.length) return;
+            const filesByIndex = new Map(
+                detailData.files?.map((file) => [file.index, file]) ?? [],
+            );
+            const indexesNeedingPriorityChange = boundedIndexes.filter((index) => {
+                const file = filesByIndex.get(index);
+                if (file?.wanted === false) {
+                    return false;
+                }
+                return file?.priority == null || file.priority !== priority;
+            });
+            if (indexesNeedingPriorityChange.length === 0) {
+                return;
+            }
 
             const requestId = registerPendingFilePriority(
                 detailData.id,
-                boundedIndexes,
+                indexesNeedingPriorityChange,
                 priority,
             );
 
             const outcome = await dispatch(
                 TorrentIntents.setFilesPriority(
                     detailData.id,
-                    boundedIndexes,
+                    indexesNeedingPriorityChange,
                     priority,
                 ),
             );
@@ -142,7 +163,7 @@ export function useDetailControls({
                 return;
             }
 
-            clearPendingFilePriority(detailData.id, boundedIndexes, requestId);
+            clearPendingFilePriority(detailData.id, indexesNeedingPriorityChange, requestId);
 
             if (outcome.status === "unsupported") {
                 showFeedback(t("torrent_modal.controls.not_supported"), "warning");
@@ -153,6 +174,7 @@ export function useDetailControls({
         [
             detailData,
             dispatch,
+            getBoundedFileIndexes,
             registerPendingFilePriority,
             clearPendingFilePriority,
             showFeedback,

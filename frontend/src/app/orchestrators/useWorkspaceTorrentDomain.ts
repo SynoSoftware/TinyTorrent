@@ -22,7 +22,7 @@ import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/contracts";
 import type { DeleteIntent } from "@/app/types/workspace";
-import type { LibtorrentPriority } from "@/services/rpc/entities";
+import type { TransmissionPriority } from "@/services/rpc/entities";
 import {
     createTorrentDispatch,
     type TorrentDispatchOutcome,
@@ -80,7 +80,7 @@ export interface WorkspaceTorrentDomain {
         handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
         handleFilePriorityChange: (
             indexes: number[],
-            priority: LibtorrentPriority,
+            priority: TransmissionPriority,
         ) => Promise<void>;
         handleSequentialToggle: (enabled: boolean) => Promise<void>;
         handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
@@ -93,7 +93,7 @@ interface PendingSequential {
 }
 
 interface PendingFilePriority {
-    priority: LibtorrentPriority;
+    priority: TransmissionPriority;
     reqId: number;
 }
 
@@ -268,7 +268,7 @@ export function useWorkspaceTorrentDomain({
         [],
     );
     const registerPendingFilePriority = useCallback(
-        (torrentId: string, indexes: number[], priority: LibtorrentPriority) => {
+        (torrentId: string, indexes: number[], priority: TransmissionPriority) => {
             const reqId = ++nextFilePriorityReqIdRef.current;
             setPendingFilePriorities((current) => {
                 const nextTorrent = {

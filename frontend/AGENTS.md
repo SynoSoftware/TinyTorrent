@@ -26,6 +26,12 @@ When proposing additions:
 
 Produce small, direct, review-friendly patches.
 
+For frontend RPC behavior that targets Transmission semantics:
+
+- Treat `3rdParty/transmission/` as the protocol reference.
+- When behavior is unclear, compare against the known-working `web/` and `qt/` clients before changing frontend logic.
+- Match `transmission-daemon` request and state semantics instead of inventing frontend-side recovery behavior.
+
 The default good change in this repo:
 
 - touches the fewest files possible

@@ -10,7 +10,7 @@ import {
 } from "@/shared/ui/workspace/fileExplorerTreeModel";
 import type {
     TorrentFileEntity,
-    LibtorrentPriority,
+    TransmissionPriority,
 } from "@/services/rpc/entities";
 import type {
     FilePriority,
@@ -55,7 +55,7 @@ export const AddTorrentFileTable = () => {
     }, [rowSelection]);
 
     const priorityByIndex = useMemo(() => {
-        const next = new Map<number, LibtorrentPriority>();
+        const next = new Map<number, TransmissionPriority>();
         for (const [index, priority] of priorities.entries()) {
             next.set(index, fileExplorerPriorityValues[priority]);
         }
@@ -81,13 +81,20 @@ export const AddTorrentFileTable = () => {
     );
 
     const handleSetPriority = useCallback(
-        (indexes: number[], priority: LibtorrentPriority) => {
-            const nextPriority = getFileExplorerPriorityKey(priority, true) as FilePriority;
+        (indexes: number[], priority: TransmissionPriority) => {
+            onRowSelectionChange((prev) => {
+                const next = { ...prev };
+                indexes.forEach((index) => {
+                    next[index] = true;
+                });
+                return next;
+            });
+            const nextPriority = getFileExplorerPriorityKey(priority) as FilePriority;
             indexes.forEach((index) => {
                 onSetPriority(index, nextPriority);
             });
         },
-        [onSetPriority],
+        [onRowSelectionChange, onSetPriority],
     );
 
     const viewModel: FileExplorerTreeViewModel = useMemo(

@@ -38,7 +38,7 @@ import type {
     SessionStats,
     EngineInfo,
     ServerClass,
-    LibtorrentPriority,
+    TransmissionPriority,
 } from "@/services/rpc/entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "@/services/rpc/normalizers";
 import { RpcCommandError } from "@/services/rpc/errors";
@@ -1424,14 +1424,14 @@ export class TransmissionAdapter implements EngineAdapter {
     public async setFilePriority(
         id: string,
         indexes: number[],
-        priority: LibtorrentPriority,
+        priority: TransmissionPriority,
     ): Promise<void> {
         if (!indexes.length) return;
         const rpcId = await this.resolveRpcId(id);
         const key =
-            priority >= 6
+            priority >= 1
                 ? "priority-high"
-                : priority <= 2
+                : priority <= -1
                   ? "priority-low"
                   : "priority-normal";
         await this.mutate("torrent-set", {

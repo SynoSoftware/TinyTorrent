@@ -1,5 +1,7 @@
+import type { TransmissionPriority } from "@/services/rpc/types";
 import type { TorrentTransportStatus } from "@/shared/status";
 export type { TorrentStatus, TorrentTransportStatus } from "@/shared/status";
+export type { TransmissionPriority } from "@/services/rpc/types";
 
 export interface TorrentSpeed {
     down: number;
@@ -24,15 +26,13 @@ export interface TorrentPeerDiscoverySources {
     tracker?: number;
 }
 
-export type LibtorrentPriority = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-
 export interface TorrentFileEntity {
     name: string;
     index: number;
     length?: number;
     bytesCompleted?: number;
     progress?: number;
-    priority?: LibtorrentPriority;
+    priority?: TransmissionPriority;
     wanted?: boolean;
 }
 

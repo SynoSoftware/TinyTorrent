@@ -77,7 +77,7 @@ describe("TransmissionAdapter file priority RPC", () => {
         resetTransportSessionRuntimeOwner();
     });
 
-    it("maps UI priority bands to Transmission priority-high/normal/low RPC args", async () => {
+    it("maps Transmission priorities directly to priority-high/normal/low RPC args", async () => {
         const fetchSpy = vi
             .spyOn(globalThis, "fetch")
             .mockResolvedValueOnce(
@@ -120,9 +120,9 @@ describe("TransmissionAdapter file priority RPC", () => {
         const internals = primeAdapterSession(adapter);
         internals.idMap.set("hash-1", 7);
 
-        await adapter.setFilePriority("hash-1", [4], 7);
-        await adapter.setFilePriority("hash-1", [5], 4);
-        await adapter.setFilePriority("hash-1", [6], 1);
+        await adapter.setFilePriority("hash-1", [4], 1);
+        await adapter.setFilePriority("hash-1", [5], 0);
+        await adapter.setFilePriority("hash-1", [6], -1);
 
         expect(fetchSpy).toHaveBeenCalledTimes(3);
 
@@ -164,17 +164,17 @@ describe("Transmission file priority normalization", () => {
         expect(normalized.files).toMatchObject([
             {
                 index: 0,
-                priority: 7,
+                priority: 1,
                 wanted: true,
             },
             {
                 index: 1,
-                priority: 4,
+                priority: 0,
                 wanted: true,
             },
             {
                 index: 2,
-                priority: 1,
+                priority: -1,
                 wanted: true,
             },
         ]);

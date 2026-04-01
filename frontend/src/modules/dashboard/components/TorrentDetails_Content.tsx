@@ -21,7 +21,7 @@ interface ContentTabProps {
     onFilesToggle?: (indexes: number[], wanted: boolean) => Promise<void> | void;
     onSetPriority?: (
         indexes: number[],
-        priority: import("@/services/rpc/entities").LibtorrentPriority,
+        priority: import("@/services/rpc/entities").TransmissionPriority,
     ) => Promise<void> | void;
     isStandalone?: boolean;
 }

@@ -5,7 +5,7 @@ import type {
     SessionStats,
     NetworkTelemetry,
     TorrentPeerEntity,
-    LibtorrentPriority,
+    TransmissionPriority,
 } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
@@ -85,7 +85,7 @@ export interface DashboardDetailViewModel {
             ) => Promise<void>;
             handleFilePriorityChange: (
                 indexes: number[],
-                priority: LibtorrentPriority,
+                priority: TransmissionPriority,
             ) => Promise<void>;
         };
         trackers: {

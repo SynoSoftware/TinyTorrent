@@ -100,7 +100,7 @@ export type SetTorrentFilesPriority = {
     type: "SET_TORRENT_FILES_PRIORITY";
     torrentId: string | number;
     fileIndexes: number[];
-    priority: import("@/services/rpc/entities").LibtorrentPriority;
+    priority: import("@/services/rpc/entities").TransmissionPriority;
 };
 
 export type SetTorrentSequentialDownload = {
@@ -259,7 +259,7 @@ export const TorrentIntents = {
     setFilesPriority: (
         torrentId: string | number,
         fileIndexes: number[],
-        priority: import("@/services/rpc/entities").LibtorrentPriority,
+        priority: import("@/services/rpc/entities").TransmissionPriority,
     ): SetTorrentFilesPriority => ({
         type: "SET_TORRENT_FILES_PRIORITY",
         torrentId,
