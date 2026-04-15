@@ -324,7 +324,7 @@ if host_machine.system() == 'windows'
   if build_type != 'debug'
     build_type_dir = 'release'
   endif
-  dll_dest = join_paths(meson.current_build_dir(), build_type_dir)
+  dll_dest = meson.current_build_dir()
   vcpkg_bin = join_paths(meson.project_source_root(), 'vcpkg_installed',
                          tt_vcpkg_triplet, 'bin')
   vcpkg_debug_bin = join_paths(meson.project_source_root(), 'vcpkg_installed',

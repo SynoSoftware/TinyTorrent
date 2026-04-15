@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('clean', 'configure', 'build', 'test', 'install', 'package', 'setup')]
+    [ValidateSet('clean', 'configure', 'build', 'test', 'install', 'package', 'setup', 'unregister')]
     [string]$Command,
 
     [ValidateSet('Debug', 'Release')]
@@ -45,6 +45,9 @@ switch ($Command) {
         & $commandScript -Configuration $Configuration -Destination $Destination
     }
     'setup' {
+        & $commandScript
+    }
+    'unregister' {
         & $commandScript
     }
     default {

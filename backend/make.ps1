@@ -41,6 +41,10 @@ switch ($Target.ToLower()) {
         & $Ctl setup
     }
 
+    'unregister' {
+        & $Ctl unregister
+    }
+
     'vs' {
         & $Ctl setup
         $resolvedConfig = if ($Config) { $Config } else { 'Debug' }
@@ -65,6 +69,7 @@ switch ($Target.ToLower()) {
         Write-Output "  make vs [Debug|Release]"
         Write-Output "  make clean"
         Write-Output "  make test [Debug|Release]"
+        Write-Output "  make unregister"
         exit 1
     }
 }
