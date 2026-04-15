@@ -598,9 +598,7 @@ export function AltSpeedScheduleField({
                                 <Button
                                     type="button"
                                     size="sm"
-                                    radius="full"
-                                    variant="flat"
-                                    color="primary"
+                                    variant="secondary"
                                     data-alt-speed-band-body="primary"
                                     isDisabled={isDisabled}
                                     onMouseDown={(event) => beginDrag("move", event)}
@@ -615,9 +613,7 @@ export function AltSpeedScheduleField({
                                     <Button
                                         type="button"
                                         size="sm"
-                                        radius="full"
-                                        variant="flat"
-                                        color="primary"
+                                        variant="secondary"
                                         data-alt-speed-band-body="late"
                                         isDisabled={isDisabled}
                                         onMouseDown={(event) => beginDrag("move", event)}
@@ -630,9 +626,7 @@ export function AltSpeedScheduleField({
                                     <Button
                                         type="button"
                                         size="sm"
-                                        radius="full"
-                                        variant="flat"
-                                        color="primary"
+                                        variant="secondary"
                                         data-alt-speed-band-body="early"
                                         isDisabled={isDisabled}
                                         onMouseDown={(event) => beginDrag("move", event)}
@@ -644,21 +638,16 @@ export function AltSpeedScheduleField({
                                     />
                                 </>
                             )}
-                            <Button
+                            <button
                                 type="button"
-                                size="sm"
-                                radius="full"
-                                variant="light"
-                                color="primary"
                                 data-alt-speed-handle="start"
-                                role="slider"
                                 aria-label={t("settings.labels.altSpeedStartHandleAria")}
                                 aria-orientation="horizontal"
                                 aria-valuemin={0}
                                 aria-valuemax={dayMinutes / snapMinutes}
                                 aria-valuenow={visibleRange.beginMinutes / snapMinutes}
                                 aria-valuetext={`${formatMinutes(visibleRange.beginMinutes)} ${durationText}`}
-                                isDisabled={isDisabled}
+                                disabled={isDisabled}
                                 onFocus={() => setIsRailActive(true)}
                                 onBlur={() => interactionMode === null && setIsRailActive(false)}
                                 onKeyDown={handleHandleKeyDown("start")}
@@ -671,22 +660,17 @@ export function AltSpeedScheduleField({
                                 }}
                             >
                                 <span aria-hidden="true" style={handleGripStyle} />
-                            </Button>
-                            <Button
+                            </button>
+                            <button
                                 type="button"
-                                size="sm"
-                                radius="full"
-                                variant="light"
-                                color="primary"
                                 data-alt-speed-handle="end"
-                                role="slider"
                                 aria-label={t("settings.labels.altSpeedEndHandleAria")}
                                 aria-orientation="horizontal"
                                 aria-valuemin={0}
                                 aria-valuemax={dayMinutes / snapMinutes}
                                 aria-valuenow={(isAllDay(visibleRange) ? dayMinutes : visibleRange.endMinutes) / snapMinutes}
                                 aria-valuetext={`${formatMinutes(visibleRange.endMinutes)} ${durationText}`}
-                                isDisabled={isDisabled}
+                                disabled={isDisabled}
                                 onFocus={() => setIsRailActive(true)}
                                 onBlur={() => interactionMode === null && setIsRailActive(false)}
                                 onKeyDown={handleHandleKeyDown("end")}
@@ -699,7 +683,7 @@ export function AltSpeedScheduleField({
                                 }}
                             >
                                 <span aria-hidden="true" style={handleGripStyle} />
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -712,8 +696,7 @@ export function AltSpeedScheduleField({
                                     key={day.id}
                                     type="button"
                                     size="sm"
-                                    variant={selected ? "solid" : "bordered"}
-                                    color={selected ? "primary" : "default"}
+                                    variant={selected ? "primary" : "outline"}
                                     data-day-index={dayIndex}
                                     isDisabled={isDisabled}
                                     onMouseDown={(event) => handleDayMouseDown(dayIndex, event)}
@@ -736,7 +719,7 @@ export function AltSpeedScheduleField({
                                 <Button
                                     key={preset.id}
                                     size="sm"
-                                    variant="light"
+                                    variant="ghost"
                                     data-alt-speed-preset={preset.id}
                                     isDisabled={isDisabled}
                                     onPress={() => handlePresetClick(preset)}

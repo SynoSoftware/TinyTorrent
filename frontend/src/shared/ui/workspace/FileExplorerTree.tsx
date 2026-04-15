@@ -1,14 +1,5 @@
 import { ArrowDown, ArrowUp, FileText, Filter, ListOrdered, HardDrive, Percent, Search } from "lucide-react";
-import {
-    Checkbox,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
-    Input,
-    Select,
-    SelectItem,
-} from "@heroui/react";
+import { Checkbox, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, ListBox, ListBoxItem, SearchField, Select, cn } from "@heroui/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
@@ -254,27 +245,36 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                             selectedKeys={new Set([filterMode])}
                             onSelectionChange={(keys) => setFilterMode(Array.from(keys)[0] as FileExplorerFilterMode)}
                             disallowEmptySelection
-                            variant="shadow"
                             className={surface.menu.surface}
-                            classNames={surface.menu.listClassNames}
-                            itemClasses={surface.menu.itemClassNames}
                         >
                             <DropdownItem key="all">{t("status.all")}</DropdownItem>
                             <DropdownItem key="video">{t("types.video")}</DropdownItem>
                             <DropdownItem key="audio">{t("types.audio")}</DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
-                    <Input
-                        classNames={fileBrowser.searchInputClassNames}
-                        className={fileBrowser.toolbarSearchWrap}
-                        placeholder={t("actions.search")}
-                        startContent={<Search className={fileBrowser.iconDefault} />}
+                    <SearchField
+                        className={cn(fileBrowser.toolbarSearchWrap, "gap-0")}
                         value={controlledSearchValue}
-                        onValueChange={handleSearchValueChange}
-                        isClearable
-                        size="md"
-                        variant="bordered"
-                    />
+                        onChange={handleSearchValueChange}
+                        variant="secondary"
+                    >
+                        <SearchField.Group
+                            className={cn(
+                                fileBrowser.searchInputClassNames.inputWrapper,
+                                fileBrowser.searchInputClassNames.mainWrapper,
+                            )}
+                        >
+                            <SearchField.SearchIcon className={fileBrowser.iconDefault} />
+                            <SearchField.Input
+                                className={cn(
+                                    fileBrowser.searchInputClassNames.base,
+                                    fileBrowser.searchInputClassNames.input,
+                                )}
+                                placeholder={t("actions.search")}
+                            />
+                            <SearchField.ClearButton />
+                        </SearchField.Group>
+                    </SearchField>
                 </div>
 
                 <div className={fileBrowser.toolbarSpacer} />
@@ -299,11 +299,10 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                 <div className={fileBrowser.headerRow} style={{ gridTemplateColumns }}>
                     <div className={fileBrowser.headerCheckboxWrap}>
                         <Checkbox
-                            size="md"
                             isSelected={isAllSelected}
                             isIndeterminate={isIndeterminate}
-                            onValueChange={handleSelectAll}
-                            classNames={formControl.checkboxPrimaryClassNames}
+                            onChange={handleSelectAll}
+                            variant="primary"
                         />
                     </div>
                     <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellName}`}>
@@ -323,33 +322,51 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                     <div className={`${table.columnHeaderLabel} ${fileBrowser.headerCellCenter}`}>
                         <Select
                             aria-label={t("fields.priority")}
+                            className={formControl.priorityHeaderSelectClassNames.base}
                             isDisabled={!onSetPriority || visibleWantedIndexes.length === 0}
                             placeholder={
                                 allVisibleIndexes.length > 0 && headerPrioritySelection.size === 0
                                     ? t("priority.mixed")
                                     : t("fields.priority")
                             }
-                            startContent={<ListOrdered className={table.columnHeaderIcon} />}
-                            selectedKeys={headerPrioritySelection}
+                            selectedKey={headerPrioritySelection.size > 0 ? Array.from(headerPrioritySelection)[0] : null}
                             onSelectionChange={(keys) => {
-                                const [next] = [...keys];
-                                if (!next) return;
+                                if (typeof keys !== "string") return;
+                                const next = keys;
                                 const option = prioritySelectOptions.find((candidate) => candidate.key === next);
                                 if (!option) return;
                                 handleSetVisiblePriority(option.value);
                             }}
-                            variant="underlined"
-                            size="sm"
-                            classNames={formControl.priorityHeaderSelectClassNames}
+                            variant="secondary"
                         >
-                            {prioritySelectOptions.map((option) => {
-                                const Icon = option.icon;
-                                return (
-                                    <SelectItem key={option.key} startContent={<Icon className={option.iconClass} />}>
-                                        {t(option.labelKey)}
-                                    </SelectItem>
-                                );
-                            })}
+                            <Select.Trigger className={formControl.priorityHeaderSelectClassNames.trigger}>
+                                <span className="flex items-center gap-tools">
+                                    <ListOrdered className={table.columnHeaderIcon} />
+                                    <Select.Value className={formControl.priorityHeaderSelectClassNames.value} />
+                                </span>
+                                <Select.Indicator className={formControl.priorityHeaderSelectClassNames.selectorIcon} />
+                            </Select.Trigger>
+                            <Select.Popover className={surface.menu.surface}>
+                                <ListBox>
+                                    <ListBoxItem id="priority-heading" textValue={t("fields.priority")} isDisabled>
+                                        <span className="flex items-center gap-tools">
+                                            <ListOrdered className={table.columnHeaderIcon} />
+                                            <span>{t("fields.priority")}</span>
+                                        </span>
+                                    </ListBoxItem>
+                                    {prioritySelectOptions.map((option) => {
+                                        const Icon = option.icon;
+                                        return (
+                                            <ListBoxItem key={option.key} textValue={t(option.labelKey)}>
+                                                <span className="flex items-center gap-tools">
+                                                    <Icon className={option.iconClass} />
+                                                    <span>{t(option.labelKey)}</span>
+                                                </span>
+                                            </ListBoxItem>
+                                        );
+                                    })}
+                                </ListBox>
+                            </Select.Popover>
                         </Select>
                     </div>
                 </div>

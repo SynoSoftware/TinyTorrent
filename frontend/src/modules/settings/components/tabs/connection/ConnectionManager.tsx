@@ -223,12 +223,14 @@ export function ConnectionCredentialsCard() {
     const renderStatusChip = (
         <Chip
             size="lg"
-            variant="flat"
+            variant="soft"
             color={connectionStatusColor}
             className={form.systemStatusChip}
-            startContent={<StatusIcon strokeWidth={visuals.icon.strokeWidth} className={form.connection.iconSmall} />}
         >
-            {connectionStatusLabel}
+            <span className="flex items-center gap-tools">
+                <StatusIcon strokeWidth={visuals.icon.strokeWidth} className={form.connection.iconSmall} />
+                <span>{connectionStatusLabel}</span>
+            </span>
         </Chip>
     );
 
@@ -268,45 +270,41 @@ export function ConnectionCredentialsCard() {
                 <ConnectionFieldRow label={t("settings.connection.host")}>
                     <Input
                         aria-label={t("settings.connection.host")}
-                        variant="bordered"
-                        size="md"
+                        variant="secondary"
                         value={draft.host}
                         onChange={(event) => updateDraft({ host: event.target.value })}
                         className={form.connection.inputHeight}
-                        isDisabled={isConnectionBusy}
+                        disabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
                 <ConnectionFieldRow label={t("settings.connection.port")}>
                     <Input
                         aria-label={t("settings.connection.port")}
-                        variant="bordered"
-                        size="md"
+                        variant="secondary"
                         type="text"
                         value={draft.port}
                         onChange={(event) => updateDraft({ port: event.target.value })}
                         className={form.connection.inputHeight}
-                        isDisabled={isConnectionBusy}
+                        disabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
                 <ConnectionFieldRow label={t("settings.connection.username")}>
                     <Input
                         aria-label={t("settings.connection.username")}
-                        variant="bordered"
-                        size="md"
+                        variant="secondary"
                         value={draft.username}
                         onChange={(event) => updateDraft({ username: event.target.value })}
-                        isDisabled={isConnectionBusy}
+                        disabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
                 <ConnectionFieldRow label={t("settings.connection.password")}>
                     <Input
                         aria-label={t("settings.connection.password")}
-                        variant="bordered"
-                        size="md"
+                        variant="secondary"
                         type="password"
                         value={draft.password}
                         onChange={(event) => updateDraft({ password: event.target.value })}
-                        isDisabled={isConnectionBusy}
+                        disabled={isConnectionBusy}
                     />
                 </ConnectionFieldRow>
                 {insecureAuthNotice !== null && (
@@ -316,36 +314,34 @@ export function ConnectionCredentialsCard() {
                     <div className={form.interfaceRowActions}>
                         {showConnectLocalAction && (
                             <Button
-                                variant="bordered"
+                                variant="outline"
                                 onPress={() => {
                                     handleConnectLocal();
                                 }}
                                 type="button"
                                 isDisabled={isConnectionBusy}
-                                isLoading={pendingIntent === "connect_local"}
+                                isPending={pendingIntent === "connect_local"}
                             >
                                 {t("settings.connection.connect_to_this_pc")}
                             </Button>
                         )}
                         <Button
-                            variant="bordered"
-                            color="primary"
+                            variant="outline"
                             onPress={() => {
                                 void handleSubmit(primaryActionIntent);
                             }}
                             type="button"
                             isDisabled={isConnectionBusy || (primaryActionIntent === "connect" && !isDraftValid)}
-                            isLoading={pendingIntent === primaryActionIntent}
-                            startContent={
-                                pendingIntent === primaryActionIntent ? undefined : (
+                        >
+                            <span className="flex items-center gap-tools">
+                                {pendingIntent === primaryActionIntent ? null : (
                                     <RefreshCw
                                         strokeWidth={visuals.icon.strokeWidth}
                                         className={form.connection.iconSmall}
                                     />
-                                )
-                            }
-                        >
-                            {primaryActionLabel}
+                                )}
+                                <span>{primaryActionLabel}</span>
+                            </span>
                         </Button>
                     </div>
                 </div>

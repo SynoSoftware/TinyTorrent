@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { addToast, closeToast } from "@heroui/toast";
+import { toast } from "@heroui/react";
 
 import type { FeedbackTone } from "@/shared/types/feedback";
 import { registry } from "@/config/logic";
@@ -70,39 +70,23 @@ const TONE_TO_TOAST: Record<
     (message: string, timeout?: number) => string | null
 > = {
     info: (message, timeout) => {
-        return addToast({
-            title: message,
-            color: "primary",
-            severity: "primary",
+        return toast.info(message, {
             timeout: timeout ?? TOAST_DURATION_MS,
-            hideCloseButton: true,
         });
     },
     success: (message, timeout) => {
-        return addToast({
-            title: message,
-            color: "success",
-            severity: "success",
+        return toast.success(message, {
             timeout: timeout ?? TOAST_DURATION_MS,
-            hideCloseButton: true,
         });
     },
     warning: (message, timeout) => {
-        return addToast({
-            title: message,
-            color: "warning",
-            severity: "warning",
+        return toast.warning(message, {
             timeout: timeout ?? TOAST_DURATION_MS,
-            hideCloseButton: true,
         });
     },
     danger: (message, timeout) => {
-        return addToast({
-            title: message,
-            color: "danger",
-            severity: "danger",
+        return toast.danger(message, {
             timeout: timeout ?? TOAST_DURATION_MS,
-            hideCloseButton: true,
         });
     },
 };
@@ -144,7 +128,7 @@ export function useActionFeedback() {
                 pendingStarts.current.delete(key);
                 const startToastKey = startToastKeys.current.get(key);
                 if (startToastKey) {
-                    closeToast(startToastKey);
+                    toast.close(startToastKey);
                     startToastKeys.current.delete(key);
                 }
             }

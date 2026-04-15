@@ -1,4 +1,4 @@
-import { Checkbox, Divider } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { HardDrive, Hash, ListOrdered, PauseCircle } from "lucide-react";
 import { getCapabilityHintKey, getCapabilityUiState } from "@/app/types/capabilities";
@@ -15,9 +15,9 @@ export function AddTorrentSettingsPanel() {
     const sequentialCheckbox = (
         <Checkbox
             isSelected={settings.sequential}
-            onValueChange={settings.setSequential}
+            onChange={settings.setSequential}
             isDisabled={sequentialUiState.disabled}
-            classNames={formControl.checkboxLabelBodySmallClassNames}
+            className={formControl.checkboxLabelBodySmallClassNames.base}
         >
             <span className={form.workflow.flagsItemLabel}>
                 <ListOrdered className={form.workflow.flagsIcon} />
@@ -80,7 +80,7 @@ export function AddTorrentSettingsPanel() {
 
             {settings.showTransferFlags && (
                 <>
-                    <Divider className={form.workflow.flagsDivider} aria-hidden="true" />
+                    <div className={form.workflow.flagsDivider} aria-hidden="true" />
                     <div className={form.workflow.section}>
                         <label className={form.workflow.label}>
                             <Hash className={form.workflow.labelIcon} /> {t("modals.add_torrent.transfer_flags")}
@@ -88,15 +88,15 @@ export function AddTorrentSettingsPanel() {
                         <div className={form.workflow.flagsCheckboxes}>
                             <Checkbox
                                 isSelected={settings.startPaused}
-                                onValueChange={settings.setStartPaused}
-                                classNames={formControl.checkboxLabelBodySmallClassNames}
+                                onChange={settings.setStartPaused}
+                                className={formControl.checkboxLabelBodySmallClassNames.base}
                             >
                                 <span className={form.workflow.flagsItemLabel}>
                                     <PauseCircle className={form.workflow.flagsIcon} />
                                     {t("modals.add_torrent.add_paused")}
                                 </span>
                             </Checkbox>
-                            <Divider className={form.workflow.flagsItemDivider} />
+                            <div className={form.workflow.flagsItemDivider} aria-hidden="true" />
                             {sequentialControl}
                         </div>
                     </div>

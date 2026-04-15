@@ -21,6 +21,7 @@ export type WindowControlButtonProps = Omit<
     ariaLabel: string;
     iconSize?: ToolbarIconSize;
     tone?: WindowControlButtonVariant;
+    title?: string;
 };
 
 export const WindowControlButton = forwardRef<
@@ -34,11 +35,11 @@ export const WindowControlButton = forwardRef<
         tone = "neutral",
         className,
         title,
+        isDisabled,
         ...restProps
     },
     ref
 ) {
-    const { disabled, ...buttonProps } = restProps;
     const iconSizeClass =
         ICON_SIZE_CLASSES[iconSize as ToolbarIconSize];
     const toneClass =
@@ -51,16 +52,15 @@ export const WindowControlButton = forwardRef<
             ref={ref}
             isIconOnly
             variant="ghost"
-            radius="none"
             className={cn(
                 control.menu.action.windowButtonBase,
                 toneClass,
                 className,
-                disabled && visuals.state.disabled
+                isDisabled && visuals.state.disabled
             )}
             aria-label={ariaLabel}
-            disabled={disabled}
-            {...buttonProps}
+            isDisabled={isDisabled}
+            {...restProps}
         >
             {Icon && (
                 <Icon

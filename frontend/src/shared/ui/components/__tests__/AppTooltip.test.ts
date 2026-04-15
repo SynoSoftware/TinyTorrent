@@ -12,39 +12,73 @@ vi.mock("@heroui/react", async () => {
 
     return {
         ...actual,
-        Tooltip: ({
-            children,
-            isDisabled,
-            delay,
-            closeDelay,
-            placement,
-            classNames,
-        }: {
-            children: React.ReactNode;
-            isDisabled?: boolean;
-            delay?: number;
-            closeDelay?: number;
-            placement?: string;
-            classNames?: {
-                base?: string;
-                content?: string;
-                arrow?: string;
-            };
-        }) =>
-            createElement(
-                "div",
-                {
-                    "data-testid": "tooltip",
-                    "data-disabled": String(Boolean(isDisabled)),
-                    "data-delay": String(delay ?? ""),
-                    "data-close-delay": String(closeDelay ?? ""),
-                    "data-placement": placement ?? "",
-                    "data-base-class": classNames?.base ?? "",
-                    "data-content-class": classNames?.content ?? "",
-                    "data-arrow-class": classNames?.arrow ?? "",
-                },
+        Tooltip: Object.assign(
+            ({
                 children,
-            ),
+                isDisabled,
+                delay,
+                closeDelay,
+            }: {
+                children: React.ReactNode;
+                isDisabled?: boolean;
+                delay?: number;
+                closeDelay?: number;
+            }) =>
+                createElement(
+                    "div",
+                    {
+                        "data-testid": "tooltip",
+                        "data-disabled": String(Boolean(isDisabled)),
+                        "data-delay": String(delay ?? ""),
+                        "data-close-delay": String(closeDelay ?? ""),
+                    },
+                    children,
+                ),
+            {
+                Trigger: ({
+                    children,
+                    className,
+                }: {
+                    children?: React.ReactNode;
+                    className?: string;
+                }) =>
+                    createElement(
+                        "div",
+                        {
+                            "data-testid": "tooltip-trigger",
+                            "data-class": className ?? "",
+                        },
+                        children,
+                    ),
+                Content: ({
+                    children,
+                    className,
+                    placement,
+                }: {
+                    children?: React.ReactNode;
+                    className?: string;
+                    placement?: string;
+                }) =>
+                    createElement(
+                        "div",
+                        {
+                            "data-testid": "tooltip-content",
+                            "data-class": className ?? "",
+                            "data-placement": placement ?? "",
+                        },
+                        children,
+                    ),
+                Arrow: ({
+                    className,
+                }: {
+                    className?: string;
+                }) =>
+                    createElement("div", {
+                        "data-testid": "tooltip-arrow",
+                        "data-class": className ?? "",
+                    }),
+            },
+        ),
     };
 });
 
@@ -85,13 +119,25 @@ describe("AppTooltip", () => {
         expect(tooltip?.getAttribute("data-close-delay")).toBe(
             String(ui.tooltip.closeDelayMs),
         );
-        expect(tooltip?.getAttribute("data-base-class")).toContain(
+        expect(
+            container
+                .querySelector("[data-testid='tooltip-trigger']")
+                ?.getAttribute("data-class"),
+        ).toContain(
             "pointer-events-none",
         );
-        expect(tooltip?.getAttribute("data-content-class")).toContain(
+        expect(
+            container
+                .querySelector("[data-testid='tooltip-content']")
+                ?.getAttribute("data-class"),
+        ).toContain(
             "pointer-events-none",
         );
-        expect(tooltip?.getAttribute("data-arrow-class")).toContain(
+        expect(
+            container
+                .querySelector("[data-testid='tooltip-arrow']")
+                ?.getAttribute("data-class"),
+        ).toContain(
             "pointer-events-none",
         );
     });

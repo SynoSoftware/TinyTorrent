@@ -19,13 +19,11 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@heroui/react", () => ({
     Accordion: ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children),
-    AccordionItem: ({
-        title,
-        children,
-    }: {
-        title?: React.ReactNode;
-        children?: React.ReactNode;
-    }) => React.createElement("div", null, title, children),
+    AccordionItem: ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children),
+    AccordionHeading: ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children),
+    AccordionTrigger: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement("button", { type: "button" }, children),
+    AccordionPanel: ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children),
     Button: ({ children, href, onPress }: { children?: React.ReactNode; href?: string; onPress?: () => void }) =>
         React.createElement(
             href ? "a" : "button",

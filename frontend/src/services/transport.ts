@@ -194,8 +194,6 @@ const summarizeTorrentGetState = (responseBody: unknown): TracedTorrentState[] |
             return torrent;
         }
         const record = torrent as Record<string, unknown>;
-        const files = Array.isArray(record.files) ? record.files : [];
-        const fileStats = Array.isArray(record.fileStats) ? record.fileStats : [];
         return {
             id: record.id,
             hashString: record.hashString,

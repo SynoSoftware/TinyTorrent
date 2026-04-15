@@ -101,6 +101,18 @@ export const deriveTorrentState = (base: TorrentTransportStatus, torrent: Transm
     // - RPC normalization exposes daemon-grounded state only.
     // - UI-derived presentation states such as "stalled" are not assigned here.
     // - Heartbeat transport policy may depend on these normalized states.
+    const hasWantedBytesRemaining =
+        typeof torrent.leftUntilDone === "number" &&
+        torrent.leftUntilDone > 0;
+
+    if (
+        base === status.torrent.seeding &&
+        hasWantedBytesRemaining &&
+        torrent.isFinished !== true
+    ) {
+        return status.torrent.downloading;
+    }
+
     return base === status.torrent.seeding || torrent.percentDone === 1 || torrent.isFinished === true
         ? status.torrent.seeding
         : base;

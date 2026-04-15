@@ -1,4 +1,4 @@
-import { Button, Divider, Select, SelectItem, Slider, Switch, cn } from "@heroui/react";
+import { Button, ListBoxItem, Select, Slider, Switch, cn } from "@heroui/react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMemo, type ReactNode } from "react";
@@ -121,8 +121,7 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
                 <Switch
                     size="md"
                     isSelected={isSwitchOn}
-                    color={block.color}
-                    onValueChange={(val) => {
+                    onChange={(val) => {
                         void onApplySetting(block.switchKey, val);
                     }}
                     isDisabled={blockPending}
@@ -134,7 +133,6 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
                 </div>
             </div>
             <Slider
-                size="md"
                 step={block.slider.step}
                 maxValue={block.slider.max}
                 minValue={block.slider.min}
@@ -147,8 +145,6 @@ export function SwitchSliderRenderer({ block }: { block: Extract<SectionBlock, {
                     }
                 }}
                 isDisabled={sliderDisabled || blockPending}
-                color={block.color}
-                classNames={form.sliderClassNames}
                 className={form.slider}
             />
             <ControlFieldHelper
@@ -184,9 +180,8 @@ export function SwitchRenderer({ block }: { block: Extract<SectionBlock, { type:
                 <span className={cn(form.switchLabel, isDisabled && visuals.state.muted)}>{t(block.labelKey)}</span>
                 <Switch
                     size="md"
-                    color={block.color}
                     isSelected={config[block.stateKey] as boolean}
-                    onValueChange={(val) => {
+                    onChange={(val) => {
                         void onApplySetting(block.stateKey, val);
                     }}
                     isDisabled={isDisabled}
@@ -227,7 +222,6 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const isMono =
         block.inputType === "number" ||
         (typeof displayValue === "string" && (displayValue.includes("/") || displayValue.includes("\\")));
-
     // Resolve Side Action
     const sideAction = useMemo(() => {
         if (block.sideAction) return block.sideAction;
@@ -303,43 +297,58 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const inputNode = (
         <BufferedInput
             placeholder=" "
-            size="md"
-            variant={isPathField ? "flat" : (block.variant ?? "bordered")}
+            variant={isPathField || block.variant === "flat" ? "secondary" : "primary"}
             fullWidth={isPathField || isWideInlineField}
             value={displayValue}
             type={block.inputType}
             aria-label={t(block.labelKey)}
-            isDisabled={isDisabled || blocklistUnsupported || isPending}
+            disabled={isDisabled || blocklistUnsupported || isPending}
             onValueChange={(next) => setFieldDraft(block.stateKey, next)}
             onCommit={handleCommit}
             onRevert={() => revertFieldDraft(block.stateKey)}
-            classNames={
+            className={cn(
+                block.className,
                 isPathField
-                    ? form.locationEditorInputClassNames
-                    : {
-                          inputWrapper:
-                              isDisabled || blocklistUnsupported || isPending
-                                  ? `${form.bufferedInputWrapperBase} ${form.bufferedInputWrapperDisabled}`
-                                  : `${form.bufferedInputWrapperBase} ${form.bufferedInputWrapperEnabled}`,
-                          input: isMono ? form.bufferedInputTextMono : form.bufferedInputTextDefault,
-                          label: form.bufferedInputLabel,
-                      }
-            }
-            startContent={
-                isPathField ? (
-                    <FolderOpen
-                        strokeWidth={visuals.icon.strokeWidth}
-                        className={form.locationEditorInputLeadingIcon}
-                    />
-                ) : undefined
-            }
-            endContent={
-                block.endIcon ? (
-                    <block.endIcon strokeWidth={visuals.icon.strokeWidth} className={form.inputEndIcon} />
-                ) : undefined
-            }
-            className={block.className}
+                    ? "min-w-0 flex-1"
+                    : isMono
+                      ? form.bufferedInputTextMono
+                      : form.bufferedInputTextDefault,
+            )}
         />
+    );
+    const renderedInputNode = isPathField ? (
+        <div className={cn(form.locationEditorInputClassNames.inputWrapper, "flex min-w-0 items-center gap-tools")}>
+            <FolderOpen
+                strokeWidth={visuals.icon.strokeWidth}
+                className={form.locationEditorInputLeadingIcon}
+            />
+            {inputNode}
+        </div>
+    ) : block.endIcon ? (
+        <div
+            className={cn(
+                form.bufferedInputWrapperBase,
+                isDisabled || blocklistUnsupported || isPending
+                    ? form.bufferedInputWrapperDisabled
+                    : form.bufferedInputWrapperEnabled,
+                "flex min-w-0 items-center gap-tools",
+            )}
+        >
+            {inputNode}
+            <block.endIcon strokeWidth={visuals.icon.strokeWidth} className={form.inputEndIcon} />
+        </div>
+    ) : (
+        <div
+            className={cn(
+                form.bufferedInputWrapperBase,
+                isDisabled || blocklistUnsupported || isPending
+                    ? form.bufferedInputWrapperDisabled
+                    : form.bufferedInputWrapperEnabled,
+                "min-w-0",
+            )}
+        >
+            {inputNode}
+        </div>
     );
 
     const helperContent = fieldError ? (
@@ -357,7 +366,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                             <div className={form.locationEditorHeader}>
                                 <span className={form.locationEditorInlineLabel}>{t(block.labelKey)}</span>
                             </div>
-                            <div className={form.locationEditorInputWrap}>{inputNode}</div>
+                            <div className={form.locationEditorInputWrap}>{renderedInputNode}</div>
                         </div>
                         <PathFieldHelper helper={helperContent} />
                     </div>
@@ -365,9 +374,9 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             );
         }
         if (isWideInlineField) {
-            return <InlineSettingsFieldRow label={t(block.labelKey)} field={inputNode} helper={helperContent} />;
+            return <InlineSettingsFieldRow label={t(block.labelKey)} field={renderedInputNode} helper={helperContent} />;
         }
-        return <SettingsControlRow label={t(block.labelKey)} control={inputNode} helper={helperContent} />;
+        return <SettingsControlRow label={t(block.labelKey)} control={renderedInputNode} helper={helperContent} />;
     }
 
     return isPathField ? (
@@ -377,13 +386,13 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                     <div className={form.locationEditorHeader}>
                         <span className={form.locationEditorInlineLabel}>{t(block.labelKey)}</span>
                     </div>
-                    <div className={form.locationEditorInputWrap}>{inputNode}</div>
+                    <div className={form.locationEditorInputWrap}>{renderedInputNode}</div>
                 </div>
                 <div className={form.locationEditorActionRow}>
                     <div className={form.locationEditorBrowseWrap}>
                         <Button
                             size="md"
-                            variant="flat"
+                            variant="secondary"
                             onPress={() => {
                                 void handleSideAction();
                             }}
@@ -401,11 +410,10 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             label={t(block.labelKey)}
             control={
                 <>
-                    {inputNode}
+                    {renderedInputNode}
                     <Button
                         size="md"
-                        variant="bordered"
-                        color="primary"
+                        variant="outline"
                         onPress={() => {
                             void handleSideAction();
                         }}
@@ -450,22 +458,21 @@ export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type:
             label={t(block.labelKey)}
             field={
                 <Select
-                    size="md"
-                    variant={block.variant ?? "bordered"}
+                    variant={block.variant === "flat" ? "secondary" : "primary"}
                     fullWidth
-                    selectedKeys={config[block.stateKey] !== undefined ? [String(config[block.stateKey])] : []}
-                    classNames={form.selectClassNames}
+                    selectedKey={config[block.stateKey] !== undefined ? String(config[block.stateKey]) : null}
                     isDisabled={isDisabled || fieldPending}
                     aria-label={t(block.labelKey)}
                     onSelectionChange={(keys) => {
-                        const [next] = [...keys];
-                        if (next) {
-                            void onApplySetting(block.stateKey, String(next) as SettingsConfig[typeof block.stateKey]);
+                        if (typeof keys === "string") {
+                            void onApplySetting(block.stateKey, keys as SettingsConfig[typeof block.stateKey]);
                         }
                     }}
                 >
                     {block.options.map((opt) => (
-                        <SelectItem key={opt.key}>{t(opt.labelKey)}</SelectItem>
+                        <ListBoxItem key={opt.key} textValue={t(opt.labelKey)}>
+                            {t(opt.labelKey)}
+                        </ListBoxItem>
                     ))}
                 </Select>
             }
@@ -489,9 +496,17 @@ export function ButtonRowRenderer({ block }: { block: Extract<SectionBlock, { ty
             {block.buttons.map((btn) => (
                 <Button
                     key={btn.labelKey}
-                    size={btn.size ?? "md"}
-                    variant={btn.variant ?? "light"}
-                    color={btn.color}
+                    variant={
+                        btn.variant === "light"
+                            ? "ghost"
+                            : btn.variant === "shadow"
+                              ? "primary"
+                              : btn.variant === "flat"
+                                ? "secondary"
+                                : btn.variant === "bordered"
+                                  ? "outline"
+                                  : btn.variant
+                    }
                     onPress={buttonActions[btn.action]}
                     className={btn.className}
                 >
@@ -543,8 +558,7 @@ export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { ty
                 </AppTooltip>
                 <Button
                     size="md"
-                    variant="shadow"
-                    color="primary"
+                    variant="primary"
                     onPress={() => {
                         void handleCopy();
                     }}
@@ -578,5 +592,5 @@ export function RawConfigRenderer({ block }: { block: Extract<SectionBlock, { ty
 }
 
 export function DividerRenderer() {
-    return <Divider className={form.divider} />;
+    return <div className={form.divider} />;
 }

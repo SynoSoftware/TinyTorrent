@@ -127,27 +127,11 @@ const tableHeaderPattern = {
     statusCell: "border-b border-default/10 py-panel pl-tight pr-panel text-right",
 } as const;
 const workbenchShell = `acrylic shadow-inner ${primitiveTokens.elevation.panel}`;
-const panelInset = `${primitiveTokens.radius.panel} ${primitiveTokens.border.subtle} overflow-hidden ${semanticTokens.surface.subtle}`;
 const panelRaised = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.subtle}`;
 const panelInfo = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.canvas}`;
 const panelWorkflow = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.raised}`;
 const panelSidebar = `flex flex-col border-r ${borderToken} ${semanticTokens.surface.raised} ${primitiveTokens.blur.panel}`;
 const statusModulePanel = `${primitiveTokens.radius.modal} border ${borderToken} ${semanticTokens.surface.subtle} ${primitiveTokens.blur.soft}`;
-const modalBaseClassNames = {
-    base: `glass-panel surface-layer-2 text-foreground ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.modal} flex flex-col overflow-hidden ${primitiveTokens.border.default}`,
-} as const;
-const modalCompactClassNames = {
-    base: `${modalBaseClassNames.base} w-full max-w-modal-compact`,
-} as const;
-const modalBaseWrapperHiddenClassNames = {
-    base: modalBaseClassNames.base,
-    wrapper: "overflow-hidden",
-} as const;
-const modalChromeClassNames = {
-    body: "p-tight",
-    header: `p-none select-none ${primitiveTokens.blur.panel}`,
-    footer: "p-none select-none",
-} as const;
 const tooltipControl = {
     content: `${semanticTokens.surface.modal} border ${borderToken} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
     arrow: semanticTokens.surface.modal,
@@ -196,17 +180,12 @@ const panelControl = {
     glass: "glass-panel surface-layer-1 text-foreground",
     floating: "glass-panel surface-layer-2 text-foreground",
 } as const;
+const modalSurfaceBase = `${panelControl.floating} ${primitiveTokens.radius.modal} flex flex-col overflow-hidden`;
+const modalSurfaceCompact = `${modalSurfaceBase} w-full max-w-modal-compact`;
 const modalControl = {
     surface: {
-        baseClassNames: modalBaseClassNames,
-        compactClassNames: modalCompactClassNames,
-        baseWrapperHiddenClassNames: modalBaseWrapperHiddenClassNames,
-        chromeClassNames: modalChromeClassNames,
-        baseClass: modalBaseClassNames.base,
-    },
-    chrome: {
-        default: modalChromeClassNames,
-        dialog: controlChrome,
+        baseClass: modalSurfaceBase,
+        compactClass: modalSurfaceCompact,
     },
 } as const;
 const menuControl = {
@@ -224,9 +203,9 @@ const menuControl = {
         strong: "font-semibold",
         nested: "pl-stage",
         pinned: "font-semibold text-foreground",
-        selectedPrimary: "bg-primary/15 text-primary",
+        selectedPrimary: "bg-accent-soft text-accent",
         flagInlineWrap: "text-lg leading-none",
-        checkIconPrimary: "text-primary",
+        checkIconPrimary: "text-accent",
     },
     chrome: {
         sectionHeading: menuSectionHeading,
@@ -236,8 +215,9 @@ const menuControl = {
     },
     action: {
         iconButton: `p-tight inline-flex items-center justify-center ${transition.fast} toolbar-icon-hit`,
-        windowButtonBase: "flex h-full items-center justify-center rounded-none border-0 px-0 transition-none window-control-button-width",
-        windowButtonNeutral: "text-foreground/60 hover:text-foreground hover:bg-primary/10",
+        windowButtonBase:
+            "flex h-full items-center justify-center rounded-none border-0 px-0 transition-none window-control-button-width",
+        windowButtonNeutral: "text-foreground/60 hover:text-foreground hover:bg-accent-soft",
         windowButtonDanger: "text-foreground/60 hover:text-danger hover:bg-danger/20",
         base: menuActionButton,
         danger: menuActionButtonDanger,
@@ -246,11 +226,11 @@ const menuControl = {
 const tableControl = {
     header: tableHeaderPattern,
     contextStatusBadge:
-        "inline-flex max-w-full items-center rounded-panel border border-default/10 bg-content1/35 px-tight py-tight",
+        "inline-flex max-w-full items-center rounded-panel border border-default/10 surface-layer-1 px-tight py-tight",
     progress: {
-        track: "bg-content2/50 h-full",
+        track: "bg-foreground/10 h-full",
         paused: "bg-gradient-to-r from-warning/50 to-warning",
-        seeding: "bg-gradient-to-r from-primary/50 to-primary",
+        seeding: "bg-gradient-to-r from-accent/60 to-accent",
         active: "bg-gradient-to-r from-success/50 to-success",
     },
     shadowOverlay: primitiveTokens.elevation.overlay,
@@ -283,7 +263,7 @@ export const surface = {
     text: tokens.semantic.text,
     tooltip: tooltipControl,
     chrome: tokens.semantic.chrome,
-    chromeEx: modalControl.chrome.dialog,
+    chromeEx: controlChrome,
     modal: modalControl.surface,
     menu: {
         surface: menuControl.surface,
@@ -324,9 +304,9 @@ export const surface = {
 const bgTransparent = "bg-transparent";
 const bgBackground40 = "bg-background/40";
 const bgBackground90 = "bg-background/90";
-const bgContent110 = "bg-content1/10";
-const bgContent120 = "bg-content1/20";
-const bgPrimary10 = "bg-primary/10";
+const bgContent110 = "bg-foreground/5";
+const bgContent120 = "bg-foreground/10";
+const bgPrimary10 = "bg-accent-soft";
 const roundedPanel = primitiveTokens.radius.panel;
 const roundedRaised = primitiveTokens.radius.raised;
 const roundedFull = primitiveTokens.radius.full;
@@ -337,29 +317,16 @@ const workbenchMainShell = `${workbenchShell} surface-layer-2 `;
 const workbenchIslandShell = `glass-panel text-foreground ${workbenchShell} border border-default/45`;
 
 export const modal = {
-    baseClassNames: surface.modal.baseClassNames,
-    compactClassNames: surface.modal.compactClassNames,
-    settingsModalBaseFull: `${surface.modal.baseClass} flex flex-row max-h-full max-w-full`,
-    settingsModalBaseRpc: `${surface.modal.baseClass} flex flex-row h-settings max-h-settings min-h-settings`,
-    settingsModalWrapper: "overflow-hidden",
-    settingsModalClassNamesFull: {
-        base: `${surface.modal.baseClass} flex flex-row max-h-full max-w-full`,
-        wrapper: "overflow-hidden",
-    } as const,
-    settingsModalClassNamesRpc: {
-        base: `${surface.modal.baseClass} flex flex-row h-settings max-h-settings min-h-settings`,
-        wrapper: "overflow-hidden",
-    } as const,
-    addTorrentModalBase: `${surface.modal.baseClass} w-full`,
-    addTorrentModalHeightFull: "h-full",
-    addTorrentModalHeightDefault: "max-h-modal-body",
-    addTorrentModalChromeClassNames: surface.modal.chromeClassNames,
+    settingsModalBaseFull: `${surface.modal.baseClass} max-h-full max-w-full`,
+    settingsModalBaseRpc: `${surface.modal.baseClass} h-settings max-h-settings min-h-settings`,
+    baseClass: surface.modal.baseClass,
+    compactClass: surface.modal.compactClass,
     addTorrentBodyPanelsBase: "flex flex-col flex-1 min-h-settings",
     addTorrentBodyPanelsFullscreen: "h-full min-h-0",
     sidebar: `${surface.surface.sidebarPanel} ${transition.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
     sidebarHidden: "-translate-x-full",
     sidebarVisible: "translate-x-0",
-    sidebarHeader: "p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0",
+    sidebarHeader: "p-stage border-b border-default/10 flex justify-between items-center h-modal-header shrink-0",
     headingFont: "tt-navbar-tab-font",
     iconMd: "toolbar-icon-size-md",
     iconSm: "toolbar-icon-size-sm shrink-0",
@@ -368,17 +335,17 @@ export const modal = {
     sidebarCloseButton: "sm:hidden text-foreground/50",
     sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
     tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel ${roundedPanel} ${transition.medium} group relative`,
-    tabButtonActive: `${bgPrimary10} text-primary font-semibold`,
+    tabButtonActive: `${bgPrimary10} text-accent font-semibold`,
     tabButtonInactive: `text-foreground/60 font-medium ${visuals.interactive.navItem}`,
     tabIcon: "shrink-0 toolbar-icon-size-md",
-    tabIconActive: "text-primary",
+    tabIconActive: "text-accent",
     tabIconInactive: "text-foreground/50",
-    tabIndicator: "absolute settings-tab-indicator bg-primary rounded-r-pill",
-    versionWrapper: "p-panel border-t border-content1/10 shrink-0",
+    tabIndicator: "absolute settings-tab-indicator bg-accent rounded-r-pill",
+    versionWrapper: "p-panel border-t border-default/10 shrink-0",
     versionText: `${text.codeCaption} text-foreground/30`,
     header: `${surface.chrome.edgeBottom} ${surface.chrome.sticky} shrink-0 h-modal-header flex items-center justify-between px-stage`,
     headerLead: "flex items-center gap-tools",
-    headerLeadPrimaryIcon: "text-primary",
+    headerLeadPrimaryIcon: "text-accent",
     hintText: `${text.bodyMuted} leading-relaxed`,
     headerTitleWrap: "flex min-w-0 flex-col overflow-hidden",
     headerMobileBack: "sm:hidden -ml-tight text-foreground/50",
@@ -418,8 +385,8 @@ export const modal = {
         sourceLabelCaption: `${text.caption} truncate font-mono leading-tight`,
         sourceMutedLabel: `${text.codeMuted} text-foreground/50 truncate leading-tight`,
         iconMd: "toolbar-icon-size-md",
-        iconMdPrimary: "toolbar-icon-size-md text-primary",
-        iconLgPrimary: "toolbar-icon-size-lg text-primary",
+        iconMdPrimary: "toolbar-icon-size-md text-accent",
+        iconLgPrimary: "toolbar-icon-size-lg text-accent",
         iconMdSuccess: "toolbar-icon-size-md text-success",
         iconMdWarning: "toolbar-icon-size-md text-warning",
         iconAlert: "toolbar-icon-size-md shrink-0",
@@ -438,16 +405,16 @@ export const modal = {
         headerDivider: `h-status-chip w-px ${bgContent110} mx-tight`,
         body: "flex-1 min-h-0 relative p-none",
         dropOverlay:
-            "absolute inset-0 z-drop-overlay bg-primary/20 blur-glass border-divider border-primary border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
+            "absolute inset-0 z-drop-overlay bg-accent-soft blur-glass border-divider border-accent border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
         dropOverlayChip:
             "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
         panelGroup: "flex-1 min-h-0",
-        paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-primary/45`,
+        paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-accent/45`,
         paneHandleEnabled: "cursor-col-resize",
         settingsPanelCollapsed: "min-w-0 w-0",
         resizeHandleBarBase: `h-full w-divider ${transition.fast}`,
-        resizeHandleBarActive: "bg-primary",
-        resizeHandleBarIdle: "bg-primary/70 group-hover:bg-primary/85",
+        resizeHandleBarActive: "bg-accent",
+        resizeHandleBarIdle: "bg-accent/70 group-hover:bg-accent/85",
         resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
         settingsPanel: `${surface.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
         filePanel:
@@ -510,7 +477,7 @@ export const form = {
     sliderValueText: "font-mono text-scaled text-foreground/80",
     slider: "opacity-90",
     bufferedInputWrapperBase: `h-button ${transition.fast}`,
-    bufferedInputWrapperEnabled: "group-hover:border-primary/50",
+    bufferedInputWrapperEnabled: "group-hover:border-accent/50",
     bufferedInputWrapperDisabled: visuals.state.disabled,
     bufferedInputTextMono: "text-scaled text-foreground/90 font-mono tracking-tight",
     bufferedInputTextDefault: "text-scaled text-foreground/90 font-medium",
@@ -518,7 +485,7 @@ export const form = {
     inputActionRow: "flex w-full items-end gap-tools justify-end",
     inputActionFill: "flex-1 min-w-0",
     inputEndIcon: "text-foreground/40 shrink-0 toolbar-icon-size-sm",
-    daySelectorButton: `h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-primary/10 text-primary text-scaled min-w-0 ${visuals.interactive.buttonPrimary}`,
+    daySelectorButton: `h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-accent-soft text-accent text-scaled min-w-0 ${visuals.interactive.buttonPrimary}`,
     daySelectorSelected: "font-bold",
     daySelectorUnselected: "text-foreground/60",
     daySelectorList: "flex flex-wrap gap-tools",
@@ -544,19 +511,19 @@ export const form = {
     } as const,
     sliderClassNames: { thumb: "shadow-small" } as const,
     rawConfigTextarea:
-        "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-primary/40 focus:outline-none",
+        "w-full resize-none border-none bg-transparent px-panel py-panel leading-relaxed selection:bg-accent-soft focus:outline-none",
     locationEditorRoot: `${surface.surface.panelInfo} p-panel space-y-panel`,
     locationEditorDescription: "text-label text-foreground/60 leading-snug",
     locationEditorCaption: "text-scaled font-semibold text-foreground/70",
     locationEditorError: "text-label text-danger",
     locationEditorRow: "flex flex-col gap-tight",
     locationEditorIconWrap: `shrink-0 self-start flex items-center justify-center`,
-    locationEditorIcon: "toolbar-icon-size-xl text-primary",
+    locationEditorIcon: "toolbar-icon-size-xl text-accent",
     locationEditorInputLeadingIcon: "toolbar-icon-size-md text-foreground/50",
     locationEditorInputBrowseButton: "pointer-events-auto text-foreground/50",
     locationEditorInputClassNames: {
         inputWrapper:
-            "surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 focus-within:border-primary/60",
+            "surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 focus-within:border-accent/60",
     } as const,
     locationEditorField: "flex-1 min-w-0 space-y-tight",
     locationEditorPathRow: "flex flex-col gap-tight",
@@ -588,7 +555,7 @@ export const form = {
         gatePromptIcon: "toolbar-icon-size-md text-foreground/50",
         destinationRow: "flex gap-tools group items-center",
         destinationInputWrap: "w-full flex-1",
-        destinationInputIcon: "toolbar-icon-size-md text-primary",
+        destinationInputIcon: "toolbar-icon-size-md text-accent",
         actionIcon: "toolbar-icon-size-md text-foreground/50",
         status: `h-status-chip flex items-center gap-tools min-w-0 ${text.codeMuted}`,
         statusIcon: "toolbar-icon-size-md shrink-0",
@@ -600,7 +567,7 @@ export const form = {
         flagsDivider: "my-panel bg-foreground/25",
         flagsCheckboxes: "flex flex-col gap-tools",
         flagsItemLabel: "flex items-center",
-        flagsItemDivider: "bg-content1/5",
+        flagsItemDivider: "bg-foreground/10",
         flagsIcon: "toolbar-icon-size-md mr-2 text-foreground/50",
     } as const,
     connection: {
@@ -616,10 +583,10 @@ export const form = {
     } as const,
 } as const;
 const torrentHeader = {
-    cellBase: `relative flex items-center h-row border-r border-content1/10 ${transition.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`,
-    cellSortable: "cursor-pointer hover:bg-content1/10",
+    cellBase: `relative flex items-center h-row border-r border-default/10 ${transition.fast} group select-none overflow-visible box-border border-l-2 border-l-transparent`,
+    cellSortable: "cursor-pointer hover:bg-foreground/5",
     cellStatic: "cursor-default",
-    cellOverlay: "bg-content1/90 cursor-grabbing",
+    cellOverlay: "surface-layer-2 cursor-grabbing",
     cellDefault: bgTransparent,
     cellOverlayShadow: surface.atom.shadowPanel,
     cellDragging: "opacity-30",
@@ -633,7 +600,7 @@ const torrentHeader = {
     activatorTrackingStyle: {
         letterSpacing: "var(--tt-tracking-tight)",
     } as const,
-    sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
+    sortIcon: "text-accent shrink-0 toolbar-icon-size-sm",
     sortIconVisible: "opacity-100",
     sortIconHidden: "opacity-0",
     resizeHandle:
@@ -642,8 +609,8 @@ const torrentHeader = {
         width: "var(--tt-divider-width)",
     } as const,
     resizeBarBase: `bg-foreground/10 ${transition.fast} rounded-full h-resize-h`,
-    resizeBarHover: "group-hover:bg-primary/50",
-    resizeBarActive: "bg-primary h-resize-h",
+    resizeBarHover: "group-hover:bg-accent/50",
+    resizeBarActive: "bg-accent h-resize-h",
 } as const;
 const contextStatusBadge = tableControl.contextStatusBadge;
 const tableShellControl = {
@@ -660,7 +627,7 @@ const tableHostControl = {
     canvas: "relative w-full min-w-max",
 } as const;
 const tableRowControl = {
-    base: "group hover:bg-primary/5",
+    base: "group hover:bg-foreground/5",
     content: registry.control.table.rowClass.content,
     hover: registry.control.table.rowClass.hover,
     selected: registry.control.table.rowClass.selected,
@@ -672,13 +639,13 @@ const tableRowControl = {
 } as const;
 const tableDragOverlayControl = {
     base: `pointer-events-none absolute inset-x-0 ${panelControl.overlay} px-panel box-border`,
-    ghost: `pointer-events-none absolute inset-x-0 ${roundedPanel} border border-default/10 bg-content1/50 px-panel box-border opacity-70 backdrop-blur-md`,
+    ghost: `pointer-events-none absolute inset-x-0 ${surface.role.overlay} box-border opacity-70`,
     badge: `pointer-events-none absolute right-tight top-tight ${roundedFull} border border-default/15 ${bgBackground90} px-tight py-1 text-label font-semibold text-foreground/80 shadow-small backdrop-blur-md`,
     content: "flex h-full w-full items-center",
     shadow: tableControl.shadowOverlay,
 } as const;
 const tableProgressControl = {
-    frame: "relative h-full overflow-hidden rounded-full bg-content1/20",
+    frame: "relative h-full overflow-hidden rounded-full bg-foreground/10",
     indicator: "absolute inset-y-0 left-0 transform origin-left rounded-full transition-all duration-300 ease-out",
     cell: "flex flex-col gap-tight w-full min-w-0 py-tight overflow-hidden",
     track: tableControl.progress.track,
@@ -689,6 +656,7 @@ const tableProgressControl = {
     metricsRow: "flex min-w-0 items-end justify-between gap-tight font-medium opacity-80",
     secondary: "text-foreground/40",
 } as const;
+const tableDragOverlaySurface = `pointer-events-none absolute inset-x-0 ${surface.role.overlay} box-border`;
 export const table = {
     shellPanelBase: "relative flex-1 h-full min-h-0 flex flex-col",
     shellPanel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
@@ -701,20 +669,19 @@ export const table = {
         borderRadius: "inherit",
     } as const,
     header: `flex w-full ${surface.chrome.edgeBottom} ${surface.chrome.sticky}`,
-    bodyScroll: "relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar",
+    bodyScroll: "relative flex-1 h-full min-h-0 overflow-x-hidden overflow-y-auto w-full overlay-scrollbar",
     bodyScrollStyle: {
         scrollbarGutter: "stable",
     } as const,
     bodyCanvas: "relative w-full min-w-max",
     noResults: `h-full flex items-center justify-center px-stage ${text.labelDense}`,
     dragOverlayStack: "pointer-events-none relative box-border",
-    dragOverlay: `pointer-events-none absolute inset-x-0 ${surface.role.overlay} px-panel box-border`,
-    dragOverlayGhost: `pointer-events-none absolute inset-x-0 ${roundedPanel} border border-default/10 bg-content1/50 px-panel box-border opacity-70 backdrop-blur-md`,
-    dragOverlayContent: "flex h-full w-full items-center",
+    dragOverlay: tableDragOverlaySurface,
+    dragOverlayGhost: `${tableDragOverlaySurface} opacity-70`,
     dragOverlayBadge: `pointer-events-none absolute right-tight top-tight ${roundedFull} border border-default/15 ${bgBackground90} px-tight py-1 text-label font-semibold text-foreground/80 shadow-small backdrop-blur-md`,
-    marquee: "pointer-events-none absolute rounded-(--r-sm) border border-primary/60 bg-primary/20",
+    marquee: "pointer-events-none absolute rounded-(--r-sm) border border-accent/60 bg-accent-soft",
     loadingRoot: "w-full",
-    loadingRow: "flex items-center w-full border-b border-content1/5 px-panel",
+    loadingRow: "flex items-center w-full border-b border-default/10 px-panel",
     loadingSkeletonWrap: "w-full h-indicator",
     loadingSkeleton: `h-full w-full ${roundedMedium} ${bgContent110}`,
     emptyRoot: "h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60",
@@ -726,7 +693,7 @@ export const table = {
     emptySubtextTrackingStyle: {
         letterSpacing: "var(--tt-tracking-wide)",
     } as const,
-    emptyIcon: "text-primary",
+    emptyIcon: "text-accent",
     emptyPreview: "w-full max-w-3xl space-y-tight",
     emptyBar: `h-indicator w-full ${roundedFull} ${bgContent120}`,
     emptyPreviewRow: `grid grid-cols-torrent gap-tools ${roundedRaised} ${bgContent110} px-panel py-panel`,
@@ -779,7 +746,7 @@ export const table = {
 } as const;
 export const diagnostic = {
     statusChipClassNames: {
-        base: `${statusChipPattern.base} border border-default/20 bg-content1/70`,
+        base: `${statusChipPattern.base} border border-default/20 surface-layer-1`,
         content: `${text.labelDense} font-semibold`,
     } as const,
     root: "min-h-screen surface-layer-0 text-foreground pb-stage",
@@ -790,7 +757,7 @@ export const diagnostic = {
     sectionTitle: "text-navbar font-semibold text-foreground",
     panelPrimary: "p-panel",
     panelSecondaryWrap: "lg:border-l lg:border-default/20 lg:pl-panel",
-    panelSecondary: "p-panel bg-content1/35",
+    panelSecondary: "p-panel surface-layer-1",
     stepCard: `surface-layer-2 ${roundedPanel} p-panel flex flex-col gap-stage`,
     stepHeader: "flex flex-col gap-tight",
     optionsStack: "flex flex-col gap-tools",
@@ -823,7 +790,7 @@ export const diagnostic = {
     systemStatusRow: "flex flex-wrap items-center gap-stage",
     systemStatusPair: "flex items-center gap-tight",
     systemMeta: "flex flex-wrap items-center gap-stage",
-    footer: "fixed bottom-0 left-0 right-0 z-overlay border-t border-default/20 bg-content1/85 p-panel backdrop-blur-xl",
+    footer: "fixed bottom-0 left-0 right-0 z-overlay border-t border-default/20 surface-layer-2 p-panel backdrop-blur-xl",
     footerStack: "flex flex-col gap-tools",
     footerRow: "flex flex-wrap items-center justify-between gap-tools",
     footerLeft: "flex flex-wrap items-center gap-tools",
@@ -861,29 +828,29 @@ export const workbench = {
         } as const,
         brandTextWrap: "hidden xl:flex flex-col justify-center ml-tight",
         brandName: "font-bold tracking-tight text-foreground text-base leading-none text-navbar",
-        brandVersion: `${text.codeMuted} text-xs font-medium leading-none mt-0.5 text-default-400`,
-        primarySeparator: "hidden sm:flex h-sep w-px bg-default-200/50 mx-tight",
+        brandVersion: `${text.codeMuted} text-xs font-medium leading-none mt-0.5 text-foreground/45`,
+        primarySeparator: "hidden sm:flex h-sep w-px bg-foreground/10 mx-tight",
         tabsWrap: "hidden xl:flex text-navbar min-w-0",
-        tabTitle: "flex items-center gap-tight",
+        tabTitle: "flex w-full items-center justify-center gap-tight",
         tabLabel: "hidden 2xl:inline",
-        tabIcon: "text-default-400",
+        tabIcon: `${transition.fast} shrink-0 text-foreground/45 group-data-[selected=true]:text-foreground`,
         searchWrap: "hidden 2xl:flex",
         searchStyle: {
             width: "var(--tt-search-width)",
             fontSize: "var(--tt-fz-navbar)",
         } as const,
-        searchIcon: "text-default-400",
+        searchIcon: "m-0 shrink-0 text-foreground/45",
         actions: `flex items-center gap-tight sm:gap-tools ${transition.medium} shrink-0 opacity-100`,
         primaryActions: "flex items-center gap-tight sm:gap-tools min-w-0",
-        primaryActionEmphasis: "ring-1 ring-primary/20",
-        selectionSeparator: "hidden sm:flex w-px bg-default-200/50 mx-tight",
+        primaryActionEmphasis: "ring-1 ring-accent/25",
+        selectionSeparator: "hidden sm:flex w-px bg-foreground/10 mx-tight",
         selectionSeparatorStyle: {
             height: "calc(var(--tt-navbar-h) / 2)",
         } as const,
         selectionExtraActions: "hidden sm:flex gap-tools",
         selectionPauseEmphasis: "ring-1 ring-warning/30 shadow-sm",
         selectionRecheckEmphasis: "ring-1 ring-default/20 shadow-sm",
-        ghostAction: `text-default-400 ${visuals.interactive.buttonGhost}`,
+        ghostAction: `text-foreground/45 ${visuals.interactive.buttonGhost}`,
         ghostActionOverflow: "overflow-visible",
         themeMobileWrap: "flex md:hidden",
         mobileStack: "mt-panel flex sm:hidden",
@@ -898,31 +865,39 @@ export const workbench = {
         rehashWrap: "absolute inset-x-6 bottom-0 translate-y-1/2",
         rehashTooltipWrap: "relative group cursor-help",
         rehashTrack: "h-track bg-transparent",
-        rehashIndicator: "h-full bg-gradient-to-r from-primary to-secondary shadow-nav",
+        rehashIndicator: "h-full bg-gradient-to-r from-accent to-success shadow-nav",
         windowControls: "hidden md:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
         windowControlsStyle: {
             paddingLeft: 0,
             paddingRight: 0,
         } as const,
         toneButtonFallback: {
-            primary: `text-primary ${visuals.interactive.buttonPrimary}`,
+            primary: `text-accent ${visuals.interactive.buttonPrimary}`,
             success: `text-success ${visuals.interactive.buttonDefault}`,
             warning: `text-warning ${visuals.interactive.buttonDefault}`,
             danger: visuals.interactive.buttonDanger,
-            neutral: `text-foreground ${visuals.interactive.buttonPrimary}`,
+            neutral: `text-foreground/70 ${visuals.interactive.buttonDefault}`,
         } as const,
         filterTabsClassNames: {
             base: "",
             tabList:
-                "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
-            cursor: `${bgBackground90} shadow-sm border-default-100 h-navbar-cursor ${roundedFull}`,
-            tab: `px-panel font-semibold text-default-500 text-navbar ${visuals.interactive.navItem}`,
+                `surface-layer-1 p-tight border border-default/20 shadow-inner gap-tight h-navbar-pill ` +
+                `${roundedFull} overflow-visible`,
+            indicator: `surface-layer-1 border border-default/10 shadow-sm ${roundedFull}`,
+            tab:
+                `group relative flex items-center justify-center ${roundedFull} px-panel font-semibold text-navbar ` +
+                `text-foreground/55 ${transition.fast} hover:text-foreground/80 data-[selected=true]:text-foreground`,
         } as const,
         searchInputClassNames: {
-            base: transition.medium,
-            mainWrapper: "h-navbar-pill",
-            input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
-            inputWrapper: `h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full ${transition.fast}`,
+            base: `${transition.medium} min-w-0 w-full`,
+            mainWrapper: "h-navbar-pill w-full min-w-0",
+            input:
+                "h-full w-0 min-w-0 flex-1 overflow-hidden whitespace-nowrap bg-transparent px-0 py-0 text-ellipsis " +
+                "text-navbar font-medium text-foreground/90 placeholder:opacity-70",
+            inputWrapper:
+                `h-full min-w-0 overflow-hidden flex items-center gap-tight flex-nowrap font-normal text-foreground/55 surface-layer-1 ` +
+                `p-tight border border-default/20 hover:border-default/30 focus-within:border-accent/25 ` +
+                `shadow-inner rounded-full ${transition.fast}`,
         } as const,
         selectionActionsBase: `flex items-center gap-tools ${transition.medium}`,
         selectionActionsEnabled: "opacity-100",
@@ -941,7 +916,9 @@ export const workbench = {
         statValueText: "text-scaled text-foreground truncate text-right font-semibold",
         statIcon: "text-foreground/30",
         telemetryIconWrap: "inline-flex items-center",
-        speedModule: `flex flex-1 items-center h-full min-w-0 gap-tools group ${surface.surface.statusModule} ${transition.slow} group-hover:border-content1/40 group-hover:bg-content1/10`,
+        speedModule:
+            `flex flex-1 items-center h-full min-w-0 gap-tools group ${surface.surface.statusModule} ${transition.slow} ` +
+            `group-hover:border-default/30 group-hover:bg-foreground/5`,
         speedModuleGraphWrap: "relative flex flex-1 h-full min-w-0 gap-tools",
         speedModuleGraph: `relative flex-1 h-full min-w-0 min-h-0 py-tight overflow-visible opacity-30 grayscale ${transition.reveal} group-hover:grayscale-0 group-hover:opacity-100`,
         speedModuleGraphCanvas: "absolute inset-0 h-full w-full",
@@ -951,8 +928,10 @@ export const workbench = {
         speedModuleTextWrap: "flex flex-col gap-tight text-left",
         speedModuleLabel: "text-label font-bold uppercase tracking-0-2 text-foreground/40",
         speedModuleValue: `${text.heading} tracking-tight leading-none`,
-        speedSeparator: "w-px bg-content1/10",
-        engineButton: `relative flex items-center justify-center rounded-modal border px-panel ${transition.medium} active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer`,
+        speedSeparator: "w-px bg-foreground/10",
+        engineButton:
+            `relative flex items-center justify-center rounded-modal border px-panel ${transition.medium} ` +
+            `active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-accent/60 cursor-pointer`,
         engineConnectedWrap: "absolute inset-0 flex items-start justify-end p-tight",
         engineConnectedPulse: "absolute inline-flex rounded-full",
         engineConnectedDot: "relative inline-flex rounded-full bg-current",
@@ -969,10 +948,10 @@ export const workbench = {
         speedCompactOverlayRow: "flex items-center gap-tight text-center",
         speedCompactColumn: "flex flex-col items-center",
         speedCompactDownIcon: "toolbar-icon-size-md text-success",
-        speedCompactUpIcon: "toolbar-icon-size-md text-primary",
+        speedCompactUpIcon: "toolbar-icon-size-md text-accent",
         speedCompactValue: `${text.heading} tracking-tight leading-none`,
-        speedCompactDivider: "w-px bg-content1/10 mx-tight",
-        right: "flex shrink-0 items-center border-l border-content1/10 gap-stage",
+        speedCompactDivider: "w-px bg-foreground/10 mx-tight",
+        right: "flex shrink-0 items-center border-l border-default/20 gap-stage",
         telemetryGrid: "grid gap-x-stage gap-y-tight",
     } as const,
     reconnectToast: "fixed z-toast",
@@ -1175,13 +1154,13 @@ export const dashBoard = {
     fullscreenOverlay: "fixed inset-0 z-dnd",
     fullscreenSection: "relative h-full flex items-center justify-center",
     fullscreenBackdrop: "absolute inset-0 pointer-events-none bg-background/60 backdrop-blur-sm",
-    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border ${borderToken} shadow-medium`,
+    fullscreenPanel: `relative z-panel flex h-full w-full flex-col overflow-hidden surface-layer-2 backdrop-blur-xl border ${borderToken} shadow-medium`,
 } as const;
 const detailsTable = {
     root: "flex h-full flex-col gap-panel",
     toolbar: `${surface.chrome.sticky} flex items-center justify-between px-tight`,
     toolbarGroup: "flex items-center gap-tools",
-    toolbarIconPrimary: "text-primary",
+    toolbarIconPrimary: "text-accent",
     body: "relative min-h-0 flex-1",
     panel: "min-h-0 flex-1 overflow-hidden",
     scroll: "h-full overflow-auto",
@@ -1197,8 +1176,8 @@ const detailsTable = {
     bodyCell: "px-tight py-panel align-middle",
     bodyCellNumeric: "px-tight py-panel align-middle text-right tabular-nums",
     stateBadge:
-        "inline-flex h-status-chip min-w-0 items-center rounded-panel border border-default/10 bg-content1/35 px-tight",
-    tableRow: "group hover:bg-primary/5",
+        "inline-flex h-status-chip min-w-0 items-center rounded-panel border border-default/10 surface-layer-1 px-tight",
+    tableRow: "group hover:bg-foreground/5",
     cellIcon: "border-b border-default/5 py-panel pl-panel pr-tight",
     cellHost: "truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80",
     cellAnnounce: "border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums",
@@ -1213,7 +1192,7 @@ const detailsTable = {
     peerRow: "flex items-center gap-tools",
     overlay: "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl",
     overlayHeader: "flex items-center justify-between border-b border-default/10 px-panel py-panel",
-    overlayTitle: "text-label font-bold uppercase tracking-label text-primary",
+    overlayTitle: "text-label font-bold uppercase tracking-label text-accent",
     overlayBody: "flex-1 p-panel",
     overlayFooter: "flex justify-end gap-tools border-t border-default/10 p-panel",
     inputClassNames: {
@@ -1227,7 +1206,7 @@ export const details = {
     body: "flex-1 min-h-0 overflow-y-auto bg-transparent py-tight overlay-scrollbar",
     bodyFill: "flex flex-col overflow-hidden",
     headerRoot: "grid items-center h-row",
-    headerRootEmbedded: "bg-content1/80 border-b border-default/10",
+    headerRootEmbedded: "surface-layer-1 border-b border-default/10",
     headerTrackingStyle: {
         gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
     } as const,
@@ -1239,27 +1218,28 @@ export const details = {
     headerCenter: "flex min-w-0 items-center justify-center px-tight overflow-hidden",
     headerTabs:
         "flex h-full min-w-0 max-w-full items-stretch gap-tight overflow-x-auto overflow-y-hidden px-tight scrollbar-hide",
-    headerTabBase: `group text-navbar font-semibold relative flex h-full shrink-0 items-center px-panel py-panel text-foreground/60 ${transition.fast}`,
-    headerTabActive: "text-foreground/85 font-semibold",
+    headerTabBase:
+        `group text-navbar font-semibold relative isolate flex h-full shrink-0 items-center rounded-panel ` +
+        `px-panel py-panel text-foreground/60 ${transition.fast}`,
+    headerTabActive: "surface-layer-2 border border-default/10 text-foreground shadow-small backdrop-blur-sm",
     headerTabInactive: "bg-transparent hover:text-foreground/85",
     headerTabHoverGlow:
-        "pointer-events-none absolute left-0 right-0 rounded-full bg-foreground/10 blur-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100",
+        "pointer-events-none absolute left-0 right-0 rounded-full bg-accent-soft blur-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100",
     headerTabHoverGlowStyle: {
         left: "var(--spacing-tight)",
         right: "var(--spacing-tight)",
         bottom: "calc(var(--spacing-tight) * 0.35)",
         height: "calc(var(--spacing-panel) * 0.9)",
     } as const,
-    headerTabLightBloom: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary/30 blur-lg opacity-100",
+    headerTabLightBloom: "pointer-events-none absolute left-0 right-0 rounded-full bg-accent/35 blur-lg opacity-100",
     headerTabLightBloomStyle: {
         left: "var(--spacing-tight)",
         right: "var(--spacing-tight)",
         bottom: "calc(var(--spacing-tight) * 0.15)",
         height: "calc(var(--spacing-panel) * 1.05)",
-        boxShadow:
-            "0 calc(var(--tt-divider-width) * 1.5) calc(var(--spacing-panel) * 0.7) rgba(var(--heroui-primary-500), 0.22)",
+        boxShadow: "0 calc(var(--tt-divider-width) * 1.5) calc(var(--spacing-panel) * 0.7) var(--color-accent-soft)",
     } as const,
-    headerTabLightSource: "pointer-events-none absolute left-0 right-0 rounded-full bg-primary",
+    headerTabLightSource: "pointer-events-none absolute left-0 right-0 rounded-full bg-accent",
     headerTabLightSourceStyle: {
         left: "var(--spacing-tight)",
         right: "var(--spacing-tight)",
@@ -1268,12 +1248,13 @@ export const details = {
         opacity: 0.98,
         filter: "blur(0.4px)",
         boxShadow:
-            "0 0 calc(var(--tt-divider-width) * 1.8) rgba(var(--heroui-primary-500), 0.9), 0 0 calc(var(--spacing-tight) * 0.65) rgba(var(--heroui-primary-500), 0.36)",
+            "0 0 calc(var(--tt-divider-width) * 1.8) color-mix(in oklab, var(--accent) 92%, transparent), " +
+            "0 0 calc(var(--spacing-tight) * 0.65) color-mix(in oklab, var(--accent) 38%, transparent)",
     } as const,
     headerRight: "flex min-w-0 shrink-0 items-center justify-self-end justify-end gap-tight px-tight",
     headerContextActions: "flex shrink-0 items-center gap-tight",
     headerContextActionButton:
-        "border border-primary/30 bg-transparent text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0",
+        "border border-accent/30 bg-transparent text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0",
     headerContextDivider: "h-status-chip w-px bg-foreground/12 mx-tight",
     speedRoot: "flex-1 min-h-0 flex flex-col",
     speedStandaloneSurface: "flex-1 p-stage flex flex-col min-h-0",
@@ -1303,7 +1284,7 @@ export const details = {
     generalMetricPair: "flex items-center gap-tight text-foreground/75",
     generalMetricActions: "flex shrink-0 items-center gap-tight self-start sm:self-center",
     generalSectionActionButton:
-        "rounded-panel border border-default/10 bg-content1/20 px-panel py-tight text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0",
+        "rounded-panel border border-default/10 bg-foreground/5 px-panel py-tight text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0",
     generalStatusBadge: contextStatusBadge,
     generalStatusBadgeLabel: `${text.caption} font-semibold`,
     generalStatusTone: {
@@ -1326,7 +1307,7 @@ export const details = {
 } as const;
 
 export const formControl = {
-    checkboxPrimaryClassNames: { wrapper: "after:bg-primary" } as const,
+    checkboxPrimaryClassNames: { wrapper: "after:bg-accent" } as const,
     checkboxMarginRightClassNames: { base: "mr-tight" } as const,
     checkboxLabelBodySmallClassNames: {
         base: "items-center",
@@ -1351,8 +1332,8 @@ export const formControl = {
         content: statusChipPattern.content,
     } as const,
     statusChipMutedPrimaryClassNames: {
-        base: `${statusChipPattern.base} border border-primary/18 bg-primary/8 dark:border-primary/22 dark:bg-primary/12`,
-        content: `${statusChipPattern.content} text-primary/72 dark:text-primary/62`,
+        base: `${statusChipPattern.base} border border-accent/18 bg-accent-soft dark:border-accent/22 dark:bg-accent-soft`,
+        content: `${statusChipPattern.content} text-accent/72 dark:text-accent/62`,
     } as const,
     statusChipContainer: statusChipPattern.container,
     statusChipContent: statusChipPattern.contentWrap,
@@ -1368,10 +1349,10 @@ export const commandPalette = {
     input: "rounded-none border-0 bg-transparent px-panel py-panel text-base font-semibold outline-none placeholder:text-foreground/50",
     list: "max-h-command-palette overflow-y-auto px-panel py-panel",
     groupWrap: "pb-panel",
-    item: "glass-panel mt-tight flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-panel px-panel text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none",
+    item: "glass-panel mt-tight flex cursor-pointer flex-col border border-default/10 bg-background/80 py-panel px-panel text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-accent focus:outline-none",
     itemRow: "flex items-center justify-between text-sm font-semibold text-foreground",
     shortcutWrap: `flex gap-tools ${text.codeCaption} text-foreground/50`,
-    sectionLabel: "text-label font-semibold uppercase tracking-0-2 text-default-500",
+    sectionLabel: "text-label font-semibold uppercase tracking-0-2 text-foreground/55",
     shortcutKey: `${roundedFull} border border-foreground/30 px-tight py-tight`,
     description: `${text.bodySmall} text-foreground/70`,
     empty: `py-panel text-center ${text.caption}`,
@@ -1379,11 +1360,11 @@ export const commandPalette = {
 } as const;
 export const input = {
     mono: {
-        input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
+        input: "font-mono text-scaled selection:bg-accent-soft selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
         inputWrapper: `surface-layer-1 ${transition.fast} shadow-none group-hover:border-default/10`,
     } as const,
     monoEmphasized: {
-        inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
+        inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-accent/70",
         content: "",
         input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
     } as const,
@@ -1418,6 +1399,7 @@ export const control = {
     modal: {
         surface: {
             base: modalControl.surface.baseClass,
+            compact: modalControl.surface.compactClass,
         },
         layout: {
             contentWrapper: modalLayoutControl.contentWrapper,
@@ -1438,11 +1420,7 @@ export const control = {
         size: {
             compact: "w-full max-w-modal-compact",
         },
-        wrapper: {
-            hidden: modalBaseWrapperHiddenClassNames.wrapper,
-        },
         chrome: {
-            default: modalChromeClassNames,
             dialog: {
                 header: controlChrome.dialogHeader,
                 footer: controlChrome.dialogFooter,
@@ -1526,30 +1504,30 @@ export const control = {
     },
     input: {
         mono: {
-            input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
+            input: "font-mono text-scaled selection:bg-accent-soft selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
             inputWrapper: `surface-layer-1 ${transition.fast} shadow-none group-hover:border-default/10`,
         },
         emphasized: {
-            inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-primary/70",
+            inputWrapper: "surface-layer-1 border border-default/10 shadow-none focus-within:border-accent/70",
             content: "",
             input: "bg-transparent text-scaled font-mono text-foreground placeholder:text-foreground/30",
         },
         textarea: {
             codeClassNames: {
                 inputWrapper:
-                    "surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 focus-within:border-primary/60",
+                    "surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 focus-within:border-accent/60",
                 base: "w-full",
                 innerWrapper: "w-full",
                 input: `${text.code} bg-transparent p-panel text-foreground placeholder:text-foreground/30`,
             } as const,
             fillFrame:
                 `surface-layer-1 border border-default/50 shadow-none !ring-0 !ring-offset-0 data-[focus=true]:!ring-0 data-[focus-visible=true]:!ring-0 ` +
-                `focus-within:border-primary/60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden ${roundedPanel}`,
+                `focus-within:border-accent/60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden ${roundedPanel}`,
             fill: `${text.code} overlay-scrollbar box-border block h-full min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent p-panel leading-tight text-foreground placeholder:text-foreground/30 outline-none`,
         },
     },
     checkbox: {
-        primary: { wrapper: "after:bg-primary" } as const,
+        primary: { wrapper: "after:bg-accent" } as const,
         withBodySmallLabel: {
             base: "items-center",
             label: text.bodySmall,
@@ -1560,8 +1538,8 @@ export const control = {
             base: "min-w-status-chip",
             mainWrapper: "min-w-status-chip",
             trigger:
-                "border border-primary/30 bg-transparent text-foreground/70 transition-colors duration-150 " +
-                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 " +
+                "border border-accent/30 bg-transparent text-foreground/70 transition-colors duration-150 " +
+                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 " +
                 "focus-visible:ring-offset-0 min-w-status-chip rounded-full border-default/50 px-tight text-foreground/85",
             value: `${text.bodySmall} leading-none text-foreground/85`,
             selectorIcon: "toolbar-icon-size-sm shrink-0 text-foreground/60",
@@ -1595,7 +1573,7 @@ export const control = {
 
 export const fileBrowser = {
     container: "flex flex-col h-full min-h-0 overflow-auto relative scrollbar-hide",
-    toolbar: "relative flex items-center gap-tools p-tight border-b border-default-200/50 bg-content1/30 shrink-0",
+    toolbar: "relative flex items-center gap-tools p-tight border-b border-default/20 surface-layer-1 shrink-0",
     toolbarLead: "flex min-w-0 items-center gap-tools shrink-0",
     toolbarActionGroup: "flex items-center gap-tight",
     toolbarGap: "w-add-modal-pane-gap shrink-0",
@@ -1610,9 +1588,8 @@ export const fileBrowser = {
         input: `${text.bodySmall} h-full leading-none text-foreground/85 placeholder:text-foreground/40`,
     } as const,
     toolbarSpacer: "flex-1",
-    toolsDivider: "h-sep w-divider bg-default-300 mx-tight self-center",
-    headerRow:
-        "grid grid-cols-file-tree items-center gap-tools px-panel py-tight border-b border-default-200/50 shrink-0",
+    toolsDivider: "h-sep w-divider bg-foreground/10 mx-tight self-center",
+    headerRow: "grid grid-cols-file-tree items-center gap-tools px-panel py-tight border-b border-default/20 shrink-0",
     headerCheckboxWrap: "flex items-center justify-center min-w-0",
     headerCellName: "truncate inline-flex items-center gap-tools bg-transparent text-foreground/85",
     headerCellCenter: "justify-center gap-tools bg-transparent text-foreground/85",
@@ -1629,30 +1606,30 @@ export const fileBrowser = {
     cardFooterGroup: "flex min-w-0 items-center gap-tools",
     virtualCanvas: "relative w-full",
     virtualRow: "absolute top-0 left-0 w-full",
-    emptyOverlay: "flex flex-col items-center justify-center h-full text-default-400 gap-tools",
+    emptyOverlay: "flex flex-col items-center justify-center h-full text-foreground/45 gap-tools",
     emptyWrap: "flex flex-1 items-center justify-center",
     emptyIcon: "toolbar-icon-size-md opacity-20",
     emptyText: `${text.body} opacity-50`,
-    row: `grid grid-cols-file-tree items-center gap-tools px-panel w-full select-none border-b border-default-100/50 hover:bg-default-100/60 ${transition.fast}`,
+    row: `grid grid-cols-file-tree items-center gap-tools px-panel w-full select-none border-b border-default/10 hover:bg-foreground/5 ${transition.fast}`,
     rowDimmed: "opacity-60 grayscale-[0.5]",
     rowCheckboxWrap: "flex items-center justify-center min-w-0",
     rowNameCell: "flex items-center overflow-hidden min-w-0 pr-panel pl-file-tree-indent",
     rowIndentSpacer: "w-file-tree-indent-spacer",
-    rowIconWrap: "mr-tight text-default-500 shrink-0",
-    rowFolderIcon: "toolbar-icon-size-md fill-default-400/20",
+    rowIconWrap: "mr-tight text-foreground/50 shrink-0",
+    rowFolderIcon: "toolbar-icon-size-md fill-foreground/15",
     rowNameBase: "text-scaled truncate cursor-default",
     rowNameFolder: "font-medium text-foreground",
     rowNameFile: "text-foreground/80",
     rowPriorityWrap: "flex items-center justify-center min-w-0",
     rowProgressWrap: "block w-full min-w-0 overflow-hidden",
-    rowSizeText: `${text.codeMuted} whitespace-nowrap text-right text-default-400`,
-    iconVideo: "toolbar-icon-size-md text-primary",
+    rowSizeText: `${text.codeMuted} whitespace-nowrap text-right text-foreground/45`,
+    iconVideo: "toolbar-icon-size-md text-accent",
     iconAudio: "toolbar-icon-size-md text-warning",
     iconImage: "toolbar-icon-size-md text-success",
-    iconText: "toolbar-icon-size-md text-default-500",
-    iconDefault: "toolbar-icon-size-md text-default-400",
+    iconText: "toolbar-icon-size-md text-foreground/50",
+    iconDefault: "toolbar-icon-size-md text-foreground/45",
     iconSmall: "toolbar-icon-size-md",
-    chevronButton: `file-tree-chevron-hit text-default-400 ${roundedFull} hover:text-foreground hover:bg-default-200/50 ${transition.fast}`,
+    chevronButton: `file-tree-chevron-hit text-foreground/45 ${roundedFull} hover:text-foreground hover:bg-foreground/5 ${transition.fast}`,
 } as const;
 export const heatMap = {
     empty: `${surface.surface.panelRaised} p-panel text-center`,

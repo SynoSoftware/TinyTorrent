@@ -26,6 +26,7 @@ type QueueControllerDeps = {
     queueReorderScopeEnabled: boolean;
     pendingQueueOrder: string[] | null;
     setPendingQueueOrder: (order: string[] | null) => void;
+    getScrollElement: () => HTMLElement | null;
     serverOrder: string[];
     queueOrder: string[];
     visibleQueueOrder: string[];
@@ -62,6 +63,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         queueReorderScopeEnabled,
         pendingQueueOrder,
         setPendingQueueOrder,
+        getScrollElement,
         serverOrder,
         queueOrder,
         visibleQueueOrder,
@@ -233,6 +235,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             canReorderQueue,
             visibleQueueOrder,
             dropTarget,
+            getScrollElement,
             setActiveRowId,
             setDropTarget,
             beginAnimationSuppression,

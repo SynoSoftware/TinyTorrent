@@ -31,6 +31,9 @@ vi.mock("@heroui/react", () => ({
     DropdownTrigger: ({ children }: { children: React.ReactNode }) => (
         React.createElement("div", null, children)
     ),
+    DropdownPopover: ({ children }: { children: React.ReactNode }) => (
+        React.createElement("div", null, children)
+    ),
     DropdownMenu: ({ children }: { children: React.ReactNode }) => (
         React.createElement("div", null, children)
     ),
@@ -273,8 +276,9 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
                 mounted.container.querySelectorAll("button"),
             ).find(
                 (button) =>
-                    button.textContent ===
-                    "table.actions.enable_sequential_download",
+                    button.textContent?.includes(
+                        "table.actions.enable_sequential_download",
+                    ),
             );
             expect(sequentialButton).toBeTruthy();
             expect(sequentialButton?.disabled).toBe(false);
@@ -304,8 +308,9 @@ describe("TorrentTable_RowMenu set-location modal wiring", () => {
                 mounted.container.querySelectorAll("button"),
             ).find(
                 (button) =>
-                    button.textContent ===
-                    "table.actions.enable_sequential_download",
+                    button.textContent?.includes(
+                        "table.actions.enable_sequential_download",
+                    ),
             );
             if (!sequentialButton) {
                 throw new Error("sequential_button_missing");

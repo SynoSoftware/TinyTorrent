@@ -27,12 +27,14 @@ export const ICON_SIZE_VARS: Record<ToolbarIconSize, string> = {
 };
 
 export interface ToolbarIconButtonProps
-    extends Omit<ComponentPropsWithoutRef<typeof Button>, "isIconOnly"> {
+    extends Omit<ComponentPropsWithoutRef<typeof Button>, "children" | "isIconOnly"> {
     Icon?: LucideIcon;
     icon?: ReactNode;
+    children?: ReactNode;
     iconSize?: ToolbarIconSize;
     iconStrokeWidth?: number | string;
     ariaLabel?: string;
+    title?: string;
 }
 
 const ToolbarIconButtonBase = forwardRef<
@@ -108,9 +110,6 @@ const ToolbarIconButtonBase = forwardRef<
             ref={ref}
             isIconOnly
             variant={mergedVariant}
-            radius="full"
-            disableRipple
-            disableAnimation
             className={cn(
                 control.menu.action.iconButton,
                 className
@@ -118,7 +117,7 @@ const ToolbarIconButtonBase = forwardRef<
             aria-label={ariaLabel}
             {...buttonProps}
         >
-            {iconContent}
+            <span className={surface.atom.textCurrent}>{iconContent}</span>
         </Button>
     );
 

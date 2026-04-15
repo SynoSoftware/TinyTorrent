@@ -8,7 +8,7 @@ import TorrentTable_Row from "@/modules/dashboard/components/TorrentTable_Row";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { FileUp } from "lucide-react";
 import { table } from "@/shared/ui/layout/glass-surface";
-import { getTableTotalWidthCss, TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { getTableTotalWidthCss, TableRowContent } from "@/modules/dashboard/components/TorrentTable_Shared";
 
 export interface TorrentTableBodyProps {
     viewModel: TorrentTableBodyViewModel;
@@ -143,11 +143,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                         isFrontLayer ? table.dragOverlay : table.dragOverlayGhost
                                                     }
                                                 >
-                                                    <div className={table.dragOverlayContent}>
-                                                        {row.getVisibleCells().map((cell) => (
-                                                            <TableCellContent key={cell.id} cell={cell} />
-                                                        ))}
-                                                    </div>
+                                                    <TableRowContent row={row} showHover={false} />
                                                 </div>
                                             );
                                         })}

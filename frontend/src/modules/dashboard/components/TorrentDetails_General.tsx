@@ -409,10 +409,10 @@ export const GeneralTab = ({
                     <Checkbox
                         isSelected={Boolean(torrent.sequentialDownload)}
                         isDisabled={sequentialUiState.disabled}
-                        onValueChange={(enabled) => {
+                        onChange={(enabled) => {
                             void onSequentialToggle(enabled);
                         }}
-                        classNames={formControl.checkboxLabelBodySmallClassNames}
+                        className={formControl.checkboxLabelBodySmallClassNames.base}
                     >
                         {t("torrent_modal.controls.sequential")}
                     </Checkbox>

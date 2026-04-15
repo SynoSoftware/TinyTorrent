@@ -582,7 +582,7 @@ const tableVisualTokens = {
         headerLabel: "gap-tools text-scaled font-bold uppercase text-foreground/60",
         alignCenter: "justify-center",
         alignEnd: "justify-end",
-        sortIcon: "text-primary shrink-0 toolbar-icon-size-sm",
+        sortIcon: "text-accent shrink-0 toolbar-icon-size-sm",
         measureLayer: "absolute pointer-events-none invisible",
         measureRow: "flex",
     },
@@ -592,13 +592,13 @@ const tableVisualTokens = {
         dragCursorDisabled: "cursor-default",
         dragging: "opacity-50 grayscale scale-98 z-popover cursor-grabbing",
         content: "relative flex items-center w-full h-full box-border",
-        selected: "bg-primary/20",
-        hover: "hover:bg-content1/10",
-        context: "bg-content1/20",
+        selected: "bg-accent-soft",
+        hover: "hover:bg-foreground/5",
+        context: "surface-layer-1",
         highlighted: "bg-foreground/10",
     },
     headerBase: "text-label font-bold uppercase tracking-label text-foreground/60",
-    surfaceBorder: "border-content1/20",
+    surfaceBorder: "border-default/20",
 } as const;
 
 // Shared header visual tokens used across table headers and inspector headers.
@@ -638,11 +638,11 @@ const typographyText = {
 const workspaceHudVisuals = {
     drop: {
         active: {
-            surface: "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent",
-            iconBg: "bg-primary/15 text-primary",
+            surface: "bg-gradient-to-br from-accent-soft via-background/25 to-transparent",
+            iconBg: "bg-accent-soft text-accent",
         },
         idle: {
-            surface: "bg-gradient-to-br from-content1/10 via-content1/5 to-transparent",
+            surface: "bg-gradient-to-br from-foreground/8 via-background/25 to-transparent",
             iconBg: "bg-foreground/10 text-foreground/60",
         },
     },
@@ -655,9 +655,9 @@ const workspaceHudVisuals = {
 } as const;
 
 const trackerTableVisuals = {
-    headerCell: "bg-content1/80 backdrop-blur-sm",
+    headerCell: "surface-layer-1 backdrop-blur-sm",
     headerButton: "text-inherit transition-colors hover:text-foreground/80 whitespace-normal break-words",
-    rowSelected: "surface-layer-1 outline outline-1 -outline-offset-1 outline-primary/20",
+    rowSelected: "surface-layer-1 outline outline-1 -outline-offset-1 outline-accent/25",
     bodyCell: "border-b border-default/5",
     trackerCell: "font-medium text-foreground/85",
     tierCell: "text-foreground/60",
@@ -683,7 +683,7 @@ const detailsTableVisuals = {
 } as const;
 
 const addTorrentFileIconVisuals = {
-    video: "text-primary",
+    video: "text-accent",
     text: "text-foreground/40",
     generic: "text-foreground/40",
 } as const;
@@ -700,7 +700,7 @@ const statusHealthChipTone = {
     degraded: "text-warning/90",
     unavailable: "text-danger/75",
     finding_peers: "text-warning/60",
-    metadata: "text-primary/70",
+    metadata: "text-accent/70",
     error: "text-danger/90",
 } as const;
 
@@ -1011,15 +1011,15 @@ const transitionTokens = {
 } as const;
 
 const interactiveRecipe = {
-    buttonDefault: `${transitionTokens.fast} hover:bg-content2/50 active:scale-95`,
-    buttonPrimary: `${transitionTokens.fast} hover:bg-primary/20 active:scale-95`,
+    buttonDefault: `${transitionTokens.fast} hover:bg-foreground/5 active:scale-95`,
+    buttonPrimary: `${transitionTokens.fast} hover:bg-accent-soft active:scale-95`,
     buttonDanger: `${transitionTokens.fast} hover:bg-danger/10 text-danger hover:text-danger-600`,
-    buttonGhost: `${transitionTokens.fast} hover:text-foreground hover:bg-content2/30`,
+    buttonGhost: `${transitionTokens.fast} hover:text-foreground hover:bg-foreground/5`,
     textReveal: `${transitionTokens.fast} hover:text-foreground`,
     textMutedReveal: `${transitionTokens.fast} hover:text-foreground/70`,
-    menuItem: `${transitionTokens.fast} hover:bg-content2/50 cursor-pointer`,
+    menuItem: `${transitionTokens.fast} hover:bg-foreground/5 cursor-pointer`,
     menuItemDanger: `${transitionTokens.fast} hover:bg-danger/10 text-danger cursor-pointer`,
-    dismiss: `${transitionTokens.fast} hover:text-foreground hover:bg-content2/30 rounded-full`,
+    dismiss: `${transitionTokens.fast} hover:text-foreground hover:bg-foreground/5 rounded-full`,
     navItem: `${transitionTokens.fast} hover:text-foreground hover:bg-foreground/5`,
     groupReveal: `${transitionTokens.reveal} group-hover:opacity-100 opacity-0`,
 } as const;
@@ -1048,11 +1048,11 @@ const statusVisualKeys = {
 
 const statusVisuals = {
     [status.connection.idle]: {
-        bg: "bg-content1/5 hover:bg-content1/10",
+        bg: "bg-foreground/5 hover:bg-foreground/8",
         border: "border-default/10",
         text: "text-foreground/40",
         shadow: "shadow-none",
-        glow: "bg-content1",
+        glow: "bg-default",
         hudSurface: "bg-gradient-to-br from-warning/15 via-background/30 to-background/5",
         hudIconBg: "bg-warning/15 text-warning",
     },
@@ -1084,13 +1084,13 @@ const statusVisuals = {
         hudIconBg: "bg-warning/15 text-warning",
     },
     [status.connection.offline]: {
-        bg: "bg-content1/5 hover:bg-content1/10",
+        bg: "bg-foreground/5 hover:bg-foreground/8",
         border: "border-default/10",
         text: "text-foreground/40",
         shadow: "shadow-none",
-        glow: "bg-content1",
-        hudSurface: "bg-gradient-to-br from-content1/10 via-background/30 to-background/5",
-        hudIconBg: "bg-content1/15 text-foreground/60",
+        glow: "bg-default",
+        hudSurface: "bg-gradient-to-br from-foreground/8 via-background/30 to-background/5",
+        hudIconBg: "bg-foreground/10 text-foreground/60",
     },
     [status.connection.error]: {
         bg: "bg-danger/5 hover:bg-danger/10",
@@ -1102,13 +1102,13 @@ const statusVisuals = {
         hudIconBg: "bg-danger/15 text-danger",
     },
     [statusVisualKeys.tone.primary]: {
-        bg: "bg-primary/10",
-        border: "border-primary/30",
-        text: "text-primary",
+        bg: "bg-accent-soft",
+        border: "border-accent/30",
+        text: "text-accent",
         shadow: "shadow-none",
-        glow: "bg-primary",
-        panel: "border-primary/40 bg-primary/10 text-primary",
-        button: "text-primary hover:text-primary-600 hover:bg-primary/10",
+        glow: "bg-accent",
+        panel: "border-accent/35 bg-accent-soft text-accent",
+        button: "text-accent hover:text-accent hover:bg-accent-soft",
     },
     [statusVisualKeys.tone.success]: {
         bg: "bg-success/10",
@@ -1138,19 +1138,19 @@ const statusVisuals = {
         button: "text-danger hover:text-danger-600 hover:bg-danger/10",
     },
     [statusVisualKeys.tone.muted]: {
-        bg: "bg-content1/10",
+        bg: "bg-foreground/5",
         border: "border-default/20",
         text: "text-foreground/30",
         shadow: "shadow-none",
-        glow: "bg-content1",
+        glow: "bg-default",
     },
     [statusVisualKeys.tone.neutral]: {
-        bg: "bg-content1/10",
+        bg: "bg-foreground/5",
         border: "border-default/20",
-        text: "text-default-500",
+        text: "text-foreground/55",
         shadow: "shadow-none",
-        glow: "bg-content1",
-        button: "text-default-500 hover:text-foreground hover:bg-default-200",
+        glow: "bg-default",
+        button: "text-foreground/55 hover:text-foreground hover:bg-foreground/5",
     },
     [statusVisualKeys.speed.down]: {
         bg: "bg-success/10",
@@ -1160,18 +1160,18 @@ const statusVisuals = {
         glow: "bg-success",
     },
     [statusVisualKeys.speed.seed]: {
-        bg: "bg-primary/10",
-        border: "border-primary/30",
-        text: "text-primary",
+        bg: "bg-accent-soft",
+        border: "border-accent/30",
+        text: "text-accent",
         shadow: "shadow-none",
-        glow: "bg-primary",
+        glow: "bg-accent",
     },
     [statusVisualKeys.speed.idle]: {
-        bg: "bg-content1/10",
+        bg: "bg-foreground/5",
         border: "border-default/20",
         text: "text-foreground/60",
         shadow: "shadow-none",
-        glow: "bg-content1",
+        glow: "bg-default",
     },
 } satisfies Record<StatusVisualKeyFromKeys<typeof statusVisualKeys>, StatusVisualRecipe>;
 

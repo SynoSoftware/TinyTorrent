@@ -6,6 +6,11 @@ import { FileExplorerTree } from "@/shared/ui/workspace/FileExplorerTree";
 
 const mocks = vi.hoisted(() => ({
     useFileExplorerTreeState: vi.fn(),
+    selectState: {
+        onSelectionChange: undefined as undefined | ((key: string) => void),
+        isDisabled: false,
+        ariaLabel: undefined as undefined | string,
+    },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -96,16 +101,17 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
+    cn: (...parts: Array<string | undefined | false>) => parts.filter(Boolean).join(" "),
     Checkbox: ({
-        onValueChange,
+        onChange,
     }: {
-        onValueChange?: (selected: boolean) => void;
+        onChange?: (selected: boolean) => void;
     }) =>
         React.createElement(
             "button",
             {
                 type: "button",
-                onClick: () => onValueChange?.(true),
+                onClick: () => onChange?.(true),
             },
             "checkbox",
         ),
@@ -119,49 +125,103 @@ vi.mock("@heroui/react", () => ({
         React.createElement(React.Fragment, null, children),
     Input: ({
         value,
-        onValueChange,
+        onChange,
         placeholder,
     }: {
         value?: string;
-        onValueChange?: (value: string) => void;
+        onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
         placeholder?: string;
     }) =>
         React.createElement("input", {
             value,
             placeholder,
-            onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-                onValueChange?.(event.target.value),
+            onChange,
         }),
-    Select: ({
-        onSelectionChange,
-        children,
-        isDisabled,
-        "aria-label": ariaLabel,
-    }: {
-        onSelectionChange?: (keys: Set<React.Key>) => void;
-        children?: React.ReactNode;
-        isDisabled?: boolean;
-        "aria-label"?: string;
-    }) =>
-        React.createElement(
-            "div",
-            null,
-            React.createElement(
-                "button",
-                {
-                    type: "button",
-                    "data-testid": ariaLabel,
-                    disabled: isDisabled,
-                    onClick: () => {
-                        if (isDisabled) return;
-                        onSelectionChange?.(new Set(["normal"]));
-                    },
-                },
-                "select-normal",
-            ),
+    SearchField: Object.assign(
+        ({
             children,
-        ),
-    SelectItem: ({ children }: { children: React.ReactNode }) =>
+            ...props
+        }: {
+            children?: React.ReactNode;
+            [key: string]: unknown;
+        }) => React.createElement("div", props, children),
+        {
+            Group: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("div", props, children),
+            Input: ({
+                ...props
+            }: {
+                [key: string]: unknown;
+            }) => React.createElement("input", props),
+            SearchIcon: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("span", props, children),
+            ClearButton: ({
+                ...props
+            }: {
+                [key: string]: unknown;
+            }) => React.createElement("button", { ...props, type: "button" }),
+        },
+    ),
+    Select: Object.assign(
+        ({
+            onSelectionChange,
+            children,
+            isDisabled,
+            "aria-label": ariaLabel,
+        }: {
+            onSelectionChange?: (keys: string) => void;
+            children?: React.ReactNode;
+            isDisabled?: boolean;
+            "aria-label"?: string;
+        }) => {
+            mocks.selectState.onSelectionChange = onSelectionChange;
+            mocks.selectState.isDisabled = Boolean(isDisabled);
+            mocks.selectState.ariaLabel = ariaLabel;
+            return React.createElement("div", null, children);
+        },
+        {
+            Trigger: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) =>
+                React.createElement(
+                    "button",
+                    {
+                        ...props,
+                        type: "button",
+                        "data-testid": mocks.selectState.ariaLabel,
+                        disabled: mocks.selectState.isDisabled,
+                        onClick: () => {
+                            if (mocks.selectState.isDisabled) {
+                                return;
+                            }
+                            mocks.selectState.onSelectionChange?.("normal");
+                        },
+                    },
+                    children,
+                ),
+            Value: () => React.createElement("span", null, "select-normal"),
+            Indicator: () => React.createElement("span", null, "indicator"),
+            Popover: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", null, children),
+        },
+    ),
+    ListBox: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement("div", null, children),
+    ListBoxItem: ({ children }: { children: React.ReactNode }) =>
         React.createElement("div", null, children),
 }));
 

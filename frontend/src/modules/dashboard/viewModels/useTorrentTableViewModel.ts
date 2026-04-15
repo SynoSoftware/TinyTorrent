@@ -536,6 +536,7 @@ export function useTorrentTableViewModel({ viewModel }: TorrentTableParams): Tor
         queueReorderScopeEnabled,
         pendingQueueOrder,
         setPendingQueueOrder,
+        getScrollElement: () => parentRef.current,
         serverOrder: authoritativeQueueOrder,
         queueOrder: semanticQueueOrder,
         visibleQueueOrder,

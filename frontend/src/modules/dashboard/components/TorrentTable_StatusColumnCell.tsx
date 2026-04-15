@@ -211,23 +211,16 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
             className?: string;
         },
     ) => {
+        const resolvedColor =
+            color === "primary" ? "accent" : color === "secondary" ? "default" : color;
         return (
             <AppTooltip content={tooltip} dense placement="top" native>
                 <Chip
                     size="md"
-                    variant="flat"
-                    color={color}
+                    variant="soft"
+                    color={resolvedColor}
                     style={STATUS_CHIP_STYLE}
-                    classNames={{
-                        base: cn(
-                            formControl.statusChipClassNames.base,
-                            classNames?.base,
-                        ),
-                        content: cn(
-                            formControl.statusChipClassNames.content,
-                            classNames?.content,
-                        ),
-                    }}
+                    className={cn(formControl.statusChipClassNames.base, classNames?.base)}
                 >
                     <div className={formControl.statusChipContent}>
                         <StatusIcon
@@ -236,7 +229,7 @@ export function TorrentTable_StatusCell({ torrent, table, t, optimisticStatus }:
                             strokeWidth={visuals.icon.strokeWidthDense}
                             className={formControl.statusChipCurrentIcon}
                         />
-                        <span className={formControl.statusChipLabel}>
+                        <span className={cn(formControl.statusChipLabel, classNames?.content)}>
                             {label}
                         </span>
                         {trailingIcon ? (

@@ -108,6 +108,7 @@ const makeDeps = (
         canReorderQueue: true,
         visibleQueueOrder: ["row-1", "row-2", "row-3"],
         dropTarget: null,
+        getScrollElement: () => null,
         setActiveRowId: vi.fn(),
         setDropTarget: vi.fn(),
         beginAnimationSuppression: vi.fn(),
@@ -343,6 +344,37 @@ describe("useTorrentRowDrag", () => {
             expect(callbacks.setActiveRowId).toHaveBeenLastCalledWith(null);
             expect(callbacks.setDropTarget).toHaveBeenLastCalledWith(null);
             expect(callbacks.markRowDragInteractionComplete).toHaveBeenCalledTimes(1);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("pins the body scroll position to the left for the full drag lifecycle", async () => {
+        const scrollElement = document.createElement("div");
+        scrollElement.scrollLeft = 24;
+        const { deps } = makeDeps({
+            getScrollElement: () => scrollElement,
+        });
+        const mounted = await mountHarness(deps);
+
+        try {
+            const hook = mounted.ref.current?.getValue();
+            if (!hook) throw new Error("hook_missing");
+
+            hook.handleRowDragStart(makeDragStartEvent("row-1"));
+            expect(scrollElement.scrollLeft).toBe(0);
+
+            scrollElement.scrollLeft = 32;
+            scrollElement.dispatchEvent(new Event("scroll"));
+            expect(scrollElement.scrollLeft).toBe(0);
+
+            scrollElement.scrollLeft = 18;
+            await hook.handleRowDragEnd(makeDragEndEvent("row-1", "row-2"));
+            expect(scrollElement.scrollLeft).toBe(0);
+
+            scrollElement.scrollLeft = 11;
+            scrollElement.dispatchEvent(new Event("scroll"));
+            expect(scrollElement.scrollLeft).toBe(11);
         } finally {
             mounted.cleanup();
         }

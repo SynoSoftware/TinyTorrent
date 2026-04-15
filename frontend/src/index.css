@@ -1,7 +1,5 @@
 @import "tailwindcss";
-@plugin './hero.ts';
-
-@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@import "@heroui/styles";
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -78,6 +76,19 @@
    - All geometry is derived here. Components must use semantic roles or aliases.
    - Backward-compatible aliases kept, but DO NOT REDEFINE them elsewhere. */
 :root {
+    --heroui-background: 210 43% 97%;
+    --heroui-foreground: 0 0% 11%;
+    --heroui-content1: hsl(0 0% 100%);
+    --heroui-default: hsl(205 22% 77%);
+    --heroui-primary: rgb(0, 117, 255);
+    --heroui-primary-500: 0, 117, 255;
+    --heroui-success: rgb(22, 163, 74);
+    --heroui-success-500: 22, 163, 74;
+    --heroui-warning: hsl(37 91% 55%);
+    --heroui-danger: rgb(214, 69, 69);
+    --heroui-danger-500: 214, 69, 69;
+    --heroui-secondary: rgb(0, 223, 162);
+
     /* Structural fallbacks for layout tokens (prevents CLS/first-paint collapse) */
     --tt-zoom-level: 1; /* user scale multiplier (runtime) */
     --tt-unit-base: 4; /* spatial quantum (runtime) */
@@ -148,7 +159,7 @@
     --tt-navbar-padding: var(--p-3);
     --tt-navbar-gap: var(--p-2);
     --tt-brand-icon-size: calc(var(--icon) * 3);
-    --tt-search-width: calc(40 * var(--u) * var(--z));
+    --tt-search-width: calc(48 * var(--u) * var(--z));
 
     /* Drop overlay semantic tokens (align with ui.bases.dropOverlay expectations)
          Use the workbench spacing token so intent remains centralized in logic.ts */
@@ -240,6 +251,21 @@
     --tt-size-icon-btn: var(--tt-size-icon-btn);
     --size-icon-btn: var(--tt-size-icon-btn);
     --size-icon-btn-lg: var(--tt-size-icon-btn-lg);
+}
+
+.dark {
+    --heroui-background: 240 6% 4%;
+    --heroui-foreground: 0 0% 98%;
+    --heroui-content1: hsl(240 5% 9%);
+    --heroui-default: hsl(240 5% 45%);
+    --heroui-primary: rgb(0, 223, 162);
+    --heroui-primary-500: 0, 223, 162;
+    --heroui-success: rgb(34, 197, 94);
+    --heroui-success-500: 34, 197, 94;
+    --heroui-warning: hsl(40 79% 51%);
+    --heroui-danger: rgb(255, 69, 69);
+    --heroui-danger-500: 255, 69, 69;
+    --heroui-secondary: rgb(0, 145, 105);
 }
 
 :focus {
@@ -632,7 +658,9 @@
     }
 
     .native-shell-body {
-        @apply bg-background/60 backdrop-blur-3xl border border-transparent;
+        background-color: color-mix(in srgb, hsl(var(--heroui-background)) 60%, transparent 40%);
+        backdrop-filter: blur(32px);
+        border: 1px solid transparent;
     }
 
     .native-shell-inner {
@@ -672,15 +700,23 @@
     }
 
     .surface-layer-1 {
-        @apply border border-default/15 bg-content1/55 backdrop-blur-md;
+        border: 1px solid color-mix(in srgb, var(--heroui-default) 15%, transparent 85%);
+        background-color: color-mix(in srgb, var(--heroui-content1) 55%, transparent 45%);
+        backdrop-filter: blur(12px);
     }
 
     .surface-layer-2 {
-        @apply border border-default/25 bg-content2/65 backdrop-blur-xl shadow-small;
+        border: 1px solid color-mix(in srgb, var(--heroui-default) 25%, transparent 75%);
+        background-color: color-mix(in srgb, var(--heroui-content1) 65%, transparent 35%);
+        backdrop-filter: blur(24px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     }
 
     .surface-layer-3 {
-        @apply border border-default/30 bg-content3/70 backdrop-blur-2xl shadow-medium;
+        border: 1px solid color-mix(in srgb, var(--heroui-default) 30%, transparent 70%);
+        background-color: color-mix(in srgb, var(--heroui-content1) 70%, transparent 30%);
+        backdrop-filter: blur(32px);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
     }
 
     .inspector-shell {
@@ -854,7 +890,10 @@
 
 /* Windows 11 Acrylic Utility */
 .acrylic {
-    @apply backdrop-blur-3xl bg-background/70 relative overflow-hidden;
+    backdrop-filter: blur(32px);
+    background-color: color-mix(in srgb, hsl(var(--heroui-background)) 70%, transparent 30%);
+    position: relative;
+    overflow: hidden;
     /* The "grain" texture that defines Acrylic material */
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }

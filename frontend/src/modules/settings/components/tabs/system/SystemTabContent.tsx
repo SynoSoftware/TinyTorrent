@@ -46,7 +46,7 @@ function SystemRow({ label, control, status, helper, disabled }: SystemRowProps)
 
 function StatusChip({ label, color = "default" }: { label: string; color?: ChipProps["color"] }) {
     return (
-        <Chip size="sm" variant="flat" color={color} radius="sm" className={form.systemStatusChip}>
+        <Chip size="sm" variant="soft" color={color} className={form.systemStatusChip}>
             {label}
         </Chip>
     );
@@ -235,8 +235,7 @@ export function SystemTabContent() {
                     control={
                         <Button
                             size="sm"
-                            variant="bordered"
-                            radius="full"
+                            variant="outline"
                             onPress={handleAssociationAction}
                             isDisabled={associationPending || !canUseShell || integrationLoading}
                         >
@@ -253,9 +252,8 @@ export function SystemTabContent() {
                     control={
                         <Switch
                             size="md"
-                            color="primary"
                             isSelected={integrationStatus.autorun}
-                            onValueChange={handleAutorunValueChange}
+                            onChange={handleAutorunValueChange}
                             isDisabled={autorunDisabled}
                         />
                     }

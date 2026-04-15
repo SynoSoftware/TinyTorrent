@@ -14,75 +14,149 @@ vi.mock("framer-motion", () => ({
 
 vi.mock("@heroui/react", () => {
     const ReactLocal = React;
-
-    type MockAutocompleteProps = {
-        id: string;
+    const ComboBoxContext = ReactLocal.createContext<{
         inputValue: string;
-        items: Array<{ key: string; label: string }>;
-        placeholder?: string;
-        isDisabled?: boolean;
         onInputChange?: (value: string) => void;
         onSelectionChange?: (selection: string | null) => void;
-        onOpenChange?: (open: boolean) => void;
+        setOpen: (open: boolean) => void;
+        isOpen: boolean;
+    } | null>(null);
+
+    type MockInputProps = {
+        id: string;
+        placeholder?: string;
         onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+        onBlur?: () => void;
     };
 
-    const Autocomplete = ({
+    const Input = ({
         id,
-        inputValue,
-        items,
         placeholder,
-        isDisabled,
+        onKeyDown,
+        onBlur,
+    }: MockInputProps) =>
+        ReactLocal.createElement(() => {
+            const comboBox = ReactLocal.useContext(ComboBoxContext);
+            if (!comboBox) {
+                throw new Error("combobox_context_missing");
+            }
+            return ReactLocal.createElement("input", {
+                id,
+                value: comboBox.inputValue,
+                placeholder,
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                    comboBox.onInputChange?.(event.target.value);
+                    comboBox.setOpen(true);
+                },
+                onKeyDown,
+                onBlur,
+            });
+        });
+
+    const ComboBox = ({
+        children,
+        inputValue,
         onInputChange,
         onSelectionChange,
         onOpenChange,
-        onKeyDown,
-    }: MockAutocompleteProps) => {
-        const [isOpen, setIsOpen] = ReactLocal.useState(items.length > 0);
-        const [closedBySelection, setClosedBySelection] = ReactLocal.useState(false);
-
-        ReactLocal.useEffect(() => {
-            const nextOpen = items.length > 0 && !closedBySelection;
-            setIsOpen(nextOpen);
-            onOpenChange?.(nextOpen);
-        }, [closedBySelection, items, onOpenChange]);
+    }: {
+        children: React.ReactNode;
+        inputValue: string;
+        onInputChange?: (value: string) => void;
+        onSelectionChange?: (selection: string | null) => void;
+        onOpenChange?: (open: boolean) => void;
+    }) => {
+        const [isOpen, setIsOpenState] = ReactLocal.useState(false);
+        const setOpen = ReactLocal.useCallback((open: boolean) => {
+            setIsOpenState(open);
+            onOpenChange?.(open);
+        }, [onOpenChange]);
         return ReactLocal.createElement(
-            "div",
-            null,
-            ReactLocal.createElement("input", {
-                id,
-                value: inputValue,
-                placeholder,
-                disabled: isDisabled,
-                onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-                    setClosedBySelection(false);
-                    onInputChange?.(event.target.value);
+            ComboBoxContext.Provider,
+            {
+                value: {
+                    inputValue,
+                    onInputChange,
+                    onSelectionChange,
+                    setOpen,
+                    isOpen,
                 },
-                onKeyDown,
-            }),
-            isOpen ? items.map((item) =>
-                ReactLocal.createElement(
-                    "button",
-                    {
-                        key: item.key,
-                        type: "button",
-                        onClick: () => {
-                            setClosedBySelection(true);
-                            setIsOpen(false);
-                            onOpenChange?.(false);
-                            onSelectionChange?.(item.key);
-                        },
-                    },
-                    item.label,
-                ),
-            ) : null,
+            },
+            children,
         );
     };
+    ComboBox.InputGroup = ({ children, className }: { children: React.ReactNode; className?: string }) =>
+        ReactLocal.createElement("div", { className }, children);
+    ComboBox.Trigger = ({
+        children,
+        onPress,
+    }: {
+        children?: React.ReactNode;
+        onPress?: () => void;
+    }) =>
+        ReactLocal.createElement(() => {
+            const comboBox = ReactLocal.useContext(ComboBoxContext);
+            if (!comboBox) {
+                throw new Error("combobox_context_missing");
+            }
+            return ReactLocal.createElement(
+                "button",
+                {
+                    type: "button",
+                    "aria-label": "toggle suggestions",
+                    onClick: () => {
+                        comboBox.setOpen(!comboBox.isOpen);
+                        onPress?.();
+                    },
+                },
+                children ?? "toggle",
+            );
+        });
+    ComboBox.Popover = ({ children }: { children: React.ReactNode }) =>
+        ReactLocal.createElement(() => {
+            const comboBox = ReactLocal.useContext(ComboBoxContext);
+            if (!comboBox?.isOpen) {
+                return null;
+            }
+            return ReactLocal.createElement("div", null, children);
+        });
+
+    const ListBox = ({ children }: { children: React.ReactNode }) =>
+        ReactLocal.createElement("div", null, children);
+    ListBox.Item = ({
+        children,
+        id,
+    }: {
+        children: React.ReactNode;
+        id: string;
+    }) =>
+        ReactLocal.createElement(() => {
+            const comboBox = ReactLocal.useContext(ComboBoxContext);
+            if (!comboBox) {
+                throw new Error("combobox_context_missing");
+            }
+            return ReactLocal.createElement(
+                "button",
+                {
+                    type: "button",
+                    onClick: () => {
+                        comboBox.onSelectionChange?.(id);
+                        comboBox.setOpen(false);
+                    },
+                },
+                children,
+            );
+        });
+    ListBox.ItemIndicator = () => null;
 
     return {
-        Autocomplete,
-        AutocompleteItem: ({ children }: { children: React.ReactNode }) =>
-            ReactLocal.createElement(ReactLocal.Fragment, null, children),
+        ComboBox,
+        Input,
+        ListBox,
+        useFilter: () => ({
+            contains: (text: string, inputValue: string) =>
+                text.toLocaleLowerCase().includes(inputValue.toLocaleLowerCase()),
+        }),
         Button: ({
             children,
             onPress,
@@ -168,8 +242,26 @@ describe("DestinationPathEditor keyboard handling", () => {
             if (!(input instanceof HTMLInputElement)) {
                 throw new Error("input_missing");
             }
+            const toggleButton = Array.from(mounted.container.querySelectorAll("button")).find(
+                (button) => button.getAttribute("aria-label") === "toggle suggestions",
+            );
+            if (!(toggleButton instanceof HTMLButtonElement)) {
+                throw new Error("toggle_button_missing");
+            }
 
-            input.dispatchEvent(
+            toggleButton.click();
+            await waitForCondition(
+                () =>
+                    Array.from(mounted.container.querySelectorAll("button")).some(
+                        (button) => button.textContent?.includes("C:\\Downloads"),
+                    ),
+            );
+
+            const activeInput = mounted.container.querySelector("input");
+            if (!(activeInput instanceof HTMLInputElement)) {
+                throw new Error("input_missing_after_selection");
+            }
+            activeInput.dispatchEvent(
                 new KeyboardEvent("keydown", {
                     key: "Enter",
                     bubbles: true,
@@ -192,20 +284,34 @@ describe("DestinationPathEditor keyboard handling", () => {
             if (!(input instanceof HTMLInputElement)) {
                 throw new Error("input_missing");
             }
+            const toggleButton = Array.from(mounted.container.querySelectorAll("button")).find(
+                (button) => button.getAttribute("aria-label") === "toggle suggestions",
+            );
+            if (!(toggleButton instanceof HTMLButtonElement)) {
+                throw new Error("toggle_button_missing");
+            }
+
+            toggleButton.click();
             await waitForCondition(
-                () => mounted.container.querySelectorAll("button").length > 0,
+                () =>
+                    Array.from(mounted.container.querySelectorAll("button")).some(
+                        (button) => button.textContent?.includes("C:\\Downloads"),
+                    ),
             );
             const selectionButton = Array.from(
                 mounted.container.querySelectorAll("button"),
-            ).find((button) => button.textContent === "C:\\Downloads");
+            ).find((button) => button.textContent?.includes("C:\\Downloads"));
             if (!(selectionButton instanceof HTMLButtonElement)) {
                 throw new Error("selection_button_missing");
             }
 
             selectionButton.click();
-            await new Promise<void>((resolve) => {
-                window.setTimeout(resolve, 0);
-            });
+            await waitForCondition(
+                () =>
+                    !Array.from(mounted.container.querySelectorAll("button")).some(
+                        (button) => button.textContent?.includes("C:\\Downloads"),
+                    ),
+            );
             input.dispatchEvent(
                 new KeyboardEvent("keydown", {
                     key: "Enter",

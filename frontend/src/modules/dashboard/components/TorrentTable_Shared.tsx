@@ -227,6 +227,41 @@ export const TableCellContent = memo(
         areCellRenderInputsEqual(prev.cell, next.cell)
 );
 
+export const TableRowContent = memo(
+    ({
+        row,
+        isSelected = false,
+        isContext = false,
+        showHover = true,
+    }: {
+        row: Row<Torrent>;
+        isSelected?: boolean;
+        isContext?: boolean;
+        showHover?: boolean;
+    }) => (
+        <div
+            className={cn(
+                visuals.table.rowClass.content,
+                isSelected
+                    ? visuals.table.rowClass.selected
+                    : showHover && visuals.table.rowClass.hover,
+                isContext &&
+                    !isSelected &&
+                    visuals.table.rowClass.context
+            )}
+        >
+            {row.getVisibleCells().map((cell) => (
+                <TableCellContent key={cell.id} cell={cell} />
+            ))}
+        </div>
+    ),
+    (prev, next) =>
+        prev.row === next.row &&
+        prev.isSelected === next.isSelected &&
+        prev.isContext === next.isContext &&
+        prev.showHover === next.showHover
+);
+
 export const ColumnMeasurementLayer = memo(
     ({
         headers,

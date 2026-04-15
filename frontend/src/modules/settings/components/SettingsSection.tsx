@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, cn } from "@heroui/react";
+import { Card, CardContent, CardHeader, cn } from "@heroui/react";
 import type { ReactNode } from "react";
 import { registry } from "@/config/logic";
 import { form } from "@/shared/ui/layout/glass-surface";
@@ -37,7 +37,7 @@ export function SettingsSection({
                     </div>
                 </CardHeader>
             )}
-            <CardBody className={form.sectionBody}>{children}</CardBody>
+            <CardContent className={form.sectionBody}>{children}</CardContent>
         </Card>
     );
 }

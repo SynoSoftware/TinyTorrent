@@ -47,6 +47,8 @@ vi.mock("@heroui/react", () => ({
         React.createElement(React.Fragment, null, children),
     DropdownTrigger: ({ children }: { children?: React.ReactNode }) =>
         React.createElement(React.Fragment, null, children),
+    DropdownPopover: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement("div", null, children),
     DropdownMenu: ({
         children,
         classNames,
@@ -102,32 +104,91 @@ vi.mock("@heroui/react", () => ({
         })
         );
     },
-    Tabs: (tabsProps: {
-        children?: React.ReactNode;
-        selectedKey?: unknown;
-        onSelectionChange?: unknown;
-        classNames?: unknown;
-        [key: string]: unknown;
-    }) => {
-        const {
+    SearchField: Object.assign(
+        ({
+            children,
+            ...props
+        }: {
+            children?: React.ReactNode;
+            [key: string]: unknown;
+        }) => React.createElement("div", props, children),
+        {
+            Group: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("div", props, children),
+            Input: ({
+                ...props
+            }: {
+                [key: string]: unknown;
+            }) => React.createElement("input", props),
+            SearchIcon: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("span", props, children),
+            ClearButton: ({
+                ...props
+            }: {
+                [key: string]: unknown;
+            }) => React.createElement("button", { ...props, type: "button" }),
+        },
+    ),
+    Tabs: Object.assign(
+        ({
             children,
             selectedKey,
             onSelectionChange,
             classNames,
             ...props
-        } = tabsProps;
-        void selectedKey;
-        void onSelectionChange;
-        void classNames;
-        return React.createElement("div", props, children);
-    },
+        }: {
+            children?: React.ReactNode;
+            selectedKey?: unknown;
+            onSelectionChange?: unknown;
+            classNames?: unknown;
+            [key: string]: unknown;
+        }) => {
+            void selectedKey;
+            void onSelectionChange;
+            void classNames;
+            return React.createElement("div", props, children);
+        },
+        {
+            ListContainer: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("div", props, children),
+            List: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => React.createElement("div", props, children),
+            Indicator: ({
+                ...props
+            }: {
+                [key: string]: unknown;
+            }) => React.createElement("span", props),
+        },
+    ),
     Tab: ({
-        title,
+        children,
+        id,
         ...props
     }: {
-        title?: React.ReactNode;
+        children?: React.ReactNode;
+        id?: string;
         [key: string]: unknown;
-    }) => React.createElement("div", props, title),
+    }) => React.createElement("button", { ...props, type: "button", "data-tab-id": id }, children),
     cn: (...values: Array<string | false | null | undefined>) =>
         values.filter(Boolean).join(" "),
 }));

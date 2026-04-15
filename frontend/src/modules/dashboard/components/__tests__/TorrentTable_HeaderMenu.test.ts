@@ -24,6 +24,9 @@ vi.mock("@heroui/react", () => ({
     DropdownTrigger: ({ children }: { children: React.ReactNode }) => (
         React.createElement("div", null, children)
     ),
+    DropdownPopover: ({ children }: { children: React.ReactNode }) => (
+        React.createElement("div", null, children)
+    ),
     DropdownMenu: ({ children }: { children: React.ReactNode }) => (
         React.createElement("div", null, children)
     ),

@@ -1,4 +1,4 @@
-import { Button, Modal, ModalContent, cn } from "@heroui/react";
+import { Button, Modal, cn } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, RotateCcw, X } from "lucide-react";
@@ -16,7 +16,7 @@ import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabC
 import type { SettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import { useSettingsModalController } from "@/modules/settings/hooks/useSettingsModalController";
 import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
-const { interaction, visuals, visualizations } = registry;
+const { visuals, visualizations } = registry;
 
 interface SettingsModalViewProps {
     controller: SettingsModalController;
@@ -42,7 +42,7 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
                 </h2>
                 <Button
                     isIconOnly
-                    variant="shadow"
+                    variant="ghost"
                     size="md"
                     className={modal.sidebarCloseButton}
                     onPress={controller.commands.onRequestClose}
@@ -82,13 +82,13 @@ function SettingsSidebar({ controller }: SettingsSidebarProps) {
             <div className={modal.versionWrapper}>
                 <div className={form.blockStackTight}>
                     <Button
-                        size="md"
-                        variant="light"
-                        color="danger"
+                        variant="danger"
                         onPress={controller.commands.onReset}
-                        startContent={<RotateCcw strokeWidth={visuals.icon.strokeWidth} className={modal.iconSm} />}
                     >
-                        {t("settings.modal.footer.reset_defaults")}
+                        <span className={form.blockRowBetween}>
+                            <RotateCcw strokeWidth={visuals.icon.strokeWidth} className={modal.iconSm} />
+                            <span>{t("settings.modal.footer.reset_defaults")}</span>
+                        </span>
                     </Button>
                 </div>
             </div>
@@ -109,7 +109,7 @@ function SettingsHeader({ controller }: SettingsHeaderProps) {
             <div className={modal.headerLead}>
                 <Button
                     isIconOnly
-                    variant="shadow"
+                    variant="ghost"
                     size="md"
                     className={modal.headerMobileBack}
                     onPress={controller.commands.onOpenMobileMenu}
@@ -207,30 +207,28 @@ function SettingsContent({ controller }: SettingsContentProps) {
 
 export function SettingsModalView({ controller }: SettingsModalViewProps) {
     const { isOpen, uiMode } = controller.modal;
-    const modalClassNames = uiMode === "Full" ? modal.settingsModalClassNamesFull : modal.settingsModalClassNamesRpc;
+    const dialogClassName = uiMode === "Full" ? modal.settingsModalBaseFull : modal.settingsModalBaseRpc;
 
     return (
         <Modal
             isOpen={isOpen}
             onOpenChange={controller.commands.onOpenChange}
-            backdrop="blur"
-            placement="center"
-            size="5xl"
-            hideCloseButton
-            isDismissable={false}
-            isKeyboardDismissDisabled={false}
-            classNames={modalClassNames}
-            motionProps={interaction.config.modalBloom}
         >
-            <ModalContent className={modal.contentWrapper}>
-                <div className={modal.layout}>
-                    <SettingsSidebar controller={controller} />
-                    <div className={modal.mainPane}>
-                        <SettingsHeader controller={controller} />
-                        <SettingsContent controller={controller} />
+            <Modal.Backdrop variant="blur" isDismissable={false} />
+            <Modal.Container
+                placement="center"
+                size={uiMode === "Full" ? "full" : "lg"}
+            >
+                <Modal.Dialog className={dialogClassName}>
+                    <div className={cn(modal.contentWrapper, modal.layout)}>
+                        <SettingsSidebar controller={controller} />
+                        <div className={modal.mainPane}>
+                            <SettingsHeader controller={controller} />
+                            <SettingsContent controller={controller} />
+                        </div>
                     </div>
-                </div>
-            </ModalContent>
+                </Modal.Dialog>
+            </Modal.Container>
         </Modal>
     );
 }

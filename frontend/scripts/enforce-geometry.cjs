@@ -25,7 +25,6 @@ const ALLOWED_PATH_SEGMENTS = [
 const ALLOWED_FILES = [
   path.join('src', 'index.css'),
   path.join('src', 'App.css'),
-  path.join('src', 'hero.ts'),
   path.join('src', 'config', 'logic.ts'),
   path.join('src', 'config', 'constants.json'),
 ];

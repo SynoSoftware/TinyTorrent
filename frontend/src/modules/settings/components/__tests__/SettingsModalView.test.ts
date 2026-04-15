@@ -25,18 +25,34 @@ vi.mock("@heroui/react", () => ({
             { type: "button", onClick: onPress },
             children,
         ),
-    Modal: ({
-        children,
-        ...props
-    }: {
-        children?: React.ReactNode;
-        [key: string]: unknown;
-    }) => {
-        modalSpy(props);
-        return React.createElement("div", null, children);
-    },
-    ModalContent: ({ children }: { children?: React.ReactNode }) =>
-        React.createElement("div", null, children),
+    Modal: Object.assign(
+        ({
+            children,
+            ...props
+        }: {
+            children?: React.ReactNode;
+            [key: string]: unknown;
+        }) => {
+            modalSpy({ type: "root", ...props });
+            return React.createElement("div", null, children);
+        },
+        {
+            Backdrop: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "backdrop", ...props });
+                return React.createElement("div", null, children);
+            },
+            Container: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", null, children),
+            Dialog: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", null, children),
+        },
+    ),
     cn: (...values: Array<string | false | null | undefined>) =>
         values.filter(Boolean).join(" "),
 }));
@@ -135,7 +151,6 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         mainPane: "main-pane",
         settingsModalBaseFull: "settings-modal-base-full",
         settingsModalBaseRpc: "settings-modal-base-rpc",
-        settingsModalWrapper: "settings-modal-wrapper",
     },
 }));
 
@@ -223,11 +238,13 @@ const waitForCondition = async (
 };
 
 const latestModalProps = (): ModalPropsSnapshot => {
-    const calls = modalSpy.mock.calls;
+    const calls = modalSpy.mock.calls
+        .map((call) => call[0] as { type?: string } & ModalPropsSnapshot)
+        .filter((call) => call.type === "backdrop");
     if (calls.length === 0) {
         throw new Error("modal_not_rendered");
     }
-    return calls[calls.length - 1][0] as ModalPropsSnapshot;
+    return calls[calls.length - 1];
 };
 
 const createController = (): SettingsModalController =>

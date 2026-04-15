@@ -1,12 +1,9 @@
 import React from "react";
 import { AnimatePresence } from "framer-motion";
 import {
-    Dropdown,
-    DropdownTrigger,
-    DropdownMenu,
-    DropdownItem,
-    DropdownSection,
     Checkbox,
+    DropdownItem,
+    DropdownMenu,
     cn,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +11,7 @@ import {
     formControl,
     surface,
 } from "@/shared/ui/layout/glass-surface";
+import TorrentTable_ContextMenuSurface from "@/modules/dashboard/components/TorrentTable_ContextMenuSurface";
 import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 
 export interface TorrentTableHeaderMenuProps {
@@ -45,37 +43,18 @@ export default function TorrentTable_HeaderMenu({
     };
     return (
         <AnimatePresence>
-            <Dropdown
-                isOpen
+            <TorrentTable_ContextMenuSurface
+                anchorRect={headerMenuTriggerRect}
+                className={cn(
+                    surface.menu.surface,
+                    surface.menu.minWidthSurface,
+                )}
                 onClose={onClose}
-                placement="bottom-start"
-                shouldFlip
-                closeOnSelect={false}
-                disableAnimation
             >
-                <DropdownTrigger>
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: headerMenuTriggerRect.top,
-                            left: headerMenuTriggerRect.left,
-                            width: 0,
-                            height: 0,
-                        }}
-                    />
-                </DropdownTrigger>
-                <DropdownMenu
-                    variant="shadow"
-                    classNames={surface.menu.listClassNames}
-                    itemClasses={surface.menu.itemClassNames}
-                    className={cn(
-                        surface.menu.surface,
-                        surface.menu.minWidthSurface,
-                    )}
-                >
+                <DropdownMenu autoFocus="first">
                     <DropdownItem
                         key="hide-column"
-                        color="danger"
+                        textValue={headerMenuHideLabel}
                         isDisabled={!isHeaderMenuHideEnabled}
                         className={surface.menu.itemStrong}
                         onPress={() =>
@@ -88,72 +67,73 @@ export default function TorrentTable_HeaderMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="fit-all-columns"
+                        textValue={t("table.actions.fit_all_columns")}
                         className={surface.menu.itemStrong}
                         onPress={() =>
                             handleHeaderMenuAction(autoFitAllColumns)
                         }
-                        showDivider
                     >
                         {t("table.actions.fit_all_columns")}
                     </DropdownItem>
-                    <DropdownSection
-                        key="columns-section"
-                        title={t("table.column_picker_title")}
+                    <DropdownItem
+                        key="columns-heading"
+                        isDisabled
+                        className={surface.menu.sectionHeading}
+                        textValue={t("table.column_picker_title")}
                     >
-                        {headerMenuItems.map((item) => {
-                            const isVisible = item.column.getIsVisible();
-                            const toggleColumnVisibility = () =>
-                                handleHeaderMenuAction(
-                                    () =>
-                                        item.column.toggleVisibility(
-                                            !isVisible,
-                                        ),
-                                    { keepOpen: true },
-                                );
-                            return (
-                                <DropdownItem
-                                    key={item.column.id}
-                                    className={cn(
-                                        surface.menu.itemNested,
-                                        item.isPinned &&
-                                            surface.menu.itemPinned,
-                                    )}
-                                    closeOnSelect={false}
-                                    onPress={toggleColumnVisibility}
-                                    startContent={
-                                        <span
-                                            onClick={(event) =>
-                                                handleCheckboxToggle(
-                                                    event,
-                                                    toggleColumnVisibility,
-                                                )
-                                            }
-                                            onPointerDown={(event) => {
-                                                event.preventDefault();
-                                                event.stopPropagation();
-                                            }}
-                                        >
-                                            <Checkbox
-                                                isSelected={isVisible}
-                                                size="md"
-                                                disableAnimation
-                                                onValueChange={() =>
-                                                    toggleColumnVisibility()
-                                                }
-                                                classNames={
-                                                    formControl.checkboxMarginRightClassNames
-                                                }
-                                            />
-                                        </span>
-                                    }
-                                >
-                                    {item.label}
-                                </DropdownItem>
+                        {t("table.column_picker_title")}
+                    </DropdownItem>
+                    {headerMenuItems.map((item) => {
+                        const isVisible = item.column.getIsVisible();
+                        const toggleColumnVisibility = () =>
+                            handleHeaderMenuAction(
+                                () =>
+                                    item.column.toggleVisibility(
+                                        !isVisible,
+                                    ),
+                                { keepOpen: true },
                             );
-                        })}
-                    </DropdownSection>
+                        return (
+                            <DropdownItem
+                                key={item.column.id}
+                                textValue={item.label}
+                                className={cn(
+                                    surface.menu.itemNested,
+                                    item.isPinned &&
+                                        surface.menu.itemPinned,
+                                )}
+                                onPress={toggleColumnVisibility}
+                            >
+                                <div className="flex items-center gap-tools">
+                                    <span
+                                        onClick={(event) =>
+                                            handleCheckboxToggle(
+                                                event,
+                                                toggleColumnVisibility,
+                                            )
+                                        }
+                                        onPointerDown={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                        }}
+                                    >
+                                        <Checkbox
+                                            isSelected={isVisible}
+                                            onChange={() =>
+                                                toggleColumnVisibility()
+                                            }
+                                            className={
+                                                formControl.checkboxMarginRightClassNames.base
+                                            }
+                                        />
+                                    </span>
+                                    <span>{item.label}</span>
+                                </div>
+                            </DropdownItem>
+                        );
+                    })}
                 </DropdownMenu>
-            </Dropdown>
+            </TorrentTable_ContextMenuSurface>
         </AnimatePresence>
     );
 }

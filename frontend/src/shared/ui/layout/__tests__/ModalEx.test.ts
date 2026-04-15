@@ -24,24 +24,56 @@ vi.mock("@heroui/react", () => ({
             { type: "button", onClick: onPress },
             children,
         ),
-    Modal: ({
-        children,
-        ...props
-    }: {
-        children?: React.ReactNode;
-        [key: string]: unknown;
-    }) => {
-        modalSpy(props);
-        return React.createElement("div", null, children);
-    },
-    ModalBody: ({ children }: { children?: React.ReactNode }) =>
-        React.createElement("div", null, children),
-    ModalContent: ({ children }: { children?: React.ReactNode }) =>
-        React.createElement("div", null, children),
-    ModalFooter: ({ children }: { children?: React.ReactNode }) =>
-        React.createElement("div", null, children),
-    ModalHeader: ({ children }: { children?: React.ReactNode }) =>
-        React.createElement("div", null, children),
+    Modal: Object.assign(
+        ({
+            children,
+            ...props
+        }: {
+            children?: React.ReactNode;
+            [key: string]: unknown;
+        }) => {
+            modalSpy({ type: "root", ...props });
+            return React.createElement("div", null, children);
+        },
+        {
+            Backdrop: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "backdrop", ...props });
+                return React.createElement("div", null, children);
+            },
+            Container: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "container", ...props });
+                return React.createElement("div", { "data-slot": "container" }, children);
+            },
+            Dialog: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "dialog", ...props });
+                return React.createElement("div", { "data-slot": "dialog" }, children);
+            },
+            Header: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", { "data-slot": "header" }, children),
+            Body: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", { "data-slot": "body" }, children),
+            Footer: ({ children }: { children?: React.ReactNode }) =>
+                React.createElement("div", { "data-slot": "footer" }, children),
+        },
+    ),
     cn: (...values: Array<string | false | null | undefined>) =>
         values.filter(Boolean).join(" "),
 }));
@@ -67,8 +99,8 @@ vi.mock("@/shared/ui/layout/toolbar-button", () => ({
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
     modal: {
-        compactClassNames: {},
-        baseClassNames: {},
+        compactClass: "modal-compact",
+        baseClass: "modal-base",
         dialogFooter: "dialog-footer",
         footerEnd: "footer-end",
         dialogBody: "dialog-body",
@@ -78,12 +110,20 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         dialogHeaderLead: "dialog-header-lead",
         headerLeadPrimaryIcon: "header-icon",
         headerTitleWrap: "header-title-wrap",
+        contentWrapper: "content-wrapper",
     },
 }));
 
-type ModalPropsSnapshot = {
+type ModalBackdropPropsSnapshot = {
     isDismissable?: boolean;
+};
+
+type ModalRootPropsSnapshot = {
     onOpenChange?: (open: boolean) => void;
+};
+
+type ModalSlotPropsSnapshot = {
+    className?: string;
 };
 
 const waitForCondition = async (
@@ -102,12 +142,34 @@ const waitForCondition = async (
     throw new Error("wait_for_condition_timeout");
 };
 
-const latestModalProps = (): ModalPropsSnapshot => {
-    const calls = modalSpy.mock.calls;
+const latestBackdropProps = (): ModalBackdropPropsSnapshot => {
+    const calls = modalSpy.mock.calls
+        .map((call) => call[0] as { type?: string } & ModalBackdropPropsSnapshot)
+        .filter((call) => call.type === "backdrop");
     if (calls.length === 0) {
-        throw new Error("modal_not_rendered");
+        throw new Error("modal_backdrop_not_rendered");
     }
-    return calls[calls.length - 1][0] as ModalPropsSnapshot;
+    return calls[calls.length - 1];
+};
+
+const latestRootProps = (): ModalRootPropsSnapshot => {
+    const calls = modalSpy.mock.calls
+        .map((call) => call[0] as { type?: string } & ModalRootPropsSnapshot)
+        .filter((call) => call.type === "root");
+    if (calls.length === 0) {
+        throw new Error("modal_root_not_rendered");
+    }
+    return calls[calls.length - 1];
+};
+
+const latestSlotProps = (slot: "container" | "dialog"): ModalSlotPropsSnapshot => {
+    const calls = modalSpy.mock.calls
+        .map((call) => call[0] as { type?: string } & ModalSlotPropsSnapshot)
+        .filter((call) => call.type === slot);
+    if (calls.length === 0) {
+        throw new Error(`modal_${slot}_not_rendered`);
+    }
+    return calls[calls.length - 1];
 };
 
 const renderModal = (props?: Partial<React.ComponentProps<typeof ModalEx>>) => {
@@ -144,10 +206,9 @@ describe("ModalEx overlay dismissal", () => {
         const mounted = renderModal({ onClose });
         try {
             await waitForCondition(() => modalSpy.mock.calls.length > 0);
-            const modalProps = latestModalProps();
-            expect(modalProps.isDismissable).toBe(false);
+            expect(latestBackdropProps().isDismissable).toBe(false);
 
-            modalProps.onOpenChange?.(false);
+            latestRootProps().onOpenChange?.(false);
 
             expect(onClose).not.toHaveBeenCalled();
         } finally {
@@ -163,12 +224,34 @@ describe("ModalEx overlay dismissal", () => {
         });
         try {
             await waitForCondition(() => modalSpy.mock.calls.length > 0);
-            const modalProps = latestModalProps();
-            expect(modalProps.isDismissable).toBe(true);
+            expect(latestBackdropProps().isDismissable).toBe(true);
 
-            modalProps.onOpenChange?.(false);
+            latestRootProps().onOpenChange?.(false);
 
             expect(onClose).toHaveBeenCalledTimes(1);
+        } finally {
+            mounted.cleanup();
+        }
+    });
+
+    it("applies the surface class to the dialog instead of the container", async () => {
+        const mounted = renderModal({
+            primaryAction: {
+                label: "Confirm",
+                onPress: vi.fn(),
+            },
+        });
+        try {
+            await waitForCondition(() => modalSpy.mock.calls.length > 0);
+            expect(latestSlotProps("container").className).toBeUndefined();
+            expect(latestSlotProps("dialog").className).toBe("modal-base");
+
+            const dialog = document.querySelector('[data-slot="dialog"]');
+            const contentWrapper = dialog?.firstElementChild;
+            expect(contentWrapper?.className).toBe("content-wrapper");
+            expect(contentWrapper?.children[0]?.getAttribute("data-slot")).toBe("header");
+            expect(contentWrapper?.children[1]?.getAttribute("data-slot")).toBe("body");
+            expect(contentWrapper?.children[2]?.getAttribute("data-slot")).toBe("footer");
         } finally {
             mounted.cleanup();
         }

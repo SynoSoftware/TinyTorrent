@@ -1,4 +1,15 @@
-import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs, cn } from "@heroui/react";
+import {
+    Button,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownPopover,
+    DropdownTrigger,
+    SearchField,
+    Tab,
+    Tabs,
+    cn,
+} from "@heroui/react";
 import { useState, type Key } from "react";
 import {
     DownloadCloud,
@@ -108,55 +119,63 @@ export function Navbar({ viewModel }: NavbarProps) {
     const handleMobileAddMagnet = () => onAddMagnet();
     const renderFilterTabs = (mobile = false) => (
         <Tabs
-            aria-label={t("nav.filter_aria")}
-            variant="light"
-            size="lg"
-            radius="full"
             selectedKey={filter}
             onSelectionChange={mobile ? handleMobileFilterSelectionChange : handleFilterSelectionChange}
-            classNames={workbench.nav.filterTabsClassNames}
+            className={workbench.nav.filterTabsClassNames.base}
         >
-            <Tab
-                key="all"
-                title={
-                    <div className={workbench.nav.tabTitle}>
-                        <StatusIcon Icon={ListChecks} size="lg" className={workbench.nav.tabIcon} />
-                        <span className={workbench.nav.tabLabel}>{t("nav.filter_all")}</span>
-                    </div>
-                }
-            />
-            <Tab
-                key="downloading"
-                title={
-                    <div className={workbench.nav.tabTitle}>
-                        <StatusIcon Icon={DownloadCloud} size="lg" className={workbench.nav.tabIcon} />
-                        <span className={workbench.nav.tabLabel}>{t("nav.filter_downloading")}</span>
-                    </div>
-                }
-            />
-            <Tab
-                key="seeding"
-                title={
-                    <div className={workbench.nav.tabTitle}>
-                        <StatusIcon Icon={UploadCloud} size="lg" className={workbench.nav.tabIcon} />
-                        <span className={workbench.nav.tabLabel}>{t("nav.filter_seeding")}</span>
-                    </div>
-                }
-            />
+            <Tabs.ListContainer className={workbench.nav.filterTabsClassNames.tabList}>
+                <Tabs.List aria-label={t("nav.filter_aria")}>
+                    <Tab id="all" className={workbench.nav.filterTabsClassNames.tab}>
+                        <Tabs.Indicator className={workbench.nav.filterTabsClassNames.indicator} />
+                        <div className={workbench.nav.tabTitle}>
+                            <StatusIcon Icon={ListChecks} size="lg" className={workbench.nav.tabIcon} />
+                            <span className={workbench.nav.tabLabel}>{t("nav.filter_all")}</span>
+                        </div>
+                    </Tab>
+                    <Tab id="downloading" className={workbench.nav.filterTabsClassNames.tab}>
+                        <Tabs.Indicator className={workbench.nav.filterTabsClassNames.indicator} />
+                        <div className={workbench.nav.tabTitle}>
+                            <StatusIcon Icon={DownloadCloud} size="lg" className={workbench.nav.tabIcon} />
+                            <span className={workbench.nav.tabLabel}>{t("nav.filter_downloading")}</span>
+                        </div>
+                    </Tab>
+                    <Tab id="seeding" className={workbench.nav.filterTabsClassNames.tab}>
+                        <Tabs.Indicator className={workbench.nav.filterTabsClassNames.indicator} />
+                        <div className={workbench.nav.tabTitle}>
+                            <StatusIcon Icon={UploadCloud} size="lg" className={workbench.nav.tabIcon} />
+                            <span className={workbench.nav.tabLabel}>{t("nav.filter_seeding")}</span>
+                        </div>
+                    </Tab>
+                </Tabs.List>
+            </Tabs.ListContainer>
         </Tabs>
     );
     const renderSearchInput = (mobile = false) => (
-        <Input
-            classNames={workbench.nav.searchInputClassNames}
+        <SearchField
+            className={cn("gap-0", workbench.nav.searchInputClassNames.base)}
             style={mobile ? undefined : workbench.nav.searchStyle}
-            placeholder={t("nav.search_placeholder")}
-            size="md"
+            fullWidth
             value={searchQuery}
-            data-command-search="true"
-            onFocus={() => setActivePart("search")}
-            onChange={(event) => setSearchQuery(event.currentTarget.value)}
-            startContent={<StatusIcon Icon={Search} size="lg" className={workbench.nav.searchIcon} />}
-        />
+            onChange={setSearchQuery}
+            variant="secondary"
+        >
+            <SearchField.Group
+                className={cn(
+                    workbench.nav.searchInputClassNames.inputWrapper,
+                    workbench.nav.searchInputClassNames.mainWrapper,
+                )}
+            >
+                <SearchField.SearchIcon className={workbench.nav.searchIcon}>
+                    <StatusIcon Icon={Search} size="lg" className={workbench.nav.searchIcon} />
+                </SearchField.SearchIcon>
+                <SearchField.Input
+                    className={workbench.nav.searchInputClassNames.input}
+                    placeholder={t("nav.search_placeholder")}
+                    data-command-search="true"
+                    onFocus={() => setActivePart("search")}
+                />
+            </SearchField.Group>
+        </SearchField>
     );
     const renderSelectionExtraActions = (mobile = false) => (
         <>
@@ -194,7 +213,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                             if (mobile) closeMobileMenu();
                             selectionActions.ensureValid();
                         }}
-                        disabled={!hasSelection}
+                        isDisabled={!hasSelection}
                         className={cn(
                             toneButtonClass.neutral,
                             emphasizeActions?.forceRecheck ? workbench.nav.selectionRecheckEmphasis : "",
@@ -209,7 +228,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                             if (mobile) closeMobileMenu();
                             selectionActions.ensureRemoved();
                         }}
-                        disabled={!hasSelection}
+                        isDisabled={!hasSelection}
                         className={toneButtonClass.danger}
                         iconSize="lg"
                     />
@@ -233,15 +252,27 @@ export function Navbar({ viewModel }: NavbarProps) {
         className?: string;
     }) => (
         <Button
-            size="md"
-            variant="light"
-            color={color}
+            variant="ghost"
             onPress={onPress}
             isDisabled={disabled}
-            className={cn(workbench.nav.mobileMenuButton, className)}
-            startContent={<StatusIcon Icon={MobileIcon} size="md" className={workbench.nav.mobileMenuButtonIcon} />}
+            className={cn(
+                workbench.nav.mobileMenuButton,
+                color === "primary"
+                    ? toneButtonClass.primary
+                    : color === "success"
+                      ? toneButtonClass.success
+                      : color === "warning"
+                        ? toneButtonClass.warning
+                        : color === "danger"
+                          ? toneButtonClass.danger
+                          : toneButtonClass.neutral,
+                className,
+            )}
         >
-            {label}
+            <span className="flex items-center gap-tools">
+                <StatusIcon Icon={MobileIcon} size="md" className={workbench.nav.mobileMenuButtonIcon} />
+                <span>{label}</span>
+            </span>
         </Button>
     );
 
@@ -309,7 +340,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                             />
                         </div>
                         <div className="flex sm:hidden">
-                            <Dropdown placement="bottom-end" backdrop="transparent">
+                            <Dropdown>
                                 <DropdownTrigger>
                                     <ToolbarIconButton
                                         Icon={Plus}
@@ -319,32 +350,41 @@ export function Navbar({ viewModel }: NavbarProps) {
                                         iconSize="lg"
                                     />
                                 </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label={t("nav.mobile_add_menu_open")}
-                                    variant="shadow"
-                                    className={surface.menu.surface}
-                                    classNames={surface.menu.listClassNames}
-                                    itemClasses={surface.menu.itemClassNames}
-                                >
-                                    <DropdownItem
-                                        key="add-torrent"
-                                        startContent={
-                                            <StatusIcon Icon={FileUp} size="md" className={surface.atom.textCurrent} />
-                                        }
-                                        onPress={handleMobileAddTorrent}
+                                <DropdownPopover placement="bottom end">
+                                    <DropdownMenu
+                                        aria-label={t("nav.mobile_add_menu_open")}
+                                        className={surface.menu.surface}
                                     >
-                                        {t("toolbar.add_torrent")}
-                                    </DropdownItem>
-                                    <DropdownItem
-                                        key="add-magnet"
-                                        startContent={
-                                            <StatusIcon Icon={Magnet} size="md" className={surface.atom.textCurrent} />
-                                        }
-                                        onPress={handleMobileAddMagnet}
-                                    >
-                                        {t("toolbar.add_magnet")}
-                                    </DropdownItem>
-                                </DropdownMenu>
+                                        <DropdownItem
+                                            key="add-torrent"
+                                            textValue={t("toolbar.add_torrent")}
+                                            onPress={handleMobileAddTorrent}
+                                        >
+                                            <div className="flex items-center gap-tools">
+                                                <StatusIcon
+                                                    Icon={FileUp}
+                                                    size="md"
+                                                    className={surface.atom.textCurrent}
+                                                />
+                                                <span>{t("toolbar.add_torrent")}</span>
+                                            </div>
+                                        </DropdownItem>
+                                        <DropdownItem
+                                            key="add-magnet"
+                                            textValue={t("toolbar.add_magnet")}
+                                            onPress={handleMobileAddMagnet}
+                                        >
+                                            <div className="flex items-center gap-tools">
+                                                <StatusIcon
+                                                    Icon={Magnet}
+                                                    size="md"
+                                                    className={surface.atom.textCurrent}
+                                                />
+                                                <span>{t("toolbar.add_magnet")}</span>
+                                            </div>
+                                        </DropdownItem>
+                                    </DropdownMenu>
+                                </DropdownPopover>
                             </Dropdown>
                         </div>
                         <div
@@ -366,7 +406,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t("toolbar.resume")}
                                 title={t("toolbar.resume")}
                                 onPress={selectionActions.ensureActive}
-                                disabled={!hasSelection}
+                                isDisabled={!hasSelection}
                                 className={toneButtonClass.success}
                                 iconSize="lg"
                             />
@@ -375,7 +415,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 ariaLabel={t("toolbar.pause")}
                                 title={t("toolbar.pause")}
                                 onPress={selectionActions.ensurePaused}
-                                disabled={!hasSelection}
+                                isDisabled={!hasSelection}
                                 className={cn(
                                     toneButtonClass.warning,
                                     emphasizeActions?.pause ? workbench.nav.selectionPauseEmphasis : "",

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import { animationSuppressionKeys } from "@/modules/dashboard/hooks/useTableAnimationGuard";
@@ -35,6 +35,7 @@ type UseTorrentRowDragDeps = {
     canReorderQueue: boolean;
     visibleQueueOrder: string[];
     dropTarget?: QueueDropTarget | null;
+    getScrollElement?: () => HTMLElement | null;
     setActiveRowId: (id: string | null) => void;
     setDropTarget: (target: QueueDropTarget | null) => void;
     beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
@@ -54,6 +55,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
         canReorderQueue,
         visibleQueueOrder,
         dropTarget = null,
+        getScrollElement,
         setActiveRowId,
         setDropTarget,
         beginAnimationSuppression,
@@ -66,11 +68,54 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
     const dragSelectionSnapshotRef = useRef<QueueReorderUiStateSnapshot | null>(
         null,
     );
+    const releaseScrollLockRef = useRef<(() => void) | null>(null);
+
+    const resetHorizontalScroll = useCallback(() => {
+        const scrollElement = getScrollElement?.();
+        if (!scrollElement || scrollElement.scrollLeft === 0) {
+            return;
+        }
+        scrollElement.scrollLeft = 0;
+    }, [getScrollElement]);
+
+    const releaseScrollLock = useCallback(() => {
+        releaseScrollLockRef.current?.();
+        releaseScrollLockRef.current = null;
+    }, []);
+
+    const acquireScrollLock = useCallback(() => {
+        releaseScrollLock();
+        const scrollElement = getScrollElement?.();
+        if (!scrollElement) {
+            return;
+        }
+
+        const handleScroll = () => {
+            if (scrollElement.scrollLeft !== 0) {
+                scrollElement.scrollLeft = 0;
+            }
+        };
+
+        handleScroll();
+        scrollElement.addEventListener("scroll", handleScroll);
+        releaseScrollLockRef.current = () => {
+            scrollElement.removeEventListener("scroll", handleScroll);
+        };
+    }, [getScrollElement, releaseScrollLock]);
+
+    useEffect(
+        () => () => {
+            releaseScrollLock();
+        },
+        [releaseScrollLock],
+    );
 
     const handleRowDragStart = useCallback(
         (event: DragStartEvent) => {
             if (!canReorderQueue) return;
             const draggedId = String(event.active.id);
+            acquireScrollLock();
+            resetHorizontalScroll();
             setDropTarget(null);
             dragSelectionSnapshotRef.current = captureQueueUiStateSnapshot();
             rowDragActiveRef.current = true;
@@ -81,6 +126,8 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             beginAnimationSuppression,
             canReorderQueue,
             captureQueueUiStateSnapshot,
+            acquireScrollLock,
+            resetHorizontalScroll,
             setActiveRowId,
             setDropTarget,
         ]
@@ -89,6 +136,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
     const handleRowDragOver = useCallback(
         (event: DragOverEvent) => {
             if (!canReorderQueue) return;
+            resetHorizontalScroll();
             const { active, over } = event;
             if (!active || !over) return;
 
@@ -107,13 +155,15 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
                 after,
             });
         },
-        [canReorderQueue, setDropTarget, visibleQueueOrder],
+        [canReorderQueue, resetHorizontalScroll, setDropTarget, visibleQueueOrder],
     );
 
     const handleRowDragEnd = useCallback(
         async (event: DragEndEvent) => {
             const hadActiveDrag = rowDragActiveRef.current;
             rowDragActiveRef.current = false;
+            resetHorizontalScroll();
+            releaseScrollLock();
             setActiveRowId(null);
             setDropTarget(null);
             endAnimationSuppression(animationSuppressionKeys.rowDrag);
@@ -151,6 +201,8 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             endAnimationSuppression,
             executeDroppedQueueReorder,
             markRowDragInteractionComplete,
+            releaseScrollLock,
+            resetHorizontalScroll,
             setActiveRowId,
             setDropTarget,
             dropTarget,
@@ -162,6 +214,8 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
         const hadActiveDrag = rowDragActiveRef.current;
         rowDragActiveRef.current = false;
         dragSelectionSnapshotRef.current = null;
+        resetHorizontalScroll();
+        releaseScrollLock();
         setActiveRowId(null);
         setDropTarget(null);
         endAnimationSuppression(animationSuppressionKeys.rowDrag);
@@ -171,6 +225,8 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
     }, [
         endAnimationSuppression,
         markRowDragInteractionComplete,
+        releaseScrollLock,
+        resetHorizontalScroll,
         setActiveRowId,
         setDropTarget,
     ]);

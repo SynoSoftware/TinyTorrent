@@ -1,8 +1,7 @@
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@heroui/react";
-import { addToast, closeToast } from "@heroui/toast";
+import { toast } from "@heroui/react";
 import { useSession } from "@/app/context/SessionContext";
 import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 import type { AddTorrentDefaultsState } from "@/app/context/PreferencesContext";
@@ -190,20 +189,19 @@ export function useAddTorrentController({
         if (!active) {
             return;
         }
-        addToast({
-            title:
-                active.phase === "unknown"
-                    ? t("modals.add_torrent.unknown_outcome_title")
-                    : t("modals.add_torrent.submission_already_running"),
-            description:
-                active.phase === "unknown"
-                    ? t("modals.add_torrent.unknown_outcome_body")
-                    : t("modals.add_torrent.background_progress"),
-            color: active.phase === "unknown" ? "warning" : "primary",
-            severity: active.phase === "unknown" ? "warning" : "primary",
+        toast(
+            active.phase === "unknown"
+                ? t("modals.add_torrent.unknown_outcome_title")
+                : t("modals.add_torrent.submission_already_running"),
+            {
+                description:
+                    active.phase === "unknown"
+                        ? t("modals.add_torrent.unknown_outcome_body")
+                        : t("modals.add_torrent.background_progress"),
+                variant: active.phase === "unknown" ? "warning" : "accent",
             timeout: timing.ui.toastMs,
-            hideCloseButton: true,
-        });
+            },
+        );
     }, [t]);
 
     const addModalState = useAddModalState({
@@ -258,7 +256,7 @@ export function useAddTorrentController({
 
     const closeSubmissionToast = useCallback((submission: ActiveAddSubmission | null) => {
         if (!submission?.toastKey) return;
-        closeToast(submission.toastKey);
+        toast.close(submission.toastKey);
     }, []);
 
     const findMatchedTorrent = useCallback((submission: ActiveAddSubmission) => {
@@ -317,25 +315,18 @@ export function useAddTorrentController({
                 startedAtMs,
                 knownHashesBefore,
                 phase: "in_flight",
-                toastKey: addToast({
-                    title: t("modals.add_torrent.submitting"),
+                toastKey: toast(t("modals.add_torrent.submitting"), {
                     description: t("modals.add_torrent.background_progress"),
-                    color: "primary",
-                    severity: "primary",
+                    variant: "accent",
                     timeout: requestTimeoutMs,
-                    hideCloseButton: true,
                 }),
             };
             activeSubmissionRef.current = submission;
 
             const retrySubmission = () => {
                 if (activeSubmissionRef.current) {
-                    addToast({
-                        title: t("modals.add_torrent.submission_already_running"),
-                        color: "warning",
-                        severity: "warning",
+                    toast.warning(t("modals.add_torrent.submission_already_running"), {
                         timeout: timing.ui.toastMs,
-                        hideCloseButton: true,
                     });
                     return;
                 }
@@ -347,21 +338,14 @@ export function useAddTorrentController({
                     reason === "magnet_add_failed"
                         ? t("modals.add_torrent.magnet_error")
                         : t("modals.add_error_default");
-                addToast({
-                    title: failureMessage,
-                    color: "danger",
-                    severity: "danger",
+                toast.danger(failureMessage, {
                     timeout: timing.ui.toastMs,
-                    hideCloseButton: false,
-                    endContent: createElement(
-                        Button,
-                        {
-                            size: "sm",
-                            variant: "flat",
-                            onPress: retrySubmission,
-                        },
-                        t("modals.add_torrent.retry"),
-                    ),
+                    actionProps: {
+                        children: t("modals.add_torrent.retry"),
+                        size: "sm",
+                        variant: "secondary",
+                        onPress: retrySubmission,
+                    },
                 });
             };
 
@@ -373,27 +357,20 @@ export function useAddTorrentController({
                 closeSubmissionToast(active);
                 activeSubmissionRef.current = null;
                 const matchedTorrent = findMatchedTorrent(active);
-                addToast({
-                    title: t("toolbar.feedback.added"),
-                    color: "success",
-                    severity: "success",
+                toast.success(t("toolbar.feedback.added"), {
                     timeout: timing.ui.toastMs,
-                    hideCloseButton: true,
-                    endContent:
+                    actionProps:
                         matchedTorrent && openTorrentDetailsById
-                            ? createElement(
-                                  Button,
-                                  {
-                                      size: "sm",
-                                      variant: "flat",
-                                      onPress: () => {
-                                          void openTorrentDetailsById(
-                                              String(matchedTorrent.id),
-                                          );
-                                      },
+                            ? {
+                                  children: t("modals.add_torrent.open_details"),
+                                  size: "sm",
+                                  variant: "secondary",
+                                  onPress: () => {
+                                      void openTorrentDetailsById(
+                                          String(matchedTorrent.id),
+                                      );
                                   },
-                                  t("modals.add_torrent.open_details"),
-                              )
+                              }
                             : undefined,
                 });
             };
@@ -415,64 +392,50 @@ export function useAddTorrentController({
                 }
                 active.phase = "unknown";
                 closeSubmissionToast(active);
-                active.toastKey = addToast({
-                    title: t("modals.add_torrent.unknown_outcome_title"),
+                active.toastKey = toast.warning(t("modals.add_torrent.unknown_outcome_title"), {
                     description: t("modals.add_torrent.unknown_outcome_body"),
-                    color: "warning",
-                    severity: "warning",
                     timeout: timing.ui.toastMs * 3,
-                    hideCloseButton: false,
-                    endContent: createElement(
-                        Button,
-                        {
-                            size: "sm",
-                            variant: "flat",
-                            onPress: () => {
-                                void (async () => {
-                                    const current = activeSubmissionRef.current;
-                                    if (!current || current.id !== submission.id) {
-                                        return;
-                                    }
-                                    try {
-                                        await refreshTorrents();
-                                    } catch {
-                                        showFeedback(
-                                            t("toolbar.feedback.failed"),
-                                            "danger",
-                                        );
-                                        return;
-                                    }
-                                    const latest = activeSubmissionRef.current;
-                                    if (!latest || latest.id !== submission.id) {
-                                        return;
-                                    }
-                                    if (findMatchedTorrent(latest)) {
-                                        await settleSuccess();
-                                        return;
-                                    }
-                                    closeSubmissionToast(latest);
-                                    activeSubmissionRef.current = null;
-                                    addToast({
-                                        title: t("modals.add_torrent.unknown_retry_hint"),
-                                        color: "warning",
-                                        severity: "warning",
-                                        timeout: timing.ui.toastMs,
-                                        hideCloseButton: false,
-                                        endContent: createElement(
-                                            Button,
-                                            {
-                                                size: "sm",
-                                                variant: "flat",
-                                                onPress: retrySubmission,
-                                            },
-                                            t("modals.add_torrent.retry"),
-                                        ),
-                                    });
-                                })();
-                            },
+                    actionProps: {
+                        children: t("modals.add_torrent.refresh_list"),
+                        size: "sm",
+                        variant: "secondary",
+                        onPress: () => {
+                            void (async () => {
+                                const current = activeSubmissionRef.current;
+                                if (!current || current.id !== submission.id) {
+                                    return;
+                                }
+                                try {
+                                    await refreshTorrents();
+                                } catch {
+                                    showFeedback(
+                                        t("toolbar.feedback.failed"),
+                                        "danger",
+                                    );
+                                    return;
+                                }
+                                const latest = activeSubmissionRef.current;
+                                if (!latest || latest.id !== submission.id) {
+                                    return;
+                                }
+                                if (findMatchedTorrent(latest)) {
+                                    await settleSuccess();
+                                    return;
+                                }
+                                closeSubmissionToast(latest);
+                                activeSubmissionRef.current = null;
+                                toast.warning(t("modals.add_torrent.unknown_retry_hint"), {
+                                    timeout: timing.ui.toastMs,
+                                    actionProps: {
+                                        children: t("modals.add_torrent.retry"),
+                                        size: "sm",
+                                        variant: "secondary",
+                                        onPress: retrySubmission,
+                                    },
+                                });
+                            })();
                         },
-                        t("modals.add_torrent.refresh_list"),
-                    ),
+                    },
                 });
             };
 

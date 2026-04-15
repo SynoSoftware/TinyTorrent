@@ -115,6 +115,7 @@ const makeControllerDeps = (
         queueReorderScopeEnabled: true,
         pendingQueueOrder: null,
         setPendingQueueOrder: vi.fn(),
+        getScrollElement: () => null,
         serverOrder: rowIds,
         queueOrder: rowIds,
         visibleQueueOrder: rowIds,

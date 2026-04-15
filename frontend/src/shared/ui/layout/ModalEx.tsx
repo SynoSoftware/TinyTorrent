@@ -1,15 +1,11 @@
 import {
     Button,
     Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
     cn,
-    type ModalProps,
 } from "@heroui/react";
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import type {
+    ComponentProps,
     KeyboardEvent as ReactKeyboardEvent,
     ReactNode,
 } from "react";
@@ -21,7 +17,7 @@ import {
     ToolbarIconButton,
 } from "@/shared/ui/layout/toolbar-button";
 
-type HeroModalSize = NonNullable<ModalProps["size"]>;
+type HeroModalSize = NonNullable<ComponentProps<typeof Modal.Container>["size"]>;
 type ModalExSize = "full" extends HeroModalSize
     ? HeroModalSize
     : HeroModalSize | "full";
@@ -93,20 +89,14 @@ export function ModalEx({
             ? modal.dialogFooter
             : modal.footerEnd;
     const showFooterStartSlot = footerClassName === modal.dialogFooter;
-    const modalClassNames =
-        resolvedSize === "sm" ? modal.compactClassNames : modal.baseClassNames;
+    const modalClassName =
+        resolvedSize === "sm" ? modal.compactClass : modal.baseClass;
     const closeAriaLabel = t("torrent_modal.actions.close");
     const bodyClassName =
         bodyVariant === "flush" ? modal.dialogBodyFlush : modal.dialogBody;
     const resetAndClose = () => {
         setIsMaximized(false);
         onClose();
-    };
-
-    const handleOpenChange: ModalProps["onOpenChange"] = (nextOpen) => {
-        if (!nextOpen && !disableClose && allowOverlayDismiss) {
-            resetAndClose();
-        }
     };
 
     const handleContentKeyDownCapture = (
@@ -153,95 +143,84 @@ export function ModalEx({
     return (
         <Modal
             isOpen={open}
-            onOpenChange={handleOpenChange}
-            hideCloseButton
-            backdrop="blur"
-            classNames={modalClassNames}
-            placement="center"
-            size={resolvedSize}
-            motionProps={{
-                variants: {
-                    enter: {
-                        opacity: 1,
-                        y: 0,
-                        scale: 1,
-                    },
-                    exit: {
-                        opacity: 0,
-                        y: 8,
-                        scale: 0.985,
-                    },
-                },
-                transition: {
-                    duration: 0.18,
-                    ease: "easeOut",
-                },
+            onOpenChange={(nextOpen) => {
+                if (!nextOpen && allowOverlayDismiss && !disableClose) {
+                    resetAndClose();
+                }
             }}
-            isDismissable={allowOverlayDismiss && !disableClose}
-            isKeyboardDismissDisabled={disableClose}
         >
-            <ModalContent onKeyDownCapture={handleContentKeyDownCapture}>
-                <ModalHeader className={modal.dialogHeader}>
-                    <div className={modal.dialogHeaderLead}>
-                        {TitleIcon ? (
-                            <TitleIcon
-                                className={cn(
-                                    ICON_SIZE_CLASSES.lg,
-                                    modal.headerLeadPrimaryIcon,
-                                )}
-                            />
-                        ) : null}
-                        <div className={modal.headerTitleWrap}>{title}</div>
-                    </div>
-                    {headerControls}
-                </ModalHeader>
-                <ModalBody className={bodyClassName}>{children}</ModalBody>
-                {hasFooter ? (
-                    <ModalFooter className={footerClassName}>
-                        {showFooterStartSlot ? (
-                            <div className={details.generalMetricContent}>
-                                {footerStartContent ?? (
-                                    <span aria-hidden="true">&nbsp;</span>
-                                )}
-                            </div>
-                        ) : null}
-                        <div className={modal.footerButtonRow}>
-                            {secondaryAction ? (
-                                <Button
-                                    variant="light"
-                                    onPress={secondaryAction.onPress}
-                                    isDisabled={secondaryAction.disabled}
-                                    isLoading={secondaryAction.loading}
-                                >
-                                    {secondaryAction.label}
-                                </Button>
-                            ) : null}
-                            {dangerAction ? (
-                                <Button
-                                    color="danger"
-                                    variant="shadow"
-                                    onPress={dangerAction.onPress}
-                                    isDisabled={dangerAction.disabled}
-                                    isLoading={dangerAction.loading}
-                                >
-                                    {dangerAction.label}
-                                </Button>
-                            ) : null}
-                            {primaryAction ? (
-                                <Button
-                                    color="primary"
-                                    variant="shadow"
-                                    onPress={primaryAction.onPress}
-                                    isDisabled={primaryAction.disabled}
-                                    isLoading={primaryAction.loading}
-                                >
-                                    {primaryAction.label}
-                                </Button>
+            <Modal.Backdrop
+                isDismissable={allowOverlayDismiss && !disableClose}
+                variant="blur"
+            >
+                <Modal.Container placement="center" size={resolvedSize}>
+                    <Modal.Dialog className={modalClassName}>
+                        <div
+                            className={modal.contentWrapper}
+                            onKeyDownCapture={handleContentKeyDownCapture}
+                        >
+                            <Modal.Header className={modal.dialogHeader}>
+                                <div className={modal.dialogHeaderLead}>
+                                    {TitleIcon ? (
+                                        <TitleIcon
+                                            className={cn(
+                                                ICON_SIZE_CLASSES.lg,
+                                                modal.headerLeadPrimaryIcon,
+                                            )}
+                                        />
+                                    ) : null}
+                                    <div className={modal.headerTitleWrap}>{title}</div>
+                                </div>
+                                {headerControls}
+                            </Modal.Header>
+                            <Modal.Body className={bodyClassName}>{children}</Modal.Body>
+                            {hasFooter ? (
+                                <Modal.Footer className={footerClassName}>
+                                    {showFooterStartSlot ? (
+                                        <div className={details.generalMetricContent}>
+                                            {footerStartContent ?? (
+                                                <span aria-hidden="true">&nbsp;</span>
+                                            )}
+                                        </div>
+                                    ) : null}
+                                    <div className={modal.footerButtonRow}>
+                                        {secondaryAction ? (
+                                            <Button
+                                                variant="tertiary"
+                                                onPress={secondaryAction.onPress}
+                                                isDisabled={secondaryAction.disabled}
+                                                isPending={secondaryAction.loading}
+                                            >
+                                                {secondaryAction.label}
+                                            </Button>
+                                        ) : null}
+                                        {dangerAction ? (
+                                            <Button
+                                                variant="danger"
+                                                onPress={dangerAction.onPress}
+                                                isDisabled={dangerAction.disabled}
+                                                isPending={dangerAction.loading}
+                                            >
+                                                {dangerAction.label}
+                                            </Button>
+                                        ) : null}
+                                        {primaryAction ? (
+                                            <Button
+                                                variant="primary"
+                                                onPress={primaryAction.onPress}
+                                                isDisabled={primaryAction.disabled}
+                                                isPending={primaryAction.loading}
+                                            >
+                                                {primaryAction.label}
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </Modal.Footer>
                             ) : null}
                         </div>
-                    </ModalFooter>
-                ) : null}
-            </ModalContent>
+                    </Modal.Dialog>
+                </Modal.Container>
+            </Modal.Backdrop>
         </Modal>
     );
 }

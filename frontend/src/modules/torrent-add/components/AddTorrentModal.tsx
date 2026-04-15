@@ -258,7 +258,7 @@ export function AddTorrentModal({
             onClose={handleModalCancel}
             title={modalTitleContent}
             icon={TitleIcon}
-            size={modalSize}
+            size={modalSize === "5xl" ? "lg" : modalSize}
             maximize={!showDestinationGate}
             bodyVariant={showDestinationGate ? "padded" : "flush"}
         >
@@ -388,23 +388,22 @@ export function AddTorrentModal({
                             {!isMagnetMode ? (
                                 <Checkbox
                                     isSelected={!showAddDialog}
-                                    onValueChange={(value) => onShowAddDialogChange(!value)}
-                                    classNames={formControl.checkboxLabelBodySmallClassNames}
+                                    onChange={(value) => onShowAddDialogChange(!value)}
+                                    className={formControl.checkboxLabelBodySmallClassNames.base}
                                 >
                                     {t("modals.add_torrent.dont_show_again")}
                                 </Checkbox>
                             ) : null}
                             <div className={modalStyles.footerButtonRow}>
                                 <Button
-                                    variant="light"
+                                    variant="ghost"
                                     onPress={handleModalCancel}
                                     className={modalStyles.workflow.cancelButton}
                                 >
                                     {t("modals.cancel")}
                                 </Button>
                                 <Button
-                                    color="primary"
-                                    variant="shadow"
+                                    variant="primary"
                                     onPress={requestSubmit}
                                     isDisabled={!canConfirm}
                                     className={modalStyles.workflow.primaryButton}

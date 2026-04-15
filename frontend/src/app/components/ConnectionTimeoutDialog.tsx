@@ -1,7 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Accordion, AccordionItem, Button } from "@heroui/react";
+import { useEffect, type ReactNode } from "react";
+import { Accordion, AccordionHeading, AccordionItem, AccordionPanel, AccordionTrigger, Button } from "@heroui/react";
 import { AlertTriangle, Clock3, Download, Play, Sparkles, Server, Settings } from "lucide-react";
-import type { Selection } from "@react-types/shared";
 import { useTranslation } from "react-i18next";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { useWorkspaceModals } from "@/app/context/AppShellStateContext";
@@ -59,7 +58,6 @@ function getTransmissionDownloadTarget(platform: BrowserPlatform) {
 export function ConnectionTimeoutDialog() {
     const { t } = useTranslation();
     const { connectionTimeoutDialog, reconnect, rpcStatus } = useSession();
-    const [expandedHelpKeys, setExpandedHelpKeys] = useState<Selection>(new Set());
     const {
         preferences: { showTorrentServerSetup },
     } = usePreferences();
@@ -117,18 +115,17 @@ export function ConnectionTimeoutDialog() {
                     </p>
 
                     <AppTooltip content={transmissionDownloadTarget.url} native>
-                        <Button
-                            as="a"
+                        <a
                             href={transmissionDownloadTarget.url}
                             target="_blank"
-                            rel="noreferrer"
-                            color="primary"
-                            variant="flat"
-                            size="sm"
-                            startContent={<Download className={form.workflow.actionIcon} />}
+                            rel="noopener noreferrer"
+                            className={details.generalSectionActionButton}
                         >
-                            {t("workspace.connection_timeout_dialog.open_download")}
-                        </Button>
+                            <span className={form.blockRowBetween}>
+                                <Download className={form.workflow.actionIcon} />
+                                <span>{t("workspace.connection_timeout_dialog.open_download")}</span>
+                            </span>
+                        </a>
                     </AppTooltip>
                 </div>
             </ConnectionDialogRow>
@@ -180,45 +177,44 @@ export function ConnectionTimeoutDialog() {
                                 <div className={`${form.blockRowBetween} gap-tools`}>
                                     <p className={details.generalMetricCode}>{activeRpcConnection.serverUrl}</p>
                                     <Button
-                                        color="primary"
-                                        variant="flat"
+                                        variant="secondary"
                                         size="sm"
-                                        startContent={<Settings className={form.workflow.actionIcon} />}
                                         onPress={openSettingsFromDialog}
                                     >
-                                        {t("workspace.connection_timeout_dialog.open_settings")}
+                                        <span className={form.blockRowBetween}>
+                                            <Settings className={form.workflow.actionIcon} />
+                                            <span>{t("workspace.connection_timeout_dialog.open_settings")}</span>
+                                        </span>
                                     </Button>
                                 </div>
                             </div>
                         </ConnectionDialogRow>
                         <Accordion
-                            selectedKeys={expandedHelpKeys}
-                            onSelectionChange={setExpandedHelpKeys}
-                            selectionMode="multiple"
-                            variant="splitted"
+                            variant="surface"
                             className="px-0"
-                            itemClasses={{
-                                base: "px-0",
-                                trigger: "px-0 py-0",
-                                content: "px-0 pb-0 pt-tight",
-                            }}
                         >
                             <AccordionItem
-                                key="connection-help"
+                                id="connection-help"
                                 aria-label={t("workspace.connection_timeout_dialog.more_help_label")}
-                                title={t("workspace.connection_timeout_dialog.more_help_label")}
                             >
-                                <div className={form.stackTools}>
-                                    {installRow}
-                                    <ConnectionDialogRow
-                                        icon={Play}
-                                        label={t("workspace.connection_timeout_dialog.start_option_label")}
-                                    >
-                                        <p className={visuals.typography.text.bodySmall}>
-                                            {t("workspace.connection_timeout_dialog.start_option_hint")}
-                                        </p>
-                                    </ConnectionDialogRow>
-                                </div>
+                                <AccordionHeading>
+                                    <AccordionTrigger className={visuals.typography.text.bodySmall}>
+                                        {t("workspace.connection_timeout_dialog.more_help_label")}
+                                    </AccordionTrigger>
+                                </AccordionHeading>
+                                <AccordionPanel>
+                                    <div className={form.stackTools}>
+                                        {installRow}
+                                        <ConnectionDialogRow
+                                            icon={Play}
+                                            label={t("workspace.connection_timeout_dialog.start_option_label")}
+                                        >
+                                            <p className={visuals.typography.text.bodySmall}>
+                                                {t("workspace.connection_timeout_dialog.start_option_hint")}
+                                            </p>
+                                        </ConnectionDialogRow>
+                                    </div>
+                                </AccordionPanel>
                             </AccordionItem>
                         </Accordion>
                     </>

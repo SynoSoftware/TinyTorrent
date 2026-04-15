@@ -66,9 +66,7 @@ export function InterfaceTabContent() {
                             </div>
                             <div className={form.interfaceRowActions}>
                                 <Button
-                                    size="md"
-                                    variant={isImmersive ? "light" : "shadow"}
-                                    color={isImmersive ? "default" : "primary"}
+                                    variant={isImmersive ? "ghost" : "primary"}
                                     onPress={() => {
                                         if (!isImmersive || workspaceStylePending) {
                                             return;
@@ -83,9 +81,7 @@ export function InterfaceTabContent() {
                                     {t("settings.options.shellStyle.classic")}
                                 </Button>
                                 <Button
-                                    size="md"
-                                    variant={isImmersive ? "shadow" : "light"}
-                                    color={isImmersive ? "primary" : "default"}
+                                    variant={isImmersive ? "primary" : "ghost"}
                                     onPress={() => {
                                         if (isImmersive || workspaceStylePending) {
                                             return;
@@ -122,9 +118,7 @@ export function InterfaceTabContent() {
                                 </AppTooltip>
                             </div>
                             <Button
-                                size="md"
-                                variant="shadow"
-                                color="primary"
+                                variant="primary"
                                 onPress={buttonActions.restoreHud}
                             >
                                 {t("settings.buttons.restore_hud")}
@@ -150,7 +144,7 @@ export function InterfaceTabContent() {
                                 size="md"
                                 isSelected={config.table_watermark_enabled}
                                 isDisabled={tableWatermarkPending}
-                                onValueChange={(val) => {
+                                onChange={(val) => {
                                     void onApplySetting(
                                         "table_watermark_enabled",
                                         val,
@@ -179,7 +173,7 @@ export function InterfaceTabContent() {
                                 size="md"
                                 isSelected={config.show_add_torrent_dialog}
                                 isDisabled={showAddDialogPending}
-                                onValueChange={(value) => {
+                                onChange={(value) => {
                                     void onApplySetting(
                                         "show_add_torrent_dialog",
                                         value,
@@ -208,7 +202,7 @@ export function InterfaceTabContent() {
                                 size="md"
                                 isSelected={config.show_torrent_server_setup}
                                 isDisabled={showServerSetupPending}
-                                onValueChange={(value) => {
+                                onChange={(value) => {
                                     void onApplySetting(
                                         "show_torrent_server_setup",
                                         value,

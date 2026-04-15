@@ -36,12 +36,12 @@ vi.mock("@heroui/react", () => ({
         ),
     Switch: ({
         isSelected,
-        onValueChange,
+        onChange,
         isDisabled,
         ...props
     }: {
         isSelected?: boolean;
-        onValueChange?: (value: boolean) => void;
+        onChange?: (value: boolean) => void;
         isDisabled?: boolean;
         [key: string]: unknown;
     }) =>
@@ -51,7 +51,7 @@ vi.mock("@heroui/react", () => ({
             checked: Boolean(isSelected),
             disabled: isDisabled,
             onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-                onValueChange?.(event.target.checked),
+                onChange?.(event.target.checked),
         }),
 }));
 

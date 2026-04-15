@@ -50,8 +50,7 @@ export function AddTorrentDestinationGatePanel() {
 
             <div className={form.workflow.gateActionsRow}>
                 <Button
-                    color="primary"
-                    variant="shadow"
+                    variant="primary"
                     onPress={destinationGate.onConfirm}
                     isDisabled={!destinationGate.isDestinationValid}
                     className={form.workflow.gateConfirmButton}

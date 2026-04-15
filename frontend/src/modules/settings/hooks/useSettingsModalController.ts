@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { addToast } from "@heroui/toast";
+import { toast } from "@heroui/react";
 import type { UiMode } from "@/app/utils/uiMode";
 import { useSession } from "@/app/context/SessionContext";
 import { usePreferences } from "@/app/context/PreferencesContext";
@@ -367,12 +367,8 @@ export function useSettingsModalController(
             type: "error" | "success",
             text: string,
         ) => {
-            addToast({
-                title: text,
-                color: type === "error" ? "danger" : "success",
-                severity: type === "error" ? "danger" : "success",
+            (type === "error" ? toast.danger : toast.success)(text, {
                 timeout: timing.ui.toastMs,
-                hideCloseButton: true,
             });
         };
 

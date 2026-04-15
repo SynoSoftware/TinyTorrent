@@ -168,8 +168,8 @@ export function RemoveConfirmationModal({
 
                 <Checkbox
                     isSelected={deleteData}
-                    onValueChange={handleDeleteDataChange}
-                    classNames={formControl.checkboxLabelBodySmallClassNames}
+                    onChange={handleDeleteDataChange}
+                    className={formControl.checkboxLabelBodySmallClassNames.base}
                 >
                     {t("remove_modal.delete_files_option")}
                 </Checkbox>

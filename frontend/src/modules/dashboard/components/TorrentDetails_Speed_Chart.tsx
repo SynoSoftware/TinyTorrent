@@ -573,7 +573,7 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                 </div>
 
                 <div className={metricChart.controls}>
-                    <ButtonGroup size="md" variant="flat" className={metricChart.layoutGroup}>
+                    <ButtonGroup size="md" variant="secondary" className={metricChart.layoutGroup}>
                         <ToolbarIconButton
                             Icon={Columns}
                             iconSize="md"
@@ -601,8 +601,7 @@ export const SpeedChart = ({ downHistory, upHistory, isStandalone = false }: Spe
                             <Button
                                 key={option.key}
                                 size="md"
-                                variant={selectedWindow === option.key ? "solid" : "light"}
-                                color={selectedWindow === option.key ? "secondary" : "default"}
+                                variant={selectedWindow === option.key ? "primary" : "ghost"}
                                 className={
                                     selectedWindow === option.key
                                         ? metricChart.windowButtonActive

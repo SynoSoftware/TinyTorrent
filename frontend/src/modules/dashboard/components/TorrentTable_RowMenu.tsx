@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Checkbox, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn } from "@heroui/react";
-import type { CollectionChildren } from "@react-types/shared";
+import { Checkbox, DropdownItem, DropdownMenu, cn } from "@heroui/react";
 import { getCapabilityUiState, type CapabilityState } from "@/app/types/capabilities";
 import {
     contextMenu as contextMenuStyles,
@@ -21,6 +20,7 @@ import type { TorrentCommandOutcome } from "@/app/context/AppCommandContext";
 import { useTranslation } from "react-i18next";
 import { useUiModeCapabilities } from "@/app/context/SessionContext";
 import { useTorrentCommands } from "@/app/context/AppCommandContext";
+import TorrentTable_ContextMenuSurface from "@/modules/dashboard/components/TorrentTable_ContextMenuSurface";
 import SetDownloadPathModal from "@/modules/dashboard/components/SetDownloadPathModal";
 import type { TorrentEntity as Torrent } from "@/services/rpc/entities";
 import { resolveSetDownloadLocationPolicy } from "@/modules/dashboard/domain/torrentRelocation";
@@ -184,18 +184,21 @@ function TorrentTable_RowMenuInner({
         [contextTorrent, handleContextMenuAction, onRequestSetDownloadLocation, showFeedback, t],
     );
 
-    const menuItems = useMemo<CollectionChildren<object>>(() => {
+    const menuItems = useMemo(() => {
         const items: Array<React.ReactElement> = [];
 
         items.push(
             ...rowMenuViewModel.actions.map((item) => (
                 <DropdownItem
                     key={item.key}
-                    shortcut={item.shortcut}
+                    textValue={item.label}
                     onPress={() => void handleMenuActionPress(item.key)}
                     isDisabled={item.disabled}
                 >
-                    {item.label}
+                    <div className="flex items-center justify-between gap-tools">
+                        <span>{item.label}</span>
+                        {item.shortcut ? <span className="text-foreground/50">{item.shortcut}</span> : null}
+                    </div>
                 </DropdownItem>
             )),
         );
@@ -206,23 +209,28 @@ function TorrentTable_RowMenuInner({
             items.push(
                 <DropdownItem
                     key={rowMenuKey.toggleSequentialDownload}
-                    closeOnSelect={false}
-                    onPress={toggleSequentialDownload}
-                    startContent={
-                        <span className="pointer-events-none">
-                            <Checkbox
-                                isSelected={sequentialEnabled}
-                                disableAnimation
-                                classNames={formControlStyles.checkboxMarginRightClassNames}
-                            />
-                        </span>
-                    }
-                >
-                    {t(
+                    textValue={t(
                         sequentialEnabled
                             ? "table.actions.disable_sequential_download"
                             : "table.actions.enable_sequential_download",
                     )}
+                    onPress={toggleSequentialDownload}
+                >
+                    <div className="flex items-center gap-tools">
+                        <span className="pointer-events-none">
+                            <Checkbox
+                                isSelected={sequentialEnabled}
+                                className={formControlStyles.checkboxMarginRightClassNames.base}
+                            />
+                        </span>
+                        <span>
+                            {t(
+                                sequentialEnabled
+                                    ? "table.actions.disable_sequential_download"
+                                    : "table.actions.enable_sequential_download",
+                            )}
+                        </span>
+                    </div>
                 </DropdownItem>,
             );
         }
@@ -242,10 +250,13 @@ function TorrentTable_RowMenuInner({
                 <DropdownItem
                     key={action.key}
                     className={contextMenuStyles.sectionNestedItem}
-                    shortcut={getContextMenuShortcut(action.key)}
+                    textValue={action.label}
                     onPress={() => void handleMenuActionPress(action.key)}
                 >
-                    {action.label}
+                    <div className="flex items-center justify-between gap-tools">
+                        <span>{action.label}</span>
+                        <span className="text-foreground/50">{getContextMenuShortcut(action.key)}</span>
+                    </div>
                 </DropdownItem>
             )),
         );
@@ -284,50 +295,66 @@ function TorrentTable_RowMenuInner({
         );
 
         items.push(
-            <DropdownItem
-                key={rowMenuKey.copyHash}
-                isDisabled={!clipboardWriteSupported}
-                shortcut={getContextMenuShortcut(rowMenuKey.copyHash)}
-                onPress={() => void handleMenuActionPress(rowMenuKey.copyHash)}
-            >
-                {t("table.actions.copy_hash")}
-            </DropdownItem>,
+                <DropdownItem
+                    key={rowMenuKey.copyHash}
+                    isDisabled={!clipboardWriteSupported}
+                    textValue={t("table.actions.copy_hash")}
+                    onPress={() => void handleMenuActionPress(rowMenuKey.copyHash)}
+                >
+                    <div className="flex items-center justify-between gap-tools">
+                        <span>{t("table.actions.copy_hash")}</span>
+                        <span className="text-foreground/50">
+                            {getContextMenuShortcut(rowMenuKey.copyHash)}
+                        </span>
+                    </div>
+                </DropdownItem>,
         );
 
         items.push(
-            <DropdownItem
-                key={rowMenuKey.copyMagnet}
-                isDisabled={!clipboardWriteSupported}
-                shortcut={getContextMenuShortcut(rowMenuKey.copyMagnet)}
-                onPress={() => void handleMenuActionPress(rowMenuKey.copyMagnet)}
-            >
-                {t("table.actions.copy_magnet")}
-            </DropdownItem>,
+                <DropdownItem
+                    key={rowMenuKey.copyMagnet}
+                    isDisabled={!clipboardWriteSupported}
+                    textValue={t("table.actions.copy_magnet")}
+                    onPress={() => void handleMenuActionPress(rowMenuKey.copyMagnet)}
+                >
+                    <div className="flex items-center justify-between gap-tools">
+                        <span>{t("table.actions.copy_magnet")}</span>
+                        <span className="text-foreground/50">
+                            {getContextMenuShortcut(rowMenuKey.copyMagnet)}
+                        </span>
+                    </div>
+                </DropdownItem>,
         );
 
         items.push(
             <DropdownItem
                 key="remove"
-                color="danger"
-                shortcut={getContextMenuShortcut("remove")}
+                textValue={t("table.actions.remove")}
                 onPress={() => void handleMenuActionPress("remove")}
             >
-                {t("table.actions.remove")}
+                <div className="flex items-center justify-between gap-tools">
+                    <span>{t("table.actions.remove")}</span>
+                    <span className="text-foreground/50">{getContextMenuShortcut("remove")}</span>
+                </div>
             </DropdownItem>,
         );
 
         items.push(
             <DropdownItem
                 key="remove-with-data"
-                color="danger"
-                shortcut={getContextMenuShortcut("remove-with-data")}
+                textValue={t("table.actions.remove_with_data")}
                 onPress={() => void handleMenuActionPress("remove-with-data")}
             >
-                {t("table.actions.remove_with_data")}
+                <div className="flex items-center justify-between gap-tools">
+                    <span>{t("table.actions.remove_with_data")}</span>
+                    <span className="text-foreground/50">
+                        {getContextMenuShortcut("remove-with-data")}
+                    </span>
+                </div>
             </DropdownItem>,
         );
 
-        return items as CollectionChildren<object>;
+        return items;
     }, [
         rowMenuViewModel,
         clipboardWriteSupported,
@@ -340,36 +367,13 @@ function TorrentTable_RowMenuInner({
     ]);
 
     const rect = contextMenu.virtualElement.getBoundingClientRect();
-    if (!rect) return null;
     return (
-        <Dropdown
-            isOpen
+        <TorrentTable_ContextMenuSurface
+            anchorRect={rect}
+            className={menuSurfaceStyles.menu.surface}
             onClose={handleMenuClose}
-            placement="bottom-start"
-            shouldBlockScroll={false}
-            shouldFlip
-            closeOnSelect={false}
-            disableAnimation
         >
-            <DropdownTrigger>
-                <div
-                    style={{
-                        position: "fixed",
-                        top: rect.top,
-                        left: rect.left,
-                        width: 0,
-                        height: 0,
-                    }}
-                />
-            </DropdownTrigger>
-            <DropdownMenu
-                variant="shadow"
-                className={menuSurfaceStyles.menu.surface}
-                classNames={menuSurfaceStyles.menu.listClassNames}
-                itemClasses={menuSurfaceStyles.menu.itemClassNames}
-            >
-                {menuItems}
-            </DropdownMenu>
-        </Dropdown>
+            <DropdownMenu autoFocus="first">{menuItems}</DropdownMenu>
+        </TorrentTable_ContextMenuSurface>
     );
 }

@@ -1,7 +1,7 @@
 // All config tokens imported from '@/config/logic'. Icon sizing uses visuals.icon.strokeWidth from config. ui.scaleBases tokenization flagged for follow-up.
 // Language preference is now managed by the Preferences provider.
 
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, cn, } from "@heroui/react";
+import { Dropdown, DropdownItem, DropdownMenu, DropdownPopover, DropdownTrigger, cn } from "@heroui/react";
 import { Check, Globe } from "lucide-react";
 import { type ReactNode, type SVGProps, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -119,7 +119,7 @@ export function LanguageMenu() {
     );
 
     return (
-        <Dropdown placement="bottom-end" backdrop="transparent">
+        <Dropdown>
             <DropdownTrigger>
                 <ToolbarIconButton
                     icon={icon}
@@ -128,45 +128,38 @@ export function LanguageMenu() {
                 />
             </DropdownTrigger>
 
-            <DropdownMenu
-                aria-label={t("language.menu_label")}
-                variant="shadow"
-                className={surface.menu.dirPickerSurface}
-                itemClasses={surface.menu.itemSplitClassNames}
-            >
-                {languages.map((option) => {
-                    const isActive = language === option.code;
+            <DropdownPopover placement="bottom end">
+                <DropdownMenu
+                    aria-label={t("language.menu_label")}
+                    className={surface.menu.dirPickerSurface}
+                >
+                    {languages.map((option) => {
+                        const isActive = language === option.code;
+                        const label = t(option.labelKey);
 
-                    return (
-                        <DropdownItem
-                            key={option.code}
-                            onPress={() => setLanguage(option.code)}
-                            isSelected={isActive}
-                            className={
-                                isActive
-                                    ? surface.menu.itemSelectedPrimary
-                                    : undefined
-                            }
-                            startContent={
-                                <span className={surface.menu.flagInlineWrap}>
-                                    {option.flagIcon}
-                                </span>
-                            }
-                            endContent={
-                                isActive ? (
-                                    <Check
-                                        size={22}
-                                        strokeWidth={visuals.icon.strokeWidth}
-                                        className={surface.menu.checkIconPrimary}
-                                    />
-                                ) : null
-                            }
-                        >
-                            {t(option.labelKey)}
-                        </DropdownItem>
-                    );
-                })}
-            </DropdownMenu>
+                        return (
+                            <DropdownItem
+                                key={option.code}
+                                textValue={label}
+                                onPress={() => setLanguage(option.code)}
+                                className={isActive ? surface.menu.itemSelectedPrimary : undefined}
+                            >
+                                <div className="flex items-center justify-between gap-tools">
+                                    <span className={surface.menu.flagInlineWrap}>{option.flagIcon}</span>
+                                    <span className="flex-1">{label}</span>
+                                    {isActive ? (
+                                        <Check
+                                            size={22}
+                                            strokeWidth={visuals.icon.strokeWidth}
+                                            className={surface.menu.checkIconPrimary}
+                                        />
+                                    ) : null}
+                                </div>
+                            </DropdownItem>
+                        );
+                    })}
+                </DropdownMenu>
+            </DropdownPopover>
         </Dropdown>
     );
 }

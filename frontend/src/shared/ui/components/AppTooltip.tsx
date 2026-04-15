@@ -11,8 +11,20 @@ import {
 import { registry } from "@/config/logic";
 import { control } from "@/shared/ui/layout/glass-surface";
 
-type HeroTooltipProps = ComponentProps<typeof Tooltip>;
-type AppTooltipProps = HeroTooltipProps & {
+type HeroTooltipRootProps = Omit<ComponentProps<typeof Tooltip>, "children">;
+type HeroTooltipContentProps = Omit<
+    ComponentProps<typeof Tooltip.Content>,
+    "children" | "className"
+>;
+type AppTooltipProps = HeroTooltipRootProps &
+    HeroTooltipContentProps & {
+    content: ReactNode;
+    children?: ReactNode;
+    classNames?: {
+        base?: string;
+        content?: string;
+        arrow?: string;
+    };
     dense?: boolean;
     operational?: boolean;
     native?: boolean;
@@ -290,28 +302,32 @@ export function AppTooltip({
     return (
         <Tooltip
             {...props}
-            content={content}
-            children={children}
             isDisabled={isDisabled || isSuppressed}
             delay={resolvedDelay}
             closeDelay={resolvedCloseDelay}
-            placement={placement}
-            offset={resolvedOffset}
-            classNames={{
-                ...classNames,
-                base: cn("pointer-events-none", classNames?.base),
-                content: cn(
+        >
+            <Tooltip.Trigger className={cn("pointer-events-none", classNames?.base)}>
+                {children}
+            </Tooltip.Trigger>
+            <Tooltip.Content
+                placement={placement}
+                offset={resolvedOffset}
+                className={cn(
                     "pointer-events-none",
                     control.tooltip.content,
                     classNames?.content,
-                ),
-                arrow: cn(
-                    "pointer-events-none",
-                    control.tooltip.arrow,
-                    classNames?.arrow,
-                ),
-            }}
-        />
+                )}
+            >
+                <Tooltip.Arrow
+                    className={cn(
+                        "pointer-events-none",
+                        control.tooltip.arrow,
+                        classNames?.arrow,
+                    )}
+                />
+                {content}
+            </Tooltip.Content>
+        </Tooltip>
     );
 }
 

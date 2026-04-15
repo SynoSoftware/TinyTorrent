@@ -5,7 +5,7 @@ import { cn } from "@heroui/react";
 import { registry } from "@/config/logic";
 
 import type { TorrentTableRowProps } from "@/modules/dashboard/types/torrentTableSurfaces";
-import { TableCellContent } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { TableRowContent } from "@/modules/dashboard/components/TorrentTable_Shared";
 import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
 const { visuals } = registry;
 
@@ -134,22 +134,7 @@ const TorrentTable_Row = memo(
                 onDoubleClick={() => onRowDoubleClick(row.original)}
                 onContextMenu={(e) => onRowContextMenu(e, row.original)}
             >
-                {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
-                <div
-                    className={cn(
-                        visuals.table.rowClass.content,
-                        isSelected
-                            ? visuals.table.rowClass.selected
-                            : visuals.table.rowClass.hover,
-                        isContext &&
-                            !isSelected &&
-                            visuals.table.rowClass.context
-                    )}
-                >
-                    {row.getVisibleCells().map((cell) => (
-                        <TableCellContent key={cell.id} cell={cell} />
-                    ))}
-                </div>
+                <TableRowContent row={row} isSelected={isSelected} isContext={isContext} />
             </div>
         );
     },

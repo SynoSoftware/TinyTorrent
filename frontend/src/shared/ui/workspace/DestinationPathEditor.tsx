@@ -1,10 +1,10 @@
-import { Autocomplete, AutocompleteItem, Button } from "@heroui/react";
+import { Button, ComboBox, Input, ListBox, useFilter, type Key } from "@heroui/react";
 import { FolderOpen } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { registry } from "@/config/logic";
 import { sanitizeDownloadPathHistory } from "@/shared/domain/downloadPathHistory";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { form } from "@/shared/ui/layout/glass-surface";
+import { form, surface } from "@/shared/ui/layout/glass-surface";
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 const { visuals } = registry;
 
@@ -43,10 +43,10 @@ interface DestinationPathEditorProps {
     browseAction?: BrowseAction;
 }
 
-type AutocompleteProps = {
+type PathInputProps = {
     id: string;
     value: string;
-    historyItems: Array<{ key: string; label: string }>;
+    historyItems: string[];
     ariaLabel: string;
     placeholder: string;
     onValueChange: (value: string) => void;
@@ -60,8 +60,8 @@ type AutocompleteProps = {
     manualEntryPrompt?: string;
 };
 
-const sameHistoryItems = (left: AutocompleteProps["historyItems"], right: AutocompleteProps["historyItems"]) =>
-    left.length === right.length && left.every((item, index) => item.key === right[index]?.key && item.label === right[index]?.label);
+const sameHistoryItems = (left: PathInputProps["historyItems"], right: PathInputProps["historyItems"]) =>
+    left.length === right.length && left.every((item, index) => item === right[index]);
 
 const feedbackMessageClass = (tone: Exclude<DestinationPathFeedback, { kind: "gauge" }>["tone"]) =>
     tone === "warning" || tone === "danger" ? form.locationEditorValidationWarning : form.locationEditorValidationHint;
@@ -81,10 +81,11 @@ const PathAutocomplete = memo(function PathAutocomplete({
     isDisabled,
     isInvalid,
     manualEntryPrompt,
-}: AutocompleteProps) {
-    const rootRef = useRef<HTMLDivElement | null>(null);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [selectedKey, setSelectedKey] = useState<string | null>(null);
+}: PathInputProps) {
+    const { contains } = useFilter({ sensitivity: "base" });
+    const inputRef = useRef<HTMLInputElement | null>(null);
+    const isOpenRef = useRef(false);
+    const [selectedKey, setSelectedKey] = useState<string | null>(value && historyItems.includes(value) ? value : null);
     const onValueChangeRef = useRef(onValueChange);
     const onEnterRef = useRef(onEnter);
     const onEscapeRef = useRef(onEscape);
@@ -96,11 +97,14 @@ const PathAutocomplete = memo(function PathAutocomplete({
         onBlurRef.current = onBlur;
     }, [onBlur, onEnter, onEscape, onValueChange]);
     useEffect(() => {
+        setSelectedKey(value && historyItems.includes(value) ? value : null);
+    }, [historyItems, value]);
+    useEffect(() => {
         if (!autoFocus) {
             return;
         }
         const frame = window.requestAnimationFrame(() => {
-            const input = rootRef.current?.querySelector("input");
+            const input = inputRef.current;
             if (!(input instanceof HTMLInputElement)) {
                 return;
             }
@@ -111,79 +115,89 @@ const PathAutocomplete = memo(function PathAutocomplete({
         });
         return () => window.cancelAnimationFrame(frame);
     }, [autoFocus, selectOnFocus]);
-    const filteredHistoryItems = useMemo(() => {
-        const needle = value.trim().toLocaleLowerCase();
-        if (!needle) {
-            return historyItems;
-        }
-        return historyItems.filter((item) =>
-            item.label.toLocaleLowerCase().includes(needle),
-        );
-    }, [historyItems, value]);
     const handleInputChange = useCallback((nextValue: string) => {
         setSelectedKey(null);
         onValueChangeRef.current(nextValue);
     }, []);
     const handleSelectionChange = useCallback((selection: Key | null) => {
         if (typeof selection !== "string") {
+            setSelectedKey(null);
             return;
         }
         setSelectedKey(selection);
-        setIsMenuOpen(false);
         onValueChangeRef.current(selection);
     }, []);
     const handleOpenChange = useCallback((open: boolean) => {
-        setIsMenuOpen(open);
+        isOpenRef.current = open;
     }, []);
     const handleKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
         if (event.key === "Escape") {
             event.preventDefault();
             event.stopPropagation();
-            setIsMenuOpen(false);
             onEscapeRef.current?.();
             return;
         }
         if (event.key !== "Enter" || !onEnterRef.current) {
             return;
         }
-        if (isMenuOpen && filteredHistoryItems.length > 0) {
+        if (isOpenRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
             return;
         }
         event.preventDefault();
         event.stopPropagation();
         onEnterRef.current();
-    }, [filteredHistoryItems.length, isMenuOpen]);
+    }, []);
     const autocomplete = (
-        <div ref={rootRef}>
-            <Autocomplete
-                id={id}
-                aria-label={ariaLabel}
-                className={visuals.typography.text.codeMuted}
-                items={filteredHistoryItems}
-                inputValue={value}
-                selectedKey={selectedKey}
-                inputProps={{
-                    classNames: form.locationEditorInputClassNames,
-                    startContent: <FolderOpen className={form.locationEditorInputLeadingIcon} />,
-                }}
-                onInputChange={handleInputChange}
-                onSelectionChange={handleSelectionChange}
-                onBlur={() => onBlurRef.current?.()}
-                allowsCustomValue
-                isDisabled={isDisabled}
-                isInvalid={isInvalid}
-                variant="flat"
-                placeholder={placeholder}
-                spellCheck="false"
-                autoComplete="off"
-                menuTrigger="input"
-                allowsEmptyCollection={false}
-                onOpenChange={handleOpenChange}
-                onKeyDown={handleKeyDown}
-            >
-                {(item) => <AutocompleteItem key={item.key}>{item.label}</AutocompleteItem>}
-            </Autocomplete>
-        </div>
+        <ComboBox
+            allowsCustomValue
+            menuTrigger="input"
+            variant="secondary"
+            inputValue={value}
+            selectedKey={selectedKey}
+            isDisabled={isDisabled}
+            isInvalid={isInvalid}
+            defaultFilter={contains}
+            onInputChange={handleInputChange}
+            onSelectionChange={handleSelectionChange}
+            onOpenChange={handleOpenChange}
+            className="min-w-0"
+            fullWidth
+        >
+            <ComboBox.InputGroup className={`${form.locationEditorInputClassNames.inputWrapper} flex min-w-0 items-center gap-tools`}>
+                <FolderOpen className={form.locationEditorInputLeadingIcon} />
+                <Input
+                    ref={inputRef}
+                    id={id}
+                    aria-label={ariaLabel}
+                    className={`${visuals.typography.text.codeMuted} min-w-0 flex-1 bg-transparent`}
+                    placeholder={placeholder}
+                    spellCheck={false}
+                    autoComplete="off"
+                    onBlur={() => onBlurRef.current?.()}
+                    onKeyDown={handleKeyDown}
+                />
+                <ComboBox.Trigger aria-label={ariaLabel} className={form.locationEditorInputBrowseButton} />
+            </ComboBox.InputGroup>
+            {historyItems.length > 0 ? (
+                <ComboBox.Popover className={surface.menu.surface}>
+                    <ListBox>
+                        {historyItems.map((item) => (
+                            <ListBox.Item
+                                key={item}
+                                id={item}
+                                textValue={item}
+                                className={`${surface.menu.itemClassNames.base} ${visuals.typography.text.codeMuted}`}
+                            >
+                                {item}
+                                <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                        ))}
+                    </ListBox>
+                </ComboBox.Popover>
+            ) : null}
+        </ComboBox>
     );
 
     return typeof manualEntryPrompt === "string" && manualEntryPrompt.trim().length > 0 ? (
@@ -226,10 +240,7 @@ export function DestinationPathEditor({
     feedback,
     browseAction,
 }: DestinationPathEditorProps) {
-    const historyItems = useMemo(
-        () => sanitizeDownloadPathHistory(history, history.length).map((entry) => ({ key: entry, label: entry })),
-        [history],
-    );
+    const historyItems = useMemo(() => sanitizeDownloadPathHistory(history, history.length), [history]);
     const autocomplete = (
         <PathAutocomplete
             id={id}
@@ -252,8 +263,8 @@ export function DestinationPathEditor({
         <Button
             onPress={browseAction.onPress}
             size="md"
-            variant="flat"
-            isLoading={browseAction.isLoading}
+            variant="secondary"
+            isPending={browseAction.isLoading}
             isDisabled={isDisabled || browseAction.isDisabled}
             aria-label={browseAction.ariaLabel}
         >
