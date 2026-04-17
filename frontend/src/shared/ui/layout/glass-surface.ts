@@ -130,7 +130,7 @@ const workbenchShell = `acrylic shadow-inner ${primitiveTokens.elevation.panel}`
 const panelRaised = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.subtle}`;
 const panelInfo = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.canvas}`;
 const panelWorkflow = `${primitiveTokens.radius.raised} border ${borderToken} ${semanticTokens.surface.raised}`;
-const panelSidebar = `flex flex-col border-r ${borderToken} ${semanticTokens.surface.raised} ${primitiveTokens.blur.panel}`;
+const panelSidebar = `flex flex-col border-r ${borderToken} ${semanticTokens.surface.raised}`;
 const statusModulePanel = `${primitiveTokens.radius.modal} border ${borderToken} ${semanticTokens.surface.subtle} ${primitiveTokens.blur.soft}`;
 const tooltipControl = {
     content: `${semanticTokens.surface.modal} border ${borderToken} ${primitiveTokens.blur.floating} ${primitiveTokens.elevation.floating} ${primitiveTokens.radius.raised} px-panel py-tight text-scaled leading-tight text-foreground/90`,
@@ -142,26 +142,7 @@ const mapOverlayCard = `${mapOverlaySurface} ${mapOverlayRadius} px-panel py-tig
 const controlChrome = {
     dialogHeader: `${semanticTokens.chrome.edgeBottom} flex flex-nowrap items-center justify-between gap-tools px-panel py-tight`,
     dialogFooter: `${semanticTokens.chrome.edgeTop} flex items-center justify-between gap-tools px-panel py-tight`,
-    workflowFooter: `${semanticTokens.chrome.edgeTop} flex flex-col gap-panel px-panel py-tight sm:flex-row sm:items-center sm:justify-between`,
     headerPassive: `${semanticTokens.chrome.edgeBottom} select-none`,
-    footerEnd: `${semanticTokens.chrome.edgeTop} flex justify-end gap-tools`,
-    footerActionsPadded: `${semanticTokens.chrome.edgeTop} px-stage py-panel flex items-center justify-end gap-tools`,
-} as const;
-const modalLayoutControl = {
-    contentWrapper: "h-full flex flex-col",
-    row: "flex flex-row flex-1 min-h-0 overflow-hidden relative",
-    headerLead: "flex min-w-0 flex-1 items-center gap-panel",
-    titleWrap: "flex min-w-0 flex-col overflow-hidden",
-    body: "flex flex-col gap-stage p-panel",
-    bodyFlush: "flex min-h-0 flex-1 flex-col p-none overflow-hidden",
-    sectionStack: "flex flex-col gap-tight",
-    insetStack: "flex flex-col gap-tight",
-    insetItem: `${primitiveTokens.radius.panel} ${primitiveTokens.border.default} p-tight`,
-    locationRow: `flex items-center gap-tools surface-layer-1 ${primitiveTokens.radius.panel} p-tight`,
-    footerButtonRow: "flex gap-tools ml-auto",
-    footerGroup: "flex shrink-0 items-center gap-tools",
-    contentStack: "flex flex-col space-y-stage sm:space-y-stage pb-stage",
-    scrollContent: "flex-1 min-h-0 overflow-y-auto scrollbar-hide",
 } as const;
 const panelControl = {
     canvas: "glass-panel surface-layer-0 text-foreground",
@@ -180,14 +161,7 @@ const panelControl = {
     glass: "glass-panel surface-layer-1 text-foreground",
     floating: "glass-panel surface-layer-2 text-foreground",
 } as const;
-const modalSurfaceBase = `${panelControl.floating} ${primitiveTokens.radius.modal} flex flex-col overflow-hidden`;
-const modalSurfaceCompact = `${modalSurfaceBase} w-full max-w-modal-compact`;
-const modalControl = {
-    surface: {
-        baseClass: modalSurfaceBase,
-        compactClass: modalSurfaceCompact,
-    },
-} as const;
+const modalSurfaceBase = `glass-panel surface-layer-3 text-foreground ${primitiveTokens.radius.modal} flex flex-col overflow-hidden`;
 const menuControl = {
     surface: `glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
     dirPickerSurface: `min-w-dir-picker glass-panel surface-layer-2 text-foreground outline-none ring-0 overflow-hidden ${primitiveTokens.elevation.menu} ${primitiveTokens.radius.modal} ${primitiveTokens.border.default} p-tight`,
@@ -235,7 +209,6 @@ const tableControl = {
     },
     shadowOverlay: primitiveTokens.elevation.overlay,
 } as const;
-const statusChipControl = statusChipPattern;
 export const surface = {
     // Temporary non-authoritative shell for current imports. Source of truth is `tokens` + `control`.
     dial: tokens.primitive,
@@ -243,7 +216,6 @@ export const surface = {
         workbench: panelControl.workbench,
         panel: panelControl.base,
         pane: panelControl.pane,
-        modal: modalControl.surface.baseClass,
         inset: panelControl.inset,
         menu: menuControl.surface,
         overlay: panelControl.overlay,
@@ -254,7 +226,6 @@ export const surface = {
         tooltip: tooltipControl.content,
         statusModule: panelControl.statusModule,
         panelRaised: panelControl.raised,
-        panelMuted: panelControl.raised,
         panelInfo: panelControl.info,
         panelWorkflow: panelControl.workflow,
         sidebarPanel: panelControl.sidebar,
@@ -263,8 +234,6 @@ export const surface = {
     text: tokens.semantic.text,
     tooltip: tooltipControl,
     chrome: tokens.semantic.chrome,
-    chromeEx: controlChrome,
-    modal: modalControl.surface,
     menu: {
         surface: menuControl.surface,
         dirPickerSurface: menuControl.dirPickerSurface,
@@ -306,7 +275,6 @@ const bgBackground40 = "bg-background/40";
 const bgBackground90 = "bg-background/90";
 const bgContent110 = "bg-foreground/5";
 const bgContent120 = "bg-foreground/10";
-const bgPrimary10 = "bg-accent-soft";
 const roundedPanel = primitiveTokens.radius.panel;
 const roundedRaised = primitiveTokens.radius.raised;
 const roundedFull = primitiveTokens.radius.full;
@@ -317,123 +285,21 @@ const workbenchMainShell = `${workbenchShell} surface-layer-2 `;
 const workbenchIslandShell = `glass-panel text-foreground ${workbenchShell} border border-default/45`;
 
 export const modal = {
-    settingsModalBaseFull: `${surface.modal.baseClass} max-h-full max-w-full`,
-    settingsModalBaseRpc: `${surface.modal.baseClass} h-settings max-h-settings min-h-settings`,
-    baseClass: surface.modal.baseClass,
-    compactClass: surface.modal.compactClass,
-    addTorrentBodyPanelsBase: "flex flex-col flex-1 min-h-settings",
-    addTorrentBodyPanelsFullscreen: "h-full min-h-0",
-    sidebar: `${surface.surface.sidebarPanel} ${transition.slow} absolute inset-y-0 left-0 z-sticky settings-sidebar-shell sm:relative sm:translate-x-0`,
-    sidebarHidden: "-translate-x-full",
-    sidebarVisible: "translate-x-0",
-    sidebarHeader: "p-stage border-b border-default/10 flex justify-between items-center h-modal-header shrink-0",
-    headingFont: "tt-navbar-tab-font",
-    iconMd: "toolbar-icon-size-md",
-    iconSm: "toolbar-icon-size-sm shrink-0",
-    iconLg: "toolbar-icon-size-lg",
-    footerEnd: surface.chromeEx.footerEnd,
-    sidebarCloseButton: "sm:hidden text-foreground/50",
-    sidebarBody: "flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide",
-    tabButtonBase: `w-full flex items-center gap-panel px-panel py-panel ${roundedPanel} ${transition.medium} group relative`,
-    tabButtonActive: `${bgPrimary10} text-accent font-semibold`,
-    tabButtonInactive: `text-foreground/60 font-medium ${visuals.interactive.navItem}`,
-    tabIcon: "shrink-0 toolbar-icon-size-md",
-    tabIconActive: "text-accent",
-    tabIconInactive: "text-foreground/50",
-    tabIndicator: "absolute settings-tab-indicator bg-accent rounded-r-pill",
-    versionWrapper: "p-panel border-t border-default/10 shrink-0",
-    versionText: `${text.codeCaption} text-foreground/30`,
-    header: `${surface.chrome.edgeBottom} ${surface.chrome.sticky} shrink-0 h-modal-header flex items-center justify-between px-stage`,
-    headerLead: "flex items-center gap-tools",
-    headerLeadPrimaryIcon: "text-accent",
-    hintText: `${text.bodyMuted} leading-relaxed`,
-    headerTitleWrap: "flex min-w-0 flex-col overflow-hidden",
-    headerMobileBack: "sm:hidden -ml-tight text-foreground/50",
-    desktopClose: `text-foreground/40 hidden sm:flex ${visuals.interactive.dismiss}`,
-    contentStack: "flex flex-col space-y-stage sm:space-y-stage pb-stage",
-    scrollContent: "flex-1 min-h-0 overflow-y-auto scrollbar-hide",
-    alert: "mb-panel px-panel py-tight",
-    inlineAlert: "px-panel py-tight",
-    footerButtonRow: "flex gap-tools ml-auto",
-    dialogHeader: surface.chromeEx.dialogHeader,
-    dialogHeaderLead: "flex min-w-0 flex-1 items-center gap-panel",
-    dialogHeaderIconWrap: surface.atom.insetRoundedFull,
-    dialogHeaderWarningIcon: "toolbar-icon-size-md text-warning",
-    dialogBody: "flex flex-col gap-stage p-panel",
-    dialogBodyFlush: "flex min-h-0 flex-1 flex-col p-none overflow-hidden",
-    dialogSectionStack: "flex flex-col gap-tight",
-    dialogInsetStack: "flex flex-col gap-tight",
-    dialogInsetItem: surface.atom.insetBorderedItem,
-    dialogLocationRow: `flex items-center gap-tools ${surface.atom.insetRounded}`,
-    dialogLocationIcon: "toolbar-icon-size-md text-foreground",
-    dialogLocationLabel: `${text.code} truncate`,
-    dialogInsetTitle: `${text.bodySmall} font-semibold text-foreground`,
-    dialogInsetLabel: `${text.bodySmall} font-medium text-foreground truncate`,
-    dialogInsetDescription: `${text.bodySmall} truncate`,
-    dialogOutcomePanel: `${surface.atom.insetRounded} ${text.bodySmall}`,
-    dialogFooter: surface.chromeEx.dialogFooter,
-    dialogFooterGroup: "flex shrink-0 items-center gap-tools",
-    dialogSecondaryAction: "font-medium text-foreground",
-    dialogPrimaryAction: "font-bold",
-    contentWrapper: "h-full flex flex-col",
-    layout: "flex flex-row flex-1 min-h-0 overflow-hidden relative",
-    mainPane: `flex-1 min-h-0 flex flex-col ${bgContent110} blur-glass relative w-full`,
-    workflow: {
-        gateRoot: "flex flex-col h-full",
-        header: surface.chromeEx.dialogHeader,
-        titleStack: "flex flex-col overflow-hidden gap-tight",
-        sourceLabelCaption: `${text.caption} truncate font-mono leading-tight`,
-        sourceMutedLabel: `${text.codeMuted} text-foreground/50 truncate leading-tight`,
-        iconMd: "toolbar-icon-size-md",
-        iconMdPrimary: "toolbar-icon-size-md text-accent",
-        iconLgPrimary: "toolbar-icon-size-lg text-accent",
-        iconMdSuccess: "toolbar-icon-size-md text-success",
-        iconMdWarning: "toolbar-icon-size-md text-warning",
-        iconAlert: "toolbar-icon-size-md shrink-0",
-        iconAlertMuted: "toolbar-icon-size-md shrink-0 text-foreground/50",
-        warningTone: "text-warning",
-        footerAlertText: `${text.bodyStrong} truncate`,
-        headerIconButton: `text-foreground/60 ${visuals.interactive.textReveal}`,
-        gateBody: "flex-1 min-h-0 flex items-center justify-center",
-        gateContent: "w-full max-w-modal",
-        formRoot: "flex flex-col min-h-0 flex-1 relative",
-        submitOverlay: `absolute inset-0 flex flex-col items-center justify-center text-foreground/50 gap-tools z-modal-internal ${bgBackground40} blur-glass`,
-        submitHintMuted: `${text.codeMuted} text-foreground/40 text-center max-w-modal`,
-        submitWarningTitleCaption: `${text.codeCaption} text-foreground/70`,
-        submitActions: "flex gap-tools",
-        headerActions: "flex items-center gap-tools",
-        headerDivider: `h-status-chip w-px ${bgContent110} mx-tight`,
-        body: "flex-1 min-h-0 relative p-none",
-        dropOverlay:
-            "absolute inset-0 z-drop-overlay bg-accent-soft blur-glass border-divider border-accent border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
-        dropOverlayChip:
-            "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
-        panelGroup: "flex-1 min-h-0",
-        paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${transition.fast} group focus:outline-none relative border-x border-default/20 hover:border-accent/45`,
-        paneHandleEnabled: "cursor-col-resize",
-        settingsPanelCollapsed: "min-w-0 w-0",
-        resizeHandleBarBase: `h-full w-divider ${transition.fast}`,
-        resizeHandleBarActive: "bg-accent",
-        resizeHandleBarIdle: "bg-accent/70 group-hover:bg-accent/85",
-        resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
-        settingsPanel: `${surface.atom.glassPanel} border-none shadow-none flex flex-col min-h-0 overflow-hidden`,
-        filePanel:
-            "glass-panel surface-layer-2 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
-        filePanelContent: "flex flex-col flex-1 min-h-0 outline-none",
-        fileTableShell: "h-full w-full min-h-0",
-        footerAlerts: "flex flex-col gap-tools",
-        footerAlert: "flex items-center gap-tools max-w-modal-compact p-tight",
-        footerInfoAlert: "flex items-center gap-tools max-w-modal-compact p-tight text-foreground/70",
-        footerActionsStack: "flex flex-col gap-tools sm:items-end sm:justify-end",
-        footerActionsRow: "flex flex-wrap items-center justify-end gap-tools",
-        footer: surface.chromeEx.workflowFooter,
-        inlineBlock: "inline-block",
-        cancelButton: "font-medium",
-        primaryButton: "font-bold px-stage min-w-button",
-        fileCountChipClassNames: {
-            content: `${text.code} font-bold`,
-        } as const,
-    } as const,
+    placement: {
+        center: "fixed inset-0 flex w-screen h-screen items-center justify-center",
+    },
+    surface: {
+        base: modalSurfaceBase,
+    },
+    layout: {
+        frame: "h-full flex flex-col",
+        body: "flex flex-col gap-stage p-panel",
+        bodyFlush: "flex min-h-0 flex-1 flex-col p-none overflow-hidden",
+    },
+    chrome: {
+        header: controlChrome.dialogHeader,
+        footer: controlChrome.dialogFooter,
+    },
 } as const;
 const settingsTrackingStyle = {
     wide: {
@@ -449,7 +315,7 @@ const settingsSliderValueBadgeStyle = {
 export const form = {
     sectionMarginTop: "mt-panel",
     sectionCard: `${surface.surface.panelRaised} overflow-hidden`,
-    sectionHeader: `${surface.chromeEx.headerPassive} ${bgBackground40} px-panel py-panel`,
+    sectionHeader: `${controlChrome.headerPassive} ${bgBackground40} px-panel py-panel`,
     sectionHeaderStack: "min-w-0 flex flex-col gap-tight",
     sectionTitle: text.headingSection,
     sectionDescription: text.caption,
@@ -612,7 +478,6 @@ const torrentHeader = {
     resizeBarHover: "group-hover:bg-accent/50",
     resizeBarActive: "bg-accent h-resize-h",
 } as const;
-const contextStatusBadge = tableControl.contextStatusBadge;
 const tableShellControl = {
     base: "relative flex-1 h-full min-h-0 flex flex-col",
     panel: "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
@@ -722,7 +587,7 @@ export const table = {
         peersDivider: "opacity-30",
         peersSeedCount: "opacity-50",
         statusCellStack: "flex min-w-0 flex-col items-center justify-center gap-tight",
-        statusSwarmBadge: contextStatusBadge,
+    statusSwarmBadge: tableControl.contextStatusBadge,
         statusSwarmBadgeLabel: `${text.caption} truncate font-semibold`,
         statusSwarmTone: {
             neutral: "text-foreground/65",
@@ -1285,7 +1150,7 @@ export const details = {
     generalMetricActions: "flex shrink-0 items-center gap-tight self-start sm:self-center",
     generalSectionActionButton:
         "rounded-panel border border-default/10 bg-foreground/5 px-panel py-tight text-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0",
-    generalStatusBadge: contextStatusBadge,
+    generalStatusBadge: tableControl.contextStatusBadge,
     generalStatusBadgeLabel: `${text.caption} font-semibold`,
     generalStatusTone: {
         neutral: "text-foreground/70",
@@ -1345,7 +1210,7 @@ export const commandPalette = {
     overlay: "fixed inset-0 z-popover",
     backdrop: `absolute inset-0 ${bgBackground90} backdrop-blur-xl`,
     section: "relative h-full flex items-start justify-center",
-    panel: `${surface.role.modal} relative z-panel w-full max-w-2xl`,
+    panel: `${modal.surface.base} relative z-panel w-full max-w-2xl`,
     input: "rounded-none border-0 bg-transparent px-panel py-panel text-base font-semibold outline-none placeholder:text-foreground/50",
     list: "max-h-command-palette overflow-y-auto px-panel py-panel",
     groupWrap: "pb-panel",
@@ -1396,41 +1261,6 @@ export const control = {
         module: panelControl.statusModule,
         floating: panelControl.floating,
     },
-    modal: {
-        surface: {
-            base: modalControl.surface.baseClass,
-            compact: modalControl.surface.compactClass,
-        },
-        layout: {
-            contentWrapper: modalLayoutControl.contentWrapper,
-            row: modalLayoutControl.row,
-            headerLead: modalLayoutControl.headerLead,
-            titleWrap: modalLayoutControl.titleWrap,
-            body: modalLayoutControl.body,
-            bodyFlush: modalLayoutControl.bodyFlush,
-            sectionStack: modalLayoutControl.sectionStack,
-            insetStack: modalLayoutControl.insetStack,
-            insetItem: modalLayoutControl.insetItem,
-            locationRow: modalLayoutControl.locationRow,
-            footerButtonRow: modalLayoutControl.footerButtonRow,
-            footerGroup: modalLayoutControl.footerGroup,
-            contentStack: modalLayoutControl.contentStack,
-            scrollContent: modalLayoutControl.scrollContent,
-        },
-        size: {
-            compact: "w-full max-w-modal-compact",
-        },
-        chrome: {
-            dialog: {
-                header: controlChrome.dialogHeader,
-                footer: controlChrome.dialogFooter,
-                footerEnd: controlChrome.footerEnd,
-                footerActionsPadded: controlChrome.footerActionsPadded,
-                workflowFooter: controlChrome.workflowFooter,
-                headerPassive: controlChrome.headerPassive,
-            },
-        },
-    },
     menu: {
         surface: {
             base: menuControl.surface,
@@ -1458,7 +1288,7 @@ export const control = {
             headerText: menuControl.chrome.headerText,
         },
         action: {
-            iconButton: menuControl.action.iconButton,
+            iconButton: `${menuControl.action.iconButton} rounded-full`,
             windowButtonBase: menuControl.action.windowButtonBase,
             windowButtonNeutral: menuControl.action.windowButtonNeutral,
             windowButtonDanger: menuControl.action.windowButtonDanger,
@@ -1553,13 +1383,13 @@ export const control = {
         } as const,
     },
     statusChip: {
-        base: statusChipControl.base,
-        content: statusChipControl.content,
-        container: statusChipControl.container,
-        contentWrap: statusChipControl.contentWrap,
-        warningIcon: statusChipControl.warningIcon,
-        currentIcon: statusChipControl.currentIcon,
-        label: statusChipControl.label,
+        base: statusChipPattern.base,
+        content: statusChipPattern.content,
+        container: statusChipPattern.container,
+        contentWrap: statusChipPattern.contentWrap,
+        warningIcon: statusChipPattern.warningIcon,
+        currentIcon: statusChipPattern.currentIcon,
+        label: statusChipPattern.label,
         classNames: {
             base: statusChipPattern.base,
             content: statusChipPattern.content,

@@ -6,9 +6,8 @@ import { Check, Globe } from "lucide-react";
 import { type ReactNode, type SVGProps, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { registry } from "@/config/logic";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { usePreferences } from "@/app/context/PreferencesContext";
-import { surface } from "@/shared/ui/layout/glass-surface";
+import { control, surface } from "@/shared/ui/layout/glass-surface";
 const { visuals } = registry;
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
@@ -120,12 +119,11 @@ export function LanguageMenu() {
 
     return (
         <Dropdown>
-            <DropdownTrigger>
-                <ToolbarIconButton
-                    icon={icon}
-                    ariaLabel={`${t("language.menu_label")}: ${activeLabel}`}
-                    title={activeLabel}
-                />
+            <DropdownTrigger
+                aria-label={`${t("language.menu_label")}: ${activeLabel}`}
+                className={control.menu.action.iconButton}
+            >
+                {icon}
             </DropdownTrigger>
 
             <DropdownPopover placement="bottom end">

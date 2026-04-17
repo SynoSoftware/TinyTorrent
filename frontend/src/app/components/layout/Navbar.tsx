@@ -42,7 +42,7 @@ import { useFocusState } from "@/app/context/AppShellStateContext";
 import { APP_VERSION } from "@/shared/version";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import Runtime from "@/app/runtime";
-import { surface, workbench } from "@/shared/ui/layout/glass-surface";
+import { control, surface, workbench } from "@/shared/ui/layout/glass-surface";
 import { registry } from "@/config/logic";
 import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
@@ -341,14 +341,15 @@ export function Navbar({ viewModel }: NavbarProps) {
                         </div>
                         <div className="flex sm:hidden">
                             <Dropdown>
-                                <DropdownTrigger>
-                                    <ToolbarIconButton
-                                        Icon={Plus}
-                                        ariaLabel={t("nav.mobile_add_menu_open")}
-                                        title={t("nav.mobile_add_menu_open")}
-                                        className={cn(toneButtonClass.primary, workbench.nav.primaryActionEmphasis)}
-                                        iconSize="lg"
-                                    />
+                                <DropdownTrigger
+                                    aria-label={t("nav.mobile_add_menu_open")}
+                                    className={cn(
+                                        control.menu.action.iconButton,
+                                        toneButtonClass.primary,
+                                        workbench.nav.primaryActionEmphasis,
+                                    )}
+                                >
+                                    <StatusIcon Icon={Plus} size="lg" className={surface.atom.textCurrent} />
                                 </DropdownTrigger>
                                 <DropdownPopover placement="bottom end">
                                     <DropdownMenu

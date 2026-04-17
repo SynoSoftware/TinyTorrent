@@ -14,6 +14,9 @@ import { status } from "@/shared/status";
 import { form, modal } from "@/shared/ui/layout/glass-surface";
 
 const { timing, visuals } = registry;
+const connectionManagerLayout = {
+    actionGroup: "flex shrink-0 items-center gap-tools",
+} as const;
 const AUTO_PROFILE_LABEL_PATTERN = /^Connection \d+$/;
 
 type ConnectionDraft = Pick<ConnectionProfile, "scheme" | "host" | "port" | "username" | "password">;
@@ -242,7 +245,7 @@ export function ConnectionCredentialsCard() {
                         <h3 className={form.connection.profileTitle}>{profileLabel}</h3>
                         <p className={form.connection.profileEndpoint}>{currentServerUrl}</p>
                     </div>
-                    <div className={modal.dialogFooterGroup}>{renderStatusChip}</div>
+                    <div className={connectionManagerLayout.actionGroup}>{renderStatusChip}</div>
                 </div>
                 <div className={form.interfaceRowActions}>
                     <Button size="md" variant="ghost" onPress={() => setShowAdvanced(true)}>
@@ -264,7 +267,7 @@ export function ConnectionCredentialsCard() {
                     <h3 className={form.connection.profileTitle}>{profileLabel}</h3>
                     <p className={form.connection.profileEndpoint}>{currentServerUrl}</p>
                 </div>
-                <div className={modal.dialogFooterGroup}>{renderStatusChip}</div>
+                <div className={connectionManagerLayout.actionGroup}>{renderStatusChip}</div>
             </div>
             <div className={form.blockStackTight}>
                 <ConnectionFieldRow label={t("settings.connection.host")}>

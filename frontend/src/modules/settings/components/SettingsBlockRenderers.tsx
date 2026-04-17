@@ -1,4 +1,4 @@
-import { Button, ListBoxItem, Select, Slider, Switch, cn } from "@heroui/react";
+import { Button, ListBox, ListBoxItem, Select, Slider, Switch, cn } from "@heroui/react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMemo, type ReactNode } from "react";
@@ -7,7 +7,7 @@ import type { SettingsConfig } from "@/modules/settings/data/config";
 import { registry } from "@/config/logic";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { form } from "@/shared/ui/layout/glass-surface";
+import { form, surface } from "@/shared/ui/layout/glass-surface";
 import { AltSpeedScheduleField } from "@/modules/settings/components/AltSpeedScheduleField";
 import { BufferedInput } from "@/modules/settings/components/BufferedInput";
 import { useSettingsFormActions, useSettingsFormState } from "@/modules/settings/context/SettingsFormContext";
@@ -458,6 +458,7 @@ export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type:
             label={t(block.labelKey)}
             field={
                 <Select
+                    className={block.className}
                     variant={block.variant === "flat" ? "secondary" : "primary"}
                     fullWidth
                     selectedKey={config[block.stateKey] !== undefined ? String(config[block.stateKey]) : null}
@@ -469,11 +470,19 @@ export function SelectRenderer({ block }: { block: Extract<SectionBlock, { type:
                         }
                     }}
                 >
-                    {block.options.map((opt) => (
-                        <ListBoxItem key={opt.key} textValue={t(opt.labelKey)}>
-                            {t(opt.labelKey)}
-                        </ListBoxItem>
-                    ))}
+                    <Select.Trigger className="w-full">
+                        <Select.Value />
+                        <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover className={surface.menu.surface}>
+                        <ListBox>
+                            {block.options.map((opt) => (
+                                <ListBoxItem key={opt.key} textValue={t(opt.labelKey)}>
+                                    {t(opt.labelKey)}
+                                </ListBoxItem>
+                            ))}
+                        </ListBox>
+                    </Select.Popover>
                 </Select>
             }
             helper={

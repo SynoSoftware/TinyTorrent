@@ -2,7 +2,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LayoutGroup, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Checkbox, cn } from "@heroui/react";
+import { Checkbox, cn } from "@heroui/react";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { registry } from "@/config/logic";
 
@@ -14,7 +14,7 @@ const DESTINATION_INPUT_ID = "add-torrent-settings-destination";
 
 import { FolderOpen, HardDrive, Magnet, type LucideIcon } from "lucide-react";
 
-import { form as formStyles, input, modal as modalStyles } from "@/shared/ui/layout/glass-surface";
+import { form as formStyles, input } from "@/shared/ui/layout/glass-surface";
 import { formControl } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 import type { AddTorrentCommitMode, AddTorrentSelection, AddTorrentSource } from "@/modules/torrent-add/types";
@@ -52,6 +52,35 @@ const FULL_CONTENT_ANIMATION = {
         y: interaction.config.modalBloom.fallbackOffsetY,
     },
 };
+
+const addTorrentModalLayout = {
+    titleSourceLabel: `${registry.tokens.primitive.typography.text.caption} truncate font-mono leading-tight`,
+    titleSourceMuted: `${registry.tokens.primitive.typography.text.codeMuted} text-foreground/50 truncate leading-tight`,
+    titleIconAccent: "text-accent",
+    panelStack: "flex flex-col flex-1 min-h-settings",
+    panelStackFull: "h-full min-h-0",
+    gateRoot: "flex flex-col h-full",
+    gateBody: "flex-1 min-h-0 flex items-center justify-center",
+    gateContent: "w-full max-w-modal",
+    formRoot: "flex flex-col min-h-0 flex-1 relative",
+    body: "flex-1 min-h-0 relative p-none",
+    dropOverlay:
+        "absolute inset-0 z-drop-overlay bg-accent-soft blur-glass border-divider border-accent border-dashed m-panel rounded-panel flex items-center justify-center pointer-events-none",
+    dropOverlayChip:
+        "bg-background px-stage py-tight rounded-pill shadow-small flex items-center gap-tools animate-pulse",
+    panelGroup: "flex-1 min-h-0",
+    paneHandle: `w-add-modal-pane-gap flex items-stretch justify-center z-panel ${registry.tokens.primitive.motion.fast} group focus:outline-none relative border-x border-default/20 hover:border-accent/45`,
+    paneHandleEnabled: "cursor-col-resize",
+    settingsPanelCollapsed: "min-w-0 w-0",
+    resizeHandleBarBase: `h-full w-divider ${registry.tokens.primitive.motion.fast}`,
+    resizeHandleBarActive: "bg-accent",
+    resizeHandleBarIdle: "bg-accent/70 group-hover:bg-accent/85",
+    resizeHandleBarWrap: "absolute inset-x-0 py-panel flex justify-center pointer-events-none",
+    settingsPanel: "glass-panel surface-layer-1 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
+    filePanel:
+        "glass-panel surface-layer-2 text-foreground border-none shadow-none flex flex-col min-h-0 overflow-hidden",
+    filePanelContent: "flex flex-col flex-1 min-h-0 outline-none",
+} as const;
 
 export function AddTorrentModal({
     isOpen,
@@ -143,8 +172,8 @@ export function AddTorrentModal({
                 <span
                     className={
                         showDestinationGate
-                            ? modalStyles.workflow.sourceLabelCaption
-                            : modalStyles.workflow.sourceMutedLabel
+                            ? addTorrentModalLayout.titleSourceLabel
+                            : addTorrentModalLayout.titleSourceMuted
                     }
                 >
                     {sourceLabel}
@@ -154,6 +183,15 @@ export function AddTorrentModal({
     );
     const primaryActionLabel =
         commitMode === "paused" ? t("modals.add_torrent.add_paused") : t("modals.add_torrent.add_and_start");
+    const footerStartContent = !isMagnetMode ? (
+        <Checkbox
+            isSelected={!showAddDialog}
+            onChange={(value) => onShowAddDialogChange(!value)}
+            className={formControl.checkboxLabelBodySmallClassNames.base}
+        >
+            {t("modals.add_torrent.dont_show_again")}
+        </Checkbox>
+    ) : null;
     const handleDestinationGateKeyDown = useCallback(
         (event: ReactKeyboardEvent<HTMLDivElement>) => {
             if (event.defaultPrevented) {
@@ -261,18 +299,28 @@ export function AddTorrentModal({
             size={modalSize === "5xl" ? "lg" : modalSize}
             maximize={!showDestinationGate}
             bodyVariant={showDestinationGate ? "padded" : "flush"}
+            footerStartContent={footerStartContent}
+            secondaryAction={{
+                label: t("modals.cancel"),
+                onPress: handleModalCancel,
+            }}
+            primaryAction={{
+                label: primaryActionLabel,
+                onPress: requestSubmit,
+                disabled: !canConfirm,
+            }}
         >
             <AddTorrentModalContextProvider value={modalContextValue}>
                 {showDestinationGate ? (
                     <div
-                        className={modalStyles.workflow.gateRoot}
+                        className={addTorrentModalLayout.gateRoot}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onKeyDown={handleDestinationGateKeyDown}
                     >
-                        <div className={modalStyles.workflow.gateBody}>
-                            <div className={modalStyles.workflow.gateContent}>
+                        <div className={addTorrentModalLayout.gateBody}>
+                            <div className={addTorrentModalLayout.gateContent}>
                                 <AddTorrentDestinationGatePanel />
                             </div>
                         </div>
@@ -280,15 +328,20 @@ export function AddTorrentModal({
                 ) : (
                     <form
                         ref={formRef}
-                        className={modalStyles.workflow.formRoot}
+                        className={addTorrentModalLayout.formRoot}
                         onSubmit={handleFormSubmit}
                         onKeyDown={handleFormKeyDown}
                     >
-                        <div className={modalStyles.workflow.body}>
+                        <div className={addTorrentModalLayout.body}>
                             {dropActive ? (
-                                <div className={modalStyles.workflow.dropOverlay}>
-                                    <div className={modalStyles.workflow.dropOverlayChip}>
-                                        <FolderOpen className={modalStyles.workflow.iconLgPrimary} />
+                                <div className={addTorrentModalLayout.dropOverlay}>
+                                    <div className={addTorrentModalLayout.dropOverlayChip}>
+                                        <FolderOpen
+                                            className={cn(
+                                                "toolbar-icon-size-lg",
+                                                addTorrentModalLayout.titleIconAccent,
+                                            )}
+                                        />
                                         <span className={visuals.typography.text.heading}>
                                             {hasDestination
                                                 ? t("modals.add_torrent.drop_to_change_destination")
@@ -303,15 +356,15 @@ export function AddTorrentModal({
                             <LayoutGroup>
                                 <motion.div
                                     className={cn(
-                                        modalStyles.addTorrentBodyPanelsBase,
-                                        modalStyles.addTorrentBodyPanelsFullscreen,
+                                        addTorrentModalLayout.panelStack,
+                                        addTorrentModalLayout.panelStackFull,
                                     )}
                                     initial={false}
                                     animate={FULL_CONTENT_ANIMATION.visible}
                                     transition={FULL_CONTENT_ANIMATION.transition}
                                     style={{ pointerEvents: "auto" }}
                                 >
-                                    <PanelGroup direction="horizontal" className={modalStyles.workflow.panelGroup}>
+                                    <PanelGroup direction="horizontal" className={addTorrentModalLayout.panelGroup}>
                                         <Panel
                                             ref={settingsPanelRef}
                                             defaultSize={SETTINGS_PANEL_DEFAULT}
@@ -320,8 +373,8 @@ export function AddTorrentModal({
                                             onCollapse={handleSettingsPanelCollapse}
                                             onExpand={handleSettingsPanelExpand}
                                             className={cn(
-                                                modalStyles.workflow.settingsPanel,
-                                                isSettingsCollapsed && modalStyles.workflow.settingsPanelCollapsed,
+                                                addTorrentModalLayout.settingsPanel,
+                                                isSettingsCollapsed && addTorrentModalLayout.settingsPanelCollapsed,
                                             )}
                                         >
                                             <AddTorrentSettingsPanel />
@@ -329,17 +382,17 @@ export function AddTorrentModal({
                                         <PanelResizeHandle
                                             onDragging={isSettingsCollapsed ? undefined : setIsPanelResizeActive}
                                             className={cn(
-                                                modalStyles.workflow.paneHandle,
-                                                modalStyles.workflow.paneHandleEnabled,
+                                                addTorrentModalLayout.paneHandle,
+                                                addTorrentModalLayout.paneHandleEnabled,
                                             )}
                                         >
-                                            <div className={modalStyles.workflow.resizeHandleBarWrap}>
+                                            <div className={addTorrentModalLayout.resizeHandleBarWrap}>
                                                 <div
                                                     className={cn(
-                                                        modalStyles.workflow.resizeHandleBarBase,
+                                                        addTorrentModalLayout.resizeHandleBarBase,
                                                         isPanelResizeActive
-                                                            ? modalStyles.workflow.resizeHandleBarActive
-                                                            : modalStyles.workflow.resizeHandleBarIdle,
+                                                            ? addTorrentModalLayout.resizeHandleBarActive
+                                                            : addTorrentModalLayout.resizeHandleBarIdle,
                                                     )}
                                                 />
                                             </div>
@@ -347,9 +400,9 @@ export function AddTorrentModal({
                                         <Panel
                                             defaultSize={FILE_PANEL_DEFAULT}
                                             minSize={FILE_PANEL_MIN}
-                                            className={modalStyles.workflow.filePanel}
+                                            className={addTorrentModalLayout.filePanel}
                                         >
-                                            <div className={modalStyles.workflow.filePanelContent}>
+                                            <div className={addTorrentModalLayout.filePanelContent}>
                                                 {isMagnetMode ? (
                                                     <div className={formStyles.workflow.fillRoot}>
                                                         <div className={formStyles.workflow.fillSection}>
@@ -383,34 +436,6 @@ export function AddTorrentModal({
                                     </PanelGroup>
                                 </motion.div>
                             </LayoutGroup>
-                        </div>
-                        <div className={modalStyles.workflow.footer}>
-                            {!isMagnetMode ? (
-                                <Checkbox
-                                    isSelected={!showAddDialog}
-                                    onChange={(value) => onShowAddDialogChange(!value)}
-                                    className={formControl.checkboxLabelBodySmallClassNames.base}
-                                >
-                                    {t("modals.add_torrent.dont_show_again")}
-                                </Checkbox>
-                            ) : null}
-                            <div className={modalStyles.footerButtonRow}>
-                                <Button
-                                    variant="ghost"
-                                    onPress={handleModalCancel}
-                                    className={modalStyles.workflow.cancelButton}
-                                >
-                                    {t("modals.cancel")}
-                                </Button>
-                                <Button
-                                    variant="primary"
-                                    onPress={requestSubmit}
-                                    isDisabled={!canConfirm}
-                                    className={modalStyles.workflow.primaryButton}
-                                >
-                                    {primaryActionLabel}
-                                </Button>
-                            </div>
                         </div>
                     </form>
                 )}

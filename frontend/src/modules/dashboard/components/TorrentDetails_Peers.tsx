@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { contextMenu, details, modal, surface } from "@/shared/ui/layout/glass-surface";
+import { contextMenu, details, surface } from "@/shared/ui/layout/glass-surface";
 import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/contracts";
@@ -35,6 +35,7 @@ interface PeersTabProps {
 const PEER_COLUMN_WIDTHS = ["15%", "6%", "8%", "21%", "18%", "7%", "7%", "7%", "6%", "5%"] as const;
 
 const PEER_COLUMN_ALIGN_END = new Set(["port", "progress", "down", "up", "downloaded", "uploaded"]);
+const peerConnectionIcon = "toolbar-icon-size-md";
 
 const sortIcon = (direction: false | "asc" | "desc") => {
     if (direction === "asc") {
@@ -212,7 +213,7 @@ export const PeersTab = ({
                                                         <PhoneIncoming
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                modal.iconMd,
+                                                                peerConnectionIcon,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}
@@ -221,7 +222,7 @@ export const PeersTab = ({
                                                         <PhoneOutgoing
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                modal.iconMd,
+                                                                peerConnectionIcon,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}
@@ -231,7 +232,7 @@ export const PeersTab = ({
                                                         <Lock
                                                             aria-hidden="true"
                                                             className={cn(
-                                                                modal.iconMd,
+                                                                peerConnectionIcon,
                                                                 visuals.detailsTable.valueMuted,
                                                             )}
                                                             strokeWidth={visuals.icon.strokeWidth}

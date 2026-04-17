@@ -12,14 +12,14 @@ import {
     Folder,
     Minus,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, Checkbox, ListBoxItem, Select, cn } from "@heroui/react";
+import { Card, CardContent, CardHeader, Checkbox, ListBox, ListBoxItem, Select, cn } from "@heroui/react";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
 import type { TransmissionPriority } from "@/services/rpc/entities";
 import { registry } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { ProgressCell } from "@/shared/ui/components/SmoothProgressBar";
 import type { FileNodeRowViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import { fileBrowser, formControl, form, table } from "@/shared/ui/layout/glass-surface";
+import { fileBrowser, formControl, form, surface, table } from "@/shared/ui/layout/glass-surface";
 import {
     fileExplorerPriorityValues,
     getFileExplorerSelectablePriorityKeys,
@@ -113,6 +113,7 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
     const renderedPriorityControl = (
         <Select
             aria-label={t("fields.priority")}
+            className={formControl.prioritySelectClassNames.base}
             isDisabled={!row.isPriorityEnabled}
             selectedKey={row.prioritySelection.size > 0 ? Array.from(row.prioritySelection)[0] : null}
             onSelectionChange={(keys) => {
@@ -127,17 +128,25 @@ export const FileExplorerTreeRow = memo(function FileExplorerTreeRow({
             }
             variant="secondary"
         >
-            {renderedPriorityOptions.map((option) => {
-                const Icon = option.icon;
-                return (
-                    <ListBoxItem key={option.key} textValue={t(option.labelKey)}>
-                        <span className="flex items-center gap-tools">
-                            <Icon className={option.iconClass} />
-                            <span>{t(option.labelKey)}</span>
-                        </span>
-                    </ListBoxItem>
-                );
-            })}
+            <Select.Trigger className={formControl.prioritySelectClassNames.trigger}>
+                <Select.Value className={formControl.prioritySelectClassNames.value} />
+                <Select.Indicator className={formControl.prioritySelectClassNames.selectorIcon} />
+            </Select.Trigger>
+            <Select.Popover className={surface.menu.surface}>
+                <ListBox>
+                    {renderedPriorityOptions.map((option) => {
+                        const Icon = option.icon;
+                        return (
+                            <ListBoxItem key={option.key} textValue={t(option.labelKey)}>
+                                <span className="flex items-center gap-tools">
+                                    <Icon className={option.iconClass} />
+                                    <span>{t(option.labelKey)}</span>
+                                </span>
+                            </ListBoxItem>
+                        );
+                    })}
+                </ListBox>
+            </Select.Popover>
         </Select>
     );
     const renderedProgress = showProgress ? (

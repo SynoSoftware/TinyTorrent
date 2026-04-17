@@ -99,18 +99,24 @@ vi.mock("@/shared/ui/layout/toolbar-button", () => ({
 
 vi.mock("@/shared/ui/layout/glass-surface", () => ({
     modal: {
-        compactClass: "modal-compact",
-        baseClass: "modal-base",
-        dialogFooter: "dialog-footer",
-        footerEnd: "footer-end",
-        dialogBody: "dialog-body",
-        dialogBodyFlush: "dialog-body-flush",
-        dialogFooterGroup: "dialog-footer-group",
-        dialogHeader: "dialog-header",
-        dialogHeaderLead: "dialog-header-lead",
-        headerLeadPrimaryIcon: "header-icon",
-        headerTitleWrap: "header-title-wrap",
-        contentWrapper: "content-wrapper",
+        surface: {
+            base: "modal-base",
+        },
+        placement: {
+            center: "fixed inset-0 flex w-screen h-screen items-center justify-center",
+        },
+        chrome: { header: "dialog-header", footer: "dialog-footer" },
+        layout: {
+            body: "dialog-body",
+            bodyFlush: "dialog-body-flush",
+            frame: "content-wrapper",
+        },
+    },
+    details: {
+        generalMetricContent: "metric-content",
+    },
+    form: {
+        inputActionRow: "footer-actions",
     },
 }));
 
@@ -124,6 +130,7 @@ type ModalRootPropsSnapshot = {
 
 type ModalSlotPropsSnapshot = {
     className?: string;
+    scroll?: string;
 };
 
 const waitForCondition = async (
@@ -243,7 +250,10 @@ describe("ModalEx overlay dismissal", () => {
         });
         try {
             await waitForCondition(() => modalSpy.mock.calls.length > 0);
-            expect(latestSlotProps("container").className).toBeUndefined();
+            expect(latestSlotProps("container").className).toBe(
+                "fixed inset-0 flex w-screen h-screen items-center justify-center",
+            );
+            expect(latestSlotProps("container").scroll).toBe("outside");
             expect(latestSlotProps("dialog").className).toBe("modal-base");
 
             const dialog = document.querySelector('[data-slot="dialog"]');

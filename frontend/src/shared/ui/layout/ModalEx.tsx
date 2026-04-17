@@ -11,11 +11,18 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { details, modal } from "@/shared/ui/layout/glass-surface";
+import { details, form, modal } from "@/shared/ui/layout/glass-surface";
 import {
     ICON_SIZE_CLASSES,
     ToolbarIconButton,
 } from "@/shared/ui/layout/toolbar-button";
+
+const modalExLayout = {
+    headerLead: "flex min-w-0 flex-1 items-center gap-panel",
+    headerTitle: "flex min-w-0 flex-col overflow-hidden",
+    headerActions: "flex shrink-0 items-center gap-tools",
+    titleIcon: "text-accent",
+} as const;
 
 type HeroModalSize = NonNullable<ComponentProps<typeof Modal.Container>["size"]>;
 type ModalExSize = "full" extends HeroModalSize
@@ -84,16 +91,12 @@ export function ModalEx({
     const hasFooter = Boolean(
         footerStartContent || secondaryAction || primaryAction || dangerAction,
     );
-    const footerClassName =
-        footerStartContent || secondaryAction
-            ? modal.dialogFooter
-            : modal.footerEnd;
-    const showFooterStartSlot = footerClassName === modal.dialogFooter;
-    const modalClassName =
-        resolvedSize === "sm" ? modal.compactClass : modal.baseClass;
+    const showFooterStartSlot = Boolean(footerStartContent || secondaryAction);
     const closeAriaLabel = t("torrent_modal.actions.close");
     const bodyClassName =
-        bodyVariant === "flush" ? modal.dialogBodyFlush : modal.dialogBody;
+        bodyVariant === "flush"
+            ? modal.layout.bodyFlush
+            : modal.layout.body;
     const resetAndClose = () => {
         setIsMaximized(false);
         onClose();
@@ -117,7 +120,7 @@ export function ModalEx({
     };
 
     const headerControls = (
-        <div className={modal.dialogFooterGroup}>
+        <div className={modalExLayout.headerActions}>
             {maximize ? (
                 <ToolbarIconButton
                     Icon={isMaximized ? Minimize2 : Maximize2}
@@ -151,31 +154,36 @@ export function ModalEx({
         >
             <Modal.Backdrop
                 isDismissable={allowOverlayDismiss && !disableClose}
-                variant="blur"
+                variant="opaque"
             >
-                <Modal.Container placement="center" size={resolvedSize}>
-                    <Modal.Dialog className={modalClassName}>
+                <Modal.Container
+                    className={modal.placement.center}
+                    placement="center"
+                    scroll="outside"
+                    size={resolvedSize}
+                >
+                    <Modal.Dialog className={modal.surface.base}>
                         <div
-                            className={modal.contentWrapper}
+                            className={modal.layout.frame}
                             onKeyDownCapture={handleContentKeyDownCapture}
                         >
-                            <Modal.Header className={modal.dialogHeader}>
-                                <div className={modal.dialogHeaderLead}>
+                            <Modal.Header className={modal.chrome.header}>
+                                <div className={modalExLayout.headerLead}>
                                     {TitleIcon ? (
                                         <TitleIcon
                                             className={cn(
                                                 ICON_SIZE_CLASSES.lg,
-                                                modal.headerLeadPrimaryIcon,
+                                                modalExLayout.titleIcon,
                                             )}
                                         />
                                     ) : null}
-                                    <div className={modal.headerTitleWrap}>{title}</div>
+                                    <div className={modalExLayout.headerTitle}>{title}</div>
                                 </div>
                                 {headerControls}
                             </Modal.Header>
                             <Modal.Body className={bodyClassName}>{children}</Modal.Body>
                             {hasFooter ? (
-                                <Modal.Footer className={footerClassName}>
+                                <Modal.Footer className={modal.chrome.footer}>
                                     {showFooterStartSlot ? (
                                         <div className={details.generalMetricContent}>
                                             {footerStartContent ?? (
@@ -183,7 +191,7 @@ export function ModalEx({
                                             )}
                                         </div>
                                     ) : null}
-                                    <div className={modal.footerButtonRow}>
+                                    <div className={form.inputActionRow}>
                                         {secondaryAction ? (
                                             <Button
                                                 variant="tertiary"

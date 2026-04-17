@@ -87,6 +87,13 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
     details: {
         headerContextActionButton: "",
     },
+    control: {
+        menu: {
+            action: {
+                iconButton: "",
+            },
+        },
+    },
     surface: {
         menu: {
             surface: "",
@@ -120,6 +127,8 @@ vi.mock("@heroui/react", () => ({
     DropdownItem: ({ children }: { children: React.ReactNode }) =>
         React.createElement("div", null, children),
     DropdownMenu: ({ children }: { children: React.ReactNode }) =>
+        React.createElement("div", null, children),
+    DropdownPopover: ({ children }: { children: React.ReactNode }) =>
         React.createElement("div", null, children),
     DropdownTrigger: ({ children }: { children: React.ReactNode }) =>
         React.createElement(React.Fragment, null, children),

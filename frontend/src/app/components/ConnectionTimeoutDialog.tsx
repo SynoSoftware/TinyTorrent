@@ -11,9 +11,13 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 import { status } from "@/shared/status";
 import { detectBrowserPlatform, type BrowserPlatform } from "@/shared/utils/browserPlatform";
 import AppTooltip from "@/shared/ui/components/AppTooltip";
-import { details, form, modal } from "@/shared/ui/layout/glass-surface";
+import { control, details, form, modal } from "@/shared/ui/layout/glass-surface";
 import { ModalEx } from "@/shared/ui/layout/ModalEx";
 const { visuals } = registry;
+
+const connectionDialogLayout = {
+    actionGroup: "flex shrink-0 items-center gap-tools",
+} as const;
 
 type ConnectionDialogRowProps = {
     icon: typeof Server;
@@ -23,7 +27,7 @@ type ConnectionDialogRowProps = {
 
 function ConnectionDialogRow({ icon: Icon, label, children }: ConnectionDialogRowProps) {
     return (
-        <div className={modal.dialogInsetItem}>
+        <div className={control.panel.insetBordered}>
             <div className={form.connection.statusFooterRow}>
                 <Icon className={form.workflow.statusInfoIcon} />
                 <div className={details.generalMetricContent}>
@@ -141,7 +145,7 @@ export function ConnectionTimeoutDialog() {
             size="sm"
             footerStartContent={
                 footerStatusMessage ? (
-                    <div className={modal.dialogFooterGroup}>
+                    <div className={connectionDialogLayout.actionGroup}>
                         <Clock3 className={form.workflow.statusInfoIcon} />
                         <p className={visuals.typography.text.bodySmall}>
                             {footerStatusMessage}

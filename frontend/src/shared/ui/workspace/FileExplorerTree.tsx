@@ -1,11 +1,11 @@
 import { ArrowDown, ArrowUp, FileText, Filter, ListOrdered, HardDrive, Percent, Search } from "lucide-react";
-import { Checkbox, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, ListBox, ListBoxItem, SearchField, Select, cn } from "@heroui/react";
+import { Checkbox, Dropdown, DropdownItem, DropdownMenu, DropdownPopover, DropdownTrigger, ListBox, ListBoxItem, SearchField, Select, cn } from "@heroui/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import type { TransmissionPriority } from "@/services/rpc/entities";
 import type { FileExplorerFilterMode, FileExplorerTreeViewModel } from "@/shared/ui/workspace/fileExplorerTreeTypes";
-import { fileBrowser, formControl, details, surface, table } from "@/shared/ui/layout/glass-surface";
+import { control, fileBrowser, formControl, details, surface, table } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { FileExplorerTreeRow, prioritySelectOptions } from "@/shared/ui/workspace/FileExplorerTreeRow";
 import { getFileExplorerPrioritySelection } from "@/shared/ui/workspace/fileExplorerTreeModel";
@@ -231,26 +231,27 @@ export const FileExplorerTree = memo(function FileExplorerTree({ viewModel }: Fi
                     <div className={fileBrowser.toolsDivider} />
 
                     <Dropdown>
-                        <DropdownTrigger>
-                            <ToolbarIconButton
-                                Icon={Filter}
-                                ariaLabel={t("labels.filter_aria")}
-                                title={t("labels.filter_aria")}
-                                className={details.headerContextActionButton}
-                                iconSize="md"
-                            />
-                        </DropdownTrigger>
-                        <DropdownMenu
-                            selectionMode="single"
-                            selectedKeys={new Set([filterMode])}
-                            onSelectionChange={(keys) => setFilterMode(Array.from(keys)[0] as FileExplorerFilterMode)}
-                            disallowEmptySelection
-                            className={surface.menu.surface}
+                        <DropdownTrigger
+                            aria-label={t("labels.filter_aria")}
+                            className={cn(control.menu.action.iconButton, details.headerContextActionButton)}
                         >
-                            <DropdownItem key="all">{t("status.all")}</DropdownItem>
-                            <DropdownItem key="video">{t("types.video")}</DropdownItem>
-                            <DropdownItem key="audio">{t("types.audio")}</DropdownItem>
-                        </DropdownMenu>
+                            <Filter className={fileBrowser.iconDefault} />
+                        </DropdownTrigger>
+                        <DropdownPopover placement="bottom start">
+                            <DropdownMenu
+                                selectionMode="single"
+                                selectedKeys={new Set([filterMode])}
+                                onSelectionChange={(keys) =>
+                                    setFilterMode(Array.from(keys)[0] as FileExplorerFilterMode)
+                                }
+                                disallowEmptySelection
+                                className={surface.menu.surface}
+                            >
+                                <DropdownItem key="all">{t("status.all")}</DropdownItem>
+                                <DropdownItem key="video">{t("types.video")}</DropdownItem>
+                                <DropdownItem key="audio">{t("types.audio")}</DropdownItem>
+                            </DropdownMenu>
+                        </DropdownPopover>
                     </Dropdown>
                     <SearchField
                         className={cn(fileBrowser.toolbarSearchWrap, "gap-0")}

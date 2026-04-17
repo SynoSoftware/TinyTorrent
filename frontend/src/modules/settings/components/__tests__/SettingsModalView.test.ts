@@ -47,10 +47,26 @@ vi.mock("@heroui/react", () => ({
                 modalSpy({ type: "backdrop", ...props });
                 return React.createElement("div", null, children);
             },
-            Container: ({ children }: { children?: React.ReactNode }) =>
-                React.createElement("div", null, children),
-            Dialog: ({ children }: { children?: React.ReactNode }) =>
-                React.createElement("div", null, children),
+            Container: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "container", ...props });
+                return React.createElement("div", null, children);
+            },
+            Dialog: ({
+                children,
+                ...props
+            }: {
+                children?: React.ReactNode;
+                [key: string]: unknown;
+            }) => {
+                modalSpy({ type: "dialog", ...props });
+                return React.createElement("div", null, children);
+            },
         },
     ),
     cn: (...values: Array<string | false | null | undefined>) =>
@@ -76,9 +92,21 @@ vi.mock("framer-motion", () => ({
 
 vi.mock("@/config/logic", () => ({
     registry: {
+        tokens: {
+            primitive: {
+                motion: {
+                    slow: "transition-slow",
+                    medium: "transition-medium",
+                },
+            },
+        },
         interaction: { config: { modalBloom: { variants: {}, transition: {} } } },
         visuals: {
             icon: { strokeWidth: 1 },
+            interactive: {
+                dismiss: "dismiss-style",
+                navItem: "nav-item-style",
+            },
             typography: {
                 text: {
                     headingLarge: "heading-large",
@@ -109,48 +137,19 @@ vi.mock("@/shared/ui/layout/glass-surface", () => ({
         blockStackTight: "block-stack-tight",
     },
     modal: {
-        sidebar: "sidebar",
-        sidebarHidden: "sidebar-hidden",
-        sidebarVisible: "sidebar-visible",
-        sidebarHeader: "sidebar-header",
-        sidebarCloseButton: "sidebar-close-button",
-        sidebarBody: "sidebar-body",
-        headingFont: "heading-font",
-        tabButtonBase: "tab-button-base",
-        tabButtonActive: "tab-button-active",
-        tabButtonInactive: "tab-button-inactive",
-        tabIcon: "tab-icon",
-        tabIconActive: "tab-icon-active",
-        tabIconInactive: "tab-icon-inactive",
-        tabIndicator: "tab-indicator",
-        versionWrapper: "version-wrapper",
-        versionText: "version-text",
-        header: "header",
-        headerLead: "header-lead",
-        headerMobileBack: "header-mobile-back",
-        headerTitleWrap: "header-title-wrap",
-        headerUnsaved: "header-unsaved",
-        desktopClose: "desktop-close",
-        iconMd: "icon-md",
-        iconSm: "icon-sm",
-        scrollContent: "scroll-content",
-        alert: "alert",
-        contentStack: "content-stack",
-        inlineAlert: "inline-alert",
-        connectionStack: "connection-stack",
-        footer: "footer",
-        footerConfirmContent: "footer-confirm-content",
-        footerTextWrap: "footer-text-wrap",
-        footerWarningTitle: "footer-warning-title",
-        footerActions: "footer-actions",
-        footerResetButton: "footer-reset-button",
-        footerButtonRow: "footer-button-row",
-        footerSaveButton: "footer-save-button",
-        contentWrapper: "content-wrapper",
-        layout: "layout",
-        mainPane: "main-pane",
-        settingsModalBaseFull: "settings-modal-base-full",
-        settingsModalBaseRpc: "settings-modal-base-rpc",
+        placement: {
+            center: "fixed inset-0 flex w-screen h-screen items-center justify-center",
+        },
+        surface: {
+            base: "modal-base",
+        },
+        chrome: { header: "dialog-header", footer: "dialog-footer" },
+        layout: { frame: "content-wrapper" },
+    },
+    surface: {
+        chrome: {
+            sticky: "sticky-header",
+        },
     },
 }));
 
@@ -217,6 +216,12 @@ type ModalPropsSnapshot = {
     isDismissable?: boolean;
 };
 
+type ModalContainerPropsSnapshot = {
+    className?: string;
+    scroll?: string;
+    size?: string;
+};
+
 type SettingsModalController = React.ComponentProps<
     typeof SettingsModalView
 >["controller"];
@@ -243,6 +248,16 @@ const latestModalProps = (): ModalPropsSnapshot => {
         .filter((call) => call.type === "backdrop");
     if (calls.length === 0) {
         throw new Error("modal_not_rendered");
+    }
+    return calls[calls.length - 1];
+};
+
+const latestContainerProps = (): ModalContainerPropsSnapshot => {
+    const calls = modalSpy.mock.calls
+        .map((call) => call[0] as { type?: string } & ModalContainerPropsSnapshot)
+        .filter((call) => call.type === "container");
+    if (calls.length === 0) {
+        throw new Error("modal_container_not_rendered");
     }
     return calls[calls.length - 1];
 };
@@ -353,6 +368,10 @@ describe("SettingsModalView", () => {
         try {
             await waitForCondition(() => modalSpy.mock.calls.length > 0);
             expect(latestModalProps().isDismissable).toBe(false);
+            expect(latestContainerProps().className).toBe(
+                "fixed inset-0 flex w-screen h-screen items-center justify-center",
+            );
+            expect(latestContainerProps().scroll).toBe("outside");
         } finally {
             mounted.cleanup();
         }

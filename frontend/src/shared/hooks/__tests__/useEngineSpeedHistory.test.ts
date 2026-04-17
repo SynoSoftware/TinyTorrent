@@ -111,6 +111,7 @@ describe("useEngineSpeedHistory", () => {
         const mounted = await mountHarness(store);
 
         try {
+            await waitForCondition(() => watchMock.mock.calls.length === 1);
             expect(watchMock).toHaveBeenCalledTimes(1);
             expect(subscribeMock).toHaveBeenCalledTimes(1);
 
