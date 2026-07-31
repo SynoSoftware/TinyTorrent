@@ -30,7 +30,7 @@ The component provides:
 - virtualized rows;
 - sorting from column headers;
 - column drag reordering;
-- column resizing and automatic width fitting;
+- column resizing and explicit fit-to-current-content actions;
 - column hide/show from a header context menu;
 - persisted column order, visibility, widths, and sort;
 - optional local text search across host-configured fields, with either
@@ -86,8 +86,9 @@ integrate.
    per-cell wrapper models and their update churn.
 6. **No additional runtime dependency.** The control relies on WinUI 3 and
    does not require a data-grid, drag, or command-adapter package.
-7. **Pay only for enabled behavior.** Marquee selection, auto-fit measurement,
-   and row reordering do no work when disabled or idle.
+7. **Pay only for enabled behavior.** Marquee selection and row reordering do
+   no work when disabled or idle. Fit measurement happens only for an explicit
+   fit command.
 8. **One local view pipeline.** Search and header sort operate on one private
    view, so selection, layout, and visible order have a single authority.
 
@@ -102,8 +103,10 @@ integrate.
 | base sequence | The source snapshot in its enumeration order. |
 | private view | The table's non-mutating display projection over the base sequence. |
 | natural order | The base sequence after local `Filter` search, if any, preserves its relative order; it is the order before header sorting. |
-| baseline layout | Immutable column defaults declared by the host. |
-| effective layout | User-adjusted order, visibility, widths, and active sort. |
+| baseline layout | Immutable column defaults declared by the host, plus the control's documented defaults. |
+| baseline width | A column's declared `DefaultWidth`, or the control's generic width when none is declared, after its bounds are applied. |
+| width override | A user resize, explicit fit, or valid applied layout width that takes precedence over the baseline width. |
+| effective layout | User-adjusted order, visibility, width overrides, and active sort resolved against the baseline layout. |
 
 ### Data flow
 
@@ -194,7 +197,7 @@ public sealed class RichTable : Control
     public void ApplyLayoutState(RichTableLayoutState state);
     public void RefreshView();
     public void AutoFitColumn(string columnId);
-    public void AutoFitAllColumns();
+    public void AutoFitVisibleColumns();
     public void ResetColumnLayout();
 
     public event SelectionChangedEventHandler SelectionChanged;
@@ -230,9 +233,9 @@ persisted layout, identity semantics, search meaning, and selection rules
 stable. Runtime changes belong in bindable state or the resolved layout, not in
 the schema.
 
-`Columns` form the immutable baseline. The table keeps a separate effective
-order, visibility, widths, and sort state. A drag, resize, visibility change,
-or `ApplyLayoutState` MUST NOT mutate the definitions.
+`Columns` form the immutable baseline. The table keeps separate effective
+order, visibility, width overrides, and sort state. A drag, resize, visibility
+change, or `ApplyLayoutState` MUST NOT mutate the definitions.
 `ResetColumnLayout()` restores the captured baseline.
 
 `SetSelection` is the only programmatic selection entry point. It atomically
@@ -431,9 +434,9 @@ public sealed class RichTableColumn : DependencyObject
     public DataTemplate? HeaderTemplate { get; set; }
     public DataTemplate? CellTemplate { get; set; }
 
-    public double DefaultWidth { get; set; }
-    public double MinWidth { get; set; }
-    public double MaxWidth { get; set; }
+    public double DefaultWidth { get; set; } = 150; // DIPs
+    public double MinWidth { get; set; } = 48;      // DIPs
+    public double MaxWidth { get; set; } = double.PositiveInfinity;
 
     public bool IsVisibleByDefault { get; set; }
     public bool CanHide { get; set; }
@@ -481,15 +484,19 @@ Required invariants:
 - `DisplayName` is a non-empty localized plain-text name used by generated menus
   and UI Automation; it need not match the visual header exactly.
 - `CellTemplate` receives the row item as its `DataContext`/content.
-- `DefaultWidth`, `MinWidth`, `MaxWidth`, and persisted widths are finite
-  device-independent pixels; resolved widths are clamped to `[MinWidth, MaxWidth]`;
+- `DefaultWidth`, `MinWidth`, and persisted widths are finite
+  device-independent pixels (DIPs). `DefaultWidth` is greater than zero;
+  `MinWidth` is non-negative; `MaxWidth` is either a finite positive DIP value
+  or `double.PositiveInfinity`; and `MinWidth <= MaxWidth`;
+- the resolved width is clamped to `[MinWidth, MaxWidth]`;
 - at least one column remains visible;
 - `CanHide == false` prevents hiding that column;
 - a column is sortable only when `CanSort` is true and it has a pure comparer
   that defines a consistent total ordering for the consumer's rows;
 - hidden columns retain their resolved position and most recent width;
-- the declaration order and `DefaultWidth`/`IsVisibleByDefault` form the reset
-  baseline; runtime layout lives only in `RichTableLayoutState`.
+- the declaration order, `DefaultWidth`, `IsVisibleByDefault`, and the
+  control's documented width defaults form the reset baseline; runtime layout
+  lives only in `RichTableLayoutState`.
 
 The table validates every column and search-field definition when it captures
 the schema at `Loaded`. Missing or duplicate values fail fast in development
@@ -498,13 +505,12 @@ definition or comparer, or a registered search field's `TextSelector`, after
 that point is unsupported and fails fast. Values bound inside a cell or header
 template remain live; only the schema definition is fixed.
 
-Defaults SHOULD be:
-
-- visible, hideable, and resizable;
-- non-sortable unless a comparer is supplied;
-- a sensible pixel width with a sensible minimum;
-- maximum width unbounded;
-- cell content left aligned.
+The declared defaults are: visible, hideable, resizable, non-sortable,
+left-aligned, a `DefaultWidth` of 150 DIPs, a `MinWidth` of 48 DIPs, and an
+unbounded `MaxWidth`. A host SHOULD explicitly declare width and minimum policy
+for rich cells whose footprint is meaningful—such as progress, button clusters,
+sparklines, or status pills—rather than treating the generic default as domain
+policy.
 
 All visible columns are reorderable in version one. Version 1 does not include
 per-column subclasses, render delegates, property paths, table-owned value
@@ -699,26 +705,63 @@ There is no `SortRequested` callback or remote-sort mode in version one.
 Sorting is a local table projection; add an explicit external-sort mode only if
 a real consumer requires it.
 
-## 11. Column resizing and automatic fitting
+## 11. Column widths, resizing, and fit commands
+
+`RichTable` uses fixed device-independent-pixel (DIP) column widths. Version 1
+has no star, fill, percentage, or viewport-responsive width mode. Extra space at
+the right remains table surface; when visible columns do not fit, the existing
+horizontal scroll surface is used. Resizing the host window never redistributes
+or re-measures column widths.
+
+Every column has a deterministic baseline width. A declared `DefaultWidth` is
+used exactly after its `MinWidth`/`MaxWidth` bounds are applied. When a consumer
+does not declare one, the control's 150-DIP default is used. An unspecified
+width is not an implicit content-fit mode: initial source data, later data,
+property updates, sorting, filtering, scrolling, and visibility changes MUST
+NOT silently widen or narrow a column. This keeps a first-use layout stable and
+independent of which virtualized rows happen to appear first. `RichTable` never
+invokes a fit command during initialization.
+
+An applied valid `RichTableLayoutState.ColumnWidths` entry, a completed user
+resize, or an explicit fit command creates a width override. It wins over the
+baseline until another override or `ResetColumnLayout()` replaces it. A user may
+resize down to the declared `MinWidth` even when cell content clips or truncates;
+observed content never becomes a new hard minimum. Cell templates own their
+overflow policy.
 
 Every resizable visible column has a pointer/touch resize separator.
 
 - dragging captures the pointer and updates the shared resolved width;
-- the width is clamped to the column limits;
+- the width is clamped only to the column limits;
 - Escape cancels the active drag and restores the starting width;
-- double-clicking the separator auto-fits that column;
-- the header menu includes **Fit all columns**;
-- the table raises one coalesced `LayoutChanged` notification when the gesture
-  ends, not one persistence write per pointer movement.
+- double-clicking the separator fits that column;
+- the header menu includes **Fit visible columns**;
+- the table raises one coalesced `LayoutChanged` notification when a gesture or
+  fit changes the resolved layout, not one persistence write per pointer
+  movement.
 
-Auto-fit measures the rendered header and currently realized cells only. The
-result includes normal padding and the sort glyph, then is clamped to the column
-limits. It MUST NOT instantiate off-screen row templates, materialize all rows,
-or maintain a hidden measurement table.
+`AutoFitColumn` and `AutoFitVisibleColumns` are explicit fit commands, not an
+automatic sizing mode. A fit considers only the header and cells available to
+the current normal visual layout, includes normal padding and the sort glyph,
+and clamps the result to that column's limits. It MUST NOT enumerate source data
+solely to size columns, instantiate off-screen row templates, or maintain a
+hidden measurement table. A per-column fit changes only that column; it MUST
+NOT fall back to a fit of other columns when its result is unchanged.
 
-A value that has never entered the viewport may require a later manual resize
-or another fit after scrolling. This boundary preserves virtualization and
-avoids a second rendering path for an infrequent convenience action.
+`AutoFitVisibleColumns` fits each currently visible, resizable column independently
+and produces at most one `LayoutChanged` event. Hidden columns retain their
+resolved width and are not fitted; a direct fit request for a hidden or
+non-resizable column is a no-op, while an unknown column ID is an argument
+error. A value that has not entered the current visual layout may require a
+later fit after scrolling. This is an intentional limitation of a virtualized
+convenience action, not a promise to discover the widest value in the source.
+
+Hiding or showing a column does not discard, recompute, or fit its width.
+`ResetColumnLayout()` discards width overrides and restores the captured
+baseline widths; it does not fit the current data. A host that wants an initial
+content-based layout can deliberately invoke a fit command after its data is
+available, with the same bounded behavior and persistence semantics as a user
+fit.
 
 ## 12. Column drag reordering
 
@@ -750,7 +793,8 @@ The menu provides both pointer actions and keyboard-accessible alternatives:
 
 - **Hide this column** when it is hideable and another column can remain;
 - a **Columns** submenu containing a `ToggleMenuFlyoutItem` for every column;
-- **Fit this column** and **Fit all columns**;
+- **Fit this column** for a resizable active column and **Fit visible columns**
+  when at least one visible column is resizable;
 - **Move left** and **Move right** for the active column.
 
 Double-clicking a resizer fits one column. The per-column fit and move commands
@@ -909,11 +953,16 @@ public sealed record RichTableLayoutState(
     RichTableSortDirection SortDirection);
 ```
 
+`ColumnWidths` is intentionally sparse: it contains only width overrides, not
+the declared or generic baseline widths. A missing column ID means “use that
+column's baseline.” `GetLayoutState()` follows the same rule, so untouched
+default widths do not become duplicate persisted configuration.
+
 Persist:
 
 - full column order, including hidden columns;
 - visibility;
-- explicit pixel widths;
+- explicit width overrides in DIPs, including overrides for hidden columns;
 - active sort column and direction.
 
 Do not persist:
@@ -930,17 +979,21 @@ Applying saved state MUST be defensive:
 - ignore unknown IDs;
 - ignore duplicate IDs after their first valid occurrence;
 - append newly introduced columns in definition order;
-- clamp invalid widths;
+- treat `ColumnWidths` as a complete override map: an omitted width uses that
+  column's baseline width and clears any earlier override;
+- ignore non-finite, non-positive, and non-resizable-column widths; clamp valid
+  finite widths to the column's bounds;
 - restore required columns if saved as hidden;
 - fall back to natural order if the sort column is missing or no longer
   sortable;
 - guarantee at least one visible column.
 
 `LayoutChanged` is raised once after a user sort, resize/auto-fit, visibility
-change, column move, or explicit reset. It is not raised by initial setup or
-`ApplyLayoutState`; this prevents restore-and-persist loops. The host
-debounces and writes the supplied `LayoutState` snapshot using its settings
-store.
+change, column move, or explicit reset when the effective layout changes. It is
+not raised by initial setup or `ApplyLayoutState`; this prevents
+restore-and-persist loops. Initial baseline widths never force persistence.
+The host debounces and writes the supplied `LayoutState` snapshot using its
+settings store.
 
 ## 20. Accessibility, input, and theming
 
@@ -972,6 +1025,8 @@ The component targets frequently updating lists with thousands of items.
 - A display-only row update MUST NOT rebuild the whole table. A source, query,
   sort, or `RefreshView()` change may recompute the private view as specified.
 - Column layout changes rebuild only header cells and realized row presenters.
+- Source updates, property updates, sorting, search, scrolling, visibility
+  changes, and host-window resizing MUST NOT measure content or change widths.
 - Active sorting is `O(n log n)` and occurs only on source, query, sort, or
   explicit `RefreshView()` changes.
 - Search is `O(rows * configured fields * query tokens)` only when the active
@@ -979,7 +1034,9 @@ The component targets frequently updating lists with thousands of items.
   per-frame rendering.
 - Search reads selected fields directly and does not allocate a concatenated
   per-row "haystack".
-- Auto-fit measures only the header and realized cells.
+- Explicit fit commands measure only the header and currently realized cells;
+  they never create a second measurement surface or force off-screen
+  realization.
 - Pointer movement updates visuals without persisting or allocating a new full
   layout snapshot each time.
 - The hot rendering path contains no reflection and no per-frame LINQ.
@@ -1000,23 +1057,29 @@ the generic `RichTable` contract.
 The torrent list uses the following columns. They are host configuration, not
 built-in `RichTable` behavior.
 
-| ID | Default width | Minimum | Default visible | Cell content |
+| ID | Declared initial width | Minimum | Default visible | Cell content |
 |---|---:|---:|:---:|---|
 | `name` | 150 | 90 | yes | name and secondary state text |
 | `progress` | 220 | 110 | yes | progress bar, percentage, transferred amount |
 | `status` | 110 | 95 | yes | localized status |
-| `queue` | 80 | default | yes | queue position |
-| `eta` | 110 | default | no | estimated time |
+| `queue` | 80 | component default | yes | queue position |
+| `eta` | 110 | component default | no | estimated time |
 | `speed` | 180 | 160 | yes | download and upload speed |
-| `peers` | 88 | default | yes | connected/available peers |
-| `size` | 100 | default | yes | total size |
-| `ratio` | 90 | default | no | share ratio |
-| `added` | 100 | default | no | added date |
-| `completedOn` | 110 | default | no | completion date |
+| `peers` | 88 | component default | yes | connected/available peers |
+| `size` | 100 | component default | yes | total size |
+| `ratio` | 90 | component default | no | share ratio |
+| `added` | 100 | component default | no | added date |
+| `completedOn` | 110 | component default | no | completion date |
 
 The intended first-run visible set is:
 
 `name`, `progress`, `status`, `queue`, `speed`, `peers`, and `size`.
+
+Every listed initial width is deliberate torrent-host policy, including
+`name = 150`; none relies on `RichTable`'s generic 150-DIP fallback. A
+`component default` minimum means the torrent profile supplies no additional
+minimum beyond the table's 48-DIP default `MinWidth`. These values are not
+generic defaults for another table.
 
 The torrent host supplies:
 
@@ -1133,11 +1196,11 @@ a parsed query; the host must not recreate text filtering or a second sorter.
 #### A.2.3 Columns
 
 During host setup, create the eleven `RichTableColumn` definitions in the
-default order and widths in Appendix A.1. Put the typed XAML templates in the
-torrent host or its resource dictionary, then assign each template directly to
-the matching column. There is no torrent-specific column class or renderer
-registry. Give every definition its localized `DisplayName` for the generated
-header menu and UI Automation.
+declared order and with the explicit initial widths in Appendix A.1. Put the
+typed XAML templates in the torrent host or its resource dictionary, then assign
+each template directly to the matching column. There is no torrent-specific
+column class or renderer registry. Give every definition its localized
+`DisplayName` for the generated header menu and UI Automation.
 
 Each sortable column supplies an explicit comparer over `TorrentRowViewModel`.
 The natural order is the torrent host's queue-ascending semantic source order,
@@ -1146,6 +1209,9 @@ visible columns listed in Appendix A.1, then call
 `ApplyLayoutState` with the stored layout, if present.
 
 Set `CanInteractWithItem` to false for ghost/pending rows.
+
+A user resize or fit produces a width override that supersedes these torrent
+widths until reset; `ResetColumnLayout()` returns to the Appendix A.1 values.
 
 The torrent host therefore has exactly one mapping layer:
 
@@ -1292,56 +1358,64 @@ sample or host integration. Torrent-specific verification is in Appendix A.
 3. Header clicks cycle ascending, descending, and natural stable order.
 4. A column can be dragged across several columns and remains there after a
    save/reload round trip.
-5. A column can be resized, double-click auto-fitted from header/realized cells,
-   hidden, shown, and reset without creating off-screen row templates.
-6. Header right-click works both on a column and on unused header space.
-7. It is impossible to hide all columns or a non-hideable column.
-8. Plain, Ctrl, Shift, Ctrl+Shift, keyboard, Home/End, and Ctrl+A selection work
+5. Explicit widths remain fixed after later data, scrolling, sorting, filtering,
+   visibility changes, and host-window resizing; omitted widths use the
+   documented generic baseline.
+6. A visible resizable column can be resized or double-click fitted from its
+   header/current visual cells; fit never creates off-screen templates, changes
+   another column, or makes observed content a permanent minimum. Fit visible
+   columns affects only visible resizable columns.
+7. Header right-click works both on a column and on unused header space.
+8. It is impossible to hide all columns or a non-hideable column.
+9. Plain, Ctrl, Shift, Ctrl+Shift, keyboard, Home/End, and Ctrl+A selection work
    and survive sorting and same-key source rehydration.
-9. Marquee selection, edge auto-scroll, Ctrl modification, and Escape
+10. Marquee selection, edge auto-scroll, Ctrl modification, and Escape
    cancellation work without stealing input from cell controls.
-10. Double-click and Enter raise one item-invoked event.
-11. Right-click preserves a selected packet and selects an unselected target
+11. Double-click and Enter raise one item-invoked event.
+12. Right-click preserves a selected packet and selects an unselected target
     before requesting its menu.
-12. Optional row drag sends the correct ordered packet and before/after target
+13. Optional row drag sends the correct ordered packet and before/after target
     without mutating the source.
-13. Initial loading, empty, filtered-no-results, and refresh-with-existing-rows
+14. Initial loading, empty, filtered-no-results, and refresh-with-existing-rows
     states follow the defined precedence.
-14. Unknown, duplicate, invalid, and obsolete saved layout values recover to a
+15. Unknown, duplicate, invalid, and obsolete saved layout values recover to a
     usable layout.
-15. Light, Dark, High Contrast, 100–200% scaling, keyboard-only use, Narrator,
+16. Light, Dark, High Contrast, 100–200% scaling, keyboard-only use, Narrator,
     and touch do not lose functionality.
-16. Rapid bound-value updates redraw cells without continuously resorting or
+17. Rapid bound-value updates redraw cells without continuously resorting or
     rebuilding rows.
-17. The component contains no domain types, commands, strings, or service
+18. The component contains no domain types, commands, strings, or service
     references.
-18. User layout changes do not mutate `ItemsSource` or baseline column
+19. User layout changes do not mutate `ItemsSource` or baseline column
     definitions, and applying saved state does not emit a persistence event.
-19. `ItemKeySelector`, `CanInteractWithItem`, `SortComparer`, and
+20. `ItemKeySelector`, `CanInteractWithItem`, `SortComparer`, and
     `RichTableSearchField.TextSelector` are exercised as pure local policy
     hooks; the five documented events carry the specified post-gesture state
     without executing domain commands.
-20. A live-bound search box updates on each keystroke; `para 50` and
+21. A live-bound search box updates on each keystroke; `para 50` and
     cross-field `joh urin` match, while `ara` and other mid-word substrings do
     not.
-21. `Filter` removes non-matches, prunes their selection, and chooses
+22. `Filter` removes non-matches, prunes their selection, and chooses
     `NoResultsContent`; `DimNonMatches` preserves the complete sorted view and
     its ordinary interactions while exposing a theme- and automation-aware
     dimmed state.
-22. Search runs only for query/source changes or `RefreshView()`, never while
+23. Search runs only for query/source changes or `RefreshView()`, never while
     scrolling; it does not paginate, rank results, or create a second sort
     owner, and an active query blocks row reordering.
-23. Assignment and every `INotifyCollectionChanged` change establish the latest
+24. Assignment and every `INotifyCollectionChanged` change establish the latest
     source order; `Filter` preserves its relative order, stable sort uses it for
     ties, and clearing sort returns to it.
-24. Same-key `Replace`/`Reset` transfers selected/current/anchor/focus to new
+25. Same-key `Replace`/`Reset` transfers selected/current/anchor/focus to new
     eligible row instances without a selection event when the selected/current
     identities remain unchanged. Removed, filtered, or newly ineligible items
     prune once; null, empty, or duplicate keys fail fast.
-25. `INotifyPropertyChanged` redraws cells without a search/sort pass; one
+26. `INotifyPropertyChanged` redraws cells without a search/sort pass; one
     `RefreshView()` after a view-affecting batch applies the correct search,
     eligibility, and sort result without re-enumerating a plain source.
-26. A view-changing update cancels marquee and restores its pre-gesture logical
+27. A view-changing update cancels marquee and restores its pre-gesture logical
     selection; it cancels row drag without a reorder event, while header layout
     gestures survive. Structural configuration is sealed at `Loaded`; dynamic
     bindings and cell values remain live.
+28. A drag, explicit fit, or valid saved width overrides its baseline; hiding and
+    showing retains it, an omitted saved width returns to baseline, and reset
+    discards it without fitting current data.
