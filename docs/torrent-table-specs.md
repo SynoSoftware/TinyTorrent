@@ -80,7 +80,7 @@ integrate.
    users and hosts observe, not a prescribed internal class structure.
 2. **Use WinUI primitives where they fit.** `ListView`, native flyouts, theme
    resources, and UI Automation provide virtualization, input, appearance, and
-   accessibility without a parallel control framework.
+   accessibility without a parallel control or visual framework.
 3. **One owner per state.** The table owns transient view interaction; the host
    owns records, domain commands, saved settings, and domain mutations.
 4. **Typed composition, not reflection.** Typed `DataTemplate`s, comparers,
@@ -95,9 +95,9 @@ integrate.
 8. **One local view pipeline.** Search and header sort operate on one private
    view, so selection, layout, and visible order have a single authority.
 9. **Be a Windows control, not a visual subsystem.** The control uses the
-   application's normal WinUI control styles and platform theme resources. It
-   introduces no TableView-specific palette, type scale, corner-radius scale,
-   spacing scale, or animation vocabulary.
+   application's normal WinUI control styles and platform theme resources; it
+   introduces no TableView-specific palette, type scale, geometry, or animation
+   vocabulary.
 10. **Direct manipulation communicates intent; the host changes data.** The
     table supplies native-feeling drag feedback and an unambiguous insertion
     request. The host alone decides whether that intent is valid for its
@@ -1607,28 +1607,18 @@ owner; `TableView` only validates and produces the DTO.
 
 #### A.2.8 Torrent integration checklist
 
-- All eleven columns use typed templates and explicit comparers where sortable.
-- Default visibility is the target seven-column set on a clean profile.
-- State filters feed `ItemsSource`; `SearchText` and the two registered
-  `SearchFields` feed the generic table search.
-- The semantic source order is queue ascending; a pending queue move updates it
-  immediately and reconciles it from the daemon snapshot.
-- Ghost/pending and checking-row behavior follows the rules above and cannot
-  leak into selection, commands, detail opening, or queue reordering.
-- The host may update stable row objects or rehydrate current rows. Either
-  calls `RefreshView()` at most once per completed batch when a view-affecting
-  property changed.
-- `IsMarqueeSelectionEnabled` is set to true to retain the torrent page's
-  desktop mouse/pen marquee behavior; it is optional for other tables.
-- `SelectionChanged` and `SetSelection` synchronize the table with the shell's
-  selected/current torrent IDs without a second interactive selection owner.
-- Context-menu and keyboard commands use the table's selected packet/current
-  item instead of reimplementing selection logic.
-- Queue requests pass through `RowsReorderRequested` and torrent command
-  code.
-- Layout state round-trips through the torrent preferences service.
-- Initial loading, no-results, error, offline, and permission states have
-  explicit page content; refresh keeps existing rows visible.
+- The Appendix A.1 columns have typed templates, localized headers, explicit
+  comparers, the listed first-run visibility, and a persisted layout key.
+- The host supplies state-filtered, queue-ascending rows; it applies pending
+  queue order before that filter, uses the two configured search fields without
+  a second text filter, and calls `RefreshView()` once after a view-affecting
+  batch.
+- Ghost/pending and checking rows follow A.2.1's display and eligibility rules;
+  the host may keep stable row objects or rehydrate by key.
+- It enables marquee selection for the torrent page, projects table
+  selection/current state to the shell, supplies its domain menus and commands,
+  and handles queue requests, persistence, loading, no-results, error, offline,
+  and permission presentation as described above.
 
 ## Appendix B — Core verification checklist
 
