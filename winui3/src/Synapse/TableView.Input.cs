@@ -117,7 +117,16 @@ public sealed partial class TableView
         // this handled, and section 15 leaves that control its own menu.
         _itemsView.ContextRequested += OnRowsContextRequested;
         _itemsView.SelectionChanged += OnHostedSelectionChanged;
+
+        // The rows draw their own focus cue, so they have to be told when focus arrives and when it
+        // leaves. Both events bubble from the container that actually holds focus.
+        _itemsView.GotFocus += OnRowsFocusMoved;
+        _itemsView.LostFocus += OnRowsFocusMoved;
     }
+
+    /// <summary>Focus moved into, within, or out of the rows: every row re-reads its own cue.</summary>
+    private void OnRowsFocusMoved(object sender, RoutedEventArgs e) =>
+        RowVisualsChanged?.Invoke(this, EventArgs.Empty);
 
     private void DetachInput()
     {
@@ -143,6 +152,8 @@ public sealed partial class TableView
             UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(OnRowsDoubleTapped));
         _itemsView.ContextRequested -= OnRowsContextRequested;
         _itemsView.SelectionChanged -= OnHostedSelectionChanged;
+        _itemsView.GotFocus -= OnRowsFocusMoved;
+        _itemsView.LostFocus -= OnRowsFocusMoved;
 
         _innerScrollViewer = null;
     }

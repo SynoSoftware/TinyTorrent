@@ -240,8 +240,13 @@ public sealed partial class TableView
         return afterLastVisible;
     }
 
-    internal void RaiseLayoutChanged(TableLayoutChangeKind kind) =>
+    internal void RaiseLayoutChanged(TableLayoutChangeKind kind)
+    {
+        // Widths, visibility and order all move where the columns end, which is what decides
+        // whether the strip has trailing space to offer its fit command in.
+        _headerStrip?.UpdateFitAllVisibility();
         LayoutChanged?.Invoke(this, new TableLayoutChangedEventArgs(GetLayoutState(), kind));
+    }
 
     private ResolvedColumn RequireColumn(string columnId)
     {

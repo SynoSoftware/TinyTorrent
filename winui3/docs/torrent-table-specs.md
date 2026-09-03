@@ -682,10 +682,37 @@ Sorting requirements:
 - source updates and rehydration follow section 5.3;
 - normal property notification redraws cells but does not continuously resort;
 - the host calls `RefreshView()` after a batch changes any active
-  view-affecting value.
+  view-affecting value;
+- while a sort is applied, the view converges on the sorted order within a
+  bounded interval. Membership is never deferred; only relative position is. A
+  row that arrives appears at once and a row that leaves goes at once, while
+  existing rows trade places on the settling interval. `SortSettleInterval`
+  sets that interval, and `TimeSpan.Zero` restores immediate re-sorting.
 
 Avoiding automatic re-sorts on every property notification is important for
 rapidly changing data such as speed and progress.
+
+The settling interval exists because a host has only one lever and the table has
+two. Publishing a snapshot carries membership and position together, so a host
+that throttles its updates to stop a reshuffle also delays the completion that
+made the update necessary. The table holds both the previous order and the new
+one, so it is the only layer that can take the membership immediately and let
+the position wait. Measured on a 2,002-row torrent list sorted by download
+speed: a value the tick changes produced 4,276 collection notifications in five
+seconds — one whole re-sort per second, arriving unbidden while the user was
+doing something else. The same list sorted by name produced none. The cost is
+the reason the interval exists, but the reason it is a table concern rather than
+a host one is that no host can separate the two halves of its own snapshot.
+
+What the interval buys, measured in one run so the three cases share their load:
+a three-second settle produced 2,180 notifications where zero produced 4,288,
+and a stable sort key produced none in either case. Note what that is not. The
+saving is a halving, not a third: a longer settle lets more drift accumulate, so
+each reorder moves more rows, and work per unit time falls by roughly half
+however the interval is set rather than in proportion to it. A host raising the
+interval to thirty seconds should expect a calmer table, not a thirtieth of the
+work. The usability gain is the real one — at most one reshuffle per interval
+instead of a continuous one — and the notification count understates it.
 
 There is no `SortRequested` callback or remote-sort mode in version one.
 Sorting is a local table projection; add an explicit external-sort mode only if
@@ -1134,10 +1161,14 @@ itself MUST:
   and High Contrast update at runtime. It must not hard-code colors or define
   TableView-specific brush, type, geometry, spacing, or token resources;
 - meet at least 4.5:1 contrast for table-owned normal text and 3:1 for
-  table-owned large text and required non-text information, including focus,
-  selected/current, drag-destination, and availability cues, in every applicable
-  state and supported theme. A resource name or use of a standard palette is not
-  proof of that result;
+  table-owned large text and required non-text information, including selected,
+  drag-destination, and availability cues, in every applicable state and
+  supported theme. A resource name or use of a standard palette is not proof of
+  that result. The table draws no current-row cue: WinUI draws none either, and
+  its row container has no visual state for a current row that is not selected,
+  because Fluent gives position to the focus visual and choice to selection.
+  Current remains a model concept that section 13 needs for the anchor and for
+  range selection, and nothing measures it because nothing paints it;
 - preserve normal effective-pixel text scaling and platform type behavior.
   Text and controls must remain readable and operable at supported display/text
   scaling without a table-specific font-size override.

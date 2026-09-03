@@ -21,6 +21,7 @@ public sealed partial class TableHeaderStrip : Control
     private const string ClipPartName = "PART_Clip";
     private const string PanelPartName = "PART_HeaderPanel";
     private const string InsertionMarkerPartName = "PART_ColumnInsertionMarker";
+    private const string FitAllPartName = "PART_FitAllColumns";
 
     /// <summary>Half of the separator hit width, so the grab zone is centred on the boundary.</summary>
     private const double SeparatorReachDips = 4;
@@ -37,6 +38,7 @@ public sealed partial class TableHeaderStrip : Control
     private FrameworkElement? _clip;
     private TableCellsPanel? _panel;
     private FrameworkElement? _marker;
+    private Button? _fitAll;
     private TableView? _owner;
     private int _activeIndex = -1;
 
@@ -92,13 +94,26 @@ public sealed partial class TableHeaderStrip : Control
             _clip.SizeChanged -= OnClipSizeChanged;
         }
 
+        if (_fitAll is not null)
+        {
+            _fitAll.Click -= OnFitAllClick;
+        }
+
         _clip = GetTemplateChild(ClipPartName) as FrameworkElement;
         _panel = GetTemplateChild(PanelPartName) as TableCellsPanel;
         _marker = GetTemplateChild(InsertionMarkerPartName) as FrameworkElement;
+        _fitAll = GetTemplateChild(FitAllPartName) as Button;
 
         if (_clip is not null)
         {
             _clip.SizeChanged += OnClipSizeChanged;
+        }
+
+        if (_fitAll is not null)
+        {
+            _fitAll.Click += OnFitAllClick;
+            AutomationProperties.SetName(_fitAll, TableResources.FitVisibleColumns);
+            ToolTipService.SetToolTip(_fitAll, TableResources.FitVisibleColumns);
         }
 
         if (_marker is not null)
@@ -124,6 +139,34 @@ public sealed partial class TableHeaderStrip : Control
         {
             Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height),
         };
+
+        UpdateFitAllVisibility();
+    }
+
+    private void OnFitAllClick(object sender, RoutedEventArgs e) => _owner?.AutoFitVisibleColumns();
+
+    /// <summary>
+    /// Show the fit-all command only while the strip's trailing space is genuinely free.
+    /// </summary>
+    /// <remarks>
+    /// The threshold is the button's own width rather than a number chosen here: if the columns
+    /// reach far enough right that the button would sit over one, there is nothing to offer and it
+    /// goes. That covers the two cases without a second rule — columns wider than the viewport
+    /// scroll horizontally and leave no trailing space at all, and a narrow set of columns leaves
+    /// plenty.
+    /// </remarks>
+    internal void UpdateFitAllVisibility()
+    {
+        if (_fitAll is null || _clip is null)
+        {
+            return;
+        }
+
+        bool offered = _owner is { IsFitAllButtonEnabled: true, Layout: { } layout }
+            && _clip.ActualWidth - (layout.TotalWidth - layout.HorizontalOffset)
+                >= _fitAll.ActualWidth;
+
+        _fitAll.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnHeaderGotFocus(object sender, RoutedEventArgs e)

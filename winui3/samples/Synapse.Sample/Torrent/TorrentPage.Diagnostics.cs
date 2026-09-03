@@ -553,12 +553,12 @@ public sealed partial class TorrentPage
     }
 
     /// <summary>
-    /// What a full re-sort of every row costs, measured so that this machine's mood cannot decide
-    /// the answer. Two configurations — the row transitions live, and the same sort with them
-    /// switched off — are alternated inside one trial, so whatever load is present is shared
-    /// between them, and five trials are taken. The figure to read is the median, and the cost per
-    /// collection notification rather than the wall time, because the notification count is fixed
-    /// by the data and does not move with the machine.
+    /// What a re-sort costs, split so the answer depends neither on this machine's mood nor on
+    /// which span of the operation a stopwatch happened to cover. Two sorts are compared — the one
+    /// section K times, and a full reversal — and each is measured twice over: the collection
+    /// mutation on its own, then the layout pass that follows it. Beside them are two counts that
+    /// do not move with load at all: how many notifications the list is sent, and how many times it
+    /// realizes a container while handling them.
     /// </summary>
     private async Task MeasureSortCostAsync()
     {
@@ -570,54 +570,124 @@ public sealed partial class TorrentPage
         }
 
         int notifications = 0;
+        int realizations = 0;
         System.Collections.Specialized.NotifyCollectionChangedEventHandler tally = (_, _) => notifications++;
+        TypedEventHandler<ListViewBase, ContainerContentChangingEventArgs> realizing = (_, args) =>
+        {
+            if (!args.InRecycleQueue)
+            {
+                realizations++;
+            }
+        };
 
         Microsoft.UI.Xaml.Media.Animation.TransitionCollection? live = list.ItemContainerTransitions;
-        List<double> withMotion = new();
-        List<double> without = new();
-        int counted = 0;
 
-        // The tick is stopped for the whole measurement: a 1 Hz projection landing inside a timed
-        // sort is exactly the kind of contamination this section exists to remove.
+        (string Label, TableLayoutState From, TableLayoutState To, bool Motion)[] cases =
+        {
+            ("natural order to name order", Sorted(null, TableSortDirection.Ascending),
+                Sorted("name", TableSortDirection.Ascending), true),
+            ("queue ascending to descending", Sorted("queue", TableSortDirection.Ascending),
+                Sorted("queue", TableSortDirection.Descending), true),
+            ("queue reversal with the row transitions off", Sorted("queue", TableSortDirection.Ascending),
+                Sorted("queue", TableSortDirection.Descending), false),
+        };
+
+        Dictionary<string, List<double>> mutation = new();
+        Dictionary<string, List<double>> layout = new();
+        Dictionary<string, (int Notifications, int Realizations)> counts = new();
+
+        // The tick is stopped throughout: a 1 Hz projection landing inside a timed sort is exactly
+        // the contamination this section exists to remove.
         _catalog!.Stop();
 
-        for (int trial = 0; trial < 5; trial++)
+        for (int trial = 0; trial < 3; trial++)
         {
-            foreach (bool motion in new[] { true, false })
+            foreach ((string label, TableLayoutState from, TableLayoutState to, bool motion) in cases)
             {
-                list.ItemContainerTransitions = motion ? live : new Microsoft.UI.Xaml.Media.Animation.TransitionCollection();
+                list.ItemContainerTransitions =
+                    motion ? live : new Microsoft.UI.Xaml.Media.Animation.TransitionCollection();
 
-                // Setup, not measured: put the view in ascending order so the timed call below is
-                // always the same worst case, a full reversal.
-                Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+                Table.ApplyLayoutState(from);
                 await Settle(600);
 
                 notifications = 0;
+                realizations = 0;
                 feed.CollectionChanged += tally;
-                Stopwatch clock = Stopwatch.StartNew();
-                Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending));
-                double applied = clock.Elapsed.TotalMilliseconds;
-                feed.CollectionChanged -= tally;
+                list.ContainerContentChanging += realizing;
 
-                (motion ? withMotion : without).Add(applied);
-                counted = notifications;
+                Stopwatch clock = Stopwatch.StartNew();
+                Table.ApplyLayoutState(to);
+                double applied = clock.Elapsed.TotalMilliseconds;
+                Table.UpdateLayout();
+                double laidOut = clock.Elapsed.TotalMilliseconds;
+
+                feed.CollectionChanged -= tally;
+                list.ContainerContentChanging -= realizing;
+
+                if (!mutation.ContainsKey(label))
+                {
+                    mutation[label] = new List<double>();
+                    layout[label] = new List<double>();
+                }
+
+                mutation[label].Add(applied);
+                layout[label].Add(laidOut - applied);
+                counts[label] = (notifications, realizations);
+
                 await Settle(600);
             }
         }
 
         list.ItemContainerTransitions = live;
+
+        // What a sort costs standing still is only half the question. The bench stops the tick, and
+        // the owner does not: if a live source makes the sorted order differ on every tick, the
+        // table pays a whole re-sort once a second for as long as the sort is applied, which no
+        // amount of making one sort cheaper would fix. Sorting on speed, which every tick changes,
+        // is the worst case; sorting on name, which no tick changes, is the control.
+        foreach ((string column, TimeSpan settle) in new[]
+        {
+            ("speed", Table.SortSettleInterval),
+            ("speed", TimeSpan.Zero),
+            ("name", Table.SortSettleInterval),
+        })
+        {
+            TimeSpan restore = Table.SortSettleInterval;
+            Table.SortSettleInterval = settle;
+            Table.ApplyLayoutState(Sorted(column, TableSortDirection.Descending));
+            await Settle(600);
+            _catalog.Start();
+
+            notifications = 0;
+            feed.CollectionChanged += tally;
+            await Task.Delay(5000);
+            feed.CollectionChanged -= tally;
+            _catalog.Stop();
+
+            W($"  sorted by {column}, settle {settle.TotalSeconds:0.#}s, five seconds of the live " +
+              $"tick: {notifications} notifications, {notifications / 5.0:0} per second");
+
+            Table.SortSettleInterval = restore;
+        }
+
+        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        await Settle(400);
         _catalog.Start();
 
-        W($"  a full reversal of {list.Items.Count} rows raises {counted} collection notifications");
-        Report("row transitions live", withMotion, counted);
-        Report("the same sort, transitions off", without, counted);
-
-        void Report(string label, List<double> samples, int count)
+        foreach ((string label, TableLayoutState _, TableLayoutState _, bool _) in cases)
         {
-            samples.Sort();
-            double median = samples[samples.Count / 2];
-            W($"  {label}: median {median:0} ms, best {samples[0]:0} ms, worst {samples[^1]:0} ms" +
-              (count > 0 ? $" — {median * 1000 / count:0} us per notification" : string.Empty));
+            List<double> changing = mutation[label];
+            List<double> after = layout[label];
+            changing.Sort();
+            after.Sort();
+            double median = changing[changing.Count / 2];
+            (int sent, int realized) = counts[label];
+
+            W($"  {label}:");
+            W($"    {sent} notifications sent, a container realized {realized} times");
+            W($"    changing the collection: median {median:0} ms" +
+              (sent > 0 ? $", {median * 1000 / sent:0} us per notification" : string.Empty));
+            W($"    the layout pass after it: median {after[after.Count / 2]:0} ms");
         }
     }
 

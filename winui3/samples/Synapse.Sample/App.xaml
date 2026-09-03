@@ -10,7 +10,35 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+
+            <!--
+                The focus visual, themed for this app instead of the platform's default. That
+                default is a two-tone rectangle — a thick near-black stroke with a thin near-white
+                one inside it — drawn that way so it survives any background underneath it. On this
+                page it reads as a hard box belonging to no part of the design, most obviously
+                around an item in the row menu. Here the outer stroke is dropped and what is left is
+                the accent at partial strength.
+
+                These have to be declared inside ThemeDictionaries. The platform looks them up with
+                ThemeResource, which searches the theme dictionaries first, so the same brushes
+                declared as plain application resources are found only after the merged WinUI ones
+                and never take effect. High contrast is deliberately absent: there the ring must
+                stay exactly as the system draws it.
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="FocusStrokeColorOuterBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="FocusStrokeColorInnerBrush"
+                                     Color="{ThemeResource SystemAccentColorLight2}"
+                                     Opacity="0.8" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="FocusStrokeColorOuterBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="FocusStrokeColorInnerBrush"
+                                     Color="{ThemeResource SystemAccentColorDark1}"
+                                     Opacity="0.8" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

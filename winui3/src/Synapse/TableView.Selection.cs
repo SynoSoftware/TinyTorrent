@@ -110,6 +110,24 @@ public sealed partial class TableView
     internal bool IsRowCurrent(object? item) =>
         item is not null && _selection.IsSame(item, _selection.Current);
 
+    /// <summary>
+    /// Whether this row should draw the "you are here" cue: it holds focus, and selection is not
+    /// already saying so.
+    /// </summary>
+    /// <remarks>
+    /// Clicking a row both selects it and focuses it, so drawing focus unconditionally puts a
+    /// second mark on a row that is already marked, and two selected rows then look different with
+    /// no cause the user can see. The cue is therefore drawn only where selection does not already
+    /// carry it — a row reached with Ctrl and the arrow keys, which moves focus without selecting.
+    /// The platform's own focus visual is off for rows, so this is the only thing left saying where
+    /// the keyboard is.
+    /// </remarks>
+    internal bool IsRowFocused(object? item) =>
+        item is not null
+        && !IsRowSelected(item)
+        && RowSurfaceFocusState() != FocusState.Unfocused
+        && _selection.IsSame(item, _selection.Focus);
+
     /// <summary>Section 5.3: withdrawing the marquee mid-gesture cancels it before the flag applies.</summary>
     private static void OnMarqueeSelectionEnabledChanged(
         DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -221,7 +239,7 @@ public sealed partial class TableView
                 _itemsView.SelectionMode = ListViewSelectionMode.None;
             }
 
-            _view.Reconcile(SortedSnapshot());
+            _view.Reconcile(ViewOrder());
         }
         finally
         {

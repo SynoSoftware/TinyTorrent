@@ -258,6 +258,17 @@ public sealed partial class TableCellsPanel : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        // A panel is measured before it is loaded, and a recycled row is unloaded and measured
+        // again before its Loaded runs. Unloading drops the layout, so without this the panel
+        // measures zero height and the row draws nothing while the list still holds every item and
+        // still shows a scroll thumb — a table that has gone blank with a full scroll bar beside
+        // it. Measure is the first moment the layout is actually needed, so it is where a panel
+        // that has lost it takes it back.
+        if (_layout is null && _owner is not null)
+        {
+            Attach(_owner);
+        }
+
         if (_layout is null)
         {
             return new Size(0, 0);

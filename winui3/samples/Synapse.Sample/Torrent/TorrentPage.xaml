@@ -357,6 +357,7 @@
         <t:TableView x:Name="Table"
                      Grid.Row="2"
                      AutomationProperties.Name="Torrents"
+                     IsFitAllButtonEnabled="True"
                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                      BorderThickness="1"
                      CornerRadius="4"

@@ -65,6 +65,17 @@
                             instead of one block. The width and the brush are the platform's own
                             indicator values, not chosen here.
                         -->
+                        <!--
+                            Focus, as a fill rather than a frame. The platform's focus visual is a
+                            rectangle drawn around the element, and around a full-width row that
+                            reads as a box laid over the design. The owner asked for a
+                            semi-transparent background instead, so the container's own visual is
+                            switched off and this takes its place. It sits under the accent bar, so
+                            a row that is both focused and selected shows both.
+                        -->
+                        <Border x:Name="FocusFill"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                Opacity="0" />
                         <Rectangle x:Name="SelectedBar"
                                    Width="3"
                                    HorizontalAlignment="Left"
@@ -81,6 +92,14 @@
                                 <VisualState x:Name="Selected">
                                     <VisualState.Setters>
                                         <Setter Target="SelectedBar.Opacity" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="RowFocus">
+                                <VisualState x:Name="RowUnfocused" />
+                                <VisualState x:Name="RowFocused">
+                                    <VisualState.Setters>
+                                        <Setter Target="FocusFill.Opacity" Value="1" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -188,6 +207,31 @@
                             BorderThickness="0,0,0,1">
                         <Grid>
                             <local:TableCellsPanel x:Name="PART_HeaderPanel" />
+
+                            <!--
+                                Fit every column, offered in the strip's trailing space. Opt-in:
+                                the table adds no visible command to a host's header unless asked,
+                                and a host that already has its own fit button would otherwise
+                                show two. The strip collapses it whenever the columns reach far
+                                enough right to need that space, so it is only ever where nothing
+                                else wants to be.
+
+                                Subtle style, not accent: this sits in the header's own surface
+                                and must not read as louder than the column labels beside it.
+                            -->
+                            <Button x:Name="PART_FitAllColumns"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Stretch"
+                                    Padding="8,0"
+                                    MinWidth="0"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Visibility="Collapsed">
+                                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          Glyph="&#xE9A6;"
+                                          FontSize="14"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Button>
 
                             <!--
                                 Section 11's insertion marker, positioned by the strip on the

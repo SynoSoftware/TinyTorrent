@@ -13,6 +13,13 @@ public sealed partial class TableView
             typeof(TableView),
             new PropertyMetadata(null, OnItemsSourceChanged));
 
+    public static readonly DependencyProperty IsFitAllButtonEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsFitAllButtonEnabled),
+            typeof(bool),
+            typeof(TableView),
+            new PropertyMetadata(false, OnFitAllButtonEnabledChanged));
+
     public static readonly DependencyProperty IsLoadingProperty =
         DependencyProperty.Register(
             nameof(IsLoading),
@@ -82,6 +89,26 @@ public sealed partial class TableView
     /// </summary>
     public ObservableCollection<TableColumn> Columns { get; } = new();
 
+    /// <summary>
+    /// Offer <see cref="AutoFitVisibleColumns"/> as a button in the header's trailing space.
+    /// Off by default.
+    /// </summary>
+    /// <remarks>
+    /// The command already exists in the header context menu of section 12; this is the same
+    /// command made discoverable, in space that is otherwise empty. It is opt-in rather than on
+    /// by default because the table should not add a visible control to a host's header uninvited,
+    /// and a host with its own fit button would otherwise show two of them.
+    /// <para>
+    /// Turning it on does not guarantee it is shown. The strip hides it whenever the columns reach
+    /// far enough right to want that space, so it never covers a header.
+    /// </para>
+    /// </remarks>
+    public bool IsFitAllButtonEnabled
+    {
+        get => (bool)GetValue(IsFitAllButtonEnabledProperty);
+        set => SetValue(IsFitAllButtonEnabledProperty, value);
+    }
+
     public bool IsLoading
     {
         get => (bool)GetValue(IsLoadingProperty);
@@ -136,4 +163,8 @@ public sealed partial class TableView
 
     private static void OnStateInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((TableView)d).UpdateStateLayer();
+
+    private static void OnFitAllButtonEnabledChanged(
+        DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((TableView)d)._headerStrip?.UpdateFitAllVisibility();
 }
