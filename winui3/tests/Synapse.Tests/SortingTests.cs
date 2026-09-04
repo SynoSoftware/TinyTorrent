@@ -283,14 +283,14 @@ public class SortingTests
             h.Table.UpdateLayout();
 
             Assert.AreEqual(Visibility.Visible, h.Glyph(0).Visibility);
-            Assert.AreEqual("\uE70E", h.Glyph(0).Glyph, "ChevronUp for ascending");
+            Assert.AreEqual(Lucide.ChevronUp, h.Glyph(0).Glyph, "ChevronUp for ascending");
             Assert.AreEqual("Sorted ascending", AutomationProperties.GetItemStatus(h.Cell(0)));
             Assert.AreEqual(Visibility.Collapsed, h.Glyph(1).Visibility, "only one column sorts");
 
             h.Activate(0);
             h.Table.UpdateLayout();
 
-            Assert.AreEqual("\uE70D", h.Glyph(0).Glyph, "ChevronDown for descending");
+            Assert.AreEqual(Lucide.ChevronDown, h.Glyph(0).Glyph, "ChevronDown for descending");
             Assert.AreEqual("Sorted descending", AutomationProperties.GetItemStatus(h.Cell(0)));
 
             h.Activate(0);

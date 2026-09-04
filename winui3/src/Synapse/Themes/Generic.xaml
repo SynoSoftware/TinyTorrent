@@ -343,7 +343,23 @@
                                             realized row is bound to its item and pays for each
                                             update the source sends, whether it is on screen or not.
                                         -->
-                                        <ItemsStackPanel Orientation="Vertical" CacheLength="0.5" />
+                                        <!--
+                                            KeepScrollOffset: a reorder moves rows through a fixed
+                                            viewport and never the viewport. The default,
+                                            KeepItemsInView, shifts the scroll offset to keep the
+                                            first visible row where it was whenever rows are
+                                            removed or inserted above it, and a sort by a live value
+                                            does that on every settle, for every realized row that
+                                            changes place. The owner saw the result while sweeping a
+                                            marquee over a table sorted by speed: the rectangle's
+                                            fixed corner, which is a point in the scrolled content,
+                                            jumped up and down with the row the panel was following.
+                                            Under a live sort the viewport is the thing to hold
+                                            still; rows moving through it is what the sort means.
+                                        -->
+                                        <ItemsStackPanel Orientation="Vertical"
+                                                         CacheLength="0.5"
+                                                         ItemsUpdatingScrollMode="KeepScrollOffset" />
                                     </ItemsPanelTemplate>
                                 </ListView.ItemsPanel>
                             </ListView>
@@ -355,17 +371,33 @@
 
                             <!--
                                 Section 14's rectangle, sized and positioned by the gesture over
-                                the row surface: a translucent accent surface inside the marker
-                                pair, which is the shape the platform gives a selection rectangle.
-                                The fill is a platform accent brush at element opacity, because no
-                                platform brush is translucent in a contrast theme, where every fill
-                                resolves to an opaque system colour. This brush follows the user's
-                                accent in Light and Dark and the highlight colour in a contrast
-                                theme, and the opacity keeps the rows under it legible in all
-                                three. The stroke pair carries section 19's contrast on its own: an
-                                accent stroke would vanish over the rows the rectangle has just
-                                selected, whose background is that same highlight colour in a
-                                contrast theme.
+                                the row surface: a faint neutral surface, and nothing else, so the
+                                rectangle looks like the selection it is making. In this table a
+                                selected row's fill is neutral and nothing in its selection is
+                                accent-coloured, the owner having ruled the accent bar out, so an
+                                accent rectangle was the one accent-coloured piece of the selection
+                                language; Explorer's rubber band is accent because Explorer's
+                                selected items are. The platform's selection rectangle also draws
+                                a line around its surface; the owner ruled that out here, so the
+                                surface carries the shape alone.
+
+                                A neutral highlight is a light wash of the foreground colour, and
+                                the primary text brush is the one platform brush that carries the
+                                foreground colour in every theme: 89% black in Light, white in
+                                Dark, and the window text colour in a contrast theme. At this
+                                element opacity that is a 12% to 14% wash in all three, under
+                                which row text keeps at least 10:1. Name the brush, never its
+                                colour key: the contrast dictionary's TextFillColorPrimary colour
+                                is a red placeholder, and only the brush points at the window
+                                text colour. The list-highlight brushes
+                                carry their own 20% only in Light and Dark; in a contrast theme
+                                they resolve to the opaque highlight colour, and the opacity that
+                                gave 14% there gave a 70% wash that hid the text under it. Over
+                                the rows it has selected in a contrast theme the rectangle is still
+                                hard to tell from them, because the highlight is what a selected
+                                row is there; that is accepted, since the rows the rectangle covers
+                                are selected as it covers them, and that, not the surface, is the
+                                feedback section 19 requires to read without colour.
                             -->
                             <Grid x:Name="PART_MarqueeOverlay"
                                   HorizontalAlignment="Left"
@@ -373,12 +405,8 @@
                                   IsHitTestVisible="False"
                                   AutomationProperties.AccessibilityView="Raw"
                                   Visibility="Collapsed">
-                                <Rectangle Fill="{ThemeResource SystemControlHighlightAccentBrush}"
-                                           Opacity="0.25" />
-                                <Rectangle Stroke="{ThemeResource SynapseMarkerInnerBrush}"
-                                           StrokeThickness="3" />
-                                <Rectangle Stroke="{ThemeResource SynapseMarkerOuterBrush}"
-                                           StrokeThickness="1" />
+                                <Rectangle Fill="{ThemeResource TextFillColorPrimaryBrush}"
+                                           Opacity="0.14" />
                             </Grid>
 
                             <!--

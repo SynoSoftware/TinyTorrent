@@ -170,14 +170,14 @@ public class FeatureProofTests
             (string ascGlyph, Visibility ascVisible, string ascStatus) = Glyph(queue);
             Proof.Note($"F02 ascending glyph U+{(int)ascGlyph[0]:X4} {ascVisible} status='{ascStatus}'");
             Assert.AreEqual(Visibility.Visible, ascVisible);
-            Assert.AreEqual("\uE70E", ascGlyph, "ChevronUp");
+            Assert.AreEqual(Lucide.ChevronUp, ascGlyph, "ChevronUp");
             Assert.AreEqual("Sorted ascending", ascStatus);
             Assert.AreEqual(Visibility.Collapsed, Glyph(name).Item2, "the sibling stays clear");
 
             ActivateSort(strip, queue);
             (string descGlyph, _, string descStatus) = Glyph(queue);
             Proof.Note($"F02 descending glyph U+{(int)descGlyph[0]:X4} status='{descStatus}'");
-            Assert.AreEqual("\uE70D", descGlyph, "ChevronDown");
+            Assert.AreEqual(Lucide.ChevronDown, descGlyph, "ChevronDown");
             Assert.AreEqual("Sorted descending", descStatus);
 
             ActivateSort(strip, queue);
@@ -1072,6 +1072,7 @@ public class FeatureProofTests
 
         TableLayoutState unsorted = h.Table.GetLayoutState();
         h.Table.ApplyLayoutState(unsorted with { SortColumnId = "b" });
+        h.Table.UpdateLayout();
         Assert.IsFalse(
             (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!,
             "sorted by another column: the drag is withheld");
@@ -1083,12 +1084,14 @@ public class FeatureProofTests
         Proof.Call(h.Table, "CancelGesture");
 
         h.Table.ApplyLayoutState(unsorted with { SortColumnId = "a" });
+        h.Table.UpdateLayout();
         Assert.IsTrue(
             (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!,
             "sorted by the row-order column upward: offered");
 
         h.Table.ApplyLayoutState(
             unsorted with { SortColumnId = "a", SortDirection = TableSortDirection.Descending });
+        h.Table.UpdateLayout();
         Assert.IsTrue(
             (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!, "and downward: offered");
         CollectionAssert.AreEqual(
@@ -1130,6 +1133,144 @@ public class FeatureProofTests
         Proof.Call(h.Table, "BeginRowDrag", list, h[5]);
         Proof.Call(h.Table, "CompleteRowDrag", rowHeight * 1.6);
         Assert.AreEqual(1, requests.Count, "a placement that keeps the order raises nothing");
+    });
+
+    /// <summary>
+    /// A sort that stops showing the row order ends a live drag even when it leaves every row
+    /// where it was. The drop would be refused, so a drag that can end in nothing must not keep
+    /// its marker up until the release.
+    /// </summary>
+    [TestMethod]
+    public Task F11_ASortThatHidesTheRowOrderEndsALiveDragEvenWhenNothingMoves() =>
+        TestHost.RunAsync(async () =>
+        {
+            SelectionHarness h = await SelectionHarness.LoadAsync(
+                6,
+                configure: t =>
+                {
+                    // Both columns sort ascending by key, which is the source order, so sorting by
+                    // b moves no row; only a is the row order.
+                    foreach (TableColumn column in t.Columns)
+                    {
+                        column.CanSort = true;
+                        column.SortComparer = Comparer<object>.Create(
+                            (x, y) => string.CompareOrdinal(((Row)x).Key, ((Row)y).Key));
+                    }
+
+                    t.Columns[0].DefinesRowOrder = true;
+                    t.IsRowReorderingEnabled = true;
+                },
+                height: 400);
+            h.Table.RowsReorderRequested += (_, _) => { };
+            ListView list = h.HostedList();
+            FrameworkElement marker = InsertionMarker(h.Table);
+            double rowHeight = ((FrameworkElement)list.ContainerFromItem(h[0])).ActualHeight;
+
+            Gesture.Press(h, row: h[2], item: h[2], originY: rowHeight * 2.5);
+            Proof.Call(h.Table, "BeginRowDrag", list, h[2]);
+            Assert.AreEqual(Visibility.Visible, marker.Visibility, "the drag is live");
+
+            h.Table.ApplyLayoutState(h.Table.GetLayoutState() with { SortColumnId = "b" });
+            CollectionAssert.AreEqual(
+                new[] { "k0", "k1", "k2", "k3", "k4", "k5" },
+                list.Items.Cast<Row>().Select(r => r.Key).ToArray(),
+                "the sort moved nothing");
+            Proof.Note("F11 after a sort that hides the row order: gesture=" +
+                       Proof.Field<object>(h.Table, "_gesture"));
+            Assert.AreEqual(
+                "None", Proof.Field<object>(h.Table, "_gesture").ToString(), "and still ended the drag");
+            Assert.AreEqual(Visibility.Collapsed, marker.Visibility);
+        });
+
+    /// <summary>
+    /// Section 9: hiding the sorted column clears the sort, and section 18 refuses a restored sort
+    /// on a hidden column. The header is the only place a sort shows or is changed, so a sort by a
+    /// hidden column would withhold section 16's drag with nothing on screen to explain it.
+    /// </summary>
+    [TestMethod]
+    public Task F11_HidingTheSortedColumnClearsTheSortAndOffersTheDragAgain() =>
+        TestHost.RunAsync(async () =>
+        {
+            SelectionHarness h = await SelectionHarness.LoadAsync(
+                6,
+                configure: t =>
+                {
+                    t.Columns[0].CanSort = true;
+                    t.Columns[0].DefinesRowOrder = true;
+                    t.Columns[0].SortComparer = Comparer<object>.Create(
+                        (x, y) => string.CompareOrdinal(((Row)x).Key, ((Row)y).Key));
+                    t.Columns[1].CanSort = true;
+                    t.Columns[1].SortComparer = Comparer<object>.Create(
+                        (x, y) => string.CompareOrdinal(((Row)y).Key, ((Row)x).Key));
+                    t.IsRowReorderingEnabled = true;
+                },
+                height: 400);
+            h.Table.RowsReorderRequested += (_, _) => { };
+            List<TableLayoutChangedEventArgs> changes = new();
+            h.Table.LayoutChanged += (_, e) => changes.Add(e);
+            ListView list = h.HostedList();
+
+            TableLayoutState unsorted = h.Table.GetLayoutState();
+            h.Table.ApplyLayoutState(unsorted with { SortColumnId = "b" });
+            Assert.IsFalse(
+                (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!, "sorted by b: withheld");
+            Assert.AreEqual("k5", ((Row)list.Items[0]).Key, "and the view runs by b");
+
+            SetVisibility(h.Table, "b", false);
+
+            TableLayoutChangedEventArgs change = changes.Single();
+            Proof.Note($"F11 after hiding the sorted column: kind={change.Kind} " +
+                       $"sort={change.LayoutState.SortColumnId ?? "none"} " +
+                       $"first row={((Row)list.Items[0]).Key}");
+            Assert.AreEqual(TableLayoutChangeKind.Visibility, change.Kind);
+            Assert.IsNull(change.LayoutState.SortColumnId, "the one change reports the sort gone");
+            Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+            Assert.AreEqual("k0", ((Row)list.Items[0]).Key, "the view is back in natural order");
+            Assert.IsTrue(
+                (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!, "and the drag is offered again");
+
+            // A restored layout that hides the column it sorts by keeps the visibility and drops
+            // the sort, the same rule from the other direction.
+            h.Table.ApplyLayoutState(unsorted with
+            {
+                SortColumnId = "b",
+                ColumnVisibility = new Dictionary<string, bool> { ["b"] = false },
+            });
+            Assert.IsNull(h.Table.GetLayoutState().SortColumnId, "a sort on a hidden column is refused");
+            Assert.AreEqual("k0", ((Row)list.Items[0]).Key);
+        });
+
+    /// <summary>
+    /// Section 5.3: selection belongs to the row, not to its container. Rows selected, scrolled far
+    /// enough out of the list to lose their containers, and scrolled back are selected still, in
+    /// the table's model and on the containers the list gives them again.
+    /// </summary>
+    [TestMethod]
+    public Task F11_SelectedRowsScrolledOutOfTheListComeBackSelected() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(200, height: 220);
+        ListView list = h.HostedList();
+        ScrollViewer scroller = (ScrollViewer)Proof.Call(h.Table, "InnerScrollViewer")!;
+
+        h.Table.SetSelection(new object[] { h[2], h[3], h[4], h[5], h[6] }, h[2]);
+        CollectionAssert.AreEqual(new[] { "k2", "k3", "k4", "k5", "k6" }, h.ContainerSelectedKeys());
+
+        scroller.ChangeView(null, scroller.ScrollableHeight, null, disableAnimation: true);
+        h.Table.UpdateLayout();
+        Proof.Note($"F11 scrolled to {scroller.VerticalOffset:0} of {scroller.ScrollableHeight:0}; " +
+                   $"container for k2 = {(list.ContainerFromItem(h[2]) is null ? "gone" : "kept")}");
+        Assert.IsNull(list.ContainerFromItem(h[2]), "the selected rows left the realized range");
+        CollectionAssert.AreEqual(
+            new[] { "k2", "k3", "k4", "k5", "k6" }, h.SelectedKeys(), "the model kept them");
+
+        scroller.ChangeView(null, 0, null, disableAnimation: true);
+        h.Table.UpdateLayout();
+        CollectionAssert.AreEqual(new[] { "k2", "k3", "k4", "k5", "k6" }, h.SelectedKeys());
+        CollectionAssert.AreEqual(
+            new[] { "k2", "k3", "k4", "k5", "k6" },
+            h.ContainerSelectedKeys(),
+            "and the containers they were given again show it");
+        Assert.IsTrue(((ListViewItem)list.ContainerFromItem(h[4])).IsSelected);
     });
 
     // ================================================================ F12 row activation
@@ -1245,7 +1386,7 @@ public class FeatureProofTests
         Proof.Call(table, "RequireColumn", id)!;
 
     private static bool MoveColumn(TableView table, object column, int boundary) =>
-        (bool)Proof.Call(table, "MoveColumnTo", column, boundary)!;
+        (bool)Proof.Call(table, "MoveColumnTo", column, boundary, null)!;
 
     private static void SetVisibility(TableView table, string id, bool visible) =>
         Proof.Call(table, "SetColumnVisibility", Column(table, id), visible);
@@ -1356,10 +1497,12 @@ public class FeatureProofTests
             Proof.SetField(h.Table, "_gestureShift", shift);
             Proof.SetField(h.Table, "_gestureSelection", h.Table.SelectedItems);
 
+            bool couldDrag = item is not null
+                && (bool)Proof.Call(h.Table, "CanBeginRowDrag", item)!;
+            Proof.SetField(h.Table, "_gestureCouldDrag", couldDrag);
+
             bool deferred = item is null
-                || (!ctrl && !shift
-                    && (h.Table.SelectedItems.Contains(item)
-                        || (bool)Proof.Call(h.Table, "CanBeginRowDrag", item)!));
+                || (!ctrl && !shift && (h.Table.SelectedItems.Contains(item) || couldDrag));
             Proof.SetField(h.Table, "_gestureDeferred", deferred);
 
             if (!deferred && item is not null)

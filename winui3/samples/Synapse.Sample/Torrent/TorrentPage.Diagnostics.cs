@@ -1857,28 +1857,134 @@ public sealed partial class TorrentPage
         // Section R stops it, and a stopped daemon takes the sort settle out of the picture
         // entirely — which is half of what runs during the owner's sequence.
         _catalog?.Start();
-        await Settle(500);
 
-        Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending));
+        // The owner's window, not the harness's: about 24 rows in the viewport rather than 12, so
+        // the panel's cache is twice the size and the realized run is twice as wide.
+        try
+        {
+            MainWindow.Instance?.AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(1460, 1080));
+        }
+        catch (Exception ex)
+        {
+            W("  resize failed: " + ex.Message);
+        }
+
+        await Settle(700);
+
+        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
         await Settle(700);
         W(State("after the sort"));
 
-        await SetFilter("downloading");
-        W(State("after Downloading"));
+        // Scrolled down first. Every filter change below then happens with the realized run in the
+        // middle of the list rather than at index 0, which is where the owner was: both screenshots
+        // are mid-list. At offset 0 the run starts at index 0 and the arithmetic that decides what
+        // to announce has the easiest case there is.
+        scroller?.ChangeView(null, 500 * 40.0, null, disableAnimation: true);
+        await Settle(700);
+        W(State("scrolled to row 500"));
+
+        // The owner did this once and saw it. Doing it at a range of scroll offsets, in both filter
+        // directions, is the same sequence with the one variable that is certainly different
+        // between their run and this one moved through its range.
+        int found = 0;
+        foreach (int top in new[] { 0, 13, 120, 500, 1200, 1800 })
+        {
+            scroller?.ChangeView(null, top * 40.0, null, disableAnimation: true);
+            await Settle(400);
+
+            foreach (string filter in new[] { "downloading", "all", "seeding", "all" })
+            {
+                _stateFilter = filter;
+                ApplyProjection();
+                await Settle(350);
+
+                string cells = Cells();
+                if (!cells.StartsWith("every", StringComparison.Ordinal))
+                {
+                    found++;
+                    W($"      at row {top} after '{filter}': {cells}");
+                }
+
+                await Settle(700);
+                cells = Cells();
+                if (!cells.StartsWith("every", StringComparison.Ordinal))
+                {
+                    found++;
+                    W($"      at row {top} after '{filter}', settled: {cells}");
+                }
+            }
+        }
+
+        W($"  24 filter changes across six scroll offsets: {found} left a blank row");
 
         await SetFilter("all");
-        W(State("after All, immediately"));
-
         await Settle(1200);
         W(State("after All, settled"));
+        W("      cells: " + Cells());
 
         // The owner's screenshots are mid-list, not at the top.
         scroller?.ChangeView(null, 24 * 40.0, null, disableAnimation: true);
         await Settle(900);
         W(State("scrolled to row 24"));
 
+        // A container can hold the right row and still draw nothing, if the cells panel inside it
+        // has no children or its cells have no content. That is the shape of the owner's report: a
+        // band of the right height with nothing in it. Recycling is what exercises it, so this
+        // walks the list the way a person does.
+        string Cells()
+        {
+            List<string> empty = new();
+
+            for (int i = panel.FirstVisibleIndex; i >= 0 && i <= panel.LastVisibleIndex; i++)
+            {
+                if (list.ContainerFromIndex(i) is not ListViewItem container)
+                {
+                    empty.Add($"{i}:noContainer");
+                    continue;
+                }
+
+                TableCellsPanel? cells = FindDescendant<TableCellsPanel>(container);
+                if (cells is null)
+                {
+                    empty.Add($"{i}:noPanel");
+                    continue;
+                }
+
+                int filled = 0;
+                foreach (UIElement child in cells.Children)
+                {
+                    if (child is ContentPresenter { Content: not null })
+                    {
+                        filled++;
+                    }
+                }
+
+                if (filled == 0)
+                {
+                    empty.Add($"{i}:{cells.Children.Count}cells/0filled h={cells.ActualHeight:F0}");
+                }
+            }
+
+            return empty.Count == 0 ? "every visible row drew its cells" : string.Join(" ", empty.Take(12));
+        }
+
+        for (int top = 0; top <= 600; top += 60)
+        {
+            scroller?.ChangeView(null, top * 40.0, null, disableAnimation: true);
+            await Settle(260);
+            string cells = Cells();
+            if (!cells.StartsWith("every", StringComparison.Ordinal))
+            {
+                W($"      at row {top}: {cells}");
+            }
+        }
+
+        W("  scrolled 0..600 in steps of 60: " + Cells());
+
         // What the owner actually reported is visual. If the numbers above stay clean, the picture
         // says whether this sequence reproduces it at all.
+        scroller?.ChangeView(null, 24 * 40.0, null, disableAnimation: true);
+        await Settle(600);
         await CaptureAsync("torrent-blanks.bmp", this);
 
         // Every visible row, with what the container is drawing it at. A row at opacity 0 occupies
@@ -1887,7 +1993,7 @@ public sealed partial class TorrentPage
         {
             TorrentRowViewModel? row = i < view.Count ? view[i] as TorrentRowViewModel : null;
             ListViewItem? container = list.ContainerFromIndex(i) as ListViewItem;
-            W($"      {i}: queue={row?.Queue} ghost={row?.IsGhost} rowOpacity={row?.RowOpacity:F2} " +
+            W($"      {i}: queue={row?.QueueText} ghost={row?.IsGhost} rowOpacity={row?.RowOpacity:F2} " +
               $"container={(container is null ? "none" : $"opacity={container.Opacity:F2} h={container.ActualHeight:F0}")} " +
               $"'{row?.Name}'");
         }

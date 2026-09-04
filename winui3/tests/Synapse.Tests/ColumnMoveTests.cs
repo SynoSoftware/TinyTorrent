@@ -488,7 +488,7 @@ public class ColumnMoveTests
     }
 
     private static bool MoveColumnTo(TableView table, string id, int boundary) =>
-        (bool)Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary)!;
+        (bool)Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary, null!)!;
 
     private static void SetColumnVisibility(TableView table, string id, bool visible) =>
         Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);

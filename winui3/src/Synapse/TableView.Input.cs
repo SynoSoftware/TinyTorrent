@@ -48,6 +48,13 @@ public sealed partial class TableView
     /// <summary>Set when the click's selection change waits for release, so a drag keeps its packet.</summary>
     private bool _gestureDeferred;
 
+    /// <summary>
+    /// Whether the table would have dragged the pressed row, answered at the press. The threshold
+    /// asks again, and a drag needs both answers: a row that became draggable after a press that
+    /// had already selected it must not then move a packet the press just changed.
+    /// </summary>
+    private bool _gestureCouldDrag;
+
     /// <summary>The selection as it stood at press, restored if a committed gesture is cancelled.</summary>
     private IReadOnlyList<object> _gestureSelection = Array.Empty<object>();
 
@@ -188,12 +195,14 @@ public sealed partial class TableView
         _gestureShift = IsDown(VirtualKey.Shift);
         _gestureSelection = SelectedItems;
 
+        _gestureCouldDrag = item is not null && CanBeginRowDrag(item);
+
         // A plain press waits for release whenever the drag it might become must not have changed
         // the selection first: an empty-surface marquee, a drag of the selected packet, and section
         // 16's drag of an unselected row, which leaves the existing selection standing.
         _gestureDeferred = item is null
             || (!_gestureCtrl && !_gestureShift
-                && (_selection.IsSelected(item) || CanBeginRowDrag(item)));
+                && (_selection.IsSelected(item) || _gestureCouldDrag));
 
         if (!_gestureDeferred && item is not null)
         {
@@ -280,7 +289,9 @@ public sealed partial class TableView
     /// changes queue positions. The reference implementation draws the same line between its rows
     /// and the canvas beside them; this table also lets a row it would not drag start the
     /// rectangle, because nothing competes for the gesture there, and the pointer has said so
-    /// already: the arrow, where a draggable row shows the move cursor.
+    /// already: the arrow, where a draggable row shows the move cursor. The drag needs the press's
+    /// answer as well as this one: a press that found no drag to defer for has applied its click,
+    /// and a row that became draggable since must not move a packet that click just made.
     /// </summary>
     /// <remarks>
     /// What went wrong before was not this rule but what the user could see of it. A row container
@@ -295,7 +306,7 @@ public sealed partial class TableView
     {
         SyncSelectionPolicy();
 
-        if (_gestureItem is object item && CanBeginRowDrag(item))
+        if (_gestureItem is object item && _gestureCouldDrag && CanBeginRowDrag(item))
         {
             return GesturePhase.RowDrag;
         }
@@ -328,8 +339,11 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Only the marquee has changed anything by this point: section 16 leaves the selection alone
-    /// until the host acts on the request.
+    /// A cancelled press keeps whatever click it applied, as any press the system cancels does. A
+    /// cancelled marquee goes back to the selection as it stood before the press, that click
+    /// included, because a rectangle begun on a row is one gesture with its press. Section 16
+    /// leaves the selection alone until the host acts on the request, so a cancelled drag has
+    /// nothing to put back.
     /// </summary>
     private void OnRowsPointerCanceled(object sender, PointerRoutedEventArgs e)
     {
@@ -424,6 +438,7 @@ public sealed partial class TableView
         ReleaseGesturePointer();
         _gestureItem = null;
         _gestureDeferred = false;
+        _gestureCouldDrag = false;
         _gestureSelection = Array.Empty<object>();
         _movingPacket = Array.Empty<object>();
 
@@ -569,18 +584,21 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Section 16's rejections, all silent: nothing to move, no realized boundary to move it to, a
-    /// sort that stopped showing the row order while the drag was live, and a placement that
-    /// leaves the order as it stands. A drop inside a packet that is already one block is that last
-    /// one, because the anchor resolves past the packet to the row it already sits beside. A
-    /// scattered packet is gathered at the boundary instead, which does change the order.
+    /// Section 16's rejections, all silent: nothing to move, no realized boundary to move it to,
+    /// and a placement that leaves the order as it stands. A drop inside a packet that is already
+    /// one block is that last one, because the anchor resolves past the packet to the row it
+    /// already sits beside. A scattered packet is gathered at the boundary instead, which does
+    /// change the order. A view that no longer shows the row order is refused here too, as a
+    /// backstop: the sort that took it away has already cancelled the drag.
     /// </summary>
     /// <remarks>
     /// Section 5.1 speaks in row order. Under the row-order column sorted downward the view runs
     /// the other way, so the request is read against the view in the opposite direction: the
     /// packet reversed, and its anchor the first row above the boundary that is not moving, with
     /// null at the top of the view meaning the end of the row order. A host that applies the
-    /// request in row order then puts the packet exactly where it was dropped.
+    /// request in row order then puts the packet exactly where it was dropped. Reversing the
+    /// packet is right only because it arrives in view order: a selected packet is built by
+    /// walking the view, and a lone row is a packet of one.
     /// </remarks>
     private void RequestReorder(IReadOnlyList<object> moving, int boundary)
     {

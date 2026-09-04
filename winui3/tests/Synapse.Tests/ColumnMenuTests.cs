@@ -198,19 +198,27 @@ public class ColumnMenuTests
     /// and the closure puts focus back on that header.
     /// </summary>
     [TestMethod]
-    public Task TheMenuOpensOnTheInvokingHeaderRunsItsCommandAndGivesFocusBack() =>
+    public Task TheMenuOpensOnTheInvokingHeaderRunsItsCommandAndStaysOpen() =>
         TestHost.RunAsync(async () =>
         {
             TableView table = await LoadAsync("a", "b");
-            Control cell = await OpenMenuAsync(table, visibleIndex: 1);
+            await OpenMenuAsync(table, visibleIndex: 1);
 
             await InvokeAsync(table, MoveLeft);
 
             CollectionAssert.AreEqual(new[] { "b", "a" }, TableHarness.Order(table),
                 "the item ran the operation");
-            Assert.AreEqual(0, OpenPopups(table).Count, "and the flyout closed behind it");
-            Assert.AreSame(cell, FocusManager.GetFocusedElement(table.XamlRoot),
-                "closure returns focus to the invoking header");
+
+            // Nothing in this menu closes it. Every item is repeated by nature — nudging a column
+            // left until it sits where it should, showing one column and then another — or is
+            // immediately worth undoing, which comes to the same thing. Closing after each one made
+            // three columns cost three trips back through the header.
+            Assert.AreEqual(1, OpenPopups(table).Count, "and the flyout stayed open behind it");
+
+            // Which is why the item cannot be left saying what it said before it ran: "b" is now
+            // first, so the command that moved it there has nowhere left to go.
+            Assert.IsFalse(OpenItem(table, MoveLeft).IsEnabled,
+                "and the item re-asked whether it is still legal");
         });
 
     // ------------------------------------------------------------------ helpers

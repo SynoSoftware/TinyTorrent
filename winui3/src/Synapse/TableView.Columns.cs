@@ -119,7 +119,19 @@ public sealed partial class TableView
 
         // Section 10: a column keeps its resolved width across a hide and a show.
         column.VisibilityOverride = visible;
+
+        // Section 9: the header is the only place the sort shows and the only place it is
+        // changed, so hiding the sorted column takes the sort with it. Left in force, the view
+        // would stay ordered by a column no longer on screen, with no chevron to say so and, under
+        // section 16, no row drag either, and nothing on screen to explain why.
+        bool sortCleared = !visible && ReferenceEquals(_sortColumn, column) && ClearSort();
+
         Layout.Rebuild();
+        if (sortCleared)
+        {
+            RebuildView();
+        }
+
         RaiseLayoutChanged(TableLayoutChangeKind.Visibility);
     }
 

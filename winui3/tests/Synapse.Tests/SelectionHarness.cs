@@ -105,7 +105,10 @@ internal sealed class SelectionHarness
 
     internal bool InvokeCurrent() => (bool)Invoke("InvokeCurrentItem")!;
 
-    internal bool RowSurfaceHasFocus() => (bool)Invoke("RowSurfaceHasFocus")!;
+    // The table captures how the rows hold focus, not merely that they do, so that a reconcile can
+    // restore the same state. This asks the same question the old bool did.
+    internal bool RowSurfaceHasFocus() =>
+        (FocusState)Invoke("RowSurfaceFocusState")! != FocusState.Unfocused;
 
     internal int RowsPerPage() => (int)Invoke("RowsPerPage")!;
 

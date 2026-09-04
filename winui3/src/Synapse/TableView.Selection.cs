@@ -305,10 +305,16 @@ public sealed partial class TableView
             _reconcilingView = false;
         }
 
-        if (viewMoved)
+        // A sort that stopped showing the row order ends the drag as well, even when it left every
+        // row where it was: the drop would be refused, and a drag that can end in nothing must not
+        // keep its marker up until the release.
+        if (viewMoved || !ShowsRowOrder)
         {
             CancelRowDrag();
+        }
 
+        if (viewMoved)
+        {
             // The panel has to be told to look again. Rows placed without a notification are
             // invisible to it, so a reorder gives it no reason to re-examine which rows it should
             // be holding, and it goes on holding the ones it had: the owner watched a sort leave

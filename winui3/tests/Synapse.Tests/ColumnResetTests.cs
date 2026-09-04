@@ -185,7 +185,7 @@ public class ColumnResetTests
         Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);
 
     private static void MoveColumnTo(TableView table, string id, int boundary) =>
-        Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary);
+        Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary, null!);
 
     private static object? Invoke(object target, string method, params object[] arguments) =>
         target.GetType()

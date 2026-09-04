@@ -446,8 +446,9 @@ not raise that event when the logical selected/current packet is unchanged.
 
 A source update, `RefreshView()`, or sort change during a
 row drag cancels the drag without raising
-`RowsReorderRequested`. During a marquee gesture it restores the pre-gesture
-logical selection, then reconciles it to the resulting current private view.
+`RowsReorderRequested`. A marquee gesture survives all three: the rectangle
+stays where it is on screen, the rows move through it, and its coverage is
+re-asked of the new view (section 14).
 Header resize and
 column-drag gestures are data-independent and remain active.
 
@@ -706,6 +707,10 @@ Sorting requirements:
   object reference; invalid keys are source-contract errors and unavailable
   items are pruned from selection;
 - source updates and rehydration follow section 5.3;
+- hiding the sorted column clears the sort and returns the view to natural
+  order, reported in the same `LayoutChanged` as the visibility change. The
+  header is the only place the sort shows and the only place it is changed, so
+  a sort by a hidden column would be one the user can neither see nor undo;
 - normal property notification redraws cells but does not continuously resort;
 - the host calls `RefreshView()` after a batch changes any active
   view-affecting value;
@@ -1046,17 +1051,33 @@ input; it does not begin a marquee gesture.
 - Shift extends from the current anchor;
 - intersection with a realized row's band selects that row;
 - auto-scroll occurs near the top or bottom edge;
-- Escape cancels and restores the starting selection;
+- Escape cancels and restores the selection as it stood before the press, so a
+  rectangle begun on a row takes that press's own selection change back with
+  it;
 - the gesture never begins from an interactive cell descendant, header, resize
   separator, or active row-reorder handle/gesture;
 - the table delays an empty-surface clear until pointer release or the drag
   threshold, so starting a marquee does not briefly clear selection first;
-- a press on a row the table would not drag selects that row as a click would,
-  and the rectangle covers that row from its first movement, so nothing the
-  press did is taken back;
-- the overlay disappears on completion, Escape cancellation, unload, or a
-  view-changing update; section 5.3 defines the latter to restore the
-  pre-gesture logical selection before reconciliation.
+- a press on an unselected row the table would not drag selects that row as a
+  click would, and the rectangle covers that row from its first movement, so
+  nothing the press did is taken back. A press on a selected such row defers,
+  as every press on a selected row does, and the plain rectangle then replaces
+  the packet with what it covers, exactly as the click it would otherwise have
+  been would have replaced the packet with that one row;
+- whether the table would drag the pressed row is answered at the press and
+  again at the threshold, and the drag needs both. A row that became draggable
+  in between, after a press that had already applied its click, starts the
+  rectangle rather than moving a packet that click just made;
+- the rectangle's fixed corner is a point in the scrolled content, never a
+  row: a source update, `RefreshView()`, or sort change during the gesture
+  leaves the rectangle where it is on screen, moves the rows through it, and
+  re-asks which rows stand in its band. The viewport itself MUST hold still
+  under such an update, so the list panel keeps its scroll offset rather than
+  following a row; a rectangle whose corner jumped with the row the panel was
+  following is what the owner saw under a sort by speed;
+- the overlay disappears on completion, Escape cancellation, unload, or the
+  host withdrawing `IsMarqueeSelectionEnabled` mid-gesture; the last two
+  restore the selection as it stood before the press.
 
 Empty row-surface space is below the last row and beside the last column. A row
 is only as wide as its columns, so the space to their right belongs to no row.
@@ -1145,8 +1166,8 @@ sort is the table's own to judge: it offers the drag only while the view shows
 the row order — unsorted, or sorted either way by the column whose
 `DefinesRowOrder` is true — and withholds it under any other sort, where a drag
 from a row is section 14's marquee instead. If `IsRowReorderingEnabled` becomes
-false during a drag, the table cancels the drag; if the sort stops showing the
-row order during a drag, the drop raises nothing. For a race or command
+false during a drag, or the sort stops showing the row order during one, the
+table cancels the drag, whether or not the rows moved. For a race or command
 failure, the consumer simply does not change (or reconciles) its projection;
 there is no post-drop accept/reject protocol.
 
@@ -1266,9 +1287,10 @@ Applying saved state MUST be defensive:
 - ignore non-finite, non-positive, and non-resizable-column widths; clamp valid
   finite widths to the column's bounds;
 - restore required columns if saved as hidden;
-- restore the saved sort when its column is currently sortable and its direction
-  is valid; otherwise use natural order, including when the sort column is
-  missing, non-sortable, or absent;
+- restore the saved sort when its column is currently sortable, visible once the
+  saved visibility has been applied, and its direction is valid; otherwise use
+  natural order, including when the sort column is missing, non-sortable,
+  hidden, or absent;
 - guarantee at least one visible column.
 
 `GetLayoutState()` and each `LayoutChanged` payload are independent snapshots

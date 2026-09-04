@@ -34,7 +34,9 @@ public sealed partial class TableView
 
     /// <summary>The row-order column sorted downward: the view runs opposite to the row order.</summary>
     private bool RowOrderIsReversed =>
-        _sortColumn is not null && _sortDirection == TableSortDirection.Descending;
+        _sortColumn is not null
+        && _sortColumn.Column.DefinesRowOrder
+        && _sortDirection == TableSortDirection.Descending;
 
     /// <summary>
     /// How long rows already on screen keep their places while a sort is applied over values the
@@ -299,8 +301,10 @@ public sealed partial class TableView
 
     /// <summary>
     /// Section 18's defensive sort restoration. The saved sort applies only when its column is
-    /// currently sortable and its direction is one of the two valid values; anything else, a
-    /// missing ID included, is natural order.
+    /// currently sortable, visible once the saved visibility has been applied, and its direction
+    /// is one of the two valid values; anything else, a missing ID included, is natural order. A
+    /// hidden column is refused for section 9's reason: the header is the only place a sort shows
+    /// or is changed, so a sort by a hidden column is one the user could neither see nor undo.
     /// </summary>
     /// <returns>True when the effective sort is not the one that was already in force.</returns>
     private bool RestoreSort(TableLayoutState state, Dictionary<string, ResolvedColumn> byId)
@@ -314,6 +318,7 @@ public sealed partial class TableView
         if (state.SortColumnId is string id
             && byId.TryGetValue(id, out ResolvedColumn? column)
             && column.Column.CanSort
+            && column.IsVisible
             && Enum.IsDefined(state.SortDirection))
         {
             _sortColumn = column;

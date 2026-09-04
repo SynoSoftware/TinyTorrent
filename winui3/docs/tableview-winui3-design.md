@@ -460,25 +460,56 @@ destination is not conveyed by colour alone.
 `PART_MarqueeRect` in `PART_OverlayLayer`, in viewport coordinates, because the
 gesture and its auto-scroll are viewport gestures.
 
-**A translucent accent surface inside the two-tone stroke.** §14 mandates an
-overlay rectangle. A stroke alone read as a bare outline over a dense table —
-the owner's verdict, after seeing it — so the rectangle carries a fill. No
-platform brush is translucent in a contrast theme, where every fill resolves to
-an opaque system colour, so the fill is `SystemControlHighlightAccentBrush` at
-element `Opacity` 0.25: legal, since §19 bans *resources*, not element
-properties, and WinUI's own HighContrast dictionary retains
-`ListViewItemDragThemeOpacity`. That brush is the user's accent in Light and
-Dark and `SystemColorHighlightColor` in a contrast theme, and at 0.25 the rows
-under it stay legible in all three. The stroke keeps the two-tone treatment of
-the insertion markers and carries the contrast on its own; the fill is not the
-cue.
+**A faint neutral surface, and no line.** §14 mandates an overlay rectangle.
+Four versions were seen and ruled on by the owner: a stroke-only rectangle read
+as a bare outline over a dense table; the two-tone stroke read as a white box in
+Dark, where the pair's core is white; a one-pixel accent line around a faint
+fill — the platform's own selection rectangle, which Explorer and the desktop
+draw — still read as a border he did not want; and an accent surface alone left
+him unsure the colour was right. It was not, for this table. WinUI gives a
+selected row the neutral subtle fill and puts the accent only in the selection
+pill, which this table does not draw, so nothing in its selection is
+accent-coloured and the accent rectangle was the one piece of the selection
+language in a different colour. Explorer's rubber band is accent because
+Explorer's selected items are. The rectangle is now `TextFillColorPrimaryBrush`
+at element `Opacity` 0.14. A neutral highlight is a light wash of the foreground
+colour, and the primary text brush is the one platform brush that carries the
+foreground colour in every theme: 89% black in Light, white in Dark and the
+window text colour in a contrast theme, so the wash is 12% to 14% in all three
+and the rectangle is the same kind of wash a selected row is, a little stronger
+than one.
 
-An accent stroke was weighed again here and rejected again, for the rows the
-rectangle has just selected rather than for the unselected ones.
-`SystemColorHighlightColor` against `SystemColorWindowColor` measures 6.8:1 in
-Dusk, 6.9:1 in Desert, 11.2:1 in Aquatic and 11.8:1 in Night sky, computed from
-the four shipped `.theme` files; but a selected row's background is that same
-highlight colour, and a stroke in it over the rows it encloses measures 1.00:1.
+No platform brush is translucent in a contrast theme, where every fill resolves
+to an opaque system colour, so the opacity is on the element: legal, since §19
+bans *resources*, not element properties, and WinUI's own HighContrast
+dictionary retains `ListViewItemDragThemeOpacity`. That is also why the
+platform's list-highlight brush was tried and rejected: it carries its own 20%
+in Light and Dark but resolves to the opaque `SystemColorHighlightColor` in a
+contrast theme, so the 0.7 that gave 14% in Light and Dark gave a 70% wash
+there, and the specs review computed the covered rows' text at 2.1:1 to 2.5:1.
+The other neutral fill brushes have opaque face and window colours as their
+contrast-theme entries, which hide the rectangle or wash the text under it
+(section 9.1). What remains in a contrast theme is that over the rows it has
+selected the rectangle is hard to tell from them, the highlight being what a
+selected row is there; it shows on its own where it overhangs them, beside and
+below. That is kept as a property rather than a defect: a stroke's job was to
+mark the boundary and it vanished exactly there, while the fill's job is to
+show the area, and in a contrast theme the area then is the selection it is
+making.
+
+Computed rather than rendered: the wash over a row is about `#3F3F3F` in Dark,
+on which white text measures 10.5:1, and about `#D5D5D5` in Light, on which the
+primary text brush measures 12.3:1. In the two shipped contrast themes the specs
+review measured, with the wash over the text as well as the background because
+the overlay sits above the rows, the covered rows' text keeps 15.6:1 unselected
+and 11.0:1 selected in HC Black, and 15.2:1 and 11.2:1 in HC White. Name the
+brush, never its colour key: the contrast dictionary's `TextFillColorPrimary`
+colour is a red placeholder, and only the brush points at the window text
+colour. The rectangle is not the cue that
+carries §19's 3:1: the rows it covers are selected as it covers them, and that
+state is the feedback. The insertion markers keep the two-tone pair: a marker is
+a short thick line, not a box, and the white core is what makes it read over
+any cell.
 
 The layer is `IsHitTestVisible="False"` with
 `AutomationProperties.AccessibilityView="Raw"`, so it neither steals cell input
@@ -577,8 +608,7 @@ spacing or token resource (§8, §19).
 | Resize grip line | `DividerStrokeColorDefaultBrush` |
 | Insertion marker core | `FocusStrokeColorOuterBrush` |
 | Insertion marker casing | `FocusStrokeColorInnerBrush` |
-| Marquee stroke | same two-tone pair |
-| Marquee fill | `SystemControlHighlightAccentBrush` at element opacity 0.25 |
+| Marquee | `TextFillColorPrimaryBrush` at element opacity 0.14, no line |
 | Row hover / selected / current / focus | container default — set nothing |
 | Non-interactive row text | container disabled state — set nothing |
 | Sort glyph font | `SymbolThemeFontFamily` |
@@ -792,14 +822,16 @@ renders and reports gestures. It calls nothing.
 | 6 | `ColumnResizeGrip : Control` for the resize cursor | `ProtectedCursor` is protected; it cannot be set externally |
 | 7 | `TabNavigation="Once"` for the composite header region | §13 one tab stop for the header strip |
 | 8 | `AutomationProperties.ItemStatus` for sort state | §19 forbids claiming the Grid and Table patterns |
-| 9 | Two-tone `FocusStrokeColorOuter`/`Inner` for markers and the marquee stroke | the accent brushes measure 1.00:1 in contrast themes |
-| 10 | Marquee: a translucent accent fill at element opacity inside the two-tone stroke | the owner ruled a stroke-only rectangle unreadable; no platform brush is translucent in a contrast theme, and §19 bans resources, not element properties (section 9.3) |
+| 9 | Two-tone `FocusStrokeColorOuter`/`Inner` for the insertion markers | the accent fill brushes measure 1.00:1 in contrast themes |
+| 10 | Marquee: a faint neutral surface, a 14% wash of the primary text brush at element opacity, and no line | the owner ruled out a stroke-only rectangle, the two-tone stroke, the platform's one-pixel accent line and an accent surface in turn; this table's selection is neutral, the accent pill being gone, so the rectangle is neutral to look like the selection it makes; no platform brush is translucent in a contrast theme, §19 bans resources, not element properties, and the text brush is the one brush that is the foreground colour in every theme, where the list-highlight brush became an opaque 70% wash (section 9.3) |
 | 11 | Generated menu labels from the control's own `.resw` | §12 action labels are not host-overridable |
 | 12 | Fit measures realized containers only | §10 no off-screen realization, §20 no hidden measurement surface |
 | 13 | No `ThemeDictionaries` at all | §19 no control-specific resources |
 | 14 | No dependency beyond the Windows App SDK | §20, and revisit only when a project exists to produce the numbers a package must justify: executable size, memory footprint, runtime cost |
 | 15 | The list is told only about the rows it holds a container for; every other position of the private view changes quietly | §5.3 and §20: notifications bounded by realized containers, because the list keeps nothing per unrealized position (section 4.2); chosen over a windowed collection, a custom panel, ItemsRepeater and a forked runtime |
 | 16 | The table withholds the drag under any sort but the `DefinesRowOrder` column's, offers it under that column either way, and reports a descending view's request in row order; a row it withholds the drag from starts the marquee | §14 and §16: only the table sees both the sort and the boundary, so the host keeps `IsRowReorderingEnabled` for what only it can see, its filter and its pending operations; and a press nothing competes for must not be a dead press |
+| 17 | Hiding the sorted column clears the sort, and a restored layout ignores a sort on a hidden column | §9 and §18: the header is the only surface that shows or changes the sort, and under decision 16 a sort nobody can see would withhold the drag with nothing on screen to explain it |
+| 18 | The item panel keeps its scroll offset across updates (`ItemsUpdatingScrollMode="KeepScrollOffset"`) | §14: the marquee's corner is a point in the scrolled content, and the default mode moved that content to follow the first visible row on every settle of a live sort, so the corner jumped with the row; under a live sort the viewport holds still and rows move through it |
 
 ---
 
@@ -843,7 +875,7 @@ Nothing here compiles. These need a running WinUI 3 project.
 - [ ] Selected set, current item, anchor and focus reconcile by key, in one atomic step, raising at most one `SelectionStateChanged`
 - [ ] Every `x:Bind` for a live value carries `Mode=OneWay`
 - [ ] No hard-coded colour anywhere; no `ThemeDictionaries`
-- [ ] No accent brush used for a marker or a marquee stroke; the marquee fill is the one accent surface, at element opacity
+- [ ] No accent brush used for a marker or the marquee; the marquee is a wash of the primary text brush at element opacity, with no line
 - [ ] Row container chrome is default; no `ControlTemplate` for `ListViewItem`
 - [ ] Cell templates paint no row backdrop, and format lazily
 - [ ] Overlay layer is `IsHitTestVisible="False"` and `AccessibilityView="Raw"`
