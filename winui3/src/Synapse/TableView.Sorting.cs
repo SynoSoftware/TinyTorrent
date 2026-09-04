@@ -25,6 +25,18 @@ public sealed partial class TableView
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _settleDue;
 
     /// <summary>
+    /// Section 16: whether a row's place on screen is its place in the host's row order, so that
+    /// the boundary a drop names is a place in that order. True unsorted, where the view is the
+    /// source order, and under a sort by the column that <see cref="TableColumn.DefinesRowOrder"/>;
+    /// under any other sort a boundary is a place in that sort, and the table withholds the drag.
+    /// </summary>
+    private bool ShowsRowOrder => _sortColumn is null || _sortColumn.Column.DefinesRowOrder;
+
+    /// <summary>The row-order column sorted downward: the view runs opposite to the row order.</summary>
+    private bool RowOrderIsReversed =>
+        _sortColumn is not null && _sortDirection == TableSortDirection.Descending;
+
+    /// <summary>
     /// How long rows already on screen keep their places while a sort is applied over values the
     /// source keeps changing. <see cref="TimeSpan.Zero"/> re-sorts on every update.
     /// </summary>
@@ -190,7 +202,21 @@ public sealed partial class TableView
         {
             _settleDue = DispatcherQueue.CreateTimer();
             _settleDue.IsRepeating = false;
-            _settleDue.Tick += (_, _) => RebuildView();
+
+            // Stopping the timer does not recall a tick the queue has already picked up, and
+            // closing a window does not always unload its content first. Either way a tick can
+            // arrive after the template parts' XAML core has gone, and reading anything off them
+            // then fails: the owner saw it as a COMException out of get_SelectionMode on exit.
+            // There is nothing to settle for a table that is no longer in a tree.
+            _settleDue.Tick += (_, _) =>
+            {
+                if (_detached)
+                {
+                    return;
+                }
+
+                RebuildView();
+            };
         }
 
         if (_settleDue.IsRunning)

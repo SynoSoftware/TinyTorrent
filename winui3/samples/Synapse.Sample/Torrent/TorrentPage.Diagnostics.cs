@@ -23,9 +23,142 @@ namespace Synapse_Sample;
 public sealed partial class TorrentPage
 {
     private readonly StringBuilder _log = new();
+
+#if DEBUG
+    private const string Configuration = "Debug";
+#else
+    private const string Configuration = "Release";
+#endif
+
+    /// <summary>Notifications the list has been sent since the last reset.</summary>
+    private int _notifications;
+
+    /// <summary>Containers the list has prepared since the last reset.</summary>
+    private int _realizations;
+
+    private ListView? _counted;
+
     // ------------------------------------------------------------ diagnostics
 
     private void W(string line) => _log.AppendLine(line);
+
+    /// <summary>
+    /// The one stopwatch in this file. Every duration reported anywhere is this pair, so two
+    /// sections timing the same operation cannot disagree because one measured a different span.
+    /// The first number is the collection change alone; the second is the layout pass it caused,
+    /// and never the two added together.
+    /// </summary>
+    private (double Mutation, double Layout) Time(Action operation)
+    {
+        // Empty the heap first. A gen 2 collection landing inside a timed sort is worth more than
+        // the sort, and that is the whole of why two sections reported the same reversal as 141 ms
+        // and 700 ms: the one that ran early in the pass collected nothing inside its measurement
+        // and the one that ran late collected twice. This does not remove a cost the owner pays; it
+        // removes it from the comparison between two designs, and the counts reported beside every
+        // figure say whether it worked.
+        //
+        // Collect only. Never WaitForPendingFinalizers here: this runs on the UI thread, WinRT
+        // objects have finalizers that marshal back to the UI thread, and waiting for them from the
+        // thread they are waiting for is a deadlock with no timeout. It froze the window solid, and
+        // a frozen window during a measurement pass reads as the table having hung.
+        GC.Collect();
+
+        int gen0 = GC.CollectionCount(0);
+        int gen2 = GC.CollectionCount(2);
+
+        Stopwatch clock = Stopwatch.StartNew();
+        operation();
+        double mutation = clock.Elapsed.TotalMilliseconds;
+        Table.UpdateLayout();
+
+        _collections = $"{GC.CollectionCount(0) - gen0}/{GC.CollectionCount(2) - gen2}";
+        return (mutation, clock.Elapsed.TotalMilliseconds - mutation);
+    }
+
+    /// <summary>
+    /// Gen 0 and gen 2 collections that happened inside the last <see cref="Time"/>. A reconcile
+    /// allocates a dictionary and three integer arrays the length of the view, so a collection
+    /// landing inside a timed sort is a real candidate for why one sort costs three times another.
+    /// </summary>
+    private string _collections = "0/0";
+
+    /// <summary>
+    /// Counting notifications is on for the whole pass: it is one increment per notification and it
+    /// costs every figure the same. Counting container preparations is not, and must never be: see
+    /// <see cref="Realizations"/>.
+    /// </summary>
+    private void AttachCounters()
+    {
+        _counted = FindDescendant<ListView>(Table);
+        if (_counted?.ItemsSource is System.Collections.Specialized.INotifyCollectionChanged feed)
+        {
+            feed.CollectionChanged += OnCountedNotification;
+        }
+    }
+
+    private void DetachCounters()
+    {
+        if (_counted?.ItemsSource is System.Collections.Specialized.INotifyCollectionChanged feed)
+        {
+            feed.CollectionChanged -= OnCountedNotification;
+        }
+
+        _counted = null;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="work"/> with a <c>ContainerContentChanging</c> subscriber attached and
+    /// reports how many containers it prepared.
+    /// </summary>
+    /// <remarks>
+    /// Counts come from their own pass so that no reported duration is measured with this
+    /// subscriber attached. That was first done on the suspicion that subscribing changes how the
+    /// list prepares a container and would explain why two sections disagreed about the same
+    /// reversal. Measured, it does not: the same reversal came back at 591 ms clean and 591 ms
+    /// watched. The separation stays because a count and a duration have no business sharing a
+    /// pass, but it is not load-bearing and it was not the answer.
+    /// </remarks>
+    private (int Realized, double Watched) Realizations(Action work)
+    {
+        _realizations = 0;
+        if (_counted is null)
+        {
+            work();
+            return (0, 0);
+        }
+
+        _counted.ContainerContentChanging += OnCountedRealization;
+        (double mutation, double layout) = Time(work);
+        _counted.ContainerContentChanging -= OnCountedRealization;
+        return (_realizations, mutation + layout);
+    }
+
+    private void OnCountedNotification(
+        object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+        _notifications++;
+
+    private void OnCountedRealization(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (!args.InRecycleQueue)
+        {
+            _realizations++;
+        }
+    }
+
+    /// <summary>
+    /// The sections this launch was asked for, or null for all of them. Set from the launch
+    /// argument: <c>--measure</c> runs everything, <c>--measure:R</c> runs one section.
+    /// </summary>
+    /// <remarks>
+    /// A whole pass takes five or six minutes, during which the app resizes its own window, sorts
+    /// itself and scrolls itself. That is indistinguishable from a hang to anyone watching, and the
+    /// owner killed it as one more than once while waiting on a single figure. Almost every
+    /// measurement wants one section; asking for one should cost seconds.
+    /// </remarks>
+    private HashSet<string>? _only;
+
+    /// <summary>Whether this launch asked for something other than <paramref name="section"/>.</summary>
+    private bool Skip(string section) => _only is not null && !_only.Contains(section);
 
     private void Section(string title)
     {
@@ -64,6 +197,24 @@ public sealed partial class TorrentPage
         await Settle(900);
 
         W($"torrent host profile {DateTime.Now:O}");
+        W($"  {Configuration} {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}, " +
+          $"every duration below measured by {nameof(Time)}");
+
+        // Notification counting is on for the whole pass rather than switched on around the
+        // operations that report a count, so its cost is in every figure equally and cancels out of
+        // every comparison between them.
+        AttachCounters();
+
+        // TEMPORARY: --measure:Z runs the owner's reported sequence and nothing else. The sections
+        // below are inline rather than gated, so without this asking for one of them still costs
+        // the whole pass.
+        if (_only is not null && _only.Count == 1 && _only.Contains("Z"))
+        {
+            Section("Z. TEMPORARY: sort, then Downloading, then All");
+            await ProbeFilterBlanksAsync();
+            DetachCounters();
+            return;
+        }
 
         Section("A. Columns actually realized in the header");
         TableHeaderStrip? strip = FindDescendant<TableHeaderStrip>(Table);
@@ -256,7 +407,7 @@ public sealed partial class TorrentPage
 
         W($"  {DateTime.Now:HH:mm:ss.fff} realized containers = {containers.Count}");
         await MeasureFramesAsync();
-        MeasureProjectionCosts();
+        await MeasureProjectionCostsAsync();
         await MeasureAfterSortAsync();
 
         // The sorts reset the list, which sends every container through its recycle pool. Whether
@@ -294,25 +445,292 @@ public sealed partial class TorrentPage
         Section("I. A reorder request reaches the queue");
         await ExerciseQueueAsync();
 
+        Section("R. The list is told only about the rows it holds");
+        await ProbeQuietPlacementAsync();
+
+        Section("S. Does a sort still cost what the screen costs at ten times the rows");
+        await ProbeScaleAsync();
+
+        Section("Z. TEMPORARY: sort, then Downloading, then All");
+        await ProbeFilterBlanksAsync();
+
         Section("J. Screen capture");
         await Settle(1200);
         await CaptureAsync("torrent-page.bmp", this);
+
+        DetachCounters();
+    }
+
+    /// <summary>
+    /// The claim the whole change is for: what a sort costs now follows the number of rows on the
+    /// screen and not the number of rows in the table. Every other figure in this file is taken at
+    /// 2,002 rows, which cannot tell the difference between a cost that scales and one that does
+    /// not. This runs the same reversal against ten times the rows and reports both.
+    /// </summary>
+    /// <remarks>
+    /// The bigger catalogue is never started, so nothing ticks underneath the measurement, and the
+    /// page's own projection is put back at the end.
+    /// </remarks>
+    private async Task ProbeScaleAsync()
+    {
+        if (Skip("S")) { return; }
+
+        async Task<string> Reversal(string what, IReadOnlyList<TorrentRowViewModel> rows)
+        {
+            Table.ItemsSource = rows;
+            Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+            await Settle(900);
+
+            _notifications = 0;
+            (double changed, double laidOut) =
+                Time(() => Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending)));
+
+            return $"  {what}: {rows.Count} rows, {_notifications} notifications, " +
+                   $"{_collections} collections, changed in {changed:0} ms, laid out in {laidOut:0} ms, " +
+                   $"{changed + laidOut:0} ms in all";
+        }
+
+        _catalog!.Stop();
+
+        TorrentCatalog? bigger = null;
+        try
+        {
+            W(await Reversal("as the page runs", _catalog.Rows));
+
+            bigger = new TorrentCatalog(DispatcherQueue, 20000);
+            W(await Reversal("ten times the rows", bigger.Rows));
+        }
+        catch (Exception ex)
+        {
+            W($"  the larger catalogue failed: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            bigger?.Stop();
+            Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+            ApplyProjection();
+            await Settle(900);
+            _catalog.Start();
+        }
+    }
+
+    /// <summary>
+    /// The claim the reconcile now rests on: the list keeps nothing for a position it has not
+    /// realized, so a reorder can be announced only where it holds a container and every other
+    /// position changed quietly. If that is wrong, a container shows a row the view does not have
+    /// there, and every case below is a different way of asking whether one does.
+    /// </summary>
+    private async Task ProbeQuietPlacementAsync()
+    {
+        if (Skip("R")) { return; }
+
+        ListView? list = FindDescendant<ListView>(Table);
+        if (list?.ItemsSource is not System.Collections.IList view
+            || list.ItemsPanelRoot is not Panel panel)
+        {
+            W("  no hosted list to probe");
+            return;
+        }
+
+        ScrollViewer? scroller = FindDescendant<ScrollViewer>(list);
+
+        /// <summary>Every container the panel holds, against the row the view has at its index.</summary>
+        string Disagreements()
+        {
+            int checked_ = 0;
+            List<string> wrong = new();
+
+            foreach (UIElement child in panel.Children)
+            {
+                int index = list.IndexFromContainer(child);
+                if (index < 0 || child is not ListViewItem container)
+                {
+                    continue;
+                }
+
+                checked_++;
+                object? shown = container.Content;
+                object? expected = index < view.Count ? view[index] : null;
+                if (!ReferenceEquals(shown, expected))
+                {
+                    wrong.Add($"{index} shows " +
+                        $"{(shown as TorrentRowViewModel)?.Name ?? "nothing"} but the view has " +
+                        $"{(expected as TorrentRowViewModel)?.Name ?? "nothing"}");
+                }
+            }
+
+            return wrong.Count == 0
+                ? $"{checked_} containers, all showing the view's row"
+                : $"{checked_} containers, {wrong.Count} wrong: {string.Join("; ", wrong.Take(4))}";
+        }
+
+        _catalog!.Stop();
+        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        await Settle(600);
+
+        // 0. The mechanism, before any symptom. Scroll away from the top so the realized run sits
+        //    well above index 0, remove the row at 0, and ask a container what index it is at before
+        //    any layout has run. Dropped by one means the panel updates its map inside the
+        //    notification, so two reconciles in one callback cannot read a stale set and no forced
+        //    layout is needed. Unchanged means the map is deferred and the forced layout is part of
+        //    the design rather than a fallback.
+        scroller?.ChangeView(null, 700 * 40.0, null, disableAnimation: true);
+        list.UpdateLayout();
+        await Settle(400);
+
+        UIElement? sample = panel.Children.FirstOrDefault(c => list.IndexFromContainer(c) > 0);
+        if (sample is not null && view.Count > 1)
+        {
+            int before = list.IndexFromContainer(sample);
+            object first = view[0]!;
+            view.RemoveAt(0);
+            int after = list.IndexFromContainer(sample);
+            view.Insert(0, first);
+
+            W($"  0. a container at {before}; after removing the row at 0, and before any layout, " +
+              $"it reports {after} — the panel's map is " +
+              (after == before - 1 ? "updated inside the notification" : "deferred to the next measure"));
+        }
+        else
+        {
+            W("  0. no container above index 0 to ask");
+        }
+
+        await Settle(400);
+
+        // 1. The reversal itself.
+        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        await Settle(600);
+        _notifications = 0;
+        (double changed, double laidOut) =
+            Time(() => Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending)));
+
+        W($"  1. a full reversal: {_notifications} notifications, {_collections} collections, " +
+          $"changed in {changed:0} ms and laid out in {laidOut:0} ms");
+        W($"     {Disagreements()}");
+
+        // Whether the rows reach the bottom of the viewport, which is a different question from
+        // whether the containers that exist are right, and the one that catches the failure this
+        // design can have: rows placed without a notification give the panel no reason to re-examine
+        // which rows it should hold, so it goes on holding the ones it had and the foot of the
+        // viewport stays empty until something else pokes it. Asked immediately, then after a
+        // settle: if the first answer is short and the second is not, the panel was told too late.
+        W($"     {Fill()}");
+        await Settle(1200);
+        W($"     after settling: {Fill()}");
+
+        string Fill()
+        {
+            double viewport = scroller?.ViewportHeight ?? list.ActualHeight;
+            double reached = 0;
+            int held = 0;
+
+            foreach (UIElement child in panel.Children)
+            {
+                if (child is not FrameworkElement row || list.IndexFromContainer(child) < 0)
+                {
+                    continue;
+                }
+
+                held++;
+                reached = Math.Max(
+                    reached,
+                    row.TransformToVisual(list)
+                        .TransformBounds(new Rect(0, 0, row.ActualWidth, row.ActualHeight))
+                        .Bottom);
+            }
+
+            return $"{held} containers reaching {reached:0} of the {viewport:0} the viewport shows" +
+                   (reached >= viewport - 1 ? string.Empty : " — the foot of the viewport is empty");
+        }
+
+        // 2. Far scrolls, where a quietly placed row would first be seen.
+        foreach (int row in new[] { 700, 1400, 1990 })
+        {
+            scroller?.ChangeView(null, row * 40.0, null, disableAnimation: true);
+            list.UpdateLayout();
+            await Settle(400);
+            W($"  2. after scrolling to about row {row}: {Disagreements()}");
+        }
+
+        // 3. The row a scroll request brings in.
+        scroller?.ChangeView(null, 0, null, disableAnimation: true);
+        await Settle(400);
+        if (view.Count > 1500)
+        {
+            object wanted = view[1500]!;
+            list.ScrollIntoView(wanted);
+            list.ScrollIntoView(wanted);
+            list.UpdateLayout();
+            await Settle(400);
+
+            object? arrived = (list.ContainerFromItem(wanted) as ListViewItem)?.Content;
+            W($"  3. ScrollIntoView of view index 1500 arrived holding " +
+              $"{(ReferenceEquals(arrived, wanted) ? "that row" : "something else")}; {Disagreements()}");
+        }
+
+        // 5. Two reconciles before one layout, which is a publish or the settle timer landing in
+        //    the same callback as a sort.
+        scroller?.ChangeView(null, 700 * 40.0, null, disableAnimation: true);
+        list.UpdateLayout();
+        await Settle(400);
+
+        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending));
+
+        // Asserting between the two reconciles and their layout finds no containers to assert on:
+        // the list answers no index for any of them until it has laid out. That is a fact about
+        // when the question can be asked, not a pass, so the line below says so rather than
+        // reporting nothing wrong out of nothing checked.
+        W($"  5. two reconciles in one callback, before their layout: {Disagreements()} — nothing " +
+          "can be asked of the list here, it answers no index until it lays out");
+        list.UpdateLayout();
+        await Settle(400);
+        W($"     after the layout, which is where this case is decided: {Disagreements()}");
+
+        // 6. The same thing with the host publishing underneath it.
+        _catalog.Start();
+        Table.ApplyLayoutState(Sorted("speed", TableSortDirection.Descending));
+        TimeSpan restore = Table.SortSettleInterval;
+        Table.SortSettleInterval = TimeSpan.Zero;
+        for (int slice = 0; slice < 15; slice++)
+        {
+            await Task.Delay(1000);
+            string state = Disagreements();
+            if (!state.EndsWith("showing the view's row", StringComparison.Ordinal))
+            {
+                W($"  6. second {slice} under a live publish: {state}");
+            }
+        }
+
+        W("  6. fifteen seconds sorted by speed with settling off, publishing every second: " +
+          Disagreements());
+
+        Table.SortSettleInterval = restore;
+        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        _catalog.Stop();
+        scroller?.ChangeView(null, 0, null, disableAnimation: true);
+        await Settle(600);
+        _catalog.Start();
     }
 
     /// <summary>
     /// Where a press lands on the row surface, and what a rectangle drawn beside the columns
-    /// covers. Both were assumptions until this ran. A row is only as wide as its columns now, so
-    /// the space to its right has to reach the arbiter as empty surface rather than as a row, and a
+    /// covers. Both were assumptions until this ran. A row is only as wide as its columns, so the
+    /// space to its right has to reach the arbiter as empty surface rather than as a row, and a
     /// rectangle drawn entirely in that space has to still cover the rows it spans vertically.
     /// </summary>
     private async Task ProbeRowSurfaceAsync()
     {
+        if (Skip("P")) { return; }
+
         await ProbeSurfaceAsync("columns narrower than the window");
 
         // The other state, and the one that decides whether the gesture is always reachable: with
         // the columns wider than the window there is no space beside them, so a row line is row all
-        // the way across and a marquee can only be started below the last row. Narrowing the window
-        // is how a user reaches it, so it is how this reaches it too.
+        // the way across and, while the rows can be dragged, a marquee can only be started below
+        // the last row. Narrowing the window is how a user reaches it, so it is how this reaches it
+        // too.
         MainWindow.Instance?.AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(700, 820));
         await Settle(700);
         await ProbeSurfaceAsync("columns wider than the window");
@@ -413,7 +831,8 @@ public sealed partial class TorrentPage
 
     /// <summary>
     /// Sorting by a column that is not the queue means a dropped row has no queue position to land
-    /// on, so this page withdraws row reordering while such a sort is active. Sorting is driven
+    /// on, so the table withholds the drag while such a sort is active: the queue column declares
+    /// itself the row order, and this page no longer touches the flag for a sort. Sorting is driven
     /// here through the strip's own click path rather than through
     /// <see cref="TableView.ApplyLayoutState"/>, which reports nothing back to the host precisely
     /// because the host asked for it. The column is cycled all the way back to unsorted, so the
@@ -421,6 +840,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task ProbeQueueGateAsync()
     {
+        if (Skip("Q")) { return; }
+
         TableHeaderStrip? strip = FindDescendant<TableHeaderStrip>(Table);
         List<TableHeaderCell> cells = new();
         if (strip is not null)
@@ -439,14 +860,28 @@ public sealed partial class TorrentPage
             return;
         }
 
-        W($"  unsorted: reordering enabled = {Table.IsRowReorderingEnabled}");
+        // The table's own answer, not the host flag: the flag stays true through a sort, and the
+        // table withholds the drag itself under any sort but the queue column's.
+        MethodInfo? canDrag = typeof(TableView)
+            .GetMethod("CanBeginRowDrag", BindingFlags.NonPublic | BindingFlags.Instance);
+        string DragOffered()
+        {
+            object? row = (Table.ItemsSource as System.Collections.IEnumerable)?
+                .Cast<object>()
+                .FirstOrDefault(r => r is TorrentRowViewModel { IsGhost: false });
+            return row is null || canDrag is null
+                ? "unknown"
+                : ((bool)canDrag.Invoke(Table, new[] { row })!).ToString();
+        }
+
+        W($"  unsorted: a row can be dragged = {DragOffered()}");
 
         foreach (string step in new[] { "ascending", "descending", "cleared" })
         {
             activate.Invoke(strip, new object?[] { label });
             await Settle(400);
             W($"  after clicking '{label.Text}' ({step}): sorted by " +
-                $"{_layout?.SortColumnId ?? "nothing"}, reordering enabled = {Table.IsRowReorderingEnabled}");
+                $"{_layout?.SortColumnId ?? "nothing"}, a row can be dragged = {DragOffered()}");
         }
     }
 
@@ -456,6 +891,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task ExerciseFitAsync()
     {
+        if (Skip("H")) { return; }
+
         // 'name' is the first declared column and is visible, so it is the first header cell.
         double NameHeaderWidth()
         {
@@ -494,6 +931,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task ExerciseQueueAsync()
     {
+        if (Skip("I")) { return; }
+
         if (_catalog is null || _catalog.Rows.Count < 10)
         {
             W("  no catalog to reorder");
@@ -672,6 +1111,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task MeasureFramesAsync()
     {
+        if (Skip("K")) { return; }
+
         List<double> intervals = new();
         Stopwatch clock = Stopwatch.StartNew();
         double last = 0;
@@ -694,9 +1135,20 @@ public sealed partial class TorrentPage
           $"frames over 33 ms = {intervals.Count(i => i > 33)}");
     }
 
-    /// <summary>Each host projection change the page can make, timed to the end of its layout.</summary>
-    private void MeasureProjectionCosts()
+    /// <summary>
+    /// Each host projection change the page can make, timed to the end of its layout.
+    /// </summary>
+    /// <remarks>
+    /// The three sorts settle first, because section N's do. This section and that one reported the
+    /// same reversal as two different figures for a long time, and the difference was never the
+    /// operation: a change applied while the tree still has work pending returns quickly and pays in
+    /// the layout that follows, and the same change applied to a quiet tree pays as it goes. The
+    /// totals were always the same size. Settling both is what makes the two comparable at all.
+    /// </remarks>
+    private async Task MeasureProjectionCostsAsync()
     {
+        if (Skip("K")) { return; }
+
         W("  " + Timed("one catalog tick", () => _catalog!.Tick()));
         W($"  rows with a bound listener = {BoundRows()} of {_catalog!.Rows.Count}");
         W("  " + Timed("projection with nothing changed", ApplyProjection));
@@ -707,8 +1159,12 @@ public sealed partial class TorrentPage
         W("  " + Timed("filter all, 900 rows return", () => { _stateFilter = "all"; ApplyProjection(); }));
         W("  " + ReusedCells(list, cellsBefore));
         W($"  rows with a bound listener after the filter churn = {BoundRows()}");
+
+        await Settle(600);
         W("  " + Timed("sort name ascending", () => Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending))));
+        await Settle(600);
         W("  " + Timed("sort name descending, every row moves", () => Table.ApplyLayoutState(Sorted("name", TableSortDirection.Descending))));
+        await Settle(600);
         W("  " + Timed("sort cleared", () => Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending))));
     }
 
@@ -722,23 +1178,14 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task MeasureSortCostAsync()
     {
+        if (Skip("N")) { return; }
+
         ListView? list = FindDescendant<ListView>(Table);
         if (list?.ItemsSource is not System.Collections.Specialized.INotifyCollectionChanged feed)
         {
             W("  the list's source raises no notifications to count");
             return;
         }
-
-        int notifications = 0;
-        int realizations = 0;
-        System.Collections.Specialized.NotifyCollectionChangedEventHandler tally = (_, _) => notifications++;
-        TypedEventHandler<ListViewBase, ContainerContentChangingEventArgs> realizing = (_, args) =>
-        {
-            if (!args.InRecycleQueue)
-            {
-                realizations++;
-            }
-        };
 
         Microsoft.UI.Xaml.Media.Animation.TransitionCollection? live = list.ItemContainerTransitions;
 
@@ -755,50 +1202,58 @@ public sealed partial class TorrentPage
         Dictionary<string, List<double>> mutation = new();
         Dictionary<string, List<double>> layout = new();
         Dictionary<string, (int Notifications, int Realizations)> counts = new();
+        Dictionary<string, string> collected = new();
 
         // The tick is stopped throughout: a 1 Hz projection landing inside a timed sort is exactly
         // the contamination this section exists to remove.
         _catalog!.Stop();
 
-        for (int trial = 0; trial < 3; trial++)
+        // Cases outside, trials inside, so the transitions are switched once for a case instead of
+        // twice for every trial of it. Assigning a TransitionCollection is not free and it was
+        // landing between the settle and the measurement.
+        foreach ((string label, TableLayoutState from, TableLayoutState to, bool motion) in cases)
         {
-            foreach ((string label, TableLayoutState from, TableLayoutState to, bool motion) in cases)
+            if (!motion)
             {
                 list.ItemContainerTransitions =
-                    motion ? live : new Microsoft.UI.Xaml.Media.Animation.TransitionCollection();
+                    new Microsoft.UI.Xaml.Media.Animation.TransitionCollection();
+            }
 
+            mutation[label] = new List<double>();
+            layout[label] = new List<double>();
+
+            // Five trials, not three. A single sample of this operation moved by a factor of two
+            // between runs on a machine sitting at about forty percent load, so one number is not a
+            // measurement; the spread reported below is.
+            for (int trial = 0; trial < 5; trial++)
+            {
                 Table.ApplyLayoutState(from);
                 await Settle(600);
 
-                notifications = 0;
-                realizations = 0;
-                feed.CollectionChanged += tally;
-                list.ContainerContentChanging += realizing;
+                _notifications = 0;
+                (double changed, double laidOut) = Time(() => Table.ApplyLayoutState(to));
 
-                Stopwatch clock = Stopwatch.StartNew();
-                Table.ApplyLayoutState(to);
-                double applied = clock.Elapsed.TotalMilliseconds;
-                Table.UpdateLayout();
-                double laidOut = clock.Elapsed.TotalMilliseconds;
-
-                feed.CollectionChanged -= tally;
-                list.ContainerContentChanging -= realizing;
-
-                if (!mutation.ContainsKey(label))
-                {
-                    mutation[label] = new List<double>();
-                    layout[label] = new List<double>();
-                }
-
-                mutation[label].Add(applied);
-                layout[label].Add(laidOut - applied);
-                counts[label] = (notifications, realizations);
+                mutation[label].Add(changed);
+                layout[label].Add(laidOut);
+                collected[label] = _collections;
+                counts[label] = (_notifications, 0);
 
                 await Settle(600);
             }
-        }
 
-        list.ItemContainerTransitions = live;
+            // The container count, from a pass of its own so that no reported duration is measured
+            // with a ContainerContentChanging subscriber attached.
+            Table.ApplyLayoutState(from);
+            await Settle(600);
+            (int realized, double _) = Realizations(() => Table.ApplyLayoutState(to));
+            counts[label] = (counts[label].Notifications, realized);
+            await Settle(600);
+
+            if (!motion)
+            {
+                list.ItemContainerTransitions = live;
+            }
+        }
 
         // What a sort costs standing still is only half the question. The bench stops the tick, and
         // the owner does not: if a live source makes the sorted order differ on every tick, the
@@ -828,10 +1283,9 @@ public sealed partial class TorrentPage
             System.Collections.Specialized.NotifyCollectionChangedEventHandler burst =
                 (_, _) => sinceLast++;
 
-            notifications = 0;
+            _notifications = 0;
             int publishedBefore = ProjectionRuns;
             int seenPublishes = publishedBefore;
-            feed.CollectionChanged += tally;
             feed.CollectionChanged += burst;
 
             for (int slice = 0; slice < 150; slice++)
@@ -851,13 +1305,12 @@ public sealed partial class TorrentPage
                 sinceLast = 0;
             }
 
-            feed.CollectionChanged -= tally;
             feed.CollectionChanged -= burst;
             _catalog.Stop();
 
             int published = ProjectionRuns - publishedBefore;
             W($"  sorted by {column}, settle {settle.TotalSeconds:0.#}s: {published} publishes in " +
-              $"15 s, {reorders} of them reordered the view, {notifications} notifications in total");
+              $"15 s, {reorders} of them reordered the view, {_notifications} notifications in total");
 
             Table.SortSettleInterval = restore;
         }
@@ -870,16 +1323,32 @@ public sealed partial class TorrentPage
         {
             List<double> changing = mutation[label];
             List<double> after = layout[label];
-            changing.Sort();
-            after.Sort();
-            double median = changing[changing.Count / 2];
             (int sent, int realized) = counts[label];
 
+            // Totals per trial first: the two halves are sorted below for their own medians, and
+            // adding a sorted list to another sorted list pairs numbers from different trials.
+            List<double> totals = new();
+            for (int i = 0; i < changing.Count; i++)
+            {
+                totals.Add(changing[i] + after[i]);
+            }
+
+            totals.Sort();
+            changing.Sort();
+            after.Sort();
+            double whole = totals[totals.Count / 2];
+
             W($"  {label}:");
-            W($"    {sent} notifications sent, a container realized {realized} times");
-            W($"    changing the collection: median {median:0} ms" +
-              (sent > 0 ? $", {median * 1000 / sent:0} us per notification" : string.Empty));
-            W($"    the layout pass after it: median {after[after.Count / 2]:0} ms");
+            W($"    {sent} notifications sent, a container realized {realized} times, " +
+              $"{collected[label]} gen0/gen2 collections in the last trial");
+            // No per-notification figure. It meant something while a sort raised one for every row
+            // that moved; now that it raises one only where the list holds a container, dividing the
+            // whole cost by a few dozen notifications describes nothing.
+            W($"    change plus layout: median {whole:0} ms, {totals[0]:0} to {totals[^1]:0} across " +
+              $"{totals.Count} trials");
+            W($"    of which the change was {changing[changing.Count / 2]:0} ms and the layout " +
+              $"{after[after.Count / 2]:0} ms, a split that moves with what was already pending and " +
+              "is not a stable quantity");
         }
     }
 
@@ -895,6 +1364,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task ProbeColumnOverlapAsync()
     {
+        if (Skip("O")) { return; }
+
         IReadOnlyList<string> order = Table.GetLayoutState().ColumnOrder;
         string[] hideable = { "peers", "size", "speed", "status", "queue" };
 
@@ -981,6 +1452,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task CaptureSelectedRowsAsync()
     {
+        if (Skip("M2")) { return; }
+
         ListView? list = FindDescendant<ListView>(Table);
         ScrollViewer? scroller = list is null ? null : FindDescendant<ScrollViewer>(list);
 
@@ -1085,6 +1558,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task MeasureFocusAfterSortAsync()
     {
+        if (Skip("M")) { return; }
+
         ListView? list = FindDescendant<ListView>(Table);
         if (list?.ContainerFromIndex(3) is not Control row)
         {
@@ -1125,6 +1600,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private async Task MeasureAfterSortAsync()
     {
+        if (Skip("K")) { return; }
+
         // Let the transitions of the sorts just measured finish, so only this sort's remain.
         await Settle(700);
         _catalog!.Stop();
@@ -1220,15 +1697,19 @@ public sealed partial class TorrentPage
         return $"containers after the churn: {kept} kept their cell tree, {rebuilt} rebuilt it, {created} are new";
     }
 
-    /// <summary>Stamped with the wall clock so an external frame recorder can be lined up with it.</summary>
+    /// <summary>
+    /// Stamped with the wall clock so an external frame recorder can be lined up with it. Both
+    /// numbers come from <see cref="Time"/>, so they mean what section N's mean. The second used to
+    /// be the total of the two, which is one of the reasons the same reversal could be read as two
+    /// different figures depending on which section printed it.
+    /// </summary>
     private string Timed(string what, Action action)
     {
         string at = DateTime.Now.ToString("HH:mm:ss.fff");
-        Stopwatch clock = Stopwatch.StartNew();
-        action();
-        double applied = clock.Elapsed.TotalMilliseconds;
-        Table.UpdateLayout();
-        return $"{at} {what}: applied in {applied:0.0} ms, laid out in {clock.Elapsed.TotalMilliseconds:0.0} ms";
+        _notifications = 0;
+        (double mutation, double layout) = Time(action);
+        return $"{at} {what}: changed in {mutation:0.0} ms, laid out in {layout:0.0} ms, " +
+               $"{_notifications} notifications, {_collections} collections";
     }
 
     /// <summary>
@@ -1238,6 +1719,8 @@ public sealed partial class TorrentPage
     /// </summary>
     private void MeasureColumnCosts()
     {
+        if (Skip("L")) { return; }
+
         IReadOnlyList<string> order = Table.GetLayoutState().ColumnOrder;
         string[] visible = { "name", "progress", "status", "queue", "speed", "peers", "size" };
 
@@ -1260,10 +1743,11 @@ public sealed partial class TorrentPage
                 Table.ApplyLayoutState(Layout(hidden, TableSortDirection.Ascending));
                 Table.UpdateLayout();
 
-                Stopwatch clock = Stopwatch.StartNew();
-                Table.ApplyLayoutState(Layout(hidden, TableSortDirection.Descending));
-                Table.UpdateLayout();
-                best = Math.Min(best, clock.Elapsed.TotalMilliseconds);
+                // The sum of Time's two numbers, so this section's figure can be laid beside K's
+                // and N's for the same reversal instead of beside neither.
+                (double mutation, double layout) = Time(
+                    () => Table.ApplyLayoutState(Layout(hidden, TableSortDirection.Descending)));
+                best = Math.Min(best, mutation + layout);
             }
 
             return best;
@@ -1279,6 +1763,137 @@ public sealed partial class TorrentPage
 
         Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
         Table.UpdateLayout();
+    }
+
+    /// <summary>
+    /// TEMPORARY. The owner's report: sort, press Downloading, press All, and the list is left with
+    /// blank bands where rows should be. A blank row of the right height is a container the panel is
+    /// arranging with no data on it, so this counts containers whose DataContext is null separately
+    /// from containers showing the wrong row.
+    /// </summary>
+    private async Task ProbeFilterBlanksAsync()
+    {
+        if (Skip("Z")) { return; }
+
+        ListView? list = FindDescendant<ListView>(Table);
+        if (list?.ItemsSource is not System.Collections.IList view
+            || list.ItemsPanelRoot is not ItemsStackPanel panel)
+        {
+            W("  no hosted list to probe");
+            return;
+        }
+
+        ScrollViewer? scroller = FindDescendant<ScrollViewer>(list);
+
+        string State(string when)
+        {
+            int blank = 0;
+            int wrong = 0;
+            int held = 0;
+            List<string> detail = new();
+
+            foreach (UIElement child in panel.Children)
+            {
+                if (child is not ListViewItem container)
+                {
+                    continue;
+                }
+
+                int index = list.IndexFromContainer(child);
+                held++;
+
+                // Content, not DataContext: a ListViewItem carries the row on Content and leaves
+                // its own DataContext null, so testing DataContext calls every container blank.
+                if (container.Content is null)
+                {
+                    blank++;
+
+                    // Where it was arranged. A recycled container parked outside the viewport is
+                    // housekeeping; one arranged among the rows is a blank band on screen, which is
+                    // what the owner reported.
+                    double y = double.NaN;
+                    try
+                    {
+                        y = container
+                            .TransformToVisual(scroller ?? (UIElement)list)
+                            .TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
+                    }
+                    catch (Exception)
+                    {
+                        // Not in the tree at all, which is the parked answer.
+                    }
+
+                    detail.Add($"{index} blank y={y:F0} h={container.ActualHeight:F0} {container.Visibility}");
+                }
+                else if (index >= 0 && index < view.Count
+                    && !ReferenceEquals(container.Content, view[index]))
+                {
+                    wrong++;
+                    detail.Add($"{index} shows {(container.Content as TorrentRowViewModel)?.Name}");
+                }
+            }
+
+            // A blank band of the right height is either a container drawing nothing or no
+            // container at all, and the two have different causes. This is the second question:
+            // which positions the viewport covers have nothing standing at them.
+            List<int> missing = new();
+            for (int i = panel.FirstVisibleIndex; i >= 0 && i <= panel.LastVisibleIndex; i++)
+            {
+                if (list.ContainerFromIndex(i) is null)
+                {
+                    missing.Add(i);
+                }
+            }
+
+            return $"  {when}: view={view.Count} containers={held} " +
+                $"cache={panel.FirstCacheIndex}..{panel.LastCacheIndex} " +
+                $"vis={panel.FirstVisibleIndex}..{panel.LastVisibleIndex} " +
+                $"blank={blank} wrong={wrong} noContainer={missing.Count}" +
+                (missing.Count == 0 ? string.Empty : " at " + string.Join(",", missing.Take(12))) +
+                (detail.Count == 0 ? string.Empty : "\n      " + string.Join("\n      ", detail.Take(10)));
+        }
+
+        // Live, the way the owner had it: the daemon keeps publishing across the filter changes.
+        // Section R stops it, and a stopped daemon takes the sort settle out of the picture
+        // entirely — which is half of what runs during the owner's sequence.
+        _catalog?.Start();
+        await Settle(500);
+
+        Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending));
+        await Settle(700);
+        W(State("after the sort"));
+
+        await SetFilter("downloading");
+        W(State("after Downloading"));
+
+        await SetFilter("all");
+        W(State("after All, immediately"));
+
+        await Settle(1200);
+        W(State("after All, settled"));
+
+        // The owner's screenshots are mid-list, not at the top.
+        scroller?.ChangeView(null, 24 * 40.0, null, disableAnimation: true);
+        await Settle(900);
+        W(State("scrolled to row 24"));
+
+        // What the owner actually reported is visual. If the numbers above stay clean, the picture
+        // says whether this sequence reproduces it at all.
+        await CaptureAsync("torrent-blanks.bmp", this);
+
+        // Every visible row, with what the container is drawing it at. A row at opacity 0 occupies
+        // its height and shows nothing, which looks exactly like a container that never arrived.
+        for (int i = panel.FirstVisibleIndex; i >= 0 && i <= panel.LastVisibleIndex; i++)
+        {
+            TorrentRowViewModel? row = i < view.Count ? view[i] as TorrentRowViewModel : null;
+            ListViewItem? container = list.ContainerFromIndex(i) as ListViewItem;
+            W($"      {i}: queue={row?.Queue} ghost={row?.IsGhost} rowOpacity={row?.RowOpacity:F2} " +
+              $"container={(container is null ? "none" : $"opacity={container.Opacity:F2} h={container.ActualHeight:F0}")} " +
+              $"'{row?.Name}'");
+        }
+
+        scroller?.ChangeView(null, 0, null, disableAnimation: true);
+        await Settle(600);
     }
 
     private TableLayoutState Sorted(string? column, TableSortDirection direction) => new(

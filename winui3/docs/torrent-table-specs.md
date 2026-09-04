@@ -225,11 +225,14 @@ reordering to enabled.
 `IsRowReorderingEnabled` makes row reordering available by default; it is not a
 claim that every current view has a meaningful domain insertion. A gesture is
 offered only when the flag is true, the table has a `RowsReorderRequested`
-handler, and the row is eligible. A host binds or sets the flag to false
-whenever its current external filter/order, active table sort, pending domain
-operation, or ordering model cannot map a visual placement to a domain
-insertion. This keeps the default capable without presenting a dead drag
-gesture in a host that has no reorder owner.
+handler, the view shows the row order, and the row is eligible. The view shows
+the row order when it is unsorted, which is the source order, or sorted either
+way by the column whose `DefinesRowOrder` is true (section 6); under any other
+sort the table withholds the drag itself, and a drag from a row is section 14's
+marquee. A host binds or sets the flag to false whenever its current external
+filter/order, pending domain operation, or ordering model cannot map a visual
+placement to a domain insertion. This keeps the default capable without
+presenting a dead drag gesture in a host that has no reorder owner.
 
 `ItemsSource` may be any `IEnumerable`. It is the host's already filtered
 projection. When that projection is empty, the host binds `EmptyState` to
@@ -324,14 +327,17 @@ are immutable snapshots:
 | `SelectionStateChanged` | current visual-order `SelectedItems`, `CurrentItem` |
 | `ItemInvoked` | `Item`, ordered `SelectedItems` after normal input selection processing |
 | `RowContextRequested` | `Item`, ordered `SelectedItems`, realized row `FrameworkElement PlacementTarget`, nullable `Point RelativePoint` relative to it (`null` for a keyboard invocation) |
-| `RowsReorderRequested` | visual-order `MovingItems`, nullable `InsertBeforeItem` anchor, never one of `MovingItems` |
+| `RowsReorderRequested` | row-order `MovingItems`, nullable `InsertBeforeItem` anchor, never one of `MovingItems` |
 | `LayoutChanged` | `LayoutState` and one `Kind`: `Sort`, `ColumnMove`, `ColumnResize`, `AutoFit`, `Visibility`, or `Reset` |
 
 `ApplyLayoutState` is silent. `InsertBeforeItem` describes a position in the
-current visual sequence *after* `MovingItems` have been removed: insert the
-complete packet immediately before that remaining item; `null` means append at
-the end. The first remaining item therefore expresses the top boundary, and
-`null` expresses the bottom boundary without a synthetic target or a
+row order *after* `MovingItems` have been removed: insert the complete packet
+immediately before that remaining item; `null` means append at the end. The
+row order is the current visual sequence, read from the bottom up when the
+`DefinesRowOrder` column is sorted descending, and `MovingItems` is in that
+order too, so the request names the placement the user pointed at whichever
+way the view runs. The first remaining item therefore expresses the start of
+the order, and `null` expresses its end without a synthetic target or a
 two-direction ambiguity. A request is emitted only for a legal placement that
 would change visual order. A drop outside a legal boundary, onto the dragged
 packet, or back to the same resulting order is a no-op and does not raise a
@@ -384,6 +390,22 @@ private view incrementally or rebuild it, but the observable result MUST be the
 same. The enumerable must be finite and stable for each enumeration. A one-shot
 iterator is treated as a snapshot and the host supplies a new iterator for a
 later source update.
+
+The private view is handed to the native item surface in full. That surface
+reads a row only when it realizes the row's position, and for every other
+position it keeps nothing but the count. A source update or sort therefore
+raises a collection notification for two things and nothing else: every
+membership change, at its true position, and every position the surface
+currently holds a container for, pinned and not-yet-recycled containers
+included. Every other position takes its new row without a notification. The
+observable result is the one this section already requires: the count is
+always right, a row that leaves or arrives at a held position animates, and a
+container never shows a row other than the view's row at its index. A
+membership-only update, such as a host filter over an already-ordered source,
+raises exactly the notifications it raised before this rule and no others.
+What falsifies the rule is a container whose content differs from the view's
+row at its index after a sort, a scroll, or `ScrollIntoView`; the reference
+host's diagnostics section R checks exactly that.
 
 A source that implements `INotifyCollectionChanged` is live for membership and
 source-order changes. A plain `IEnumerable` is immutable from the table's
@@ -494,6 +516,7 @@ public sealed class TableColumn : DependencyObject
     public bool CanHide { get; set; } = true;
     public bool CanResize { get; set; } = true;
     public bool CanSort { get; set; }
+    public bool DefinesRowOrder { get; set; }
 
     public HorizontalAlignment CellHorizontalAlignment { get; set; } =
         HorizontalAlignment.Left;
@@ -522,6 +545,9 @@ Required invariants:
 - `CanHide == false` prevents hiding that column;
 - a column is sortable only when `CanSort` is true and it has a pure comparer
   that defines a consistent total ordering for the consumer's rows;
+- at most one column has `DefinesRowOrder`; its ascending values are the host's
+  row order, the order the unsorted view shows and a row drag changes (section
+  16);
 - hidden columns retain their resolved position and most recent width;
 - the declaration order, `DefaultWidth`, `IsVisibleByDefault`, and the
   control's documented width defaults form the reset baseline; runtime layout
@@ -857,20 +883,68 @@ same menu and leaves row selection unchanged.
 The generated menu is deliberately limited to table mechanics. It provides both
 pointer actions and keyboard-accessible alternatives:
 
-- **Hide this column** when it is hideable and another column can remain;
-- a **Columns** submenu containing a `ToggleMenuFlyoutItem` for every column;
-- **Fit this column** for a resizable active column and **Fit visible columns**
-  when at least one visible column is resizable;
-- **Move left** and **Move right** for the active column.
+- **Hide column “Name”** for the column the menu was opened on, while it is
+  hideable and another column can remain, which becomes **Show column “Name”**
+  once that column is hidden;
+- **Fit column “Name”** for a resizable active column, and **Fit visible
+  columns** when at least one visible column is resizable;
+- **Move left** and **Move right** for the active column;
+- one item per declared column, hidden ones included, carrying a check when the
+  column is visible.
+
+The three commands that act on a single column name it, in typographic quotation
+marks: the label is a sentence a translation owns, and a test asserts the
+literal, so a straight quote written here would fail it on a character nobody can
+see in a diff. "This column" was
+unambiguous only while the column list lived behind a submenu: with the list in
+the same menu, "this" meant the column the menu was opened on while the names
+directly below it meant themselves, and nothing on screen said which was which.
+
+The column list is in this menu and not a submenu of it. A submenu is a second
+popup with a dismissal of its own that no API can refuse, so the root menu could
+be held open across a change while the list collapsed underneath it, and turning
+three columns on cost three trips back through the submenu. It is also what the
+reference does.
+
+No item closes the menu. Every one of them is repeated by nature — showing and
+hiding columns, nudging a column left until it sits where it belongs, fitting one
+and then another — or is immediately worth undoing, which amounts to the same
+thing. Because the menu stays open, every item MUST re-ask its own label, icon
+and enabled state after each invocation rather than merely be correct when the
+menu was built: hiding a column can leave another as the last visible one and
+disable its entry, moving a column to an edge disables the command that moved it
+there, and hiding the column the menu was opened on turns that item into the one
+that shows it back. No item may be left saying something that has stopped being
+true.
+
+A column entry carries its state as an icon rather than as a toggle item's own
+check. A checkable menu item keeps its check in a column of its own that holds
+its width even while the check is invisible, so one standing beside items that
+carry icons gives the menu two glyph columns and indents every label past both.
+The cost is that the state is no longer reported through the toggle pattern, so
+it MUST be published another way; `AutomationProperties.ItemStatus` carries it.
+
+The two fit commands differ by glyph and MUST NOT differ by colour alone. A menu
+icon inherits the text foreground and is monochrome by design, so a coloured one
+reads as status rather than as category; High Contrast overrides icon colour
+outright, which would take the distinction from the readers who most need it;
+and section 19 does not allow colour to be the only carrier. They differ in
+scope rather than in instrument — a measurement of one width against arrows
+spreading outward — because they do the same thing to a different number of
+columns.
 
 Double-clicking a mouse/pen resizer fits one column. The fit commands provide the
 keyboard and touch path for column sizing; move commands provide the equivalent
-path for column order. Sort is available from the active passive
-header: Enter or Space follows section 9's sort cycle. The columns submenu uses
-each column's localized `DisplayName`; generic action labels are localized by
+path for column order. Sort is available from the active passive header: Enter or
+Space follows section 9's sort cycle. The column entries use each column's
+localized `DisplayName`, and the commands that name a column place that name into
+a sentence their translation owns; every other label is localized by
 `TableView`'s own resources. They are not host-overridable configuration. This
 keeps generated UI self-contained while the host owns its column names and
-header content. Native flyout closure restores focus to the invoking header.
+header content. Focus returns to the invoking header when the menu closes, in
+the state the request arrived in: a flyout restores focus itself but not with
+that state, so a menu opened by pointer and dismissed by invoking a command left
+a keyboard focus ring on the header.
 
 The menu MUST prevent a state with zero visible columns, respect `CanHide`, and
 enable only commands that can currently change layout. It has no extension or
@@ -953,9 +1027,18 @@ equal logical request is a no-op.
 
 When `IsMarqueeSelectionEnabled` is true and `SelectionMode` is `Multiple` or
 `Extended`, dragging from empty row-surface space with a mouse or pen creates a
-selection rectangle. In `None` and `Single` modes, marquee selection is
-inactive. Touch remains native scrolling/selection/context-menu input; it does
-not begin a marquee gesture.
+selection rectangle, and so does dragging from a row the table would not drag:
+one it withholds section 16's drag from because reordering is off, the host has
+no handler, the view is sorted by a column that is not the row order, or the
+row is not interactive. Dragging from a row the table would drag is section
+16's row drag. Which of the two a press becomes depends only on what it landed
+on, never on the direction of the first movement. The reference implementation
+draws the same line between its rows and the canvas beside them; a row it would
+not drag starts the rectangle here as well, because nothing competes for the
+gesture there and the pointer has already said so with the arrow, where a
+draggable row shows the move cursor. In `None` and `Single` modes, marquee
+selection is inactive. Touch remains native scrolling/selection/context-menu
+input; it does not begin a marquee gesture.
 
 - the rectangle is drawn in an overlay above rows and below menus;
 - a plain marquee replaces selection with its intersected eligible rows;
@@ -968,6 +1051,9 @@ not begin a marquee gesture.
   separator, or active row-reorder handle/gesture;
 - the table delays an empty-surface clear until pointer release or the drag
   threshold, so starting a marquee does not briefly clear selection first;
+- a press on a row the table would not drag selects that row as a click would,
+  and the rectangle covers that row from its first movement, so nothing the
+  press did is taken back;
 - the overlay disappears on completion, Escape cancellation, unload, or a
   view-changing update; section 5.3 defines the latter to restore the
   pre-gesture logical selection before reconciliation.
@@ -976,20 +1062,30 @@ Empty row-surface space is below the last row and beside the last column. A row
 is only as wide as its columns, so the space to their right belongs to no row.
 That is a requirement and not an appearance: with full-width rows and enough of
 them to fill the viewport there is no empty surface anywhere on screen, every
-press lands on a row, and the gesture cannot be started at all. Section 19
-requires a row's own fill to stop at the same place, so that what can be dragged
-from is what looks like it can be.
+press lands on a row, and while those rows can be dragged the gesture cannot be
+started at all. The reference
+implementation is built the same way: its rows sit on a canvas the width of the
+columns inside a scroll container the width of the viewport, and a press in the
+space between the two starts its rectangle.
 
-The gesture's availability therefore depends on the column widths. While the
-columns are narrower than the viewport, the space beside them starts a marquee
-on any row line; once they fill it there is none, and the only empty row surface
-left is below the last row, which a full table does not have. Scrolling does not
-restore it: the row surface disables its own horizontal scrolling, so a
-container is clipped to the viewport rather than overhanging it. Measured on the
-torrent host, 446 DIPs beside the columns in a 1,374-wide list, and none at all
-once the window was narrowed to 674. That is a boundary of this rule rather than
-a defect in it, and the reference implementation has the same one for the same
-reason: its row canvas is exactly the width its columns need.
+The line between a row and that space MUST be visible, or the space reads as a
+drag that stopped working. Measured on the torrent host at 2,538 wide with
+1,120-wide rows, 1,418 pixels of every row band, 56%, started a rectangle
+where the user expected a drag, with nothing on screen to mark the line, and
+the line moved with every fit, resize and hidden column. The row's own fill
+marks it only while the row is selected, and hover is off by the owner's
+ruling, so the pointer marks it: the table shows the move cursor over a row
+that can be dragged and the arrow over the space beside it, as the reference
+shows its grab cursor. Section 19 requires the selected fill to stop at the
+same line for the same reason.
+
+While the table offers the drag, the gesture's availability therefore depends
+on the column widths. While the columns are narrower than the viewport, the
+space beside them starts a marquee on any row line; once they fill it there is
+none, and the only empty row surface left is below the last row, which a full
+table does not have. That is a boundary of this rule rather than a defect in
+it, and the reference has the same one for the same reason. While the table
+withholds the drag, every row starts a rectangle and the widths do not matter.
 
 A row's band is its vertical extent across the whole row surface. The rectangle
 is tested against the band, not against the row's own box, so how far it reaches
@@ -1044,11 +1140,15 @@ Row reordering is enabled by default as described in section 5. It supports
 multi-row movement without embedding domain ordering policy.
 
 The consumer MUST set `IsRowReorderingEnabled` to false whenever its external
-filter/order or active table sort cannot map a visual placement to domain
-ordering. If `IsRowReorderingEnabled` becomes false during a drag, the table
-cancels the drag. For a race or command failure, the consumer simply does not
-change (or reconciles) its projection; there is no post-drop accept/reject
-protocol.
+filter/order cannot map a visual placement to domain ordering. The active table
+sort is the table's own to judge: it offers the drag only while the view shows
+the row order — unsorted, or sorted either way by the column whose
+`DefinesRowOrder` is true — and withholds it under any other sort, where a drag
+from a row is section 14's marquee instead. If `IsRowReorderingEnabled` becomes
+false during a drag, the table cancels the drag; if the sort stops showing the
+row order during a drag, the drop raises nothing. For a race or command
+failure, the consumer simply does not change (or reconciles) its projection;
+there is no post-drop accept/reject protocol.
 
 - a mouse/pen passive row press that ends before the normal drag threshold
   follows normal selection behavior; a press that crosses it becomes a row drag;
@@ -1059,7 +1159,9 @@ protocol.
 - packet order follows the current visual order;
 - an immediate, theme-aware insertion indicator identifies the legal boundary;
 - the event supplies `MovingItems` and `InsertBeforeItem` as defined in section
-  5.1; it never uses a target inside the moving packet;
+  5.1, both in row order: the visual order, or its reverse when the
+  `DefinesRowOrder` column is sorted descending; it never uses a target inside
+  the moving packet;
 - top, between-row, and append-after-last placements are valid. Invalid,
   packet-internal, and no-change placements are cancelled without an event;
 - `TableView` does not mutate the collection; after the event, the host may
@@ -1091,9 +1193,10 @@ commands in its row context menu or another keyboard-accessible command
 surface; those commands are also the touch path and may operate directly on the
 domain rather than fake a pointer drop.
 
-The host decides whether reordering is valid under its current sort/filter and
-how visual placement maps to domain ordering. Optimistic updates, remote calls,
-failure handling, and reconciliation remain outside `TableView`.
+The host decides whether reordering is valid under its current filter and how
+a place in the row order maps to domain ordering; the table decides it under
+the sort. Optimistic updates, remote calls, failure handling, and
+reconciliation remain outside `TableView`.
 
 ## 17. Loading and empty states
 
@@ -1225,11 +1328,14 @@ itself MUST:
   because Fluent gives position to the focus visual and choice to selection.
   Current remains a model concept that section 13 needs for the anchor and for
   range selection, and nothing measures it because nothing paints it;
-- end a row's own fill at its last column rather than at the edge of the list.
-  The space to the right of the last column belongs to no row, and section 14's
-  marquee is started from it. A fill spanning the list would claim that space
-  for a row, and the one gesture that space exists for would look impossible to
-  begin;
+- end a row's own fill at its last column rather than at the edge of the list,
+  and show the move cursor over a row that can be dragged. The space to the
+  right of the last column belongs to no row, and section 14's marquee is
+  started from it; the fill and the cursor are what make that line visible,
+  and on a row that is not selected the cursor is the whole of it. A fill
+  spanning the list would claim that space for a row, and a pointer that
+  never changed would leave the line where it was measured: invisible, and
+  read as a drag that stopped working;
 - preserve normal effective-pixel text scaling and platform type behavior.
   Text and controls must remain readable and operable at supported display/text
   scaling without a table-specific font-size override.
@@ -1261,6 +1367,28 @@ throughput target.
   or visibility changes.
 - A display-only row update MUST NOT rebuild the whole table. A source, sort,
   or `RefreshView()` change may recompute the private view as specified.
+- A sort or source update raises collection notifications for membership
+  changes and for the positions the item surface holds a container for, and
+  for nothing else (section 5.3). The number of notifications a reorder
+  raises is bounded by realized containers, never by the row count. Measured on
+  the 2,002-row torrent host in Release, with no collection inside the span: a
+  full reversal fell from 3,998 notifications to 34, and the collection change
+  from 223 ms to 13 ms. The claim is falsifiable and MUST be tested as such —
+  it fails the moment a container's content differs from the view's row at that
+  container's index, so the test is a sort, a far scroll and a `ScrollIntoView`,
+  each followed by comparing every realized container against the view. Rows
+  placed without a notification give the panel no reason to re-examine what it
+  holds, so the view MUST invalidate measure when its order moved; without that
+  the foot of the viewport stays blank until something else forces a pass.
+- A reorder MUST need no forced layout. Two reconciles arriving in one dispatcher
+  callback — a source publish and the settle timer landing together with a sort
+  applied — resolve without one, because the item surface updates its own map of
+  container to index inside the notification rather than at the next layout pass.
+  This is stated because the defensive fix is expensive and invisible: a reader
+  worrying about a stale realized set adds an `UpdateLayout` to the reconcile
+  path, which is a full layout on every publish, and nothing else in the tree
+  would tell them it was measured and found unnecessary. The diagnostics carry
+  that measurement.
 - Column layout changes affect only headers and realized rows.
 - Source updates, property updates, sorting, scrolling, visibility changes, and
   host-window resizing MUST NOT measure content or change widths.
@@ -1482,13 +1610,14 @@ accessible torrent command surface) for users who do not use pointer drag.
 
 #### A.2.5 Queue drag reordering
 
-Bind `IsRowReorderingEnabled` to true only when the state filter is All, no
-text filter is active, and the view is in natural order or a queue-column sort;
-this deliberately narrows TableView's default-enabled capability to views the
-torrent host can map to queue ordering. A descending queue view is valid, but
-the adapter must translate its visual insertion anchor back into semantic
-ascending queue order. The torrent host handles
-`RowsReorderRequested` as follows:
+Mark the queue column `DefinesRowOrder`, and bind `IsRowReorderingEnabled` to
+true only when the state filter is All and no text filter is active; this
+deliberately narrows TableView's default-enabled capability to views the
+torrent host can map to queue ordering. The sort needs no binding: the table
+offers the drag unsorted and under a queue-column sort either way, withholds it
+under any other sort, and reports a descending view's request already in
+ascending queue order. The torrent host handles `RowsReorderRequested` as
+follows:
 
 1. Convert `MovingItems` and `InsertBeforeItem` (defined after removal of the
    moving packet) into the daemon's queue operation(s).
@@ -1502,8 +1631,9 @@ request is pending and restore it after reconciliation when the view remains
 eligible.
 
 The table provides the packet, insertion anchor, feedback, and selection
-preservation. It never calculates queue priorities, reverses descending order,
-or talks to the daemon.
+preservation. It never calculates queue priorities or talks to the daemon; the
+one order it reverses is its own view's, so that a request under a descending
+queue sort arrives in queue order.
 
 #### A.2.6 Layout persistence
 

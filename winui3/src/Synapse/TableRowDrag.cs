@@ -143,12 +143,15 @@ public sealed class TableRowsReorderRequestedEventArgs : EventArgs
         InsertBeforeItem = insertBeforeItem;
     }
 
-    /// <summary>The rows to move, in current visual order.</summary>
+    /// <summary>
+    /// The rows to move, in row order: the current visual order, or its reverse under the column
+    /// that <see cref="TableColumn.DefinesRowOrder"/> sorted downward.
+    /// </summary>
     public IReadOnlyList<object> MovingItems { get; }
 
     /// <summary>
-    /// The row the packet goes immediately before once the packet itself has been taken out, or
-    /// null to append. It is never one of <see cref="MovingItems"/>.
+    /// The row the packet goes immediately before, in row order, once the packet itself has been
+    /// taken out, or null to append. It is never one of <see cref="MovingItems"/>.
     /// </summary>
     public object? InsertBeforeItem { get; }
 }

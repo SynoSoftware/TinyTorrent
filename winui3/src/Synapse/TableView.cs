@@ -49,13 +49,34 @@ public sealed partial class TableView : Control
         _source = new TableSourceView(DispatcherQueue);
         _source.SnapshotChanged += OnSnapshotChanged;
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
+
+    /// <summary>
+    /// Set while the table is out of the tree, so a settle that is already on the queue does not
+    /// rebuild against template parts that have gone. Stopping the timer is not enough on its own:
+    /// stopping it does not recall a tick the dispatcher has already picked up.
+    /// </summary>
+    private bool _detached;
 
     /// <summary>
     /// Raised once after each completed effective sort, column move, resize, fit, visibility, or
     /// reset. Never raised by initial setup or by <see cref="ApplyLayoutState"/>.
     /// </summary>
     public event EventHandler<TableLayoutChangedEventArgs>? LayoutChanged;
+
+    /// <summary>
+    /// The icon font the control's own generated menu draws from, so a host building the row menu
+    /// section 15 gives it can draw from the same set.
+    /// </summary>
+    /// <remarks>
+    /// The family is vendored inside this library and addressed by a path into this library's own
+    /// packaged folder, which is not something a host can be expected to know or to repeat. Without
+    /// this the host's only route to it was the theme dictionary's key, and a library's
+    /// Themes/Generic.xaml is not part of <c>Application.Current.Resources</c>: looking it up there
+    /// throws, which is what the torrent sample's row menu did.
+    /// </remarks>
+    public static Microsoft.UI.Xaml.Media.FontFamily IconFontFamily => TableIcons.Font;
 
     /// <summary>The single geometry source read by the header panel and every realized row panel.</summary>
     internal ResolvedLayout Layout { get; } = new();
@@ -181,8 +202,23 @@ public sealed partial class TableView : Control
         Layout.Invalidated -= OnLayoutInvalidated;
     }
 
+    /// <summary>
+    /// Leaving the tree, which for the last table in an application is the window closing. Until
+    /// this existed the settle timer was stopped only when the control was re-templated, so a table
+    /// whose sort was still settling went on ticking into a torn-down XAML core and the tick failed
+    /// inside the hosted list. Reloading is ordinary — a tab or a navigation frame does it — so
+    /// this only pauses the settle; <see cref="OnLoaded"/> lets it run again.
+    /// </summary>
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _detached = true;
+        _settleDue?.Stop();
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _detached = false;
+
         if (_schemaCaptured)
         {
             return;
@@ -297,6 +333,13 @@ public sealed partial class TableView : Control
         if (Columns.Count > 0 && !anyVisible)
         {
             throw ConfigurationError("At least one column must be visible by default.");
+        }
+
+        // Section 6.1: one row order. Under a sort by either of two claimants, a drop would name a
+        // place in an order the other column contradicts.
+        if (Columns.Count(column => column.DefinesRowOrder) > 1)
+        {
+            throw ConfigurationError("At most one column may set DefinesRowOrder.");
         }
     }
 

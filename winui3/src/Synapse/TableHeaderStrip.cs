@@ -112,7 +112,9 @@ public sealed partial class TableHeaderStrip : Control
         if (_fitAll is not null)
         {
             _fitAll.Click += OnFitAllClick;
-            _fitAll.Content = TableIcons.Fit();
+            // The all-columns glyph, because that is the command this button is: it fits every visible
+        // column, not the one nearest to it.
+        _fitAll.Content = TableIcons.FitVisibleColumns();
             AutomationProperties.SetName(_fitAll, TableResources.FitVisibleColumns);
             ToolTipService.SetToolTip(_fitAll, TableResources.FitVisibleColumns);
         }
@@ -626,19 +628,18 @@ public sealed partial class TableHeaderStrip : Control
     /// </summary>
     private void OnContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
-        FrameworkElement target =
-            FindCell(e.OriginalSource as DependencyObject, out _) ?? (FrameworkElement)this;
+        TableHeaderCell? cell = FindCell(e.OriginalSource as DependencyObject, out _);
 
-        e.Handled = ShowMenu(target, e.TryGetPosition(target, out Point position) ? position : null);
+        e.Handled = ShowMenu(cell, e.TryGetPosition(this, out Point position) ? position : null);
     }
 
     /// <summary>
-    /// Section 12's menu, at the invoking header, or at the strip when the request came from unused
-    /// header space and there is no active column. The invoking header takes focus first: a flyout
-    /// returns focus to whatever held it when the flyout opened, which is section 12's restore
-    /// without a second focus path.
+    /// Section 12's menu, over the header the request came from, or over unused header space when
+    /// there is no active column. The invoking header takes focus first: a flyout returns focus to
+    /// whatever held it when the flyout opened, which is section 12's restore without a second focus
+    /// path.
     /// </summary>
-    private bool ShowMenu(FrameworkElement target, Point? position)
+    private bool ShowMenu(TableHeaderCell? cell, Point? position)
     {
         if (_owner is null)
         {
@@ -649,15 +650,37 @@ public sealed partial class TableHeaderStrip : Control
         // focus visual for Keyboard and Programmatic but not for Pointer, so asking for
         // Programmatic here puts a focus ring on the header after a right-click or a press-and-hold.
         // A pointer-raised context request carries a position; the Menu key and Shift+F10 do not.
-        TableHeaderCell? cell = target as TableHeaderCell;
-        cell?.Focus(position is null ? FocusState.Keyboard : FocusState.Pointer);
+        FocusState state = position is null ? FocusState.Keyboard : FocusState.Pointer;
+        cell?.Focus(state);
 
-        TableHeaderMenu
-            .Create(_owner, ColumnOf(cell))
-            .ShowAt(target, new FlyoutShowOptions { Position = position });
+        MenuFlyout menu = TableHeaderMenu.Create(_owner, ColumnOf(cell));
+
+        // A flyout returns focus to the element it was shown from when it closes, and the state it
+        // returns is not the state the header was focused with: a menu opened by right-click and
+        // dismissed by invoking a command left a keyboard focus ring around the header, which is
+        // the ring the owner saw around Size after Fit visible columns. Focusing again with the
+        // state the request actually arrived in is what takes it off.
+        if (cell is not null)
+        {
+            menu.Closed += (_, _) => cell.Focus(state);
+        }
+
+        // Shown from the strip and never from the header cell, although the cell is what the menu
+        // is about. The menu's first command hides that column, and hiding a column takes its cell
+        // out of the panel. A flyout does not outlive the element it was shown from, so the menu
+        // refused the close its own invocation asked for and was then closed anyway, by the
+        // platform, when the cell unloaded. The strip is present in every column state, so an
+        // anchor on the strip is too. A keyboard request carries no point, so the invoking header's
+        // own bottom-left stands in for one.
+        menu.ShowAt(this, new FlyoutShowOptions { Position = position ?? CornerOf(cell) });
 
         return true;
     }
+
+    /// <summary>The bottom-left corner of a header cell, in the strip's own coordinates.</summary>
+    private Point? CornerOf(TableHeaderCell? cell) => cell is null
+        ? null
+        : cell.TransformToVisual(this).TransformPoint(new Point(0, cell.ActualHeight));
 
     /// <summary>
     /// Run section 9's sort cycle for the passive header this input came from.

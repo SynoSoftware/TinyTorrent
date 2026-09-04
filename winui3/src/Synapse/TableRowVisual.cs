@@ -1,3 +1,4 @@
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -5,8 +6,8 @@ using Microsoft.UI.Xaml.Media;
 namespace Synapse;
 
 /// <summary>
-/// The table-drawn selected, current, and dragged cues. The row template's root, wrapping the
-/// cells panel.
+/// The table-drawn dragged cue, and the cursor that says a row can be dragged. The row template's
+/// root, wrapping the cells panel.
 /// </summary>
 /// <remarks>
 /// The container cannot supply either cue. Its own selected fill measures 1.08:1 in Light and
@@ -15,6 +16,16 @@ namespace Synapse;
 /// </remarks>
 public sealed partial class TableRowVisual : ContentControl
 {
+    /// <summary>
+    /// Shown over a row the pointer could drag. A row is only as wide as its columns and the space
+    /// beside them starts section 14's marquee instead, and nothing else marks that line: the row's
+    /// fill shows only while it is selected and hover is off. Measured on the torrent host, 56% of
+    /// every row band was that space, read as a drag that had stopped working. The reference shows
+    /// its grab cursor for the same reason. Move rather than Hand, because Hand promises a click.
+    /// </summary>
+    private static readonly InputSystemCursor MoveCursor =
+        InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
+
     private TableView? _owner;
 
     public TableRowVisual()
@@ -73,19 +84,22 @@ public sealed partial class TableRowVisual : ContentControl
 
     private void OnRowVisualsChanged(object? sender, EventArgs e) => UpdateStates(useTransitions: true);
 
+    /// <summary>
+    /// A dragged row is the only thing this control paints. Selection is the container's own
+    /// background. Neither the current row nor the focused row is drawn at all: Fluent's list has no
+    /// treatment for either, and the owner ruled that this table will not invent one. The cursor is
+    /// the one other cue: the move cursor while the table would drag this row, which is also how a
+    /// sorted table, where the table withholds the drag, says so before the press. Without the move
+    /// cursor a drag from the row is section 14's sweep.
+    /// </summary>
     private void UpdateStates(bool useTransitions)
     {
-        // Current is not read here on purpose: WinUI paints no current-row cue and neither do we.
-        // Selection is read for the accent bar only. The selected background stays the
-        // container's, because drawing one here put a second fill over it.
-        // Selection is not read here: the container draws the selected background and this control
-        // draws nothing for it. Current is not read either — WinUI paints no current-row cue.
         object? item = DataContext;
-        bool focused = _owner is not null && _owner.IsRowFocused(item);
         bool dragging = _owner is not null && _owner.IsRowDragging(item);
+        bool draggable = _owner is not null && item is not null && _owner.CanBeginRowDrag(item);
 
-        VisualStateManager.GoToState(this, focused ? "RowFocused" : "RowUnfocused", useTransitions);
         VisualStateManager.GoToState(this, dragging ? "Dragging" : "NotDragging", useTransitions);
+        ProtectedCursor = draggable ? MoveCursor : null;
     }
 
     internal static TableView? FindOwner(DependencyObject node)

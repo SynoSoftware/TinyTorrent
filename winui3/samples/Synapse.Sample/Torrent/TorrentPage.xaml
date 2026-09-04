@@ -438,6 +438,7 @@
                                DisplayName="Queue"
                                DefaultWidth="80"
                                CanSort="True"
+                               DefinesRowOrder="True"
                                CellHorizontalAlignment="Right"
                                CellTemplate="{StaticResource QueueCell}" />
                 <t:TableColumn Id="eta"

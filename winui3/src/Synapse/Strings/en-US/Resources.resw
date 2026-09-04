@@ -67,14 +67,20 @@
   <data name="Header_SortedDescending" xml:space="preserve">
     <value>Sorted descending</value>
   </data>
-  <data name="ColumnMenu_HideThisColumn" xml:space="preserve">
-    <value>Hide this column</value>
+  <data name="ColumnMenu_HideColumn" xml:space="preserve">
+    <value>Hide column “{0}”</value>
   </data>
-  <data name="ColumnMenu_Columns" xml:space="preserve">
-    <value>Columns</value>
+  <data name="ColumnMenu_ShowColumn" xml:space="preserve">
+    <value>Show column “{0}”</value>
   </data>
-  <data name="ColumnMenu_FitThisColumn" xml:space="preserve">
-    <value>Fit this column</value>
+  <data name="ColumnMenu_ColumnShown" xml:space="preserve">
+    <value>Shown</value>
+  </data>
+  <data name="ColumnMenu_ColumnHidden" xml:space="preserve">
+    <value>Hidden</value>
+  </data>
+  <data name="ColumnMenu_FitColumn" xml:space="preserve">
+    <value>Fit column “{0}”</value>
   </data>
   <data name="ColumnMenu_FitVisibleColumns" xml:space="preserve">
     <value>Fit visible columns</value>

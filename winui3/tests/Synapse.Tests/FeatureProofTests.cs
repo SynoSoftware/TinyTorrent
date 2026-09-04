@@ -392,15 +392,20 @@ public class FeatureProofTests
             CollectionAssert.AreEqual(
                 new[]
                 {
-                    "Hide this column", "Columns", "---", "Fit this column", "Fit visible columns",
-                    "---", "Move left", "Move right",
+                    "Hide column “Name”", "---", "Fit column “Name”", "Fit visible columns",
+                    "---", "Move left", "Move right", "---",
+                    "Name", "Progress", "Status", "Queue", "ETA", "Speed", "Peers", "Size",
+                    "Ratio", "Added", "Completed on",
                 },
                 items.Select(Proof.Label).ToArray());
 
-            MenuFlyoutSubItem columns = items.OfType<MenuFlyoutSubItem>().Single();
-            List<ToggleMenuFlyoutItem> toggles =
-                columns.Items.Cast<ToggleMenuFlyoutItem>().ToList();
-            Proof.Note("F05 Columns submenu: " + string.Join(" | ", toggles.Select(Proof.Describe)));
+            // Everything after the last separator: three of the commands now carry a column's
+            // name themselves, so they can no longer be told from the column entries by name.
+            List<MenuFlyoutItem> toggles = items
+                .Skip(items.FindLastIndex(item => item is MenuFlyoutSeparator) + 1)
+                .OfType<MenuFlyoutItem>()
+                .ToList();
+            Proof.Note("F05 column list: " + string.Join(" | ", toggles.Select(Proof.Describe)));
 
             Assert.AreEqual(11, toggles.Count, "one checkable item per declared column");
             CollectionAssert.AreEqual(
@@ -412,7 +417,7 @@ public class FeatureProofTests
                 toggles.Select(t => t.Text).ToArray());
             CollectionAssert.AreEqual(
                 new[] { true, true, true, true, false, true, true, true, false, false, false },
-                toggles.Select(t => t.IsChecked).ToArray(),
+                toggles.Select(t => t.Icon is not null).ToArray(),
                 "checked exactly for the seven visible columns");
 
             Assert.IsFalse(
@@ -469,10 +474,10 @@ public class FeatureProofTests
             new[] { "name", "progress", "queue", "status", "speed", "peers", "size" }, moved);
 
         TableHeaderCell status = TorrentSchema.HeaderCells(table).Single(c => ColumnId(c) == "status");
-        await InvokeMenuCommand(table, status, "status", "Hide this column");
+        await InvokeMenuCommand(table, status, "status", "Hide column “Status”");
         table.UpdateLayout();
         string[] hidden = TorrentSchema.HeaderCells(table).Select(c => ColumnId(c)).ToArray();
-        Proof.Note("F05 after 'Hide this column' on status: " + string.Join(", ", hidden));
+        Proof.Note("F05 after hiding the status column: " + string.Join(", ", hidden));
         CollectionAssert.AreEqual(
             new[] { "name", "progress", "queue", "speed", "peers", "size" }, hidden);
     });
@@ -496,15 +501,14 @@ public class FeatureProofTests
         Assert.AreEqual("name", ColumnId(only));
 
         List<MenuFlyoutItemBase> items = MenuFor(table, "name").Items.ToList();
-        MenuFlyoutSubItem columns = items.OfType<MenuFlyoutSubItem>().Single();
-        ToggleMenuFlyoutItem nameToggle =
-            columns.Items.Cast<ToggleMenuFlyoutItem>().Single(t => t.Text == "Name");
+        MenuFlyoutItem nameToggle =
+            items.OfType<MenuFlyoutItem>().Single(t => t.Text == "Name");
 
         Proof.Note($"F05 last visible column: Hide enabled=" +
-                   $"{items.Single(i => Proof.Label(i) == "Hide this column").IsEnabled}, " +
+                   $"{items.Single(i => Proof.Label(i) == "Hide column “Name”").IsEnabled}, " +
                    $"Name toggle enabled={nameToggle.IsEnabled}");
         Assert.IsFalse(nameToggle.IsEnabled);
-        Assert.IsFalse(items.Single(i => Proof.Label(i) == "Hide this column").IsEnabled);
+        Assert.IsFalse(items.Single(i => Proof.Label(i) == "Hide column “Name”").IsEnabled);
     });
 
     // ================================================================ F06 layout persistence
@@ -781,6 +785,50 @@ public class FeatureProofTests
         Assert.IsFalse((bool)Proof.Call(h.Table, "CanCommitGesture")!);
     });
 
+    /// <summary>
+    /// Section 14: a press on a row the table would not drag becomes the rectangle at the
+    /// threshold, not a dead press. Nothing competes for the gesture there, and the pointer has
+    /// said so already, showing the arrow where a draggable row shows the move cursor.
+    /// </summary>
+    [TestMethod]
+    public Task F09_APressOnARowTheTableWouldNotDragBecomesTheMarquee() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            6, configure: t => t.IsMarqueeSelectionEnabled = true, height: 400);
+        ListView list = h.HostedList();
+        double rowHeight = ((FrameworkElement)list.ContainerFromItem(h[0])).ActualHeight;
+
+        // No handler, so no row can be dragged, and the press selects the row as a click would.
+        Assert.IsFalse((bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!);
+        Gesture.Press(h, row: h[2], item: h[2], originY: rowHeight * 2.5);
+        CollectionAssert.AreEqual(
+            new[] { "k2" }, h.SelectedKeys(), "a press on a row that cannot be dragged selects it");
+        Assert.AreEqual(
+            "Marquee",
+            Proof.Call(h.Table, "GestureAtThreshold")!.ToString(),
+            "at the threshold the press becomes the rectangle");
+
+        Proof.Call(h.Table, "BeginMarquee", list);
+        object marquee = Proof.Field<object>(h.Table, "_marquee");
+        Proof.Call(marquee, "Track", new Point(10, rowHeight * 4.5));
+        Proof.Note("F09 sweep from a row: " + string.Join(",", h.SelectedKeys()));
+        CollectionAssert.AreEqual(
+            new[] { "k2", "k3", "k4" },
+            h.SelectedKeys(),
+            "the rectangle covers the row it started on and the rows swept below it");
+
+        Assert.IsTrue((bool)Proof.Call(h.Table, "CancelCommittedGesture")!, "Escape ends it");
+        Assert.AreEqual(
+            0, h.SelectedKeys().Length, "and the selection the gesture started from comes back");
+
+        // With a handler the same press is the drag: the rule never guesses between the two.
+        h.Table.IsRowReorderingEnabled = true;
+        h.Table.RowsReorderRequested += (_, _) => { };
+        Gesture.Press(h, row: h[2], item: h[2], originY: rowHeight * 2.5);
+        Assert.AreEqual("RowDrag", Proof.Call(h.Table, "GestureAtThreshold")!.ToString());
+        Proof.Call(h.Table, "CancelGesture");
+    });
+
     // ================================================================ F10 row context menu
 
     /// <summary>
@@ -874,7 +922,10 @@ public class FeatureProofTests
         ObservableCollection<Row> rows = h.Rows;
 
         Gesture.Press(h, row: h[2], item: h[2], originY: rowHeight * 2.5);
-        Assert.IsTrue((bool)Proof.Call(h.Table, "CanCommitGesture")!, "the threshold may commit");
+        Assert.AreEqual(
+            "RowDrag",
+            Proof.Call(h.Table, "GestureAtThreshold")!.ToString(),
+            "a press on a row becomes the drag at the threshold");
         Proof.Call(h.Table, "BeginRowDrag", list, h[2]);
         Assert.AreEqual("RowDrag", Proof.Field<object>(h.Table, "_gesture").ToString());
 
@@ -930,7 +981,13 @@ public class FeatureProofTests
     public Task F11_DraggingAnUnselectedRowMovesThatRowAlone() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            8, configure: t => t.IsRowReorderingEnabled = true, height: 400);
+            8,
+            configure: t =>
+            {
+                t.IsRowReorderingEnabled = true;
+                t.IsMarqueeSelectionEnabled = true;
+            },
+            height: 400);
 
         List<TableRowsReorderRequestedEventArgs> requests = new();
         h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
@@ -940,6 +997,13 @@ public class FeatureProofTests
             ((FrameworkElement)h.HostedList().ContainerFromItem(h[0])).ActualHeight;
 
         Gesture.Press(h, row: h[5], item: h[5], originY: rowHeight * 5.5);
+        CollectionAssert.AreEqual(
+            new[] { "k0", "k1" }, h.SelectedKeys(), "the press defers, so the packet stands");
+        Assert.AreEqual(
+            "RowDrag",
+            Proof.Call(h.Table, "GestureAtThreshold")!.ToString(),
+            "a press on a row is a drag at the threshold, never a marquee, whatever the host enabled");
+
         Proof.Call(h.Table, "BeginRowDrag", h.HostedList(), h[5]);
         Proof.Call(h.Table, "CompleteRowDrag", rowHeight * 0.2);
 
@@ -968,6 +1032,104 @@ public class FeatureProofTests
         Proof.Note("F11 with opt-in and a handler: " +
                    (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!);
         Assert.IsTrue((bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!);
+    });
+
+    /// <summary>
+    /// Section 16: the drag is offered only while the view shows the row order. Sorted by another
+    /// column, a boundary between two rows is a place in that sort, so the table withholds the drag
+    /// and a drag from a row is section 14's sweep instead. Sorted by the row-order column either
+    /// way, the drag is offered and the request is reported in row order, so a host that applies it
+    /// in that order puts the packet where it was dropped.
+    /// </summary>
+    [TestMethod]
+    public Task F11_TheDragFollowsTheRowOrderColumnThroughTheSort() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            8,
+            configure: t =>
+            {
+                // Column a defines the row order: ascending by key, which is the source order.
+                // Column b sorts the other way round, so its order is not the row order.
+                t.Columns[0].CanSort = true;
+                t.Columns[0].DefinesRowOrder = true;
+                t.Columns[0].SortComparer = Comparer<object>.Create(
+                    (x, y) => string.CompareOrdinal(((Row)x).Key, ((Row)y).Key));
+                t.Columns[1].CanSort = true;
+                t.Columns[1].SortComparer = Comparer<object>.Create(
+                    (x, y) => string.CompareOrdinal(((Row)y).Key, ((Row)x).Key));
+                t.IsRowReorderingEnabled = true;
+                t.IsMarqueeSelectionEnabled = true;
+            },
+            height: 400);
+
+        List<TableRowsReorderRequestedEventArgs> requests = new();
+        h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
+        ListView list = h.HostedList();
+        double rowHeight = ((FrameworkElement)list.ContainerFromItem(h[0])).ActualHeight;
+
+        Assert.IsTrue(
+            (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!, "unsorted: the view is the row order");
+
+        TableLayoutState unsorted = h.Table.GetLayoutState();
+        h.Table.ApplyLayoutState(unsorted with { SortColumnId = "b" });
+        Assert.IsFalse(
+            (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!,
+            "sorted by another column: the drag is withheld");
+        Gesture.Press(h, row: h[2], item: h[2], originY: rowHeight * 5.5);
+        Assert.AreEqual(
+            "Marquee",
+            Proof.Call(h.Table, "GestureAtThreshold")!.ToString(),
+            "and a drag from a row sweeps instead");
+        Proof.Call(h.Table, "CancelGesture");
+
+        h.Table.ApplyLayoutState(unsorted with { SortColumnId = "a" });
+        Assert.IsTrue(
+            (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!,
+            "sorted by the row-order column upward: offered");
+
+        h.Table.ApplyLayoutState(
+            unsorted with { SortColumnId = "a", SortDirection = TableSortDirection.Descending });
+        Assert.IsTrue(
+            (bool)Proof.Call(h.Table, "CanBeginRowDrag", h[2])!, "and downward: offered");
+        CollectionAssert.AreEqual(
+            new[] { "k7", "k6", "k5", "k4", "k3", "k2", "k1", "k0" },
+            list.Items.Cast<Row>().Select(r => r.Key).ToArray(),
+            "the view runs opposite to the row order");
+
+        // Drop k5 and k4, selected and so moving as one packet, between k7 and k6: the boundary
+        // before view index 1.
+        h.Table.SetSelection(new object[] { h[4], h[5] }, h[5]);
+        Gesture.Press(h, row: h[5], item: h[5], originY: rowHeight * 2.5);
+        Proof.Call(h.Table, "BeginRowDrag", list, h[5]);
+        Proof.Call(h.Table, "CompleteRowDrag", rowHeight * 1.2);
+
+        TableRowsReorderRequestedEventArgs request = requests.Single();
+        Proof.Note($"F11 descending request: moving={string.Join(",", request.MovingItems)} " +
+                   $"insertBefore={request.InsertBeforeItem}");
+        CollectionAssert.AreEqual(
+            new object[] { h[4], h[5] },
+            request.MovingItems.ToArray(),
+            "the packet is reported in row order, not in the order it stands on screen");
+        Assert.AreSame(
+            h[7], request.InsertBeforeItem, "and goes before the row above the boundary, in row order");
+
+        // Applied in row order, the packet lands exactly where it was dropped once the view is
+        // read downward again: k7, k5, k4, k6.
+        List<Row> order = h.Rows.ToList();
+        order.Remove(h[4]);
+        order.Remove(h[5]);
+        order.InsertRange(order.IndexOf(h[7]), new[] { h[4], h[5] });
+        CollectionAssert.AreEqual(
+            new[] { "k0", "k1", "k2", "k3", "k6", "k4", "k5", "k7" },
+            order.Select(r => r.Key).ToArray());
+
+        // A drop right beside the block, on the side that is next in row order, changes nothing:
+        // the boundary before view index 2 is between k6 and k5, and k5 already follows k6.
+        h.Table.SetSelection(new object[] { h[5] }, h[5]);
+        Gesture.Press(h, row: h[5], item: h[5], originY: rowHeight * 2.5);
+        Proof.Call(h.Table, "BeginRowDrag", list, h[5]);
+        Proof.Call(h.Table, "CompleteRowDrag", rowHeight * 1.6);
+        Assert.AreEqual(1, requests.Count, "a placement that keeps the order raises nothing");
     });
 
     // ================================================================ F12 row activation

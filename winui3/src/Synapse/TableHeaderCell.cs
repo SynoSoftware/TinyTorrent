@@ -14,9 +14,13 @@ public sealed partial class TableHeaderCell : Control
     private const string ContentPartName = "PART_Header";
     private const string SortGlyphPartName = "PART_SortGlyph";
 
-    /// <summary>Segoe Fluent Icons ChevronUp and ChevronDown, the platform's own sort indicators.</summary>
-    private const string AscendingGlyph = "\uE70E";
-    private const string DescendingGlyph = "\uE70D";
+    /// <summary>
+    /// The sort indicators, from the library's own icon set rather than the platform's. They sit
+    /// two inches from the menu these headers open, so drawing them from a second family was the
+    /// most visible place the control disagreed with itself about what an icon looks like.
+    /// </summary>
+    private const string AscendingGlyph = Lucide.ChevronUp;
+    private const string DescendingGlyph = Lucide.ChevronDown;
 
     private ContentPresenter? _presenter;
     private FontIcon? _sortGlyph;

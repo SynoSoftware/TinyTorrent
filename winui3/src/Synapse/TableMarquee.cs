@@ -13,8 +13,9 @@ namespace Synapse;
 /// <remarks>
 /// Coverage is reported as view indices, not items. Containers come and go under a gesture that
 /// auto-scrolls, so what is measurable changes; an index does not, and a row that has scrolled out
-/// keeps the membership it had. Indices are safe here because the view cannot change under a live
-/// gesture — section 5.3 cancels the marquee first.
+/// keeps the membership it had. An index also survives a source update, which is the reason the
+/// table no longer cancels the gesture for one: the rectangle covers a band of the viewport, and
+/// which rows stand in that band afterwards is a question the table re-asks of the new view.
 /// </remarks>
 internal sealed class TableMarquee
 {

@@ -112,7 +112,7 @@ This is the architectural bet, and it is the thing most worth defending.
 | Selection, current, anchor, focus | the selection model, as pure logic |
 | Pointer gestures | one arbiter: press, threshold, dispatch |
 | Header and row arithmetic | one panel type — the header strip hosts the same panel the rows use, so the two cannot drift |
-| The source snapshot | one view, replaced whole, so the list never sees a partial update |
+| The source snapshot | one view, replaced whole, and the list told about the rows it holds a container for |
 
 Five, against the twelve that killed the last attempt. Before adding a sixth,
 name the requirement that forces it. If you cannot, you have found a place where

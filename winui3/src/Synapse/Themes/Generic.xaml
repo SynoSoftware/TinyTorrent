@@ -4,6 +4,26 @@
     xmlns:local="using:Synapse"
     xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives">
 
+    <!--
+        The library's own icon family, declared once here and named once in TableIcons, so the
+        control draws every glyph it owns — the sort chevrons on a header and the icons in the menu
+        that header opens — from one set. A host that wants its own menus to match can use this key.
+    -->
+    <FontFamily x:Key="SynapseIconFontFamily">ms-appx:///Synapse/Assets/Fonts/lucide.ttf#Lucide</FontFamily>
+
+    <!--
+        The marker pair. Sections 11, 15 and 16 draw the column drop marker, the marquee and the row
+        drop marker as two strokes, a wide one with a narrow one inside it, so the cue stays visible
+        over any cell content whatever the theme. That is the same pair the platform builds a focus
+        visual from, and these markers used to read the platform's focus brushes directly. An
+        application that re-themes its focus visual overrides exactly those brushes — the sample
+        does, to a single accent stroke — and silently flattened all three cues to one tone. Built
+        from the platform's colours instead, the markers still track the theme and no longer sit in
+        the way of a decision about focus that belongs to the host.
+    -->
+    <SolidColorBrush x:Key="SynapseMarkerOuterBrush" Color="{ThemeResource FocusStrokeColorOuter}" />
+    <SolidColorBrush x:Key="SynapseMarkerInnerBrush" Color="{ThemeResource FocusStrokeColorInner}" />
+
     <!-- Shared column geometry needs exactly these two container values. -->
     <Style x:Key="SynapseTableRowContainerStyle"
            TargetType="ListViewItem"
@@ -12,12 +32,17 @@
         <Setter Property="Padding" Value="0" />
         <!--
             A row is as wide as its columns, not as wide as the list. The space to the right of the
-            last column belongs to no row: nothing is drawn there and nothing there can be grabbed,
-            so section 14's marquee begins from it exactly as it begins from the space below the
-            last row. A stretched container put every row under that space instead, and with rows
-            filling the viewport that left the marquee nowhere at all to start — every drag reached
-            a row and became a row drag. The header already draws this same line: past the last
-            column it offers the column menu rather than some column's own.
+            last column belongs to no row, and section 14's marquee begins from it, exactly as the
+            reference does: its rows sit on a canvas the width of the columns inside a scroll
+            container the width of the viewport, and a press in the space between the two starts
+            its rectangle. A full table has no other place to start one.
+
+            That space has to be visible, or it reads as a drag that stopped working. Measured on
+            the torrent host at 2,538 wide with 1,120-wide rows: 56% of every row band started a
+            rectangle, and nothing on screen marked the line, because the row's own fill shows only
+            when it is selected and hover is off by the owner's ruling. TableRowVisual now sets the
+            move cursor over a row that can be dragged, so the pointer itself shows where the
+            columns end, the way the reference's grab cursor does.
         -->
         <Setter Property="HorizontalAlignment" Value="Left" />
         <!-- Rows sit edge to edge, so a rounded corner lands on the seam with the row above. -->
@@ -48,16 +73,14 @@
     </DataTemplate>
 
     <!--
-        This control paints one thing on a row: the focus fill. Selection is the container's own
-        background and nothing else — the owner asked for the accent bar to go, having first asked
-        for it to come back, and it is his call.
+        This control paints one thing on a row: a drag. Selection is the container's own background
+        and nothing else — the owner asked for the accent bar to go, having first asked for it to
+        come back, and it is his call. Neither focus nor the current row is drawn at all.
 
         Recorded because it is a live conflict rather than a settled point: the container's selected
         fill measures 1.08:1 in Light and 1.18:1 in Dark, and section 19 requires 3:1 for non-text
         information. With the bar gone, selection is carried by that fill alone and does not meet
         it. The two selected-row contrast tests assert the 3:1 and will fail.
-
-        Current draws nothing, in WinUI and here alike.
     -->
     <Style TargetType="local:TableRowVisual">
         <Setter Property="IsTabStop" Value="False" />
@@ -68,29 +91,24 @@
                 <ControlTemplate TargetType="local:TableRowVisual">
                     <Grid x:Name="Root">
                         <!--
-                            Focus, as a fill rather than a frame. The platform's focus visual is a
-                            rectangle drawn around the element, and around a full-width row that
-                            reads as a box laid over the design. The owner asked for a
-                            semi-transparent background instead, so the container's own visual is
-                            switched off and this takes its place.
+                            Nothing is drawn for focus. Fluent's list has no focus treatment on a
+                            row, and the owner ruled that this table will not invent one: the
+                            platform's own visual is switched off on the container, and the fill
+                            that stood in for it here is gone.
+
+                            The fill was the third attempt, and what killed it was when it appeared
+                            rather than how it looked. It shows on a row that holds focus and is not
+                            selected, and deselecting a row produces exactly that state — so the
+                            owner clicked a selected row off and watched a mark arrive instead of
+                            leave. A cue nobody asked for, appearing at the moment a row is
+                            dismissed, is worse than no cue.
                         -->
-                        <Border x:Name="FocusFill"
-                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                Opacity="0" />
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
 
                         <VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="RowFocus">
-                                <VisualState x:Name="RowUnfocused" />
-                                <VisualState x:Name="RowFocused">
-                                    <VisualState.Setters>
-                                        <Setter Target="FocusFill.Opacity" Value="1" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
                             <!-- Section 16: the moving packet stays identifiable, in the same
                                  treatment the platform gives a dragged list item and section 11
                                  gives a dragged header. -->
@@ -156,8 +174,8 @@
                         <FontIcon x:Name="PART_SortGlyph"
                                   Grid.Column="1"
                                   Margin="4,0,0,0"
-                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                  FontSize="12"
+                                  FontFamily="{StaticResource SynapseIconFontFamily}"
+                                  FontSize="14"
                                   Glyph="&#xE70E;"
                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                   VerticalAlignment="Center"
@@ -243,18 +261,18 @@
 
                                 <Rectangle Grid.Row="0" Width="9" Height="5"
                                            HorizontalAlignment="Center" VerticalAlignment="Top"
-                                           Fill="{ThemeResource FocusStrokeColorInnerBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerInnerBrush}" />
                                 <Rectangle Grid.Row="0" Width="7" Height="3"
                                            HorizontalAlignment="Center" VerticalAlignment="Top"
                                            Margin="0,1,0,0"
-                                           Fill="{ThemeResource FocusStrokeColorOuterBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerOuterBrush}" />
 
                                 <Rectangle Grid.Row="1" Width="3"
                                            HorizontalAlignment="Center"
-                                           Fill="{ThemeResource FocusStrokeColorInnerBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerInnerBrush}" />
                                 <Rectangle Grid.Row="1" Width="1"
                                            HorizontalAlignment="Center"
-                                           Fill="{ThemeResource FocusStrokeColorOuterBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerOuterBrush}" />
                             </Grid>
                         </Grid>
                     </Border>
@@ -337,8 +355,17 @@
 
                             <!--
                                 Section 14's rectangle, sized and positioned by the gesture over
-                                the row surface. Stroke only: no platform brush survives a contrast
-                                theme as a translucent fill.
+                                the row surface: a translucent accent surface inside the marker
+                                pair, which is the shape the platform gives a selection rectangle.
+                                The fill is a platform accent brush at element opacity, because no
+                                platform brush is translucent in a contrast theme, where every fill
+                                resolves to an opaque system colour. This brush follows the user's
+                                accent in Light and Dark and the highlight colour in a contrast
+                                theme, and the opacity keeps the rows under it legible in all
+                                three. The stroke pair carries section 19's contrast on its own: an
+                                accent stroke would vanish over the rows the rectangle has just
+                                selected, whose background is that same highlight colour in a
+                                contrast theme.
                             -->
                             <Grid x:Name="PART_MarqueeOverlay"
                                   HorizontalAlignment="Left"
@@ -346,18 +373,19 @@
                                   IsHitTestVisible="False"
                                   AutomationProperties.AccessibilityView="Raw"
                                   Visibility="Collapsed">
-                                <Rectangle Stroke="{ThemeResource FocusStrokeColorInnerBrush}"
+                                <Rectangle Fill="{ThemeResource SystemControlHighlightAccentBrush}"
+                                           Opacity="0.25" />
+                                <Rectangle Stroke="{ThemeResource SynapseMarkerInnerBrush}"
                                            StrokeThickness="3" />
-                                <Rectangle Stroke="{ThemeResource FocusStrokeColorOuterBrush}"
+                                <Rectangle Stroke="{ThemeResource SynapseMarkerOuterBrush}"
                                            StrokeThickness="1" />
                             </Grid>
 
                             <!--
                                 Section 16's insertion marker, positioned by the drag on the
                                 boundary a drop would use. It is section 11's column marker turned
-                                on its side, in the same platform focus stroke pair, so the two
-                                boundaries read alike and the wider cap at the leading end is
-                                section 19's positional cue.
+                                on its side, in the same marker pair, so the two boundaries read alike
+                                and the wider cap at the leading end is section 19's positional cue.
                             -->
                             <Grid x:Name="PART_RowInsertionMarker"
                                   Height="9"
@@ -372,18 +400,18 @@
 
                                 <Rectangle Grid.Column="0" Width="5" Height="9"
                                            HorizontalAlignment="Left" VerticalAlignment="Center"
-                                           Fill="{ThemeResource FocusStrokeColorInnerBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerInnerBrush}" />
                                 <Rectangle Grid.Column="0" Width="3" Height="7"
                                            HorizontalAlignment="Left" VerticalAlignment="Center"
                                            Margin="1,0,0,0"
-                                           Fill="{ThemeResource FocusStrokeColorOuterBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerOuterBrush}" />
 
                                 <Rectangle Grid.Column="1" Height="3"
                                            VerticalAlignment="Center"
-                                           Fill="{ThemeResource FocusStrokeColorInnerBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerInnerBrush}" />
                                 <Rectangle Grid.Column="1" Height="1"
                                            VerticalAlignment="Center"
-                                           Fill="{ThemeResource FocusStrokeColorOuterBrush}" />
+                                           Fill="{ThemeResource SynapseMarkerOuterBrush}" />
                             </Grid>
                         </Grid>
 

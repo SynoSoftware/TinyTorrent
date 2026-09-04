@@ -54,7 +54,7 @@ public class RealHeaderMenuTests
 
             await PressAsync(injector, key, modifier);
 
-            Assert.AreEqual("Hide this column", FirstOpenMenuItem(table).Text,
+            Assert.AreEqual("Hide column “B”", FirstOpenMenuItem(table).Text,
                 "the header menu opened on the focused header");
 
             await PressAsync(injector, VirtualKey.Escape, null);

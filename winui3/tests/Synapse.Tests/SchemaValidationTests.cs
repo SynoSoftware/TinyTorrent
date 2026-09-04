@@ -97,6 +97,14 @@ public class SchemaValidationTests
     });
 
     [TestMethod]
+    public Task Section6_1_ASecondRowOrderColumnIsRejected() => RejectedAsync(() => new[]
+    {
+        // "at most one column defines the row order".
+        Column(c => c.DefinesRowOrder = true),
+        Column(c => c.DefinesRowOrder = true, id: "b"),
+    });
+
+    [TestMethod]
     public Task Section6_1_ZeroVisibleColumnsIsRejected() => RejectedAsync(() => new[]
     {
         Column(c => c.IsVisibleByDefault = false, "a"),

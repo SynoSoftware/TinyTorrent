@@ -62,12 +62,28 @@ public sealed partial class TableView
     /// </summary>
     public event EventHandler<TableRowContextRequestedEventArgs>? RowContextRequested;
 
+    private EventHandler<TableRowsReorderRequestedEventArgs>? _rowsReorderRequested;
+
     /// <summary>
     /// Raised once for a completed row drag that asks for a new order. The table has changed
     /// nothing: it never mutates the source, and it does not infer that the host accepted the
-    /// request.
+    /// request. Having a handler is also what makes a row draggable at all, and the rows show
+    /// that with their cursor, so they re-read it when a handler arrives or leaves.
     /// </summary>
-    public event EventHandler<TableRowsReorderRequestedEventArgs>? RowsReorderRequested;
+    public event EventHandler<TableRowsReorderRequestedEventArgs>? RowsReorderRequested
+    {
+        add
+        {
+            _rowsReorderRequested += value;
+            RowVisualsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        remove
+        {
+            _rowsReorderRequested -= value;
+            RowVisualsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Row visuals re-read the table's selected and current state when this fires.</summary>
     internal event EventHandler? RowVisualsChanged;
@@ -81,7 +97,12 @@ public sealed partial class TableView
     /// </summary>
     public Func<object, string>? ItemKeySelector { get; set; }
 
-    /// <summary>Setup-only. Null means every item is interactive.</summary>
+    /// <summary>
+    /// Setup-only. Null means every item is interactive. The predicate is fixed; what it answers
+    /// for an item need not be, and the table does not watch for that. Section 5.3's rule covers
+    /// it: after a change to anything the predicate reads, the host calls <see cref="RefreshView"/>
+    /// once, and the rows re-read their eligibility and the cursor that shows it there.
+    /// </summary>
     public Func<object, bool>? CanInteractWithItem { get; set; }
 
     /// <summary>Observational. The selected packet in current visual row order.</summary>
@@ -105,35 +126,49 @@ public sealed partial class TableView
     /// <summary>The private view, in current visual row order.</summary>
     internal IReadOnlyList<object> View => _view;
 
+    /// <summary>
+    /// The view positions the list is holding a container for. Everywhere else it keeps nothing but
+    /// the count and reads the row when it realizes the position, so those are the only positions a
+    /// reorder has to be announced at.
+    /// </summary>
+    /// <remarks>
+    /// Read from the panel's children rather than from <c>FirstCacheIndex</c> to
+    /// <c>LastCacheIndex</c>. A pinned container — the focused row's, above all — lives outside that
+    /// range, and so does one the panel has not recycled yet: the comment in
+    /// <see cref="TableMarquee"/> records a container still answering for row 0 after the range had
+    /// moved to 51..73. Changing a row quietly under a container that still answers for its index is
+    /// the one failure this must not have, so the test is deliberately generous: a container counts
+    /// if it names an index and the list hands that index back to it.
+    /// </remarks>
+    private IReadOnlyList<int> RealizedIndices()
+    {
+        if (_itemsView?.ItemsPanelRoot is not Panel panel)
+        {
+            return Array.Empty<int>();
+        }
+
+        List<int> indices = new(panel.Children.Count);
+        foreach (UIElement child in panel.Children)
+        {
+            int index = _itemsView.IndexFromContainer(child);
+            if (index >= 0 && ReferenceEquals(_itemsView.ContainerFromIndex(index), child))
+            {
+                indices.Add(index);
+            }
+        }
+
+        indices.Sort();
+        return indices;
+    }
+
     internal bool IsRowSelected(object? item) => item is not null && _selection.IsSelected(item);
 
     internal bool IsRowCurrent(object? item) =>
         item is not null && _selection.IsSame(item, _selection.Current);
 
-    /// <summary>
-    /// Whether this row should draw the "you are here" cue: it holds focus, and selection is not
-    /// already saying so.
-    /// </summary>
-    /// <remarks>
-    /// Clicking a row both selects it and focuses it, so drawing focus unconditionally puts a
-    /// second mark on a row that is already marked, and two selected rows then look different with
-    /// no cause the user can see. The cue is therefore drawn only where selection does not already
-    /// carry it — a row reached with Ctrl and the arrow keys, which moves focus without selecting.
-    /// The platform's own focus visual is off for rows, so this is the only thing left saying where
-    /// the keyboard is.
-    /// </remarks>
-    /// <remarks>
-    /// The identity test comes first on purpose. Every realized row asks this whenever the row
-    /// visuals are told to repaint, and only one of them can be the focus row, so putting the
-    /// cheap test in front means the walk that <see cref="RowSurfaceFocusState"/> does — a focus
-    /// manager query and a climb up the visual tree — runs once per repaint rather than once per
-    /// row on screen.
-    /// </remarks>
-    internal bool IsRowFocused(object? item) =>
-        item is not null
-        && _selection.IsSame(item, _selection.Focus)
-        && !IsRowSelected(item)
-        && RowSurfaceFocusState() != FocusState.Unfocused;
+    // No IsRowFocused. Nothing draws a focus cue on a row: Fluent's list has none and the owner
+    // ruled that this table will not invent one. Focus is still tracked and still restored across a
+    // reconcile — it decides where the keyboard goes — it is simply never painted.
 
     /// <summary>Section 5.3: withdrawing the marquee mid-gesture cancels it before the flag applies.</summary>
     private static void OnMarqueeSelectionEnabledChanged(
@@ -145,14 +180,24 @@ public sealed partial class TableView
         }
     }
 
-    /// <summary>Section 5.3: withdrawing reordering mid-drag cancels it, and raises no request.</summary>
+    /// <summary>
+    /// Section 5.3: withdrawing reordering mid-drag cancels it, and raises no request. Either way
+    /// the rows re-read whether they can be dragged, because the cursor they show says so.
+    /// </summary>
     private static void OnRowReorderingEnabledChanged(
         DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is TableView table && !(bool)e.NewValue)
+        if (d is not TableView table)
+        {
+            return;
+        }
+
+        if (!(bool)e.NewValue)
         {
             table.CancelRowDrag();
         }
+
+        table.RowVisualsChanged?.Invoke(table, EventArgs.Empty);
     }
 
     private int IndexInView(object? item)
@@ -218,12 +263,13 @@ public sealed partial class TableView
     /// </summary>
     private void RebuildView()
     {
-        // Section 5.3: a view-changing update cancels a live row drag with no request, and drops the
-        // marquee's own result first, so what gets reconciled to the new view is the selection the
-        // gesture started from.
-        CancelRowDrag();
-        bool restored = RestoreSelectionBeforeMarquee();
-
+        // Section 5.3 cancels a live gesture for a view-changing update. The test is whether the
+        // view actually changed, not whether the source published: this host publishes about once
+        // a second and cancelling on each one made both gestures unusable, a marquee dying on the
+        // first completed torrent and a row drag dying under the pointer. A marquee is never
+        // cancelled here at all — the rectangle has not moved, so what it covers is re-derived
+        // over the new view below. A row drag is, but only once the order beneath it moved, which
+        // is the moment its destination stopped meaning what the user aimed at.
         ValidateItemKeys(_source.Snapshot);
 
         // Capture how the rows hold focus, not merely that they do, and capture it before the view
@@ -238,6 +284,7 @@ public sealed partial class TableView
         // that work per notification rather than once.
         ListViewSelectionMode hosted = _itemsView?.SelectionMode ?? ListViewSelectionMode.None;
 
+        bool viewMoved;
         _reconcilingView = true;
         try
         {
@@ -246,7 +293,7 @@ public sealed partial class TableView
                 _itemsView.SelectionMode = ListViewSelectionMode.None;
             }
 
-            _view.Reconcile(ViewOrder());
+            viewMoved = _view.Reconcile(ViewOrder(), RealizedIndices());
         }
         finally
         {
@@ -258,8 +305,22 @@ public sealed partial class TableView
             _reconcilingView = false;
         }
 
-        ReconcileSelection(restored, rowFocus);
+        if (viewMoved)
+        {
+            CancelRowDrag();
+
+            // The panel has to be told to look again. Rows placed without a notification are
+            // invisible to it, so a reorder gives it no reason to re-examine which rows it should
+            // be holding, and it goes on holding the ones it had: the owner watched a sort leave
+            // the foot of the viewport blank until something else happened to poke it seconds
+            // later. This is the one thing the list must be told when it has been told nothing
+            // else, and it says only "look", not what changed.
+            _itemsView?.ItemsPanelRoot?.InvalidateMeasure();
+        }
+
+        ReconcileSelection(rowFocus);
         UpdateStateLayer();
+        _Probe.AfterReconcile(_itemsView, _view, viewMoved ? "moved" : "same");
     }
 
     /// <summary>
@@ -294,13 +355,18 @@ public sealed partial class TableView
     /// selection as soon as that row is removed, and a reorder is a removal, so its selection and
     /// its focus are restored from the model here rather than trusted.
     /// </summary>
-    private void ReconcileSelection(bool alreadyChanged, FocusState rowFocus)
+    private void ReconcileSelection(FocusState rowFocus)
     {
         SyncSelectionPolicy();
 
-        bool changed = _selection.Reconcile(View);
-        CommitSelection(changed || alreadyChanged);
+        // A live marquee owns the selection outright, so there is nothing to reconcile: its
+        // rectangle still covers the same band of the viewport, and which rows that is now a
+        // question about the new view, not about the instances the old one held.
+        bool changed = _gesture == GesturePhase.Marquee
+            ? _selection.SetMarqueeSelection(MarqueeItems())
+            : _selection.Reconcile(View);
 
+        CommitSelection(changed);
         RestoreRowFocus(rowFocus);
     }
 

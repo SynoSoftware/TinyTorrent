@@ -70,7 +70,10 @@ public sealed partial class TableView
         /// <summary>Pressed, and no gesture has begun. Release here is a click.</summary>
         Pressed,
 
-        /// <summary>Section 14's rectangle, from a press on empty row surface.</summary>
+        /// <summary>
+        /// Section 14's rectangle, from a press on empty row surface or on a row the table would
+        /// not drag.
+        /// </summary>
         Marquee,
 
         /// <summary>Section 16's row drag, from a press on a row.</summary>
@@ -85,7 +88,7 @@ public sealed partial class TableView
 
         Row,
 
-        /// <summary>Row-surface space below or beside the rows.</summary>
+        /// <summary>Row-surface space below the last row.</summary>
         EmptySurface,
     }
 
@@ -118,15 +121,10 @@ public sealed partial class TableView
         _itemsView.ContextRequested += OnRowsContextRequested;
         _itemsView.SelectionChanged += OnHostedSelectionChanged;
 
-        // The rows draw their own focus cue, so they have to be told when focus arrives and when it
-        // leaves. Both events bubble from the container that actually holds focus.
-        _itemsView.GotFocus += OnRowsFocusMoved;
-        _itemsView.LostFocus += OnRowsFocusMoved;
+        // Focus is deliberately not watched here. It used to be, because the rows drew a cue for it;
+        // nothing draws one now, so telling every realized row to repaint whenever focus moved was
+        // work for a visual that no longer exists.
     }
-
-    /// <summary>Focus moved into, within, or out of the rows: every row re-reads its own cue.</summary>
-    private void OnRowsFocusMoved(object sender, RoutedEventArgs e) =>
-        RowVisualsChanged?.Invoke(this, EventArgs.Empty);
 
     private void DetachInput()
     {
@@ -152,8 +150,6 @@ public sealed partial class TableView
             UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(OnRowsDoubleTapped));
         _itemsView.ContextRequested -= OnRowsContextRequested;
         _itemsView.SelectionChanged -= OnHostedSelectionChanged;
-        _itemsView.GotFocus -= OnRowsFocusMoved;
-        _itemsView.LostFocus -= OnRowsFocusMoved;
 
         _innerScrollViewer = null;
     }
@@ -247,21 +243,27 @@ public sealed partial class TableView
     /// </summary>
     private void CommitGesture(Pointer pointer)
     {
-        if (_itemsView is not ListView rows || !CanCommitGesture())
+        GesturePhase gesture = GestureAtThreshold();
+        if (_itemsView is not ListView rows || gesture == GesturePhase.None)
         {
             return;
         }
 
         // A committed gesture has to keep reporting once the pointer leaves the list, and has to
-        // get the release that ends it wherever that happens.
-        if (rows.CapturePointer(pointer))
+        // get the release that ends it wherever that happens. Without the capture there is no
+        // such release: a gesture begun anyway would outlive the button, overlay drawn and the
+        // marquee's auto-scroll running, until the next press cancelled it. So no capture, no
+        // gesture; the press stays a press and its release, if it arrives, is the click.
+        if (!rows.CapturePointer(pointer))
         {
-            _gestureCapture = pointer;
+            return;
         }
 
-        if (_gestureItem is object item)
+        _gestureCapture = pointer;
+
+        if (gesture == GesturePhase.RowDrag)
         {
-            BeginRowDrag(rows, item);
+            BeginRowDrag(rows, _gestureItem!);
         }
         else
         {
@@ -270,17 +272,41 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Sections 5, 14 and 16: whether the host and the selection mode allow the gesture this press
-    /// would become. The row answer is the one the press already used to decide whether to defer
-    /// its selection change.
+    /// Which gesture the press becomes once the threshold is crossed: a press on a row the table
+    /// would drag becomes section 16's drag, and any other press draws section 14's rectangle,
+    /// from empty row surface or from a row the table withholds the drag from. Nothing guesses
+    /// from the direction of the first movement: a user selecting rows sweeps downward and a user
+    /// reordering drags downward, so any threshold between the two is a guess, and the wrong guess
+    /// changes queue positions. The reference implementation draws the same line between its rows
+    /// and the canvas beside them; this table also lets a row it would not drag start the
+    /// rectangle, because nothing competes for the gesture there, and the pointer has said so
+    /// already: the arrow, where a draggable row shows the move cursor.
     /// </summary>
-    private bool CanCommitGesture()
+    /// <remarks>
+    /// What went wrong before was not this rule but what the user could see of it. A row container
+    /// is only as wide as its columns, so the list beside the columns is empty surface: in a
+    /// 2,538-wide list with 1,120-wide rows, measured on the torrent host, 56% of every row band
+    /// drew a rectangle where the owner expected a drag, and the boundary moved with every fit,
+    /// resize and hidden column while nothing on screen showed where it was. The surface stays,
+    /// because a full table has nowhere else to start a rectangle; the pointer now shows the line,
+    /// with <see cref="TableRowVisual"/> setting the move cursor over a row that can be dragged.
+    /// </remarks>
+    private GesturePhase GestureAtThreshold()
     {
         SyncSelectionPolicy();
-        return _gestureItem is object item
-            ? CanBeginRowDrag(item)
-            : IsMarqueeSelectionEnabled && _selection.AllowsMultiple;
+
+        if (_gestureItem is object item && CanBeginRowDrag(item))
+        {
+            return GesturePhase.RowDrag;
+        }
+
+        return IsMarqueeSelectionEnabled && _selection.AllowsMultiple
+            ? GesturePhase.Marquee
+            : GesturePhase.None;
     }
+
+    /// <summary>Sections 5, 14 and 16: whether the press can become any gesture at all.</summary>
+    private bool CanCommitGesture() => GestureAtThreshold() != GesturePhase.None;
 
     private void OnRowsPointerReleased(object sender, PointerRoutedEventArgs e)
     {
@@ -318,12 +344,16 @@ public sealed partial class TableView
     /// <summary>
     /// Losing the capture the table took ends the gesture where it stands, and leaves a marquee's
     /// result alone: the user has watched it apply row by row, and taking that back would be the
-    /// surprise. The guard is on the table's own capture, not on the phase, because this event also
-    /// reports captures the hosted list took and dropped for its own click handling.
+    /// surprise. The test is which element lost the capture, never when the event arrived: the
+    /// container takes a capture of its own on the press and loses it the moment the table captures
+    /// for the gesture, and that loss bubbles through here too. Guarding on timing instead would
+    /// end every drag on its first move the day the framework raises it a tick later.
     /// </summary>
     private void OnRowsPointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        if (_gestureCapture is not null && e.Pointer.PointerId == _gesturePointerId)
+        if (_gestureCapture is not null
+            && ReferenceEquals(e.OriginalSource, _itemsView)
+            && e.Pointer.PointerId == _gesturePointerId)
         {
             CancelGesture();
         }
@@ -356,7 +386,10 @@ public sealed partial class TableView
         CommitSelection(_selection.PointerSelect(item, ctrl, shift, View));
     }
 
-    /// <summary>Section 14's rectangle over the empty row surface the press started from.</summary>
+    /// <summary>
+    /// Section 14's rectangle from the press position: empty row surface, or a row the table would
+    /// not drag.
+    /// </summary>
     private void BeginMarquee(ListView rows)
     {
         _gesture = GesturePhase.Marquee;
@@ -415,24 +448,18 @@ public sealed partial class TableView
     /// Section 14's three compositions. The gesture's modifiers are the ones read at press, so a
     /// key pressed or released mid-drag does not change the rule the user started under.
     /// </summary>
-    private void ApplyMarqueeCoverage()
-    {
-        List<object> items;
-        if (_gestureShift)
-        {
-            items = MarqueeExtendedFromAnchor();
-        }
-        else if (_gestureCtrl)
-        {
-            items = MarqueeToggledAgainstStart();
-        }
-        else
-        {
-            items = MarqueeCovered();
-        }
+    private void ApplyMarqueeCoverage() =>
+        CommitSelection(_selection.SetMarqueeSelection(MarqueeItems()));
 
-        CommitSelection(_selection.SetMarqueeSelection(items));
-    }
+    /// <summary>
+    /// What the rectangle selects, under the modifier the gesture started with. Read on every
+    /// pointer move and again whenever a source update reorders the rows beneath it, because the
+    /// answer is a question about the current view and not about the one the gesture began on.
+    /// </summary>
+    private List<object> MarqueeItems() =>
+        _gestureShift ? MarqueeExtendedFromAnchor()
+        : _gestureCtrl ? MarqueeToggledAgainstStart()
+        : MarqueeCovered();
 
     private List<object> MarqueeCovered()
     {
@@ -492,7 +519,7 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Section 14's Escape, and section 5.3's view-changing update: both end the marquee by putting
+    /// Section 14's Escape, and a host withdrawing the gesture mid-drag: both end the marquee by putting
     /// back the selection the gesture started from. Reports whether that changed the logical state,
     /// so a caller with its own commit can raise the single event.
     /// </summary>
@@ -511,12 +538,22 @@ public sealed partial class TableView
     // ------------------------------------------------------------------ row drag
 
     /// <summary>
-    /// Section 5: the gesture is offered only when the host enabled it, has somewhere to send the
-    /// request, and the row is one the user may act on. The same answer decides whether the press
-    /// defers its selection change, so a row that cannot be dragged still selects on press.
+    /// Sections 5 and 16: the gesture is offered only when the host enabled it, has somewhere to
+    /// send the request, the view shows the row order, so that the boundary a drop names is a
+    /// place in that order, and the row is one the user may act on. The same answer decides whether
+    /// the press defers its selection change, so a row that cannot be dragged still selects on
+    /// press, and what a drag from it does instead: section 14's rectangle.
     /// </summary>
-    private bool CanBeginRowDrag(object item) =>
-        IsRowReorderingEnabled && RowsReorderRequested is not null && _selection.IsEligible(item);
+    internal bool CanBeginRowDrag(object item)
+    {
+        // The rows ask this for their cursor as soon as they load, which can be before any press
+        // or reconcile has copied the host's eligibility predicate into the model.
+        SyncSelectionPolicy();
+        return IsRowReorderingEnabled
+            && _rowsReorderRequested is not null
+            && ShowsRowOrder
+            && _selection.IsEligible(item);
+    }
 
     /// <summary>
     /// Section 16's drop. The gesture ends before the request is raised, so a handler that updates
@@ -532,26 +569,37 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Section 16's rejections, all silent: nothing to move, no realized boundary to move it to,
-    /// and a placement that leaves the order as it stands. A drop inside a packet that is already
-    /// one block is that last one, because <see cref="InsertTarget"/> resolves past the packet to
-    /// the row it already sits before. A scattered packet is gathered at the boundary instead,
-    /// which does change the order.
+    /// Section 16's rejections, all silent: nothing to move, no realized boundary to move it to, a
+    /// sort that stopped showing the row order while the drag was live, and a placement that
+    /// leaves the order as it stands. A drop inside a packet that is already one block is that last
+    /// one, because the anchor resolves past the packet to the row it already sits beside. A
+    /// scattered packet is gathered at the boundary instead, which does change the order.
     /// </summary>
+    /// <remarks>
+    /// Section 5.1 speaks in row order. Under the row-order column sorted downward the view runs
+    /// the other way, so the request is read against the view in the opposite direction: the
+    /// packet reversed, and its anchor the first row above the boundary that is not moving, with
+    /// null at the top of the view meaning the end of the row order. A host that applies the
+    /// request in row order then puts the packet exactly where it was dropped.
+    /// </remarks>
     private void RequestReorder(IReadOnlyList<object> moving, int boundary)
     {
-        if (moving.Count == 0 || boundary < 0)
+        if (moving.Count == 0 || boundary < 0 || !ShowsRowOrder)
         {
             return;
         }
 
-        object? target = InsertTarget(boundary, moving);
-        if (KeepsOrder(moving, target))
+        bool reversed = RowOrderIsReversed;
+        object? target = reversed
+            ? InsertTargetAbove(boundary, moving)
+            : InsertTarget(boundary, moving);
+        if (KeepsOrder(moving, target, reversed))
         {
             return;
         }
 
-        RowsReorderRequested?.Invoke(this, new TableRowsReorderRequestedEventArgs(moving, target));
+        IReadOnlyList<object> packet = reversed ? moving.Reverse().ToList() : moving;
+        _rowsReorderRequested?.Invoke(this, new TableRowsReorderRequestedEventArgs(packet, target));
     }
 
     /// <summary>Section 16: the moving rows carry the platform's own dragged-item treatment.</summary>
@@ -643,12 +691,33 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Whether the placement leaves the view exactly as it is: the packet is already one block, and
-    /// the row after that block is the one it would be inserted before. A scattered packet always
-    /// moves, because the drop gathers it. A packet that is the whole view is the same test — its
-    /// block ends the view and its target is null, which section 5.1 requires to raise nothing.
+    /// The anchor read the other way, for the row-order column sorted downward: the first row
+    /// above the boundary that is not moving, or null when nothing stands above it, which is the
+    /// end of the row order.
     /// </summary>
-    private bool KeepsOrder(IReadOnlyList<object> moving, object? target)
+    private object? InsertTargetAbove(int boundary, IReadOnlyList<object> moving)
+    {
+        HashSet<object> packet = new(moving, _identity);
+        for (int i = Math.Min(boundary, View.Count) - 1; i >= 0; i--)
+        {
+            if (!packet.Contains(View[i]))
+            {
+                return View[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether the placement leaves the view exactly as it is: the packet is already one block, and
+    /// the row beside that block, next in row order, is the one it would be inserted before — the
+    /// row below the block, or the row above it when the view runs opposite to the row order. A
+    /// scattered packet always moves, because the drop gathers it. A packet that is the whole view
+    /// is the same test — its block ends the view and its target is null, which section 5.1
+    /// requires to raise nothing.
+    /// </summary>
+    private bool KeepsOrder(IReadOnlyList<object> moving, object? target, bool reversed)
     {
         int start = IndexInView(moving[0]);
         if (start < 0 || start + moving.Count > View.Count)
@@ -664,8 +733,9 @@ public sealed partial class TableView
             }
         }
 
-        int after = start + moving.Count;
-        return _selection.IsSame(after < View.Count ? View[after] : null, target);
+        int beside = reversed ? start - 1 : start + moving.Count;
+        object? neighbour = beside >= 0 && beside < View.Count ? View[beside] : null;
+        return _selection.IsSame(neighbour, target);
     }
 
     /// <summary>

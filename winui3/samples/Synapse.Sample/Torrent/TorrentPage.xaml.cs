@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Synapse;
 using Windows.Foundation;
 
@@ -17,12 +21,53 @@ public sealed partial class TorrentPage : Page
 {
     private const int RowCount = 2000;
 
-    /// <summary>Present only while an agent measures the page. A packaged launch inherits no
-    /// environment variables, so the switch is a file.</summary>
+    /// <summary>Present only while an agent measures the page.</summary>
     private const string DiagnosticsFlagPath =
         "C:/SynoSoftware/TinyTorrent/winui3/torrent-diag.flag";
 
+    /// <summary>
+    /// Whether this launch is a measurement. The argument is the way to ask for one; the file is
+    /// kept because it is the only way to reach a packaged launch, which inherits no arguments.
+    /// </summary>
+    /// <remarks>
+    /// The file switch has a trap the argument does not, and the owner fell into it: it belongs to
+    /// the machine rather than to a launch, so a run left behind by an agent turns the owner's next
+    /// launch into a measurement — the window resizes itself, the table sorts itself, and the app
+    /// closes at the end, which reads exactly like a hang. Ask with the argument unless the build
+    /// is packaged.
+    /// </remarks>
+    private bool MeasuringThisLaunch()
+    {
+        bool asked = File.Exists(DiagnosticsFlagPath);
+
+        foreach (string argument in Environment.GetCommandLineArgs())
+        {
+            if (!argument.StartsWith("--measure", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            asked = true;
+
+            // --measure runs everything; --measure:R or --measure:K,N runs those sections and
+            // leaves the rest of the pass out, which is the difference between six minutes of the
+            // app driving itself and a few seconds of it.
+            int colon = argument.IndexOf(':');
+            if (colon >= 0)
+            {
+                _only = new HashSet<string>(
+                    argument[(colon + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        return asked;
+    }
+
     private static readonly IReadOnlyList<TorrentRowViewModel> NoRows = Array.Empty<TorrentRowViewModel>();
+
+    /// <summary>When the pointer last went down on the table, so a sort can be timed from the press.</summary>
+    private long _pressedAt;
 
     private TorrentCatalog? _catalog;
     private string _stateFilter = "all";
@@ -42,7 +87,11 @@ public sealed partial class TorrentPage : Page
         // selected, invoked, given a menu, or joined to a reorder packet.
         Table.CanInteractWithItem = item => item is TorrentRowViewModel { IsGhost: false };
 
+        // handledEventsToo: the header marks the press handled once it has decided it is a sort.
+        Table.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnTablePressed), true);
+
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     /// <summary>Every table event the host received, newest first.</summary>
@@ -93,11 +142,19 @@ public sealed partial class TorrentPage : Page
         _catalog.ViewAffectingChange += OnViewAffectingChange;
         _catalog.TickFailed += OnTickFailed;
 
+        // Closing the window does not always unload its content first, so the ticker is stopped
+        // from both signals. Whichever arrives first stops it, and stopping a stopped timer does
+        // nothing.
+        if (MainWindow.Instance is Window window)
+        {
+            window.Closed += (_, _) => _catalog?.Stop();
+        }
+
         Table.IsLoading = false;
         ApplyProjection();
         _catalog.Start();
 
-        if (!File.Exists(DiagnosticsFlagPath))
+        if (!MeasuringThisLaunch())
         {
             return;
         }
@@ -112,6 +169,17 @@ public sealed partial class TorrentPage : Page
         }
 
         Finish();
+    }
+
+    /// <summary>
+    /// Stop the daemon simulation with the page. The ticker belongs to the dispatcher, not to this
+    /// page, so nothing else stops it: it goes on firing into a tree that is being taken apart, and
+    /// a tick that lands mid-teardown throws from whichever object has gone already.
+    /// </summary>
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Unloaded -= OnUnloaded;
+        _catalog?.Stop();
     }
 
     // ------------------------------------------------------- host projection
@@ -179,10 +247,23 @@ public sealed partial class TorrentPage : Page
     /// </summary>
     private void OnViewAffectingChange(object? sender, EventArgs e) => ApplyProjection();
 
+    /// <summary>
+    /// A tick that fails while the window is closing cannot report it: the status line is one of
+    /// the objects that has already gone, and its setter throws E_UNEXPECTED. Throwing from here
+    /// would leave the process with a stowed exception and no managed stack, which is the failure
+    /// mode this handler exists to avoid, so a report that cannot be delivered is dropped.
+    /// </summary>
     private void OnTickFailed(object? sender, Exception error)
     {
-        StatusLine.Text = "The update tick stopped: " + error.Message;
         W("*** TICK THREW: " + error);
+
+        try
+        {
+            StatusLine.Text = "The update tick stopped: " + error.Message;
+        }
+        catch (COMException)
+        {
+        }
     }
 
     private void OnFilterClick(object sender, RoutedEventArgs e)
@@ -243,22 +324,45 @@ public sealed partial class TorrentPage : Page
     {
         Log($"LayoutChanged {e.Kind}{LayoutDetail(e)}");
         _layout = e.LayoutState;
-        Table.IsRowReorderingEnabled = ShowsTheQueueOrder(e.LayoutState);
+
+        if (e.Kind == TableLayoutChangeKind.Sort)
+        {
+            ReportSortLatency();
+        }
     }
 
     /// <summary>
-    /// Whether a dropped row still means a queue position. Dragging a row is how this page's user
-    /// edits the queue, and the drop says "put these here" about what is on screen. That only maps
-    /// onto a queue while the screen is showing the queue: unsorted, which is the catalogue's own
-    /// order, or sorted by the queue column upwards, which is the same order again. Sorted by name
-    /// or size, "here" names a place in an alphabet, and the queue has no such place — the row
-    /// would go somewhere the user did not point at, then jump back to where the sort puts it. The
-    /// specification puts this call on the host for exactly that reason: the table can see the
-    /// boundary the pointer crossed, and only this page knows whether it means anything.
+    /// How long the table took to answer a click on a sort header, from the press itself rather
+    /// than from anywhere inside the control.
     /// </summary>
-    private static bool ShowsTheQueueOrder(TableLayoutState layout) =>
-        layout.SortColumnId is null
-        || (layout.SortColumnId == "queue" && layout.SortDirection == TableSortDirection.Ascending);
+    /// <remarks>
+    /// Two numbers, because they answer different complaints. The first is the reorder: the press
+    /// until the table had put the rows in their new order, which is the part the reconcile
+    /// changed. The second is the one the owner feels: the press until the UI thread took work
+    /// again, measured by a callback queued at low priority, which runs only once the layout and
+    /// the frame for that change are done. A big gap between the two is not the sort — it is
+    /// preparing the cells of the rows on screen.
+    /// </remarks>
+    private void ReportSortLatency()
+    {
+        if (_pressedAt == 0)
+        {
+            return;
+        }
+
+        long pressed = _pressedAt;
+        _pressedAt = 0;
+        double reordered = Stopwatch.GetElapsedTime(pressed).TotalMilliseconds;
+
+        DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => Log($"  sort answered: {reordered:0} ms to reorder, " +
+                      $"{Stopwatch.GetElapsedTime(pressed).TotalMilliseconds:0} ms until the table " +
+                      "was free again"));
+    }
+
+    private void OnTablePressed(object sender, PointerRoutedEventArgs e) =>
+        _pressedAt = Stopwatch.GetTimestamp();
 
     private string LayoutDetail(TableLayoutChangedEventArgs e) => e.Kind switch
     {
@@ -399,13 +503,17 @@ public sealed partial class TorrentPage : Page
     {
         MenuFlyout flyout = new();
 
+        // The library's own icon family, so this menu and the one the table generates for a header
+        // draw from one set. Synapse publishes the key from its Themes/Generic.xaml.
+        FontFamily icons = TableView.IconFontFamily;
+
         void Add(string text, string glyph, bool enabled, Action invoke)
         {
             MenuFlyoutItem item = new()
             {
                 Text = text,
                 IsEnabled = enabled,
-                Icon = new FontIcon { Glyph = glyph },
+                Icon = new FontIcon { FontFamily = icons, Glyph = glyph, FontSize = 20 },
             };
             item.Click += (_, _) => invoke();
             flyout.Items.Add(item);
@@ -425,26 +533,26 @@ public sealed partial class TorrentPage : Page
             anyStopped |= row.Status == TorrentStatus.Stopped;
         }
 
-        Add("Pause", "\uE769", anyRunning, () => Log($"Pause — {Describe(packet)}"));
-        Add("Resume", "\uE768", anyStopped, () => Log($"Resume — {Describe(packet)}"));
-        Add("Force recheck", "\uE895", true, () => Log($"Force recheck — {Describe(packet)}"));
+        Add("Pause", Lucide.Pause, anyRunning, () => Log($"Pause — {Describe(packet)}"));
+        Add("Resume", Lucide.Play, anyStopped, () => Log($"Resume — {Describe(packet)}"));
+        Add("Force recheck", Lucide.RefreshCw, true, () => Log($"Force recheck — {Describe(packet)}"));
 
         flyout.Items.Add(new MenuFlyoutSeparator());
 
-        AddMove("Move to top", "\uE74A", QueueMove.Top);
-        AddMove("Move up", "\uE70E", QueueMove.Up);
-        AddMove("Move down", "\uE70D", QueueMove.Down);
-        AddMove("Move to bottom", "\uE74B", QueueMove.Bottom);
+        AddMove("Move to top", Lucide.ArrowUpToLine, QueueMove.Top);
+        AddMove("Move up", Lucide.ChevronUp, QueueMove.Up);
+        AddMove("Move down", Lucide.ChevronDown, QueueMove.Down);
+        AddMove("Move to bottom", Lucide.ArrowDownToLine, QueueMove.Bottom);
 
         flyout.Items.Add(new MenuFlyoutSeparator());
 
-        Add("Open folder", "\uE838", true, () => Log($"Open folder — {Describe(packet)}"));
-        Add("Copy hash", "\uE8C8", true, () => Log($"Copy hash — {Describe(packet)}"));
-        Add("Copy magnet link", "\uE71B", true, () => Log($"Copy magnet link — {Describe(packet)}"));
+        Add("Open folder", Lucide.FolderOpen, true, () => Log($"Open folder — {Describe(packet)}"));
+        Add("Copy hash", Lucide.Copy, true, () => Log($"Copy hash — {Describe(packet)}"));
+        Add("Copy magnet link", Lucide.Link, true, () => Log($"Copy magnet link — {Describe(packet)}"));
 
         flyout.Items.Add(new MenuFlyoutSeparator());
 
-        Add("Remove", "\uE74D", true, () => Log($"Remove — {Describe(packet)}"));
+        Add("Remove", Lucide.Trash2, true, () => Log($"Remove — {Describe(packet)}"));
 
         return flyout;
     }

@@ -176,6 +176,58 @@ layout change, and need its `ColumnDefinitions` rebuilt on every visibility
 change. The panel does neither. `CellHorizontalAlignment` (§6) applies to the
 `ContentPresenter`.
 
+### 4.2 Reconciling the private view
+
+**The list is told about the rows it holds a container for. Every other
+position of the private view changes without a notification.** §5.3 states
+the contract; this is the mechanism and what settled it.
+
+**Why it is safe.** In the framework's source, `dxaml/xcp/dxaml/lib` on the
+`main` branch of microsoft-ui-xaml: `ItemCollection_Partial.cpp` forwards
+`GetAt` and `IndexOf` to the source on every call and keeps no copy;
+`ItemsControl_Partial.cpp` hands index lookups and every collection change to
+the modern panel's own mapping; `ModernCollectionBasePanel_Partial.h` keeps a
+run of valid containers, a registry of pinned containers and a recycle queue,
+and nothing per position for a row without a container. The list holds a
+count and reads the row when it realizes the position. Measured by diagnostics
+section R: after a full reversal, after scrolls to rows 700, 1,400 and 1,990,
+after `ScrollIntoView` of a far row, after two reconciles in one callback, and
+under fifteen seconds of the 1 Hz publish sorted by speed, every container
+showed the view's row at its index.
+
+**The realized set.** Every child of the items panel that names an index and
+is handed back for that index, read before the first notification and shifted
+by the table as it raises. Not `FirstCacheIndex` to `LastCacheIndex`: a pinned
+container, the focused row's above all, lives outside that range, and so does
+a container the panel has not recycled yet. The test is generous on purpose.
+A leftover costs a few notifications; a row changed quietly under a container
+that still answers for its index is the one failure this design must not have.
+
+**Four passes, in this order.** Membership, raised at true indices, because
+the count is the one thing the list keeps for a row it has not realized and
+raising it where it happens leaves the panel's anchoring alone. Then every row
+leaving a realized run, highest index first. Then every position outside the
+runs, quiet. Then what each run is missing, ascending. Removing before placing
+and placing before inserting is what keeps a row from being in the view twice
+at any moment. Survivors are found per run: a survivor set over the whole view
+puts the one row a reversal keeps under a container the list has at another
+index.
+
+**A membership-only update is unaffected by construction.** The host filters
+an already-ordered source, so after the first pass the view is already the
+snapshot, every held row is a survivor, and the later passes raise nothing.
+
+**No forced layout anywhere.** The panel updates its container map inside the
+notification: a container at index 697 answered 696 immediately after the row
+at index 0 was removed, before any layout ran (section R, case 0). So two
+reconciles in one callback read a current realized set, and the race a
+deferred map would have opened does not exist.
+
+**What it bought** (section K, Release): a full reversal of 2,002 rows raises
+34 notifications where it raised about 4,000. What remains of a sort's cost
+is preparing the visible containers, which every design pays; that is a cell
+template cost, measured by section L.
+
 ---
 
 ## 5. Selection ownership
@@ -408,16 +460,25 @@ destination is not conveyed by colour alone.
 `PART_MarqueeRect` in `PART_OverlayLayer`, in viewport coordinates, because the
 gesture and its auto-scroll are viewport gestures.
 
-**Stroke only, no fill.** §14 mandates an overlay rectangle, not a filled region,
-and no platform brush provides a translucent overlay that survives a contrast
-theme. The stroke uses the same two-tone treatment as the insertion markers.
+**A translucent accent surface inside the two-tone stroke.** §14 mandates an
+overlay rectangle. A stroke alone read as a bare outline over a dense table —
+the owner's verdict, after seeing it — so the rectangle carries a fill. No
+platform brush is translucent in a contrast theme, where every fill resolves to
+an opaque system colour, so the fill is `SystemControlHighlightAccentBrush` at
+element `Opacity` 0.25: legal, since §19 bans *resources*, not element
+properties, and WinUI's own HighContrast dictionary retains
+`ListViewItemDragThemeOpacity`. That brush is the user's accent in Light and
+Dark and `SystemColorHighlightColor` in a contrast theme, and at 0.25 the rows
+under it stay legible in all three. The stroke keeps the two-tone treatment of
+the insertion markers and carries the contrast on its own; the fill is not the
+cue.
 
-Whether a stroke-only marquee reads well enough over a dense table is a product
-judgement, not a technical one. It is on the spike list. If the answer is no, the
-alternatives are element `Opacity` on an accent fill — legal, since §19 bans
-*resources*, not element properties, and WinUI's own HighContrast dictionary
-retains `ListViewItemDragThemeOpacity` — or one new key under §19's partial
-lift. Do not take either without measuring first.
+An accent stroke was weighed again here and rejected again, for the rows the
+rectangle has just selected rather than for the unselected ones.
+`SystemColorHighlightColor` against `SystemColorWindowColor` measures 6.8:1 in
+Dusk, 6.9:1 in Desert, 11.2:1 in Aquatic and 11.8:1 in Night sky, computed from
+the four shipped `.theme` files; but a selected row's background is that same
+highlight colour, and a stroke in it over the rows it encloses measures 1.00:1.
 
 The layer is `IsHitTestVisible="False"` with
 `AutomationProperties.AccessibilityView="Raw"`, so it neither steals cell input
@@ -517,6 +578,7 @@ spacing or token resource (§8, §19).
 | Insertion marker core | `FocusStrokeColorOuterBrush` |
 | Insertion marker casing | `FocusStrokeColorInnerBrush` |
 | Marquee stroke | same two-tone pair |
+| Marquee fill | `SystemControlHighlightAccentBrush` at element opacity 0.25 |
 | Row hover / selected / current / focus | container default — set nothing |
 | Non-interactive row text | container disabled state — set nothing |
 | Sort glyph font | `SymbolThemeFontFamily` |
@@ -730,12 +792,14 @@ renders and reports gestures. It calls nothing.
 | 6 | `ColumnResizeGrip : Control` for the resize cursor | `ProtectedCursor` is protected; it cannot be set externally |
 | 7 | `TabNavigation="Once"` for the composite header region | §13 one tab stop for the header strip |
 | 8 | `AutomationProperties.ItemStatus` for sort state | §19 forbids claiming the Grid and Table patterns |
-| 9 | Two-tone `FocusStrokeColorOuter`/`Inner` for markers and marquee | the accent brushes measure 1.00:1 in contrast themes |
-| 10 | Stroke-only marquee, no fill | no platform brush gives a contrast-safe translucent overlay |
+| 9 | Two-tone `FocusStrokeColorOuter`/`Inner` for markers and the marquee stroke | the accent brushes measure 1.00:1 in contrast themes |
+| 10 | Marquee: a translucent accent fill at element opacity inside the two-tone stroke | the owner ruled a stroke-only rectangle unreadable; no platform brush is translucent in a contrast theme, and §19 bans resources, not element properties (section 9.3) |
 | 11 | Generated menu labels from the control's own `.resw` | §12 action labels are not host-overridable |
 | 12 | Fit measures realized containers only | §10 no off-screen realization, §20 no hidden measurement surface |
 | 13 | No `ThemeDictionaries` at all | §19 no control-specific resources |
 | 14 | No dependency beyond the Windows App SDK | §20, and revisit only when a project exists to produce the numbers a package must justify: executable size, memory footprint, runtime cost |
+| 15 | The list is told only about the rows it holds a container for; every other position of the private view changes quietly | §5.3 and §20: notifications bounded by realized containers, because the list keeps nothing per unrealized position (section 4.2); chosen over a windowed collection, a custom panel, ItemsRepeater and a forked runtime |
+| 16 | The table withholds the drag under any sort but the `DefinesRowOrder` column's, offers it under that column either way, and reports a descending view's request in row order; a row it withholds the drag from starts the marquee | §14 and §16: only the table sees both the sort and the boundary, so the host keeps `IsRowReorderingEnabled` for what only it can see, its filter and its pending operations; and a press nothing competes for must not be a dead press |
 
 ---
 
@@ -761,8 +825,8 @@ Nothing here compiles. These need a running WinUI 3 project.
    and inactive; the two-tone insertion marker over a row, selected and
    unselected; the marquee stroke over both; disabled row text on the container's
    disabled background.
-7. **Marquee legibility.** Whether stroke-only reads well enough over a dense
-   table. Product judgement, taken after seeing it.
+7. **Marquee legibility.** Taken: stroke-only did not read well enough over a
+   dense table, and the rectangle now carries a fill (section 9.3).
 8. **Narrator.** Header strip reads as one region; each header reads its name and
    sort status; selection state is announced correctly given section 5; the
    overlay layer is absent from the tree.
@@ -779,7 +843,7 @@ Nothing here compiles. These need a running WinUI 3 project.
 - [ ] Selected set, current item, anchor and focus reconcile by key, in one atomic step, raising at most one `SelectionStateChanged`
 - [ ] Every `x:Bind` for a live value carries `Mode=OneWay`
 - [ ] No hard-coded colour anywhere; no `ThemeDictionaries`
-- [ ] No accent brush used for a marker or marquee
+- [ ] No accent brush used for a marker or a marquee stroke; the marquee fill is the one accent surface, at element opacity
 - [ ] Row container chrome is default; no `ControlTemplate` for `ListViewItem`
 - [ ] Cell templates paint no row backdrop, and format lazily
 - [ ] Overlay layer is `IsHitTestVisible="False"` and `AccessibilityView="Raw"`

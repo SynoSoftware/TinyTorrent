@@ -19,9 +19,15 @@ namespace Synapse_Tests;
 [TestClass]
 public class ColumnMenuTests
 {
-    private const string Hide = "Hide this column";
-    private const string ColumnsSubmenu = "Columns";
-    private const string FitThis = "Fit this column";
+    // The three commands that act on one column name it, so their labels are built rather than
+    // fixed: "this column" said nothing once the column list moved into the same menu, where every
+    // other entry names itself.
+    private static string Hide(string name) => $"Hide column “{name}”";
+
+    private static string Show(string name) => $"Show column “{name}”";
+
+    private static string FitThis(string name) => $"Fit column “{name}”";
+
     private const string FitVisible = "Fit visible columns";
     private const string MoveLeft = "Move left";
     private const string MoveRight = "Move right";
@@ -33,8 +39,10 @@ public class ColumnMenuTests
     {
         TableView table = await LoadAsync("a", "b", "c");
 
+        // The column list is in this menu, not behind a door into a second one: a submenu is a
+        // separate popup that closes on a toggle whatever the root menu does about its own close.
         CollectionAssert.AreEqual(
-            new[] { Hide, ColumnsSubmenu, "-", FitThis, FitVisible, "-", MoveLeft, MoveRight },
+            new[] { Hide("B"), "-", FitThis("B"), FitVisible, "-", MoveLeft, MoveRight, "-", "A", "B", "C" },
             Labels(Menu(table, "b")));
     });
 
@@ -52,17 +60,17 @@ public class ColumnMenuTests
         });
 
     [TestMethod]
-    public Task TheColumnsSubmenuNamesEveryColumnIncludingTheHiddenOnes() => TestHost.RunAsync(async () =>
+    public Task TheColumnListNamesEveryColumnIncludingTheHiddenOnes() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync("a", "b", "c");
         SetVisibility(table, "b", false);
 
-        MenuFlyoutSubItem submenu = (MenuFlyoutSubItem)Menu(table, "a").Items[1];
-        ToggleMenuFlyoutItem[] toggles = submenu.Items.Cast<ToggleMenuFlyoutItem>().ToArray();
+        MenuFlyoutItem[] toggles = ColumnEntries(Menu(table, "a"));
 
         CollectionAssert.AreEqual(new[] { "A", "B", "C" }, toggles.Select(t => t.Text).ToArray(),
             "the host's DisplayName names each column, in the effective order");
-        CollectionAssert.AreEqual(new[] { true, false, true }, toggles.Select(t => t.IsChecked).ToArray());
+        CollectionAssert.AreEqual(new[] { true, false, true },
+            toggles.Select(t => t.Icon is not null).ToArray(), "a shown column carries the check icon");
     });
 
     // ------------------------------------------------------------ enabled only when it can change
@@ -88,7 +96,7 @@ public class ColumnMenuTests
         TableView table = await LoadAsync(fixedWidth, TestData.Column("b"));
         MenuFlyout menu = Menu(table, "a");
 
-        Assert.IsFalse(Item(menu, FitThis).IsEnabled);
+        Assert.IsFalse(Item(menu, FitThis("A")).IsEnabled);
         Assert.IsTrue(Item(menu, FitVisible).IsEnabled, "b can still be fitted");
     });
 
@@ -114,9 +122,9 @@ public class ColumnMenuTests
 
         TableView table = await LoadAsync(required, TestData.Column("b"));
 
-        Assert.IsFalse(Item(Menu(table, "a"), Hide).IsEnabled);
+        Assert.IsFalse(Item(Menu(table, "a"), Hide("A")).IsEnabled);
         Assert.IsFalse(Toggle(Menu(table, "a"), "A").IsEnabled);
-        Assert.IsTrue(Item(Menu(table, "b"), Hide).IsEnabled);
+        Assert.IsTrue(Item(Menu(table, "b"), Hide("B")).IsEnabled);
     });
 
     // ------------------------------------------------------------------ the zero-column invariant
@@ -128,7 +136,7 @@ public class ColumnMenuTests
         SetVisibility(table, "b", false);
 
         MenuFlyout menu = Menu(table, "a");
-        Assert.IsFalse(Item(menu, Hide).IsEnabled, "hiding a would leave nothing visible");
+        Assert.IsFalse(Item(menu, Hide("A")).IsEnabled, "hiding a would leave nothing visible");
         Assert.IsFalse(Toggle(menu, "A").IsEnabled, "and its toggle cannot be unchecked either");
         Assert.IsTrue(Toggle(menu, "B").IsEnabled, "the hidden column can still come back");
 
@@ -235,12 +243,23 @@ public class ColumnMenuTests
         .SingleOrDefault(item => item.Text == text)
         ?? throw new AssertFailedException($"The menu has no '{text}' item: {string.Join(", ", Labels(menu))}");
 
-    private static ToggleMenuFlyoutItem Toggle(MenuFlyout menu, string displayName) => menu.Items
-        .OfType<MenuFlyoutSubItem>()
-        .Single()
-        .Items
-        .OfType<ToggleMenuFlyoutItem>()
-        .Single(toggle => toggle.Text == displayName);
+    /// <summary>
+    /// The column entries: plain items sitting after the last command, told apart from the
+    /// commands by name rather than by type, because they are the same type now.
+    /// </summary>
+    private static MenuFlyoutItem[] ColumnEntries(MenuFlyout menu)
+    {
+        // Everything after the last separator. They can no longer be told from the commands by
+        // name, because three of the commands now carry a column's name themselves.
+        int lastSeparator = menu.Items.ToList().FindLastIndex(item => item is MenuFlyoutSeparator);
+        return menu.Items
+            .Skip(lastSeparator + 1)
+            .OfType<MenuFlyoutItem>()
+            .ToArray();
+    }
+
+    private static MenuFlyoutItem Toggle(MenuFlyout menu, string displayName) =>
+        ColumnEntries(menu).Single(item => item.Text == displayName);
 
     private static string[] VisibleIds(TableView table) =>
         TableHarness.VisibleColumns(table).Select(column => column.Id).ToArray();

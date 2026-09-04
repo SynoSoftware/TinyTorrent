@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Synapse;
 using Windows.Foundation;
 using Windows.UI.Input.Preview.Injection;
 
@@ -68,17 +69,27 @@ public class RealPointerTests
             new[] { "k2" }, h.SelectedKeys(), "Release inside the threshold is the plain click.");
     });
 
+    /// <summary>
+    /// A real drag of the selected packet. It asserts the request the drop raises, not only that
+    /// the selection stood still: a drag that died at the threshold leaves the selection alone too,
+    /// and the earlier version of this test could not tell the two apart.
+    /// </summary>
     [TestMethod]
-    public Task CrossingTheDragThresholdCommitsNoSelectionChange() => TestHost.RunAsync(async () =>
+    public Task DraggingTheSelectionRaisesOneReorderRequest() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(8, height: 400);
+        List<TableRowsReorderRequestedEventArgs> requests = new();
+        h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
         Mouse mouse = await Mouse.CreateAsync(h);
 
         h.Table.SetSelection(new object[] { h[1], h[2], h[3] }, h[1]);
         h.Events = 0;
+        double rowHeight = ((FrameworkElement)h.HostedList().ContainerFromItem(h[0])).ActualHeight;
 
+        // Three rows down: a drop inside the packet's own block asks for no change and raises
+        // nothing, so the pointer has to leave the block before the request can exist.
         await mouse.PressRowAsync(h, 2);
-        await mouse.MoveByAsync(0, 40);
+        await mouse.MoveByAsync(0, 3 * rowHeight);
         await mouse.ReleaseAsync();
 
         CollectionAssert.AreEqual(
@@ -86,6 +97,75 @@ public class RealPointerTests
             h.SelectedKeys(),
             "The gesture went to the drag branch, so the deferred click never ran.");
         Assert.AreEqual(0, h.Events);
+        Assert.AreEqual(1, requests.Count, "the drop raised exactly one request");
+        CollectionAssert.AreEqual(
+            new object[] { h[1], h[2], h[3] }, requests[0].MovingItems.ToArray());
+    });
+
+    /// <summary>
+    /// A real marquee from the space beside the columns, on a row's own line, swept down over the
+    /// rows below: the owner's gesture, and the one the 56% dead zone turned into a surprise. The
+    /// harness table is 320 wide with two 120-wide columns, so 80 pixels of that space exist.
+    /// </summary>
+    [TestMethod]
+    public Task DraggingDownBesideTheColumnsSweeps() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            8, configure: t => t.IsMarqueeSelectionEnabled = true, height: 400);
+        List<TableRowsReorderRequestedEventArgs> requests = new();
+        h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
+        Mouse mouse = await Mouse.CreateAsync(h);
+
+        double rowHeight = ((FrameworkElement)h.HostedList().ContainerFromItem(h[0])).ActualHeight;
+
+        await mouse.PressBesideRowAsync(h, 1);
+        Assert.AreEqual(0, h.SelectedKeys().Length, "a press on empty surface selects nothing");
+
+        await mouse.MoveByAsync(0, 2 * rowHeight);
+        CollectionAssert.AreEqual(
+            new[] { "k1", "k2", "k3" },
+            h.SelectedKeys(),
+            "two rows down, the rectangle covers the row it started beside and the two beneath");
+
+        await mouse.ReleaseAsync();
+        CollectionAssert.AreEqual(new[] { "k1", "k2", "k3" }, h.SelectedKeys());
+        Assert.AreEqual(0, requests.Count, "a sweep never asks to move anything");
+    });
+
+    /// <summary>
+    /// A real drag down a row the table would not drag. With reordering withheld nothing competes
+    /// for the gesture, so it is the sweep, from the row it started on.
+    /// </summary>
+    [TestMethod]
+    public Task DraggingDownARowThatCannotBeDraggedSweeps() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            8,
+            configure: t =>
+            {
+                t.IsMarqueeSelectionEnabled = true;
+                t.IsRowReorderingEnabled = false;
+            },
+            height: 400);
+        List<TableRowsReorderRequestedEventArgs> requests = new();
+        h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
+        Mouse mouse = await Mouse.CreateAsync(h);
+
+        double rowHeight = ((FrameworkElement)h.HostedList().ContainerFromItem(h[0])).ActualHeight;
+
+        await mouse.PressRowAsync(h, 1);
+        CollectionAssert.AreEqual(
+            new[] { "k1" }, h.SelectedKeys(), "the press selects the row, as a click would");
+
+        await mouse.MoveByAsync(0, 2 * rowHeight);
+        CollectionAssert.AreEqual(
+            new[] { "k1", "k2", "k3" },
+            h.SelectedKeys(),
+            "two rows down, the rectangle covers the row it started on and the two beneath");
+
+        await mouse.ReleaseAsync();
+        CollectionAssert.AreEqual(new[] { "k1", "k2", "k3" }, h.SelectedKeys());
+        Assert.AreEqual(0, requests.Count, "a sweep never asks to move anything");
     });
 
     /// <summary>Real mouse messages aimed at a realized row.</summary>
@@ -187,6 +267,24 @@ public class RealPointerTests
             {
                 Key(Windows.System.VirtualKey.Control, up: true);
             }
+        }
+
+        /// <summary>Press on the row surface beside the columns, level with the middle of a row.</summary>
+        internal async Task PressBesideRowAsync(SelectionHarness h, int row)
+        {
+            h.Table.UpdateLayout();
+            ListView list = h.HostedList();
+            FrameworkElement container = (FrameworkElement)list.ContainerFromItem(h[row]);
+            Point beside = container.TransformToVisual(list).TransformPoint(
+                new Point(container.ActualWidth + 20, container.ActualHeight / 2));
+            Assert.IsTrue(
+                beside.X < list.ActualWidth - 8,
+                "the harness table must leave space beside its columns for this gesture");
+
+            MoveTo(ScreenPointOf(list, beside));
+            await Task.Delay(80);
+            Button(InjectedInputMouseOptions.LeftDown);
+            await Task.Delay(150);
         }
 
         internal async Task MoveByAsync(double dx, double dy)

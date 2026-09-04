@@ -169,7 +169,7 @@ internal static class Proof
 
     internal static string Describe(MenuFlyoutItemBase item)
     {
-        string check = item is ToggleMenuFlyoutItem { IsChecked: true } ? "[x] " : string.Empty;
+        string check = item is MenuFlyoutItem { Icon: not null } ? "[x] " : string.Empty;
         string enabled = item.IsEnabled ? string.Empty : " (disabled)";
         return check + Label(item) + enabled;
     }

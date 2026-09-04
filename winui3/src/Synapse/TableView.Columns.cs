@@ -130,7 +130,7 @@ public sealed partial class TableView
     /// it back where it was. Every other column, hidden ones included, keeps its relative order.
     /// </summary>
     /// <returns>False when the placement leaves the order as it is.</returns>
-    internal bool MoveColumnTo(ResolvedColumn column, int boundary, FocusState focus)
+    internal bool MoveColumnTo(ResolvedColumn column, int boundary, FocusState? focus)
     {
         int index = Layout.IndexOfVisible(column);
         if (index < 0)
@@ -160,12 +160,14 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Section 12's Move left and Move right, by the same rule as a drag. These are the menu's
-    /// keyboard-accessible path, so the moved header keeps a keyboard focus visual; the drag passes
-    /// Pointer instead and leaves none.
+    /// Section 12's Move left and Move right, by the same rule as a drag. They move no focus: the
+    /// menu they are invoked from stays open across the move and holds focus while it is open, and
+    /// it returns focus to the header it was opened on when it closes, with the state the request
+    /// arrived in. Asking for focus here put a focus visual on a header behind an open menu, and
+    /// put it there for a mouse click, which draws a focus visual nowhere else in the table.
     /// </summary>
     internal bool MoveColumnBy(ResolvedColumn column, int step) =>
-        MoveColumnTo(column, Layout.IndexOfVisible(column) + step, FocusState.Keyboard);
+        MoveColumnTo(column, Layout.IndexOfVisible(column) + step, focus: null);
 
     /// <summary>A move is offered while there is a neighbouring visible place to move into.</summary>
     internal bool CanMoveColumnBy(ResolvedColumn column, int step)
@@ -175,21 +177,27 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// Section 11: the moved header keeps focus, whether a drag or a menu command moved it — with
-    /// the state the move arrived in.
+    /// Section 11: the moved header keeps focus, with the state the move arrived in. Null is a move
+    /// that leaves focus where it is, which is what a menu command wants: the menu holds focus for
+    /// as long as it is open and restores it itself.
     /// </summary>
     /// <remarks>
     /// This asked for Programmatic on the belief that it draws no ring. It does: the platform draws
     /// its focus visual for Keyboard and for Programmatic, and suppresses it only for Pointer. So a
     /// header drag left a focus ring behind on the moved header.
     /// </remarks>
-    private void FocusHeaderOf(ResolvedColumn column, FocusState focus)
+    private void FocusHeaderOf(ResolvedColumn column, FocusState? focus)
     {
+        if (focus is null)
+        {
+            return;
+        }
+
         int index = Layout.IndexOfVisible(column);
         if (_headerStrip?.Panel is Panel header && index < header.Children.Count
             && header.Children[index] is Control cell)
         {
-            cell.Focus(focus);
+            cell.Focus(focus.Value);
         }
     }
 
