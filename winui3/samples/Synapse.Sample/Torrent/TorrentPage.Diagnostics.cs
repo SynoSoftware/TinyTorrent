@@ -235,6 +235,12 @@ public sealed partial class TorrentPage
             W("  no realized row to place a menu on");
         }
 
+        Section("P. Where a press lands on the row surface");
+        await ProbeRowSurfaceAsync();
+
+        Section("Q. A sort takes the queue away, and rows stop being draggable with it");
+        await ProbeQueueGateAsync();
+
         Section("G. Ghost rows are display only");
         TorrentRowViewModel? ghost = _catalog?.Rows.FirstOrDefault(r => r.IsGhost);
         W(ghost is null
@@ -270,6 +276,9 @@ public sealed partial class TorrentPage
         MeasureColumnCosts();
         await Settle(500);
 
+        Section("O. Do two columns ever land on the same place");
+        await ProbeColumnOverlapAsync();
+
         Section("M2. What a selected row looks like");
         await CaptureSelectedRowsAsync();
 
@@ -288,6 +297,157 @@ public sealed partial class TorrentPage
         Section("J. Screen capture");
         await Settle(1200);
         await CaptureAsync("torrent-page.bmp", this);
+    }
+
+    /// <summary>
+    /// Where a press lands on the row surface, and what a rectangle drawn beside the columns
+    /// covers. Both were assumptions until this ran. A row is only as wide as its columns now, so
+    /// the space to its right has to reach the arbiter as empty surface rather than as a row, and a
+    /// rectangle drawn entirely in that space has to still cover the rows it spans vertically.
+    /// </summary>
+    private async Task ProbeRowSurfaceAsync()
+    {
+        await ProbeSurfaceAsync("columns narrower than the window");
+
+        // The other state, and the one that decides whether the gesture is always reachable: with
+        // the columns wider than the window there is no space beside them, so a row line is row all
+        // the way across and a marquee can only be started below the last row. Narrowing the window
+        // is how a user reaches it, so it is how this reaches it too.
+        MainWindow.Instance?.AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(700, 820));
+        await Settle(700);
+        await ProbeSurfaceAsync("columns wider than the window");
+
+        MainWindow.Instance?.AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(1400, 820));
+        await Settle(700);
+    }
+
+    private async Task ProbeSurfaceAsync(string state)
+    {
+        W($"  --- {state} ---");
+        ListView? list = FindDescendant<ListView>(Table);
+        List<ListViewItem> containers = new();
+        if (list is not null)
+        {
+            FindAll(list, containers);
+        }
+
+        ListViewItem? first = containers.FirstOrDefault(c => c.Content is TorrentRowViewModel);
+        if (list is null || first is null)
+        {
+            W("  no realized row to probe");
+            return;
+        }
+
+        Rect band = first
+            .TransformToVisual(list)
+            .TransformBounds(new Rect(0, 0, first.ActualWidth, first.ActualHeight));
+
+        W($"  list is {list.ActualWidth:0.##} wide; the row band runs x {band.Left:0.##}..{band.Right:0.##}");
+        W($"  space beside the columns = {list.ActualWidth - band.Right:0.##}");
+
+        // The arbiter's own decision, taken from the element the platform reports at that point.
+        MethodInfo? hitTest = typeof(TableView)
+            .GetMethod("HitTest", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        void Probe(string what, double x)
+        {
+            Point inList = new(x, band.Top + (band.Height / 2));
+            Point inHost = list.TransformToVisual(null).TransformPoint(inList);
+
+            List<UIElement> hits = VisualTreeHelper
+                .FindElementsInHostCoordinates(inHost, Table)
+                .ToList();
+
+            string top = hits.Count > 0 ? hits[0].GetType().Name : "nothing";
+            bool overARow = hits.Any(h => h is ListViewItem);
+
+            string decision = "not reached";
+            if (hitTest is not null && hits.Count > 0)
+            {
+                object?[] args = { hits[0], null };
+                decision = $"{hitTest.Invoke(Table, args)}";
+                if (args[1] is TorrentRowViewModel row)
+                {
+                    decision += $" ({row.Name})";
+                }
+            }
+
+            W($"  x={x:0.##} {what}: topmost {top}, inside a row container = {overARow}, arbiter says {decision}");
+        }
+
+        Probe("over a cell", band.Left + 20);
+        if (band.Right + 8 < list.ActualWidth)
+        {
+            Probe("just past the last column", band.Right + 8);
+        }
+
+        Probe("at the right edge of the surface", list.ActualWidth - 8);
+
+        // A rectangle drawn straight down the space beside the columns, never crossing a cell.
+        object? marquee = typeof(TableView)
+            .GetField("_marquee", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(Table);
+
+        if (marquee is null || band.Right + 8 >= list.ActualWidth)
+        {
+            W("  no space beside the columns to draw in");
+            return;
+        }
+
+        Type type = marquee.GetType();
+        double drawAt = band.Right + 8;
+        type.GetMethod("Begin", BindingFlags.NonPublic | BindingFlags.Instance)?.Invoke(
+            marquee,
+            new object?[] { list, null, null, new Point(drawAt, band.Top + 2), (Action)(() => { }) });
+        type.GetMethod("Track", BindingFlags.NonPublic | BindingFlags.Instance)?.Invoke(
+            marquee, new object?[] { new Point(drawAt, band.Top + (band.Height * 4)) });
+
+        int covered = (type.GetProperty("CoveredIndices", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(marquee) as IReadOnlyCollection<int>)?.Count ?? -1;
+
+        type.GetMethod("End", BindingFlags.NonPublic | BindingFlags.Instance)?.Invoke(marquee, null);
+
+        W($"  a rectangle four rows tall drawn at x={drawAt:0.##} covers {covered} rows");
+        await Settle(200);
+    }
+
+    /// <summary>
+    /// Sorting by a column that is not the queue means a dropped row has no queue position to land
+    /// on, so this page withdraws row reordering while such a sort is active. Sorting is driven
+    /// here through the strip's own click path rather than through
+    /// <see cref="TableView.ApplyLayoutState"/>, which reports nothing back to the host precisely
+    /// because the host asked for it. The column is cycled all the way back to unsorted, so the
+    /// sections after this one see the table as they would have.
+    /// </summary>
+    private async Task ProbeQueueGateAsync()
+    {
+        TableHeaderStrip? strip = FindDescendant<TableHeaderStrip>(Table);
+        List<TableHeaderCell> cells = new();
+        if (strip is not null)
+        {
+            FindAll(strip, cells);
+        }
+
+        TableHeaderCell? name = cells.FirstOrDefault();
+        TextBlock? label = name is null ? null : FindDescendant<TextBlock>(name);
+        MethodInfo? activate = typeof(TableHeaderStrip)
+            .GetMethod("ActivateSortFrom", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        if (strip is null || label is null || activate is null)
+        {
+            W("  no sortable header to click");
+            return;
+        }
+
+        W($"  unsorted: reordering enabled = {Table.IsRowReorderingEnabled}");
+
+        foreach (string step in new[] { "ascending", "descending", "cleared" })
+        {
+            activate.Invoke(strip, new object?[] { label });
+            await Settle(400);
+            W($"  after clicking '{label.Text}' ({step}): sorted by " +
+                $"{_layout?.SortColumnId ?? "nothing"}, reordering enabled = {Table.IsRowReorderingEnabled}");
+        }
     }
 
     /// <summary>
@@ -658,14 +818,46 @@ public sealed partial class TorrentPage
             await Settle(600);
             _catalog.Start();
 
+            // One publish either reorders the whole view or is held, so counting the publishes that
+            // reordered is the measure. Per publish is the wrong unit and per second is too: the
+            // first divides out the very publishes settling makes free, and the second is hostage
+            // to how many torrents the simulated daemon happened to finish. Fifteen seconds, so
+            // that at three seconds of settling a cap can show at all.
+            int reorders = 0;
+            int sinceLast = 0;
+            System.Collections.Specialized.NotifyCollectionChangedEventHandler burst =
+                (_, _) => sinceLast++;
+
             notifications = 0;
+            int publishedBefore = ProjectionRuns;
+            int seenPublishes = publishedBefore;
             feed.CollectionChanged += tally;
-            await Task.Delay(5000);
+            feed.CollectionChanged += burst;
+
+            for (int slice = 0; slice < 150; slice++)
+            {
+                await Task.Delay(100);
+                if (ProjectionRuns == seenPublishes)
+                {
+                    continue;
+                }
+
+                seenPublishes = ProjectionRuns;
+                if (sinceLast > 0)
+                {
+                    reorders++;
+                }
+
+                sinceLast = 0;
+            }
+
             feed.CollectionChanged -= tally;
+            feed.CollectionChanged -= burst;
             _catalog.Stop();
 
-            W($"  sorted by {column}, settle {settle.TotalSeconds:0.#}s, five seconds of the live " +
-              $"tick: {notifications} notifications, {notifications / 5.0:0} per second");
+            int published = ProjectionRuns - publishedBefore;
+            W($"  sorted by {column}, settle {settle.TotalSeconds:0.#}s: {published} publishes in " +
+              $"15 s, {reorders} of them reordered the view, {notifications} notifications in total");
 
             Table.SortSettleInterval = restore;
         }
@@ -689,6 +881,98 @@ public sealed partial class TorrentPage
               (sent > 0 ? $", {median * 1000 / sent:0} us per notification" : string.Empty));
             W($"    the layout pass after it: median {after[after.Count / 2]:0} ms");
         }
+    }
+
+    /// <summary>
+    /// The owner photographed two columns drawn on top of each other, and said afterwards that he
+    /// had been dragging a resize separator while the measurement loop was hiding columns. This
+    /// replays that shape: a width change and a visibility change arriving together, repeatedly,
+    /// with no settling between them. Two competing explanations are separated by what it reports.
+    /// A visible column of zero width would put the next one at the same offset, because the layout
+    /// accumulates offsets by adding each width. Cells outnumbering visible columns would instead
+    /// leave a stale one arranged where it last was, since measure and arrange both stop at the
+    /// smaller of the two counts.
+    /// </summary>
+    private async Task ProbeColumnOverlapAsync()
+    {
+        IReadOnlyList<string> order = Table.GetLayoutState().ColumnOrder;
+        string[] hideable = { "peers", "size", "speed", "status", "queue" };
+
+        int worstOverlaps = 0;
+        int worstZero = 0;
+        int worstExtraCells = 0;
+        string detail = string.Empty;
+
+        for (int round = 0; round < 15; round++)
+        {
+            Dictionary<string, bool> visibility = new(StringComparer.Ordinal)
+            {
+                [hideable[round % hideable.Length]] = false,
+            };
+            Dictionary<string, double> widths = new(StringComparer.Ordinal)
+            {
+                ["name"] = 140 + (round % 6 * 35),
+                ["progress"] = 110 + (round % 4 * 45),
+            };
+
+            Table.ApplyLayoutState(
+                new TableLayoutState(order, visibility, widths, "queue", TableSortDirection.Ascending));
+            Table.UpdateLayout();
+
+            TableHeaderStrip? strip = FindDescendant<TableHeaderStrip>(Table);
+            List<TableHeaderCell> cells = new();
+            if (strip is not null)
+            {
+                FindAll(strip, cells);
+            }
+
+            List<(double X, double Width)> boxes = new();
+            int zero = 0;
+            foreach (TableHeaderCell cell in cells)
+            {
+                if (cell.Visibility != Visibility.Visible)
+                {
+                    continue;
+                }
+
+                boxes.Add((XOf(cell), cell.ActualWidth));
+                if (cell.ActualWidth < 1)
+                {
+                    zero++;
+                }
+            }
+
+            boxes.Sort((a, b) => a.X.CompareTo(b.X));
+            int overlaps = 0;
+            for (int i = 1; i < boxes.Count; i++)
+            {
+                if (boxes[i].X - boxes[i - 1].X < 1)
+                {
+                    overlaps++;
+                }
+            }
+
+            // One cell per visible column is the contract. More means one is unaccounted for.
+            int visibleColumns = order.Count - visibility.Count;
+            int extra = boxes.Count - visibleColumns;
+
+            if (overlaps > worstOverlaps || zero > worstZero || extra > worstExtraCells)
+            {
+                worstOverlaps = Math.Max(worstOverlaps, overlaps);
+                worstZero = Math.Max(worstZero, zero);
+                worstExtraCells = Math.Max(worstExtraCells, extra);
+                detail = $" first at round {round}, hiding {hideable[round % hideable.Length]}";
+            }
+
+            await Settle(60);
+        }
+
+        W($"  15 rounds of a width change and a visibility change together: " +
+          $"{worstOverlaps} pairs sharing an offset, {worstZero} visible columns of zero width, " +
+          $"{worstExtraCells} header cells beyond the visible column count.{detail}");
+
+        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        await Settle(300);
     }
 
     /// <summary>

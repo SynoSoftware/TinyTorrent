@@ -10,6 +10,16 @@
            BasedOn="{StaticResource DefaultListViewItemStyle}">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="0" />
+        <!--
+            A row is as wide as its columns, not as wide as the list. The space to the right of the
+            last column belongs to no row: nothing is drawn there and nothing there can be grabbed,
+            so section 14's marquee begins from it exactly as it begins from the space below the
+            last row. A stretched container put every row under that space instead, and with rows
+            filling the viewport that left the marquee nowhere at all to start — every drag reached
+            a row and became a row drag. The header already draws this same line: past the last
+            column it offers the column menu rather than some column's own.
+        -->
+        <Setter Property="HorizontalAlignment" Value="Left" />
         <!-- Rows sit edge to edge, so a rounded corner lands on the seam with the row above. -->
         <Setter Property="CornerRadius" Value="0" />
         <!--
@@ -38,16 +48,16 @@
     </DataTemplate>
 
     <!--
-        The background of a selected row is the container's, and only the container's: two fills is
-        what the owner saw as two backgrounds. The accent bar is this control's, because the
-        container does not draw one here. ListViewItemSelectionIndicatorVisualEnabled is True in the
-        theme, but the presenter draws that indicator for its single-selection presentation, and the
-        table's list is SelectionMode="Multiple" with the check box disabled. Captured from the
-        running host with two rows selected: a faint fill and no bar. The bar is also the half of the
-        cue that carries contrast — the container's fill alone measures 1.08:1 in Light and 1.18:1
-        in Dark against section 19's 3:1.
+        This control paints one thing on a row: the focus fill. Selection is the container's own
+        background and nothing else — the owner asked for the accent bar to go, having first asked
+        for it to come back, and it is his call.
 
-        Current draws nothing, in WinUI and here alike. Focus is the container's own visual.
+        Recorded because it is a live conflict rather than a settled point: the container's selected
+        fill measures 1.08:1 in Light and 1.18:1 in Dark, and section 19 requires 3:1 for non-text
+        information. With the bar gone, selection is carried by that fill alone and does not meet
+        it. The two selected-row contrast tests assert the 3:1 and will fail.
+
+        Current draws nothing, in WinUI and here alike.
     -->
     <Style TargetType="local:TableRowVisual">
         <Setter Property="IsTabStop" Value="False" />
@@ -58,43 +68,21 @@
                 <ControlTemplate TargetType="local:TableRowVisual">
                     <Grid x:Name="Root">
                         <!--
-                            Full row height, square, and no inset. Every one of those follows from
-                            the rows sitting edge to edge, which is also why the container is
-                            CornerRadius="0": an inset bar with its own corner radius leaves a gap
-                            at each row seam, so a run of selected rows reads as separate marks
-                            instead of one block. The width and the brush are the platform's own
-                            indicator values, not chosen here.
-                        -->
-                        <!--
                             Focus, as a fill rather than a frame. The platform's focus visual is a
                             rectangle drawn around the element, and around a full-width row that
                             reads as a box laid over the design. The owner asked for a
                             semi-transparent background instead, so the container's own visual is
-                            switched off and this takes its place. It sits under the accent bar, so
-                            a row that is both focused and selected shows both.
+                            switched off and this takes its place.
                         -->
                         <Border x:Name="FocusFill"
                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                 Opacity="0" />
-                        <Rectangle x:Name="SelectedBar"
-                                   Width="3"
-                                   HorizontalAlignment="Left"
-                                   Fill="{ThemeResource ListViewItemSelectionIndicatorBrush}"
-                                   Opacity="0" />
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
 
                         <VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="RowEmphasis">
-                                <VisualState x:Name="Rest" />
-                                <VisualState x:Name="Selected">
-                                    <VisualState.Setters>
-                                        <Setter Target="SelectedBar.Opacity" Value="1" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
                             <VisualStateGroup x:Name="RowFocus">
                                 <VisualState x:Name="RowUnfocused" />
                                 <VisualState x:Name="RowFocused">
@@ -227,10 +215,12 @@
                                     BorderThickness="0"
                                     Background="Transparent"
                                     Visibility="Collapsed">
-                                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                          Glyph="&#xE9A6;"
-                                          FontSize="14"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <!--
+                                    No icon here. The strip gives this button the same one the menu
+                                    gives Fit visible columns, from TableIcons, so the two cannot
+                                    show different pictures for the same command and the font path
+                                    is named in one place.
+                                -->
                             </Button>
 
                             <!--
@@ -304,6 +294,21 @@
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.VerticalScrollMode="Enabled"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <!--
+                                    No hover cue on a row. A table row is not a button: pointing at
+                                    one says nothing about what will happen, and with hundreds of
+                                    rows under a moving pointer it is a light following the mouse.
+                                    Overriding the two brushes here rather than in the app scopes it
+                                    to this control's rows, so a host's other lists keep theirs. The
+                                    selected row resolves to its own selected background while
+                                    hovered, so pointing at a selected row changes nothing either.
+                                -->
+                                <ListView.Resources>
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                                    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                    ResourceKey="ListViewItemBackgroundSelected" />
+                                </ListView.Resources>
+
                                 <!--
                                     No ItemContainerTransitions here on purpose: the platform's
                                     default set is what the rows animate with. Entrance, content,

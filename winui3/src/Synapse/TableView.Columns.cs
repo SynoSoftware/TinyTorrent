@@ -11,9 +11,6 @@ namespace Synapse;
 /// </summary>
 public sealed partial class TableView
 {
-    /// <summary>Section 10: how much one Narrow or Widen changes a column.</summary>
-    private const double WidthNudgeDips = 8;
-
     private static readonly Size Unbounded = new(double.PositiveInfinity, double.PositiveInfinity);
 
     /// <summary>
@@ -104,21 +101,6 @@ public sealed partial class TableView
         Layout.Rebuild();
         return true;
     }
-
-    /// <summary>Section 12's Narrow and Widen, one step of 8 DIPs each way.</summary>
-    internal bool CanNudgeColumnWidth(ResolvedColumn column, int steps) =>
-        column.Column.CanResize && NudgedWidth(column, steps) != column.Width;
-
-    internal void NudgeColumnWidth(ResolvedColumn column, int steps)
-    {
-        if (SetColumnWidth(column, NudgedWidth(column, steps)))
-        {
-            RaiseLayoutChanged(TableLayoutChangeKind.ColumnResize);
-        }
-    }
-
-    private static double NudgedWidth(ResolvedColumn column, int steps) => ResolvedColumn.Clamp(
-        column.Width + (steps * WidthNudgeDips), column.Column.MinWidth, column.Column.MaxWidth);
 
     /// <summary>
     /// Section 12: a column can be hidden while the host allows it and another visible column would

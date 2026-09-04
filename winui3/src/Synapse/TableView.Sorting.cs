@@ -34,11 +34,13 @@ public sealed partial class TableView
     /// reason this lives in the table rather than in the host — a host publishes one snapshot
     /// carrying membership and position together, so throttling it would delay the arrival that
     /// made it necessary, while the table holds both the old order and the new one and can take one
-    /// without the other. Measured on a 2,002-row torrent list over five seconds of a one-second
-    /// update: sorted by a value the updates never touch, no notifications at all; sorted by speed,
-    /// which they always touch, 4,276 — an entire re-sort arriving unasked-for, roughly once a
-    /// second. A table that reshuffles that often cannot be clicked on at any speed, which is why
-    /// this exists, rather than the cost.
+    /// without the other. Measured on a 2,002-row torrent list, per host publish, because with
+    /// settling off every publish reorders and the two units are then the same one: sorted by a
+    /// value the updates never touch, no reorder at all across sixteen real publishes; sorted by
+    /// speed, which they always touch, an average of 2,158 notifications — more than the list has
+    /// rows, for a publish that reported one torrent finishing. A table that reshuffles a whole
+    /// screen because a single row completed cannot be clicked on, which is why this exists,
+    /// rather than the cost.
     /// <para>
     /// Live. Shortening it takes effect on the next update; the sorted order is taken immediately
     /// when it is set to <see cref="TimeSpan.Zero"/>. Negative values are treated as zero.
@@ -132,12 +134,14 @@ public sealed partial class TableView
     /// </summary>
     /// <remarks>
     /// A sort over a value the source keeps changing would otherwise re-order the whole table every
-    /// time the source moves. Measured on the torrent host: sorted by name, which no update
-    /// touches, an update costs nothing at all; sorted by speed, which every update touches, the
-    /// table re-sorted itself about once a second, 214 ms to change the collection and 252 ms to lay
-    /// it out, unprompted. The cost is the smaller half of it. A table that reshuffles once a second
-    /// cannot be clicked on: the row being reached for moves out from under the pointer. The owner
-    /// chose a cadence for that reason, not for the milliseconds.
+    /// time the source publishes. Measured on the torrent host, per publish, because with settling
+    /// off every publish reorders and the two units are then the same one: sorted by name, which no
+    /// update touches, sixteen real publishes drew no reorder at all; sorted by speed, which every
+    /// update touches, a publish drew an average of 2,158 notifications — more than the list has
+    /// rows — for an update that reported one torrent finishing. The cost is the smaller half of it.
+    /// A table that reshuffles a whole screen because one row completed cannot be clicked on: the
+    /// row being reached for moves out from under the pointer. The owner chose a cadence for that
+    /// reason, not for the milliseconds.
     /// <para>
     /// Membership is never delayed, only position. A row that arrives appears at once, at the place
     /// the sort gives it among the rows already shown, and a row that leaves goes at once. What
@@ -163,8 +167,16 @@ public sealed partial class TableView
             return sorted;
         }
 
+        // A membership change is never held back, so it is also never settled: HeldOrder returns
+        // null for one, and the sorted order is what the arriving row needs anyway.
+        if (HeldOrder(sorted) is not List<object> held)
+        {
+            _orderSettledAt = now;
+            return sorted;
+        }
+
         ScheduleSettle(_sortSettleInterval - (now - _orderSettledAt));
-        return HoldingCurrentOrder(sorted);
+        return held;
     }
 
     /// <summary>
@@ -191,11 +203,30 @@ public sealed partial class TableView
     }
 
     /// <summary>
-    /// The snapshot's rows, with the ones already shown kept in the order they are already in, and
-    /// the rest placed where the sort puts them among those.
+    /// The same rows the view already holds, in the order it already holds them, or null when the
+    /// snapshot is not the same set of rows.
     /// </summary>
-    private List<object> HoldingCurrentOrder(IReadOnlyList<object> sorted)
+    /// <remarks>
+    /// Settling holds position and never membership, so a snapshot that adds or removes a row is
+    /// not a settling case at all: the caller takes the sorted order for it, which puts the arrival
+    /// where it belongs straight away. Only a snapshot of exactly the same rows can be held, and
+    /// holding it is then a copy rather than a merge.
+    /// <para>
+    /// This is also what keeps the cost bounded. An earlier version placed each arrival into the
+    /// held order by scanning it, which is fine for a torrent or two and is not fine for a filter
+    /// change: switching the torrent host from downloading to all brings about 900 rows back at
+    /// once, and scanning for each of them is roughly 1.4 million comparer calls on an order that
+    /// is not sorted anyway, so their positions would have been close to arbitrary. Deferring
+    /// nothing about membership removes the merge, the cost and the arbitrary placement together.
+    /// </para>
+    /// </remarks>
+    private List<object>? HeldOrder(IReadOnlyList<object> sorted)
     {
+        if (sorted.Count != _view.Count)
+        {
+            return null;
+        }
+
         // Always the snapshot's instances, never the view's: the host may have replaced a row with
         // an equal-identity instance, and keeping the old one would leave its container bound to an
         // object nothing updates any more.
@@ -206,36 +237,14 @@ public sealed partial class TableView
         }
 
         List<object> order = new(sorted.Count);
-        HashSet<object> placed = new(_identity);
         foreach (object shown in _view)
         {
-            if (live.TryGetValue(shown, out object? current) && placed.Add(current))
+            if (!live.TryGetValue(shown, out object? current))
             {
-                order.Add(current);
-            }
-        }
-
-        IComparer<object> comparer = _sortColumn!.Column.SortComparer!;
-        int sign = _sortDirection == TableSortDirection.Ascending ? 1 : -1;
-
-        foreach (object arrival in sorted)
-        {
-            if (!placed.Add(arrival))
-            {
-                continue;
+                return null;
             }
 
-            int at = order.Count;
-            for (int i = 0; i < order.Count; i++)
-            {
-                if (sign * comparer.Compare(arrival, order[i]) < 0)
-                {
-                    at = i;
-                    break;
-                }
-            }
-
-            order.Insert(at, arrival);
+            order.Add(current);
         }
 
         return order;

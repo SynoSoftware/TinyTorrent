@@ -120,8 +120,17 @@ public sealed partial class TorrentPage : Page
     /// The host's own pipeline: semantic queue order, then the state filter, then the text filter.
     /// Only the finished projection reaches the table, which never filters.
     /// </summary>
+    /// <summary>
+    /// How many times this page has published a projection. The measurement harness needs it: a
+    /// window in which the daemon happened to complete nothing publishes nothing, and a count of
+    /// zero notifications then says nothing about the table at all.
+    /// </summary>
+    internal int ProjectionRuns { get; private set; }
+
     private void ApplyProjection()
     {
+        ProjectionRuns++;
+
         IReadOnlyList<TorrentRowViewModel> source =
             _simulateEmptySource || _catalog is null ? NoRows : _catalog.Rows;
 
@@ -234,7 +243,22 @@ public sealed partial class TorrentPage : Page
     {
         Log($"LayoutChanged {e.Kind}{LayoutDetail(e)}");
         _layout = e.LayoutState;
+        Table.IsRowReorderingEnabled = ShowsTheQueueOrder(e.LayoutState);
     }
+
+    /// <summary>
+    /// Whether a dropped row still means a queue position. Dragging a row is how this page's user
+    /// edits the queue, and the drop says "put these here" about what is on screen. That only maps
+    /// onto a queue while the screen is showing the queue: unsorted, which is the catalogue's own
+    /// order, or sorted by the queue column upwards, which is the same order again. Sorted by name
+    /// or size, "here" names a place in an alphabet, and the queue has no such place — the row
+    /// would go somewhere the user did not point at, then jump back to where the sort puts it. The
+    /// specification puts this call on the host for exactly that reason: the table can see the
+    /// boundary the pointer crossed, and only this page knows whether it means anything.
+    /// </summary>
+    private static bool ShowsTheQueueOrder(TableLayoutState layout) =>
+        layout.SortColumnId is null
+        || (layout.SortColumnId == "queue" && layout.SortDirection == TableSortDirection.Ascending);
 
     private string LayoutDetail(TableLayoutChangedEventArgs e) => e.Kind switch
     {

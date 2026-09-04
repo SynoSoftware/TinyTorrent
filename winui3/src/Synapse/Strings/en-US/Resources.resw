@@ -79,12 +79,6 @@
   <data name="ColumnMenu_FitVisibleColumns" xml:space="preserve">
     <value>Fit visible columns</value>
   </data>
-  <data name="ColumnMenu_NarrowThisColumn" xml:space="preserve">
-    <value>Narrow this column</value>
-  </data>
-  <data name="ColumnMenu_WidenThisColumn" xml:space="preserve">
-    <value>Widen this column</value>
-  </data>
   <data name="ColumnMenu_MoveLeft" xml:space="preserve">
     <value>Move left</value>
   </data>

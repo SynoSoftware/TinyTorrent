@@ -740,7 +740,7 @@ public sealed partial class Round3bPage : Page
                 }
             W($"    strongest single-pixel change caused by selecting the row: at ({bx:0},{by:0}) " +
               $"{Hex(ba)} -> {Hex(bb)} ratio {biggest:0.00}:1");
-            W($"    horizontal scan across the selected row: {Transitions(selShot, y2 + h / 2, lvx, lvx + 80)}");
+            W($"    horizontal scan across the selected row: {ColorChanges(selShot, y2 + h / 2, lvx, lvx + 80)}");
 
             // ---- focus cue on an UNSELECTED row
             lv.SelectedItems.Clear();
@@ -905,15 +905,15 @@ public sealed partial class Round3bPage : Page
                 W($"      delta row-header = {string.Join(" ", hx.Select((v, i) => (rx[i] - v).ToString("0.###")))}");
 
                 var shot = await CaptureAsync(grid);
-                W($"      pixel scan, header strip y=14: {Transitions(shot, 14, 0, 800)}");
+                W($"      pixel scan, header strip y=14: {ColorChanges(shot, 14, 0, 800)}");
                 double rowY = Origin(rp, grid).Y + rp.ActualHeight / 2;
-                W($"      pixel scan, row 0     y={rowY:0}: {Transitions(shot, rowY, 0, 800)}");
+                W($"      pixel scan, row 0     y={rowY:0}: {ColorChanges(shot, rowY, 0, 800)}");
             }
         }
         RowPanel.SharedOffset = 0;
     }
 
-    private string Transitions(Shot s, double dipY, double x0, double x1)
+    private string ColorChanges(Shot s, double dipY, double x0, double x1)
     {
         if (!s.Ok) return "capture failed " + s.Err;
         var sb = new StringBuilder(); string last = "";

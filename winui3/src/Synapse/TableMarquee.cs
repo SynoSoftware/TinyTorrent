@@ -183,9 +183,21 @@ internal sealed class TableMarquee
         return changed;
     }
 
-    private Rect BoundsInRows(FrameworkElement container) => container
-        .TransformToVisual(_rows)
-        .TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+    /// <summary>
+    /// The row's band across the whole row surface, rather than the container's own width. A
+    /// container is only as wide as the columns, and the space beside them is where the gesture
+    /// starts, so a rectangle drawn entirely in that space would meet no container at all. What a
+    /// rectangle spans vertically is what it covers: a row is a full-width band, and how far the
+    /// rectangle reaches across one says nothing about whether it is in it.
+    /// </summary>
+    private Rect BoundsInRows(FrameworkElement container)
+    {
+        Rect bounds = container
+            .TransformToVisual(_rows)
+            .TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+
+        return new Rect(0, bounds.Top, _rows?.ActualWidth ?? bounds.Width, bounds.Height);
+    }
 
     /// <summary>
     /// Inclusive on every edge. A straight vertical drag makes a zero-width rectangle, and an

@@ -17,4 +17,13 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
   </ItemGroup>
+
+  <!--
+    The control's own icon font, so a host does not have to supply one for the table's generated
+    menu to look right. Byte-identical to the copy already vendored in LabForms and Pharmacy, which
+    is where the ms-appx font syntax used in Generic.xaml comes from.
+  -->
+  <ItemGroup>
+    <Content Include="Assets\Fonts\lucide.ttf" />
+  </ItemGroup>
 </Project>

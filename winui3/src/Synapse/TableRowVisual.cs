@@ -78,12 +78,12 @@ public sealed partial class TableRowVisual : ContentControl
         // Current is not read here on purpose: WinUI paints no current-row cue and neither do we.
         // Selection is read for the accent bar only. The selected background stays the
         // container's, because drawing one here put a second fill over it.
+        // Selection is not read here: the container draws the selected background and this control
+        // draws nothing for it. Current is not read either — WinUI paints no current-row cue.
         object? item = DataContext;
-        bool selected = _owner is not null && _owner.IsRowSelected(item);
         bool focused = _owner is not null && _owner.IsRowFocused(item);
         bool dragging = _owner is not null && _owner.IsRowDragging(item);
 
-        VisualStateManager.GoToState(this, selected ? "Selected" : "Rest", useTransitions);
         VisualStateManager.GoToState(this, focused ? "RowFocused" : "RowUnfocused", useTransitions);
         VisualStateManager.GoToState(this, dragging ? "Dragging" : "NotDragging", useTransitions);
     }

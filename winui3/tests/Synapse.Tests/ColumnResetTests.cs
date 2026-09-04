@@ -19,7 +19,7 @@ public class ColumnResetTests
     {
         SortHarness h = await SortHarness.LoadAsync(new[] { 1, 2, 3 });
         SetColumnWidth(h.Table, "a", 320);
-        NudgeColumnWidth(h.Table, "b", -1);
+        SetColumnWidth(h.Table, "b", 192);
 
         h.Table.ResetColumnLayout();
 
@@ -180,8 +180,6 @@ public class ColumnResetTests
     private static void SetColumnWidth(TableView table, string id, double width) =>
         Invoke(table, "SetColumnWidth", ResolvedColumn(table, id), width);
 
-    private static void NudgeColumnWidth(TableView table, string id, int steps) =>
-        Invoke(table, "NudgeColumnWidth", ResolvedColumn(table, id), steps);
 
     private static void SetColumnVisibility(TableView table, string id, bool visible) =>
         Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);

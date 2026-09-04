@@ -393,7 +393,7 @@ public class FeatureProofTests
                 new[]
                 {
                     "Hide this column", "Columns", "---", "Fit this column", "Fit visible columns",
-                    "Narrow this column", "Widen this column", "---", "Move left", "Move right",
+                    "---", "Move left", "Move right",
                 },
                 items.Select(Proof.Label).ToArray());
 

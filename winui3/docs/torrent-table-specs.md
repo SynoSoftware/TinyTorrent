@@ -697,22 +697,43 @@ two. Publishing a snapshot carries membership and position together, so a host
 that throttles its updates to stop a reshuffle also delays the completion that
 made the update necessary. The table holds both the previous order and the new
 one, so it is the only layer that can take the membership immediately and let
-the position wait. Measured on a 2,002-row torrent list sorted by download
-speed: a value the tick changes produced 4,276 collection notifications in five
-seconds — one whole re-sort per second, arriving unbidden while the user was
-doing something else. The same list sorted by name produced none. The cost is
-the reason the interval exists, but the reason it is a table concern rather than
-a host one is that no host can separate the two halves of its own snapshot.
+the position wait. It does so by never merging the two. A snapshot that adds or
+removes a row is not a settling case at all: the table takes the sorted order
+for it whole, which is also where an arriving row belongs, and only a snapshot
+of exactly the same rows can hold its position. The rule is therefore structural
+rather than a promise — no path through the table can defer a membership change,
+rather than no path choosing to.
 
-What the interval buys, measured in one run so the three cases share their load:
-a three-second settle produced 2,180 notifications where zero produced 4,288,
-and a stable sort key produced none in either case. Note what that is not. The
-saving is a halving, not a third: a longer settle lets more drift accumulate, so
-each reorder moves more rows, and work per unit time falls by roughly half
-however the interval is set rather than in proportion to it. A host raising the
-interval to thirty seconds should expect a calmer table, not a thirtieth of the
-work. The usability gain is the real one — at most one reshuffle per interval
-instead of a continuous one — and the notification count understates it.
+Measured on a 2,002-row torrent list, per host publish, because with settling off
+every publish reorders and the two units are then the same one: sorted by
+download speed, each publish drew an average of 2,158 collection notifications,
+more than the list has rows. What the host had published was a single torrent
+finishing. The cost is the reason the interval exists, but the reason it is a
+table concern rather than a host one is that no host can separate the two halves
+of its own snapshot.
+
+Count per publish for the defect and per reorder for the benefit; per second for
+neither. A count over a window measures how often the host happened to publish in
+it. Per publish then measures the defect honestly, for the reason just given, and
+measures the benefit dishonestly: settling works by making some publishes free,
+so averaging those back in divides out the effect. Measured that way one pair of
+runs put the saving at a half and the next at nothing, both arithmetically
+correct and neither measuring anything.
+
+What the interval buys, over fifteen seconds. Sorted by speed with a
+three-second settle, eleven publishes produced five reorders — exactly one per
+interval, so the cap holds at the value it claims. The same sort with settling
+off reordered on nine publishes out of nine. Sorted by a stable key, sixteen real
+publishes produced no reorder at all. That is the claim, and it holds whatever
+the host's publish rate: one reorder per interval, against one per publish.
+
+Note what it is not. Each settled reorder is a bigger one, 2,660 notifications
+against 2,158, because a longer interval lets more drift accumulate before the
+rows are allowed to move. Cutting the number of reorders therefore does not cut
+the work by the same factor, and a host raising the interval to thirty seconds
+should expect a calmer table rather than a proportionately cheaper one. The
+usability gain is the real one — at most one reshuffle per interval instead of
+one per publish — and the notification count understates it.
 
 There is no `SortRequested` callback or remote-sort mode in version one.
 Sorting is a local table projection; add an explicit external-sort mode only if
@@ -736,27 +757,38 @@ independent of which virtualized rows happen to appear first. `TableView` never
 invokes a fit command during initialization.
 
 An applied valid `TableLayoutState.ColumnWidths` entry, a completed direct
-resize, explicit fit, or generated width-nudge command creates a width override.
+resize, or an explicit fit creates a width override.
 It wins over the baseline until another override or `ResetColumnLayout()`
 replaces it. A user may resize down to the declared `MinWidth` even when cell
 content clips or truncates; observed content never becomes a new hard minimum.
 Cell templates own their overflow policy.
 
 Every resizable visible column has a mouse/pen resize separator. Touch and
-keyboard use the generated header-menu fit and width-nudge commands, so version
-one does not add a competing direct-touch resize recognizer to a dense header.
+keyboard use the generated header-menu fit commands, so version one does not add
+a competing direct-touch resize recognizer to a dense header.
 
 - mouse/pen dragging captures the pointer and updates the shared resolved width;
 - the width is clamped only to the column limits;
 - Escape cancels the active drag and restores the starting width;
 - double-clicking the mouse/pen separator fits that column;
-- the header menu includes **Fit visible columns**, **Narrow this column**, and
-  **Widen this column** when applicable;
-- a narrow or widen invocation changes that column by 8 DIPs, clamped to its
-  bounds, and is disabled when it cannot change the width;
+- the header menu includes **Fit this column** and **Fit visible columns** when
+  applicable, and offers no per-step width command;
 - the table raises one coalesced `LayoutChanged` notification when a gesture,
   fit, or menu width command changes the resolved layout, not one persistence
   write per pointer movement.
+
+An earlier version of this clause required **Narrow this column** and **Widen
+this column**, each changing the width by 8 DIPs. They were removed, and the
+reason is recorded because the requirement looked like accessibility and was
+not. A menu flyout closes on every invocation and WinUI offers no way to keep
+one open for a command, so each 8 DIP step cost a full reopen: widening the
+torrent host's 150 DIP name column to something readable was thirteen
+right-clicks and thirteen clicks. Nobody walks that path twice, so it was the
+appearance of a keyboard route to resizing rather than one. **Fit this column**
+already gives the keyboard the outcome the user is actually after, in a single
+invocation, and it is two lines above in the same menu. Should continuous
+keyboard resizing be wanted, it belongs on the focused header as a held key,
+where auto-repeat does the work, and not as a menu item invoked once per step.
 
 `AutoFitColumn` and `AutoFitVisibleColumns` are explicit fit commands, not an
 automatic sizing mode. A fit considers only the header and cells available to
@@ -829,13 +861,11 @@ pointer actions and keyboard-accessible alternatives:
 - a **Columns** submenu containing a `ToggleMenuFlyoutItem` for every column;
 - **Fit this column** for a resizable active column and **Fit visible columns**
   when at least one visible column is resizable;
-- **Narrow this column** and **Widen this column** for a resizable active
-  column when its current width can change;
 - **Move left** and **Move right** for the active column.
 
-Double-clicking a mouse/pen resizer fits one column. Fit, narrow, and widen
-provide the keyboard and touch path for column sizing; move commands provide the
-equivalent path for column order. Sort is available from the active passive
+Double-clicking a mouse/pen resizer fits one column. The fit commands provide the
+keyboard and touch path for column sizing; move commands provide the equivalent
+path for column order. Sort is available from the active passive
 header: Enter or Space follows section 9's sort cycle. The columns submenu uses
 each column's localized `DisplayName`; generic action labels are localized by
 `TableView`'s own resources. They are not host-overridable configuration. This
@@ -931,7 +961,7 @@ not begin a marquee gesture.
 - a plain marquee replaces selection with its intersected eligible rows;
 - Ctrl adds/toggles against the selection captured at gesture start;
 - Shift extends from the current anchor;
-- intersection with realized row bounds selects those rows;
+- intersection with a realized row's band selects that row;
 - auto-scroll occurs near the top or bottom edge;
 - Escape cancels and restores the starting selection;
 - the gesture never begins from an interactive cell descendant, header, resize
@@ -941,6 +971,32 @@ not begin a marquee gesture.
 - the overlay disappears on completion, Escape cancellation, unload, or a
   view-changing update; section 5.3 defines the latter to restore the
   pre-gesture logical selection before reconciliation.
+
+Empty row-surface space is below the last row and beside the last column. A row
+is only as wide as its columns, so the space to their right belongs to no row.
+That is a requirement and not an appearance: with full-width rows and enough of
+them to fill the viewport there is no empty surface anywhere on screen, every
+press lands on a row, and the gesture cannot be started at all. Section 19
+requires a row's own fill to stop at the same place, so that what can be dragged
+from is what looks like it can be.
+
+The gesture's availability therefore depends on the column widths. While the
+columns are narrower than the viewport, the space beside them starts a marquee
+on any row line; once they fill it there is none, and the only empty row surface
+left is below the last row, which a full table does not have. Scrolling does not
+restore it: the row surface disables its own horizontal scrolling, so a
+container is clipped to the viewport rather than overhanging it. Measured on the
+torrent host, 446 DIPs beside the columns in a 1,374-wide list, and none at all
+once the window was narrowed to 674. That is a boundary of this rule rather than
+a defect in it, and the reference implementation has the same one for the same
+reason: its row canvas is exactly the width its columns need.
+
+A row's band is its vertical extent across the whole row surface. The rectangle
+is tested against the band, not against the row's own box, so how far it reaches
+across a row says nothing about whether that row is in it: a rectangle drawn
+entirely in the space beside the columns still selects every row it spans.
+Testing the box instead would make the one place the gesture can start the one
+place it selects nothing.
 
 Only visible/realized geometry is measured. As auto-scroll realizes additional
 rows, they participate normally. The overlay uses platform-aware feedback,
@@ -1169,6 +1225,11 @@ itself MUST:
   because Fluent gives position to the focus visual and choice to selection.
   Current remains a model concept that section 13 needs for the anchor and for
   range selection, and nothing measures it because nothing paints it;
+- end a row's own fill at its last column rather than at the edge of the list.
+  The space to the right of the last column belongs to no row, and section 14's
+  marquee is started from it. A fill spanning the list would claim that space
+  for a row, and the one gesture that space exists for would look impossible to
+  begin;
 - preserve normal effective-pixel text scaling and platform type behavior.
   Text and controls must remain readable and operable at supported display/text
   scaling without a table-specific font-size override.

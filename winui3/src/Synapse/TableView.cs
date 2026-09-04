@@ -174,6 +174,10 @@ public sealed partial class TableView : Control
             _horizontalScrollBar.ValueChanged -= OnHorizontalScrollBarValueChanged;
         }
 
+        // A settle waiting to fire would rebuild a view whose template parts have just been taken
+        // away, and would hold this table alive to do it.
+        _settleDue?.Stop();
+
         Layout.Invalidated -= OnLayoutInvalidated;
     }
 

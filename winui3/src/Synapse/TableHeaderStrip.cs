@@ -112,6 +112,7 @@ public sealed partial class TableHeaderStrip : Control
         if (_fitAll is not null)
         {
             _fitAll.Click += OnFitAllClick;
+            _fitAll.Content = TableIcons.Fit();
             AutomationProperties.SetName(_fitAll, TableResources.FitVisibleColumns);
             ToolTipService.SetToolTip(_fitAll, TableResources.FitVisibleColumns);
         }

@@ -122,11 +122,18 @@ public sealed partial class TableView
     /// The platform's own focus visual is off for rows, so this is the only thing left saying where
     /// the keyboard is.
     /// </remarks>
+    /// <remarks>
+    /// The identity test comes first on purpose. Every realized row asks this whenever the row
+    /// visuals are told to repaint, and only one of them can be the focus row, so putting the
+    /// cheap test in front means the walk that <see cref="RowSurfaceFocusState"/> does — a focus
+    /// manager query and a climb up the visual tree — runs once per repaint rather than once per
+    /// row on screen.
+    /// </remarks>
     internal bool IsRowFocused(object? item) =>
         item is not null
+        && _selection.IsSame(item, _selection.Focus)
         && !IsRowSelected(item)
-        && RowSurfaceFocusState() != FocusState.Unfocused
-        && _selection.IsSame(item, _selection.Focus);
+        && RowSurfaceFocusState() != FocusState.Unfocused;
 
     /// <summary>Section 5.3: withdrawing the marquee mid-gesture cancels it before the flag applies.</summary>
     private static void OnMarqueeSelectionEnabledChanged(

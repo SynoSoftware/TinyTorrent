@@ -13,6 +13,12 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Unpackaged. With the MSIX default the SDK injects its DeploymentManager initializer,
+         which activates a WinRT class the process cannot reach without package identity, so
+         running the exe directly threw REGDB_E_CLASSNOTREG before Main. None injects the
+         bootstrap initializer instead, which loads the Windows App Runtime framework package
+         into a process that has no identity. Synapse.Tests already runs this way. -->
+    <WindowsPackageType>None</WindowsPackageType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -70,7 +76,9 @@
   <PropertyGroup>
     <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
-    <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
-    <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
+    <!-- The template turns this on for Release. It cannot succeed: the Windows SDK projection
+         assemblies are not trim-clean and report IL2104 themselves, so the analysis only ever
+         produces warnings nothing in this repository can act on. Off, as in Synapse.Tests. -->
+    <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>
 </Project>

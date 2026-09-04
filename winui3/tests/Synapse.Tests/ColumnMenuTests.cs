@@ -23,8 +23,6 @@ public class ColumnMenuTests
     private const string ColumnsSubmenu = "Columns";
     private const string FitThis = "Fit this column";
     private const string FitVisible = "Fit visible columns";
-    private const string Narrow = "Narrow this column";
-    private const string Widen = "Widen this column";
     private const string MoveLeft = "Move left";
     private const string MoveRight = "Move right";
 
@@ -36,18 +34,20 @@ public class ColumnMenuTests
         TableView table = await LoadAsync("a", "b", "c");
 
         CollectionAssert.AreEqual(
-            new[] { Hide, ColumnsSubmenu, "-", FitThis, FitVisible, Narrow, Widen, "-", MoveLeft, MoveRight },
+            new[] { Hide, ColumnsSubmenu, "-", FitThis, FitVisible, "-", MoveLeft, MoveRight },
             Labels(Menu(table, "b")));
     });
 
     [TestMethod]
-    public Task UnusedHeaderSpaceGetsTheSameMenuWithoutTheActiveColumnActions() =>
+    public Task UnusedHeaderSpaceGetsTheColumnListItselfRatherThanADoorToIt() =>
         TestHost.RunAsync(async () =>
         {
             TableView table = await LoadAsync("a", "b");
 
+            // No column to act on, so the whole menu is the column set: the one command that
+            // applies to all of them, then every column, with no submenu in between.
             CollectionAssert.AreEqual(
-                new[] { ColumnsSubmenu, FitVisible },
+                new[] { FitVisible, "-", "A", "B" },
                 Labels(Menu(table, null)));
         });
 
@@ -80,25 +80,6 @@ public class ColumnMenuTests
         });
 
     [TestMethod]
-    public Task NarrowAndWidenAreEnabledOnlyWhileTheWidthCanStillChange() => TestHost.RunAsync(async () =>
-    {
-        TableColumn bounded = TestData.Column("a");
-        bounded.MinWidth = 100;
-        bounded.MaxWidth = 200;
-        bounded.DefaultWidth = 100;
-
-        TableView table = await LoadAsync(bounded, TestData.Column("b"));
-
-        Assert.IsFalse(Item(Menu(table, "a"), Narrow).IsEnabled, "the width is already the minimum");
-        Assert.IsTrue(Item(Menu(table, "a"), Widen).IsEnabled);
-
-        table.ApplyLayoutState(TestData.State(widths: new Dictionary<string, double> { ["a"] = 200 }));
-
-        Assert.IsTrue(Item(Menu(table, "a"), Narrow).IsEnabled);
-        Assert.IsFalse(Item(Menu(table, "a"), Widen).IsEnabled, "the width is already the maximum");
-    });
-
-    [TestMethod]
     public Task AColumnTheHostFixedOffersNoSizingCommand() => TestHost.RunAsync(async () =>
     {
         TableColumn fixedWidth = TestData.Column("a");
@@ -108,8 +89,6 @@ public class ColumnMenuTests
         MenuFlyout menu = Menu(table, "a");
 
         Assert.IsFalse(Item(menu, FitThis).IsEnabled);
-        Assert.IsFalse(Item(menu, Narrow).IsEnabled);
-        Assert.IsFalse(Item(menu, Widen).IsEnabled);
         Assert.IsTrue(Item(menu, FitVisible).IsEnabled, "b can still be fitted");
     });
 
@@ -184,32 +163,6 @@ public class ColumnMenuTests
         Assert.AreEqual(2, events());
     });
 
-    [TestMethod]
-    public Task NarrowAndWidenStepEightDipsAndClampToTheColumnsBounds() => TestHost.RunAsync(async () =>
-    {
-        TableColumn bounded = TestData.Column("a");
-        bounded.MinWidth = 140;
-        bounded.DefaultWidth = 150;
-
-        TableView table = await LoadAsync(bounded, TestData.Column("b"));
-        Func<int> events = LayoutChanges(table, TableLayoutChangeKind.ColumnResize);
-
-        Nudge(table, "a", 1);
-        Assert.AreEqual(158, TableHarness.ResolvedWidth(table, "a"), "one widen is 8 DIPs");
-
-        Nudge(table, "a", -1);
-        Nudge(table, "a", -1);
-        Assert.AreEqual(142, TableHarness.ResolvedWidth(table, "a"));
-
-        Nudge(table, "a", -1);
-        Assert.AreEqual(140, TableHarness.ResolvedWidth(table, "a"), "the step clamps at MinWidth");
-        Assert.AreEqual(4, events(), "one notification per completed change");
-
-        Nudge(table, "a", -1);
-        Assert.AreEqual(140, TableHarness.ResolvedWidth(table, "a"));
-        Assert.AreEqual(4, events(), "a step that cannot move the width reports nothing");
-    });
-
     /// <summary>
     /// The menu's move must be the drag's move, not a second implementation of it. The hidden
     /// column is what tells them apart: a move is chosen at a visible boundary and applied to the
@@ -243,9 +196,10 @@ public class ColumnMenuTests
             TableView table = await LoadAsync("a", "b");
             Control cell = await OpenMenuAsync(table, visibleIndex: 1);
 
-            await InvokeAsync(table, Widen);
+            await InvokeAsync(table, MoveLeft);
 
-            Assert.AreEqual(158, TableHarness.ResolvedWidth(table, "b"), "the item ran the operation");
+            CollectionAssert.AreEqual(new[] { "b", "a" }, TableHarness.Order(table),
+                "the item ran the operation");
             Assert.AreEqual(0, OpenPopups(table).Count, "and the flyout closed behind it");
             Assert.AreSame(cell, FocusManager.GetFocusedElement(table.XamlRoot),
                 "closure returns focus to the invoking header");
@@ -398,8 +352,6 @@ public class ColumnMenuTests
     private static void SetVisibility(TableView table, string id, bool visible) =>
         Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);
 
-    private static void Nudge(TableView table, string id, int steps) =>
-        Invoke(table, "NudgeColumnWidth", ResolvedColumn(table, id), steps);
 
     private static object ResolvedColumn(TableView table, string id)
     {

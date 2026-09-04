@@ -40,6 +40,12 @@ public sealed partial class TableColumn : DependencyObject
 
     public bool CanSort { get; set; }
 
+    // No per-column icon here on purpose. The one place it would be drawn is the generated menu's
+    // column list, and that list is a set of on/off states where the checkmark is the glyph the eye
+    // reads. A second glyph beside it competes with the check, and a host that gave icons to some
+    // columns and not others would leave the rest of the list indented past a blank. A column's
+    // identity already has a home: Header and HeaderTemplate take whatever the host wants to show.
+
     public HorizontalAlignment CellHorizontalAlignment { get; set; } = HorizontalAlignment.Left;
 
     public IComparer<object>? SortComparer { get; set; }

@@ -329,6 +329,7 @@ theme including High Contrast, and §8 says to let it.
 ```xml
 <Style x:Key="TableRowContainerStyle" TargetType="ListViewItem"
        BasedOn="{StaticResource DefaultListViewItemStyle}">
+    <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="Padding" Value="0" />
 </Style>
@@ -336,7 +337,13 @@ theme including High Contrast, and §8 says to let it.
 
 `Padding="0"` moves cell padding into cell templates where the host owns it.
 `HorizontalContentAlignment="Stretch"` lets the row presenter reach the resolved
-total width.
+total width. `HorizontalAlignment="Left"` stops the container reaching further
+than that: a row is as wide as its columns, so the space to the right of the
+last column belongs to no row. §14 starts its marquee from that space and §19
+requires the row's fill to stop there, so a stretched container removes the
+gesture rather than merely widening the paint — with rows filling the viewport
+there is then no empty surface anywhere on screen and every press becomes a row
+drag.
 
 The table sets no row height. Uniform height is a consequence of uniform cell
 templates; imposing one would be TableView-specific spacing, which §19 forbids.
@@ -445,8 +452,6 @@ Columns                        > MenuFlyoutSubItem
 ----------------------------
 Fit this column                  MenuFlyoutItem        (resizable active column)
 Fit visible columns              MenuFlyoutItem
-Narrow this column               MenuFlyoutItem        (width can decrease)
-Widen this column                MenuFlyoutItem        (width can increase)
 ----------------------------
 Move left                        MenuFlyoutItem
 Move right                       MenuFlyoutItem
@@ -458,7 +463,14 @@ Move right                       MenuFlyoutItem
 - A command that cannot change layout is disabled, not hidden.
 - The last visible column's toggle is disabled, so zero visible columns is
   unreachable.
-- Narrow and widen step 8 DIPs, clamped (§10).
+- The menu offers no per-step width command. An earlier version carried Narrow
+  this column and Widen this column, each stepping 8 DIPs. A menu flyout closes
+  on every invocation and WinUI offers no way to hold one open for a command, so
+  a step cost a full reopen: widening the torrent host's 150 DIP name column to
+  something readable took thirteen right-clicks and thirteen clicks. Fit this
+  column reaches the outcome from the keyboard in one invocation. Continuous
+  keyboard resizing, if it is ever wanted, belongs on the focused header as a
+  held key where auto-repeat does the work.
 
 Right-click on empty header space opens the same flyout without the
 active-column items. `Menu` and `Shift+F10` on a focused header open it there and

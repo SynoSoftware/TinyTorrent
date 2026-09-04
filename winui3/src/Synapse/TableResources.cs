@@ -28,10 +28,6 @@ internal static class TableResources
 
     internal static string FitVisibleColumns => Get("ColumnMenu_FitVisibleColumns");
 
-    internal static string NarrowThisColumn => Get("ColumnMenu_NarrowThisColumn");
-
-    internal static string WidenThisColumn => Get("ColumnMenu_WidenThisColumn");
-
     internal static string MoveLeft => Get("ColumnMenu_MoveLeft");
 
     internal static string MoveRight => Get("ColumnMenu_MoveRight");
