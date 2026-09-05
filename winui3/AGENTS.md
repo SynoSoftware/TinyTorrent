@@ -15,6 +15,31 @@ So the goal is not "a table that works". It is a table that a person can still
 change confidently a year from now. Every rule below serves that and nothing
 else.
 
+## Never ship a sluggish interface
+
+The owner's ruling, written in full at specification §1.1.
+
+**The answer and the work are separate.** Acknowledge now; finish over the
+following frames, off the UI thread, or progressively. A partial result that
+keeps up beats a complete one that arrives late.
+
+**Know what he means by sluggish, because it is specific.** A sort header that
+shows nothing for more than 100 ms after the click. A column resize that draws
+no guide line while the frame rate falls so far that the pointer stops tracking,
+and the width appears to move once every second or two, where a spreadsheet
+draws a cheap line and applies the width on release. Both are work the table
+does after an input, not the moment it chooses to answer one.
+
+**It is not the button hold.** A press that waits for the release is not on this
+list. Sections 14 and 16 make a press wait in three cases, each so that a drag
+can keep something the press would otherwise have destroyed. Those waits were
+removed once, on the theory that they were what felt slow, and the owner
+rejected the result as a behaviour change he had not asked for.
+
+So a rule that asks you to wait is not automatically the thing that is slow.
+Measure what is actually slow, and if a rule really is in the way, raise it —
+do not remove it and edit the specification into agreement.
+
 ## Elegance is the requirement, not the finish
 
 Elegance here means: **the smallest arrangement of parts that makes the

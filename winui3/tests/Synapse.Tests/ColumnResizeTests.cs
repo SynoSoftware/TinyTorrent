@@ -45,7 +45,7 @@ public class ColumnResizeTests
     // ------------------------------------------------------------------ the live gesture
 
     [TestMethod]
-    public Task TrackingMovesOnlyTheResizedColumnAndReportsNothingYet() => TestHost.RunAsync(async () =>
+    public Task TrackingMovesTheGuideAndNoWidthAtAll() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync();
         TableHeaderStrip strip = Strip(table);
@@ -54,17 +54,20 @@ public class ColumnResizeTests
         BeginResizeAt(strip, FirstSeparator);
         TrackResize(strip, FirstSeparator + 40);
 
-        Assert.AreEqual(240d, TableHarness.ResolvedWidth(table, "a"));
+        Assert.AreEqual(240d, Preview(strip), "the guide follows the pointer");
+        Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "a"), "and no width has moved");
         Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "b"), "the next column is untouched");
 
         TrackResize(strip, FirstSeparator + 90);
         TrackResize(strip, FirstSeparator + 60);
 
-        Assert.AreEqual(260d, TableHarness.ResolvedWidth(table, "a"), "the width follows the pointer");
+        Assert.AreEqual(260d, Preview(strip), "and follows it back");
+        Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "a"), "still without moving one");
         Assert.AreEqual(0, events(), "and no pointer movement is a persistence event");
 
         CompleteResize(strip);
 
+        Assert.AreEqual(260d, TableHarness.ResolvedWidth(table, "a"), "the release applies it");
         Assert.AreEqual(1, events(), "one gesture, one notification");
     });
 
@@ -82,16 +85,18 @@ public class ColumnResizeTests
         BeginResizeAt(strip, FirstSeparator);
 
         TrackResize(strip, FirstSeparator - 400);
-        Assert.AreEqual(120d, TableHarness.ResolvedWidth(table, "a"), "it stops at MinWidth");
+        Assert.AreEqual(120d, Preview(strip), "it stops at MinWidth");
 
         TrackResize(strip, FirstSeparator + 400);
-        Assert.AreEqual(300d, TableHarness.ResolvedWidth(table, "a"), "and at MaxWidth");
+        Assert.AreEqual(300d, Preview(strip), "and at MaxWidth");
 
         TrackResize(strip, FirstSeparator + 50);
-        Assert.AreEqual(250d, TableHarness.ResolvedWidth(table, "a"),
+        Assert.AreEqual(250d, Preview(strip),
             "and comes back off the limit from the position it was captured at, not from the limit");
 
         CompleteResize(strip);
+
+        Assert.AreEqual(250d, TableHarness.ResolvedWidth(table, "a"), "and the release applies that");
     });
 
     /// <summary>
@@ -122,7 +127,7 @@ public class ColumnResizeTests
     // ------------------------------------------------------------------ ending the gesture
 
     [TestMethod]
-    public Task EscapeRestoresTheWidthTheGestureStartedFrom() => TestHost.RunAsync(async () =>
+    public Task EscapeLeavesTheWidthTheGestureStartedFrom() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync();
         TableHeaderStrip strip = Strip(table);
@@ -130,11 +135,11 @@ public class ColumnResizeTests
 
         BeginResizeAt(strip, FirstSeparator);
         TrackResize(strip, FirstSeparator + 60);
-        Assert.AreEqual(260d, TableHarness.ResolvedWidth(table, "a"));
+        Assert.AreEqual(260d, Preview(strip), "the guide had moved");
 
         CancelGesture(strip);
 
-        Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "a"), "the captured width comes back");
+        Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "a"), "and no width ever did");
         Assert.AreEqual(0, events(), "a cancelled gesture changed no layout");
     });
 
@@ -227,6 +232,12 @@ public class ColumnResizeTests
         Invoke(strip, "TrackResize", x);
 
     private static void CompleteResize(TableHeaderStrip strip) => Invoke(strip, "CompleteResize");
+
+    /// <summary>The width the release would apply. Nothing else in the gesture changes a width.</summary>
+    private static double Preview(TableHeaderStrip strip) =>
+        (double)strip.GetType()
+            .GetField("_previewWidth", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(strip)!;
 
     /// <summary>What Escape and a lost pointer capture both run.</summary>
     private static void CancelGesture(TableHeaderStrip strip) => Invoke(strip, "CancelGesture");

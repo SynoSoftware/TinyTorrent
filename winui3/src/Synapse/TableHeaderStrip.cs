@@ -22,6 +22,7 @@ public sealed partial class TableHeaderStrip : Control
     private const string PanelPartName = "PART_HeaderPanel";
     private const string InsertionMarkerPartName = "PART_ColumnInsertionMarker";
     private const string FitAllPartName = "PART_FitAllColumns";
+    private const string ResizeGuidePartName = "PART_ResizeGuide";
 
     /// <summary>Half of the separator hit width, so the grab zone is centred on the boundary.</summary>
     private const double SeparatorReachDips = 4;
@@ -38,6 +39,7 @@ public sealed partial class TableHeaderStrip : Control
     private FrameworkElement? _clip;
     private TableCellsPanel? _panel;
     private FrameworkElement? _marker;
+    private Popup? _resizeGuide;
     private Button? _fitAll;
     private TableView? _owner;
     private int _activeIndex = -1;
@@ -47,6 +49,12 @@ public sealed partial class TableHeaderStrip : Control
     private double _originX;
     private ResolvedColumn? _column;
     private double _startWidth;
+
+    /// <summary>The width the release would apply. No width changes until then.</summary>
+    private double _previewWidth;
+
+    /// <summary>Where the resized edge stood when the gesture began, in the strip's coordinates.</summary>
+    private double _resizeEdgeOrigin;
     private TableHeaderCell? _cell;
     private UIElement? _escapeRoot;
     private bool _showingResizeCursor;
@@ -103,6 +111,7 @@ public sealed partial class TableHeaderStrip : Control
         _panel = GetTemplateChild(PanelPartName) as TableCellsPanel;
         _marker = GetTemplateChild(InsertionMarkerPartName) as FrameworkElement;
         _fitAll = GetTemplateChild(FitAllPartName) as Button;
+        _resizeGuide = GetTemplateChild(ResizeGuidePartName) as Popup;
 
         if (_clip is not null)
         {
@@ -246,7 +255,6 @@ public sealed partial class TableHeaderStrip : Control
         }
 
         PointerPoint point = e.GetCurrentPoint(this);
-        Console.WriteLine($"PROBE pressed x={point.Position.X:F3} sep={SeparatorNear(point.Position.X) is not null}");
         if (_owner is null
             || !IsMouseOrPen(e.Pointer.PointerDeviceType)
             || !point.Properties.IsLeftButtonPressed)
@@ -330,7 +338,6 @@ public sealed partial class TableHeaderStrip : Control
     {
         base.OnPointerReleased(e);
 
-        Console.WriteLine($"PROBE released x={e.GetCurrentPoint(this).Position.X:F3} gesture={_gesture}");
         if (_gesture == HeaderGesture.None || e.Pointer.PointerId != _pointerId)
         {
             return;
@@ -385,7 +392,6 @@ public sealed partial class TableHeaderStrip : Control
     {
         base.OnTapped(e);
 
-        Console.WriteLine($"PROBE tapped x={e.GetPosition(this).X:F3} sep={SeparatorNear(e.GetPosition(this).X) is not null}");
         if (IsMouseOrPen(e.PointerDeviceType) && SeparatorNear(e.GetPosition(this).X) is not null)
         {
             return;
@@ -401,7 +407,6 @@ public sealed partial class TableHeaderStrip : Control
     {
         base.OnDoubleTapped(e);
 
-        Console.WriteLine($"PROBE doubletapped x={e.GetPosition(this).X:F3} sep={SeparatorNear(e.GetPosition(this).X) is not null}");
         if (!IsMouseOrPen(e.PointerDeviceType)
             || SeparatorNear(e.GetPosition(this).X) is not ResolvedColumn column)
         {
@@ -421,14 +426,13 @@ public sealed partial class TableHeaderStrip : Control
         WatchForEscape();
     }
 
-    /// <summary>Escape and a lost capture both end the gesture with the layout as it was.</summary>
+    /// <summary>
+    /// Escape and a lost capture both end the gesture with the layout as it was. A resize has
+    /// nothing to put back: it applies its width on release and nowhere else, so an abandoned one
+    /// has changed nothing to undo.
+    /// </summary>
     private void CancelGesture()
     {
-        if (_gesture == HeaderGesture.Resizing)
-        {
-            _owner!.SetColumnWidth(_column!, _startWidth);
-        }
-
         EndGesture();
         ReleasePointerCaptures();
     }
@@ -440,6 +444,7 @@ public sealed partial class TableHeaderStrip : Control
         _cell?.SetDragging(false);
         _cell = null;
         HideInsertionMarker();
+        HideResizeGuide();
         _escapeRoot?.RemoveHandler(KeyDownEvent, _cancelOnEscape);
         _escapeRoot = null;
     }
@@ -482,25 +487,79 @@ public sealed partial class TableHeaderStrip : Control
 
         Begin(HeaderGesture.Resizing, separator, pointerId, x);
         _startWidth = separator.Width;
+        _previewWidth = separator.Width;
+        _resizeEdgeOrigin = TrailingEdgeOf(separator);
+        ShowResizeGuide(_resizeEdgeOrigin);
         return true;
     }
 
     /// <summary>
-    /// Take the live resize to this header-strip x. Section 10 clamps to the column's own limits
-    /// and nothing else, and a movement is never a persistence event.
+    /// Take the preview to this header-strip x. Section 10 clamps to the column's own limits and
+    /// nothing else, so the guide stops exactly where the width would; and a movement now changes
+    /// no width at all, which is a stronger form of never being a persistence event.
     /// </summary>
-    private void TrackResize(double x) =>
-        _owner!.SetColumnWidth(_column!, _startWidth + (x - _originX));
+    private void TrackResize(double x)
+    {
+        _previewWidth = ResolvedColumn.Clamp(
+            _startWidth + (x - _originX), _column!.Column.MinWidth, _column.Column.MaxWidth);
 
-    /// <summary>Finish the live resize and report the whole gesture once, if it changed a width.</summary>
+        ShowResizeGuide(_resizeEdgeOrigin + (_previewWidth - _startWidth));
+    }
+
+    /// <summary>
+    /// Finish the resize: the one width this gesture applies, and one notification if it moved.
+    /// The gesture ends before the width lands, so a host that re-enters the table from its own
+    /// layout handler finds the strip already idle.
+    /// </summary>
     private void CompleteResize()
     {
-        bool widthChanged = _column!.Width != _startWidth;
+        ResolvedColumn column = _column!;
+        double width = _previewWidth;
+
         EndGesture();
 
-        if (widthChanged)
+        if (_owner!.SetColumnWidth(column, width))
         {
-            _owner!.RaiseLayoutChanged(TableLayoutChangeKind.ColumnResize);
+            _owner.RaiseLayoutChanged(TableLayoutChangeKind.ColumnResize);
+        }
+    }
+
+    /// <summary>This column's trailing edge in the strip's own coordinates.</summary>
+    private double TrailingEdgeOf(ResolvedColumn column)
+    {
+        int index = _owner!.Layout.IndexOfVisible(column);
+        return index < 0
+            ? _originX
+            : _owner.Layout.VisibleColumns[index].Offset + column.Width
+                - _owner.Layout.HorizontalOffset;
+    }
+
+    /// <summary>
+    /// Put the guide at this header-strip x, centred on the boundary rather than led by it. Its
+    /// height is the table's, so one line runs from the top of the header to the foot of the rows
+    /// and says the same thing about every one of them.
+    /// </summary>
+    private void ShowResizeGuide(double x)
+    {
+        if (_resizeGuide is null || _owner is null)
+        {
+            return;
+        }
+
+        if (_resizeGuide.Child is FrameworkElement body)
+        {
+            body.Height = _owner.ActualHeight;
+        }
+
+        _resizeGuide.HorizontalOffset = x - 1;
+        _resizeGuide.IsOpen = true;
+    }
+
+    private void HideResizeGuide()
+    {
+        if (_resizeGuide is not null)
+        {
+            _resizeGuide.IsOpen = false;
         }
     }
 

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -19,6 +20,7 @@ public sealed class TorrentRowViewModel : INotifyPropertyChanged
     public const int SpeedHistoryLength = 32;
 
     private string _name = string.Empty;
+    private SortKey? _nameSortKey;
     private double _progress;
     private long _totalSize;
     private long _transferred;
@@ -69,12 +71,30 @@ public sealed class TorrentRowViewModel : INotifyPropertyChanged
         get => _name;
         set
         {
+            _nameSortKey = null;
             if (Set(ref _name, value))
             {
                 Raise(nameof(NameTooltip));
             }
         }
     }
+
+    /// <summary>
+    /// <see cref="Name"/> reduced to the bytes the culture orders it by, built on first use.
+    /// </summary>
+    /// <remarks>
+    /// A culture-aware string comparison runs a collation every time it is asked, and a sort asks
+    /// it n log n times — about 22,000 for the 2,002 rows the torrent host holds — over names that
+    /// did not change, again on every re-sort. Reducing each name once and comparing the results
+    /// gives the same order, because the key is that collation's own output.
+    /// <para>
+    /// Bound to the culture that was current when it was built. Nothing here changes culture after
+    /// start; a host that did would have to clear these, and would have the same problem with a
+    /// <c>StringComparer.CurrentCultureIgnoreCase</c> captured in a static.
+    /// </para>
+    /// </remarks>
+    internal SortKey NameSortKey => _nameSortKey ??=
+        CultureInfo.CurrentCulture.CompareInfo.GetSortKey(_name, CompareOptions.IgnoreCase);
 
     /// <summary>Completed fraction, 0 to 1.</summary>
     public double Progress

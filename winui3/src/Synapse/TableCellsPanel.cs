@@ -13,6 +13,8 @@ namespace Synapse;
 /// <remarks>
 /// A pure horizontal-offset change arrives as <see cref="LayoutInvalidationReason.Offset"/> and
 /// calls <see cref="UIElement.InvalidateArrange"/> only, so no measure pass runs.
+/// <see cref="LayoutInvalidationReason.Widths"/> adds the measure, and only
+/// <see cref="LayoutInvalidationReason.Columns"/> reconciles the cells.
 /// </remarks>
 public sealed partial class TableCellsPanel : Panel
 {
@@ -46,16 +48,26 @@ public sealed partial class TableCellsPanel : Panel
     /// </summary>
     internal void Attach(TableView owner)
     {
+        if (Claim(owner))
+        {
+            InvalidateMeasure();
+        }
+    }
+
+    /// <summary>Take the owner's layout and realize the cells, asking for no measure.</summary>
+    /// <returns>True when this call is the one that took the layout.</returns>
+    private bool Claim(TableView owner)
+    {
         _owner = owner;
         if (_layout is not null)
         {
-            return;
+            return false;
         }
 
         _layout = owner.Layout;
         _layout.Invalidated += OnLayoutInvalidated;
         SyncChildren();
-        InvalidateMeasure();
+        return true;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -108,7 +120,13 @@ public sealed partial class TableCellsPanel : Panel
             return;
         }
 
-        SyncChildren();
+        // New widths across the same columns leave every cell where it belongs, so a resize takes
+        // the measure without the reconcile.
+        if (reason == LayoutInvalidationReason.Columns)
+        {
+            SyncChildren();
+        }
+
         InvalidateMeasure();
     }
 
@@ -264,9 +282,14 @@ public sealed partial class TableCellsPanel : Panel
         // still shows a scroll thumb — a table that has gone blank with a full scroll bar beside
         // it. Measure is the first moment the layout is actually needed, so it is where a panel
         // that has lost it takes it back.
+        // Claim, not Attach: this is inside the panel's own measure, and Attach ends by
+        // invalidating it. Marking a panel dirty from within its own MeasureOverride makes the
+        // layout manager run the whole override a second time in the same tick, and this branch is
+        // the recycle path — so every row realized on every scroll was measured twice. Adding the
+        // children here is not the problem; the pass measures them. Only the invalidation is.
         if (_layout is null && _owner is not null)
         {
-            Attach(_owner);
+            Claim(_owner);
         }
 
         if (_layout is null)

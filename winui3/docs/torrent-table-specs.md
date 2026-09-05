@@ -43,6 +43,67 @@ The component deliberately keeps these behaviors cohesive rather than exposing
 a collection of unrelated helpers. The rest of this document defines their
 observable contract and ownership boundaries.
 
+### 1.1 The table must never feel sluggish
+
+The owner's ruling. Where the table would leave the user watching an unchanged
+screen while it works, that is a defect, whatever else is correct.
+
+**Do the work after the acknowledgement, and show whatever is ready.** The
+answer and the work are different things. Acknowledging an action at once and
+finishing it over the following frames, off the UI thread, or progressively, is
+correct. A partial result that keeps up beats a complete one that arrives late.
+
+**What sluggish means here, in the owner's own words.** Two behaviours, both
+observed on the torrent host, and both about work the table does after an input
+rather than about when an input is answered:
+
+- a sort header that shows nothing for more than 100 ms after the click;
+- a column resize that draws no guide line while the frame rate falls so far
+  that the pointer itself stops tracking, and the width appears to move once a
+  second or two. The reference for this one is a spreadsheet: it draws a cheap
+  line where the edge would land and applies the width on release.
+
+**What it does not mean.** It does not mean that a gesture must decide at the
+press what it can only know at the release. Sections 14 and 16 make a press wait
+in three cases, each so that a drag can keep something the press would have
+destroyed. Those waits last the user's own button hold, they are what makes a
+drag of an unselected row leave the selection standing, and removing them was
+tried once and rejected. Do not trade them for latency again without a
+measurement that names the code being paid for.
+
+### 1.2 These rules state outcomes; the mechanism is the implementer's
+
+Most of what follows describes what the user must be able to observe. Where a
+rule instead prescribes *how* — a particular wait, a particular order of
+operations, a particular structure — it is a defect in this document unless it
+is one of two things: a contract a host binds to, which is section 5's public
+surface and the event payloads; or a mechanism whose price is stated here beside
+it.
+
+An unpriced mechanism has already been implemented faithfully into a worse
+product here: recorded in `AGENTS.md`, a token rule was applied to a literal
+default, the header cell's padding was deleted, and the control rendered
+misaligned until a host wrote a style. The rule read perfectly. It did not say
+what it cost, so nobody weighed the cost, and it was obeyed into a defect.
+
+The reason is what makes a rule arguable. A rule with a stated reason can be
+checked against the case in front of you and raised as a finding when it does
+not apply. A bare instruction cannot — the next reader assumes somebody had a
+purpose, and implements it forever.
+
+Raised as a finding, not removed. The opposite mistake has also been made here,
+and it is the more expensive one. Section 14 and section 16 make a press wait
+for the release in three cases. An implementer judged those waits unpriced,
+priced them at the button hold, removed them, and rewrote this document and
+`AGENTS.md` to match — attributing the change to the owner, who had not asked
+for it and does not call the button hold sluggish. A rule you believe is wrong
+is a question for the owner. It is never a licence to change behaviour and then
+edit the specification into agreement.
+
+So: a rule that says what must be true belongs here. A rule that says how to
+make it true belongs here only with its price. A rule you think is mispriced is
+a finding to raise, not a thing to delete.
+
 ## 2. Scope and intentional non-goals
 
 `TableView` MUST NOT know about:

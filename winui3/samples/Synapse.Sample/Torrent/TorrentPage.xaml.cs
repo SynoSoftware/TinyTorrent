@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -69,7 +70,21 @@ public sealed partial class TorrentPage : Page
     /// <summary>When the pointer last went down on the table, so a sort can be timed from the press.</summary>
     private long _pressedAt;
 
+    /// <summary>
+    /// How long a pause ends a word. Chosen, not derived, and said plainly because the alternative
+    /// misleads: Windows publishes no metric for when a user has stopped typing, and the nearest
+    /// candidate — the double-click time, which is about two mouse events forming one act — carries
+    /// a 500 ms default that would leave the list half a second behind the word. This is short
+    /// enough that the result reads as following the typing and long enough to swallow a burst.
+    /// If a projection lands between two keystrokes at an ordinary typing rate, it is too short.
+    /// </summary>
+    private static readonly TimeSpan SearchSettleInterval = TimeSpan.FromMilliseconds(200);
+
     private TorrentCatalog? _catalog;
+    private DispatcherQueueTimer? _searchDue;
+
+    /// <summary>Set while the page is out of the tree, so a queued tick does not rebuild into it.</summary>
+    private bool _detached;
     private string _stateFilter = "all";
     private string _searchText = string.Empty;
     private bool _simulateEmptySource;
@@ -172,14 +187,16 @@ public sealed partial class TorrentPage : Page
     }
 
     /// <summary>
-    /// Stop the daemon simulation with the page. The ticker belongs to the dispatcher, not to this
-    /// page, so nothing else stops it: it goes on firing into a tree that is being taken apart, and
-    /// a tick that lands mid-teardown throws from whichever object has gone already.
+    /// Stop this page's timers with the page. They belong to the dispatcher, not to this page, so
+    /// nothing else stops them: they go on firing into a tree that is being taken apart, and a tick
+    /// that lands mid-teardown throws from whichever object has gone already.
     /// </summary>
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Unloaded -= OnUnloaded;
+        _detached = true;
         _catalog?.Stop();
+        _searchDue?.Stop();
     }
 
     // ------------------------------------------------------- host projection
@@ -230,6 +247,12 @@ public sealed partial class TorrentPage : Page
     };
 
     /// <summary>Text search is deliberately the host's. It matches the name and the ghost label.</summary>
+    /// <remarks>
+    /// Ordinal. This asks whether a file name contains what was typed, which is not an order the
+    /// user reads, and a pass runs one substring search per row — 2,002 of them — for which
+    /// culture-aware matching ran ICU collation. The visible difference is that a search no longer
+    /// folds an accent or the Turkish dotless i onto its plain letter.
+    /// </remarks>
     private bool MatchesText(TorrentRowViewModel row)
     {
         if (_searchText.Length == 0)
@@ -237,8 +260,8 @@ public sealed partial class TorrentPage : Page
             return true;
         }
 
-        return row.Name.Contains(_searchText, StringComparison.CurrentCultureIgnoreCase)
-            || (row.GhostLabel?.Contains(_searchText, StringComparison.CurrentCultureIgnoreCase) ?? false);
+        return row.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || (row.GhostLabel?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     /// <summary>
@@ -281,6 +304,12 @@ public sealed partial class TorrentPage : Page
         ApplyProjection();
     }
 
+    /// <summary>
+    /// A keystroke starts the pause; it does not re-project. Narrowing 2,002 rows to a handful
+    /// costs the table one collection notification per row that leaves, and running that from the
+    /// keystroke made a six-letter word pay it six times over, each one blocking the letter after
+    /// it. The text is read once, when the pause says the word is finished.
+    /// </summary>
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
@@ -288,8 +317,33 @@ public sealed partial class TorrentPage : Page
             return;
         }
 
-        _searchText = sender.Text.Trim();
-        ApplyProjection();
+        if (_searchDue is null)
+        {
+            _searchDue = DispatcherQueue.CreateTimer();
+            _searchDue.IsRepeating = false;
+
+            // How long a pause ends a word. The system's double-click time is the interval the
+            // user has themselves set for "two input events are one act", so someone who has
+            // slowed their input gets a longer pause; Windows publishes nothing closer for a
+            // keyboard.
+            _searchDue.Interval = SearchSettleInterval;
+            _searchDue.Tick += (_, _) =>
+            {
+                // Stopping the timer does not recall a tick the dispatcher has already picked up,
+                // and a page being taken apart is exactly where that lands. The same shape in
+                // TableView's settle timer reached the owner as a COMException on exit.
+                if (_detached)
+                {
+                    return;
+                }
+
+                _searchText = SearchBox.Text.Trim();
+                ApplyProjection();
+            };
+        }
+
+        _searchDue.Stop();
+        _searchDue.Start();
     }
 
     private void OnEmptySourceToggled(object sender, RoutedEventArgs e)

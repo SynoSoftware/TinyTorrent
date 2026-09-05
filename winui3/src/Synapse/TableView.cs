@@ -480,7 +480,8 @@ public sealed partial class TableView : Control
 
     private void OnLayoutInvalidated(object? sender, LayoutInvalidationReason reason)
     {
-        if (reason == LayoutInvalidationReason.Geometry)
+        // Anything but the offset can have moved the total width, a resize included.
+        if (reason != LayoutInvalidationReason.Offset)
         {
             UpdateHorizontalRange();
         }

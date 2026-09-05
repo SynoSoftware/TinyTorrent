@@ -1,13 +1,18 @@
 namespace Synapse;
 
-/// <summary>Why the resolved layout changed. Decides whether a subscriber re-measures.</summary>
+/// <summary>
+/// What changed about the resolved layout, in increasing order of what a subscriber has to redo.
+/// </summary>
 internal enum LayoutInvalidationReason
 {
     /// <summary>Only <see cref="ResolvedLayout.HorizontalOffset"/> moved. Arrange is enough.</summary>
     Offset,
 
-    /// <summary>Order, width, or visibility changed. Children and measure are stale.</summary>
-    Geometry,
+    /// <summary>The same visible columns at new widths. Measure is stale; the cells are not.</summary>
+    Widths,
+
+    /// <summary>The visible set or its order changed. Children and measure are both stale.</summary>
+    Columns,
 }
 
 /// <summary>
@@ -161,11 +166,19 @@ internal sealed class ResolvedLayout
     {
         _order.Clear();
         _order.AddRange(columns);
-        Rebuild();
+
+        // Always the structural reason, whatever the new order turns out to look like. This call is
+        // also what re-applies each header cell's sort indicator, and both a reset and a restored
+        // layout can change the sort while leaving the visible columns exactly as they were.
+        Resolve(LayoutInvalidationReason.Columns);
     }
 
-    /// <summary>Recompute derived visible geometry and announce a geometry change.</summary>
-    internal void Rebuild()
+    /// <summary>Recompute derived visible geometry and announce what changed about it.</summary>
+    internal void Rebuild() => Resolve(VisibleColumnsUnchanged()
+        ? LayoutInvalidationReason.Widths
+        : LayoutInvalidationReason.Columns);
+
+    private void Resolve(LayoutInvalidationReason reason)
     {
         _visible.Clear();
         double x = 0;
@@ -181,6 +194,39 @@ internal sealed class ResolvedLayout
         }
 
         _totalWidth = x;
-        Invalidated?.Invoke(this, LayoutInvalidationReason.Geometry);
+        Invalidated?.Invoke(this, reason);
+    }
+
+    /// <summary>
+    /// Whether the columns about to be published are the ones already published, in the same order.
+    /// </summary>
+    /// <remarks>
+    /// A resize moves widths inside a set that has not changed, and it does so on every pointer
+    /// move of the drag. Told only that the geometry moved, every realized row panel reconciles its
+    /// cells against the visible columns before measuring — a scan per child and a content write per
+    /// cell, across every realized row — to arrive at the children it already had. Separating the
+    /// two lets a resize ask for the measure it needs and nothing else.
+    /// </remarks>
+    private bool VisibleColumnsUnchanged()
+    {
+        int published = 0;
+
+        foreach (ResolvedColumn column in _order)
+        {
+            if (!column.IsVisible)
+            {
+                continue;
+            }
+
+            if (published >= _visible.Count
+                || !ReferenceEquals(_visible[published].Column, column))
+            {
+                return false;
+            }
+
+            published++;
+        }
+
+        return published == _visible.Count;
     }
 }

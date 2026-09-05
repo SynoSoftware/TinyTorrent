@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Synapse_Sample;
 
 /// <summary>
@@ -7,8 +9,11 @@ namespace Synapse_Sample;
 /// </summary>
 public static class TorrentComparers
 {
-    public static IComparer<object> Name { get; } =
-        By(row => row.Name, StringComparer.CurrentCultureIgnoreCase);
+    /// <summary>
+    /// Ordered by the collation's own output rather than by collating the names each time. Same
+    /// order; see <see cref="TorrentRowViewModel.NameSortKey"/> for what it costs otherwise.
+    /// </summary>
+    public static IComparer<object> Name { get; } = By(row => row.NameSortKey, SortKeyOrder);
 
     public static IComparer<object> Progress { get; } = By(row => row.Progress);
 
@@ -34,6 +39,10 @@ public static class TorrentComparers
     /// <summary>An incomplete torrent has no completion date; it sorts last.</summary>
     public static IComparer<object> CompletedOn { get; } =
         By(row => row.CompletedOn ?? DateTimeOffset.MaxValue);
+
+    /// <summary><see cref="SortKey"/> is not comparable itself; this is its documented order.</summary>
+    private static readonly IComparer<SortKey> SortKeyOrder =
+        Comparer<SortKey>.Create(static (left, right) => SortKey.Compare(left, right));
 
     private static IComparer<object> By<TKey>(
         Func<TorrentRowViewModel, TKey> key, IComparer<TKey>? comparer = null) =>

@@ -326,7 +326,6 @@ public sealed partial class TableView
 
         ReconcileSelection(rowFocus);
         UpdateStateLayer();
-        _Probe.AfterReconcile(_itemsView, _view, viewMoved ? "moved" : "same");
     }
 
     /// <summary>

@@ -164,29 +164,33 @@ public sealed partial class TableView
     /// </remarks>
     private IReadOnlyList<object> ViewOrder()
     {
-        IReadOnlyList<object> sorted = SortedSnapshot();
-
         // Natural order belongs to the host, which reorders when it means to; an empty view has no
         // established order to preserve; and a zero interval is the host asking for none of this.
         if (_sortColumn is null || _view.Count == 0 || _sortSettleInterval == TimeSpan.Zero)
         {
             _orderSettledAt = DateTimeOffset.UtcNow;
-            return sorted;
+            return SortedSnapshot();
         }
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (now - _orderSettledAt >= _sortSettleInterval)
         {
             _orderSettledAt = now;
-            return sorted;
+            return SortedSnapshot();
         }
 
+        // The base sequence, not the sorted one: a held update keeps the order the view already
+        // has, so all it needs from the snapshot is which rows are in it, and sorting to answer a
+        // question about membership is work thrown away. At the default interval against a host
+        // that publishes about once a second, that is two publishes in three, and a name sort of
+        // 2,002 rows is roughly 22,000 culture-aware string comparisons.
+        //
         // A membership change is never held back, so it is also never settled: HeldOrder returns
         // null for one, and the sorted order is what the arriving row needs anyway.
-        if (HeldOrder(sorted) is not List<object> held)
+        if (HeldOrder(_source.Snapshot) is not List<object> held)
         {
             _orderSettledAt = now;
-            return sorted;
+            return SortedSnapshot();
         }
 
         ScheduleSettle(_sortSettleInterval - (now - _orderSettledAt));
@@ -248,9 +252,9 @@ public sealed partial class TableView
     /// nothing about membership removes the merge, the cost and the arbitrary placement together.
     /// </para>
     /// </remarks>
-    private List<object>? HeldOrder(IReadOnlyList<object> sorted)
+    private List<object>? HeldOrder(IReadOnlyList<object> snapshot)
     {
-        if (sorted.Count != _view.Count)
+        if (snapshot.Count != _view.Count)
         {
             return null;
         }
@@ -258,13 +262,13 @@ public sealed partial class TableView
         // Always the snapshot's instances, never the view's: the host may have replaced a row with
         // an equal-identity instance, and keeping the old one would leave its container bound to an
         // object nothing updates any more.
-        Dictionary<object, object> live = new(sorted.Count, _identity);
-        foreach (object row in sorted)
+        Dictionary<object, object> live = new(snapshot.Count, _identity);
+        foreach (object row in snapshot)
         {
             live[row] = row;
         }
 
-        List<object> order = new(sorted.Count);
+        List<object> order = new(snapshot.Count);
         foreach (object shown in _view)
         {
             if (!live.TryGetValue(shown, out object? current))

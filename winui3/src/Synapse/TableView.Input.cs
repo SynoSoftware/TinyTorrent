@@ -197,22 +197,7 @@ public sealed partial class TableView
 
         _gestureCouldDrag = item is not null && CanBeginRowDrag(item);
 
-        // A plain press waits for release whenever the drag it might become must not have changed
-        // the selection first: an empty-surface marquee, a drag of the selected packet, and section
-        // 16's drag of an unselected row, which leaves the existing selection standing.
-        _gestureDeferred = item is null
-            || (!_gestureCtrl && !_gestureShift
-                && (_selection.IsSelected(item) || _gestureCouldDrag));
-
-        if (!_gestureDeferred && item is not null)
-        {
-            ApplyPointerSelection(item, _gestureCtrl, _gestureShift);
-        }
-        else
-        {
-            // Undo the container's own toggle inside the same input event.
-            ApplySelectionToContainers();
-        }
+        ApplyPress();
     }
 
     private void OnRowsPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -373,24 +358,68 @@ public sealed partial class TableView
         }
     }
 
-    /// <summary>Release with no gesture running: the deferred plain click, or an empty-space clear.</summary>
-    private void DispatchClick()
+    /// <summary>
+    /// What the press decides and what it does about it, over the gesture fields already set.
+    /// </summary>
+    /// <remarks>
+    /// A plain press waits for the release whenever the drag it might become must not have changed
+    /// the selection first: an empty-surface marquee, a drag of the selected packet, and section
+    /// 16's drag of an unselected row, which leaves the existing selection standing.
+    /// <para>
+    /// This wait was once removed, to answer a plain click at the press rather than at the release,
+    /// and the owner rejected that outright: it is a behaviour change, and the button hold is not
+    /// what he calls sluggish. What he does is a sort header that shows nothing for more than
+    /// 100 ms after the click, and a column resize that draws no guide line while the frame rate
+    /// falls so far that the pointer itself stops tracking. Neither is paid for here. Do not trade
+    /// this rule for latency again without a measurement that names this code.
+    /// </para>
+    /// <para>
+    /// One method rather than a rule the caller applies, because the proof harness cannot build a
+    /// <see cref="PointerRoutedEventArgs"/> and so cannot enter through the real handler. Given the
+    /// rule inline, it kept its own copy, and a harness that can agree with itself while
+    /// disagreeing with the control is a suite that stays green through a regression.
+    /// </para>
+    /// </remarks>
+    private void ApplyPress()
     {
-        SyncSelectionPolicy();
+        _gestureDeferred = _gestureItem is null
+            || (!_gestureCtrl && !_gestureShift
+                && (_selection.IsSelected(_gestureItem) || _gestureCouldDrag));
 
-        if (!_gestureDeferred)
+        if (_gestureDeferred)
         {
+            // Undo the container's own toggle inside the same input event.
+            ApplySelectionToContainers();
             return;
         }
 
+        ApplyPressSelection();
+    }
+
+    /// <summary>Release with no gesture running: the click a press held back, if it held one.</summary>
+    private void DispatchClick()
+    {
+        if (_gestureDeferred)
+        {
+            ApplyPressSelection();
+        }
+    }
+
+    /// <summary>
+    /// The selection change the press stands for: section 13's rules over a row, and the clear for
+    /// the surface beside the rows. One implementation, whether the press applies it or the release
+    /// does, so the two can never disagree about what a click means.
+    /// </summary>
+    private void ApplyPressSelection()
+    {
         if (_gestureItem is object item)
         {
             ApplyPointerSelection(item, _gestureCtrl, _gestureShift);
+            return;
         }
-        else
-        {
-            CommitSelection(_selection.Clear());
-        }
+
+        SyncSelectionPolicy();
+        CommitSelection(_selection.Clear());
     }
 
     /// <summary>Section 13's pointer rules, applied through the table's own model.</summary>

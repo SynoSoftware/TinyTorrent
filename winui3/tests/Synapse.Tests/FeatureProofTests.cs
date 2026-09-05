@@ -263,7 +263,10 @@ public class FeatureProofTests
 
     // ================================================================ F04 resize and fit
 
-    /// <summary>The separator gesture, driven through the strip's own three steps.</summary>
+    /// <summary>
+    /// The separator gesture, driven through the strip's own three steps. The drag moves a guide
+    /// and no width at all; the release applies exactly one.
+    /// </summary>
     [TestMethod]
     public Task F04_ASeparatorDragResizesOneColumnAndReportsOnce() => TestHost.RunAsync(async () =>
     {
@@ -281,26 +284,29 @@ public class FeatureProofTests
         Assert.IsTrue((bool)Proof.Call(strip, "BeginResizeAt", 150d, 1u)!, "the trailing edge is");
 
         Proof.Call(strip, "TrackResize", 210d);
-        Proof.Note($"F04 after tracking to 210: name={TableHarness.ResolvedWidth(table, "name")} " +
+        Proof.Note($"F04 after tracking to 210: guide={Preview(strip)} " +
+                   $"name={TableHarness.ResolvedWidth(table, "name")} " +
                    $"progress={TableHarness.ResolvedWidth(table, "progress")} events={events}");
-        Assert.AreEqual(210d, TableHarness.ResolvedWidth(table, "name"));
+        Assert.AreEqual(210d, Preview(strip), "the guide follows the pointer");
+        Assert.AreEqual(150d, TableHarness.ResolvedWidth(table, "name"), "and no width has moved");
         Assert.AreEqual(220d, TableHarness.ResolvedWidth(table, "progress"), "the neighbour is untouched");
         Assert.AreEqual(0, events, "a movement is not a persistence event");
 
         // Section 10 clamps to the column's own MinWidth of 90 and to nothing else.
         Proof.Call(strip, "TrackResize", 10d);
-        Assert.AreEqual(90d, TableHarness.ResolvedWidth(table, "name"), "clamped at MinWidth 90");
+        Assert.AreEqual(90d, Preview(strip), "the guide stops at MinWidth 90");
 
         Proof.Call(strip, "TrackResize", 260d);
         Proof.Call(strip, "CompleteResize");
         Proof.Note($"F04 completed: name={TableHarness.ResolvedWidth(table, "name")} events={events}");
-        Assert.AreEqual(260d, TableHarness.ResolvedWidth(table, "name"));
+        Assert.AreEqual(260d, TableHarness.ResolvedWidth(table, "name"), "the release applies it");
         Assert.AreEqual(1, events, "one gesture, one report");
         Assert.AreEqual(260d, table.GetLayoutState().ColumnWidths["name"]);
     });
 
+    /// <summary>Escape leaves the width alone, because the drag never applied one.</summary>
     [TestMethod]
-    public Task F04_EscapeDuringAResizePutsTheWidthBack() => TestHost.RunAsync(async () =>
+    public Task F04_EscapeDuringAResizeLeavesTheWidthAlone() => TestHost.RunAsync(async () =>
     {
         TableView table = await TorrentSchema.LoadAsync();
         TableHeaderStrip strip = TorrentSchema.Strip(table);
@@ -309,13 +315,17 @@ public class FeatureProofTests
 
         Proof.Call(strip, "BeginResizeAt", 150d, 1u);
         Proof.Call(strip, "TrackResize", 300d);
-        Assert.AreEqual(300d, TableHarness.ResolvedWidth(table, "name"));
+        Assert.AreEqual(300d, Preview(strip), "the guide had moved");
 
         Proof.Call(strip, "CancelGesture");
         Proof.Note($"F04 after Escape: name={TableHarness.ResolvedWidth(table, "name")} events={events}");
-        Assert.AreEqual(150d, TableHarness.ResolvedWidth(table, "name"));
+        Assert.AreEqual(150d, TableHarness.ResolvedWidth(table, "name"), "and no width ever did");
         Assert.AreEqual(0, events);
     });
+
+    /// <summary>The width the release would apply. Nothing else in the gesture changes a width.</summary>
+    private static double Preview(TableHeaderStrip strip) =>
+        Proof.Field<double>(strip, "_previewWidth");
 
     /// <summary>
     /// The two lines a double-click on a separator runs: resolve the separator, fit that column.
@@ -1501,18 +1511,10 @@ public class FeatureProofTests
                 && (bool)Proof.Call(h.Table, "CanBeginRowDrag", item)!;
             Proof.SetField(h.Table, "_gestureCouldDrag", couldDrag);
 
-            bool deferred = item is null
-                || (!ctrl && !shift && (h.Table.SelectedItems.Contains(item) || couldDrag));
-            Proof.SetField(h.Table, "_gestureDeferred", deferred);
-
-            if (!deferred && item is not null)
-            {
-                Proof.Call(h.Table, "ApplyPointerSelection", item, ctrl, shift);
-            }
-            else
-            {
-                Proof.Call(h.Table, "ApplySelectionToContainers");
-            }
+            // The control's own press step, over the fields set above. Never a copy of its rule: a
+            // harness that can agree with itself while disagreeing with the control is a suite that
+            // stays green through a regression.
+            Proof.Call(h.Table, "ApplyPress");
         }
     }
 }

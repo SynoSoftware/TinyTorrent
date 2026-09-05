@@ -274,6 +274,34 @@
                                            HorizontalAlignment="Center"
                                            Fill="{ThemeResource SynapseMarkerOuterBrush}" />
                             </Grid>
+
+                            <!--
+                                Section 10's resize guide. The width used to change on every
+                                pointer move, and each move re-measured every realized row: the
+                                owner watched the table fall to about two frames a second, with the
+                                pointer itself no longer tracking. The width now lands once, on
+                                release, and this line is the whole of what the drag costs — one
+                                element moving, whatever the table is holding.
+
+                                A hairline with a halo, and deliberately not the insertion marker's
+                                silhouette. That marker promises "the column will drop here" and
+                                carries a cap to say so; this one promises "the edge will land
+                                here". Two different promises should not share a picture.
+
+                                In a Popup because the line has to cross the rows and the strip
+                                clips its own children. The offsets are measured from the strip's
+                                top-left, which is the table's, so a line the table's own height
+                                spans the header and every row below it.
+                            -->
+                            <primitives:Popup x:Name="PART_ResizeGuide"
+                                              IsLightDismissEnabled="False">
+                                <Grid Width="3"
+                                      IsHitTestVisible="False"
+                                      AutomationProperties.AccessibilityView="Raw">
+                                    <Rectangle Width="3" Fill="{ThemeResource SynapseMarkerInnerBrush}" />
+                                    <Rectangle Width="1" Fill="{ThemeResource SynapseMarkerOuterBrush}" />
+                                </Grid>
+                            </primitives:Popup>
                         </Grid>
                     </Border>
                 </ControlTemplate>
