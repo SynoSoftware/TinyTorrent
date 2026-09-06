@@ -30,9 +30,9 @@ public class RealColumnDragTests
     {
         DragHarness h = await DragHarness.LoadAsync();
         int events = 0;
-        h.Table.LayoutChanged += (_, e) =>
+        h.Table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(TableLayoutChangeKind.ColumnMove, e.Kind);
+            Assert.AreEqual(TableLayoutChangeKind.ColumnMove, kind);
             events++;
         };
 

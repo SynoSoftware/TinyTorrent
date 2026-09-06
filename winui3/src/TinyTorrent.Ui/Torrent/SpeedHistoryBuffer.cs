@@ -1,6 +1,6 @@
 using System.Collections;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// A fixed-length ring of recent speed samples, oldest first. It never allocates while sampling,

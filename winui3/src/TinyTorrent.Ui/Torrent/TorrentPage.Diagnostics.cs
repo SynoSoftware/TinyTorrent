@@ -13,7 +13,7 @@ using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI.Input.Preview.Injection;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// The measurement harness for <see cref="TorrentPage"/>. It runs only when the diagnostics flag
@@ -320,7 +320,7 @@ public sealed partial class TorrentPage
         _simulateEmptySource = true;
         ApplyProjection();
         await Settle(400);
-        W($"  simulated empty source: EmptyState={Table.EmptyState} rows={_projectedCount} " +
+        W($"  simulated empty source: Placeholder={Table.Placeholder} rows={_projectedCount} " +
           $"presentation visible = {StateLayerVisible()}");
         await CaptureAsync("torrent-empty.bmp", this);
 
@@ -332,13 +332,13 @@ public sealed partial class TorrentPage
         // The ticker republishes the projection when a download completes, which would put the
         // rows straight back. Pause it for the loading probe.
         _catalog?.Stop();
-        Table.IsLoading = true;
+        Table.Placeholder = TablePlaceholder.Loading;
         Table.ItemsSource = NoRows;
         await Settle(500);
         W($"  loading presentation visible = {StateLayerVisible()}, rows in view = " +
           $"{FindDescendant<ListView>(Table)?.Items.Count}");
         await CaptureAsync("torrent-loading.bmp", this);
-        Table.IsLoading = false;
+        Table.Placeholder = TablePlaceholder.Empty;
         ApplyProjection();
         _catalog?.Start();
         await Settle(500);
@@ -478,12 +478,12 @@ public sealed partial class TorrentPage
         async Task<string> Reversal(string what, IReadOnlyList<TorrentRowViewModel> rows)
         {
             Table.ItemsSource = rows;
-            Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+            Table.Sort = new(QueueColumn);
             await Settle(900);
 
             _notifications = 0;
             (double changed, double laidOut) =
-                Time(() => Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending)));
+                Time(() => Table.Sort = new(QueueColumn, TableSortDirection.Descending));
 
             return $"  {what}: {rows.Count} rows, {_notifications} notifications, " +
                    $"{_collections} collections, changed in {changed:0} ms, laid out in {laidOut:0} ms, " +
@@ -507,7 +507,7 @@ public sealed partial class TorrentPage
         finally
         {
             bigger?.Stop();
-            Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+            Table.Sort = null;
             ApplyProjection();
             await Settle(900);
             _catalog.Start();
@@ -565,7 +565,7 @@ public sealed partial class TorrentPage
         }
 
         _catalog!.Stop();
-        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        Table.Sort = new(QueueColumn);
         await Settle(600);
 
         // 0. The mechanism, before any symptom. Scroll away from the top so the realized run sits
@@ -599,11 +599,11 @@ public sealed partial class TorrentPage
         await Settle(400);
 
         // 1. The reversal itself.
-        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        Table.Sort = new(QueueColumn);
         await Settle(600);
         _notifications = 0;
         (double changed, double laidOut) =
-            Time(() => Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending)));
+            Time(() => Table.Sort = new(QueueColumn, TableSortDirection.Descending));
 
         W($"  1. a full reversal: {_notifications} notifications, {_collections} collections, " +
           $"changed in {changed:0} ms and laid out in {laidOut:0} ms");
@@ -675,8 +675,8 @@ public sealed partial class TorrentPage
         list.UpdateLayout();
         await Settle(400);
 
-        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
-        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Descending));
+        Table.Sort = new(QueueColumn);
+        Table.Sort = new(QueueColumn, TableSortDirection.Descending);
 
         // Asserting between the two reconciles and their layout finds no containers to assert on:
         // the list answers no index for any of them until it has laid out. That is a fact about
@@ -690,7 +690,7 @@ public sealed partial class TorrentPage
 
         // 6. The same thing with the host publishing underneath it.
         _catalog.Start();
-        Table.ApplyLayoutState(Sorted("speed", TableSortDirection.Descending));
+        Table.Sort = new(SpeedColumn, TableSortDirection.Descending);
         TimeSpan restore = Table.SortSettleInterval;
         Table.SortSettleInterval = TimeSpan.Zero;
         for (int slice = 0; slice < 15; slice++)
@@ -707,7 +707,7 @@ public sealed partial class TorrentPage
           Disagreements());
 
         Table.SortSettleInterval = restore;
-        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        Table.Sort = null;
         _catalog.Stop();
         scroller?.ChangeView(null, 0, null, disableAnimation: true);
         await Settle(600);
@@ -834,7 +834,7 @@ public sealed partial class TorrentPage
     /// on, so the table withholds the drag while such a sort is active: the queue column declares
     /// itself the row order, and this page no longer touches the flag for a sort. Sorting is driven
     /// here through the strip's own click path rather than through
-    /// <see cref="TableView.ApplyLayoutState"/>, which reports nothing back to the host precisely
+    /// <see cref="TableView.Layout"/>, which reports nothing back to the host precisely
     /// because the host asked for it. The column is cycled all the way back to unsorted, so the
     /// sections after this one see the table as they would have.
     /// </summary>
@@ -1161,11 +1161,11 @@ public sealed partial class TorrentPage
         W($"  rows with a bound listener after the filter churn = {BoundRows()}");
 
         await Settle(600);
-        W("  " + Timed("sort name ascending", () => Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending))));
+        W("  " + Timed("sort name ascending", () => Table.Sort = new(NameColumn)));
         await Settle(600);
-        W("  " + Timed("sort name descending, every row moves", () => Table.ApplyLayoutState(Sorted("name", TableSortDirection.Descending))));
+        W("  " + Timed("sort name descending, every row moves", () => Table.Sort = new(NameColumn, TableSortDirection.Descending)));
         await Settle(600);
-        W("  " + Timed("sort cleared", () => Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending))));
+        W("  " + Timed("sort cleared", () => Table.Sort = null));
     }
 
     /// <summary>
@@ -1189,14 +1189,13 @@ public sealed partial class TorrentPage
 
         Microsoft.UI.Xaml.Media.Animation.TransitionCollection? live = list.ItemContainerTransitions;
 
-        (string Label, TableLayoutState From, TableLayoutState To, bool Motion)[] cases =
+        (string Label, TableSort? From, TableSort? To, bool Motion)[] cases =
         {
-            ("natural order to name order", Sorted(null, TableSortDirection.Ascending),
-                Sorted("name", TableSortDirection.Ascending), true),
-            ("queue ascending to descending", Sorted("queue", TableSortDirection.Ascending),
-                Sorted("queue", TableSortDirection.Descending), true),
-            ("queue reversal with the row transitions off", Sorted("queue", TableSortDirection.Ascending),
-                Sorted("queue", TableSortDirection.Descending), false),
+            ("natural order to name order", null, new TableSort(NameColumn), true),
+            ("queue ascending to descending", new TableSort(QueueColumn),
+                new TableSort(QueueColumn, TableSortDirection.Descending), true),
+            ("queue reversal with the row transitions off", new TableSort(QueueColumn),
+                new TableSort(QueueColumn, TableSortDirection.Descending), false),
         };
 
         Dictionary<string, List<double>> mutation = new();
@@ -1211,7 +1210,7 @@ public sealed partial class TorrentPage
         // Cases outside, trials inside, so the transitions are switched once for a case instead of
         // twice for every trial of it. Assigning a TransitionCollection is not free and it was
         // landing between the settle and the measurement.
-        foreach ((string label, TableLayoutState from, TableLayoutState to, bool motion) in cases)
+        foreach ((string label, TableSort? from, TableSort? to, bool motion) in cases)
         {
             if (!motion)
             {
@@ -1227,11 +1226,11 @@ public sealed partial class TorrentPage
             // measurement; the spread reported below is.
             for (int trial = 0; trial < 5; trial++)
             {
-                Table.ApplyLayoutState(from);
+                Table.Sort = from;
                 await Settle(600);
 
                 _notifications = 0;
-                (double changed, double laidOut) = Time(() => Table.ApplyLayoutState(to));
+                (double changed, double laidOut) = Time(() => Table.Sort = to);
 
                 mutation[label].Add(changed);
                 layout[label].Add(laidOut);
@@ -1243,9 +1242,9 @@ public sealed partial class TorrentPage
 
             // The container count, from a pass of its own so that no reported duration is measured
             // with a ContainerContentChanging subscriber attached.
-            Table.ApplyLayoutState(from);
+            Table.Sort = from;
             await Settle(600);
-            (int realized, double _) = Realizations(() => Table.ApplyLayoutState(to));
+            (int realized, double _) = Realizations(() => Table.Sort = to);
             counts[label] = (counts[label].Notifications, realized);
             await Settle(600);
 
@@ -1260,16 +1259,16 @@ public sealed partial class TorrentPage
         // table pays a whole re-sort once a second for as long as the sort is applied, which no
         // amount of making one sort cheaper would fix. Sorting on speed, which every tick changes,
         // is the worst case; sorting on name, which no tick changes, is the control.
-        foreach ((string column, TimeSpan settle) in new[]
+        foreach ((TableColumn column, TimeSpan settle) in new[]
         {
-            ("speed", Table.SortSettleInterval),
-            ("speed", TimeSpan.Zero),
-            ("name", Table.SortSettleInterval),
+            (SpeedColumn, Table.SortSettleInterval),
+            (SpeedColumn, TimeSpan.Zero),
+            (NameColumn, Table.SortSettleInterval),
         })
         {
             TimeSpan restore = Table.SortSettleInterval;
             Table.SortSettleInterval = settle;
-            Table.ApplyLayoutState(Sorted(column, TableSortDirection.Descending));
+            Table.Sort = new(column, TableSortDirection.Descending);
             await Settle(600);
             _catalog.Start();
 
@@ -1309,17 +1308,17 @@ public sealed partial class TorrentPage
             _catalog.Stop();
 
             int published = ProjectionRuns - publishedBefore;
-            W($"  sorted by {column}, settle {settle.TotalSeconds:0.#}s: {published} publishes in " +
+            W($"  sorted by {column.DisplayName}, settle {settle.TotalSeconds:0.#}s: {published} publishes in " +
               $"15 s, {reorders} of them reordered the view, {_notifications} notifications in total");
 
             Table.SortSettleInterval = restore;
         }
 
-        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        Table.Sort = null;
         await Settle(400);
         _catalog.Start();
 
-        foreach ((string label, TableLayoutState _, TableLayoutState _, bool _) in cases)
+        foreach ((string label, TableSort? _, TableSort? _, bool _) in cases)
         {
             List<double> changing = mutation[label];
             List<double> after = layout[label];
@@ -1366,7 +1365,7 @@ public sealed partial class TorrentPage
     {
         if (Skip("O")) { return; }
 
-        IReadOnlyList<string> order = Table.GetLayoutState().ColumnOrder;
+        IReadOnlyList<string> order = Table.Layout.Order;
         string[] hideable = { "peers", "size", "speed", "status", "queue" };
 
         int worstOverlaps = 0;
@@ -1386,8 +1385,8 @@ public sealed partial class TorrentPage
                 ["progress"] = 110 + (round % 4 * 45),
             };
 
-            Table.ApplyLayoutState(
-                new TableLayoutState(order, visibility, widths, "queue", TableSortDirection.Ascending));
+            Table.Layout = 
+                new TableLayout(order, visibility, widths, "queue", TableSortDirection.Ascending);
             Table.UpdateLayout();
 
             TableHeaderStrip? strip = FindDescendant<TableHeaderStrip>(Table);
@@ -1442,7 +1441,7 @@ public sealed partial class TorrentPage
           $"{worstOverlaps} pairs sharing an offset, {worstZero} visible columns of zero width, " +
           $"{worstExtraCells} header cells beyond the visible column count.{detail}");
 
-        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        Table.Sort = null;
         await Settle(300);
     }
 
@@ -1493,7 +1492,7 @@ public sealed partial class TorrentPage
         }
 
         // Rows the capture will actually contain: the selected cue is only worth looking at where
-        // it is drawn, and SetSelection does not scroll.
+        // it is drawn, and a Selection request does not scroll.
         List<object> rows = new();
         for (int i = panel.FirstVisibleIndex + 2; i <= panel.FirstVisibleIndex + 3; i++)
         {
@@ -1503,7 +1502,7 @@ public sealed partial class TorrentPage
             }
         }
 
-        Table.SetSelection(rows, rows.Count > 0 ? rows[0] : null);
+        Table.Selection = new(rows, rows.Count > 0 ? rows[0] : null);
         await Settle(400);
 
         W($"  selected the {rows.Count} rows at view index " +
@@ -1511,7 +1510,7 @@ public sealed partial class TorrentPage
           string.Join(", ", rows.Cast<TorrentRowViewModel>().Select(r => r.Name)));
         await CaptureAsync("torrent-selected.bmp", Table);
 
-        Table.SetSelection(Array.Empty<object>());
+        Table.Selection = TableSelection.Empty;
         await Settle(200);
     }
 
@@ -1571,11 +1570,11 @@ public sealed partial class TorrentPage
         await Settle(200);
         W($"  a clicked row holds focus as {Described(FocusManager.GetFocusedElement(Table.XamlRoot))}");
 
-        Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending));
+        Table.Sort = new(NameColumn);
         await Settle(700);
         W($"  after sorting by name, focus is {Described(FocusManager.GetFocusedElement(Table.XamlRoot))}");
 
-        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        Table.Sort = null;
         await Settle(700);
         W($"  after clearing the sort, focus is {Described(FocusManager.GetFocusedElement(Table.XamlRoot))}");
     }
@@ -1605,7 +1604,7 @@ public sealed partial class TorrentPage
         // Let the transitions of the sorts just measured finish, so only this sort's remain.
         await Settle(700);
         _catalog!.Stop();
-        Table.ApplyLayoutState(Sorted("name", TableSortDirection.Ascending));
+        Table.Sort = new(NameColumn);
         Table.UpdateLayout();
         await Task.Delay(60);
         byte[] early = (await RenderAsync(Table)).pixels;
@@ -1721,10 +1720,10 @@ public sealed partial class TorrentPage
     {
         if (Skip("L")) { return; }
 
-        IReadOnlyList<string> order = Table.GetLayoutState().ColumnOrder;
+        IReadOnlyList<string> order = Table.Layout.Order;
         string[] visible = { "name", "progress", "status", "queue", "speed", "peers", "size" };
 
-        TableLayoutState Layout(string? hidden, TableSortDirection direction)
+        TableLayout Hiding(string? hidden)
         {
             Dictionary<string, bool> visibility = new();
             if (hidden is not null)
@@ -1732,7 +1731,8 @@ public sealed partial class TorrentPage
                 visibility[hidden] = false;
             }
 
-            return new TableLayoutState(order, visibility, new Dictionary<string, double>(), "queue", direction);
+            return new TableLayout(
+                order, visibility, new Dictionary<string, double>(), null, TableSortDirection.Ascending);
         }
 
         double Relist(string? hidden)
@@ -1740,13 +1740,14 @@ public sealed partial class TorrentPage
             double best = double.MaxValue;
             for (int attempt = 0; attempt < 3; attempt++)
             {
-                Table.ApplyLayoutState(Layout(hidden, TableSortDirection.Ascending));
+                Table.Layout = Hiding(hidden);
+                Table.Sort = new(QueueColumn);
                 Table.UpdateLayout();
 
                 // The sum of Time's two numbers, so this section's figure can be laid beside K's
                 // and N's for the same reversal instead of beside neither.
                 (double mutation, double layout) = Time(
-                    () => Table.ApplyLayoutState(Layout(hidden, TableSortDirection.Descending)));
+                    () => Table.Sort = new(QueueColumn, TableSortDirection.Descending));
                 best = Math.Min(best, mutation + layout);
             }
 
@@ -1761,7 +1762,7 @@ public sealed partial class TorrentPage
             W($"  without {id,-8}: {without,6:0.0} ms, so {id} accounts for about {all - without,5:0.0} ms");
         }
 
-        Table.ApplyLayoutState(Sorted(null, TableSortDirection.Ascending));
+        Table.Sort = null;
         Table.UpdateLayout();
     }
 
@@ -1871,7 +1872,7 @@ public sealed partial class TorrentPage
 
         await Settle(700);
 
-        Table.ApplyLayoutState(Sorted("queue", TableSortDirection.Ascending));
+        Table.Sort = new(QueueColumn);
         await Settle(700);
         W(State("after the sort"));
 
@@ -2002,13 +2003,6 @@ public sealed partial class TorrentPage
         await Settle(600);
     }
 
-    private TableLayoutState Sorted(string? column, TableSortDirection direction) => new(
-        Table.GetLayoutState().ColumnOrder,
-        new Dictionary<string, bool>(),
-        new Dictionary<string, double>(),
-        column,
-        direction);
-
     private bool StateLayerVisible()
     {
         ContentPresenter? layer = FindByName<ContentPresenter>(Table, "PART_StateLayer");
@@ -2023,7 +2017,7 @@ public sealed partial class TorrentPage
         FilterSeeding.IsChecked = filter == "seeding";
         ApplyProjection();
         await Settle(350);
-        W($"  filter '{filter}' -> {_projectedCount} rows, EmptyState={Table.EmptyState}");
+        W($"  filter '{filter}' -> {_projectedCount} rows, Placeholder={Table.Placeholder}");
     }
 
     private async Task SetSearch(string text)
@@ -2032,7 +2026,7 @@ public sealed partial class TorrentPage
         SearchBox.Text = text;
         ApplyProjection();
         await Settle(350);
-        W($"  search '{text}' -> {_projectedCount} rows, EmptyState={Table.EmptyState}");
+        W($"  search '{text}' -> {_projectedCount} rows, Placeholder={Table.Placeholder}");
     }
 
     private async Task Settle(int ms)

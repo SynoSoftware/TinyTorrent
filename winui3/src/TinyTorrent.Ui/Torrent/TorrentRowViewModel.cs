@@ -4,7 +4,23 @@ using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
+
+/// <summary>A torrent name reduced to the bytes the culture orders it by.</summary>
+/// <remarks>
+/// <see cref="SortKey"/> carries its comparison as a static method and implements no interface, so
+/// it cannot be a sort key on its own. The table's schema takes only a key that orders itself,
+/// which is what turns an unorderable key into a compile error; this is what satisfies that without
+/// giving the library a second way to declare a sort.
+/// </remarks>
+internal readonly struct NameOrder : IComparable<NameOrder>
+{
+    private readonly SortKey _key;
+
+    internal NameOrder(SortKey key) => _key = key;
+
+    public int CompareTo(NameOrder other) => SortKey.Compare(_key, other._key);
+}
 
 /// <summary>
 /// One torrent, kept alive across daemon snapshots so cells redraw instead of rebuilding.
@@ -93,8 +109,8 @@ public sealed class TorrentRowViewModel : INotifyPropertyChanged
     /// <c>StringComparer.CurrentCultureIgnoreCase</c> captured in a static.
     /// </para>
     /// </remarks>
-    internal SortKey NameSortKey => _nameSortKey ??=
-        CultureInfo.CurrentCulture.CompareInfo.GetSortKey(_name, CompareOptions.IgnoreCase);
+    internal NameOrder NameOrder => new(_nameSortKey ??=
+        CultureInfo.CurrentCulture.CompareInfo.GetSortKey(_name, CompareOptions.IgnoreCase));
 
     /// <summary>Completed fraction, 0 to 1.</summary>
     public double Progress

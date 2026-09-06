@@ -39,7 +39,10 @@ public sealed partial class TableView : Control
     private FrameworkElement? _rowInsertionMarker;
 
     private bool _schemaCaptured;
-    private TableLayoutState? _pendingLayoutState;
+    private TableLayout? _pendingLayout;
+
+    private UIElement? _shippedPlaceholder;
+    private TablePlaceholder _shippedPlaceholderKind;
 
     public TableView()
     {
@@ -61,9 +64,11 @@ public sealed partial class TableView : Control
 
     /// <summary>
     /// Raised once after each completed effective sort, column move, resize, fit, visibility, or
-    /// reset. Never raised by initial setup or by <see cref="ApplyLayoutState"/>.
+    /// reset, carrying which of those it was. Never raised by initial setup or by restoring
+    /// <see cref="Layout"/>. A host that wants the snapshot reads <see cref="Layout"/>, which is
+    /// the same value the event used to carry.
     /// </summary>
-    public event EventHandler<TableLayoutChangedEventArgs>? LayoutChanged;
+    public event EventHandler<TableLayoutChangeKind>? LayoutChanged;
 
     /// <summary>
     /// The icon font the control's own generated menu draws from, so a host building the row menu
@@ -79,63 +84,85 @@ public sealed partial class TableView : Control
     public static Microsoft.UI.Xaml.Media.FontFamily IconFontFamily => TableIcons.Font;
 
     /// <summary>The single geometry source read by the header panel and every realized row panel.</summary>
-    internal ResolvedLayout Layout { get; } = new();
-
-    /// <summary>An independent snapshot of the current effective layout. Overrides only.</summary>
-    public TableLayoutState GetLayoutState()
-    {
-        List<string> order = new();
-        Dictionary<string, bool> visibility = new(StringComparer.Ordinal);
-        Dictionary<string, double> widths = new(StringComparer.Ordinal);
-
-        if (_schemaCaptured)
-        {
-            foreach (ResolvedColumn column in Layout.Order)
-            {
-                order.Add(column.Id);
-
-                if (column.VisibilityOverride is bool visible && visible != column.BaselineVisibility)
-                {
-                    visibility[column.Id] = visible;
-                }
-
-                if (column.WidthOverride is double width && width != column.BaselineWidth)
-                {
-                    widths[column.Id] = width;
-                }
-            }
-        }
-        else
-        {
-            foreach (TableColumn column in Columns)
-            {
-                order.Add(column.Id);
-            }
-        }
-
-        return new TableLayoutState(order, visibility, widths, _sortColumn?.Id, _sortDirection);
-    }
+    internal ResolvedLayout Geometry { get; } = new();
 
     /// <summary>
-    /// Restore a persisted layout defensively. Silent: it never raises
-    /// <see cref="LayoutChanged"/>. Called before the first <c>Loaded</c> it is held and resolved
-    /// immediately after schema capture.
+    /// The effective column layout, as data the host can store. Reading gives an independent
+    /// snapshot of the overrides only; assigning restores one defensively — unknown, stale, or
+    /// impossible entries are ordinary compatibility input, recovered as section 18 defines, not a
+    /// configuration error.
     /// </summary>
-    public void ApplyLayoutState(TableLayoutState state)
+    /// <remarks>
+    /// The setter is silent: it never raises <see cref="LayoutChanged"/>, because the host that
+    /// applied it is the host that would be told. Assigned before the first <c>Loaded</c> it is
+    /// held and resolved immediately after schema capture, so a saved layout can be restored at
+    /// construction.
+    /// <para>
+    /// A column with no <see cref="TableColumn.Id"/> is not persisted: it appears in neither the
+    /// order nor the override maps, and a restore leaves it in the declared order after every
+    /// column the snapshot did name.
+    /// </para>
+    /// </remarks>
+    public TableLayout Layout
     {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (!_schemaCaptured)
+        get
         {
-            _pendingLayoutState = state;
-            return;
+            List<string> order = new();
+            Dictionary<string, bool> visibility = new(StringComparer.Ordinal);
+            Dictionary<string, double> widths = new(StringComparer.Ordinal);
+
+            if (_schemaCaptured)
+            {
+                foreach (ResolvedColumn column in Geometry.Order)
+                {
+                    if (column.Id is not string id)
+                    {
+                        continue;
+                    }
+
+                    order.Add(id);
+
+                    if (column.VisibilityOverride is bool visible && visible != column.BaselineVisibility)
+                    {
+                        visibility[id] = visible;
+                    }
+
+                    if (column.WidthOverride is double width && width != column.BaselineWidth)
+                    {
+                        widths[id] = width;
+                    }
+                }
+            }
+            else
+            {
+                foreach (TableColumn column in Columns)
+                {
+                    if (column.Id is string id)
+                    {
+                        order.Add(id);
+                    }
+                }
+            }
+
+            return new TableLayout(order, visibility, widths, _sortColumn?.Id, _sortDirection);
         }
 
-        // A restored sort changes the private view. Schema capture rebuilds it itself, so only the
-        // post-load path needs this, and only when the effective sort actually moved.
-        if (ApplyLayoutStateCore(state))
+        set
         {
-            RebuildView();
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (!_schemaCaptured)
+            {
+                _pendingLayout = value;
+                return;
+            }
+
+            // A restored sort changes the private view. Schema capture rebuilds it itself, so only
+            // the post-load path needs this, and only when the effective sort actually moved.
+            if (ApplyLayoutCore(value))
+            {
+                RebuildView();
+            }
         }
     }
 
@@ -169,7 +196,7 @@ public sealed partial class TableView : Control
             _horizontalScrollBar.ValueChanged += OnHorizontalScrollBarValueChanged;
         }
 
-        Layout.Invalidated += OnLayoutInvalidated;
+        Geometry.Invalidated += OnLayoutInvalidated;
 
         AttachInput();
 
@@ -199,7 +226,7 @@ public sealed partial class TableView : Control
         // away, and would hold this table alive to do it.
         _settleDue?.Stop();
 
-        Layout.Invalidated -= OnLayoutInvalidated;
+        Geometry.Invalidated -= OnLayoutInvalidated;
     }
 
     /// <summary>
@@ -247,16 +274,16 @@ public sealed partial class TableView : Control
         Columns.CollectionChanged += OnColumnsMutatedAfterCapture;
 
         // Identity is setup-only. Anything selected before this point was bucketed by reference.
-        _identity.KeySelector = ItemKeySelector;
+        _identity.KeySelector = ItemKey;
         _selection.RehashIdentity();
 
-        Layout.SetOrder(_resolved);
+        Geometry.SetOrder(_resolved);
 
-        if (_pendingLayoutState is not null)
+        if (_pendingLayout is not null)
         {
-            TableLayoutState pending = _pendingLayoutState;
-            _pendingLayoutState = null;
-            ApplyLayoutStateCore(pending);
+            TableLayout pending = _pendingLayout;
+            _pendingLayout = null;
+            ApplyLayoutCore(pending);
         }
 
         UpdateHorizontalRange();
@@ -275,31 +302,36 @@ public sealed partial class TableView : Control
                 throw ConfigurationError("Columns contains a null entry.");
             }
 
-            if (string.IsNullOrEmpty(column.Id))
+            // Id is optional: a table whose layout is never saved needs no persistence keys. What
+            // is not optional is that a supplied one identifies exactly one column.
+            if (column.Id is string id)
             {
-                throw ConfigurationError("Every column needs a non-empty Id.");
-            }
+                if (id.Length == 0)
+                {
+                    throw ConfigurationError("A column Id must be non-empty, or absent.");
+                }
 
-            if (!ids.Add(column.Id))
-            {
-                throw ConfigurationError($"Duplicate column Id '{column.Id}'.");
+                if (!ids.Add(id))
+                {
+                    throw ConfigurationError($"Duplicate column Id '{id}'.");
+                }
             }
 
             if (string.IsNullOrEmpty(column.DisplayName))
             {
-                throw ConfigurationError($"Column '{column.Id}' needs a non-empty DisplayName.");
+                throw ConfigurationError($"Column '{Describe(column)}' needs a non-empty DisplayName.");
             }
 
-            if (!double.IsFinite(column.DefaultWidth) || column.DefaultWidth <= 0)
+            if (!double.IsFinite(column.Width) || column.Width <= 0)
             {
                 throw ConfigurationError(
-                    $"Column '{column.Id}' needs a finite DefaultWidth greater than zero.");
+                    $"Column '{Describe(column)}' needs a finite Width greater than zero.");
             }
 
             if (!double.IsFinite(column.MinWidth) || column.MinWidth < 0)
             {
                 throw ConfigurationError(
-                    $"Column '{column.Id}' needs a finite, non-negative MinWidth.");
+                    $"Column '{Describe(column)}' needs a finite, non-negative MinWidth.");
             }
 
             bool maxWidthValid = double.IsPositiveInfinity(column.MaxWidth)
@@ -307,30 +339,26 @@ public sealed partial class TableView : Control
             if (!maxWidthValid)
             {
                 throw ConfigurationError(
-                    $"Column '{column.Id}' needs a finite positive MaxWidth or positive infinity.");
+                    $"Column '{Describe(column)}' needs a finite positive MaxWidth or positive infinity.");
             }
 
             if (column.MinWidth > column.MaxWidth)
             {
                 throw ConfigurationError(
-                    $"Column '{column.Id}' has MinWidth greater than MaxWidth.");
+                    $"Column '{Describe(column)}' has MinWidth greater than MaxWidth.");
             }
 
-            // Section 6.1: "a column is sortable only when CanSort is true and it has a pure
-            // comparer". Without one the header would offer a sort that cannot order anything.
-            if (column.CanSort && column.SortComparer is null)
-            {
-                throw ConfigurationError(
-                    $"Column '{column.Id}' declares CanSort without a SortComparer.");
-            }
-
-            if (column.IsVisibleByDefault)
+            // Sortability is no longer two properties that had to agree: a column carries a sort
+            // key from the schema or it does not, so there is nothing left here to contradict.
+            if (column.IsVisible)
             {
                 anyVisible = true;
             }
         }
 
-        if (Columns.Count > 0 && !anyVisible)
+        // A table declaring no columns has no visible column either, so it belongs here rather than
+        // in an exemption: nothing can add one afterwards, because the schema is captured now.
+        if (!anyVisible)
         {
             throw ConfigurationError("At least one column must be visible by default.");
         }
@@ -350,27 +378,33 @@ public sealed partial class TableView : Control
 
     private static InvalidOperationException ConfigurationError(string message) => new(message);
 
+    /// <summary>How to name a column in a configuration error, now that its Id may be absent.</summary>
+    private static string Describe(TableColumn column) => column.Id ?? column.DisplayName;
+
     // ------------------------------------------------------- layout persistence
 
     /// <returns>True when the restored sort is not the one that was already in force.</returns>
-    private bool ApplyLayoutStateCore(TableLayoutState state)
+    private bool ApplyLayoutCore(TableLayout state)
     {
         Dictionary<string, ResolvedColumn> byId = new(StringComparer.Ordinal);
         foreach (ResolvedColumn column in _resolved)
         {
-            byId[column.Id] = column;
+            if (column.Id is string id)
+            {
+                byId[id] = column;
+            }
         }
 
-        // Order: known IDs first, duplicates dropped after their first valid occurrence, then any
-        // newly introduced column appended in definition order.
+        // Order: known IDs first, duplicates dropped after their first valid occurrence, then every
+        // column the snapshot did not name — a new one, or one with no Id — in definition order.
         List<ResolvedColumn> ordered = new();
-        HashSet<string> placed = new(StringComparer.Ordinal);
+        HashSet<ResolvedColumn> placed = new();
 
-        if (state.ColumnOrder is not null)
+        if (state.Order is not null)
         {
-            foreach (string id in state.ColumnOrder)
+            foreach (string id in state.Order)
             {
-                if (id is null || !byId.TryGetValue(id, out ResolvedColumn? column) || !placed.Add(id))
+                if (id is null || !byId.TryGetValue(id, out ResolvedColumn? column) || !placed.Add(column))
                 {
                     continue;
                 }
@@ -381,7 +415,7 @@ public sealed partial class TableView : Control
 
         foreach (ResolvedColumn column in _resolved)
         {
-            if (placed.Add(column.Id))
+            if (placed.Add(column))
             {
                 ordered.Add(column);
             }
@@ -394,9 +428,9 @@ public sealed partial class TableView : Control
             column.VisibilityOverride = null;
         }
 
-        if (state.ColumnWidths is not null)
+        if (state.Widths is not null)
         {
-            foreach (KeyValuePair<string, double> entry in state.ColumnWidths)
+            foreach (KeyValuePair<string, double> entry in state.Widths)
             {
                 if (entry.Key is null || !byId.TryGetValue(entry.Key, out ResolvedColumn? column))
                 {
@@ -413,9 +447,9 @@ public sealed partial class TableView : Control
             }
         }
 
-        if (state.ColumnVisibility is not null)
+        if (state.Visibility is not null)
         {
-            foreach (KeyValuePair<string, bool> entry in state.ColumnVisibility)
+            foreach (KeyValuePair<string, bool> entry in state.Visibility)
             {
                 if (entry.Key is null || !byId.TryGetValue(entry.Key, out ResolvedColumn? column))
                 {
@@ -437,7 +471,7 @@ public sealed partial class TableView : Control
         bool sortChanged = RestoreSort(state, byId);
 
         // SetOrder republishes the geometry, which re-applies each header cell's sort indicator.
-        Layout.SetOrder(ordered);
+        Geometry.SetOrder(ordered);
         UpdateHorizontalRange();
         return sortChanged;
     }
@@ -492,11 +526,11 @@ public sealed partial class TableView : Control
     private void UpdateHorizontalRange()
     {
         double viewport = _itemsView?.ActualWidth ?? 0;
-        double maximum = Math.Max(0, Layout.TotalWidth - viewport);
+        double maximum = Math.Max(0, Geometry.TotalWidth - viewport);
 
-        if (Layout.HorizontalOffset > maximum)
+        if (Geometry.HorizontalOffset > maximum)
         {
-            Layout.HorizontalOffset = maximum;
+            Geometry.HorizontalOffset = maximum;
         }
 
         if (_horizontalScrollBar is null)
@@ -509,7 +543,7 @@ public sealed partial class TableView : Control
         _horizontalScrollBar.ViewportSize = viewport;
         _horizontalScrollBar.LargeChange = Math.Max(1, viewport);
         _horizontalScrollBar.SmallChange = WheelStepDips;
-        _horizontalScrollBar.Value = Layout.HorizontalOffset;
+        _horizontalScrollBar.Value = Geometry.HorizontalOffset;
         _horizontalScrollBar.Visibility = maximum > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -541,17 +575,17 @@ public sealed partial class TableView : Control
 
         double notches = properties.MouseWheelDelta / WheelNotch;
         double delta = horizontalWheel ? notches : -notches;
-        SetHorizontalOffset(Layout.HorizontalOffset + (delta * WheelStepDips));
+        SetHorizontalOffset(Geometry.HorizontalOffset + (delta * WheelStepDips));
         e.Handled = true;
     }
 
     private void SetHorizontalOffset(double value)
     {
         double viewport = _itemsView?.ActualWidth ?? 0;
-        double maximum = Math.Max(0, Layout.TotalWidth - viewport);
+        double maximum = Math.Max(0, Geometry.TotalWidth - viewport);
         double clamped = Math.Clamp(value, 0, maximum);
 
-        Layout.HorizontalOffset = clamped;
+        Geometry.HorizontalOffset = clamped;
 
         if (_horizontalScrollBar is not null)
         {
@@ -562,8 +596,8 @@ public sealed partial class TableView : Control
     // ------------------------------------------------- loading / empty states
 
     /// <summary>
-    /// Section 17's three-way precedence. It reads the resolved view, not <see cref="IsLoading"/>,
-    /// so existing rows stay visible during a refresh.
+    /// Section 17. It reads the resolved view, not <see cref="Placeholder"/>, so existing rows stay
+    /// visible during a refresh; the placeholder says only which presentation an empty view gets.
     /// </summary>
     private void UpdateStateLayer()
     {
@@ -580,29 +614,62 @@ public sealed partial class TableView : Control
             return;
         }
 
-        object? content;
-        DataTemplate? template;
+        TablePlaceholder kind = Placeholder;
+        (object? content, DataTemplate? template) = kind switch
+        {
+            TablePlaceholder.Loading => (LoadingContent, LoadingContentTemplate),
+            TablePlaceholder.NoResults => (NoResultsContent, NoResultsContentTemplate),
+            _ => (EmptyContent, EmptyContentTemplate),
+        };
 
-        if (IsLoading)
-        {
-            content = LoadingContent;
-            template = LoadingContentTemplate;
-        }
-        else if (EmptyState == TableEmptyState.NoResults)
-        {
-            content = NoResultsContent;
-            template = NoResultsContentTemplate;
-        }
-        else
-        {
-            content = EmptyContent;
-            template = EmptyContentTemplate;
-        }
-
-        _stateLayer.Content = content;
+        _stateLayer.Content = content ?? (template is null ? ShippedPlaceholder(kind) : null);
         _stateLayer.ContentTemplate = template;
-        _stateLayer.Visibility = content is null && template is null
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        _stateLayer.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// What an empty table shows when the host has configured nothing. Kept while the kind holds,
+    /// so a table that rebuilds an empty view does not restart the ring it is showing.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the least the platform can say: the ring at its own size, the two messages in
+    /// the inherited foreground. No spacing, no colour and no font size is chosen here, because
+    /// none of them is derivable and a host that wants more sets <see cref="LoadingContent"/>,
+    /// <see cref="EmptyContent"/>, or <see cref="NoResultsContent"/>. What this replaces is a blank
+    /// rectangle, which is what a table with no rows and nothing configured used to render.
+    /// </remarks>
+    private UIElement ShippedPlaceholder(TablePlaceholder kind)
+    {
+        if (_shippedPlaceholder is not null && _shippedPlaceholderKind == kind)
+        {
+            return _shippedPlaceholder;
+        }
+
+        _shippedPlaceholderKind = kind;
+        _shippedPlaceholder = kind == TablePlaceholder.Loading
+            ? Centred(new ProgressRing { IsActive = true }, TableResources.Loading)
+            : Centred(
+                new TextBlock
+                {
+                    Text = kind == TablePlaceholder.NoResults
+                        ? TableResources.NoResults
+                        : TableResources.Empty,
+                },
+                null);
+
+        return _shippedPlaceholder;
+    }
+
+    private static FrameworkElement Centred(FrameworkElement element, string? accessibleName)
+    {
+        element.HorizontalAlignment = HorizontalAlignment.Center;
+        element.VerticalAlignment = VerticalAlignment.Center;
+
+        if (accessibleName is not null)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(element, accessibleName);
+        }
+
+        return element;
     }
 }

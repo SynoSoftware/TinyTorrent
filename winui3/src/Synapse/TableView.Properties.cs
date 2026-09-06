@@ -6,6 +6,8 @@ namespace Synapse;
 
 public sealed partial class TableView
 {
+    private static readonly Thickness DefaultCellPadding = new(12, 6, 12, 6);
+
     public static readonly DependencyProperty ItemsSourceProperty =
         DependencyProperty.Register(
             nameof(ItemsSource),
@@ -20,19 +22,19 @@ public sealed partial class TableView
             typeof(TableView),
             new PropertyMetadata(false, OnFitAllButtonEnabledChanged));
 
-    public static readonly DependencyProperty IsLoadingProperty =
+    public static readonly DependencyProperty PlaceholderProperty =
         DependencyProperty.Register(
-            nameof(IsLoading),
-            typeof(bool),
+            nameof(Placeholder),
+            typeof(TablePlaceholder),
             typeof(TableView),
-            new PropertyMetadata(false, OnStateInputChanged));
+            new PropertyMetadata(TablePlaceholder.Empty, OnStateInputChanged));
 
-    public static readonly DependencyProperty EmptyStateProperty =
+    public static readonly DependencyProperty CellPaddingProperty =
         DependencyProperty.Register(
-            nameof(EmptyState),
-            typeof(TableEmptyState),
+            nameof(CellPadding),
+            typeof(Thickness),
             typeof(TableView),
-            new PropertyMetadata(TableEmptyState.Empty, OnStateInputChanged));
+            new PropertyMetadata(DefaultCellPadding));
 
     public static readonly DependencyProperty LoadingContentProperty =
         DependencyProperty.Register(
@@ -109,17 +111,33 @@ public sealed partial class TableView
         set => SetValue(IsFitAllButtonEnabledProperty, value);
     }
 
-    public bool IsLoading
+    /// <summary>
+    /// Which presentation stands in for rows while the view has none. Only the host can tell an
+    /// empty source from a filter that excluded everything, or from a fetch in flight.
+    /// </summary>
+    public TablePlaceholder Placeholder
     {
-        get => (bool)GetValue(IsLoadingProperty);
-        set => SetValue(IsLoadingProperty, value);
+        get => (TablePlaceholder)GetValue(PlaceholderProperty);
+        set => SetValue(PlaceholderProperty, value);
     }
 
-    /// <summary>Which empty presentation applies. Only the host knows.</summary>
-    public TableEmptyState EmptyState
+    /// <summary>
+    /// The inset inside every column, applied to the header cell and the row cell alike so that
+    /// the two cannot drift apart. Read as each cell is realized, so a host that wants its own
+    /// sets it in XAML or in an implicit <c>Style</c>, the way any control default is overridden.
+    /// </summary>
+    /// <remarks>
+    /// The horizontal 12 is the platform's: it is what the resource tree publishes for an item in a
+    /// list, corroborated three ways — <c>ListBoxItemPadding</c> 12,9,12,12,
+    /// <c>SelectorBarItemPadding</c> 12,10,12,7, and <c>PivotItemMargin</c> 12,0,12,0 — and it is
+    /// also what both hosts here had arrived at independently. The vertical 6 has no platform
+    /// source: enumerating all 7,484 <c>Thickness</c> resources found no cell padding at all, and
+    /// what settles it is that the two hosts had independently written 6 as well.
+    /// </remarks>
+    public Thickness CellPadding
     {
-        get => (TableEmptyState)GetValue(EmptyStateProperty);
-        set => SetValue(EmptyStateProperty, value);
+        get => (Thickness)GetValue(CellPaddingProperty);
+        set => SetValue(CellPaddingProperty, value);
     }
 
     public object? LoadingContent

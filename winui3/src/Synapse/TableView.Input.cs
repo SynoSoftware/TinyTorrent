@@ -334,7 +334,7 @@ public sealed partial class TableView
     {
         if (_gesture == GesturePhase.Marquee && e.Pointer.PointerId == _gesturePointerId)
         {
-            SetSelection(_gestureSelection, CurrentItem);
+            Selection = new(_gestureSelection, _selection.Current);
         }
 
         CancelGesture();
@@ -582,21 +582,24 @@ public sealed partial class TableView
     // ------------------------------------------------------------------ row drag
 
     /// <summary>
-    /// Sections 5 and 16: the gesture is offered only when the host enabled it, has somewhere to
-    /// send the request, the view shows the row order, so that the boundary a drop names is a
-    /// place in that order, and the row is one the user may act on. The same answer decides whether
-    /// the press defers its selection change, so a row that cannot be dragged still selects on
-    /// press, and what a drag from it does instead: section 14's rectangle.
+    /// Sections 5 and 16: the gesture is offered only when the host enabled it, the view shows the
+    /// row order, so that the boundary a drop names is a place in that order, and the row is one
+    /// the user may act on. The same answer decides whether the press defers its selection change,
+    /// so a row that cannot be dragged still selects on press, and what a drag from it does
+    /// instead: section 14's rectangle.
     /// </summary>
+    /// <remarks>
+    /// Having a <see cref="RowsReorderRequested"/> handler used to be part of this, which made
+    /// subscribing to an event load-bearing behaviour that nothing in the API announced — two
+    /// owners of one capability. <see cref="IsRowReorderingEnabled"/> is now the only one, and it
+    /// is off by default, so a host that has no order to change offers no dead drag either.
+    /// </remarks>
     internal bool CanBeginRowDrag(object item)
     {
         // The rows ask this for their cursor as soon as they load, which can be before any press
         // or reconcile has copied the host's eligibility predicate into the model.
         SyncSelectionPolicy();
-        return IsRowReorderingEnabled
-            && _rowsReorderRequested is not null
-            && ShowsRowOrder
-            && _selection.IsEligible(item);
+        return IsRowReorderingEnabled && ShowsRowOrder && _selection.IsEligible(item);
     }
 
     /// <summary>

@@ -1,0 +1,3 @@
+#include "Icon.h"
+
+IconApp ICON "TinyTorrent.ico"

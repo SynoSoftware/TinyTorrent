@@ -24,17 +24,18 @@ internal sealed class ResolvedColumn
     internal ResolvedColumn(TableColumn column)
     {
         Column = column;
-        BaselineWidth = Clamp(column.DefaultWidth, column.MinWidth, column.MaxWidth);
+        BaselineWidth = Clamp(column.Width, column.MinWidth, column.MaxWidth);
     }
 
     internal TableColumn Column { get; }
 
-    internal string Id => Column.Id;
+    /// <summary>The persistence key, or null for a column the host does not persist.</summary>
+    internal string? Id => Column.Id;
 
     /// <summary>Declared default width after the column's own bounds are applied.</summary>
     internal double BaselineWidth { get; }
 
-    internal bool BaselineVisibility => Column.IsVisibleByDefault;
+    internal bool BaselineVisibility => Column.IsVisible;
 
     internal double? WidthOverride { get; set; }
 
@@ -121,6 +122,23 @@ internal sealed class ResolvedLayout
         foreach (ResolvedColumn column in _order)
         {
             if (string.Equals(column.Id, id, StringComparison.Ordinal))
+            {
+                return column;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The resolved column for this definition, or null when the table did not declare it. By
+    /// reference, so it answers for a column the host chose not to give a persistence key.
+    /// </summary>
+    internal ResolvedColumn? Find(TableColumn declared)
+    {
+        foreach (ResolvedColumn column in _order)
+        {
+            if (ReferenceEquals(column.Column, declared))
             {
                 return column;
             }

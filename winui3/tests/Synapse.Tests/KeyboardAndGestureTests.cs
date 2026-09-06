@@ -112,7 +112,7 @@ public class KeyboardAndGestureTests
     public Task NavigationSkipsNonInteractiveRows() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            6, t => t.CanInteractWithItem = item => ((Row)item).Interactive);
+            6, t => t.Schema<Row>().CanInteract(row => row.Interactive));
 
         h[1].Interactive = false;
         h[2].Interactive = false;
@@ -148,7 +148,7 @@ public class KeyboardAndGestureTests
         TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            6, t => t.CanInteractWithItem = item => ((Row)item).Interactive);
+            6, t => t.Schema<Row>().CanInteract(row => row.Interactive));
 
         h[4].Interactive = false;
         h.Table.RefreshView();

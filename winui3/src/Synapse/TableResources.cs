@@ -13,6 +13,14 @@ internal static class TableResources
 
     internal static string HeaderStripAccessibleName => Get("HeaderStrip_AccessibleName");
 
+    // Section 17: what the control shows in place of rows when the host configured no content of
+    // its own. The loading one is not drawn — it names the ring for UI Automation.
+    internal static string Loading => Get("Placeholder_Loading");
+
+    internal static string Empty => Get("Placeholder_Empty");
+
+    internal static string NoResults => Get("Placeholder_NoResults");
+
     // Section 9: the active header's sort state, read by UI Automation.
     internal static string SortedAscending => Get("Header_SortedAscending");
 

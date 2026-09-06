@@ -9,7 +9,7 @@ internal static class TestData
     internal static TableColumn Column(string id) => new() { Id = id, DisplayName = id.ToUpperInvariant() };
 
     internal static TableColumn Column(string id, double defaultWidth) =>
-        new() { Id = id, DisplayName = id.ToUpperInvariant(), DefaultWidth = defaultWidth };
+        new() { Id = id, DisplayName = id.ToUpperInvariant(), Width = defaultWidth };
 
     /// <summary>A table with the given columns declared, not yet loaded.</summary>
     internal static TableView Table(params TableColumn[] columns)
@@ -23,7 +23,7 @@ internal static class TestData
         return table;
     }
 
-    internal static TableLayoutState State(
+    internal static TableLayout Layout(
         IReadOnlyList<string>? order = null,
         IReadOnlyDictionary<string, bool>? visibility = null,
         IReadOnlyDictionary<string, double>? widths = null,

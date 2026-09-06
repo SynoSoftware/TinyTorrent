@@ -61,6 +61,16 @@
   <data name="HeaderStrip_AccessibleName" xml:space="preserve">
     <value>Column headers</value>
   </data>
+  <data name="Placeholder_Loading" xml:space="preserve">
+    <value>Loading</value>
+    <comment>Names the progress ring an empty, loading table shows. Not drawn on screen.</comment>
+  </data>
+  <data name="Placeholder_Empty" xml:space="preserve">
+    <value>Nothing to show</value>
+  </data>
+  <data name="Placeholder_NoResults" xml:space="preserve">
+    <value>No matching items</value>
+  </data>
   <data name="Header_SortedAscending" xml:space="preserve">
     <value>Sorted ascending</value>
   </data>

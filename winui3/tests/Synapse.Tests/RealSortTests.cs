@@ -26,7 +26,7 @@ public class RealSortTests
         ObservableCollection<SortRow> rows = Rows(3, 1, 2, 1);
         DragHarness h = await DragHarness.LoadAsync(table => Configure(table, rows));
         List<TableLayoutChangeKind> kinds = new();
-        h.Table.LayoutChanged += (_, e) => kinds.Add(e.Kind);
+        h.Table.LayoutChanged += (_, kind) => kinds.Add(kind);
 
         await h.MoveAsync(100);
         await ClickAsync(h, 100);
@@ -110,7 +110,7 @@ public class RealSortTests
         ObservableCollection<SortRow> rows = Rows(3, 1, 2, 1, 3, 2);
         DragHarness h = await DragHarness.LoadAsync(table => Configure(table, rows));
 
-        h.Table.SetSelection(new object[] { rows[0], rows[3] }, rows[3]);
+        h.Table.Selection = new(new object[] { rows[0], rows[3] }, rows[3]);
         int selectionEvents = 0;
         h.Table.SelectionStateChanged += (_, _) => selectionEvents++;
 
@@ -120,9 +120,9 @@ public class RealSortTests
         CollectionAssert.AreEqual(new[] { "k1", "k3", "k2", "k5", "k0", "k4" }, ViewKeys(h.Table));
         CollectionAssert.AreEqual(
             new[] { "k3", "k0" },
-            h.Table.SelectedItems.Cast<SortRow>().Select(r => r.Key).ToArray(),
+            h.Table.Selection.Items.Cast<SortRow>().Select(r => r.Key).ToArray(),
             "the same rows, now in the sorted visual order");
-        Assert.AreEqual("k3", ((SortRow)h.Table.CurrentItem!).Key);
+        Assert.AreEqual("k3", ((SortRow)h.Table.Selection.Current!).Key);
         Assert.AreEqual(0, selectionEvents, "nothing logical changed");
 
         ListView list = SelectionHarness.Descendant<ListView>(h.Table)!;
@@ -148,9 +148,9 @@ public class RealSortTests
     /// <summary>Column "a" sorts on the rank; "b" and "c" do not sort at all.</summary>
     private static void Configure(TableView table, ObservableCollection<SortRow> rows)
     {
-        table.Columns[0].CanSort = true;
-        table.Columns[0].SortComparer = SortHarness.Ranks;
-        table.ItemKeySelector = item => ((SortRow)item).Key;
+        table.Schema<SortRow>()
+            .Key(row => row.Key)
+            .Sort(table.Columns[0], row => row.Rank);
         table.Height = 300;
         table.ItemsSource = rows;
     }

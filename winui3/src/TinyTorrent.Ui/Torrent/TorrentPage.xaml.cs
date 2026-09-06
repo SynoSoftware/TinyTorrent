@@ -10,7 +10,7 @@ using Microsoft.UI.Xaml.Media;
 using Synapse;
 using Windows.Foundation;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// The torrent host profile: the layer the specification keeps outside the component. It owns the
@@ -91,16 +91,30 @@ public sealed partial class TorrentPage : Page
     private int _projectedCount;
 
     /// <summary>The last published layout, so the log can report what a fit or a resize changed.</summary>
-    private TableLayoutState? _layout;
+    private TableLayout? _layout;
 
     public TorrentPage()
     {
         InitializeComponent();
-        AttachComparers();
 
-        // A ghost is a row the daemon has not confirmed. It renders, and nothing else: it cannot be
-        // selected, invoked, given a menu, or joined to a reorder packet.
-        Table.CanInteractWithItem = item => item is TorrentRowViewModel { IsGhost: false };
+        // The row type, stated once. A ghost is a row the daemon has not confirmed: it renders, and
+        // nothing else — it cannot be selected, invoked, given a menu, or joined to a reorder
+        // packet. Each column is named by the field the XAML compiler generates for its x:Name, so
+        // renaming a column here is a build break rather than a lookup that stops matching.
+        Table.Schema<TorrentRowViewModel>()
+            .Key(row => row.Id)
+            .CanInteract(row => !row.IsGhost)
+            .Sort(NameColumn, row => row.NameOrder)
+            .Sort(ProgressColumn, row => row.Progress)
+            .Sort(StatusColumn, row => (int)row.Status)
+            .Sort(QueueColumn, row => row.QueuePosition)
+            .Sort(EtaColumn, row => row.Eta?.TotalSeconds ?? double.MaxValue)
+            .Sort(SpeedColumn, row => row.ActiveSpeed)
+            .Sort(PeersColumn, row => row.PeersConnected)
+            .Sort(SizeColumn, row => row.TotalSize)
+            .Sort(RatioColumn, row => row.Ratio)
+            .Sort(AddedColumn, row => row.Added)
+            .Sort(CompletedOnColumn, row => row.CompletedOn ?? DateTimeOffset.MaxValue);
 
         // handledEventsToo: the header marks the press handled once it has decided it is a sort.
         Table.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnTablePressed), true);
@@ -112,42 +126,12 @@ public sealed partial class TorrentPage : Page
     /// <summary>Every table event the host received, newest first.</summary>
     public ObservableCollection<string> Events { get; } = new();
 
-    /// <summary>
-    /// Each sortable column needs its own comparer over the row type. They are attached here, in
-    /// code, because the schema is captured at the table's first <c>Loaded</c>.
-    /// </summary>
-    private void AttachComparers()
-    {
-        Dictionary<string, IComparer<object>> comparers = new(StringComparer.Ordinal)
-        {
-            ["name"] = TorrentComparers.Name,
-            ["progress"] = TorrentComparers.Progress,
-            ["status"] = TorrentComparers.Status,
-            ["queue"] = TorrentComparers.Queue,
-            ["eta"] = TorrentComparers.Eta,
-            ["speed"] = TorrentComparers.Speed,
-            ["peers"] = TorrentComparers.Peers,
-            ["size"] = TorrentComparers.Size,
-            ["ratio"] = TorrentComparers.Ratio,
-            ["added"] = TorrentComparers.Added,
-            ["completedOn"] = TorrentComparers.CompletedOn,
-        };
-
-        foreach (TableColumn column in Table.Columns)
-        {
-            if (comparers.TryGetValue(column.Id, out IComparer<object>? comparer))
-            {
-                column.SortComparer = comparer;
-            }
-        }
-    }
-
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
 
-        // Loading presentation: no rows yet, IsLoading true.
-        Table.IsLoading = true;
+        // Loading presentation: no rows yet, and only the host knows which one applies.
+        Table.Placeholder = TablePlaceholder.Loading;
         Table.ItemsSource = NoRows;
         StatusLine.Text = "Contacting the daemon";
 
@@ -165,7 +149,6 @@ public sealed partial class TorrentPage : Page
             window.Closed += (_, _) => _catalog?.Stop();
         }
 
-        Table.IsLoading = false;
         ApplyProjection();
         _catalog.Start();
 
@@ -229,7 +212,8 @@ public sealed partial class TorrentPage : Page
         }
 
         // Empty means the daemon has nothing; NoResults means a host filter excluded everything.
-        Table.EmptyState = source.Count == 0 ? TableEmptyState.Empty : TableEmptyState.NoResults;
+        Table.Placeholder =
+            source.Count == 0 ? TablePlaceholder.Empty : TablePlaceholder.NoResults;
         Table.ItemsSource = projected;
 
         _projectedCount = projected.Count;
@@ -370,16 +354,17 @@ public sealed partial class TorrentPage : Page
 
     private void OnSelectionStateChanged(object? sender, TableSelectionStateChangedEventArgs e)
     {
-        string current = e.CurrentItem is TorrentRowViewModel row ? row.Name : "none";
-        Log($"SelectionStateChanged — {e.SelectedItems.Count} selected, current {current}");
+        string current = e.Selection.Current is TorrentRowViewModel row ? row.Name : "none";
+        Log($"SelectionStateChanged — {e.Selection.Items.Count} selected, current {current}");
     }
 
-    private void OnLayoutChanged(object? sender, TableLayoutChangedEventArgs e)
+    private void OnLayoutChanged(object? sender, TableLayoutChangeKind kind)
     {
-        Log($"LayoutChanged {e.Kind}{LayoutDetail(e)}");
-        _layout = e.LayoutState;
+        TableLayout layout = Table.Layout;
+        Log($"LayoutChanged {kind}{LayoutDetail(kind, layout)}");
+        _layout = layout;
 
-        if (e.Kind == TableLayoutChangeKind.Sort)
+        if (kind == TableLayoutChangeKind.Sort)
         {
             ReportSortLatency();
         }
@@ -418,11 +403,11 @@ public sealed partial class TorrentPage : Page
     private void OnTablePressed(object sender, PointerRoutedEventArgs e) =>
         _pressedAt = Stopwatch.GetTimestamp();
 
-    private string LayoutDetail(TableLayoutChangedEventArgs e) => e.Kind switch
+    private string LayoutDetail(TableLayoutChangeKind kind, TableLayout layout) => kind switch
     {
-        TableLayoutChangeKind.ColumnMove => " — " + string.Join(", ", e.LayoutState.ColumnOrder),
+        TableLayoutChangeKind.ColumnMove => " — " + string.Join(", ", layout.Order),
         TableLayoutChangeKind.AutoFit or TableLayoutChangeKind.ColumnResize =>
-            " — " + WidthDelta(e.LayoutState),
+            " — " + WidthDelta(layout),
         _ => string.Empty,
     };
 
@@ -430,12 +415,12 @@ public sealed partial class TorrentPage : Page
     /// Which widths this change moved, and by how much. A column with no override yet is compared
     /// against the width this page declared for it.
     /// </summary>
-    private string WidthDelta(TableLayoutState now)
+    private string WidthDelta(TableLayout now)
     {
         List<string> changed = new();
-        foreach ((string id, double width) in now.ColumnWidths)
+        foreach ((string id, double width) in now.Widths)
         {
-            double before = _layout is not null && _layout.ColumnWidths.TryGetValue(id, out double previous)
+            double before = _layout is not null && _layout.Widths.TryGetValue(id, out double previous)
                 ? previous
                 : DeclaredWidth(id);
 
@@ -454,7 +439,7 @@ public sealed partial class TorrentPage : Page
         {
             if (column.Id == id)
             {
-                return column.DefaultWidth;
+                return column.Width;
             }
         }
 

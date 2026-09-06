@@ -8,8 +8,13 @@ namespace Synapse;
 /// </summary>
 public sealed partial class TableColumn : DependencyObject
 {
-    /// <summary>Stable, unique, non-empty persistence key.</summary>
-    public string Id { get; set; } = string.Empty;
+    /// <summary>
+    /// This column's persistence key: stable, unique, and non-empty when it is supplied. Null is a
+    /// column the host does not persist, which is the ordinary case for a table whose layout is
+    /// never saved. A layout snapshot then carries nothing about it, and a restore leaves it in the
+    /// declared order after the columns the snapshot did name.
+    /// </summary>
+    public string? Id { get; set; }
 
     /// <summary>Non-empty localized plain-text name used by generated menus and UI Automation.</summary>
     public string DisplayName { get; set; } = string.Empty;
@@ -24,7 +29,7 @@ public sealed partial class TableColumn : DependencyObject
     public DataTemplate? CellTemplate { get; set; }
 
     /// <summary>Baseline width in DIPs. Finite and greater than zero.</summary>
-    public double DefaultWidth { get; set; } = 150;
+    public double Width { get; set; } = 150;
 
     /// <summary>Lower width bound in DIPs. Finite and non-negative.</summary>
     public double MinWidth { get; set; } = 48;
@@ -32,13 +37,12 @@ public sealed partial class TableColumn : DependencyObject
     /// <summary>Upper width bound in DIPs. A finite positive value or positive infinity.</summary>
     public double MaxWidth { get; set; } = double.PositiveInfinity;
 
-    public bool IsVisibleByDefault { get; set; } = true;
+    /// <summary>Whether the column is shown before the user or a restored layout says otherwise.</summary>
+    public bool IsVisible { get; set; } = true;
 
     public bool CanHide { get; set; } = true;
 
     public bool CanResize { get; set; } = true;
-
-    public bool CanSort { get; set; }
 
     /// <summary>
     /// This column's ascending values are the host's row order: the order the unsorted view shows
@@ -55,7 +59,14 @@ public sealed partial class TableColumn : DependencyObject
     // columns and not others would leave the rest of the list indented past a blank. A column's
     // identity already has a home: Header and HeaderTemplate take whatever the host wants to show.
 
-    public HorizontalAlignment CellHorizontalAlignment { get; set; } = HorizontalAlignment.Left;
+    public HorizontalAlignment CellAlignment { get; set; } = HorizontalAlignment.Left;
 
-    public IComparer<object>? SortComparer { get; set; }
+    /// <summary>
+    /// The order this column sorts by, supplied by <see cref="TableView.Schema{TRow}"/>. There is
+    /// no separate switch: a column given a sort key is sortable and one that was not is not, so
+    /// the two cannot disagree.
+    /// </summary>
+    internal IComparer<object>? Comparer { get; set; }
+
+    internal bool CanSort => Comparer is not null;
 }

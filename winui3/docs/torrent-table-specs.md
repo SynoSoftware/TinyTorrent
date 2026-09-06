@@ -174,7 +174,7 @@ integrate.
 | private view | The table's non-mutating display projection over the base sequence. |
 | natural order | The base sequence order; it is the order before header sorting. |
 | baseline layout | Immutable column defaults declared by the host, plus the control's documented defaults. |
-| baseline width | A column's declared `DefaultWidth`, or the control's generic width when none is declared, after its bounds are applied. |
+| baseline width | A column's declared `Width`, or the control's generic width when none is declared, after its bounds are applied. |
 | width override | A user resize, explicit fit, or valid applied layout width that takes precedence over the baseline width. |
 | effective layout | User-adjusted order, visibility, width overrides, and active sort resolved against the baseline layout. |
 
@@ -238,20 +238,17 @@ public sealed class TableView : Control
 {
     public IEnumerable? ItemsSource { get; set; }
     public ObservableCollection<TableColumn> Columns { get; }
+    public TableSchema<TRow> Schema<TRow>();
 
     public ListViewSelectionMode SelectionMode { get; set; } // default Extended
-    public IReadOnlyList<object> SelectedItems { get; }
-    public object? CurrentItem { get; }
-    public Func<object, string>? ItemKeySelector { get; set; }
-    public void SetSelection(IEnumerable<object> items, object? currentItem = null);
+    public TableSelection Selection { get; set; }
     public static void SetSuppressRowGestures(DependencyObject element, bool value);
     public static bool GetSuppressRowGestures(DependencyObject element);
 
-    public bool IsLoading { get; set; }
-    public TableEmptyState EmptyState { get; set; } // Empty | NoResults
-    public bool IsMarqueeSelectionEnabled { get; set; } // default false
-    public bool IsRowReorderingEnabled { get; set; } = true;
-    public Func<object, bool>? CanInteractWithItem { get; set; }
+    public TablePlaceholder Placeholder { get; set; } // Empty | Loading | NoResults
+    public bool IsMarqueeSelectionEnabled { get; set; } // default true
+    public bool IsRowReorderingEnabled { get; set; }    // default false
+    public Thickness CellPadding { get; set; }          // default 12,6,12,6
 
     public object? LoadingContent { get; set; }
     public DataTemplate? LoadingContentTemplate { get; set; }
@@ -260,12 +257,15 @@ public sealed class TableView : Control
     public object? NoResultsContent { get; set; }
     public DataTemplate? NoResultsContentTemplate { get; set; }
 
-    public TableLayoutState GetLayoutState();
-    public void ApplyLayoutState(TableLayoutState state);
+    public TableLayout Layout { get; set; }
+    public TableSort? Sort { get; set; }
+    public TimeSpan SortSettleInterval { get; set; }
+    public bool IsFitAllButtonEnabled { get; set; }     // default false
     public void RefreshView();
     public void AutoFitColumn(string columnId);
     public void AutoFitVisibleColumns();
     public void ResetColumnLayout();
+    public static FontFamily IconFontFamily { get; }
 
     public event EventHandler<TableSelectionStateChangedEventArgs>
         SelectionStateChanged;
@@ -274,87 +274,124 @@ public sealed class TableView : Control
         RowContextRequested;
     public event EventHandler<TableRowsReorderRequestedEventArgs>
         RowsReorderRequested;
-    public event EventHandler<TableLayoutChangedEventArgs> LayoutChanged;
+    public event EventHandler<TableLayoutChangeKind> LayoutChanged;
 }
+
+public sealed class TableSchema<TRow>
+{
+    public TableSchema<TRow> Key(Func<TRow, string> key);
+    public TableSchema<TRow> CanInteract(Func<TRow, bool> predicate);
+    public TableSchema<TRow> Sort<TKey>(TableColumn column, Func<TRow, TKey> key)
+        where TKey : IComparable<TKey>;
+}
+
+public sealed class TableSelection
+{
+    public static readonly TableSelection Empty;
+    public TableSelection(IEnumerable<object> items, object? current = null);
+    public IReadOnlyList<object> Items { get; }
+    public object? Current { get; }
+}
+
+public readonly record struct TableSort(
+    TableColumn Column,
+    TableSortDirection Direction = TableSortDirection.Ascending);
 ```
 
-`ItemsSource`, loading/empty state, and the runtime interaction flags
+`ItemsSource`, `Placeholder`, `CellPadding`, and the runtime interaction flags
 `IsMarqueeSelectionEnabled` and `IsRowReorderingEnabled` are bindable
-dependency properties. Marquee selection defaults to disabled and row
-reordering to enabled.
+dependency properties. Marquee selection defaults to enabled and row
+reordering to disabled, and the asymmetry is deliberate: a marquee is a
+selection gesture and is meaningful in every table, while a reorder is a
+domain request and is meaningful only where the host owns an order. A press in
+the table body that nothing else competes for must do something, so the marquee
+is on; most tables have no domain order, so the reorder is off.
 
-`IsRowReorderingEnabled` makes row reordering available by default; it is not a
-claim that every current view has a meaningful domain insertion. A gesture is
-offered only when the flag is true, the table has a `RowsReorderRequested`
-handler, the view shows the row order, and the row is eligible. The view shows
+`IsRowReorderingEnabled` is the only owner of that capability. A gesture is
+offered when the flag is true, the view shows the row order, and the row is
+eligible; having a `RowsReorderRequested` handler is not part of the test,
+because two owners of one capability eventually disagree. The view shows
 the row order when it is unsorted, which is the source order, or sorted either
 way by the column whose `DefinesRowOrder` is true (section 6); under any other
 sort the table withholds the drag itself, and a drag from a row is section 14's
 marquee. A host binds or sets the flag to false whenever its current external
 filter/order, pending domain operation, or ordering model cannot map a visual
-placement to a domain insertion. This keeps the default capable without
-presenting a dead drag gesture in a host that has no reorder owner.
+placement to a domain insertion.
 
 `ItemsSource` may be any `IEnumerable`. It is the host's already filtered
-projection. When that projection is empty, the host binds `EmptyState` to
-`Empty` when its wider source has no items and `NoResults` when an external
-filter excluded them.
+projection. When that projection is empty, the host sets `Placeholder` as
+section 17 defines.
 
-`Columns`, `SelectionMode`, `ItemKeySelector`, `CanInteractWithItem`, and each
-column comparer are setup-only schema/policy configuration. The table captures
-them exactly once at its first `Loaded` event. A host may populate them in XAML
-or code before then; changing a setup-only property, or structurally adding,
-removing, or replacing a column afterwards, is a configuration error. This
-fixed schema keeps cell templates, persisted layout, identity semantics, and
-selection rules stable. Runtime changes belong in bindable state or the
-resolved layout, not in the schema.
+`Columns`, `SelectionMode`, and everything `Schema<TRow>()` carries are
+setup-only schema configuration. Schema has two halves: `Columns` is the
+declarative half a host writes in XAML, and `Schema<TRow>()` is the typed half
+that states the row type once and hands over the identity selector, the
+interaction predicate, and every column's sort key with it. The control stays
+non-generic because WinUI 3 XAML cannot instantiate an open generic; a
+non-generic class can still have a generic method, and XAML never sees one.
+
+The table captures the schema exactly once, at its first `Loaded` event. A host
+may populate it in XAML or code before then; calling `Schema<TRow>()`
+afterwards, changing a setup-only value, or structurally adding, removing, or
+replacing a column afterwards, is a configuration error. This fixed schema
+keeps cell templates, persisted layout, identity semantics, and selection rules
+stable. Runtime changes belong in bindable state or the resolved layout, not in
+the schema.
 
 `Columns` form the immutable baseline. The table keeps separate effective
 order, visibility, width overrides, and sort state. A drag, resize, visibility
-change, or `ApplyLayoutState` MUST NOT mutate the definitions.
+change, or an assignment to `Layout` MUST NOT mutate the definitions.
 `ResetColumnLayout()` restores the captured baseline. Because that baseline has
 no sort criterion, reset also clears local sort and returns to natural order.
 
-After the host has populated its setup-only schema, it may call
-`ApplyLayoutState` before or after the first `Loaded` event. A pre-load state
-is resolved after schema capture, determines the first effective layout, and
-remains silent just like a later application.
+`Selection`, `Sort`, and `Layout` are settable properties rather than method
+pairs. Each reads back what stands and each setter is an idempotent request:
+assigning the state that is already in force changes nothing and raises no
+event. A host can therefore project any of the three out to another surface and
+push it back without a suppression flag or a second owner. `Selection` is
+deliberately *not* a dependency property, so section 5.2's rule against a
+two-way selected-items binding is structural rather than prose.
 
-`SetSelection` is the only programmatic selection entry point. It atomically
-replaces the table-owned selection and sets the table-owned current item after
-resolving both to eligible instances in the current private view. An omitted or
-`null` `currentItem` uses the first selected item in current visual order, or
-`null` when nothing is selected. A supplied `currentItem` may be unselected.
-An unavailable supplied `currentItem` is treated as `null` and uses that same
-fallback.
-The operation is idempotent: if the effective selected identities and current
-identity are unchanged, it does not raise `SelectionStateChanged`. Hosts can
-therefore project selection/current IDs on `SelectionStateChanged`, then call
-`SetSelection` when another surface changes that projection, without a
-suppression flag or second interactive selection model.
-`SelectedItems` and `CurrentItem` are observational properties, not writable or
-two-way-bound state.
+After the host has populated its setup-only schema, it may assign `Layout`
+before or after the first `Loaded` event. A pre-load snapshot is resolved after
+schema capture, determines the first effective layout, and remains silent just
+like a later assignment.
 
-`CanInteractWithItem` defaults to true. When it returns false, the item still
-renders but cannot be selected, invoked, context-clicked, or included in a row
-drag packet. Keyboard navigation skips it. Eligibility is evaluated on each
-view rebuild and immediately before an item interaction.
+Assigning `Selection` atomically replaces the table-owned selection and current
+item after resolving both to eligible instances in the current private view. An
+omitted or `null` `Current` uses the first selected item in current visual
+order, or `null` when nothing is selected. A supplied `Current` may be
+unselected. An unavailable supplied `Current` is treated as `null` and uses that
+same fallback.
 
-`ItemKeySelector` is optional. Without it, identity is object reference. When
+`Sort` names a column and a direction as one value, so no state exists in which
+the two disagree, and `null` is natural order. The column must be one this table
+declared and must carry a sort key from `Schema<TRow>()`; a request that cannot
+be met is the host asking for something impossible, so it throws. A saved sort
+arriving from storage is the other case entirely and belongs in `Layout`, which
+recovers defensively (section 18).
+
+`Schema<TRow>().CanInteract` defaults to every row being interactive. When the
+predicate returns false, the item still renders but cannot be selected, invoked,
+context-clicked, or included in a row drag packet. Keyboard navigation skips it.
+Eligibility is evaluated on each view rebuild and immediately before an item
+interaction.
+
+`Schema<TRow>().Key` is optional. Without it, identity is object reference. When
 provided, it returns a stable, non-empty, unique string key for every item in a
 source snapshot; the table uses ordinal string comparison to reconcile
 table-owned selection, current item, anchor, and focus across source
-rehydration.
-The selector MUST be pure and inexpensive.
+rehydration. The selector MUST be pure and inexpensive.
 
-The API is intentionally non-generic, matching WinUI item controls and keeping
-the control directly usable from XAML. Type erasure is confined to the item
-boundary (`ItemsSource`, events, selectors, and comparers); typed
-`DataTemplate`s with `x:DataType` retain the host's row type for rendering.
-There is no generic control hierarchy, reflection, property-path API, or
-untyped row wrapper. The host contains the one explicit row-type cast in each
-selector/comparer declaration; a type mismatch is a configuration error, not
-a second dynamic data model.
+The API is intentionally non-generic at the XAML boundary, matching WinUI item
+controls and keeping the control directly usable from XAML. Type erasure is
+confined to the item boundary (`ItemsSource` and the event payloads); typed
+`DataTemplate`s with `x:DataType` retain the host's row type for rendering, and
+`Schema<TRow>()` retains it for identity, eligibility, and sorting. There is no
+generic control hierarchy, reflection, property-path API, or untyped row
+wrapper. The row-type cast happens once, inside the schema, rather than once per
+selector and comparer at the host; a wrong row type is a configuration error and
+throws rather than silently comparing equal.
 
 ### 5.1 Callback and event boundary
 
@@ -362,9 +399,9 @@ The control deliberately has two extension mechanisms, with no overlap:
 
 | Surface | Kind | Used for | Must not do |
 |---|---|---|---|
-| `ItemKeySelector` | synchronous policy callback | stable item identity | allocate, fetch, mutate, or depend on visual state |
-| `CanInteractWithItem` | synchronous policy callback | display-only versus interactive rows | execute a command or change selection |
-| `SortComparer` | synchronous column callback | comparing two row items during sort | format UI, mutate items, or call RPC |
+| `Schema<TRow>().Key` | synchronous policy callback | stable item identity | allocate, fetch, mutate, or depend on visual state |
+| `Schema<TRow>().CanInteract` | synchronous policy callback | display-only versus interactive rows | execute a command or change selection |
+| `Schema<TRow>().Sort` | synchronous column callback | the value a column orders a row by | format UI, mutate items, or call RPC |
 | `SelectionStateChanged` | host event | publish an optional external selection/current projection | continuously feed its own output back |
 | `ItemInvoked` | host event | primary domain action | assume an action was completed |
 | `RowContextRequested` | host event | construct/show a domain menu | put domain menu logic in the table |
@@ -372,26 +409,34 @@ The control deliberately has two extension mechanisms, with no overlap:
 | `LayoutChanged` | host event | debounce a persisted layout snapshot | write settings on every pointer movement |
 
 Policy callbacks are called on the UI thread and MUST be pure, synchronous, and
-cheap. The table never calls them per render frame. Sort comparers are called
-`O(n log n)` during an explicit sort and therefore must be especially cheap.
+cheap. The table never calls them per render frame. A sort key is read
+`O(n log n)` times during an explicit sort and therefore must be especially
+cheap. Its type must order itself (`where TKey : IComparable<TKey>`), which
+makes an unorderable key a build error rather than a sort that quietly does
+nothing, and refuses a nullable value type so that the host says where its nulls
+sort instead of the table deciding invisibly.
 
 Events are the component's callback API for completed gestures or table-state
 changes. They fire only after the table has completed its own mechanics.
-`SelectionStateChanged` can also result from `SetSelection` or
-source/eligibility reconciliation. Its immutable payload contains the updated
-selected packet and `CurrentItem`, including when only current changes.
+`SelectionStateChanged` can also result from assigning `Selection` or from
+source/eligibility reconciliation. Its immutable payload is the updated
+`TableSelection`, including when only the current row changes.
 Every selected-item packet below is in current visual row order. Event payloads
 are immutable snapshots:
 
 | Event | Event args contract |
 |---|---|
-| `SelectionStateChanged` | current visual-order `SelectedItems`, `CurrentItem` |
+| `SelectionStateChanged` | `Selection`: current visual-order `Items` and `Current` |
 | `ItemInvoked` | `Item`, ordered `SelectedItems` after normal input selection processing |
 | `RowContextRequested` | `Item`, ordered `SelectedItems`, realized row `FrameworkElement PlacementTarget`, nullable `Point RelativePoint` relative to it (`null` for a keyboard invocation) |
 | `RowsReorderRequested` | row-order `MovingItems`, nullable `InsertBeforeItem` anchor, never one of `MovingItems` |
-| `LayoutChanged` | `LayoutState` and one `Kind`: `Sort`, `ColumnMove`, `ColumnResize`, `AutoFit`, `Visibility`, or `Reset` |
+| `LayoutChanged` | one `TableLayoutChangeKind`: `Sort`, `ColumnMove`, `ColumnResize`, `AutoFit`, `Visibility`, or `Reset` |
 
-`ApplyLayoutState` is silent. `InsertBeforeItem` describes a position in the
+`LayoutChanged` carries the change kind and nothing else. A host that wants the
+snapshot reads `Layout`, which is the same independent snapshot the event used
+to carry, so there is one way to obtain it rather than two.
+
+Assigning `Layout` is silent. `InsertBeforeItem` describes a position in the
 row order *after* `MovingItems` have been removed: insert the complete packet
 immediately before that remaining item; `null` means append at the end. The
 row order is the current visual sequence, read from the bottom up when the
@@ -426,11 +471,11 @@ adapter, or framework-specific dependency.
 
 The table is the single interactive selection/current owner. A page or shell
 only needs an ID projection when another surface—such as a command bar or
-detail pane—uses it. It observes `SelectionStateChanged` and makes an
-intentional `SetSelection` request only when another surface changes that
-projection. There is intentionally no two-way selected-items binding: that
-would create a competing selection owner. The idempotence rule above prevents a
-feedback loop. Cell commands belong in the typed cell template; a row-context
+detail pane—uses it. It observes `SelectionStateChanged` and assigns
+`Selection` only when another surface changes that projection. There is
+intentionally no two-way selected-items binding: that would create a competing
+selection owner, which is why `Selection` is a plain property rather than a
+dependency property. The idempotence rule above prevents a feedback loop. Cell commands belong in the typed cell template; a row-context
 request necessarily remains at the view boundary because it carries placement
 and pointer information.
 
@@ -481,16 +526,17 @@ latest natural order; it never restores an earlier visual order.
 
 `INotifyPropertyChanged` on a row redraws ordinary bound cell content only.
 It does not automatically re-sort or re-evaluate eligibility.
-After a batch changes any value used by the active sort or
-`CanInteractWithItem`, the host calls `RefreshView()` once.
+After a batch changes any value used by the active sort or the schema's
+interaction predicate, the host calls `RefreshView()` once.
 `RefreshView()` re-evaluates the current source snapshot, applies the current
-sort, and does not re-enumerate or fetch a non-notifying source.
+sort, and does not re-enumerate or fetch a non-notifying source. When rows are
+then allowed to trade places is section 9's settling question, not this one.
 Display-only updates need no call.
 
-When `ItemKeySelector` is configured, every new source snapshot—including
+When the schema supplies a key selector, every new source snapshot—including
 assignment, `Add`, `Remove`, `Move`, `Replace`, and `Reset`—reconciles selected
 items, current item, selection anchor, and focus to the current row instances
-by key. `SelectedItems` then exposes those new instances.
+by key. `Selection.Items` then exposes those new instances.
 A rehydration with the same logical selected/current identities does not raise
 `SelectionStateChanged` merely because objects or visual positions changed. An
 anchor or focus item that no longer survives clears. Without a selector, object
@@ -513,7 +559,7 @@ re-asked of the new view (section 14).
 Header resize and
 column-drag gestures are data-independent and remain active.
 
-An explicit `SetSelection` request, or turning off
+An explicit `Selection` assignment, or turning off
 `IsMarqueeSelectionEnabled`/`IsRowReorderingEnabled` during its corresponding
 gesture, cancels that gesture before applying the new state. It never produces a
 reorder request.
@@ -537,8 +583,9 @@ The control distinguishes four cases so that a consumer does not have to infer
 meaning from a missing update:
 
 - **Configuration error.** A malformed captured schema or policy contract—for
-  example duplicate column IDs, an invalid width range, duplicate item keys, or
-  a setup-only mutation after `Loaded`—is a developer error. The table does not
+  example duplicate column IDs, an invalid width range, duplicate item keys, a
+  setup-only mutation after `Loaded`, or a `Sort` request naming a column this
+  table did not declare or did not give a sort key—is a developer error. The table does not
   construct a partly valid interactive schema or substitute a guessed meaning.
 - **Ineligible runtime interaction.** A well-formed interaction can be
   unavailable because the host disables reordering, an item is non-interactive,
@@ -563,66 +610,80 @@ assertion, logging, or recovery mechanism.
 ```csharp
 public sealed class TableColumn : DependencyObject
 {
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
     public string DisplayName { get; set; } = string.Empty;
 
     public object? Header { get; set; }
     public DataTemplate? HeaderTemplate { get; set; }
     public DataTemplate? CellTemplate { get; set; }
 
-    public double DefaultWidth { get; set; } = 150; // DIPs
-    public double MinWidth { get; set; } = 48;      // DIPs
+    public double Width { get; set; } = 150; // DIPs, the baseline
+    public double MinWidth { get; set; } = 48;
     public double MaxWidth { get; set; } = double.PositiveInfinity;
 
-    public bool IsVisibleByDefault { get; set; } = true;
+    public bool IsVisible { get; set; } = true;
     public bool CanHide { get; set; } = true;
     public bool CanResize { get; set; } = true;
-    public bool CanSort { get; set; }
     public bool DefinesRowOrder { get; set; }
 
-    public HorizontalAlignment CellHorizontalAlignment { get; set; } =
+    public HorizontalAlignment CellAlignment { get; set; } =
         HorizontalAlignment.Left;
-    public IComparer<object>? SortComparer { get; set; }
 }
 ```
+
+The type carries the context, so the names do not repeat it: inside a
+`TableColumn`, `Width` and `IsVisible` are the column's baseline width and
+baseline visibility, and `CellAlignment` is how its cells align.
+
+Sortability is not on this type at all. A column sorts because
+`Schema<TRow>().Sort(column, row => key)` gave it a key, and does not otherwise;
+the flag and the comparer that previously had to agree are one call, so the
+disagreement is no longer representable.
 
 `HeaderTemplate` is the composition point for an icon, visual label, tooltip,
 or embedded header control. `TableView` deliberately has no separate header
 icon, description, or renderer-metadata API; those are ordinary host content.
+There are no dependency properties on `TableColumn`: sortability is setup-only
+by design, and a localized `DisplayName` already resolves through
+`{StaticResource}`.
 
 ### 6.1 Column invariants
 
 Required invariants:
 
-- `Id` is stable, unique, non-empty, and is the persistence key.
+- `Id` is the persistence key. It is optional: a table whose layout is never
+  saved has no keys to invent, and a column without one appears in no layout
+  snapshot and is left in declared order after every column a restore did name.
+  When supplied it is stable, unique, and non-empty.
 - `DisplayName` is a non-empty localized plain-text name used by generated menus
   and UI Automation; it need not match the visual header exactly.
 - `CellTemplate` receives the row item as its `DataContext`/content.
-- `DefaultWidth`, `MinWidth`, and persisted widths are finite
-  device-independent pixels (DIPs). `DefaultWidth` is greater than zero;
+- `Width`, `MinWidth`, and persisted widths are finite
+  device-independent pixels (DIPs). `Width` is greater than zero;
   `MinWidth` is non-negative; `MaxWidth` is either a finite positive DIP value
   or `double.PositiveInfinity`; and `MinWidth <= MaxWidth`;
 - the resolved width is clamped to `[MinWidth, MaxWidth]`;
-- at least one column remains visible;
+- at least one column remains visible, which a table declaring no columns at
+  all does not satisfy;
 - `CanHide == false` prevents hiding that column;
-- a column is sortable only when `CanSort` is true and it has a pure comparer
-  that defines a consistent total ordering for the consumer's rows;
+- a column is sortable exactly when the schema gave it a sort key, and that key
+  is pure and defines a consistent total ordering for the consumer's rows;
 - at most one column has `DefinesRowOrder`; its ascending values are the host's
   row order, the order the unsorted view shows and a row drag changes (section
   16);
 - hidden columns retain their resolved position and most recent width;
-- the declaration order, `DefaultWidth`, `IsVisibleByDefault`, and the
-  control's documented width defaults form the reset baseline; runtime layout
-  lives only in `TableLayoutState`.
+- the declaration order, `Width`, `IsVisible`, and the control's documented
+  width defaults form the reset baseline; runtime layout lives only in
+  `TableLayout`.
 
 The table validates every column definition when it captures the schema at
 `Loaded`. Missing or duplicate values are configuration errors rather than an
-unusable header later. Changing a captured column definition or comparer after
+unusable header later. Changing a captured column definition or sort key after
 that point is unsupported and is a configuration error. Values bound inside a
 cell or header template remain live; only the schema definition is fixed.
 
 The declared defaults are: visible, hideable, resizable, non-sortable,
-left-aligned, a `DefaultWidth` of 150 DIPs, a `MinWidth` of 48 DIPs, and an
+left-aligned, a `Width` of 150 DIPs, a `MinWidth` of 48 DIPs, and an
 unbounded `MaxWidth`. A host SHOULD explicitly declare width and minimum policy
 for rich cells whose footprint is meaningful—such as progress, button clusters,
 sparklines, or status pills—rather than treating the generic default as domain
@@ -764,8 +825,8 @@ Sorting requirements:
 - equal values retain the exact current base-sequence order;
 - null placement is defined by the consumer comparer;
 - natural order means the current base-sequence order;
-- identity is the string `ItemKeySelector` result when supplied, otherwise
-  object reference; invalid keys are source-contract errors and unavailable
+- identity is the string the schema's key selector returns when one is
+  supplied, otherwise object reference; invalid keys are source-contract errors and unavailable
   items are pruned from selection;
 - source updates and rehydration follow section 5.3;
 - hiding the sorted column clears the sort and returns the view to natural
@@ -839,7 +900,7 @@ the right remains table surface; when visible columns do not fit, the existing
 horizontal scroll surface is used. Resizing the host window never redistributes
 or re-measures column widths.
 
-Every column has a deterministic baseline width. A declared `DefaultWidth` is
+Every column has a deterministic baseline width. A declared `Width` is
 used exactly after its `MinWidth`/`MaxWidth` bounds are applied. When a consumer
 does not declare one, the control's 150-DIP default is used. An unspecified
 width is not an implicit content-fit mode: initial source data, later data,
@@ -848,7 +909,7 @@ NOT silently widen or narrow a column. This keeps a first-use layout stable and
 independent of which virtualized rows happen to appear first. `TableView` never
 invokes a fit command during initialization.
 
-An applied valid `TableLayoutState.ColumnWidths` entry, a completed direct
+An applied valid `TableLayout.Widths` entry, a completed direct
 resize, or an explicit fit creates a width override.
 It wins over the baseline until another override or `ResetColumnLayout()`
 replaces it. A user may resize down to the declared `MinWidth` even when cell
@@ -865,6 +926,12 @@ a competing direct-touch resize recognizer to a dense header.
 - double-clicking the mouse/pen separator fits that column;
 - the header menu includes **Fit this column** and **Fit visible columns** when
   applicable, and offers no per-step width command;
+- `IsFitAllButtonEnabled` offers that same **Fit visible columns** command as a
+  button in the header's trailing space. It is off by default, because a table
+  must not add a visible control to a host's header uninvited and a host with
+  its own fit button would then show two; turning it on is not a guarantee that
+  it appears, since the strip withholds it whenever the columns reach far enough
+  right to want that space;
 - the table raises one coalesced `LayoutChanged` notification when a gesture,
   fit, or menu width command changes the resolved layout, not one persistence
   write per pointer movement.
@@ -1037,17 +1104,18 @@ than receiving a second TableView-specific interpretation. Non-interactive
 display rows are skipped by pointer and keyboard selection.
 
 `None` permits no selected items, `Single` permits at most one, and `Multiple`
-and `Extended` permit many. `SetSelection` applies those limits after resolving
-eligible current-view items: it clears selection in `None`, retains the first
-resolved item in current visual order in `Single`, and retains all resolved
-items in `Multiple` and `Extended`. In `None`, `SelectedItems` remains empty,
-but a passive row may still become current for invocation or context requests.
+and `Extended` permit many. Assigning `Selection` applies those limits after
+resolving eligible current-view items: it clears selection in `None`, retains
+the first resolved item in current visual order in `Single`, and retains all
+resolved items in `Multiple` and `Extended`. In `None`, `Selection.Items`
+remains empty, but a passive row may still become current for invocation or
+context requests.
 
-`CurrentItem` is the table's logical current row. It may be selected or
+`Selection.Current` is the table's logical current row. It may be selected or
 unselected, and is not synonymous with physical keyboard focus. A passive row
 selection/navigation action makes its row current. When focus enters a rich
 interactive descendant, that descendant owns its normal Tab, keyboard,
-text-editing, menu, and automation behavior without clearing `CurrentItem` or
+text-editing, menu, and automation behavior without clearing the current row or
 redirecting keys back to the table.
 
 The generated passive header strip is one composite control region in page tab
@@ -1083,11 +1151,11 @@ Selection MUST survive sorting, column changes, row recycling, and same-key
 source rehydration. Removed or unavailable items are pruned as defined in
 section 5.3.
 
-`SetSelection` resolves supplied identities by key when configured, drops
-duplicate, unavailable, and non-interactive items, and applies these selection
-rules atomically. A host treats `SelectionStateChanged` as an output and calls
-`SetSelection` only for an independent external selection/current action; an
-equal logical request is a no-op.
+Assigning `Selection` resolves supplied identities by key when configured,
+drops duplicate, unavailable, and non-interactive items, and applies these
+selection rules atomically. A host treats `SelectionStateChanged` as an output
+and assigns `Selection` only for an independent external selection/current
+action; an equal logical request is a no-op.
 
 ## 14. Marquee selection
 
@@ -1197,7 +1265,7 @@ Row-context behavior:
 
 - if the row is already selected, preserve the existing multi-selection;
 - otherwise select only that row when selection is enabled;
-- in both cases make the target `CurrentItem`, logical row focus, and the next
+- in both cases make the target the current row, logical row focus, and the next
   range-selection anchor. A current-item change raises `SelectionStateChanged`
   even when the selected packet itself is unchanged;
 - raise `RowContextRequested` with the target item, an immutable selected
@@ -1205,6 +1273,12 @@ Row-context behavior:
   that target when pointer-originated (otherwise a null relative point);
 - let the consumer synchronously construct and show a native `MenuFlyout` or
   `CommandBarFlyout` with domain-specific commands at that placement target.
+
+`TableView.IconFontFamily` is the icon font the control's own generated menu
+draws from, exposed so that a host building this row menu can draw from the same
+set. The family is vendored inside the control's package and addressed by a path
+into it, which a host cannot be expected to know, and the theme dictionary's key
+is not reachable from `Application.Current.Resources`.
 
 The placement target is presentation context, not durable view-model state. A
 consumer forwards command intent to its view model but creates/shows the flyout
@@ -1282,46 +1356,68 @@ reconciliation remain outside `TableView`.
 
 ## 17. Loading and empty states
 
-`TableEmptyState` has exactly two values: `Empty` and `NoResults`. The consumer
-sets it for an empty `ItemsSource`, because only the host knows whether its
-wider domain source has no items or its own filter excluded them.
+`TablePlaceholder` has exactly three values: `Empty`, `Loading`, and
+`NoResults`. The consumer sets it, because only the host can tell an empty
+domain source from a filter that excluded everything, or from a fetch in
+flight. There is no separate loading flag beside it: a boolean qualifying an
+enum is the enum missing a member, and keeping the two apart let a host say
+“loading, and also no results,” which is not a state.
 
 The row surface shows exactly one of:
 
 1. rows when the current view has items;
-2. loading content when the view is empty and `IsLoading` is true;
-3. the content selected by `EmptyState`—`EmptyContent` for `Empty`,
-   `NoResultsContent` for `NoResults`—when the view is otherwise empty.
+2. the content `Placeholder` selects when the view is empty—`LoadingContent`
+   for `Loading`, `EmptyContent` for `Empty`, `NoResultsContent` for
+   `NoResults`.
 
-Content and templates come from the consumer. The table provides layout only.
-During refresh, existing rows remain visible. Application-level error, offline,
-and permission states remain outside the table unless the consumer deliberately
-supplies them as content.
+`Placeholder` says only which presentation an *empty* view gets; it never hides
+rows. During refresh existing rows remain visible, so a host may set `Loading`
+for a refresh without blanking the table.
+
+The table ships default content for all three, so a minimal host writes none:
+the platform's progress ring for `Loading`, and one line of text from the
+control's own resources for the other two. That default is deliberately the
+least the platform can say—no spacing, colour, or font size is chosen there,
+because none of them is derivable—and a host that wants more supplies its own
+content or template. What it replaces is the blank rectangle that a table with
+no rows and nothing configured used to render.
+
+Content and templates otherwise come from the consumer, and the table provides
+layout only. Application-level error, offline, and permission states remain
+outside the table unless the consumer deliberately supplies them as content.
 
 ## 18. Layout persistence
 
 The table exposes, but does not store, a data-only snapshot:
 
 ```csharp
-public sealed record TableLayoutState(
-    IReadOnlyList<string> ColumnOrder,
-    IReadOnlyDictionary<string, bool> ColumnVisibility,
-    IReadOnlyDictionary<string, double> ColumnWidths,
+public sealed record TableLayout(
+    IReadOnlyList<string> Order,
+    IReadOnlyDictionary<string, bool> Visibility,
+    IReadOnlyDictionary<string, double> Widths,
     string? SortColumnId,
     TableSortDirection SortDirection);
 ```
 
-`TableLayoutState` deliberately has no version field. Stable column IDs and
+The snapshot is read and written through one property, `TableView.Layout`.
+Reading gives an independent snapshot of the overrides; assigning restores one.
+
+The sort is persisted as a column ID and a direction rather than as the
+`TableSort` value section 5 uses at runtime, because this record has to survive
+being written to a settings store and `TableSort` names a live `TableColumn`.
+
+`TableLayout` deliberately has no version field. Stable column IDs and
 defensive restoration are sufficient for version one; if the host later needs
 to version its stored envelope, that envelope is the version boundary.
 The only valid persisted directions for an active sort are ascending and
 descending; `SortDirection` is ignored when `SortColumnId` is `null`.
 
-`ColumnVisibility` and `ColumnWidths` are intentionally sparse: they contain
+`Visibility` and `Widths` are intentionally sparse: they contain
 only values that override declared visibility and width baselines. A missing
-column ID means “use that column's baseline.” `GetLayoutState()` follows the
+column ID means “use that column's baseline.” Reading `Layout` follows the
 same rule, so untouched defaults do not become duplicate persisted
-configuration.
+configuration. A column with no `Id` is not persisted at all: it appears in
+neither `Order` nor either override map.
 
 Persist:
 
@@ -1343,7 +1439,7 @@ Applying saved state MUST be defensive:
 - ignore unknown IDs;
 - ignore duplicate IDs after their first valid occurrence;
 - append newly introduced columns in definition order;
-- treat `ColumnVisibility` and `ColumnWidths` as complete override maps:
+- treat `Visibility` and `Widths` as complete override maps:
   omitted values use their column baseline and clear any earlier override;
 - ignore non-finite, non-positive, and non-resizable-column widths; clamp valid
   finite widths to the column's bounds;
@@ -1354,14 +1450,14 @@ Applying saved state MUST be defensive:
   hidden, or absent;
 - guarantee at least one visible column.
 
-`GetLayoutState()` and each `LayoutChanged` payload are independent snapshots
-that the table does not mutate after returning or raising the event.
-`LayoutChanged` is raised once after each completed effective sort, column move,
-resize, fit, visibility, or reset operation, including public fit/reset calls.
-It is not raised by initial setup or `ApplyLayoutState`; this prevents
-restore-and-persist loops. Initial baseline widths never force persistence.
-The host debounces and writes the supplied `LayoutState` snapshot using its
-settings store.
+Each read of `Layout` is an independent snapshot that the table does not mutate
+afterwards. `LayoutChanged` is raised once after each completed effective sort,
+column move, resize, fit, visibility, or reset operation, including public
+fit/reset calls, and carries only which of those it was. It is not raised by
+initial setup or by assigning `Layout`; this prevents restore-and-persist loops.
+Initial baseline widths never force persistence. A host that persists layout
+reads `Layout` from its `LayoutChanged` handler, debounces, and writes that
+snapshot to its settings store.
 
 ## 19. Accessibility, input, theming, and motion
 
@@ -1530,7 +1626,7 @@ The torrent host supplies:
   header tooltip or description;
 - column comparers; its incoming natural order is queue-ascending;
 - All/Downloading/Seeding domain filters and its own text filter;
-- `EmptyState` and loading/empty/no-results content;
+- `Placeholder` and its loading/empty/no-results content;
 - pause, resume, recheck, remove, queue, path, copy, and sequential-download
   commands;
 - the row context menu;
@@ -1555,9 +1651,9 @@ smooth progress, edit, and rich-cell animation continuity; it is not a
 `TableView` requirement. The row exposes `INotifyPropertyChanged` so cells
 redraw without rebuilding rows.
 
-A host may instead publish rehydrated row instances with the same ID.
-`ItemKeySelector` still preserves table selection/current state, but it cannot
-preserve template-local animation or edit state across the replacement.
+A host may instead publish rehydrated row instances with the same ID. The
+schema's key selector still preserves table selection/current state, but it
+cannot preserve template-local animation or edit state across the replacement.
 
 Regardless of that choice, the torrent host owns a source collection or
 projection of its current row instances. It derives semantic queue order first,
@@ -1573,9 +1669,9 @@ daemon snapshot -> current torrent row objects
                -> TableView.ItemsSource -> table sort
 ```
 
-Set `EmptyState` to `Empty` when the unfiltered daemon torrent collection has
-no items and `NoResults` when the state or text filter excludes all source
-rows.
+Set `Placeholder` to `Empty` when the unfiltered daemon torrent collection has
+no items, `NoResults` when the state or text filter excludes all source rows,
+and `Loading` while the first snapshot is in flight.
 
 The torrent host applies these display rules:
 
@@ -1599,30 +1695,33 @@ redraw only; they do not force a view refresh.
     ItemsSource="{x:Bind ViewModel.FilteredTorrents, Mode=OneWay}" />
 ```
 
-During host setup, create the eleven `TableColumn` definitions in the
-declared order and with the explicit initial widths in Appendix A.1. Put the
-typed XAML templates in the torrent host or its resource dictionary, then assign
-each template directly to the matching column. There is no torrent-specific
-column class or renderer registry. Give every definition its localized
-`DisplayName` for the generated header menu and UI Automation.
+During host setup, declare the eleven `TableColumn` definitions in the
+declared order and with the explicit initial widths in Appendix A.1, each with
+`x:Name` so the schema can name it. Put the typed XAML templates in the torrent
+host or its resource dictionary, then assign each template directly to the
+matching column. There is no torrent-specific column class or renderer registry.
+Give every definition its localized `DisplayName` for the generated header menu
+and UI Automation.
 
-Each sortable column supplies an explicit comparer over `TorrentRowViewModel`.
-The natural order is the torrent host's queue-ascending semantic source order,
-not an implicit torrent feature of `TableView`. Start with the seven intended
-visible columns listed in Appendix A.1, then call
-`ApplyLayoutState` with the stored layout, if present.
-
-Set `CanInteractWithItem` to false for ghost/pending rows.
-
-A user resize or fit produces a width override that supersedes these torrent
-widths until reset; `ResetColumnLayout()` returns to the Appendix A.1 values.
+Each sortable column gets its order from `Schema<TRow>().Sort`, which joins
+the column to its key through the field the XAML compiler already generated for
+`x:Name`: renaming a column is then a build break rather than a lookup that
+silently stops matching. The natural order is the torrent host's
+queue-ascending semantic source order, not an implicit torrent feature of
+`TableView`. Start with the seven intended visible columns listed in Appendix
+A.1, then assign `Layout` from the stored snapshot, if present.
 
 The torrent host therefore has exactly one mapping layer:
 
 ```text
-TorrentRowViewModel + DataTemplate + IComparer<object>
-                                     -> TableColumn
+TorrentRowViewModel + DataTemplate + a sort key -> TableColumn
 ```
+
+A user resize or fit produces a width override that supersedes these torrent
+widths until reset; `ResetColumnLayout()` returns to the Appendix A.1 values.
+The inset inside every cell is the control's own `CellPadding`, applied to the
+header cell and the row cell alike, so the host repeats no cell margin and the
+header cannot drift out of line with its column.
 
 Status display calculation, formatted speeds, ETA strings, and progress labels
 belong on the torrent row view model (or its display-state owner),
@@ -1636,11 +1735,12 @@ The torrent host wires its generic policy and event boundary in one place:
 ```csharp
 private void ConfigureTorrentTable()
 {
-    TorrentTable.ItemKeySelector = item =>
-        ((TorrentRowViewModel)item).Id!;
-    TorrentTable.CanInteractWithItem = item =>
-        !((TorrentRowViewModel)item).IsGhost;
-    TorrentTable.IsMarqueeSelectionEnabled = true;
+    TorrentTable.Schema<TorrentRowViewModel>()
+        .Key(row => row.Id)
+        .CanInteract(row => !row.IsGhost)
+        .Sort(QueueColumn, row => row.QueuePosition)
+        .Sort(SpeedColumn, row => row.ActiveSpeed)
+        .Sort(CompletedOnColumn, row => row.CompletedOn ?? DateTimeOffset.MaxValue);
 
     TorrentTable.SelectionStateChanged += OnTorrentSelectionStateChanged;
     TorrentTable.ItemInvoked += OnTorrentItemInvoked;
@@ -1650,17 +1750,20 @@ private void ConfigureTorrentTable()
 }
 ```
 
+The row type is stated once, so there is no cast per selector and no comparer
+adapter in the host. The marquee needs no line here: it is on by default.
+
 The handlers have exactly these responsibilities:
 
 - `OnTorrentSelectionStateChanged`: publish selected/current torrent IDs to the
-  shell. `SetSelection` is used only when an independent shell action changes
+  shell. `Selection` is assigned only when an independent shell action changes
   selection; matching IDs are an idempotent no-op.
 - `OnTorrentItemInvoked`: open the permitted docked detail/inspector action.
 - `OnTorrentRowContextRequested`: build and show the torrent `MenuFlyout`.
 - `OnTorrentRowsReorderRequested`: pass the immutable request to the queue
   coordinator, which owns optimistic update, RPC, reconciliation, and failure.
-- `OnTorrentLayoutChanged`: give the supplied snapshot to the torrent settings
-  debouncer.
+- `OnTorrentLayoutChanged`: read `Layout` and give that snapshot to the torrent
+  settings debouncer.
 
 Cell buttons and menu items call torrent commands directly through the row view
 model or host command service. Do not add `OnPause`, `OnResume`,
@@ -1671,7 +1774,7 @@ model or host command service. Do not add `OnPause`, `OnResume`,
 Observe `SelectionStateChanged` and project its selected rows to the shell's
 selected torrent IDs and current/active ID for global hotkeys, bulk commands,
 and inspector/detail loading. When an independent application surface changes
-that state, resolve its IDs to current torrent rows and call `SetSelection`.
+that state, resolve its IDs to current torrent rows and assign `Selection`.
 Matching logical state is a no-op, so the table remains the one interactive
 selection/current owner without a suppression guard.
 
@@ -1694,9 +1797,11 @@ accessible torrent command surface) for users who do not use pointer drag.
 #### A.2.5 Queue drag reordering
 
 Mark the queue column `DefinesRowOrder`, and bind `IsRowReorderingEnabled` to
-true only when the state filter is All and no text filter is active; this
-deliberately narrows TableView's default-enabled capability to views the
-torrent host can map to queue ordering. The sort needs no binding: the table
+true only when the state filter is All and no text filter is active. The flag is
+off by default and is the only owner of the capability, so the torrent host
+turns it on exactly for the views it can map to queue ordering, and subscribing
+to `RowsReorderRequested` neither enables nor implies the gesture. The sort
+needs no binding: the table
 offers the drag unsorted and under a queue-column sort either way, withholds it
 under any other sort, and reports a descending view's request already in
 ascending queue order. The torrent host handles `RowsReorderRequested` as
@@ -1720,14 +1825,14 @@ queue sort arrives in queue order.
 
 #### A.2.6 Layout persistence
 
-Use a torrent-specific settings key to load and save
-`TableLayoutState`. During setup:
+Use a torrent-specific settings key to load and save `TableLayout`. During
+setup:
 
 1. create the default torrent columns;
-2. load the saved data-only state;
-3. call `ApplyLayoutState`;
-4. subscribe to `LayoutChanged` and debounce persistence of its `LayoutState`
-   snapshot.
+2. load the saved data-only snapshot;
+3. assign it to `Layout`, before or after the first `Loaded`;
+4. subscribe to `LayoutChanged` and, from that handler, read `Layout` and
+   debounce persistence of the snapshot it returns.
 
 Do not save selections, filters, live status values, progress, or queue drag
 state as part of the table layout. Application preferences remain the storage
@@ -1770,8 +1875,8 @@ host integration. Torrent-specific verification is in Appendix A.
    Direct resize, bounded fit, hide/show, reset, and save/reload preserve their
    specified baseline/override behavior without off-screen measurement.
 7. `None`, `Single`, `Multiple`, and `Extended` selection limits work with
-   pointer and keyboard input. `CurrentItem` can be unselected; `SetSelection`
-   produces the specified selection/current state without feedback loops, and
+   pointer and keyboard input. `Selection.Current` can be unselected; assigning
+   `Selection` produces the specified state without feedback loops, and
    same-key rehydration retains that state.
 8. When enabled, mouse/pen marquee selection, modifiers, edge auto-scroll, and
    Escape work without stealing cell input or touch scrolling.

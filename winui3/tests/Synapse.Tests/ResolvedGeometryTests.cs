@@ -45,8 +45,8 @@ public class ResolvedGeometryTests
     {
         TableView table = await ThreeColumnTableAsync();
 
-        table.ApplyLayoutState(TestData.State(
-            visibility: new Dictionary<string, bool> { ["b"] = false }));
+        table.Layout = TestData.Layout(
+            visibility: new Dictionary<string, bool> { ["b"] = false });
 
         (string Id, double Offset, double Width)[] visible = TableHarness.VisibleColumns(table);
 
@@ -61,9 +61,9 @@ public class ResolvedGeometryTests
     {
         TableView table = await ThreeColumnTableAsync();
 
-        table.ApplyLayoutState(TestData.State(
+        table.Layout = TestData.Layout(
             visibility: new Dictionary<string, bool> { ["b"] = false },
-            widths: new Dictionary<string, double> { ["b"] = 260 }));
+            widths: new Dictionary<string, double> { ["b"] = 260 });
 
         CollectionAssert.AreEqual(new[] { "a", "b", "c" }, TableHarness.Order(table),
             "a hidden column keeps its resolved position");
@@ -78,13 +78,13 @@ public class ResolvedGeometryTests
     {
         TableView table = await ThreeColumnTableAsync();
 
-        table.ApplyLayoutState(TestData.State(widths: new Dictionary<string, double> { ["b"] = 340 }));
+        table.Layout = TestData.Layout(widths: new Dictionary<string, double> { ["b"] = 340 });
 
         Assert.AreEqual(340d, TableHarness.ResolvedWidth(table, "b"), 0d);
         Assert.AreEqual(590d, TableHarness.TotalWidth(table), 0d);
         Assert.AreEqual(440d, TableHarness.VisibleColumns(table)[2].Offset, 0d);
 
-        table.ApplyLayoutState(TestData.State());
+        table.Layout = TestData.Layout();
 
         Assert.AreEqual(200d, TableHarness.ResolvedWidth(table, "b"), 0d, "the baseline returns");
         Assert.AreEqual(450d, TableHarness.TotalWidth(table), 0d);
@@ -95,7 +95,7 @@ public class ResolvedGeometryTests
     {
         TableView table = await ThreeColumnTableAsync();
 
-        table.ApplyLayoutState(TestData.State(order: new[] { "c", "b", "a" }));
+        table.Layout = TestData.Layout(order: new[] { "c", "b", "a" });
 
         (string Id, double Offset, double Width)[] visible = TableHarness.VisibleColumns(table);
 

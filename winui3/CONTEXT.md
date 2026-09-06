@@ -15,9 +15,10 @@ domain commands, saved settings, domain mutations, and all filtering — domain 
 TableView owns nothing the host owns.
 
 **Schema**
-The host's setup-only configuration: columns, selection mode, the identity selector, the
-interaction predicate, and every comparer. Captured once, at the control's first `Loaded`.
-It never changes afterwards.
+The host's setup-only configuration, captured once at the control's first `Loaded` and never
+changed afterwards. It has two halves: the declarative one is `Columns`, which a host writes in
+XAML; the typed one is `Schema<TRow>()`, which states the row type once and carries the identity
+selector, the interaction predicate, and every column's sort key.
 
 ## The view pipeline
 

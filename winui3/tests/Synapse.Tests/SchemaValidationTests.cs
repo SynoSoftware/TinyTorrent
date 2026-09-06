@@ -80,20 +80,25 @@ public class SchemaValidationTests
         {
             c.MinWidth = 300;
             c.MaxWidth = 200;
-            c.DefaultWidth = 250;
+            c.Width = 250;
         }),
     });
 
+    /// <summary>
+    /// Section 6.1: a column with no Id is legal, because a table whose layout is never saved has
+    /// no persistence keys to invent. There used to be a rejection here for a column that claimed
+    /// to sort without a comparer; it cannot be written any more, which is the point of the change.
+    /// </summary>
     [TestMethod]
-    public Task Section6_1_SortableColumnWithoutAComparerIsRejected() => RejectedAsync(() => new[]
+    public Task Section6_1_AColumnWithNoIdIsAccepted() => TestHost.RunAsync(async () =>
     {
-        // "a column is sortable only when CanSort is true and it has a pure comparer that defines
-        // a consistent total ordering for the consumer's rows".
-        Column(c =>
-        {
-            c.CanSort = true;
-            c.SortComparer = null;
-        }),
+        TableView table = TestData.Table(
+            new TableColumn { DisplayName = "A" }, new TableColumn { DisplayName = "B" });
+
+        await TableHarness.LoadAsync(table);
+
+        Assert.AreEqual(2, TableHarness.VisibleColumns(table).Length);
+        Assert.AreEqual(0, table.Layout.Order.Count, "an unnamed column is not persisted");
     });
 
     [TestMethod]
@@ -107,8 +112,8 @@ public class SchemaValidationTests
     [TestMethod]
     public Task Section6_1_ZeroVisibleColumnsIsRejected() => RejectedAsync(() => new[]
     {
-        Column(c => c.IsVisibleByDefault = false, "a"),
-        Column(c => c.IsVisibleByDefault = false, "b"),
+        Column(c => c.IsVisible = false, "a"),
+        Column(c => c.IsVisible = false, "b"),
     });
 
     [TestMethod]

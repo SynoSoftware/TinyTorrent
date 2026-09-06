@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Must match the app projects. They declare x86;x64;ARM64 and have no AnyCPU, so a
+         solution defaulting to AnyCPU cannot map onto them. -->
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RootNamespace>TinyTorrent_Tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!--
+    No ProjectReference yet: its subject is the session/queue logic that Stage 3 moves out of
+    TinyTorrent.Ui, which targets net10.0-windows10.0.26100.0. A plain net10.0 project cannot
+    reference a net10.0-windows project (the platform-specific TFM is not assignable to the
+    general one), so this project has nothing it can reference until that code has a plain
+    net10.0 home of its own.
+  -->
+  <ItemGroup>
+    <PackageReference Include="MSTest.TestAdapter" Version="4.4.0" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.4.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+  </ItemGroup>
+</Project>

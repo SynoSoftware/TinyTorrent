@@ -20,8 +20,16 @@ public sealed partial class TableView
     public void AutoFitColumn(string columnId)
     {
         ArgumentException.ThrowIfNullOrEmpty(columnId);
+        AutoFitColumn(RequireColumn(columnId));
+    }
 
-        if (FitColumn(RequireColumn(columnId)))
+    /// <summary>
+    /// The same fit for a column the table has already resolved, which is what the header's own
+    /// separator and menu have in hand. They do not go through the ID: a column need not have one.
+    /// </summary>
+    internal void AutoFitColumn(ResolvedColumn column)
+    {
+        if (FitColumn(column))
         {
             RaiseLayoutChanged(TableLayoutChangeKind.AutoFit);
         }
@@ -35,7 +43,7 @@ public sealed partial class TableView
         bool changed = false;
 
         // Each fit republishes the geometry, so the visible set is taken before the first one.
-        foreach (VisibleColumn visible in Layout.VisibleColumns.ToArray())
+        foreach (VisibleColumn visible in Geometry.VisibleColumns.ToArray())
         {
             changed |= FitColumn(visible.Column);
         }
@@ -53,7 +61,7 @@ public sealed partial class TableView
     /// </summary>
     public void ResetColumnLayout()
     {
-        bool changed = !Layout.Order.SequenceEqual(_resolved);
+        bool changed = !Geometry.Order.SequenceEqual(_resolved);
 
         foreach (ResolvedColumn column in _resolved)
         {
@@ -70,7 +78,7 @@ public sealed partial class TableView
 
         // SetOrder republishes the geometry, which re-realizes each header cell and so clears the
         // sort glyph of the column that had one.
-        Layout.SetOrder(_resolved);
+        Geometry.SetOrder(_resolved);
         UpdateHorizontalRange();
 
         if (sorted)
@@ -85,7 +93,7 @@ public sealed partial class TableView
     internal bool CanFitColumn(ResolvedColumn column) => column.IsVisible && column.Column.CanResize;
 
     internal bool CanFitVisibleColumns =>
-        Layout.VisibleColumns.Any(visible => CanFitColumn(visible.Column));
+        Geometry.VisibleColumns.Any(visible => CanFitColumn(visible.Column));
 
     /// <summary>Give this column a width override and republish the geometry.</summary>
     /// <returns>False when the clamped width is the width already resolved.</returns>
@@ -98,7 +106,7 @@ public sealed partial class TableView
         }
 
         column.WidthOverride = clamped;
-        Layout.Rebuild();
+        Geometry.Rebuild();
         return true;
     }
 
@@ -108,7 +116,7 @@ public sealed partial class TableView
     /// a state with no visible column.
     /// </summary>
     internal bool CanHideColumn(ResolvedColumn column) =>
-        column.IsVisible && column.Column.CanHide && Layout.VisibleColumns.Count > 1;
+        column.IsVisible && column.Column.CanHide && Geometry.VisibleColumns.Count > 1;
 
     internal void SetColumnVisibility(ResolvedColumn column, bool visible)
     {
@@ -126,7 +134,7 @@ public sealed partial class TableView
         // section 16, no row drag either, and nothing on screen to explain why.
         bool sortCleared = !visible && ReferenceEquals(_sortColumn, column) && ClearSort();
 
-        Layout.Rebuild();
+        Geometry.Rebuild();
         if (sortCleared)
         {
             RebuildView();
@@ -144,27 +152,27 @@ public sealed partial class TableView
     /// <returns>False when the placement leaves the order as it is.</returns>
     internal bool MoveColumnTo(ResolvedColumn column, int boundary, FocusState? focus)
     {
-        int index = Layout.IndexOfVisible(column);
+        int index = Geometry.IndexOfVisible(column);
         if (index < 0)
         {
             return false;
         }
 
-        boundary = Math.Clamp(boundary, 0, Layout.VisibleColumns.Count - 1);
+        boundary = Math.Clamp(boundary, 0, Geometry.VisibleColumns.Count - 1);
         if (boundary == index)
         {
             return false;
         }
 
-        List<ResolvedColumn> order = new(Layout.Order);
+        List<ResolvedColumn> order = new(Geometry.Order);
         order.Remove(column);
         order.Insert(InsertionPoint(order, boundary), column);
 
         // Section 19: the move has to read as movement. Where every cell is rendered now is the
         // only thing the animation needs; everything after this is an ordinary layout change.
-        Dictionary<string, double> before = TableColumnMotion.CaptureOffsets(Layout);
+        Dictionary<TableColumn, double> before = TableColumnMotion.CaptureOffsets(Geometry);
 
-        Layout.SetOrder(order);
+        Geometry.SetOrder(order);
         TableColumnMotion.SlideFrom(this, before);
         FocusHeaderOf(column, focus);
         RaiseLayoutChanged(TableLayoutChangeKind.ColumnMove);
@@ -179,13 +187,13 @@ public sealed partial class TableView
     /// put it there for a mouse click, which draws a focus visual nowhere else in the table.
     /// </summary>
     internal bool MoveColumnBy(ResolvedColumn column, int step) =>
-        MoveColumnTo(column, Layout.IndexOfVisible(column) + step, focus: null);
+        MoveColumnTo(column, Geometry.IndexOfVisible(column) + step, focus: null);
 
     /// <summary>A move is offered while there is a neighbouring visible place to move into.</summary>
     internal bool CanMoveColumnBy(ResolvedColumn column, int step)
     {
-        int index = Layout.IndexOfVisible(column);
-        return index >= 0 && Math.Clamp(index + step, 0, Layout.VisibleColumns.Count - 1) != index;
+        int index = Geometry.IndexOfVisible(column);
+        return index >= 0 && Math.Clamp(index + step, 0, Geometry.VisibleColumns.Count - 1) != index;
     }
 
     /// <summary>
@@ -205,7 +213,7 @@ public sealed partial class TableView
             return;
         }
 
-        int index = Layout.IndexOfVisible(column);
+        int index = Geometry.IndexOfVisible(column);
         if (_headerStrip?.Panel is Panel header && index < header.Children.Count
             && header.Children[index] is Control cell)
         {
@@ -247,12 +255,12 @@ public sealed partial class TableView
         // Widths, visibility and order all move where the columns end, which is what decides
         // whether the strip has trailing space to offer its fit command in.
         _headerStrip?.UpdateFitAllVisibility();
-        LayoutChanged?.Invoke(this, new TableLayoutChangedEventArgs(GetLayoutState(), kind));
+        LayoutChanged?.Invoke(this, kind);
     }
 
     private ResolvedColumn RequireColumn(string columnId)
     {
-        if (Layout.Find(columnId) is ResolvedColumn column)
+        if (Geometry.Find(columnId) is ResolvedColumn column)
         {
             return column;
         }
@@ -275,7 +283,7 @@ public sealed partial class TableView
             return false;
         }
 
-        int index = Layout.IndexOfVisible(column);
+        int index = Geometry.IndexOfVisible(column);
         double widest = 0;
         bool measured = false;
 

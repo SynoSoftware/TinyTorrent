@@ -24,9 +24,9 @@ public class RealColumnResizeTests
     {
         DragHarness h = await DragHarness.LoadAsync(Bounded);
         int events = 0;
-        h.Table.LayoutChanged += (_, e) =>
+        h.Table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(TableLayoutChangeKind.ColumnResize, e.Kind);
+            Assert.AreEqual(TableLayoutChangeKind.ColumnResize, kind);
             events++;
         };
 
@@ -91,9 +91,9 @@ public class RealColumnResizeTests
     {
         DragHarness h = await DragHarness.LoadAsync(Bounded);
         int fits = 0;
-        h.Table.LayoutChanged += (_, e) =>
+        h.Table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(TableLayoutChangeKind.AutoFit, e.Kind);
+            Assert.AreEqual(TableLayoutChangeKind.AutoFit, kind);
             fits++;
         };
 

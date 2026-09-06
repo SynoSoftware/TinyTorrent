@@ -1,25 +1,15 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Page
-    x:Class="Synapse_Sample.TorrentPage"
+    x:Class="TinyTorrent_Ui.TorrentPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Synapse_Sample"
+    xmlns:local="using:TinyTorrent_Ui"
     xmlns:t="using:Synapse"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Page.Resources>
-
-        <!--
-            The row container is Padding="0" so the header and the rows share one column
-            geometry. The inset inside a column is therefore the host's, and this style gives
-            the header cells the matching one.
-        -->
-        <Style TargetType="t:TableHeaderCell">
-            <Setter Property="Padding" Value="12,6,12,6" />
-        </Style>
-
         <Style x:Key="CellText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextWrapping" Value="NoWrap" />
@@ -28,8 +18,7 @@
 
         <!-- ==================================================== name -->
         <DataTemplate x:Key="NameCell" x:DataType="local:TorrentRowViewModel">
-            <Grid Margin="12,0"
-                  VerticalAlignment="Center"
+            <Grid VerticalAlignment="Center"
                   ColumnSpacing="6"
                   Opacity="{x:Bind RowOpacity, Mode=OneWay}">
                 <Grid.ColumnDefinitions>
@@ -85,7 +74,7 @@
 
         <!-- ================================================ progress -->
         <DataTemplate x:Key="ProgressCell" x:DataType="local:TorrentRowViewModel">
-            <Grid Margin="12,0" VerticalAlignment="Center" RowSpacing="2">
+            <Grid VerticalAlignment="Center" RowSpacing="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -121,7 +110,7 @@
                 label, so the label needs a bounded column to trim inside instead of being cut.
                 The full text stays available in the tooltip.
             -->
-            <Border Margin="12,0"
+            <Border
                     Padding="7,2"
                     CornerRadius="10"
                     HorizontalAlignment="Left"
@@ -156,7 +145,7 @@
 
         <!-- =================================================== queue -->
         <DataTemplate x:Key="QueueCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
                        Text="{x:Bind QueueText, Mode=OneWay}"
@@ -165,14 +154,14 @@
 
         <!-- ===================================================== eta -->
         <DataTemplate x:Key="EtaCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind EtaText, Mode=OneWay}" />
         </DataTemplate>
 
         <!-- =================================================== speed -->
         <DataTemplate x:Key="SpeedCell" x:DataType="local:TorrentRowViewModel">
-            <Grid Margin="12,0"
+            <Grid
                   VerticalAlignment="Center"
                   ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
@@ -201,7 +190,7 @@
 
         <!-- =================================================== peers -->
         <DataTemplate x:Key="PeersCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
                        Text="{x:Bind PeersText, Mode=OneWay}">
@@ -213,7 +202,7 @@
 
         <!-- ==================================================== size -->
         <DataTemplate x:Key="SizeCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
                        Text="{x:Bind SizeText, Mode=OneWay}" />
@@ -221,7 +210,7 @@
 
         <!-- =================================================== ratio -->
         <DataTemplate x:Key="RatioCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
                        Text="{x:Bind RatioText, Mode=OneWay}" />
@@ -229,7 +218,7 @@
 
         <!-- =================================================== added -->
         <DataTemplate x:Key="AddedCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind AddedText, Mode=OneWay}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -237,7 +226,7 @@
 
         <!-- ============================================= completedOn -->
         <DataTemplate x:Key="CompletedOnCell" x:DataType="local:TorrentRowViewModel">
-            <TextBlock Margin="12,0"
+            <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind CompletedOnText, Mode=OneWay}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -358,7 +347,7 @@
                      Grid.Row="2"
                      AutomationProperties.Name="Torrents"
                      IsFitAllButtonEnabled="True"
-                     IsMarqueeSelectionEnabled="True"
+                     IsRowReorderingEnabled="True"
                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                      BorderThickness="1"
                      CornerRadius="4"
@@ -414,76 +403,76 @@
             </t:TableView.NoResultsContent>
 
             <t:TableView.Columns>
-                <t:TableColumn Id="name"
+                <t:TableColumn x:Name="NameColumn"
+                               Id="name"
                                DisplayName="Name"
-                               DefaultWidth="150"
+                               Width="150"
                                MinWidth="90"
-                               CanSort="True"
-                               CellHorizontalAlignment="Stretch"
+                               CellAlignment="Stretch"
                                CellTemplate="{StaticResource NameCell}" />
-                <t:TableColumn Id="progress"
-                               CellHorizontalAlignment="Stretch"
+                <t:TableColumn x:Name="ProgressColumn"
+                               Id="progress"
+                               CellAlignment="Stretch"
                                DisplayName="Progress"
-                               DefaultWidth="220"
+                               Width="220"
                                MinWidth="110"
-                               CanSort="True"
                                CellTemplate="{StaticResource ProgressCell}" />
-                <t:TableColumn Id="status"
+                <t:TableColumn x:Name="StatusColumn"
+                               Id="status"
                                DisplayName="Status"
-                               DefaultWidth="110"
+                               Width="110"
                                MinWidth="95"
-                               CanSort="True"
                                CellTemplate="{StaticResource StatusCell}" />
-                <t:TableColumn Id="queue"
+                <t:TableColumn x:Name="QueueColumn"
+                               Id="queue"
                                DisplayName="Queue"
-                               DefaultWidth="80"
-                               CanSort="True"
+                               Width="80"
                                DefinesRowOrder="True"
-                               CellHorizontalAlignment="Right"
+                               CellAlignment="Right"
                                CellTemplate="{StaticResource QueueCell}" />
-                <t:TableColumn Id="eta"
+                <t:TableColumn x:Name="EtaColumn"
+                               Id="eta"
                                DisplayName="ETA"
-                               DefaultWidth="110"
-                               IsVisibleByDefault="False"
-                               CanSort="True"
+                               Width="110"
+                               IsVisible="False"
                                CellTemplate="{StaticResource EtaCell}" />
-                <t:TableColumn Id="speed"
+                <t:TableColumn x:Name="SpeedColumn"
+                               Id="speed"
                                DisplayName="Speed"
-                               DefaultWidth="180"
+                               Width="180"
                                MinWidth="160"
-                               CanSort="True"
-                               CellHorizontalAlignment="Stretch"
+                               CellAlignment="Stretch"
                                CellTemplate="{StaticResource SpeedCell}" />
-                <t:TableColumn Id="peers"
+                <t:TableColumn x:Name="PeersColumn"
+                               Id="peers"
                                DisplayName="Peers"
-                               DefaultWidth="88"
-                               CanSort="True"
-                               CellHorizontalAlignment="Right"
+                               Width="88"
+                               CellAlignment="Right"
                                CellTemplate="{StaticResource PeersCell}" />
-                <t:TableColumn Id="size"
+                <t:TableColumn x:Name="SizeColumn"
+                               Id="size"
                                DisplayName="Size"
-                               DefaultWidth="100"
-                               CanSort="True"
-                               CellHorizontalAlignment="Right"
+                               Width="100"
+                               CellAlignment="Right"
                                CellTemplate="{StaticResource SizeCell}" />
-                <t:TableColumn Id="ratio"
+                <t:TableColumn x:Name="RatioColumn"
+                               Id="ratio"
                                DisplayName="Ratio"
-                               DefaultWidth="90"
-                               IsVisibleByDefault="False"
-                               CanSort="True"
-                               CellHorizontalAlignment="Right"
+                               Width="90"
+                               IsVisible="False"
+                               CellAlignment="Right"
                                CellTemplate="{StaticResource RatioCell}" />
-                <t:TableColumn Id="added"
+                <t:TableColumn x:Name="AddedColumn"
+                               Id="added"
                                DisplayName="Added"
-                               DefaultWidth="100"
-                               IsVisibleByDefault="False"
-                               CanSort="True"
+                               Width="100"
+                               IsVisible="False"
                                CellTemplate="{StaticResource AddedCell}" />
-                <t:TableColumn Id="completedOn"
+                <t:TableColumn x:Name="CompletedOnColumn"
+                               Id="completedOn"
                                DisplayName="Completed on"
-                               DefaultWidth="110"
-                               IsVisibleByDefault="False"
-                               CanSort="True"
+                               Width="110"
+                               IsVisible="False"
                                CellTemplate="{StaticResource CompletedOnCell}" />
             </t:TableView.Columns>
         </t:TableView>

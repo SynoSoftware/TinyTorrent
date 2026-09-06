@@ -9,15 +9,15 @@ namespace Synapse_Tests;
 /// resolved geometry.
 /// </summary>
 /// <remarks>
-/// <see cref="TableView.Layout"/> and <c>ResolvedLayout</c> are internal to Synapse and the control
+/// <c>TableView.Geometry</c> and <c>ResolvedLayout</c> are internal to Synapse and the control
 /// assembly grants no <c>InternalsVisibleTo</c>. Reflection is the only way to observe the resolved
 /// geometry without changing the control, which this task must not do.
 /// </remarks>
 internal static class TableHarness
 {
-    private static readonly PropertyInfo LayoutProperty =
-        typeof(TableView).GetProperty("Layout", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new MissingMemberException("TableView.Layout");
+    private static readonly PropertyInfo GeometryProperty =
+        typeof(TableView).GetProperty("Geometry", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingMemberException("TableView.Geometry");
 
     /// <summary>Put the table in the live tree and wait for its first <c>Loaded</c>.</summary>
     internal static async Task LoadAsync(TableView table)
@@ -71,37 +71,32 @@ internal static class TableHarness
 
     // ------------------------------------------------------------ resolved geometry
 
-    private static object Layout(TableView table) =>
-        LayoutProperty.GetValue(table) ?? throw new InvalidOperationException("Layout was null.");
+    /// <summary>
+    /// The control's internal <c>ResolvedLayout</c>. Every test that needs the resolved geometry
+    /// comes through here, so the one string this suite cannot have the compiler check is written
+    /// once, and a rename of the control's accessor fails loudly at the top of this file rather
+    /// than as a stray null somewhere in a test.
+    /// </summary>
+    internal static object Geometry(TableView table) =>
+        GeometryProperty.GetValue(table) ?? throw new InvalidOperationException("Geometry was null.");
 
     internal static double TotalWidth(TableView table) =>
-        (double)Read(Layout(table), "TotalWidth")!;
+        (double)Read(Geometry(table), "TotalWidth")!;
 
     /// <summary>Ids of the resolved order, hidden columns included.</summary>
     internal static string[] Order(TableView table) =>
-        ((System.Collections.IEnumerable)Read(Layout(table), "Order")!)
-        .Cast<object>()
-        .Select(c => (string)Read(c, "Id")!)
-        .ToArray();
+        ResolvedColumns(table).Select(c => (string)Read(c, "Id")!).ToArray();
 
     /// <summary>Resolved width of one column by id, whether it is visible or not.</summary>
     internal static double ResolvedWidth(TableView table, string id) =>
-        ((System.Collections.IEnumerable)Read(Layout(table), "Order")!)
-        .Cast<object>()
-        .Where(c => (string)Read(c, "Id")! == id)
-        .Select(c => (double)Read(c, "Width")!)
-        .Single();
+        (double)Read(ResolvedColumn(table, id), "Width")!;
 
     internal static bool IsVisible(TableView table, string id) =>
-        ((System.Collections.IEnumerable)Read(Layout(table), "Order")!)
-        .Cast<object>()
-        .Where(c => (string)Read(c, "Id")! == id)
-        .Select(c => (bool)Read(c, "IsVisible")!)
-        .Single();
+        (bool)Read(ResolvedColumn(table, id), "IsVisible")!;
 
     /// <summary>Visible columns as (id, cumulative left edge, width), in effective order.</summary>
     internal static (string Id, double Offset, double Width)[] VisibleColumns(TableView table) =>
-        ((System.Collections.IEnumerable)Read(Layout(table), "VisibleColumns")!)
+        ((System.Collections.IEnumerable)Read(Geometry(table), "VisibleColumns")!)
         .Cast<object>()
         .Select(v => (
             Id: (string)Read(Read(v, "Column")!, "Id")!,
@@ -109,12 +104,37 @@ internal static class TableHarness
             Width: (double)Read(v, "Width")!))
         .ToArray();
 
-    private static object? Read(object target, string name)
+    /// <summary>
+    /// One internal <c>ResolvedColumn</c>, which is what the control's own column operations take.
+    /// </summary>
+    internal static object ResolvedColumn(TableView table, string id) =>
+        ResolvedColumns(table).FirstOrDefault(c => (string?)Read(c, "Id") == id)
+        ?? throw new AssertFailedException($"No resolved column '{id}'.");
+
+    /// <summary>The table-owned horizontal offset the header strip and every row panel subtract.</summary>
+    internal static void SetHorizontalOffset(TableView table, double value)
     {
-        Type type = target.GetType();
-        PropertyInfo property = type.GetProperty(
-            name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMemberException(type.Name, name);
-        return property.GetValue(target);
+        object geometry = Geometry(table);
+        Property(geometry.GetType(), "HorizontalOffset").SetValue(geometry, value);
     }
+
+    /// <summary>The resize separator's own arithmetic, in header-strip coordinates.</summary>
+    internal static int TrailingEdgeNear(TableView table, double x, double tolerance)
+    {
+        object geometry = Geometry(table);
+        MethodInfo method = geometry.GetType().GetMethod(
+            "TrailingEdgeNear", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingMemberException(geometry.GetType().Name, "TrailingEdgeNear");
+        return (int)method.Invoke(geometry, new object[] { x, tolerance })!;
+    }
+
+    private static IEnumerable<object> ResolvedColumns(TableView table) =>
+        ((System.Collections.IEnumerable)Read(Geometry(table), "Order")!).Cast<object>();
+
+    private static object? Read(object target, string name) =>
+        Property(target.GetType(), name).GetValue(target);
+
+    private static PropertyInfo Property(Type type, string name) =>
+        type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new MissingMemberException(type.Name, name);
 }

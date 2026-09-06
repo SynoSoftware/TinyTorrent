@@ -27,10 +27,10 @@ internal static class TableColumnMotion
 
     private static readonly UISettings SystemSettings = new();
 
-    /// <summary>Where each visible column's cells are rendered now, by column ID.</summary>
-    internal static Dictionary<string, double> CaptureOffsets(ResolvedLayout layout)
+    /// <summary>Where each visible column's cells are rendered now.</summary>
+    internal static Dictionary<TableColumn, double> CaptureOffsets(ResolvedLayout layout)
     {
-        Dictionary<string, double> offsets = new(StringComparer.Ordinal);
+        Dictionary<TableColumn, double> offsets = new();
 
         if (!SystemSettings.AnimationsEnabled)
         {
@@ -39,7 +39,7 @@ internal static class TableColumnMotion
 
         foreach (VisibleColumn visible in layout.VisibleColumns)
         {
-            offsets[visible.Column.Id] = visible.Offset;
+            offsets[visible.Column.Column] = visible.Offset;
         }
 
         return offsets;
@@ -49,7 +49,7 @@ internal static class TableColumnMotion
     /// Slide every realized cell from the position <paramref name="before"/> recorded for its
     /// column into the position the new layout gives it.
     /// </summary>
-    internal static void SlideFrom(TableView owner, Dictionary<string, double> before)
+    internal static void SlideFrom(TableView owner, Dictionary<TableColumn, double> before)
     {
         if (before.Count == 0)
         {
@@ -60,7 +60,7 @@ internal static class TableColumnMotion
         // only thing that has to move them back.
         owner.UpdateLayout();
 
-        IReadOnlyList<VisibleColumn> visible = owner.Layout.VisibleColumns;
+        IReadOnlyList<VisibleColumn> visible = owner.Geometry.VisibleColumns;
 
         foreach (TableCellsPanel panel in owner.RealizedPanels())
         {
@@ -68,7 +68,7 @@ internal static class TableColumnMotion
 
             for (int i = 0; i < count; i++)
             {
-                if (!before.TryGetValue(visible[i].Column.Id, out double was))
+                if (!before.TryGetValue(visible[i].Column.Column, out double was))
                 {
                     continue;
                 }

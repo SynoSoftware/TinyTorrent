@@ -6,7 +6,7 @@ namespace Synapse_Tests;
 
 /// <summary>
 /// Sections 5, 5.3 and 13: the table-owned selection set, current item, anchor, the four mode
-/// limits, <c>SetSelection</c> idempotence, and keyed reconciliation across source snapshots.
+/// limits, an idempotent Selection request, and keyed reconciliation across source snapshots.
 /// </summary>
 [TestClass]
 public class SelectionTests
@@ -81,7 +81,7 @@ public class SelectionTests
         Assert.AreEqual(0, h.SelectedKeys().Length);
         Assert.AreEqual("k2", h.CurrentKey());
 
-        h.Table.SetSelection(new object[] { h[0], h[1] });
+        h.Table.Selection = new(new object[] { h[0], h[1] });
         Assert.AreEqual(0, h.SelectedKeys().Length);
     });
 
@@ -95,7 +95,7 @@ public class SelectionTests
         h.Click(h[4], shift: true);
         CollectionAssert.AreEqual(new[] { "k4" }, h.SelectedKeys());
 
-        h.Table.SetSelection(new object[] { h[0], h[2], h[5] });
+        h.Table.Selection = new(new object[] { h[0], h[2], h[5] });
         CollectionAssert.AreEqual(
             new[] { "k0" }, h.SelectedKeys(), "Single retains the first resolved item in visual order.");
     });
@@ -119,38 +119,38 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[0], h[2], h[5] });
+        h.Table.Selection = new(new object[] { h[0], h[2], h[5] });
         CollectionAssert.AreEqual(new[] { "k0", "k2", "k5" }, h.SelectedKeys());
     });
 
-    // ------------------------------------------------------------------ SetSelection
+    // ------------------------------------------------------------------ Selection
 
     [TestMethod]
-    public Task SetSelectionIsIdempotent() => TestHost.RunAsync(async () =>
+    public Task AssigningTheSameSelectionRaisesNothing() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[2] }, h[2]);
+        h.Table.Selection = new(new object[] { h[1], h[2] }, h[2]);
         Assert.AreEqual(1, h.Events);
 
         // Same identities, different request order, and an equal current: no second event.
-        h.Table.SetSelection(new object[] { h[2], h[1] }, h[2]);
+        h.Table.Selection = new(new object[] { h[2], h[1] }, h[2]);
         Assert.AreEqual(1, h.Events);
 
-        h.Table.SetSelection(new object[] { h[2], h[1] }, h[1]);
+        h.Table.Selection = new(new object[] { h[2], h[1] }, h[1]);
         Assert.AreEqual(2, h.Events, "A current-item change alone is still a change.");
     });
 
     [TestMethod]
-    public Task SetSelectionResolvesByKeyAndDropsWhatCannotBeSelected() => TestHost.RunAsync(async () =>
+    public Task SelectionResolvesByKeyAndDropsWhatCannotBeSelected() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            6, t => t.CanInteractWithItem = item => ((Row)item).Interactive);
+            6, t => t.Schema<Row>().CanInteract(row => row.Interactive));
 
         h[4].Interactive = false;
 
         // A detached instance with a known key, a duplicate, an unknown key, and a passive row.
-        h.Table.SetSelection(new object[]
+        h.Table.Selection = new(new object[]
         {
             new Row("k1"), h[1], new Row("nope"), h[4], h[3],
         });
@@ -158,21 +158,21 @@ public class SelectionTests
         CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
         Assert.AreEqual("k1", h.CurrentKey(), "An omitted current uses the first selected item in visual order.");
         Assert.IsTrue(
-            ReferenceEquals(h[1], h.Table.SelectedItems[0]),
+            ReferenceEquals(h[1], h.Table.Selection.Items[0]),
             "A resolved identity must expose the current view instance, not the supplied one.");
     });
 
     [TestMethod]
-    public Task SetSelectionAcceptsAnUnselectedCurrentAndFallsBackWhenItIsGone() =>
+    public Task SelectionAcceptsAnUnselectedCurrentAndFallsBackWhenItIsGone() =>
         TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[2] }, h[5]);
+        h.Table.Selection = new(new object[] { h[1], h[2] }, h[5]);
         CollectionAssert.AreEqual(new[] { "k1", "k2" }, h.SelectedKeys());
         Assert.AreEqual("k5", h.CurrentKey());
 
-        h.Table.SetSelection(new object[] { h[1], h[2] }, new Row("gone"));
+        h.Table.Selection = new(new object[] { h[1], h[2] }, new Row("gone"));
         Assert.AreEqual("k1", h.CurrentKey());
     });
 
@@ -183,7 +183,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[3] }, h[3]);
+        h.Table.Selection = new(new object[] { h[1], h[3] }, h[3]);
         h.Events = 0;
 
         ObservableCollection<Row> replacement = new(h.Rows.Select(r => new Row(r.Key)));
@@ -193,7 +193,7 @@ public class SelectionTests
         CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
         Assert.AreEqual("k3", h.CurrentKey());
         Assert.IsTrue(
-            ReferenceEquals(replacement[1], h.Table.SelectedItems[0]),
+            ReferenceEquals(replacement[1], h.Table.Selection.Items[0]),
             "SelectedItems must expose the new instances.");
     });
 
@@ -202,7 +202,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[3] }, h[3]);
+        h.Table.Selection = new(new object[] { h[1], h[3] }, h[3]);
         h.Events = 0;
 
         h.Rows.Move(0, 5);
@@ -216,7 +216,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[3] });
+        h.Table.Selection = new(new object[] { h[1], h[3] });
         h.Rows.Move(3, 0);
 
         CollectionAssert.AreEqual(
@@ -229,7 +229,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[2], h[3] }, h[2]);
+        h.Table.Selection = new(new object[] { h[1], h[2], h[3] }, h[2]);
         h.Events = 0;
 
         h.Rows.Remove(h[2]);
@@ -245,7 +245,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(4);
 
-        h.Table.SetSelection(new object[] { h[1] });
+        h.Table.Selection = new(new object[] { h[1] });
         h.Events = 0;
 
         h.Rows.Remove(h[1]);
@@ -259,9 +259,9 @@ public class SelectionTests
     public Task ABecameNonInteractiveItemIsPrunedByRefreshView() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            6, t => t.CanInteractWithItem = item => ((Row)item).Interactive);
+            6, t => t.Schema<Row>().CanInteract(row => row.Interactive));
 
-        h.Table.SetSelection(new object[] { h[1], h[2] }, h[1]);
+        h.Table.Selection = new(new object[] { h[1], h[2] }, h[1]);
         h.Events = 0;
 
         h[1].Interactive = false;
@@ -276,7 +276,7 @@ public class SelectionTests
     public Task ANonInteractiveItemCannotBeClicked() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(
-            6, t => t.CanInteractWithItem = item => ((Row)item).Interactive);
+            6, t => t.Schema<Row>().CanInteract(row => row.Interactive));
 
         h[3].Interactive = false;
         h.Click(h[1]);
@@ -307,7 +307,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1], h[3] });
+        h.Table.Selection = new(new object[] { h[1], h[3] });
         CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.ContainerSelectedKeys());
 
         h.Click(h[5]);
@@ -319,7 +319,7 @@ public class SelectionTests
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(6);
 
-        h.Table.SetSelection(new object[] { h[1] });
+        h.Table.Selection = new(new object[] { h[1] });
         h.Events = 0;
 
         // Exactly what the container does to itself on a plain press in Multiple mode.

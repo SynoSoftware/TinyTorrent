@@ -41,6 +41,6 @@ public class TestHostTests
 
         await TableHarness.LoadAsync(table);
 
-        CollectionAssert.AreEqual(new[] { "a" }, table.GetLayoutState().ColumnOrder.ToArray());
+        CollectionAssert.AreEqual(new[] { "a" }, table.Layout.Order.ToArray());
     });
 }

@@ -64,7 +64,7 @@ public sealed partial class TableCellsPanel : Panel
             return false;
         }
 
-        _layout = owner.Layout;
+        _layout = owner.Geometry;
         _layout.Invalidated += OnLayoutInvalidated;
         SyncChildren();
         return true;
@@ -232,11 +232,19 @@ public sealed partial class TableCellsPanel : Panel
         ? cell.Column
         : child.GetValue(ColumnProperty) as TableColumn;
 
+    /// <summary>
+    /// The header cell and the row cell, built four lines apart and reading one inset, because a
+    /// column's header and its cells must line up or the table looks broken. Supplied separately
+    /// they drift: both hosts wrote the same two values by hand, in sixteen places, and deleting
+    /// the control's own default once left it rendering misaligned until a host wrote a style.
+    /// </summary>
     private UIElement CreateChild(TableColumn column)
     {
+        Thickness padding = _owner?.CellPadding ?? default;
+
         if (_isHeaderPanel)
         {
-            TableHeaderCell cell = new();
+            TableHeaderCell cell = new() { Padding = padding };
             cell.SetColumn(column);
             return cell;
         }
@@ -244,8 +252,9 @@ public sealed partial class TableCellsPanel : Panel
         ContentPresenter presenter = new()
         {
             ContentTemplate = column.CellTemplate,
-            HorizontalContentAlignment = column.CellHorizontalAlignment,
+            HorizontalContentAlignment = column.CellAlignment,
             VerticalContentAlignment = VerticalAlignment.Stretch,
+            Padding = padding,
             Content = DataContext,
         };
         presenter.SetValue(ColumnProperty, column);

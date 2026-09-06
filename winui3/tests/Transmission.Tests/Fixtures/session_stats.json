@@ -1,0 +1,25 @@
+{
+  "id": 22,
+  "jsonrpc": "2.0",
+  "result": {
+    "active_torrent_count": 1,
+    "cumulative_stats": {
+      "downloaded_bytes": 0,
+      "files_added": 0,
+      "seconds_active": 166,
+      "session_count": 1,
+      "uploaded_bytes": 0
+    },
+    "current_stats": {
+      "downloaded_bytes": 0,
+      "files_added": 0,
+      "seconds_active": 166,
+      "session_count": 1,
+      "uploaded_bytes": 0
+    },
+    "download_speed": 0,
+    "paused_torrent_count": 0,
+    "torrent_count": 1,
+    "upload_speed": 0
+  }
+}

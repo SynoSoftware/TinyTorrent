@@ -188,7 +188,7 @@ public class ColumnResizeTests
         TrackResize(strip, FirstSeparator + 75);
         CompleteResize(strip);
 
-        Assert.AreEqual(275d, table.GetLayoutState().ColumnWidths["a"]);
+        Assert.AreEqual(275d, table.Layout.Widths["a"]);
     });
 
     // ------------------------------------------------------------------ helpers
@@ -210,9 +210,9 @@ public class ColumnResizeTests
     private static Func<int> LayoutChanges(TableView table)
     {
         int count = 0;
-        table.LayoutChanged += (_, e) =>
+        table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(TableLayoutChangeKind.ColumnResize, e.Kind);
+            Assert.AreEqual(TableLayoutChangeKind.ColumnResize, kind);
             count++;
         };
         return () => count;

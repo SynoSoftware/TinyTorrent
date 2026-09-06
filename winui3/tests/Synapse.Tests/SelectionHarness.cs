@@ -13,6 +13,12 @@ internal sealed class Row
 
     internal string Key { get; }
 
+    /// <summary>
+    /// The number in the key: "k3" is 3. A second orderable field, so a test can give one column
+    /// an order that is genuinely not the row order.
+    /// </summary>
+    internal int Rank => int.TryParse(Key.AsSpan(1), out int rank) ? rank : 0;
+
     internal bool Interactive { get; set; } = true;
 
     public override string ToString() => Key;
@@ -32,8 +38,8 @@ internal sealed class SelectionHarness
         table.SelectionStateChanged += (_, e) =>
         {
             Events++;
-            LastSelected = e.SelectedItems;
-            LastCurrent = e.CurrentItem;
+            LastSelected = e.Selection.Items;
+            LastCurrent = e.Selection.Current;
         };
         table.ItemInvoked += (_, e) => Invoked.Add(e.Item);
     }
@@ -62,7 +68,7 @@ internal sealed class SelectionHarness
         }
 
         TableView table = TestData.Table(TestData.Column("a", 120), TestData.Column("b", 120));
-        table.ItemKeySelector = item => ((Row)item).Key;
+        table.Schema<Row>().Key(row => row.Key);
         table.Width = 320;
         table.Height = height;
         configure?.Invoke(table);
@@ -74,9 +80,9 @@ internal sealed class SelectionHarness
         return new SelectionHarness(table, rows);
     }
 
-    internal string[] SelectedKeys() => Table.SelectedItems.Cast<Row>().Select(r => r.Key).ToArray();
+    internal string[] SelectedKeys() => Table.Selection.Items.Cast<Row>().Select(r => r.Key).ToArray();
 
-    internal string? CurrentKey() => (Table.CurrentItem as Row)?.Key;
+    internal string? CurrentKey() => (Table.Selection.Current as Row)?.Key;
 
     internal Row this[int index] => Rows[index];
 

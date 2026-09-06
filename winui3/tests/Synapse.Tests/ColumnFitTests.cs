@@ -31,6 +31,13 @@ public class ColumnFitTests
     /// <summary>The one DIP a header cell adds for the visible separator line.</summary>
     private const double SeparatorLine = 1;
 
+    /// <summary>
+    /// The control's own cell inset, which every cell and header cell now carries. A fit measures
+    /// the cell as it is drawn, so the fitted width is the content plus this: a fit that left it
+    /// out would produce a column that clips its own content by exactly this much.
+    /// </summary>
+    private static double Inset(TableView table) => table.CellPadding.Left + table.CellPadding.Right;
+
     // ------------------------------------------------------------------ what a fit measures
 
     [TestMethod]
@@ -40,7 +47,7 @@ public class ColumnFitTests
 
         table.AutoFitColumn("a");
 
-        Assert.AreEqual(100d, TableHarness.ResolvedWidth(table, "a"), 0d);
+        Assert.AreEqual(100 + Inset(table), TableHarness.ResolvedWidth(table, "a"), 0d);
     });
 
     [TestMethod]
@@ -52,7 +59,8 @@ public class ColumnFitTests
 
         table.AutoFitColumn("a");
 
-        Assert.AreEqual(140 + SeparatorLine, TableHarness.ResolvedWidth(table, "a"), 0d);
+        Assert.AreEqual(
+            140 + Inset(table) + SeparatorLine, TableHarness.ResolvedWidth(table, "a"), 0d);
     });
 
     [TestMethod]
@@ -84,7 +92,7 @@ public class ColumnFitTests
 
         table.AutoFitColumn("a");
 
-        Assert.AreEqual(60d, TableHarness.ResolvedWidth(table, "a"), 0d,
+        Assert.AreEqual(60 + Inset(table), TableHarness.ResolvedWidth(table, "a"), 0d,
             "row 400 is not realized, so its 900 DIP cell is not part of the fit");
 
         ListView list = HostedList(table);
@@ -96,7 +104,7 @@ public class ColumnFitTests
 
         table.AutoFitColumn("a");
 
-        Assert.AreEqual(900d, TableHarness.ResolvedWidth(table, "a"), 0d,
+        Assert.AreEqual(900 + Inset(table), TableHarness.ResolvedWidth(table, "a"), 0d,
             "after scrolling, the same command finds it");
     });
 
@@ -106,8 +114,8 @@ public class ColumnFitTests
     public Task AFitOfAHiddenColumnDoesNothing() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync(Rows(20, 100), Column("a", 400), Column("b", 300));
-        table.ApplyLayoutState(TestData.State(
-            visibility: new Dictionary<string, bool> { ["b"] = false }));
+        table.Layout = TestData.Layout(
+            visibility: new Dictionary<string, bool> { ["b"] = false });
         Func<int> events = LayoutChanges(table);
 
         table.AutoFitColumn("b");
@@ -152,9 +160,9 @@ public class ColumnFitTests
         table.AutoFitVisibleColumns();
 
         Assert.AreEqual(1, events(), "three fitted columns, one LayoutChanged");
-        Assert.AreEqual(100d, TableHarness.ResolvedWidth(table, "a"), 0d);
-        Assert.AreEqual(100d, TableHarness.ResolvedWidth(table, "b"), 0d);
-        Assert.AreEqual(100d, TableHarness.ResolvedWidth(table, "c"), 0d);
+        Assert.AreEqual(100 + Inset(table), TableHarness.ResolvedWidth(table, "a"), 0d);
+        Assert.AreEqual(100 + Inset(table), TableHarness.ResolvedWidth(table, "b"), 0d);
+        Assert.AreEqual(100 + Inset(table), TableHarness.ResolvedWidth(table, "c"), 0d);
 
         table.AutoFitVisibleColumns();
 
@@ -165,15 +173,14 @@ public class ColumnFitTests
     public Task AFitThatChangesAWidthReportsAResizedLayout() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync(Rows(20, 100), Column("a", 400));
-        TableLayoutChangedEventArgs? reported = null;
-        table.LayoutChanged += (_, e) => reported = e;
+        TableLayoutChangeKind? reported = null;
+        table.LayoutChanged += (_, kind) => reported = kind;
 
         table.AutoFitColumn("a");
 
-        Assert.IsNotNull(reported);
-        Assert.AreEqual(TableLayoutChangeKind.AutoFit, reported!.Kind);
-        Assert.AreEqual(100d, reported.LayoutState.ColumnWidths["a"], 0d,
-            "the payload carries the new width override");
+        Assert.AreEqual(TableLayoutChangeKind.AutoFit, reported);
+        Assert.AreEqual(100 + Inset(table), table.Layout.Widths["a"], 0d,
+            "the snapshot read after the report carries the new width override");
     });
 
     // ------------------------------------------------------------------ separator geometry
@@ -187,16 +194,16 @@ public class ColumnFitTests
     {
         TableView table = await LoadAsync(Rows(4, 100), Column("a", 200), Column("b", 150));
 
-        Assert.AreEqual(0, TrailingEdgeNear(table, 200, 4), "a's edge");
-        Assert.AreEqual(0, TrailingEdgeNear(table, 196, 4), "the zone reaches into a");
-        Assert.AreEqual(0, TrailingEdgeNear(table, 204, 4), "and into b");
-        Assert.AreEqual(-1, TrailingEdgeNear(table, 190, 4), "away from any edge");
-        Assert.AreEqual(1, TrailingEdgeNear(table, 350, 4), "b's edge");
+        Assert.AreEqual(0, Near(table, 200), "a's edge");
+        Assert.AreEqual(0, Near(table, 196), "the zone reaches into a");
+        Assert.AreEqual(0, Near(table, 204), "and into b");
+        Assert.AreEqual(-1, Near(table, 190), "away from any edge");
+        Assert.AreEqual(1, Near(table, 350), "b's edge");
 
-        SetHorizontalOffset(table, 60);
+        TableHarness.SetHorizontalOffset(table, 60);
 
-        Assert.AreEqual(0, TrailingEdgeNear(table, 140, 4), "the zone follows the scrolled header");
-        Assert.AreEqual(-1, TrailingEdgeNear(table, 200, 4));
+        Assert.AreEqual(0, Near(table, 140), "the zone follows the scrolled header");
+        Assert.AreEqual(-1, Near(table, 200));
     });
 
     /// <summary>
@@ -271,6 +278,10 @@ public class ColumnFitTests
         return () => count;
     }
 
+    /// <summary>The separator index at this header-strip x, at the grab tolerance section 10 uses.</summary>
+    private static int Near(TableView table, double x) =>
+        TableHarness.TrailingEdgeNear(table, x, tolerance: 4);
+
     private static ListView HostedList(TableView table) =>
         Descendants<ListView>(table).First();
 
@@ -291,26 +302,5 @@ public class ColumnFitTests
                 yield return deeper;
             }
         }
-    }
-
-    private static object Layout(TableView table) =>
-        typeof(TableView)
-            .GetProperty("Layout", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(table)!;
-
-    private static int TrailingEdgeNear(TableView table, double x, double tolerance)
-    {
-        object layout = Layout(table);
-        MethodInfo method = layout.GetType().GetMethod(
-            "TrailingEdgeNear", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        return (int)method.Invoke(layout, new object[] { x, tolerance })!;
-    }
-
-    private static void SetHorizontalOffset(TableView table, double value)
-    {
-        object layout = Layout(table);
-        layout.GetType()
-            .GetProperty("HorizontalOffset", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(layout, value);
     }
 }

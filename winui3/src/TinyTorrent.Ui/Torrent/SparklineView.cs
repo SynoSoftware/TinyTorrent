@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// The inline speed sparkline. It owns one <see cref="Path"/> and rebuilds that Path's geometry

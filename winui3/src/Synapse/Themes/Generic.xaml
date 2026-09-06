@@ -133,10 +133,10 @@
         <Setter Property="UseSystemFocusVisuals" Value="True" />
         <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
         <!--
-            No table-owned padding. The row container is Padding="0" because shared column
-            geometry requires it, so the inset inside a column belongs to the host's cell
-            templates. The host sets the matching header inset with an implicit
-            Style TargetType="local:TableHeaderCell" that sets Padding.
+            No Padding setter here. The row container is Padding="0" because shared column geometry
+            requires it, so the inset inside a column is the table's own TableView.CellPadding,
+            applied to this cell and to the row cell in one method so the two cannot drift. A
+            setter here would win over that and split the ownership again.
         -->
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <!--

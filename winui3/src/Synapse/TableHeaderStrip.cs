@@ -174,7 +174,7 @@ public sealed partial class TableHeaderStrip : Control
             return;
         }
 
-        bool offered = _owner is { IsFitAllButtonEnabled: true, Layout: { } layout }
+        bool offered = _owner is { IsFitAllButtonEnabled: true, Geometry: { } layout }
             && _clip.ActualWidth - (layout.TotalWidth - layout.HorizontalOffset)
                 >= _fitAll.ActualWidth;
 
@@ -413,7 +413,7 @@ public sealed partial class TableHeaderStrip : Control
             return;
         }
 
-        _owner!.AutoFitColumn(column.Id);
+        _owner!.AutoFitColumn(column);
         e.Handled = true;
     }
 
@@ -527,11 +527,11 @@ public sealed partial class TableHeaderStrip : Control
     /// <summary>This column's trailing edge in the strip's own coordinates.</summary>
     private double TrailingEdgeOf(ResolvedColumn column)
     {
-        int index = _owner!.Layout.IndexOfVisible(column);
+        int index = _owner!.Geometry.IndexOfVisible(column);
         return index < 0
             ? _originX
-            : _owner.Layout.VisibleColumns[index].Offset + column.Width
-                - _owner.Layout.HorizontalOffset;
+            : _owner.Geometry.VisibleColumns[index].Offset + column.Width
+                - _owner.Geometry.HorizontalOffset;
     }
 
     /// <summary>
@@ -571,13 +571,13 @@ public sealed partial class TableHeaderStrip : Control
             return null;
         }
 
-        int index = _owner.Layout.TrailingEdgeNear(x, SeparatorReachDips);
+        int index = _owner.Geometry.TrailingEdgeNear(x, SeparatorReachDips);
         if (index < 0)
         {
             return null;
         }
 
-        ResolvedColumn column = _owner.Layout.VisibleColumns[index].Column;
+        ResolvedColumn column = _owner.Geometry.VisibleColumns[index].Column;
         return column.Column.CanResize ? column : null;
     }
 
@@ -629,7 +629,7 @@ public sealed partial class TableHeaderStrip : Control
     private int DropBoundary(double x, ResolvedColumn dragged)
     {
         int boundary = BoundaryAt(x);
-        int index = _owner!.Layout.IndexOfVisible(dragged);
+        int index = _owner!.Geometry.IndexOfVisible(dragged);
         return boundary > index ? boundary - 1 : boundary;
     }
 
@@ -640,8 +640,8 @@ public sealed partial class TableHeaderStrip : Control
     /// </summary>
     private int BoundaryAt(double x)
     {
-        IReadOnlyList<VisibleColumn> visible = _owner!.Layout.VisibleColumns;
-        double contentX = x + _owner.Layout.HorizontalOffset;
+        IReadOnlyList<VisibleColumn> visible = _owner!.Geometry.VisibleColumns;
+        double contentX = x + _owner.Geometry.HorizontalOffset;
 
         for (int i = 0; i < visible.Count; i++)
         {
@@ -661,12 +661,12 @@ public sealed partial class TableHeaderStrip : Control
             return;
         }
 
-        IReadOnlyList<VisibleColumn> visible = _owner!.Layout.VisibleColumns;
+        IReadOnlyList<VisibleColumn> visible = _owner!.Geometry.VisibleColumns;
         int boundary = BoundaryAt(x);
-        double contentX = boundary < visible.Count ? visible[boundary].Offset : _owner.Layout.TotalWidth;
+        double contentX = boundary < visible.Count ? visible[boundary].Offset : _owner.Geometry.TotalWidth;
 
         // Held inside the strip so the first and last boundaries do not show half a marker.
-        double centred = contentX - _owner.Layout.HorizontalOffset - (_marker.Width / 2);
+        double centred = contentX - _owner.Geometry.HorizontalOffset - (_marker.Width / 2);
         _markerOffset.X = Math.Clamp(centred, 0, Math.Max(0, ActualWidth - _marker.Width));
         _marker.Visibility = Visibility.Visible;
     }
@@ -763,7 +763,7 @@ public sealed partial class TableHeaderStrip : Control
 
     /// <summary>The resolved column this header cell shows, or null when it shows none.</summary>
     private ResolvedColumn? ColumnOf(TableHeaderCell? cell) =>
-        cell?.Column is TableColumn declared ? _owner?.Layout.Find(declared.Id) : null;
+        cell?.Column is TableColumn declared ? _owner?.Geometry.Find(declared) : null;
 
     /// <summary>
     /// The header cell this element sits in, and whether the path to it crossed a control the host

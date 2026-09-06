@@ -17,9 +17,36 @@
       <Platform Solution="*|x64" Project="x64" />
       <Platform Solution="*|ARM64" Project="ARM64" />
     </Project>
+    <Project Path="src/Transmission/Transmission.csproj">
+      <Platform Solution="*|x86" Project="x86" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="src/TinyTorrent.Ui/TinyTorrent.Ui.csproj">
+      <Platform Solution="*|x86" Project="x86" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="src/Tray/Tray.vcxproj">
+      <!-- Native vcxproj platforms have always been named "Win32", not "x86"; this is where
+           the solution's x86 configuration maps onto the project's own name for it. -->
+      <Platform Solution="*|x86" Project="Win32" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Synapse.Tests/Synapse.Tests.csproj">
+      <Platform Solution="*|x86" Project="x86" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="tests/Transmission.Tests/Transmission.Tests.csproj">
+      <Platform Solution="*|x86" Project="x86" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="tests/TinyTorrent.Tests/TinyTorrent.Tests.csproj">
       <Platform Solution="*|x86" Project="x86" />
       <Platform Solution="*|x64" Project="x64" />
       <Platform Solution="*|ARM64" Project="ARM64" />

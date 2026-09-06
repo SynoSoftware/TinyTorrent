@@ -153,7 +153,7 @@ public class ColumnMenuTests
     public Task ShowingAColumnAgainKeepsItsPlaceAndItsWidth() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync("a", "b", "c");
-        table.ApplyLayoutState(TestData.State(widths: new Dictionary<string, double> { ["b"] = 220 }));
+        table.Layout = TestData.Layout(widths: new Dictionary<string, double> { ["b"] = 220 });
         Func<int> events = LayoutChanges(table, TableLayoutChangeKind.Visibility);
 
         SetVisibility(table, "b", false);
@@ -276,9 +276,9 @@ public class ColumnMenuTests
     private static Func<int> LayoutChanges(TableView table, TableLayoutChangeKind expected)
     {
         int count = 0;
-        table.LayoutChanged += (_, e) =>
+        table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(expected, e.Kind);
+            Assert.AreEqual(expected, kind);
             count++;
         };
         return () => count;
@@ -341,7 +341,10 @@ public class ColumnMenuTests
         Type type = typeof(TableView).Assembly.GetType("Synapse.TableHeaderMenu")
             ?? throw new MissingMemberException("Synapse.TableHeaderMenu");
 
-        object?[] arguments = { table, activeId is null ? null : ResolvedColumn(table, activeId) };
+        object?[] arguments =
+        {
+            table, activeId is null ? null : TableHarness.ResolvedColumn(table, activeId),
+        };
         return (MenuFlyout)type
             .GetMethod("Create", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, arguments)!;
@@ -377,22 +380,7 @@ public class ColumnMenuTests
     }
 
     private static void SetVisibility(TableView table, string id, bool visible) =>
-        Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);
-
-
-    private static object ResolvedColumn(TableView table, string id)
-    {
-        object layout = Read(table, "Layout")!;
-        foreach (object column in (System.Collections.IEnumerable)Read(layout, "Order")!)
-        {
-            if ((string)Read(column, "Id")! == id)
-            {
-                return column;
-            }
-        }
-
-        throw new AssertFailedException($"No resolved column '{id}'.");
-    }
+        Invoke(table, "SetColumnVisibility", TableHarness.ResolvedColumn(table, id), visible);
 
     private static object? Invoke(object target, string method, params object[] arguments) =>
         target.GetType()
@@ -403,13 +391,4 @@ public class ColumnMenuTests
         target.GetType()
             .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(target);
-
-    private static object? Read(object target, string name)
-    {
-        Type type = target.GetType();
-        PropertyInfo property = type.GetProperty(
-            name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMemberException(type.Name, name);
-        return property.GetValue(target);
-    }
 }

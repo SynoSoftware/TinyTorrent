@@ -10,17 +10,8 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <!--
-            Cell spacing is the host's decision, so every template carries its own padding and
-            this implicit style gives the header cells the matching inset.
-        -->
-        <Style TargetType="t:TableHeaderCell">
-            <Setter Property="Padding" Value="12,6,12,6" />
-        </Style>
-
         <DataTemplate x:Key="NameCell" x:DataType="local:DemoRow">
             <TextBlock Text="{x:Bind Name}"
-                       Margin="12,0"
                        VerticalAlignment="Center"
                        TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis" />
@@ -28,14 +19,12 @@
 
         <DataTemplate x:Key="SizeCell" x:DataType="local:DemoRow">
             <TextBlock Text="{x:Bind SizeText}"
-                       Margin="12,0"
                        VerticalAlignment="Center"
                        TextWrapping="NoWrap" />
         </DataTemplate>
 
         <DataTemplate x:Key="AddedCell" x:DataType="local:DemoRow">
             <TextBlock Text="{x:Bind AddedText}"
-                       Margin="12,0"
                        VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        TextWrapping="NoWrap"
@@ -43,7 +32,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ProgressCell" x:DataType="local:DemoRow">
-            <Grid Margin="12,0" VerticalAlignment="Center" ColumnSpacing="8">
+            <Grid VerticalAlignment="Center" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -63,7 +52,6 @@
 
         <DataTemplate x:Key="ActionCell" x:DataType="local:DemoRow">
             <Button Content="Details"
-                    Margin="12,4"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Click="OnDetailsClick" />
@@ -93,32 +81,27 @@
                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                      BorderThickness="1">
             <t:TableView.Columns>
-                <t:TableColumn Id="name"
-                               DisplayName="Name"
-                               DefaultWidth="420"
+                <t:TableColumn DisplayName="Name"
+                               Width="420"
                                MinWidth="160"
                                CellTemplate="{StaticResource NameCell}" />
-                <t:TableColumn Id="size"
-                               DisplayName="Size"
-                               DefaultWidth="150"
+                <t:TableColumn DisplayName="Size"
+                               Width="150"
                                MinWidth="90"
-                               CellHorizontalAlignment="Right"
+                               CellAlignment="Right"
                                CellTemplate="{StaticResource SizeCell}" />
-                <t:TableColumn Id="added"
-                               DisplayName="Added"
-                               DefaultWidth="220"
+                <t:TableColumn DisplayName="Added"
+                               Width="220"
                                MinWidth="140"
                                CellTemplate="{StaticResource AddedCell}" />
                 <!-- A bar has to fill its column, so this cell is stretched, not left-aligned. -->
-                <t:TableColumn Id="progress"
-                               DisplayName="Progress"
-                               DefaultWidth="320"
+                <t:TableColumn DisplayName="Progress"
+                               Width="320"
                                MinWidth="160"
-                               CellHorizontalAlignment="Stretch"
+                               CellAlignment="Stretch"
                                CellTemplate="{StaticResource ProgressCell}" />
-                <t:TableColumn Id="action"
-                               DisplayName="Action"
-                               DefaultWidth="170"
+                <t:TableColumn DisplayName="Action"
+                               Width="170"
                                MinWidth="120"
                                CellTemplate="{StaticResource ActionCell}" />
             </t:TableView.Columns>

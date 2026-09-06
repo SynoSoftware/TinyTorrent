@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Must match the app projects. They declare x86;x64;ARM64 and have no AnyCPU, so a
+         solution defaulting to AnyCPU cannot map onto them. -->
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RootNamespace>Transmission</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The suite proves the wire itself: the derived method names against the daemon's dispatch
+         maps, the derived field lists, and the handler settings that the fake handler replaces
+         and so cannot otherwise be reached. -->
+    <InternalsVisibleTo Include="Transmission.Tests" />
+  </ItemGroup>
+</Project>

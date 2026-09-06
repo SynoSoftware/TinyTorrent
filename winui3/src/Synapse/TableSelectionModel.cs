@@ -57,7 +57,7 @@ internal sealed class TableSelectionModel
 
     internal ListViewSelectionMode Mode { get; set; } = ListViewSelectionMode.Extended;
 
-    /// <summary>Section 5's <c>CanInteractWithItem</c>. Null means every item is interactive.</summary>
+    /// <summary>Section 5's interaction predicate. Null means every item is interactive.</summary>
     internal Func<object, bool>? Eligible { get; set; }
 
     internal object? Current { get; private set; }

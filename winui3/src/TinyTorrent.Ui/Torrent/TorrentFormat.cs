@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// Display formatting for the torrent host. Every method is called from a lazy property getter on

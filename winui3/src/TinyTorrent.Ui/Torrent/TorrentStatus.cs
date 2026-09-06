@@ -1,4 +1,4 @@
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>
 /// The seven daemon states a torrent can report. "Stalled" is not here: it is derived by the

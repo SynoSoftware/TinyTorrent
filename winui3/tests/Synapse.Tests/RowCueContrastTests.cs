@@ -62,7 +62,7 @@ public class RowCueContrastTests
 
         // Row 1 is selected. Row 3 is current and not selected, which now draws nothing at all.
         // Row 5 is untouched and supplies the background the cue is measured against.
-        h.Table.SetSelection(new object[] { h[1] }, h[3]);
+        h.Table.Selection = new(new object[] { h[1] }, h[3]);
         h.Table.UpdateLayout();
         await Task.Delay(250);
 

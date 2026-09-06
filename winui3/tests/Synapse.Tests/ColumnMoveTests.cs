@@ -61,8 +61,8 @@ public class ColumnMoveTests
     public Task AHiddenColumnKeepsItsPlaceAmongItsNeighbours() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync("a", "b", "hidden", "c");
-        table.ApplyLayoutState(TestData.State(
-            visibility: new Dictionary<string, bool> { ["hidden"] = false }));
+        table.Layout = TestData.Layout(
+            visibility: new Dictionary<string, bool> { ["hidden"] = false });
 
         // Visually a, b, c. The drop is between b and c.
         Assert.IsTrue(MoveColumnTo(table, "a", 1));
@@ -70,9 +70,9 @@ public class ColumnMoveTests
         CollectionAssert.AreEqual(new[] { "b", "hidden", "a", "c" }, TableHarness.Order(table),
             "hidden stays between b and c, and a lands on the visible boundary it was dropped on");
 
-        table.ApplyLayoutState(TestData.State(
+        table.Layout = TestData.Layout(
             order: TableHarness.Order(table),
-            visibility: new Dictionary<string, bool>()));
+            visibility: new Dictionary<string, bool>());
 
         CollectionAssert.AreEqual(new[] { "b", "hidden", "a", "c" }, TableHarness.Order(table),
             "showing it again puts it back where it was");
@@ -82,8 +82,8 @@ public class ColumnMoveTests
     public Task AMoveToTheEndDoesNotStepOverATrailingHiddenColumn() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync("a", "b", "hidden");
-        table.ApplyLayoutState(TestData.State(
-            visibility: new Dictionary<string, bool> { ["hidden"] = false }));
+        table.Layout = TestData.Layout(
+            visibility: new Dictionary<string, bool> { ["hidden"] = false });
 
         Assert.IsTrue(MoveColumnTo(table, "a", 1), "a goes after the last visible column");
 
@@ -108,8 +108,8 @@ public class ColumnMoveTests
     public Task AHiddenColumnCannotBeMoved() => TestHost.RunAsync(async () =>
     {
         TableView table = await LoadAsync("a", "b", "hidden");
-        table.ApplyLayoutState(TestData.State(
-            visibility: new Dictionary<string, bool> { ["hidden"] = false }));
+        table.Layout = TestData.Layout(
+            visibility: new Dictionary<string, bool> { ["hidden"] = false });
         Func<int> events = LayoutChanges(table);
 
         Assert.IsFalse(MoveColumnTo(table, "hidden", 0));
@@ -140,8 +140,8 @@ public class ColumnMoveTests
         TableView commanded = await LoadAsync("a", "b", "hidden", "c");
         foreach (TableView table in new[] { dragged, commanded })
         {
-            table.ApplyLayoutState(TestData.State(
-                visibility: new Dictionary<string, bool> { ["hidden"] = false }));
+            table.Layout = TestData.Layout(
+                visibility: new Dictionary<string, bool> { ["hidden"] = false });
         }
 
         // "c" is the third visible column; a drag onto the boundary left of "b" is boundary 1.
@@ -191,7 +191,7 @@ public class ColumnMoveTests
         TableView table = await LoadAsync(("a", 200), ("b", 100), ("c", 100));
         TableHeaderStrip strip = Strip(table);
 
-        SetHorizontalOffset(table, 150);
+        TableHarness.SetHorizontalOffset(table, 150);
 
         Assert.AreEqual(1, BoundaryAt(strip, 0), "x 0 is now 150 into a, its right half");
         Assert.AreEqual(2, BoundaryAt(strip, 110), "and 260 is the right half of b");
@@ -206,7 +206,7 @@ public class ColumnMoveTests
     {
         TableView table = await LoadAsync(("a", 100), ("b", 100), ("c", 100));
         TableHeaderStrip strip = Strip(table);
-        object b = ResolvedColumn(table, "b");
+        object b = TableHarness.ResolvedColumn(table, "b");
 
         Assert.AreEqual(1, DropBoundary(strip, 140, b), "the left half of b: the boundary before it");
         Assert.AreEqual(1, DropBoundary(strip, 160, b), "the right half of b: the boundary after it");
@@ -439,9 +439,9 @@ public class ColumnMoveTests
     private static Func<int> LayoutChanges(TableView table)
     {
         int count = 0;
-        table.LayoutChanged += (_, e) =>
+        table.LayoutChanged += (_, kind) =>
         {
-            Assert.AreEqual(TableLayoutChangeKind.ColumnMove, e.Kind);
+            Assert.AreEqual(TableLayoutChangeKind.ColumnMove, kind);
             count++;
         };
         return () => count;
@@ -473,28 +473,14 @@ public class ColumnMoveTests
     // all internal to Synapse, which grants no InternalsVisibleTo. Reflection is the only way to
     // reach them without widening the control's public surface for a test.
 
-    private static object ResolvedColumn(TableView table, string id)
-    {
-        object layout = Read(table, "Layout")!;
-        foreach (object column in (System.Collections.IEnumerable)Read(layout, "Order")!)
-        {
-            if ((string)Read(column, "Id")! == id)
-            {
-                return column;
-            }
-        }
-
-        throw new AssertFailedException($"No resolved column '{id}'.");
-    }
-
     private static bool MoveColumnTo(TableView table, string id, int boundary) =>
-        (bool)Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary, null!)!;
+        (bool)Invoke(table, "MoveColumnTo", TableHarness.ResolvedColumn(table, id), boundary, null!)!;
 
     private static void SetColumnVisibility(TableView table, string id, bool visible) =>
-        Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);
+        Invoke(table, "SetColumnVisibility", TableHarness.ResolvedColumn(table, id), visible);
 
     private static bool MoveColumnBy(TableView table, string id, int step) =>
-        (bool)Invoke(table, "MoveColumnBy", ResolvedColumn(table, id), step)!;
+        (bool)Invoke(table, "MoveColumnBy", TableHarness.ResolvedColumn(table, id), step)!;
 
     private static int BoundaryAt(TableHeaderStrip strip, double x) =>
         (int)Invoke(strip, "BoundaryAt", x)!;
@@ -511,11 +497,6 @@ public class ColumnMoveTests
     private static double MarkerX(TableHeaderStrip strip) =>
         ((TranslateTransform)Field(strip, "_markerOffset")!).X;
 
-    private static void SetHorizontalOffset(TableView table, double value) =>
-        Read(table, "Layout")!.GetType()
-            .GetProperty("HorizontalOffset", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(Read(table, "Layout"), value);
-
     private static object? Invoke(object target, string method, params object[] arguments) =>
         target.GetType()
             .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -525,15 +506,6 @@ public class ColumnMoveTests
         target.GetType()
             .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(target);
-
-    private static object? Read(object target, string name)
-    {
-        Type type = target.GetType();
-        PropertyInfo property = type.GetProperty(
-            name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMemberException(type.Name, name);
-        return property.GetValue(target);
-    }
 
     /// <summary>One rendered frame of the header, addressed in device-independent pixels.</summary>
     private sealed class Shot

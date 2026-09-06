@@ -1,0 +1,9 @@
+{
+  "id": 23,
+  "jsonrpc": "2.0",
+  "result": {
+    "path": "C:\\downloads",
+    "size_bytes": 230074605568,
+    "total_size": 510978420736
+  }
+}

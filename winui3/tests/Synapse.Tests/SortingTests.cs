@@ -57,11 +57,11 @@ public class SortingTests
 
         h.Activate(0);
         h.Activate(0);
-        Assert.AreEqual(TableSortDirection.Descending, h.Table.GetLayoutState().SortDirection);
+        Assert.AreEqual(TableSortDirection.Descending, h.Table.Layout.SortDirection);
 
         h.Activate(1);
 
-        TableLayoutState state = h.Table.GetLayoutState();
+        TableLayout state = h.Table.Layout;
         Assert.AreEqual("b", state.SortColumnId);
         Assert.AreEqual(TableSortDirection.Ascending, state.SortDirection);
     });
@@ -77,7 +77,7 @@ public class SortingTests
         h.Activate(1);
 
         CollectionAssert.AreEqual(new[] { "k0", "k1", "k2" }, h.ViewKeys());
-        Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+        Assert.IsNull(h.Table.Layout.SortColumnId);
         Assert.AreEqual(0, events);
     });
 
@@ -114,40 +114,40 @@ public class SortingTests
     public Task Section18_OneLayoutChangedOfKindSortPerCompletedSort() => TestHost.RunAsync(async () =>
     {
         SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
-        List<TableLayoutChangedEventArgs> raised = new();
-        h.Table.LayoutChanged += (_, e) => raised.Add(e);
+        List<TableLayoutChangeKind> raised = new();
+        h.Table.LayoutChanged += (_, kind) => raised.Add(kind);
 
         h.Activate(0);
 
         Assert.AreEqual(1, raised.Count);
-        Assert.AreEqual(TableLayoutChangeKind.Sort, raised[0].Kind);
-        Assert.AreEqual("a", raised[0].LayoutState.SortColumnId);
-        Assert.AreEqual(TableSortDirection.Ascending, raised[0].LayoutState.SortDirection);
+        Assert.AreEqual(TableLayoutChangeKind.Sort, raised[0]);
+        Assert.AreEqual("a", h.Table.Layout.SortColumnId);
+        Assert.AreEqual(TableSortDirection.Ascending, h.Table.Layout.SortDirection);
 
         h.Activate(0);
         h.Activate(0);
 
         Assert.AreEqual(3, raised.Count);
-        Assert.IsNull(raised[2].LayoutState.SortColumnId, "the cycle ended in natural order");
+        Assert.IsNull(h.Table.Layout.SortColumnId, "the cycle ended in natural order");
     });
 
     // ------------------------------------------------------------------ persistence
 
     [TestMethod]
-    public Task Section18_ApplyLayoutStateRestoresASavedSortSilently() => TestHost.RunAsync(async () =>
+    public Task Section18_AssigningLayoutRestoresASavedSortSilently() => TestHost.RunAsync(async () =>
     {
         SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
         int events = 0;
         h.Table.LayoutChanged += (_, _) => events++;
 
-        h.Table.ApplyLayoutState(TestData.State(
+        h.Table.Layout = TestData.Layout(
             order: new[] { "a", "b", "c" },
             sortColumnId: "a",
-            direction: TableSortDirection.Descending));
+            direction: TableSortDirection.Descending);
 
         CollectionAssert.AreEqual(new[] { "k0", "k2", "k1" }, h.ViewKeys());
         Assert.AreEqual(0, events, "restoration is silent");
-        Assert.AreEqual(TableSortDirection.Descending, h.Table.GetLayoutState().SortDirection);
+        Assert.AreEqual(TableSortDirection.Descending, h.Table.Layout.SortDirection);
     });
 
     [TestMethod]
@@ -155,11 +155,11 @@ public class SortingTests
     {
         SortHarness h = await SortHarness.LoadAsync(
             new[] { 3, 1, 2 },
-            configure: table => table.ApplyLayoutState(TestData.State(
-                order: new[] { "a", "b", "c" }, sortColumnId: "a")));
+            configure: table => table.Layout = TestData.Layout(
+                order: new[] { "a", "b", "c" }, sortColumnId: "a"));
 
         CollectionAssert.AreEqual(new[] { "k1", "k2", "k0" }, h.ViewKeys());
-        Assert.AreEqual("a", h.Table.GetLayoutState().SortColumnId);
+        Assert.AreEqual("a", h.Table.Layout.SortColumnId);
     });
 
     [TestMethod]
@@ -168,10 +168,10 @@ public class SortingTests
         SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
         h.Activate(0);
 
-        h.Table.ApplyLayoutState(TestData.State(order: new[] { "a" }, sortColumnId: "gone"));
+        h.Table.Layout = TestData.Layout(order: new[] { "a" }, sortColumnId: "gone");
 
         CollectionAssert.AreEqual(new[] { "k0", "k1", "k2" }, h.ViewKeys());
-        Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+        Assert.IsNull(h.Table.Layout.SortColumnId);
     });
 
     [TestMethod]
@@ -182,10 +182,10 @@ public class SortingTests
             h.Activate(0);
 
             // "b" declares no sort, so the saved sort cannot be honoured.
-            h.Table.ApplyLayoutState(TestData.State(order: new[] { "a" }, sortColumnId: "b"));
+            h.Table.Layout = TestData.Layout(order: new[] { "a" }, sortColumnId: "b");
 
             CollectionAssert.AreEqual(new[] { "k0", "k1", "k2" }, h.ViewKeys());
-            Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+            Assert.IsNull(h.Table.Layout.SortColumnId);
         });
 
     [TestMethod]
@@ -193,29 +193,38 @@ public class SortingTests
     {
         SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
 
-        h.Table.ApplyLayoutState(TestData.State(
-            order: new[] { "a" }, sortColumnId: "a", direction: (TableSortDirection)7));
+        h.Table.Layout = TestData.Layout(
+            order: new[] { "a" }, sortColumnId: "a", direction: (TableSortDirection)7);
 
         CollectionAssert.AreEqual(new[] { "k0", "k1", "k2" }, h.ViewKeys());
-        Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+        Assert.IsNull(h.Table.Layout.SortColumnId);
     });
 
     [TestMethod]
-    public Task Section18_GetLayoutStateReportsNoSortWhenTheViewIsInNaturalOrder() =>
+    public Task Section18_ReadingLayoutReportsNoSortWhenTheViewIsInNaturalOrder() =>
         TestHost.RunAsync(async () =>
         {
             SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
 
-            Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+            Assert.IsNull(h.Table.Layout.SortColumnId);
         });
 
     // ------------------------------------------------------------------ source updates
 
+    /// <summary>
+    /// Settling is off here, and that is the point rather than a convenience. What
+    /// <see cref="TableView.RefreshView"/> promises is that it re-reads the snapshot and applies
+    /// the sort without re-enumerating the source; when rows are allowed to trade places is
+    /// <see cref="TableView.SortSettleInterval"/>'s separate question, and it has its own tests. At
+    /// the default three seconds this refresh lands inside the window that has just been taken by
+    /// the header activation above, so the view would hold its order and prove nothing either way.
+    /// </summary>
     [TestMethod]
     public Task Section9_RefreshViewReSortsWithoutReEnumeratingTheSource() =>
         TestHost.RunAsync(async () =>
         {
-            SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
+            SortHarness h = await SortHarness.LoadAsync(
+                new[] { 3, 1, 2 }, configure: table => table.SortSettleInterval = TimeSpan.Zero);
             h.Activate(0);
             CollectionAssert.AreEqual(new[] { "k1", "k2", "k0" }, h.ViewKeys());
 
@@ -249,16 +258,16 @@ public class SortingTests
         int selectionEvents = 0;
         h.Table.SelectionStateChanged += (_, _) => selectionEvents++;
 
-        h.Table.SetSelection(new object[] { h.Rows[0], h.Rows[4] }, h.Rows[4]);
+        h.Table.Selection = new(new object[] { h.Rows[0], h.Rows[4] }, h.Rows[4]);
         selectionEvents = 0;
 
         h.Activate(0);
 
         CollectionAssert.AreEqual(
             new[] { "k0", "k4" },
-            h.Table.SelectedItems.Cast<SortRow>().Select(r => r.Key).ToArray(),
+            h.Table.Selection.Items.Cast<SortRow>().Select(r => r.Key).ToArray(),
             "the packet survived, in the new visual order");
-        Assert.AreEqual("k4", ((SortRow)h.Table.CurrentItem!).Key);
+        Assert.AreEqual("k4", ((SortRow)h.Table.Selection.Current!).Key);
         Assert.AreEqual(0, selectionEvents, "only positions changed");
 
         // A collection reset destroys the hosted list's own selection, so this is the real check.
@@ -306,8 +315,8 @@ public class SortingTests
         SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
         h.Activate(0);
 
-        h.Table.ApplyLayoutState(TestData.State(
-            order: new[] { "b", "c", "a" }, sortColumnId: "a"));
+        h.Table.Layout = TestData.Layout(
+            order: new[] { "b", "c", "a" }, sortColumnId: "a");
         h.Table.UpdateLayout();
 
         Assert.AreEqual(Visibility.Collapsed, h.Glyph(0).Visibility, "b is not the sorted column");
@@ -368,16 +377,19 @@ public class SortingTests
 
     // ------------------------------------------------------------------ schema
 
+    /// <summary>
+    /// Section 9: a column that was never given a sort key does not sort, and asking the table to
+    /// sort by one is the host asking for something impossible. The old pair — a CanSort flag
+    /// beside a comparer, which had to agree — is gone, so a column that claims to sort without
+    /// one can no longer be written.
+    /// </summary>
     [TestMethod]
-    public Task Section6_1_ASortableColumnNeedsAComparer() => TestHost.RunAsync(async () =>
+    public Task Section9_SortingByAColumnWithNoSortKeyIsRefused() => TestHost.RunAsync(async () =>
     {
-        TableColumn column = TestData.Column("a");
-        column.CanSort = true;
-        TableView table = TestData.Table(column);
+        SortHarness h = await SortHarness.LoadAsync(new[] { 3, 1, 2 });
 
-        Exception error = await TableHarness.LoadExpectingFailureAsync(table);
-
-        Assert.IsInstanceOfType<InvalidOperationException>(error, error.ToString());
+        Expect.Throws<ArgumentException>(() => h.Table.Sort = new(h.Table.Columns[1]));
+        Assert.IsNull(h.Table.Sort, "the refused request left the order alone");
     });
 }
 
@@ -413,13 +425,12 @@ internal sealed class SortHarness
         TableView table = TestData.Table(
             TestData.Column("a", 200), TestData.Column("b", 200), TestData.Column("c", 200));
 
+        TableSchema<SortRow> schema = table.Schema<SortRow>().Key(row => row.Key);
         for (int i = 0; i < sortableColumns; i++)
         {
-            table.Columns[i].CanSort = true;
-            table.Columns[i].SortComparer = Ranks;
+            schema.Sort(table.Columns[i], row => row.Rank);
         }
 
-        table.ItemKeySelector = item => ((SortRow)item).Key;
         table.Width = 700;
         table.Height = 300;
         table.ItemsSource = rows;
@@ -458,13 +469,4 @@ internal sealed class SortHarness
     private Panel Panel() => (Panel)typeof(TableHeaderStrip)
         .GetField("_panel", BindingFlags.Instance | BindingFlags.NonPublic)!
         .GetValue(Strip)!;
-
-    /// <summary>Orders rows by their rank, so equal ranks decide nothing and stability shows.</summary>
-    internal static IComparer<object> Ranks { get; } = new RankComparer();
-
-    private sealed class RankComparer : IComparer<object>
-    {
-        public int Compare(object? x, object? y) =>
-            ((SortRow)x!).Rank.CompareTo(((SortRow)y!).Rank);
-    }
 }

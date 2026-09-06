@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <!-- Native C++ projects have always called 32-bit x86 "Win32", never "x86"; the solution's
+         own "x86" platform maps onto this name in Synapse.slnx's Platform mapping for Tray. -->
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{616A717C-3464-475A-A843-0BF0BAFF2389}</ProjectGuid>
+    <RootNamespace>Tray</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <!-- VCTargetsPath's own schema version (v180, matching this VS release) is not the compiler
+         toolset moniker: Microsoft.VCToolsVersion.v145.default.txt names the installed MSVC
+         14.51 toolset family v145, and that is the value PlatformToolset expects. -->
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)'=='Release'">
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+
+  <PropertyGroup>
+    <!-- bin/obj, not the vcxproj default of $(Platform)\$(Configuration)\, so the repo's
+         existing "bin/" and "obj/" gitignore entries also cover this project's output. -->
+    <OutDir>bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(Platform)\$(Configuration)\</IntDir>
+    <!-- The tray is the product's always-running process, so it carries the product's name;
+         "Tray" is what the project is called, not what the user installs. -->
+    <TargetName>TinyTorrent</TargetName>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <!-- The tray is C, and this is the rule made structural rather than left to the
+           extension a future file happens to be given. -->
+      <CompileAs>CompileAsC</CompileAs>
+      <!-- Keeps windows.h from pulling in the 1.1 winsock.h, which would collide with the
+           winsock2.h Engine.c needs for the free-port probe. -->
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <!-- ws2_32 is the one addition to the five libraries the plan allows. The engine needs
+           a port nothing else holds, and the only way to have the OS choose one is to bind
+           127.0.0.1:0 and read back what it assigned. No other Windows API answers that
+           question; iphlpapi can only list ports already in use, which is a race, not an
+           answer. -->
+      <!-- No %(AdditionalDependencies): the C++ defaults would add gdi32, comdlg32, ole32 and
+           six more, and the whole point of the list above is that it is the whole list. -->
+      <AdditionalDependencies>kernel32.lib;user32.lib;shell32.lib;advapi32.lib;winhttp.lib;ws2_32.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="Association.c" />
+    <ClCompile Include="Engine.c" />
+    <ClCompile Include="Log.c" />
+    <ClCompile Include="Main.c" />
+    <ClCompile Include="Rpc.c" />
+    <ClCompile Include="Setting.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Association.h" />
+    <ClInclude Include="Engine.h" />
+    <ClInclude Include="Icon.h" />
+    <ClInclude Include="Log.h" />
+    <ClInclude Include="Rpc.h" />
+    <ClInclude Include="Setting.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Icon.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="TinyTorrent.ico" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

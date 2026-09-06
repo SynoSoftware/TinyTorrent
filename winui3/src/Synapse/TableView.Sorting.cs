@@ -83,6 +83,70 @@ public sealed partial class TableView
         }
     }
 
+    /// <summary>
+    /// The active sort, or null for natural order. Reading gives what stands; assigning is an
+    /// idempotent request, and it reports through <see cref="LayoutChanged"/> only when the
+    /// effective sort actually moved, so a host may set it from its own handler.
+    /// </summary>
+    /// <remarks>
+    /// The column must be one this table declared and must carry a sort key from
+    /// <see cref="Schema{TRow}"/>; either way round, a request that cannot be met is the host
+    /// asking for something impossible rather than compatibility input, so it throws. A saved sort
+    /// arriving from storage is the other case and belongs in <see cref="Layout"/>, which recovers
+    /// defensively.
+    /// </remarks>
+    public TableSort? Sort
+    {
+        get => _sortColumn is null ? null : new TableSort(_sortColumn.Column, _sortDirection);
+        set
+        {
+            ResolvedColumn? column = value is TableSort sort ? RequireSortable(sort.Column) : null;
+            TableSortDirection direction = value?.Direction ?? TableSortDirection.Ascending;
+
+            if (ReferenceEquals(column, _sortColumn)
+                && (column is null || direction == _sortDirection))
+            {
+                return;
+            }
+
+            _sortColumn = column;
+            _sortDirection = direction;
+
+            // The host asked for this order, so it is taken now rather than at the next cadence.
+            _orderSettledAt = DateTimeOffset.MinValue;
+            RebuildView();
+
+            // Sorting changes no geometry, so nothing else republishes the header cells.
+            _headerStrip?.Panel?.RefreshHeaderCells();
+
+            RaiseLayoutChanged(TableLayoutChangeKind.Sort);
+        }
+    }
+
+    private ResolvedColumn RequireSortable(TableColumn column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+
+        if (Geometry.Find(column) is not ResolvedColumn resolved)
+        {
+            throw new ArgumentException(
+                _schemaCaptured
+                    ? "That column is not one of this table's columns."
+                    : "The column schema is captured at the first Loaded, so no column resolves yet.",
+                "value");
+        }
+
+        if (!column.CanSort)
+        {
+            throw new ArgumentException(
+                $"Column '{column.DisplayName}' has no sort key. Give it one with " +
+                "Schema<TRow>().Sort(column, row => …).",
+                "value");
+        }
+
+        return resolved;
+    }
+
     /// <summary>The direction this column is sorted in, or null when it is not the sorted column.</summary>
     internal TableSortDirection? SortDirectionOf(TableColumn column) =>
         _sortColumn is not null && ReferenceEquals(_sortColumn.Column, column)
@@ -100,28 +164,12 @@ public sealed partial class TableView
             return;
         }
 
-        if (!ReferenceEquals(_sortColumn, column))
-        {
-            _sortColumn = column;
-            _sortDirection = TableSortDirection.Ascending;
-        }
-        else if (_sortDirection == TableSortDirection.Ascending)
-        {
-            _sortDirection = TableSortDirection.Descending;
-        }
-        else
-        {
-            _sortColumn = null;
-        }
-
-        // The user asked for this order, so it is taken now rather than at the next cadence.
-        _orderSettledAt = DateTimeOffset.MinValue;
-        RebuildView();
-
-        // Sorting changes no geometry, so nothing else republishes the header cells.
-        _headerStrip?.Panel?.RefreshHeaderCells();
-
-        RaiseLayoutChanged(TableLayoutChangeKind.Sort);
+        // Through the property, so the header and a host request apply a sort by one path.
+        Sort = !ReferenceEquals(_sortColumn, column)
+            ? new TableSort(column.Column)
+            : _sortDirection == TableSortDirection.Ascending
+                ? new TableSort(column.Column, TableSortDirection.Descending)
+                : null;
     }
 
     /// <summary>
@@ -295,8 +343,8 @@ public sealed partial class TableView
             return snapshot;
         }
 
-        // Schema validation rejects a sortable column without a comparer, so this cannot be null.
-        IComparer<object> comparer = _sortColumn.Column.SortComparer!;
+        // A column becomes the sorted one only by carrying a comparer, so this cannot be null.
+        IComparer<object> comparer = _sortColumn.Column.Comparer!;
 
         return _sortDirection == TableSortDirection.Ascending
             ? snapshot.OrderBy(item => item, comparer).ToList()
@@ -311,7 +359,7 @@ public sealed partial class TableView
     /// or is changed, so a sort by a hidden column is one the user could neither see nor undo.
     /// </summary>
     /// <returns>True when the effective sort is not the one that was already in force.</returns>
-    private bool RestoreSort(TableLayoutState state, Dictionary<string, ResolvedColumn> byId)
+    private bool RestoreSort(TableLayout state, Dictionary<string, ResolvedColumn> byId)
     {
         ResolvedColumn? previousColumn = _sortColumn;
         TableSortDirection previousDirection = _sortDirection;

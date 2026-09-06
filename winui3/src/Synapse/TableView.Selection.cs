@@ -11,19 +11,27 @@ namespace Synapse;
 /// </summary>
 public sealed partial class TableView
 {
+    /// <summary>
+    /// On by default. A marquee is a selection gesture, so it is meaningful in every table, and
+    /// design decision 16 rules that a press nothing else competes for must not be a dead press.
+    /// </summary>
     public static readonly DependencyProperty IsMarqueeSelectionEnabledProperty =
         DependencyProperty.Register(
             nameof(IsMarqueeSelectionEnabled),
             typeof(bool),
             typeof(TableView),
-            new PropertyMetadata(false, OnMarqueeSelectionEnabledChanged));
+            new PropertyMetadata(true, OnMarqueeSelectionEnabledChanged));
 
+    /// <summary>
+    /// Off by default, and the asymmetry with the marquee is sayable: a reorder is a domain request
+    /// and means something only where the host owns an order, which most tables do not.
+    /// </summary>
     public static readonly DependencyProperty IsRowReorderingEnabledProperty =
         DependencyProperty.Register(
             nameof(IsRowReorderingEnabled),
             typeof(bool),
             typeof(TableView),
-            new PropertyMetadata(true, OnRowReorderingEnabledChanged));
+            new PropertyMetadata(false, OnRowReorderingEnabledChanged));
 
     /// <summary>
     /// Section 7's escape hatch for a custom interactive control the table cannot recognize. Set
@@ -38,7 +46,7 @@ public sealed partial class TableView
 
     private readonly TableItemIdentity _identity = new();
 
-    private IReadOnlyList<object>? _selectedPacket;
+    private TableSelection? _selectionState;
 
     /// <summary>Set while the table is writing the hosted list's selection, to stop re-entry.</summary>
     private bool _syncingContainers;
@@ -67,22 +75,12 @@ public sealed partial class TableView
     /// <summary>
     /// Raised once for a completed row drag that asks for a new order. The table has changed
     /// nothing: it never mutates the source, and it does not infer that the host accepted the
-    /// request. Having a handler is also what makes a row draggable at all, and the rows show
-    /// that with their cursor, so they re-read it when a handler arrives or leaves.
+    /// request.
     /// </summary>
     public event EventHandler<TableRowsReorderRequestedEventArgs>? RowsReorderRequested
     {
-        add
-        {
-            _rowsReorderRequested += value;
-            RowVisualsChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        remove
-        {
-            _rowsReorderRequested -= value;
-            RowVisualsChanged?.Invoke(this, EventArgs.Empty);
-        }
+        add => _rowsReorderRequested += value;
+        remove => _rowsReorderRequested -= value;
     }
 
     /// <summary>Row visuals re-read the table's selected and current state when this fires.</summary>
@@ -92,24 +90,62 @@ public sealed partial class TableView
     public ListViewSelectionMode SelectionMode { get; set; } = ListViewSelectionMode.Extended;
 
     /// <summary>
-    /// Setup-only. Optional stable, non-empty, unique ordinal key per item. Without it identity is
-    /// object reference.
+    /// State the row type once, and hand over the identity selector, the interaction predicate and
+    /// every column's sort key with it. Setup-only, like <see cref="Columns"/>: the table captures
+    /// the schema at its first <c>Loaded</c> and asking for one afterwards is a configuration error.
     /// </summary>
-    public Func<object, string>? ItemKeySelector { get; set; }
+    public TableSchema<TRow> Schema<TRow>()
+    {
+        if (_schemaCaptured)
+        {
+            throw ConfigurationError(
+                "The schema is captured at the first Loaded. Call Schema<TRow>() before then.");
+        }
+
+        return new TableSchema<TRow>(this);
+    }
 
     /// <summary>
-    /// Setup-only. Null means every item is interactive. The predicate is fixed; what it answers
-    /// for an item need not be, and the table does not watch for that. Section 5.3's rule covers
-    /// it: after a change to anything the predicate reads, the host calls <see cref="RefreshView"/>
-    /// once, and the rows re-read their eligibility and the cursor that shows it there.
+    /// A stable ordinal key per item, from <see cref="Schema{TRow}"/>. Without one identity is
+    /// object reference.
     /// </summary>
-    public Func<object, bool>? CanInteractWithItem { get; set; }
+    internal Func<object, string>? ItemKey { get; set; }
 
-    /// <summary>Observational. The selected packet in current visual row order.</summary>
-    public IReadOnlyList<object> SelectedItems => _selectedPacket ??= BuildSelectedPacket();
+    /// <summary>
+    /// Which items the user may act on, from <see cref="Schema{TRow}"/>. Null means all of them.
+    /// The predicate is fixed; what it answers for an item need not be, and the table does not
+    /// watch for that. Section 5.3's rule covers it: after a change to anything the predicate
+    /// reads, the host calls <see cref="RefreshView"/> once, and the rows re-read their
+    /// eligibility and the cursor that shows it there.
+    /// </summary>
+    internal Func<object, bool>? CanInteract { get; set; }
 
-    /// <summary>Observational. The logical current row; it may be selected or unselected.</summary>
-    public object? CurrentItem => _selection.Current;
+    /// <summary>
+    /// The selected packet and the current row. Reading gives the state that stands; assigning is
+    /// an idempotent request for a different one, resolved against the eligible rows of the current
+    /// view. An equal logical request raises no event, so a host can project the selection out to
+    /// another surface and push it back without a suppression flag.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not a dependency property. Section 5.2 forbids a two-way selected-items
+    /// binding because it would create a competing selection owner; leaving this un-bindable makes
+    /// that structural instead of a rule somebody has to have read.
+    /// </remarks>
+    public TableSelection Selection
+    {
+        get => _selectionState ??= new TableSelection(BuildSelectedPacket(), _selection.Current);
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            SyncSelectionPolicy();
+            CancelGesture();
+            CommitSelection(_selection.SetSelection(value.Items, value.Current, View));
+        }
+    }
+
+    /// <summary>The selected packet in current visual row order.</summary>
+    internal IReadOnlyList<object> SelectedItems => Selection.Items;
 
     public bool IsMarqueeSelectionEnabled
     {
@@ -225,19 +261,6 @@ public sealed partial class TableView
         (bool)element.GetValue(SuppressRowGesturesProperty);
 
     /// <summary>
-    /// The only programmatic selection entry point. Idempotent: an equal logical request raises no
-    /// event, so a host can project selection out and push it back in without a suppression flag.
-    /// </summary>
-    public void SetSelection(IEnumerable<object> items, object? currentItem = null)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-
-        SyncSelectionPolicy();
-        CancelGesture();
-        CommitSelection(_selection.SetSelection(items, currentItem, View));
-    }
-
-    /// <summary>
     /// Section 15: an already-selected row keeps the whole selected packet, and any other row
     /// becomes the selection. Both make the row current, focused, and the next range anchor, so a
     /// context request on an already-selected row still reports the moved current item.
@@ -247,7 +270,7 @@ public sealed partial class TableView
 
     /// <summary>
     /// Re-evaluate the current source snapshot after a batch changed values the active sort or
-    /// <see cref="CanInteractWithItem"/> depends on. It re-sorts and reconciles, and does not
+    /// <see cref="CanInteract"/> depends on. It re-sorts and reconciles, and does not
     /// re-enumerate the source.
     /// </summary>
     public void RefreshView() => RebuildView();
@@ -334,7 +357,7 @@ public sealed partial class TableView
     /// </summary>
     private void ValidateItemKeys(IReadOnlyList<object> snapshot)
     {
-        if (ItemKeySelector is not { } key)
+        if (ItemKey is not { } key)
         {
             return;
         }
@@ -345,12 +368,12 @@ public sealed partial class TableView
             string value = key(item);
             if (string.IsNullOrEmpty(value))
             {
-                throw ConfigurationError("ItemKeySelector returned a null or empty key.");
+                throw ConfigurationError("The schema key selector returned a null or empty key.");
             }
 
             if (!seen.Add(value))
             {
-                throw ConfigurationError($"ItemKeySelector returned the duplicate key '{value}'.");
+                throw ConfigurationError($"The schema key selector returned the duplicate key '{value}'.");
             }
         }
     }
@@ -381,7 +404,7 @@ public sealed partial class TableView
     private void SyncSelectionPolicy()
     {
         _selection.Mode = SelectionMode;
-        _selection.Eligible = CanInteractWithItem;
+        _selection.Eligible = CanInteract;
     }
 
     /// <summary>
@@ -390,14 +413,13 @@ public sealed partial class TableView
     /// </summary>
     private void CommitSelection(bool changed)
     {
-        _selectedPacket = null;
+        _selectionState = null;
         ApplySelectionToContainers();
         RowVisualsChanged?.Invoke(this, EventArgs.Empty);
 
         if (changed)
         {
-            SelectionStateChanged?.Invoke(
-                this, new TableSelectionStateChangedEventArgs(SelectedItems, CurrentItem));
+            SelectionStateChanged?.Invoke(this, new TableSelectionStateChangedEventArgs(Selection));
         }
     }
 

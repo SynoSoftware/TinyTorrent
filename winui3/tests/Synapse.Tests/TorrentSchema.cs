@@ -38,7 +38,7 @@ public sealed class TorrentRow
 /// </summary>
 internal static class TorrentSchema
 {
-    /// <summary>id, DefaultWidth, MinWidth. Appendix A.1.</summary>
+    /// <summary>id, Width, MinWidth. Appendix A.1.</summary>
     internal static readonly (string Id, double Width, double Min)[] Declared =
     {
         ("name", 150, 90),
@@ -90,26 +90,23 @@ internal static class TorrentSchema
 
     internal static TableView Build()
     {
-        TableView table = new()
-        {
-            Width = 1100,
-            Height = 420,
-            ItemKeySelector = item => ((TorrentRow)item).Id,
-        };
+        TableView table = new() { Width = 1100, Height = 420 };
+        TableSchema<TorrentRow> schema = table.Schema<TorrentRow>().Key(row => row.Id);
 
         foreach ((string id, double width, double min) in Declared)
         {
-            table.Columns.Add(new TableColumn
+            TableColumn column = new()
             {
                 Id = id,
                 DisplayName = Names.Single(n => n.Id == id).Display,
-                DefaultWidth = width,
+                Width = width,
                 MinWidth = min,
-                IsVisibleByDefault = !HiddenOnFirstRun.Contains(id),
-                CanSort = true,
-                SortComparer = Comparer(id),
+                IsVisible = !HiddenOnFirstRun.Contains(id),
                 CellTemplate = CellTemplate(id),
-            });
+            };
+
+            table.Columns.Add(column);
+            Sort(schema, column, id);
         }
 
         return table;
@@ -174,16 +171,25 @@ internal static class TorrentSchema
 
     // ---------------------------------------------------------------- schema parts
 
-    private static IComparer<object> Comparer(string id) => id switch
+    /// <summary>Every column sorts, each by the field its cell shows.</summary>
+    private static void Sort(TableSchema<TorrentRow> schema, TableColumn column, string id)
     {
-        "name" => Compare((a, b) => string.CompareOrdinal(a.Name, b.Name)),
-        "progress" => Compare((a, b) => a.Progress.CompareTo(b.Progress)),
-        "size" => Compare((a, b) => a.Size.CompareTo(b.Size)),
-        _ => Compare((a, b) => a.Queue.CompareTo(b.Queue)),
-    };
-
-    private static IComparer<object> Compare(Comparison<TorrentRow> comparison) =>
-        Comparer<object>.Create((a, b) => comparison((TorrentRow)a, (TorrentRow)b));
+        switch (id)
+        {
+            case "name":
+                schema.Sort(column, row => row.Name);
+                break;
+            case "progress":
+                schema.Sort(column, row => row.Progress);
+                break;
+            case "size":
+                schema.Sort(column, row => row.Size);
+                break;
+            default:
+                schema.Sort(column, row => row.Queue);
+                break;
+        }
+    }
 
     /// <summary>
     /// A cell that renders something wide enough for a fit to be measurable, from the same field

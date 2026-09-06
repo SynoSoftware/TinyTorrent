@@ -1,6 +1,6 @@
 using Microsoft.UI.Dispatching;
 
-namespace Synapse_Sample;
+namespace TinyTorrent_Ui;
 
 /// <summary>Where a queue command sends a packet. The drag equivalent is a boundary, not a step.</summary>
 public enum QueueMove

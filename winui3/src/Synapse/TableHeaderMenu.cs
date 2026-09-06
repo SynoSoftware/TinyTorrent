@@ -96,7 +96,7 @@ internal static class TableHeaderMenu
                 () => TableResources.FitColumn(active.Column.DisplayName),
                 TableIcons.FitColumn,
                 () => owner.CanFitColumn(active),
-                () => owner.AutoFitColumn(active.Id)));
+                () => owner.AutoFitColumn(active)));
         }
 
         // A right-click on unused header space has no column to act on, so the whole menu is about
@@ -136,7 +136,7 @@ internal static class TableHeaderMenu
         // same menu, not a nested one.
         menu.Items.Add(new MenuFlyoutSeparator());
 
-        foreach (ResolvedColumn column in owner.Layout.Order)
+        foreach (ResolvedColumn column in owner.Geometry.Order)
         {
             // A plain item carrying its state as an icon, not a ToggleMenuFlyoutItem. A toggle keeps
             // its check in a column of its own that holds its width even while the check is

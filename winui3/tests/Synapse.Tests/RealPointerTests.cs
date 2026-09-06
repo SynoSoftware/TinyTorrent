@@ -55,7 +55,7 @@ public class RealPointerTests
         SelectionHarness h = await SelectionHarness.LoadAsync(8, height: 400);
         Mouse mouse = await Mouse.CreateAsync(h);
 
-        h.Table.SetSelection(new object[] { h[1], h[2], h[3] }, h[1]);
+        h.Table.Selection = new(new object[] { h[1], h[2], h[3] }, h[1]);
 
         await mouse.PressRowAsync(h, 2);
         CollectionAssert.AreEqual(
@@ -77,12 +77,13 @@ public class RealPointerTests
     [TestMethod]
     public Task DraggingTheSelectionRaisesOneReorderRequest() => TestHost.RunAsync(async () =>
     {
-        SelectionHarness h = await SelectionHarness.LoadAsync(8, height: 400);
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            8, configure: t => t.IsRowReorderingEnabled = true, height: 400);
         List<TableRowsReorderRequestedEventArgs> requests = new();
         h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
         Mouse mouse = await Mouse.CreateAsync(h);
 
-        h.Table.SetSelection(new object[] { h[1], h[2], h[3] }, h[1]);
+        h.Table.Selection = new(new object[] { h[1], h[2], h[3] }, h[1]);
         h.Events = 0;
         double rowHeight = ((FrameworkElement)h.HostedList().ContainerFromItem(h[0])).ActualHeight;
 
@@ -110,8 +111,7 @@ public class RealPointerTests
     [TestMethod]
     public Task DraggingDownBesideTheColumnsSweeps() => TestHost.RunAsync(async () =>
     {
-        SelectionHarness h = await SelectionHarness.LoadAsync(
-            8, configure: t => t.IsMarqueeSelectionEnabled = true, height: 400);
+        SelectionHarness h = await SelectionHarness.LoadAsync(8, height: 400);
         List<TableRowsReorderRequestedEventArgs> requests = new();
         h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
         Mouse mouse = await Mouse.CreateAsync(h);
@@ -139,14 +139,8 @@ public class RealPointerTests
     [TestMethod]
     public Task DraggingDownARowThatCannotBeDraggedSweeps() => TestHost.RunAsync(async () =>
     {
-        SelectionHarness h = await SelectionHarness.LoadAsync(
-            8,
-            configure: t =>
-            {
-                t.IsMarqueeSelectionEnabled = true;
-                t.IsRowReorderingEnabled = false;
-            },
-            height: 400);
+        // Both defaults, stated rather than set: the marquee is on and reordering is off.
+        SelectionHarness h = await SelectionHarness.LoadAsync(8, height: 400);
         List<TableRowsReorderRequestedEventArgs> requests = new();
         h.Table.RowsReorderRequested += (_, e) => requests.Add(e);
         Mouse mouse = await Mouse.CreateAsync(h);
@@ -215,7 +209,7 @@ public class RealPointerTests
                     // Win32 swallows the click that activates an inactive window, so spend one
                     // here rather than losing a test's first gesture to it.
                     await mouse.ClickRowAsync(h, 0);
-                    h.Table.SetSelection(Array.Empty<object>());
+                    h.Table.Selection = TableSelection.Empty;
                     h.Events = 0;
                     return mouse;
                 }

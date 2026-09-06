@@ -25,7 +25,7 @@ public class ColumnResetTests
 
         Assert.AreEqual(200d, TableHarness.ResolvedWidth(h.Table, "a"));
         Assert.AreEqual(200d, TableHarness.ResolvedWidth(h.Table, "b"));
-        Assert.AreEqual(0, h.Table.GetLayoutState().ColumnWidths.Count, "no override is left");
+        Assert.AreEqual(0, h.Table.Layout.Widths.Count, "no override is left");
     });
 
     [TestMethod]
@@ -42,7 +42,7 @@ public class ColumnResetTests
 
         CollectionAssert.AreEqual(new[] { "a", "b", "c" }, TableHarness.Order(h.Table));
         Assert.IsTrue(TableHarness.IsVisible(h.Table, "b"));
-        Assert.AreEqual(0, h.Table.GetLayoutState().ColumnVisibility.Count, "no override is left");
+        Assert.AreEqual(0, h.Table.Layout.Visibility.Count, "no override is left");
     });
 
     /// <summary>Section 5: the captured baseline has no sort criterion, so a reset clears it.</summary>
@@ -57,7 +57,7 @@ public class ColumnResetTests
         h.Table.UpdateLayout();
 
         CollectionAssert.AreEqual(new[] { "k0", "k1", "k2" }, h.ViewKeys(), "natural order returns");
-        Assert.IsNull(h.Table.GetLayoutState().SortColumnId);
+        Assert.IsNull(h.Table.Layout.SortColumnId);
         Assert.AreEqual(
             Microsoft.UI.Xaml.Visibility.Collapsed, h.Glyph(0).Visibility, "and the glyph is gone");
     });
@@ -87,17 +87,17 @@ public class ColumnResetTests
         h.Activate(0);
 
         int events = 0;
-        TableLayoutChangeKind kind = TableLayoutChangeKind.Sort;
-        h.Table.LayoutChanged += (_, e) =>
+        TableLayoutChangeKind reported = TableLayoutChangeKind.Sort;
+        h.Table.LayoutChanged += (_, kind) =>
         {
-            kind = e.Kind;
+            reported = kind;
             events++;
         };
 
         h.Table.ResetColumnLayout();
 
         Assert.AreEqual(1, events, "four overrides went, one notification came back");
-        Assert.AreEqual(TableLayoutChangeKind.Reset, kind);
+        Assert.AreEqual(TableLayoutChangeKind.Reset, reported);
     });
 
     [TestMethod]
@@ -123,7 +123,7 @@ public class ColumnResetTests
     public Task SelectionSurvivesEveryColumnOperation() => TestHost.RunAsync(async () =>
     {
         SortHarness h = await SortHarness.LoadAsync(new[] { 1, 2, 3, 4, 5 });
-        h.Table.SetSelection(new object[] { h.Rows[1], h.Rows[3] }, h.Rows[3]);
+        h.Table.Selection = new(new object[] { h.Rows[1], h.Rows[3] }, h.Rows[3]);
         h.Table.UpdateLayout();
 
         int selectionEvents = 0;
@@ -147,9 +147,9 @@ public class ColumnResetTests
 
             CollectionAssert.AreEqual(
                 new object[] { h.Rows[1], h.Rows[3] },
-                h.Table.SelectedItems.ToArray(),
+                h.Table.Selection.Items.ToArray(),
                 $"after {name}: the selected packet");
-            Assert.AreSame(h.Rows[3], h.Table.CurrentItem, $"after {name}: the current row");
+            Assert.AreSame(h.Rows[3], h.Table.Selection.Current, $"after {name}: the current row");
             Assert.AreEqual(5, h.ViewKeys().Length, $"after {name}: the view still has every row");
             Assert.AreEqual(
                 2, h.HostedList().SelectedItems.Count, $"after {name}: the hosted list agrees");
@@ -163,41 +163,17 @@ public class ColumnResetTests
     // The resolved columns and the operations that act on them are internal to Synapse, which
     // grants no InternalsVisibleTo. Reflection reaches them without widening the public surface.
 
-    private static object ResolvedColumn(TableView table, string id)
-    {
-        object layout = Read(table, "Layout")!;
-        foreach (object column in (System.Collections.IEnumerable)Read(layout, "Order")!)
-        {
-            if ((string)Read(column, "Id")! == id)
-            {
-                return column;
-            }
-        }
-
-        throw new AssertFailedException($"No resolved column '{id}'.");
-    }
-
     private static void SetColumnWidth(TableView table, string id, double width) =>
-        Invoke(table, "SetColumnWidth", ResolvedColumn(table, id), width);
-
+        Invoke(table, "SetColumnWidth", TableHarness.ResolvedColumn(table, id), width);
 
     private static void SetColumnVisibility(TableView table, string id, bool visible) =>
-        Invoke(table, "SetColumnVisibility", ResolvedColumn(table, id), visible);
+        Invoke(table, "SetColumnVisibility", TableHarness.ResolvedColumn(table, id), visible);
 
     private static void MoveColumnTo(TableView table, string id, int boundary) =>
-        Invoke(table, "MoveColumnTo", ResolvedColumn(table, id), boundary, null!);
+        Invoke(table, "MoveColumnTo", TableHarness.ResolvedColumn(table, id), boundary, null!);
 
     private static object? Invoke(object target, string method, params object[] arguments) =>
         target.GetType()
             .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(target, arguments);
-
-    private static object? Read(object target, string name)
-    {
-        Type type = target.GetType();
-        PropertyInfo property = type.GetProperty(
-            name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMemberException(type.Name, name);
-        return property.GetValue(target);
-    }
 }
