@@ -191,6 +191,7 @@ public sealed class RpcClient : IDisposable
                 if (attempt > 0)
                 {
                     throw new RpcTransportException(
+                        RpcFault.Protocol,
                         $"{_endpoint} rejected the session id twice running, which one rotation cannot explain.");
                 }
 
@@ -208,7 +209,7 @@ public sealed class RpcClient : IDisposable
             }
             catch (JsonException e)
             {
-                throw new RpcTransportException($"{_endpoint} answered something that is not JSON.", e);
+                throw new RpcTransportException(RpcFault.Protocol, $"{_endpoint} answered something that is not JSON.", e);
             }
         }
     }
@@ -225,11 +226,13 @@ public sealed class RpcClient : IDisposable
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
         {
-            throw new RpcTransportException($"{_endpoint} did not answer within {timeout.TotalSeconds:0} s.");
+            throw new RpcTransportException(
+                RpcFault.Unreachable,
+                $"{_endpoint} did not answer within {timeout.TotalSeconds:0} s.");
         }
         catch (HttpRequestException e)
         {
-            throw new RpcTransportException($"Could not reach {_endpoint}.", e);
+            throw new RpcTransportException(RpcFault.Unreachable, $"Could not reach {_endpoint}.", e);
         }
     }
 
@@ -243,6 +246,7 @@ public sealed class RpcClient : IDisposable
         if (!answer.Headers.Contains(VersionHeader))
         {
             throw new RpcTransportException(
+                RpcFault.Protocol,
                 $"{_endpoint} sent no {VersionHeader} with its session-id challenge, so it is older than " +
                 "Transmission 4.1. This client speaks JSON-RPC 2.0 only, which 4.1 introduced.");
         }
@@ -250,7 +254,9 @@ public sealed class RpcClient : IDisposable
         if (!answer.Headers.TryGetValues(SessionIdHeader, out var values) ||
             values.FirstOrDefault() is not { Length: > 0 } issued)
         {
-            throw new RpcTransportException($"{_endpoint} rejected the session id but sent no {SessionIdHeader}.");
+            throw new RpcTransportException(
+                RpcFault.Protocol,
+                $"{_endpoint} rejected the session id but sent no {SessionIdHeader}.");
         }
 
         // Compare and swap so that the requests caught by one rotation do not race to install
@@ -266,7 +272,9 @@ public sealed class RpcClient : IDisposable
                 return;
 
             case 401:
-                throw new RpcAuthenticationException($"{_endpoint} rejected the user name or password.");
+                throw new RpcAuthenticationException(
+                    RpcFault.Unauthorized,
+                    $"{_endpoint} rejected the user name or password.");
 
             case 403:
                 // The two causes are byte-identical on the wire, so the message names both rather
@@ -274,13 +282,16 @@ public sealed class RpcClient : IDisposable
                 // rpc-server.cc:536 runs before is_authorized at 570, so the counter reset at 585
                 // is unreachable.
                 throw new RpcAuthenticationException(
+                    RpcFault.Refused,
                     $"{_endpoint} refused this client. Either its address is missing from the daemon's " +
                     "rpc_whitelist, or the daemon's brute-force protection has locked it out - and a correct " +
                     "password cannot clear a lockout, so the daemon must be restarted or anti_brute_force_enabled " +
                     "turned off.");
 
             default:
-                throw new RpcTransportException($"{_endpoint} answered {(int)answer.StatusCode} {answer.ReasonPhrase}.");
+                throw new RpcTransportException(
+                    RpcFault.Protocol,
+                    $"{_endpoint} answered {(int)answer.StatusCode} {answer.ReasonPhrase}.");
         }
     }
 
@@ -293,7 +304,9 @@ public sealed class RpcClient : IDisposable
     {
         if (root.ValueKind != JsonValueKind.Array)
         {
-            throw new RpcTransportException("The daemon answered a batch with something other than an array.");
+            throw new RpcTransportException(
+                RpcFault.Protocol,
+                "The daemon answered a batch with something other than an array.");
         }
 
         var found = new JsonElement[ids.Length];
@@ -321,7 +334,9 @@ public sealed class RpcClient : IDisposable
         var missing = Array.IndexOf(matched, false);
         if (missing >= 0)
         {
-            throw new RpcTransportException($"The daemon's batch answer held nothing with id {ids[missing]}.");
+            throw new RpcTransportException(
+                RpcFault.Protocol,
+                $"The daemon's batch answer held nothing with id {ids[missing]}.");
         }
 
         return found;
@@ -333,7 +348,7 @@ public sealed class RpcClient : IDisposable
 
         if (answer.ValueKind != JsonValueKind.Object)
         {
-            throw new RpcTransportException($"The answer to {method} was not an object.");
+            throw new RpcTransportException(RpcFault.Protocol, $"The answer to {method} was not an object.");
         }
 
         if (answer.TryGetProperty("error", out var error))
@@ -343,19 +358,21 @@ public sealed class RpcClient : IDisposable
 
         if (!answer.TryGetProperty("result", out var result))
         {
-            throw new RpcTransportException($"The answer to {method} carried neither a result nor an error.");
+            throw new RpcTransportException(
+                RpcFault.Protocol,
+                $"The answer to {method} carried neither a result nor an error.");
         }
 
         try
         {
             var value = result.Deserialize<TResult>(Wire.Options);
             return value is null
-                ? throw new RpcTransportException($"The daemon answered {method} with a null result.")
+                ? throw new RpcTransportException(RpcFault.Protocol, $"The daemon answered {method} with a null result.")
                 : value;
         }
         catch (JsonException e)
         {
-            throw new RpcTransportException($"Could not read the {method} result.", e);
+            throw new RpcTransportException(RpcFault.Protocol, $"Could not read the {method} result.", e);
         }
     }
 
@@ -365,7 +382,9 @@ public sealed class RpcClient : IDisposable
             !error.TryGetProperty("code", out var code) ||
             !code.TryGetInt32(out var value))
         {
-            return new RpcTransportException($"The daemon failed {method} but named no error code.");
+            return new RpcTransportException(
+                RpcFault.Protocol,
+                $"The daemon failed {method} but named no error code.");
         }
 
         var message = error.TryGetProperty("message", out var text) ? text.GetString() : null;

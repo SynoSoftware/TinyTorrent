@@ -51,10 +51,12 @@ public sealed partial class TableView
     /// without the other. Measured on a 2,002-row torrent list, per host publish, because with
     /// settling off every publish reorders and the two units are then the same one: sorted by a
     /// value the updates never touch, no reorder at all across sixteen real publishes; sorted by
-    /// speed, which they always touch, an average of 2,158 notifications — more than the list has
-    /// rows, for a publish that reported one torrent finishing. A table that reshuffles a whole
-    /// screen because a single row completed cannot be clicked on, which is why this exists,
-    /// rather than the cost.
+    /// speed, which they always touch, every publish reordered the whole view, for news that
+    /// amounted to one torrent finishing. That count came from the torrent host's own publish
+    /// stream, and the harness that produced it has been deleted, so specification 9 records the
+    /// figure and nothing here reproduces it; what survives is the claim, one reorder per interval
+    /// rather than one per publish. A table that reshuffles a whole screen because a single
+    /// row completed cannot be clicked on, which is why this exists, rather than the cost.
     /// <para>
     /// Live. Shortening it takes effect on the next update; the sorted order is taken immediately
     /// when it is set to <see cref="TimeSpan.Zero"/>. Negative values are treated as zero.
@@ -199,8 +201,10 @@ public sealed partial class TableView
     /// time the source publishes. Measured on the torrent host, per publish, because with settling
     /// off every publish reorders and the two units are then the same one: sorted by name, which no
     /// update touches, sixteen real publishes drew no reorder at all; sorted by speed, which every
-    /// update touches, a publish drew an average of 2,158 notifications — more than the list has
-    /// rows — for an update that reported one torrent finishing. The cost is the smaller half of it.
+    /// update touches, every publish reordered the view, for an update that reported one torrent
+    /// finishing. The cost is the smaller half of it. That count came from the same deleted
+    /// torrent-host harness specification 9 records, so the sixteen cannot be reproduced here
+    /// either; what survives is the claim it was taken for.
     /// A table that reshuffles a whole screen because one row completed cannot be clicked on: the
     /// row being reached for moves out from under the pointer. The owner chose a cadence for that
     /// reason, not for the milliseconds.

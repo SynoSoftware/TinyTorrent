@@ -10,13 +10,26 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
-  <!--
-    No ProjectReference yet: its subject is the session/queue logic that Stage 3 moves out of
-    TinyTorrent.Ui, which targets net10.0-windows10.0.26100.0. A plain net10.0 project cannot
-    reference a net10.0-windows project (the platform-specific TFM is not assignable to the
-    general one), so this project has nothing it can reference until that code has a plain
-    net10.0 home of its own.
-  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TinyTorrent.Core\TinyTorrent.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The daemon fake, shared rather than copied. It is an HttpMessageHandler, so it drives the
+         session's whole poll loop with no socket; a second copy here would be a second thing to
+         keep in step with the client's header handling and 409 replay. -->
+    <Compile Include="..\Transmission.Tests\FakeDaemon.cs" Link="FakeDaemon.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The shipping page's own XAML. ColumnProfileTests reads the file the application declares
+         its columns in, rather than a copy of it that can agree with the appendix while the page
+         disagrees with both. -->
+    <Content Include="..\..\src\TinyTorrent.Ui\Torrent\TorrentPage.xaml"
+             Link="TorrentPage.xaml"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="MSTest.TestAdapter" Version="4.4.0" />
     <PackageReference Include="MSTest.TestFramework" Version="4.4.0" />

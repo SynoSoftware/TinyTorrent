@@ -20,19 +20,41 @@ public enum RpcError
     CorruptTorrent = 9,
 }
 
+/// <summary>
+/// What kind of failure this was. Four, because each one asks the caller for something different:
+/// wait, fix the credentials, fix the daemon's configuration, or use a newer daemon.
+/// </summary>
+public enum RpcFault
+{
+    /// <summary>Nothing answered, or not in time. Trying again later is the whole remedy.</summary>
+    Unreachable,
+
+    /// <summary>The user name or password was rejected.</summary>
+    Unauthorized,
+
+    /// <summary>The daemon refused this client outright: not whitelisted, or locked out.</summary>
+    Refused,
+
+    /// <summary>The daemon answered, and what it said is not something this client can use.</summary>
+    Protocol,
+}
+
 public abstract class RpcException : Exception
 {
-    private protected RpcException(string message, Exception? inner)
+    private protected RpcException(RpcFault fault, string message, Exception? inner)
         : base(message, inner)
     {
+        Fault = fault;
     }
+
+    public RpcFault Fault { get; }
 }
 
 /// <summary>The daemon could not be reached, answered something we cannot read, or took too long.</summary>
 public sealed class RpcTransportException : RpcException
 {
-    public RpcTransportException(string message, Exception? inner = null)
-        : base(message, inner)
+    public RpcTransportException(RpcFault fault, string message, Exception? inner = null)
+        : base(fault, message, inner)
     {
     }
 }
@@ -40,8 +62,8 @@ public sealed class RpcTransportException : RpcException
 /// <summary>The daemon refused the caller: 401 for bad credentials, 403 for a refused client.</summary>
 public sealed class RpcAuthenticationException : RpcException
 {
-    public RpcAuthenticationException(string message)
-        : base(message, null)
+    public RpcAuthenticationException(RpcFault fault, string message)
+        : base(fault, message, null)
     {
     }
 }
@@ -50,7 +72,7 @@ public sealed class RpcAuthenticationException : RpcException
 public sealed class RpcMethodException : RpcException
 {
     public RpcMethodException(string method, RpcError code, string message)
-        : base(message, null)
+        : base(RpcFault.Protocol, message, null)
     {
         Method = method;
         Code = code;

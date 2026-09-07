@@ -223,10 +223,16 @@ at index 0 was removed, before any layout ran (section R, case 0). So two
 reconciles in one callback read a current realized set, and the race a
 deferred map would have opened does not exist.
 
-**What it bought** (section K, Release): a full reversal of 2,002 rows raises
-34 notifications where it raised about 4,000. What remains of a sort's cost
-is preparing the visible containers, which every design pays; that is a cell
-template cost, measured by section L.
+**What it bought.** Measured once on the torrent host's own diagnostics
+harness, section K, in a Release build, before that harness was deleted: a
+full reversal of 2,002 rows raised 34 notifications where it had raised about
+4,000. Specification 20 records the same notification pair and says not to
+quote it as current, and neither number can be reproduced now that the
+harness is gone. The section K citation was never a claim about anything
+built here either — this document's own header already says nothing in it
+has been compiled or run. What remains of a sort's cost is preparing the
+visible containers, which every design pays; that is a cell template cost,
+measured by section L.
 
 ---
 
@@ -559,10 +565,13 @@ Move right                       MenuFlyoutItem
   this column and Widen this column, each stepping 8 DIPs. A menu flyout closes
   on every invocation and WinUI offers no way to hold one open for a command, so
   a step cost a full reopen: widening the torrent host's 150 DIP name column to
-  something readable took thirteen right-clicks and thirteen clicks. Fit this
-  column reaches the outcome from the keyboard in one invocation. Continuous
-  keyboard resizing, if it is ever wanted, belongs on the focused header as a
-  held key where auto-repeat does the work.
+  something readable took thirteen right-clicks and thirteen clicks. That count
+  came from the torrent host's own fitted width, and the harness that produced
+  it has been deleted, so the thirteen cannot be reproduced as written; what
+  survives it is the arithmetic, one invocation per 8 DIPs however far a column
+  has to go. Fit this column reaches the outcome from the keyboard in one
+  invocation. Continuous keyboard resizing, if it is ever wanted, belongs on the
+  focused header as a held key where auto-repeat does the work.
 
 Right-click on empty header space opens the same flyout without the
 active-column items. `Menu` and `Shift+F10` on a focused header open it there and

@@ -7,8 +7,8 @@ using Microsoft.UI.Xaml.Controls;
 namespace Synapse_Sample;
 
 /// <summary>
-/// The application window. It hosts the sample's two consumers: a downloads list and a departures
-/// board, which share nothing but the control.
+/// The application window. It hosts the sample's two consumers: a render farm's job list and a
+/// departures board, which share nothing but the control.
 /// </summary>
 public sealed partial class MainWindow : Window
 {

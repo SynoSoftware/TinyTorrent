@@ -281,11 +281,14 @@ public sealed partial class TableView
     /// <remarks>
     /// What went wrong before was not this rule but what the user could see of it. A row container
     /// is only as wide as its columns, so the list beside the columns is empty surface: in a
-    /// 2,538-wide list with 1,120-wide rows, measured on the torrent host, 56% of every row band
-    /// drew a rectangle where the owner expected a drag, and the boundary moved with every fit,
-    /// resize and hidden column while nothing on screen showed where it was. The surface stays,
-    /// because a full table has nowhere else to start a rectangle; the pointer now shows the line,
-    /// with <see cref="TableRowVisual"/> setting the move cursor over a row that can be dragged.
+    /// 2,538-wide list with 1,120-wide rows, measured once on the torrent host, 56% of every row
+    /// band drew a rectangle where the owner expected a drag, and the boundary moved with every
+    /// fit, resize and hidden column while nothing on screen showed where it was. That host's
+    /// diagnostics harness has been deleted, so specification 14 records the figure and nothing
+    /// here reproduces it; what the rule turns on is the surface being wide enough to be pressed
+    /// by mistake, not the fraction. The surface stays, because a full table has nowhere else to
+    /// start a rectangle; the pointer now shows the line, with <see cref="TableRowVisual"/>
+    /// setting the move cursor over a row that can be dragged.
     /// </remarks>
     private GesturePhase GestureAtThreshold()
     {

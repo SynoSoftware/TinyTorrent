@@ -8,7 +8,11 @@ namespace TinyTorrent_Ui;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    /// <summary>Set for TorrentPage's diagnostics harness, which needs to resize the client area.</summary>
+    /// <summary>
+    /// So the torrent page can stop its poll when the window closes. Closing does not always
+    /// unload the page first, and a tick that lands mid-teardown throws from whichever object has
+    /// gone already.
+    /// </summary>
     public static MainWindow? Instance;
 
     public MainWindow()

@@ -859,11 +859,20 @@ rather than no path choosing to.
 
 Measured on a 2,002-row torrent list, per host publish, because with settling off
 every publish reorders and the two units are then the same one: sorted by
-download speed, each publish drew an average of 2,158 collection notifications,
-more than the list has rows. What the host had published was a single torrent
-finishing. The cost is the reason the interval exists, but the reason it is a
-table concern rather than a host one is that no host can separate the two halves
-of its own snapshot.
+download speed, every publish reordered the whole view. What the host had
+published was a single torrent finishing. The reshuffle is the reason the
+interval exists, and the reason it is a table concern rather than a host one is
+that no host can separate the two halves of its own snapshot.
+
+Two notification counts stood in this section and have been removed: an average
+of 2,158 per publish, and 2,660 for a settled reorder against that 2,158. They
+were not counts of what this table raises. They were taken against a reconcile
+that announced every row it moved, and that implementation is gone, so neither
+can be re-measured. Read as this table's own output they also contradicted
+section 20, which requires a reorder's notifications to be bounded by realized
+containers and therefore never to exceed the row count — which 2,158 did, on a
+list of 2,002 rows. The claims they were quoted for are stated here without
+them.
 
 Count per publish for the defect and per reorder for the benefit; per second for
 neither. A count over a window measures how often the host happened to publish in
@@ -879,14 +888,19 @@ interval, so the cap holds at the value it claims. The same sort with settling
 off reordered on nine publishes out of nine. Sorted by a stable key, sixteen real
 publishes produced no reorder at all. That is the claim, and it holds whatever
 the host's publish rate: one reorder per interval, against one per publish.
+These three counts came from the torrent host's own publish stream, and that
+harness has been deleted, so the eleven, the nine, and the sixteen cannot be
+reproduced as written. What survives them is the claim itself, which follows
+from how the interval is defined and not from any particular publish rate.
 
-Note what it is not. Each settled reorder is a bigger one, 2,660 notifications
-against 2,158, because a longer interval lets more drift accumulate before the
-rows are allowed to move. Cutting the number of reorders therefore does not cut
-the work by the same factor, and a host raising the interval to thirty seconds
-should expect a calmer table rather than a proportionately cheaper one. The
-usability gain is the real one — at most one reshuffle per interval instead of
-one per publish — and the notification count understates it.
+Note what it is not. Each settled reorder is a bigger one, because a longer
+interval lets more drift accumulate before the rows are allowed to move. Cutting
+the number of reorders therefore does not cut the work by the same factor, and a
+host raising the interval to thirty seconds should expect a calmer table rather
+than a proportionately cheaper one. That is the shape of it; the two counts that
+used to give it a size are the removed ones above. The usability gain is the
+real one — at most one reshuffle per interval instead of one per publish — and no
+notification count is needed to say so.
 
 There is no `SortRequested` callback or remote-sort mode in version one.
 Sorting is a local table projection; add an explicit external-sort mode only if
@@ -942,7 +956,11 @@ reason is recorded because the requirement looked like accessibility and was
 not. A menu flyout closes on every invocation and WinUI offers no way to keep
 one open for a command, so each 8 DIP step cost a full reopen: widening the
 torrent host's 150 DIP name column to something readable was thirteen
-right-clicks and thirteen clicks. Nobody walks that path twice, so it was the
+right-clicks and thirteen clicks. That count came from the torrent host's own
+fitted width, and the harness that produced it has been deleted, so the thirteen
+cannot be reproduced as written. What survives it is the arithmetic: a column at
+the 150 DIP default needs one invocation per 8 DIP, however far it has to go.
+Nobody walks that path twice, so it was the
 appearance of a keyboard route to resizing rather than one. **Fit this column**
 already gives the keyboard the outcome the user is actually after, in a single
 invocation, and it is two lines above in the same menu. Should continuous
@@ -1219,10 +1237,16 @@ columns inside a scroll container the width of the viewport, and a press in the
 space between the two starts its rectangle.
 
 The line between a row and that space MUST be visible, or the space reads as a
-drag that stopped working. Measured on the torrent host at 2,538 wide with
-1,120-wide rows, 1,418 pixels of every row band, 56%, started a rectangle
+drag that stopped working. Measured once on the torrent host at 2,538 wide with
+1,120-wide rows: 1,418 pixels of every row band, 56%, started a rectangle
 where the user expected a drag, with nothing on screen to mark the line, and
-the line moved with every fit, resize and hidden column. The row's own fill
+the line moved with every fit, resize and hidden column. That host's diagnostics
+harness has been deleted and the one that replaced it runs a different feed with
+different columns, so the 56% cannot be reproduced as written. It is recorded
+because it is why this clause exists, and the clause does not turn on the exact
+fraction — only on the space being wide enough to be pressed by mistake.
+
+The row's own fill
 marks it only while the row is selected, and hover is off by the owner's
 ruling, so the pointer marks it: the table shows the move cursor over a row
 that can be dragged and the arrow over the space beside it, as the reference
@@ -1549,10 +1573,18 @@ throughput target.
 - A sort or source update raises collection notifications for membership
   changes and for the positions the item surface holds a container for, and
   for nothing else (section 5.3). The number of notifications a reorder
-  raises is bounded by realized containers, never by the row count. Measured on
-  the 2,002-row torrent host in Release, with no collection inside the span: a
-  full reversal fell from 3,998 notifications to 34, and the collection change
-  from 223 ms to 13 ms. The claim is falsifiable and MUST be tested as such —
+  raises is bounded by realized containers, never by the row count. Measured
+  once, on the 2,002-row torrent host in Release, with no collection inside the
+  span: a full reversal fell from 3,998 notifications to 34, and the collection
+  change from 223 ms to 13 ms. Neither half can be reproduced now, and both are
+  recorded rather than deleted only so the requirement's origin is readable. The
+  "before" half was taken against a reconcile that announced every row it moved,
+  and that implementation is gone. The "after" half was taken on that host's own
+  diagnostics harness, which has been deleted; the harness that replaced it
+  (`samples/Synapse.Sample/Demo/TableDemoPage.Diagnostics.cs`) runs a different
+  feed with different columns, so it tests the same claim on a different list and
+  reports its own numbers. Do not quote these four as current.
+  The claim is falsifiable and MUST be tested as such —
   it fails the moment a container's content differs from the view's row at that
   container's index, so the test is a sort, a far scroll and a `ScrollIntoView`,
   each followed by comparing every realized container against the view. Rows

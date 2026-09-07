@@ -4,12 +4,15 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:TinyTorrent_Ui"
+    xmlns:tt="using:TinyTorrent"
     xmlns:t="using:Synapse"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Page.Resources>
+        <local:ThemeBrush x:Key="ThemeBrush" />
+
         <Style x:Key="CellText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextWrapping" Value="NoWrap" />
@@ -17,7 +20,7 @@
         </Style>
 
         <!-- ==================================================== name -->
-        <DataTemplate x:Key="NameCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="NameCell" x:DataType="tt:Torrent">
             <Grid VerticalAlignment="Center"
                   ColumnSpacing="6"
                   Opacity="{x:Bind RowOpacity, Mode=OneWay}">
@@ -73,7 +76,7 @@
         </DataTemplate>
 
         <!-- ================================================ progress -->
-        <DataTemplate x:Key="ProgressCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="ProgressCell" x:DataType="tt:Torrent">
             <Grid VerticalAlignment="Center" RowSpacing="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -104,7 +107,7 @@
         </DataTemplate>
 
         <!-- ================================================== status -->
-        <DataTemplate x:Key="StatusCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="StatusCell" x:DataType="tt:Torrent">
             <!--
                 A Grid, not a StackPanel: the declared 110 DIP column cannot fit every localized
                 label, so the label needs a bounded column to trim inside instead of being cut.
@@ -131,20 +134,20 @@
                               Glyph="{x:Bind StatusGlyph, Mode=OneWay}"
                               FontSize="12"
                               VerticalAlignment="Center"
-                              Foreground="{x:Bind StatusAccent, Mode=OneWay}" />
+                              Foreground="{x:Bind StatusAccentKey, Mode=OneWay, Converter={StaticResource ThemeBrush}}" />
                     <TextBlock Grid.Column="1"
                                Text="{x:Bind StatusLabel, Mode=OneWay}"
                                FontSize="12"
                                VerticalAlignment="Center"
                                TextWrapping="NoWrap"
                                TextTrimming="CharacterEllipsis"
-                               Foreground="{x:Bind StatusAccent, Mode=OneWay}" />
+                               Foreground="{x:Bind StatusAccentKey, Mode=OneWay, Converter={StaticResource ThemeBrush}}" />
                 </Grid>
             </Border>
         </DataTemplate>
 
         <!-- =================================================== queue -->
-        <DataTemplate x:Key="QueueCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="QueueCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
@@ -153,14 +156,14 @@
         </DataTemplate>
 
         <!-- ===================================================== eta -->
-        <DataTemplate x:Key="EtaCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="EtaCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind EtaText, Mode=OneWay}" />
         </DataTemplate>
 
         <!-- =================================================== speed -->
-        <DataTemplate x:Key="SpeedCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="SpeedCell" x:DataType="tt:Torrent">
             <Grid
                   VerticalAlignment="Center"
                   ColumnSpacing="8">
@@ -189,7 +192,7 @@
         </DataTemplate>
 
         <!-- =================================================== peers -->
-        <DataTemplate x:Key="PeersCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="PeersCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
@@ -201,7 +204,7 @@
         </DataTemplate>
 
         <!-- ==================================================== size -->
-        <DataTemplate x:Key="SizeCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="SizeCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
@@ -209,7 +212,7 @@
         </DataTemplate>
 
         <!-- =================================================== ratio -->
-        <DataTemplate x:Key="RatioCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="RatioCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        TextAlignment="Right"
@@ -217,7 +220,7 @@
         </DataTemplate>
 
         <!-- =================================================== added -->
-        <DataTemplate x:Key="AddedCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="AddedCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind AddedText, Mode=OneWay}"
@@ -225,7 +228,7 @@
         </DataTemplate>
 
         <!-- ============================================= completedOn -->
-        <DataTemplate x:Key="CompletedOnCell" x:DataType="local:TorrentRowViewModel">
+        <DataTemplate x:Key="CompletedOnCell" x:DataType="tt:Torrent">
             <TextBlock
                        Style="{StaticResource CellText}"
                        Text="{x:Bind CompletedOnText, Mode=OneWay}"
@@ -248,7 +251,6 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -292,12 +294,6 @@
                     Click="OnFitColumnsClick"
                     ToolTipService.ToolTip="Fit every visible column to the content on screen" />
 
-            <ToggleButton Grid.Column="5"
-                          x:Name="EmptySourceToggle"
-                          Content="No torrents"
-                          VerticalAlignment="Center"
-                          Click="OnEmptySourceToggled"
-                          ToolTipService.ToolTip="Simulate a daemon with no torrents, to show the empty presentation" />
         </Grid>
 
         <!--

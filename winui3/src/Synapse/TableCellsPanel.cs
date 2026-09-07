@@ -283,6 +283,28 @@ public sealed partial class TableCellsPanel : Panel
         }
     }
 
+    /// <summary>
+    /// <see cref="SyncChildren"/> is the only thing that adds or removes a cell, and it leaves
+    /// exactly one per visible column in visible order. Both layout passes read a child and its
+    /// column by the same index, so a disagreement means that reconcile did not run for a column
+    /// change that reached the layout.
+    /// </summary>
+    /// <remarks>
+    /// Laying out only what the two have in common is what this replaces, and it would draw the
+    /// first n declared columns under the first n visible columns' geometry: a table that renders
+    /// plausibly, lines up with its header, and shows the wrong columns. Nothing constructs that
+    /// state today; it stops here so that whatever introduces it says so at once.
+    /// </remarks>
+    private void RequireOneCellPerColumn(int visible)
+    {
+        if (Children.Count != visible)
+        {
+            throw new InvalidOperationException(
+                $"The panel holds {Children.Count} cells against {visible} visible columns. " +
+                "SyncChildren owns that reconcile, so every column change must reach it.");
+        }
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         // A panel is measured before it is loaded, and a recycled row is unloaded and measured
@@ -307,10 +329,10 @@ public sealed partial class TableCellsPanel : Panel
         }
 
         IReadOnlyList<VisibleColumn> visible = _layout.VisibleColumns;
-        int count = Math.Min(Children.Count, visible.Count);
+        RequireOneCellPerColumn(visible.Count);
         double height = 0;
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < visible.Count; i++)
         {
             UIElement child = Children[i];
             child.Measure(new Size(visible[i].Width, double.PositiveInfinity));
@@ -328,10 +350,10 @@ public sealed partial class TableCellsPanel : Panel
         }
 
         IReadOnlyList<VisibleColumn> visible = _layout.VisibleColumns;
-        int count = Math.Min(Children.Count, visible.Count);
+        RequireOneCellPerColumn(visible.Count);
         double offset = _layout.HorizontalOffset;
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < visible.Count; i++)
         {
             Children[i].Arrange(new Rect(
                 visible[i].Offset - offset,

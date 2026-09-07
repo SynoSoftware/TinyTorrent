@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Must match the app projects. They declare x86;x64;ARM64 and have no AnyCPU, so a
+         solution defaulting to AnyCPU cannot map onto them. -->
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RootNamespace>TinyTorrent</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!--
+    Plain net10.0, not net10.0-windows, and that is the whole reason this project exists: a plain
+    test project cannot reference a platform-specific one, so nothing in TinyTorrent.Ui is
+    reachable from tests/TinyTorrent.Tests. Adding any WinUI reference here silently takes the
+    session layer back out of reach of its own tests.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Transmission\Transmission.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The suite drives the merge, the tick composition, the queue arithmetic and the optimism
+         round trip, none of which are the interface's business to expose. -->
+    <InternalsVisibleTo Include="TinyTorrent.Tests" />
+  </ItemGroup>
+</Project>

@@ -64,6 +64,11 @@ internal static class TableColumnMotion
 
         foreach (TableCellsPanel panel in owner.RealizedPanels())
         {
+            // Every realized panel is already synced to this column set: a column-set change
+            // reconciles every attached panel's cells synchronously, and TableCellsPanel's measure
+            // and arrange throw if a panel's cell count and the visible count ever disagree. This
+            // Min is defensive, not load-bearing — panel.Children.Count already equals
+            // visible.Count here.
             int count = Math.Min(panel.Children.Count, visible.Count);
 
             for (int i = 0; i < count; i++)

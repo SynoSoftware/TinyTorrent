@@ -37,12 +37,13 @@
             container the width of the viewport, and a press in the space between the two starts
             its rectangle. A full table has no other place to start one.
 
-            That space has to be visible, or it reads as a drag that stopped working. Measured on
-            the torrent host at 2,538 wide with 1,120-wide rows: 56% of every row band started a
+            That space has to be visible, or it reads as a drag that stopped working. Measured once
+            on the torrent host at 2,538 wide with 1,120-wide rows: 56% of every row band started a
             rectangle, and nothing on screen marked the line, because the row's own fill shows only
-            when it is selected and hover is off by the owner's ruling. TableRowVisual now sets the
-            move cursor over a row that can be dragged, so the pointer itself shows where the
-            columns end, the way the reference's grab cursor does.
+            when it is selected and hover is off by the owner's ruling. That host's diagnostics
+            harness has been deleted, so specification 14 records the figure and nothing reproduces
+            it now. TableRowVisual sets the move cursor over a row that can be dragged, so the
+            pointer itself shows where the columns end, the way the reference's grab cursor does.
         -->
         <Setter Property="HorizontalAlignment" Value="Left" />
         <!-- Rows sit edge to edge, so a rounded corner lands on the seam with the row above. -->
@@ -73,14 +74,29 @@
     </DataTemplate>
 
     <!--
-        This control paints one thing on a row: a drag. Selection is the container's own background
-        and nothing else — the owner asked for the accent bar to go, having first asked for it to
-        come back, and it is his call. Neither focus nor the current row is drawn at all.
+        This control paints two things on a row: the selected bar and a drag. The selected
+        background stays the container's, because drawing a second fill here read as two
+        backgrounds. Neither focus nor the current row is drawn at all.
 
-        Recorded because it is a live conflict rather than a settled point: the container's selected
-        fill measures 1.08:1 in Light and 1.18:1 in Dark, and section 19 requires 3:1 for non-text
-        information. With the bar gone, selection is carried by that fill alone and does not meet
-        it. The two selected-row contrast tests assert the 3:1 and will fail.
+        The bar is the half of the selected cue that carries section 19's 3:1. Measured on the
+        rendered control against an unselected row, with the rows settled: the container's fill
+        alone is 1.08:1 in Light and 1.18:1 in Dark; the bar takes the row to 5.11:1 and 8.12:1.
+        RowCueContrastTests asserts the 3:1 and shoots earlier than that, while the rows are still
+        arriving, so it reads about 4.7:1 and 7.2:1 — the same cue, caught at about 94% opacity.
+
+        A contrast theme does not need the bar and does not take its contrast from it. Read out of
+        the live HighContrast dictionary: the container's selected fill there is
+        SystemColorHighlightColor and an unselected row is SystemColorWindowColor, both opaque, so
+        the pair is the shipped palettes in C:\Windows\Resources\Ease of Access Themes and measures
+        6.80:1 in HC1, 11.81:1 in HC2, 11.17:1 in HC Black and 7.27:1 in HC White. Computed rather
+        than rendered, because turning the system setting on is not something a test may do; both
+        colours are opaque, so nothing composites and the computed pair is the drawn pair. The bar
+        there resolves to a white system colour over that highlight fill: a visible stripe in all
+        four themes, and misleading in none.
+
+        Not the two-tone marker pair, which would clear 3:1 in every theme and is already proven
+        here: three wide, vertical, at x = 0 it is section 11's column drop marker exactly, parked
+        at the first boundary. Two different promises must not share a picture.
     -->
     <Style TargetType="local:TableRowVisual">
         <Setter Property="IsTabStop" Value="False" />
@@ -91,10 +107,34 @@
                 <ControlTemplate TargetType="local:TableRowVisual">
                     <Grid x:Name="Root">
                         <!--
-                            Nothing is drawn for focus. Fluent's list has no focus treatment on a
-                            row, and the owner ruled that this table will not invent one: the
-                            platform's own visual is switched off on the container, and the fill
-                            that stood in for it here is gone.
+                            Full row height, square, and no inset. Every one of those follows from
+                            the rows sitting edge to edge, which is also why the container is
+                            CornerRadius="0": an inset bar with its own corner radius leaves a gap
+                            at each row seam, so a run of selected rows reads as separate marks
+                            instead of one block.
+
+                            Three wide is the platform's own indicator width. It publishes no
+                            width key — the resource tree was enumerated for one — but it publishes
+                            ListViewItemSelectionIndicatorCornerRadius as 1.5 in every theme, which
+                            is half of a fully rounded bar, and NavigationViewSelectionIndicatorWidth
+                            as 3.
+
+                            Under the cells, so a cell's content is never painted over. Section 8
+                            already forbids a cell template painting a row backdrop, which is the
+                            one thing that could hide the bar from underneath.
+                        -->
+                        <Rectangle x:Name="SelectedBar"
+                                   Width="3"
+                                   HorizontalAlignment="Left"
+                                   Fill="{ThemeResource ListViewItemSelectionIndicatorBrush}"
+                                   Opacity="0" />
+
+                        <!--
+                            Nothing is drawn for focus, which is why there is no second element
+                            here. Fluent's list has no focus treatment on a row, and the owner ruled
+                            that this table will not invent one: the platform's own visual is
+                            switched off on the container, and the fill that stood in for it here is
+                            gone.
 
                             The fill was the third attempt, and what killed it was when it appeared
                             rather than how it looked. It shows on a row that holds focus and is not
@@ -109,6 +149,14 @@
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
 
                         <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="RowEmphasis">
+                                <VisualState x:Name="Rest" />
+                                <VisualState x:Name="Selected">
+                                    <VisualState.Setters>
+                                        <Setter Target="SelectedBar.Opacity" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
                             <!-- Section 16: the moving packet stays identifiable, in the same
                                  treatment the platform gives a dragged list item and section 11
                                  gives a dragged header. -->

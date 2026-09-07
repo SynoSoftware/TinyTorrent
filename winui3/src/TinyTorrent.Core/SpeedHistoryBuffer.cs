@@ -1,10 +1,10 @@
 using System.Collections;
 
-namespace TinyTorrent_Ui;
+namespace TinyTorrent;
 
 /// <summary>
 /// A fixed-length ring of recent speed samples, oldest first. It never allocates while sampling,
-/// which matters because every downloading row pushes one sample per second.
+/// which matters because every row records one sample per tick.
 /// </summary>
 public sealed class SpeedHistoryBuffer : IReadOnlyList<double>
 {
@@ -20,10 +20,8 @@ public sealed class SpeedHistoryBuffer : IReadOnlyList<double>
     /// <remarks>
     /// A dropped peak has to be rescanned rather than folded in, otherwise the sparkline stays
     /// scaled to a spike that has already left the window. The rescan runs when the value is read
-    /// and not when a sample arrives, because only a realized sparkline ever reads it: the catalog
-    /// pushes into 1,400 of its 2,002 rows every second, so scanning on push cost 32 comparisons
-    /// for each of them — about 45,000 a second — plus another 1.4 million while it seeds those
-    /// 1,400 rings at startup.
+    /// and not when a sample arrives, because only a realized sparkline ever reads it: a 2,000-row
+    /// list records 2,000 samples a tick, so scanning on push cost 32 comparisons for each of them.
     /// </remarks>
     public double Peak
     {

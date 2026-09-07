@@ -108,10 +108,13 @@ internal static class TableHeaderMenu
             owner.AutoFitVisibleColumns));
 
         // No Narrow and no Widen. They stepped 8 DIPs, so widening the host's 150 DIP name column
-        // to something readable was thirteen invocations. That is not a keyboard route to resizing,
-        // it is the appearance of one, and fitting reaches the outcome anyone actually wants in a
-        // single invocation. If continuous keyboard resizing is wanted it belongs on the focused
-        // header as a held key, where repeat does the work.
+        // to something readable was thirteen invocations. That count came from the torrent host's
+        // own fitted width, and the harness that produced it has been deleted, so specification 10
+        // records the figure and nothing here reproduces it; what survives is the arithmetic, one
+        // invocation per 8 DIPs however far a column has to go. That is not a keyboard route to
+        // resizing, it is the appearance of one, and fitting reaches the outcome anyone actually
+        // wants in a single invocation. If continuous keyboard resizing is wanted it belongs on the
+        // focused header as a held key, where repeat does the work.
 
         if (active is not null)
         {

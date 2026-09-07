@@ -38,8 +38,11 @@ internal sealed class TableItemsView : ObservableCollection<object>
     /// pinned. For every other position it holds no container and no row — only a count — and it
     /// reads the row when it realizes the position. So it is told about a reorder only where it has
     /// a container, which is 20 to 60 positions against 2,002 rows here. Telling it about the rest
-    /// was the waste: a sort raised about 4,000 notifications, and the torrent host's diagnostics
-    /// section N prices one at between 56 and 113 microseconds including its layout.
+    /// was the waste: a sort once raised about 4,000 notifications, and the torrent host's
+    /// diagnostics section N priced one at between 56 and 113 microseconds including its layout.
+    /// Both counts came from that host's own diagnostics harness, which has been deleted, so
+    /// neither can be reproduced as written; what survives is the shape of the waste this reconcile
+    /// removes.
     /// </para>
     /// </remarks>
     internal bool Reconcile(IReadOnlyList<object> snapshot, IReadOnlyList<int> realized)

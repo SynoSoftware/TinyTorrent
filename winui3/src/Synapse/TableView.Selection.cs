@@ -301,9 +301,12 @@ public sealed partial class TableView
         FocusState rowFocus = RowSurfaceFocusState();
 
         // The hosted list keeps a selection of its own and revises it on every single removal and
-        // insertion. A re-sort of 2,002 rows sends it about 3,800 of those, and none of that
-        // bookkeeping survives: the table's own selection is re-applied a few lines below, over
-        // whatever the list decided. Taking the list out of selection for the duration removes
+        // insertion. A re-sort of 2,002 rows once sent it about 3,800 of those, under the reconcile
+        // that announced every row it moved; that reconcile is gone, and the harness the figure came
+        // from has been deleted, so the 3,800 cannot be reproduced. The current reconcile raises a
+        // notification only for a realized position, 20 to 60 of them here, and none of that
+        // bookkeeping survives regardless: the table's own selection is re-applied a few lines below,
+        // over whatever the list decided. Taking the list out of selection for the duration removes
         // that work per notification rather than once.
         ListViewSelectionMode hosted = _itemsView?.SelectionMode ?? ListViewSelectionMode.None;
 

@@ -289,6 +289,10 @@ public sealed partial class TableView
 
         foreach (TableCellsPanel panel in RealizedPanels())
         {
+            // A realized panel is already synced to the current visible columns: a column-set
+            // change reconciles every attached panel's cells synchronously, and TableCellsPanel's
+            // measure and arrange throw if the counts ever disagree. This guard is defensive, not
+            // load-bearing — index is already within panel.Children.Count here.
             if (index >= panel.Children.Count)
             {
                 continue;
