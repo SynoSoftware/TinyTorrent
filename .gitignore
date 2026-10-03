@@ -58,3 +58,4 @@ patch*.txt
 *.diff
 .tmp/
 .vs/
+/winui3/outputs/01a09bcd-9970-72c0-979a-eb3380b23328

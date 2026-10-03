@@ -1,3 +1,6 @@
+> Historical Transmission/WebView design. For the local libtorrent and WinUI
+> product, use [Desktop architecture](desktop-architecture.md).
+
 Final EXE architecutre
 ---
 
@@ -222,4 +225,3 @@ The UI may only request host actions through this contract.
 * **UI**: math, rendering, user decisions
 
 No layer skips another.
-

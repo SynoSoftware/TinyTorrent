@@ -2,9 +2,21 @@
 
 ## Mission Compass
 
-1. Keep TinyTorrent lean: executable size, in-memory footprint, and runtime cost must stay as low as possible.
-2. Align the GUI experience with the minimalist, performance-first ethos of the backend.
-3. Respect responsibility boundaries so that each component focuses on what it does best (native daemon vs. on-demand frontend).
+1. Minimize runtime memory first, especially while downloading/seeding with WinUI closed. Correctness and useful transfer performance remain constraints; executable size is secondary. The desktop architecture owns the measurement policy.
+2. Align the GUI experience with the minimalist, performance-first ethos of the engine.
+3. Respect responsibility boundaries between the engine, which includes the tray, and on-demand WinUI.
+
+Before planning or changing the local Windows architecture, read
+[docs/desktop-architecture.md](docs/desktop-architecture.md). It owns runtime,
+communication, and dependency decisions; older browser/Transmission specifications
+describe legacy code. This authority also applies in component instructions.
+
+Before changing user-facing text, language selection, or display formatting, read
+[docs/localisation.md](docs/localisation.md); it owns the catalogue and live-switch
+contract for the desktop product.
+
+Project terms such as engine, pipe adapter, and protocol are defined in
+[CONTEXT.md](CONTEXT.md). Use them as written.
 
 ---
 
@@ -13,10 +25,10 @@
 - Node tooling (`npm`, `npx`, `pnpm`, etc.) and TypeScript-only assets live **exclusively** inside `frontend/`.
   Run package installs, scripts, and builds from within that folder only.
 
-- The repository root and native backend directories must remain free of TypeScript, Node metadata, and npm scripts.
+- The repository root, `engine/`, and `backend/` must remain free of TypeScript, Node metadata, and npm scripts.
   **No** `package.json`, **no** `node_modules`, **no** `npx`/`npm` commands belong in `/` itself.
 
-- **No frontend-generated artifacts may exist outside `frontend/`.**
+- **No web-frontend-generated artifacts may exist outside `frontend/`.**
   This includes (but is not limited to):
   - build output (`dist/`, `build/`, etc.)
   - caches
@@ -24,10 +36,13 @@
   - symlinks
   - tooling hooks or helper scripts
 
-- Frontend code must not reference, import from, or depend on paths outside `frontend/`
+- Web frontend code must not reference, import from, or depend on paths outside `frontend/`
   (including `../node_modules`, backend directories, or root-level utilities).
 
 - Keep the root path small, predictable, and focused on C/C++ or documentation so native builds stay portable and unpolluted by frontend tooling.
+
+- These web tooling rules apply to `frontend/`; native WinUI sources, dependencies,
+  and generated build artifacts belong under `winui3/` and use its own instructions.
 
 ---
 
@@ -35,6 +50,12 @@
 
 - The `scripts/` folder contains **release-oriented build scripts** responsible for producing the **final executable artifacts**.
   These scripts may orchestrate backend builds, frontend packaging, signing, and final assembly.
+
+- `engine/` is the new project for the engine: the torrent client that stays in the tray.
+  It does not exist yet and has no build entry point. When it gets one, name that single entry point here.
+
+- `backend/` and `frontend/` are the earlier TypeScript version. Desktop work does not touch them;
+  the rules about them in this file describe that version as it stands.
 
 - `backend/make.ps1` is the **authoritative entry point** for backend compilation.
   - It defines the canonical backend build flow.
@@ -49,11 +70,11 @@
 
 1. **Speed** — fast boots, snappy controls, responsive RPCs.
 2. **Density** — pack only what is strictly necessary.
-3. **One Responsibility** — keep the tray, backend, and browser UI strictly distinct.
+3. **One Responsibility** — keep engine policy, tray behavior, and WinUI presentation at their own owners; responsibility boundaries do not require separate processes.
 4. **Exact Typing** — avoid `any`; prefer strict schema alignment and explicit contracts.
 5. **No Entropy** — no duplicate configurations, no drifting tooling, no convenience shortcuts.
-6. **Frontend Styling Authority** — feature code must not own styling; use shared semantic tokens/primitives only (see `frontend/AGENTS.md`).
-7. **No New Tokens Without Approval** — agents must not introduce new frontend semantic tokens without explicit user permission.
+6. **Web Frontend Styling Authority** — web feature code uses shared semantic tokens/primitives (see `frontend/AGENTS.md`); WinUI follows `winui3/AGENTS.md`.
+7. **No New Web Tokens Without Approval** — agents must not introduce new web frontend semantic tokens without explicit user permission.
 
 ---
 
@@ -70,9 +91,16 @@
   - The frontend may consume backend capabilities.
     The backend must never assume or require the frontend.
 
+- The same rule binds the desktop product: the engine must start, run, and shut down correctly
+  with no WinUI process and no WinUI files present.
+
 ---
 
 ## Work Protocol
+
+- Before choosing, adding, or running tests, read [docs/testing.md](docs/testing.md).
+  It is the authority for test scope: incremental work does not imply a full suite.
+  Local build entry points and restrictions on launching desktop applications still apply.
 
 - Every iteration must begin with enough local familiarization to understand the existing owner, data flow, and adjacent patterns before code is changed.
   The agent must inspect the surrounding code first so it can identify duplication, overlap, ownership drift, and parallel structures before deciding where to patch.
@@ -114,10 +142,12 @@
 ## Mandatory Procedure
 
 - Agents **must** read and follow:
-  - `backend/AGENTS.md` when working on native code
-  - `frontend/AGENTS.md` when working on UI or tooling
+  - `backend/AGENTS.md` when working in `backend/`
+  - the desktop architecture and `CONTEXT.md` when working in `engine/`, which has no AGENTS file yet
+  - `winui3/AGENTS.md` when working on WinUI or its tooling
+  - `frontend/AGENTS.md` when working on the web frontend or its tooling
 
-- For frontend work, the more detailed ownership, overlap, API-surface, and simplification rules in `frontend/AGENTS.md` are mandatory and should be treated as the concrete operating procedure for the iteration rules above.
+- For web frontend work, the ownership, overlap, API-surface, and simplification rules in `frontend/AGENTS.md` are mandatory.
 
 - Global rules in this file are authoritative unless explicitly overridden by a more specific AGENTS file.
 
