@@ -3,6 +3,44 @@
 Read this before writing code here. Every rule below earned its place by costing
 us something, and the cost is named. Nothing goes in that has not.
 
+For process lifetime, engine communication, and dependency decisions, read
+[the desktop architecture](../docs/desktop-architecture.md). Generic Synapse
+control requirements below apply when changing those reusable controls; they do
+not require additional consumers or general-purpose APIs for application features.
+
+## TinyTorrent interface design
+
+Design before implementation. Write the proposed layouts, information hierarchy,
+interactions, states, sizing rules, and keyboard paths first. Have independent
+reviewers challenge the design from the user, UI/UX designer, Microsoft Fluent,
+and keyboard-only perspectives. Revise until the design passes before writing
+production code. Later screenshots verify conformance; they do not replace design.
+
+Every visible character must earn its place through a user need. Review both
+unnecessary content and missing essentials. Put help in tooltips, never in surface
+subtitles, explanatory paragraphs, or button labels. Keep factual state, errors,
+field labels, and required decision information distinguishable from help.
+
+Use Windows vocabulary throughout, including familiar commands such as OK and
+Cancel. Button labels have one word; use two only when one loses meaning. Every
+application-authored button has a Lucide icon slightly larger than its text.
+The icon uses the existing padding allowance; it must not enlarge the button.
+Use only needed vector assets with one icon authority, without an icon runtime.
+Windows-owned dialogs retain their platform controls.
+
+Support familiar Windows shortcuts in buttons and menus, preserving standard text
+editing shortcuts in editors. Design direct accelerators, logical focus groups,
+arrow-key navigation, and predictable focus return. A keyboard-only reviewer must
+walk the primary journeys and challenge every avoidable focus stop, shortcut
+conflict, mouse dependency, and unnecessary keystroke. Merely making everything
+reachable by Tab does not pass.
+
+For torrent properties, only the legacy Pieces map is a visual reference. Design
+the other tabs afresh. qBittorrent informs useful data coverage, not field order or
+layout; retain needed information while making it easier to read with less clutter.
+Preferences takes its composition reference from LabForms, using native Fluent
+controls and the existing styling authority rather than importing another system.
+
 ## Why this project exists
 
 It replaces a torrent table that grew to 27 files, 6,108 lines, over a thousand
@@ -254,8 +292,10 @@ of CPU by an agent that had finished with it.
 
 So unless you were explicitly asked to:
 
-- **Build to check your work; do not run the test suite.** A clean build is the
-  evidence you owe. The suite is run once, deliberately, by whoever is coordinating.
+- **Build affected code to check compilation; do not run the test suite.**
+  Follow [the testing policy](../docs/testing.md) for scope; documentation and
+  screen-copy edits do not require a build. The suite is run deliberately by
+  whoever is coordinating only when the change warrants it and launching it is authorized.
 - **Do not launch the sample** to see something you could establish another way.
 - **Close what you open.** Check before you report, not after somebody complains.
 

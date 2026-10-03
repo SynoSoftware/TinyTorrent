@@ -9,11 +9,6 @@
 #include <string.h>
 #include <wchar.h>
 
-/* Windows already answers "how long may a background process take to become responsive":
-   ServicesPipeTimeout, whose default is 30000 ms, is what the service control manager
-   allows. The same question, so the same number -- used for readiness and for shutdown. */
-#define ServiceResponseTimeoutMs 30000
-
 /* Only affects how quickly readiness is noticed; the loop also wakes the moment the engine
    process exits, which is the failure that actually matters. */
 #define ReadyPollMs 100
@@ -49,6 +44,7 @@ static HANDLE g_thread;
 static DWORD g_threadId;
 static HANDLE g_queueReady;
 static HANDLE g_stopFinished;
+static BOOL g_stopSucceeded;
 
 static HANDLE g_process;          /* NULL when the engine was adopted rather than launched */
 static volatile LONG g_state = EngineStopped;
@@ -288,7 +284,7 @@ static void StartOurOwn(void)
     SetState(EngineReady);
 }
 
-static void Launch(void)
+static void Launch(BOOL start)
 {
     unsigned short persisted = (unsigned short)Setting(SettingPort, 0);
 
@@ -302,6 +298,12 @@ static void Launch(void)
             SetState(EngineReady);
             return;
         }
+    }
+
+    if (!start)
+    {
+        SetState(EngineStopped);
+        return;
     }
 
     g_port = FreePort();
@@ -415,20 +417,30 @@ static void Add(const wchar_t *argument)
 
 /* Sends session_close so the engine writes settings.json, stats.json and every .resume file.
    Killing it instead loses resume state and makes the next start re-verify everything. */
-static void Stop(void)
+static BOOL Stop(void)
 {
     char reply[8192];
+    wchar_t reason[512];
+    int status;
 
-    if (g_state == EngineStopped)
-        return;
+    if (g_state == EngineStopped || (g_state == EngineFailed && !g_process))
+        return TRUE;
 
     Log(L"stopping the engine on port %u", g_port);
-    RpcSend(SessionClose, reply, sizeof reply);
+    status = RpcSend(SessionClose, reply, sizeof reply);
+    if (!g_process && (status != 200 || RpcFailed(reply, reason, ARRAYSIZE(reason))))
+    {
+        Log(L"the adopted engine did not accept session_close (HTTP %d)", status);
+        return FALSE;
+    }
 
     if (g_process)
     {
         if (WaitForSingleObject(g_process, ServiceResponseTimeoutMs) != WAIT_OBJECT_0)
+        {
             Log(L"the engine had not exited after %d ms", ServiceResponseTimeoutMs);
+            return FALSE;
+        }
         CloseHandle(g_process);
         g_process = NULL;
     }
@@ -441,7 +453,7 @@ static void Stop(void)
             if ((long)(GetTickCount() - deadline) >= 0)
             {
                 Log(L"the adopted engine was still answering after %d ms", ServiceResponseTimeoutMs);
-                break;
+                return FALSE;
             }
             Sleep(ReadyPollMs);
         }
@@ -449,6 +461,7 @@ static void Stop(void)
 
     SetState(EngineStopped);
     Log(L"the engine has stopped");
+    return TRUE;
 }
 
 static DWORD WINAPI Supervise(void *unused)
@@ -487,14 +500,14 @@ static DWORD WINAPI Supervise(void *unused)
             switch (message.message)
             {
             case WorkLaunch:
-                Launch();
+                Launch((BOOL)message.wParam);
                 break;
             case WorkAdd:
                 Add((const wchar_t *)message.lParam);
                 free((void *)message.lParam);
                 break;
             case WorkStop:
-                Stop();
+                g_stopSucceeded = Stop();
                 SetEvent(g_stopFinished);
                 break;
             case WorkQuit:
@@ -504,7 +517,7 @@ static DWORD WINAPI Supervise(void *unused)
     }
 }
 
-BOOL EngineOpen(HWND notify)
+BOOL EngineOpen(HWND notify, BOOL launch)
 {
     wchar_t folder[MAX_PATH];
     wchar_t *lastSlash;
@@ -527,8 +540,11 @@ BOOL EngineOpen(HWND notify)
     /* Its own configuration directory: the engine takes an exclusive lock on one, so sharing
        the user's own would mean whichever started second fails. Both must be able to run. */
     _snwprintf_s(g_configDir, MAX_PATH, _TRUNCATE, L"%sdaemon", LogFolder());
-    CreateDirectoryW(g_configDir, NULL);
-    SeedSettings();
+    if (launch)
+    {
+        CreateDirectoryW(g_configDir, NULL);
+        SeedSettings();
+    }
 
     _snwprintf_s(g_outputPath, MAX_PATH, _TRUNCATE, L"%sengine.log", LogFolder());
 
@@ -542,7 +558,7 @@ BOOL EngineOpen(HWND notify)
         return FALSE;
 
     WaitForSingleObject(g_queueReady, INFINITE);
-    PostThreadMessageW(g_threadId, WorkLaunch, 0, 0);
+    PostThreadMessageW(g_threadId, WorkLaunch, (WPARAM)launch, 0);
     return TRUE;
 }
 
@@ -565,18 +581,22 @@ void EngineAdd(const wchar_t *argument)
         free(copy);
 }
 
-void EngineStop(void)
+BOOL EngineStop(void)
 {
     if (!g_thread)
-        return;
+        return TRUE;
 
     ResetEvent(g_stopFinished);
     if (!PostThreadMessageW(g_threadId, WorkStop, 0, 0))
-        return;
+        return FALSE;
 
     /* Bounded, so a supervising thread still inside a launch cannot hang a shutdown. */
-    if (WaitForSingleObject(g_stopFinished, ServiceResponseTimeoutMs) != WAIT_OBJECT_0)
+    if (WaitForSingleObject(g_stopFinished, ServiceResponseTimeoutMs * 2) != WAIT_OBJECT_0)
+    {
         Log(L"the engine did not confirm it had stopped");
+        return FALSE;
+    }
+    return g_stopSucceeded;
 }
 
 void EngineClose(void)

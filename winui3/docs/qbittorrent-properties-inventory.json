@@ -1,0 +1,1089 @@
+{
+  "product": "qBittorrent native desktop",
+  "scope": "Torrent properties only",
+  "checkout": {
+    "path": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/",
+    "describe": "release-5.1.0beta1-552-g9560ef02a",
+    "commit": "9560ef02ae0c3eac88a59e65387c4f7050605192"
+  },
+  "method": "Independent local native Qt source inventory. No WinUI comparison assessment consumed, no GUI/build/tests. Source version is checkout snapshot, not current release claim.",
+  "grade_scale": {
+    "min": 0,
+    "max": 5,
+    "basis": "Subjective source-based design assessment, not measured performance/pixels",
+    "positive_axes": [
+      "utility",
+      "placement",
+      "ergonomics",
+      "intuitiveness",
+      "necessity",
+      "wow"
+    ],
+    "bloat": "Higher means more perceived excess/density; not measured executable/memory/runtime cost"
+  },
+  "tab_order": [
+    "General",
+    "Trackers",
+    "Peers",
+    "HTTP Sources",
+    "Content",
+    "Speed"
+  ],
+  "feature_groups": [
+    {
+      "id": "navigation",
+      "tab": "All",
+      "name": "Bottom properties tab buttons and splitter",
+      "features": [
+        "General",
+        "Trackers",
+        "Peers",
+        "HTTP Sources",
+        "Content",
+        "Speed"
+      ],
+      "spatial_order": "Bottom horizontal button row; Speed after expanding spacer at right; clicking active tab collapses properties to tab bar",
+      "keyboard": [
+        "Alt+G General",
+        "Alt+C Trackers",
+        "Alt+R Peers",
+        "Alt+B HTTP Sources",
+        "Alt+Z Content",
+        "Alt+D Speed"
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1
+      },
+      "assessment": "Complete familiar property categories; bottom placement and nonmnemonic accelerators increase recall; active-tab collapse is less conventional.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/proptabbar.cpp",
+          "line": 38,
+          "note": "Tab creation/order/shortcuts"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/proptabbar.cpp",
+          "line": 114,
+          "note": "Active tab click toggles visibility"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 174,
+          "note": "Splitter hide/restore"
+        }
+      ]
+    },
+    {
+      "id": "piece_progress",
+      "tab": "General",
+      "name": "Downloaded/downloading piece progress bar",
+      "features": [
+        "Spatial piece completion",
+        "Currently downloading pieces",
+        "Overall completion percentage"
+      ],
+      "spatial_order": "First row at top of General; label left, expanding 18px piece bar center, numeric percentage right",
+      "controls": [
+        "Hover tooltip",
+        "Hold Shift for detailed file information"
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 4,
+        "wow": 4,
+        "bloat": 1
+      },
+      "assessment": "High diagnostic value in compact space; actual piece distribution rather than only an ordinary percentage bar.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 75,
+          "note": "Progress row"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 104,
+          "note": "DownloadedPiecesBar constructed and fixed height18"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 499,
+          "note": "Downloading bitfield fetch and progress"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/piecesbar.cpp",
+          "line": 276,
+          "note": "Hover/Shift detailed information"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/downloadedpiecesbar.cpp",
+          "line": 56,
+          "note": "Piece bitfield resampled to pixels"
+        }
+      ]
+    },
+    {
+      "id": "piece_availability",
+      "tab": "General",
+      "name": "Piece availability bar and distributed copies",
+      "features": [
+        "Spatial piece availability",
+        "Distributed copies numeric value"
+      ],
+      "spatial_order": "Second top row under progress; label left, expanding piece bar center, distributed copies value right",
+      "conditional": "Availability visible only for metadata-bearing torrent that is unfinished, not stopped, not queued and not checking",
+      "scores": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 3,
+        "necessity": 4,
+        "wow": 4,
+        "bloat": 1
+      },
+      "assessment": "Directly supports diagnosing completion feasibility; conditional visibility avoids irrelevant state. Color-only quantitative encoding requires learning.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 111,
+          "note": "Availability row"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 112,
+          "note": "PieceAvailabilityBar construction"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 478,
+          "note": "Conditional fetch/show and distributedCopies"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/pieceavailabilitybar.cpp",
+          "line": 44,
+          "note": "Availability samples normalized by maximum"
+        }
+      ]
+    },
+    {
+      "id": "transfer",
+      "tab": "General",
+      "name": "Transfer facts",
+      "spatial_order": "QGroupBox below piece bars; three label/value pairs per row, read row-major",
+      "fields": [
+        {
+          "name": "Time Active",
+          "row": 0,
+          "column": 0,
+          "meaning": "Active duration; finished torrents include seeded duration",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 175
+          }
+        },
+        {
+          "name": "ETA",
+          "row": 0,
+          "column": 2,
+          "meaning": "Remaining duration",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 204
+          }
+        },
+        {
+          "name": "Connections",
+          "row": 0,
+          "column": 4,
+          "meaning": "Current and maximum",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 233
+          }
+        },
+        {
+          "name": "Downloaded",
+          "row": 1,
+          "column": 0,
+          "meaning": "Lifetime and this session",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 262
+          }
+        },
+        {
+          "name": "Uploaded",
+          "row": 1,
+          "column": 2,
+          "meaning": "Lifetime and this session",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 291
+          }
+        },
+        {
+          "name": "Seeds",
+          "row": 1,
+          "column": 4,
+          "meaning": "Connected and total",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 320
+          }
+        },
+        {
+          "name": "Download Speed",
+          "row": 2,
+          "column": 0,
+          "meaning": "Current and average",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 349
+          }
+        },
+        {
+          "name": "Upload Speed",
+          "row": 2,
+          "column": 2,
+          "meaning": "Current and average",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 378
+          }
+        },
+        {
+          "name": "Peers",
+          "row": 2,
+          "column": 4,
+          "meaning": "Connected leechers and total",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 407
+          }
+        },
+        {
+          "name": "Download Limit",
+          "row": 3,
+          "column": 0,
+          "meaning": "Read-only fact; infinity if unlimited",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 436
+          }
+        },
+        {
+          "name": "Upload Limit",
+          "row": 3,
+          "column": 2,
+          "meaning": "Read-only fact; infinity if unlimited",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 465
+          }
+        },
+        {
+          "name": "Wasted",
+          "row": 3,
+          "column": 4,
+          "meaning": "Wasted bytes",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 494
+          }
+        },
+        {
+          "name": "Share Ratio",
+          "row": 4,
+          "column": 0,
+          "meaning": "Current ratio",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 523
+          }
+        },
+        {
+          "name": "Reannounce In",
+          "row": 4,
+          "column": 2,
+          "meaning": "Next announce countdown",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 552
+          }
+        },
+        {
+          "name": "Last Seen Complete",
+          "row": 4,
+          "column": 4,
+          "meaning": "Date or Never",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 581
+          }
+        },
+        {
+          "name": "Popularity",
+          "row": 5,
+          "column": 0,
+          "meaning": "Ratio divided by active time in months; definition tooltip",
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 613
+          }
+        }
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 4,
+        "wow": 1,
+        "bloat": 3
+      },
+      "assessment": "Broad useful coverage, but row-major grid mixes time, connectivity and transfer concepts; Popularity is low necessity compared with failure/transfer facts.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 155,
+          "note": "Transfer group"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 407,
+          "note": "Dynamic field meanings"
+        }
+      ]
+    },
+    {
+      "id": "information",
+      "tab": "General",
+      "name": "Torrent metadata",
+      "spatial_order": "Information QGroupBox below Transfer; two rows of three pairs, then spanning rows",
+      "fields": [
+        {
+          "name": "Total Size",
+          "row": 0,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 660
+          }
+        },
+        {
+          "name": "Pieces",
+          "row": 0,
+          "column": 2,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 689
+          }
+        },
+        {
+          "name": "Created By",
+          "row": 0,
+          "column": 4,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 718
+          }
+        },
+        {
+          "name": "Added On",
+          "row": 1,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 747
+          }
+        },
+        {
+          "name": "Completed On",
+          "row": 1,
+          "column": 2,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 776
+          }
+        },
+        {
+          "name": "Created On",
+          "row": 1,
+          "column": 4,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 805
+          }
+        },
+        {
+          "name": "Private",
+          "row": 2,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 834
+          }
+        },
+        {
+          "name": "Info Hash v1",
+          "row": 3,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 866
+          }
+        },
+        {
+          "name": "Info Hash v2",
+          "row": 4,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 898
+          }
+        },
+        {
+          "name": "Save Path",
+          "row": 5,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 930
+          }
+        },
+        {
+          "name": "Comment",
+          "row": 6,
+          "column": 0,
+          "evidence": {
+            "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+            "line": 965
+          }
+        }
+      ],
+      "controls": [
+        "Private/hashes/path mouse-selectable",
+        "Save Path wraps",
+        "Comment wraps, browser-interactive rich text and external links"
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 4,
+        "wow": 1,
+        "bloat": 2
+      },
+      "assessment": "Useful provenance/identity coverage; frequently needed path is below six metadata rows; v1/v2 hashes remain explicit.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 640,
+          "note": "Information group"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 327,
+          "note": "Static metadata and absent metadata handling"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 984,
+          "note": "Comment link behavior"
+        }
+      ]
+    },
+    {
+      "id": "trackers",
+      "tab": "Trackers",
+      "name": "Tracker table and tier controls",
+      "columns": [
+        {
+          "index": 0,
+          "name": "URL/Announce Endpoint",
+          "default_hidden": false
+        },
+        {
+          "index": 1,
+          "name": "Tier",
+          "default_hidden": false
+        },
+        {
+          "index": 2,
+          "name": "BT Protocol",
+          "default_hidden": "true only when QBT_USES_LIBTORRENT2; saved state can override"
+        },
+        {
+          "index": 3,
+          "name": "Status",
+          "default_hidden": false
+        },
+        {
+          "index": 4,
+          "name": "Peers",
+          "default_hidden": false
+        },
+        {
+          "index": 5,
+          "name": "Seeds",
+          "default_hidden": false
+        },
+        {
+          "index": 6,
+          "name": "Leeches",
+          "default_hidden": false
+        },
+        {
+          "index": 7,
+          "name": "Times Downloaded",
+          "default_hidden": false
+        },
+        {
+          "index": 8,
+          "name": "Message",
+          "default_hidden": false
+        },
+        {
+          "index": 9,
+          "name": "Next Announce",
+          "default_hidden": false
+        },
+        {
+          "index": 10,
+          "name": "Min Announce",
+          "default_hidden": false
+        }
+      ],
+      "features": [
+        "Sticky discovery rows DHT, PeX, LSD",
+        "Tracker tiers/primary ordering",
+        "Sorting",
+        "Movable/resizable columns",
+        "Header column visibility menu",
+        "Resize visible columns to contents",
+        "Persist header state"
+      ],
+      "controls": [
+        "Right-side Up/Down buttons decrease/increase selected tracker tiers",
+        "Add trackers",
+        "Edit tracker URL",
+        "Remove tracker",
+        "Copy tracker URL",
+        "Force reannounce to selected trackers",
+        "Force reannounce to all trackers"
+      ],
+      "keyboard": [
+        "F2 edit",
+        "Delete remove (platform deleteItem sequence)",
+        "Ctrl+C copy",
+        "Double-click edit"
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 3,
+        "necessity": 4,
+        "wow": 2,
+        "bloat": 3
+      },
+      "assessment": "Comprehensive troubleshooting/actions; 11 available columns and multiple endpoint rows increase width demand; tier buttons have icon-only discoverability.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistmodel.h",
+          "line": 55,
+          "note": "Canonical column order and discovery rows"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistmodel.cpp",
+          "line": 502,
+          "note": "Headers"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 63,
+          "note": "Conditional protocol hide and native tree settings"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 107,
+          "note": "Keyboard"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 365,
+          "note": "Context commands"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 428,
+          "note": "Header visibility and fitting"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 121,
+          "note": "Tier buttons"
+        }
+      ]
+    },
+    {
+      "id": "peers",
+      "tab": "Peers",
+      "name": "Peer table",
+      "columns": [
+        {
+          "index": 0,
+          "name": "Country/Region",
+          "default_hidden": "hidden when country resolution disabled"
+        },
+        {
+          "index": 1,
+          "name": "IP/Address",
+          "default_hidden": false
+        },
+        {
+          "index": 2,
+          "name": "Port",
+          "default_hidden": false
+        },
+        {
+          "index": 3,
+          "name": "Connection",
+          "default_hidden": false
+        },
+        {
+          "index": 4,
+          "name": "Flags",
+          "default_hidden": false
+        },
+        {
+          "index": 5,
+          "name": "Client",
+          "default_hidden": false
+        },
+        {
+          "index": 6,
+          "name": "Peer ID Client",
+          "default_hidden": true
+        },
+        {
+          "index": 7,
+          "name": "Progress",
+          "default_hidden": false
+        },
+        {
+          "index": 8,
+          "name": "Down Speed",
+          "default_hidden": false
+        },
+        {
+          "index": 9,
+          "name": "Up Speed",
+          "default_hidden": false
+        },
+        {
+          "index": 10,
+          "name": "Downloaded",
+          "default_hidden": false
+        },
+        {
+          "index": 11,
+          "name": "Uploaded",
+          "default_hidden": false
+        },
+        {
+          "index": 12,
+          "name": "Relevance",
+          "default_hidden": false
+        },
+        {
+          "index": 13,
+          "name": "Files",
+          "default_hidden": false
+        }
+      ],
+      "internal_columns": [
+        "IP_HIDDEN",
+        "COL_COUNT"
+      ],
+      "features": [
+        "Sortable, movable/resizable headers",
+        "Right-elided headers",
+        "Column visibility menu",
+        "Resize columns",
+        "Country resolution preference",
+        "IP-to-hostname resolution preference",
+        "Saved column state"
+      ],
+      "controls": [
+        "Add peers",
+        "Copy IP:port",
+        "Ban peer permanently",
+        "Permanent peer ban requires QMessageBox confirmation; applies session-wide IP ban"
+      ],
+      "conditional": "Add peers disabled for private/checking/queued torrents; Copy/Ban disabled without selected peers; table menu requires bound torrent",
+      "scores": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 2,
+        "necessity": 4,
+        "wow": 2,
+        "bloat": 4
+      },
+      "assessment": "Strong expert troubleshooting coverage; compact flags, relevance, countries, files and duplicate client identity can overwhelm nonexperts. Default Peer ID Client hide helps.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.h",
+          "line": 57,
+          "note": "Canonical enum order"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 114,
+          "note": "Headers"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 143,
+          "note": "Internal/default hiding"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 208,
+          "note": "Header actions"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 294,
+          "note": "Peer context actions and restrictions"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 352,
+          "note": "Confirmation then session-wide banIP"
+        }
+      ]
+    },
+    {
+      "id": "webseeds",
+      "tab": "HTTP Sources",
+      "name": "Web seed URL list",
+      "columns": [
+        "Web seed URL"
+      ],
+      "features": [
+        "Extended selection",
+        "List scrolling"
+      ],
+      "controls": [
+        "Add web seed",
+        "Remove web seed",
+        "Copy web seed URL",
+        "Edit web seed URL"
+      ],
+      "keyboard": [
+        "F2 edit",
+        "Delete remove",
+        "Double-click edit"
+      ],
+      "scores": {
+        "utility": 3,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 2,
+        "wow": 1,
+        "bloat": 2
+      },
+      "assessment": "Clear focused editing surface for niche capability; a dedicated tab is proportional only for users who manage web seeds.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 1092,
+          "note": "QListWidget extended selection"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 140,
+          "note": "Web seed hotkeys"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 558,
+          "note": "Web seed context menu"
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "tab": "Content",
+      "name": "Torrent file tree",
+      "columns": [
+        {
+          "index": 0,
+          "name": "Name",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        },
+        {
+          "index": 1,
+          "name": "Total Size",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        },
+        {
+          "index": 2,
+          "name": "Progress",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        },
+        {
+          "index": 3,
+          "name": "Download Priority",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        },
+        {
+          "index": 4,
+          "name": "Remaining",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        },
+        {
+          "index": 5,
+          "name": "Availability",
+          "default_hidden": false,
+          "default_hidden_evidence": "No explicit initial hide found in TorrentContentWidget constructor; saved header state may override"
+        }
+      ],
+      "spatial_order": "Select All / Select None left, expanding spacer, fixed-width300 file filter right, QTreeView below",
+      "features": [
+        "Name checkbox download inclusion",
+        "Hierarchical folder aggregation",
+        "Native uniform single-line rows",
+        "Extended selection in properties UI",
+        "Sorting ascending Name initially",
+        "Automatic recursive expansion",
+        "Column reorder/resize/show-hide/fit; saved header state",
+        "Priority cell editor",
+        "Drag-only content export if preference enabled"
+      ],
+      "controls": [
+        "Select All checks files",
+        "Select None unchecks files",
+        "Filter files; filter-format submenu, default Wildcards",
+        "Open",
+        "Open containing folder",
+        "Rename",
+        "Priority: Do not download / Normal / High / Maximum / By shown file order"
+      ],
+      "keyboard": [
+        "F2 rename",
+        "Enter/Return open",
+        "Space/Select toggles checked state of selection"
+      ],
+      "scores": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 2
+      },
+      "assessment": "Most directly actionable properties tab; checkboxes, labeled metrics and native tree support predictability. Fixed300 filter can pressure narrow panes; priority editing and ordered-priority command add expert complexity.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+          "line": 1121,
+          "note": "Content toolbar/tree"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 81,
+          "note": "Fixed-width filter and file actions"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentmodel.cpp",
+          "line": 169,
+          "note": "Six headers"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 73,
+          "note": "Native view setup"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 105,
+          "note": "F2"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 144,
+          "note": "Enter"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 249,
+          "note": "Space/Select"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 423,
+          "note": "File menu"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentitemdelegate.cpp",
+          "line": 79,
+          "note": "Priority editor"
+        }
+      ]
+    },
+    {
+      "id": "speed",
+      "tab": "Speed",
+      "name": "Session-wide speed history",
+      "scope": "Whole BitTorrent session, NOT selected torrent",
+      "periods": [
+        "1 Minute",
+        "5 Minutes",
+        "30 Minutes",
+        "3 Hours",
+        "6 Hours",
+        "12 Hours",
+        "24 Hours"
+      ],
+      "default_period": "5 Minutes (index1)",
+      "graphs": [
+        "Total Upload",
+        "Total Download",
+        "Payload Upload",
+        "Payload Download",
+        "Overhead Upload",
+        "Overhead Download",
+        "DHT Upload",
+        "DHT Download",
+        "Tracker Upload",
+        "Tracker Download"
+      ],
+      "default_graphs": [
+        "Total Upload",
+        "Total Download"
+      ],
+      "spatial_order": "Period label+combo left; Select Graphs menu button right; expanding graph below",
+      "features": [
+        "10 independently selectable traces",
+        "Persistent period and graph toggles",
+        "Entire SpeedWidget can be disabled by Advanced Options"
+      ],
+      "empty_state": "When disabled: 'Speed graphs are disabled' and 'You can enable it in Advanced Options'",
+      "scores": {
+        "utility": 4,
+        "placement": 2,
+        "ergonomics": 3,
+        "intuitiveness": 2,
+        "necessity": 3,
+        "wow": 3,
+        "bloat": 3
+      },
+      "assessment": "Useful long-horizon diagnostics; session-wide scope inside selected-torrent properties can mislead. Defaults show only two primary traces, reducing clutter.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/speedwidget.cpp",
+          "line": 67,
+          "note": "Period and graph labels"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/speedwidget.cpp",
+          "line": 134,
+          "note": "SessionStatus data source"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/base/preferences.cpp",
+          "line": 2084,
+          "note": "Enabled defaulttrue"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/base/preferences.cpp",
+          "line": 2097,
+          "note": "Period default1"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/base/preferences.cpp",
+          "line": 2110,
+          "note": "Only UP/DOWN graph defaults"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 582,
+          "note": "Disabled graph state"
+        }
+      ]
+    }
+  ],
+  "states": {
+    "no_torrent": "loadTorrentInfos(nullptr) clears values/list/bar state, sets child handlers null and returns; General labels remain; no explicit instructional empty headline found",
+    "multi_torrent": "Properties follows the current torrent row, not an aggregate of selected torrents. MainWindow connects currentTorrentChanged to loadTorrentInfos; TransferListWidget derives the torrent from current QModelIndex and emits it.",
+    "multi_torrent_reason": "Verified selection wiring in MainWindow.cpp:254 and TransferListWidget.cpp:1320-1327; independent of selected row count.",
+    "metadata_missing": "Private N/A; v1/v2 info hash absent N/A; creation/size/comment/creator remain empty without metadata; piece availability hidden",
+    "scrolling": "General QScrollArea widgetResizable=true; tables use native QTreeView scrolling; web seeds QListWidget scrolling",
+    "resizing": "Outer QSplitter stores/restores sizes; active-tab collapse hides splitter handle. Tables support header resize/reorder/fit and persistence. General grid has three label/value pairs per row and spanning identity/path/comment rows.",
+    "evidence": [
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+        "line": 210,
+        "note": "clear"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+        "line": 312,
+        "note": "Single torrent binding"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.ui",
+        "line": 49,
+        "note": "General scroll"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+        "line": 174,
+        "note": "Splitter lifecycle"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+        "line": 353,
+        "note": "Read/persist header and splitter state"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/mainwindow.cpp",
+        "line": 254,
+        "note": "Current-torrent signal wired to properties"
+      },
+      {
+        "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/transferlistwidget.cpp",
+        "line": 1320,
+        "note": "Current QModelIndex selects torrent shown in properties"
+      }
+    ]
+  },
+  "limitations": [
+    "No live layout, DPI, High Contrast, screen-reader or keyboard journey testing",
+    "Actual startup settings may override source defaults",
+    "Runtime responsiveness and package size not measured",
+    "No separate Pieces tab in this checkout: General contains two real piece bars",
+    "This source inventory does not establish all external torrent context-menu configuration actions"
+  ],
+  "recommendation_for_comparison": "Compare capabilities and spatial order separately; do not equate qB's two General piece bars with a dedicated piece grid/map or its session speed tab with per-torrent history."
+}

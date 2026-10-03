@@ -1,0 +1,2612 @@
+{
+  "schema_version": 1,
+  "generated_date": "2026-09-14",
+  "product": "TinyTorrent WinUI 3",
+  "scope": "Current torrent properties/details only; shell split and keyboard paths relevant to those views.",
+  "method": {
+    "authority": "Current WinUI XAML/code and current Transmission/core projections; no legacy frontend tab layouts or qBittorrent assessment consulted.",
+    "validation": "Read-only source inspection. No build, tests, GUI, UI Automation or desktop launch performed.",
+    "grade_basis": "Subjective source-based feature-group assessment, not user testing or measured rendered quality.",
+    "grading_scale": {
+      "utility": "0=no useful task value; 5=high task value",
+      "placement": "0=poor hierarchy; 5=correct and immediately discoverable location",
+      "ergonomics": "0=high interaction burden; 5=efficient mouse/keyboard flow",
+      "intuitiveness": "0=opaque; 5=self-explanatory",
+      "necessity": "0=unnecessary; 5=essential for this task",
+      "wow": "0=no distinctive contribution; 5=strong source-concept appeal; actual visual impact unverified",
+      "bloat": "0=minimal; 5=excessive (higher is worse)"
+    },
+    "unknown_policy": "Unverified runtime geometry/focus/performance is explicitly identified. Unsupported or version-dependent data is not graded as if known."
+  },
+  "source_files": {
+    "xaml": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+    "inspector": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+    "page": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+    "page_xaml": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml",
+    "pieces": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+    "speed": "src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+    "session": "src/TinyTorrent.Core/Session.cs",
+    "projections": "src/TinyTorrent.Core/Inspector.cs",
+    "transmission": "src/Transmission/Torrent.cs",
+    "history": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+    "tick": "src/TinyTorrent.Core/Tick.cs"
+  },
+  "tab_order": [
+    "General",
+    "Files",
+    "Peers",
+    "Trackers",
+    "Speed",
+    "Pieces"
+  ],
+  "tabs": [
+    {
+      "name": "General",
+      "group_ids": [
+        "general_overview",
+        "general_folder",
+        "general_limits",
+        "general_transfer",
+        "general_information"
+      ],
+      "spatial_order": [
+        "Status/error/progress/rates/stopping diagnostics",
+        "Folder and actions",
+        "Limits and behavior",
+        "Transfer details",
+        "Torrent information"
+      ],
+      "scroll": "One vertical-auto native ScrollViewer for content; dirty Apply/Discard footer fixed outside it."
+    },
+    {
+      "name": "Files",
+      "group_ids": [
+        "files_search_tree",
+        "files_selection_facts",
+        "files_commands"
+      ],
+      "spatial_order": [
+        "File search",
+        "Download/Skip/Priority/Rename CommandBar",
+        "Name/Wanted/Progress/Size/Priority header",
+        "Hierarchical tree viewport",
+        "Selected facts"
+      ],
+      "scroll": "Native TreeView star-row viewport; fixed search/commands/header/footer."
+    },
+    {
+      "name": "Peers",
+      "group_ids": [
+        "peers_summary",
+        "peers_table",
+        "peers_selected"
+      ],
+      "spatial_order": [
+        "Participant summary",
+        "Shared table",
+        "Bounded selected facts"
+      ],
+      "scroll": "Shared table viewport and independently bounded native facts ScrollViewer."
+    },
+    {
+      "name": "Trackers",
+      "group_ids": [
+        "trackers_table",
+        "trackers_selected",
+        "trackers_commands"
+      ],
+      "spatial_order": [
+        "Edit/Reannounce command strip",
+        "Shared table",
+        "Bounded selected facts"
+      ],
+      "edit_order": [
+        "Edit/Reannounce strip",
+        "Announce URLs multiline editor (replaces table/facts)",
+        "Save/Cancel fixed footer"
+      ],
+      "scroll": "Shared table viewport; facts native scroll bounded; editing is finite multiline TextBox."
+    },
+    {
+      "name": "Speed",
+      "group_ids": [
+        "speed_plot"
+      ],
+      "spatial_order": [
+        "Current rates and solid/dashed meanings",
+        "Download/upload elapsed-time plot",
+        "Observed span and both peaks"
+      ],
+      "scroll": "No plot scroll; finite star plot."
+    },
+    {
+      "name": "Pieces",
+      "group_ids": [
+        "pieces_map",
+        "pieces_interaction"
+      ],
+      "spatial_order": [
+        "Have/missing/availability/count/size summary",
+        "Adaptive raster map",
+        "Text legend"
+      ],
+      "scroll": "No map scroll; adaptive grouping fits finite area."
+    }
+  ],
+  "feature_groups": [
+    {
+      "id": "shared_identity",
+      "view": "Shared",
+      "name": "Selected torrent identity and scope",
+      "spatial_order": 0,
+      "control": "BodyStrong title, Close button, native top NavigationView",
+      "fields": [
+        {
+          "label": "Torrent name",
+          "data": "Selected row.Name",
+          "condition": "Single selection"
+        },
+        {
+          "label": "No selection",
+          "data": "Selection count = 0",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Multiple torrents",
+          "data": "Selection count > 1",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Close",
+          "behavior": "Page resolves a dirty draft before closing Details; disabled during a commit."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 60,
+          "end_line": 93
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 91,
+          "end_line": 117
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 641,
+          "end_line": 668
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 5,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 0,
+        "rationale": "Clear target identity and factual empty states; native navigation overflow exists. Actual width and focus presentation have not been observed."
+      },
+      "tab_order": [
+        "General",
+        "Files",
+        "Peers",
+        "Trackers",
+        "Speed",
+        "Pieces"
+      ],
+      "navigation": "Static six-view native NavigationView in Top mode; native overflow; SelectionFollowsFocus enabled. General is initial selection. Shell persists selected view."
+    },
+    {
+      "id": "shared_feedback",
+      "view": "Shared",
+      "name": "Loading, unavailable, command feedback and recovery",
+      "spatial_order": 1,
+      "control": "InfoBar plus independent contextual unavailable/Retry row",
+      "fields": [
+        {
+          "label": "Command error/success",
+          "data": "ErrorBar.Message; Changes saved",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "View unavailable",
+          "data": "Current view + Session.DetailError",
+          "condition": "Live detail protocol failure"
+        },
+        {
+          "label": "Disconnected",
+          "data": "Session.State != Live",
+          "condition": "Single target retained while offline"
+        },
+        {
+          "label": "Retry",
+          "data": "Session.Retry()",
+          "condition": "Visible only for a detail failure"
+        },
+        {
+          "label": "Loading",
+          "data": "Reading torrent details…, Reading files…, table loading placeholder; Collecting speed history…",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Retry",
+          "shortcut": "F5",
+          "behavior": "Clears current live detail failure; next existing session tick refetches. Does not automatically move focus."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 77,
+          "end_line": 93
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 124,
+          "end_line": 157
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 254,
+          "end_line": 291
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 661,
+          "end_line": 664
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 177,
+          "end_line": 193
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 754,
+          "end_line": 864
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Failures are distinguished from valid empty lists and retries reuse the session. Loading a view is delayed until the existing tick; state appearance is runtime-unverified."
+      },
+      "write_gate": "Live session, matching hash still present in current rows, and not committing. Unavailable General editors cannot apply old target values to a newly selected torrent."
+    },
+    {
+      "id": "shared_split",
+      "view": "Shared",
+      "name": "Resizable lower inspector and compact back flow",
+      "spatial_order": 2,
+      "control": "Finite Grid rows, native Thumb inside DetailsSplitter; keyboard range behavior",
+      "fields": [
+        {
+          "label": "Initial height",
+          "data": "40% of available content height, clamped to live minima",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Persisted height",
+          "data": "Window.Settings.InspectorHeight",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Minimum",
+          "data": "Actual title/navigation, required fixed strip, current factual text or realized native row/header",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Resize",
+          "behavior": "Drag divider or plain Up/Down; Home sets minimum, End maximum; Alt+Z focuses divider outside Details."
+        },
+        {
+          "label": "Compact Back",
+          "shortcut": "Alt+Left",
+          "behavior": "When both pane minima cannot fit, inspector uses full content space; table and divider hide; Back returns to torrents through draft guard."
+        },
+        {
+          "label": "Enter Details",
+          "shortcut": "Alt+D",
+          "behavior": "Shows Details and focuses active view's first useful control."
+        },
+        {
+          "label": "Cycle groups",
+          "shortcut": "F6 / Shift+F6",
+          "behavior": "Cycles Search/commands, torrent table, and visible Details navigation; skips hidden groups."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 670,
+          "end_line": 731
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 778,
+          "end_line": 894
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 896,
+          "end_line": 929
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml",
+          "line": 333,
+          "end_line": 476
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "The inspector preserves the table-centric client structure and adapts to short windows. Exact minimum geometry and text scaling remain untested through the desktop interface."
+      },
+      "scroll_ownership": "Parent supplies finite height. Each active view owns its internal scroll; there is no shared outer whole-inspector ScrollViewer."
+    },
+    {
+      "id": "general_overview",
+      "view": "General",
+      "name": "Status, meaningful progress and current transfer",
+      "spatial_order": 0,
+      "control": "Read-only overview StackPanel, progress bar, selective diagnostic buttons",
+      "fields": [
+        {
+          "label": "Status",
+          "data": "Row.StatusLabel",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Daemon error",
+          "data": "Row.ErrorString",
+          "condition": "Nonempty error only"
+        },
+        {
+          "label": "Metadata progress",
+          "data": "MetadataPercentComplete",
+          "condition": "MetadataPercentComplete < 1"
+        },
+        {
+          "label": "Verification progress",
+          "data": "RecheckProgress",
+          "condition": "Metadata complete and status Check/CheckWait"
+        },
+        {
+          "label": "Selected files / Downloaded progress",
+          "data": "PercentDone",
+          "condition": "Metadata complete and not checking; label Selected files when SizeWhenDone < TotalSize"
+        },
+        {
+          "label": "Completed selected bytes / selected size",
+          "data": "SizeWhenDone - LeftUntilDone; SizeWhenDone",
+          "condition": "Not metadata/checking"
+        },
+        {
+          "label": "Remaining time",
+          "data": "Row.Eta",
+          "condition": "Downloading, not metadata/checking"
+        },
+        {
+          "label": "Download rate",
+          "data": "Row.DownloadSpeed",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Upload rate",
+          "data": "Row.UploadSpeed",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Uploaded and ratio",
+          "data": "UploadedEver; UploadRatio",
+          "condition": "Seeding"
+        },
+        {
+          "label": "Effective seeding stopping conditions",
+          "data": "Per-torrent Ratio/Idle mode with current Session.SeedingLimits",
+          "condition": "Seeding"
+        },
+        {
+          "label": "Connected peers and wanted bytes available",
+          "data": "Row.PeersConnected; DesiredAvailable",
+          "condition": "Stalled"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Peers",
+          "behavior": "Stalled-only shortcut to Peers view."
+        },
+        {
+          "label": "Pieces",
+          "behavior": "Stalled-only shortcut to Pieces view."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 101,
+          "end_line": 111
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 178,
+          "end_line": 198
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 215,
+          "end_line": 224
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 257
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 668,
+          "end_line": 669
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "Progress distinguishes wanted files, all-file completion, metadata and verification. Effective stopping rules help seeding diagnosis. Scope requires reading Selected files; all-file byte total is not exposed."
+      },
+      "empty_stopping_row": "StoppingText is explicitly collapsed when empty in UpdateAvailability; no empty-row defect is asserted.",
+      "formatting": "Percentage P1; rates and sizes use TorrentFormat.Default; displayed ratio has two decimals."
+    },
+    {
+      "id": "general_folder",
+      "view": "General",
+      "name": "Folder identity and location actions",
+      "spatial_order": 1,
+      "control": "BodyStrong scope label, selectable wrapping path, three inline buttons",
+      "fields": [
+        {
+          "label": "Folder / engine folder label",
+          "data": "Configure(isLocal, engineName); DownloadDir",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Open",
+          "access_key": "O",
+          "behavior": "Local connection only; delegates to page's existing OpenFolder owner."
+        },
+        {
+          "label": "Change",
+          "access_key": "M",
+          "behavior": "Delegates to page's guarded ChangeLocation dialog; write gate."
+        },
+        {
+          "label": "Copy",
+          "access_key": "C",
+          "behavior": "Copies full displayed DownloadDir via page clipboard owner; enabled only for loaded nonempty General location."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 113,
+          "end_line": 120
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 90
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 289,
+          "end_line": 291
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 666,
+          "end_line": 670
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Full path is readable and copyable. The inline labels are concise but a long wrapping path can consume substantial short-pane height; exact wrap geometry is not observed."
+      }
+    },
+    {
+      "id": "general_limits",
+      "view": "General",
+      "name": "Limits and behavior",
+      "spatial_order": 2,
+      "control": "Collapsed Expander; native CheckBox, NumberBox and ComboBox controls; paired speed groups",
+      "fields": [
+        {
+          "label": "Honor session limits",
+          "data": "HonorsSessionLimits",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Download limit enabled (kB/s)",
+          "data": "DownloadLimited",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Download limit",
+          "data": "DownloadLimit",
+          "condition": "NumberBox enabled only when download limit checked"
+        },
+        {
+          "label": "Upload limit enabled (kB/s)",
+          "data": "UploadLimited",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Upload limit",
+          "data": "UploadLimit",
+          "condition": "NumberBox enabled only when upload limit checked"
+        },
+        {
+          "label": "Seeding ratio mode",
+          "data": "SeedRatioMode",
+          "condition": "Session setting / Stop at ratio / Unlimited"
+        },
+        {
+          "label": "Ratio",
+          "data": "SeedRatioLimit",
+          "condition": "Enabled only Stop at ratio"
+        },
+        {
+          "label": "Seeding idle mode",
+          "data": "SeedIdleMode",
+          "condition": "Session setting / Stop after idle time / Unlimited"
+        },
+        {
+          "label": "Idle minutes",
+          "data": "SeedIdleLimit",
+          "condition": "Enabled only Stop after idle time"
+        },
+        {
+          "label": "Bandwidth priority",
+          "data": "BandwidthPriority",
+          "condition": "Low / Normal / High"
+        },
+        {
+          "label": "Peer limit",
+          "data": "PeerLimit",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Sequential download",
+          "data": "SequentialDownload",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Expand Limits and behavior",
+          "access_key": "L",
+          "behavior": "Establishes clean baseline; resolves a pre-existing tracker draft before entering General editor."
+        },
+        {
+          "label": "Apply",
+          "shortcut": "Ctrl+S",
+          "behavior": "Flushes pending native NumberBox text; validates and sends a single captured-hash TorrentSet. Accent primary footer pinned outside scroll; only dirty/saving."
+        },
+        {
+          "label": "Discard",
+          "access_key": "Z",
+          "behavior": "Restores baseline, closes editor, focuses Limits."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 122,
+          "end_line": 165
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 180,
+          "end_line": 182
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 234,
+          "end_line": 253
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 279,
+          "end_line": 299
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 304,
+          "end_line": 327
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 473,
+          "end_line": 480
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 2,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 3,
+        "rationale": "Full useful per-torrent editing is present, but this long editor precedes Transfer and Information diagnostics. Only download/upload groups pair horizontally; ratio/idle/priority/peer controls remain a vertical sequence."
+      },
+      "access_keys": {
+        "honor_session": "H",
+        "download_enabled": "D",
+        "download_value": "N",
+        "upload_enabled": "U",
+        "upload_value": "V",
+        "ratio_mode": "R",
+        "ratio_value": "A",
+        "idle_mode": "S",
+        "idle_value": "B",
+        "priority": "P",
+        "peer_limit": "G",
+        "sequential": "Q"
+      },
+      "layout": "Download/upload groups use equal star columns; switch to stacked placement when actual checkbox natural widths plus 12 DIP exceed available width. Other controls are vertically ordered.",
+      "validation": "Current-culture finite numeric parse; download/upload/idle nonnegative Int32; peer limit positive Int32; ratio nonnegative double. Disabled subordinate fields are skipped. No-op editing can still mark a draft dirty.",
+      "save_semantics": "Sends all current General option choices together; sends numeric download/upload only if enabled, ratio/idle value only in per-torrent Single mode. Edits, navigation and Close disabled during await; error preserves draft."
+    },
+    {
+      "id": "general_transfer",
+      "view": "General",
+      "name": "Transfer details",
+      "spatial_order": 3,
+      "control": "Collapsed native Expander; selectable wrapping multi-line text",
+      "fields": [
+        {
+          "label": "Uploaded and ratio",
+          "data": "UploadedEver; UploadRatio",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Downloaded total",
+          "data": "DownloadedEver",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Verified and remaining",
+          "data": "HaveValid; LeftUntilDone",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Unchecked",
+          "data": "HaveUnchecked",
+          "condition": "Only > 0"
+        },
+        {
+          "label": "Discarded corrupt data",
+          "data": "CorruptEver",
+          "condition": "Only > 0"
+        },
+        {
+          "label": "All files completion",
+          "data": "PercentComplete",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Added",
+          "data": "AddedDate; absolute local format",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Completed",
+          "data": "DoneDate; Not completed when <=0",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Transfer details",
+          "access_key": "T",
+          "behavior": "Expand diagnostic text; native text selection/copy."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 166,
+          "end_line": 168
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 200,
+          "end_line": 203
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 675
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 2,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 4,
+        "wow": 1,
+        "bloat": 2,
+        "rationale": "Important transfer totals are hidden below Limits. Added/Completed dates are mixed with transfer counters; uploaded/ratio repeats the seeding overview but disclosure avoids default clutter."
+      }
+    },
+    {
+      "id": "general_information",
+      "view": "General",
+      "name": "Torrent information and sharing identity",
+      "spatial_order": 4,
+      "control": "Collapsed native Expander; selectable text and distinct copy buttons",
+      "fields": [
+        {
+          "label": "Hash",
+          "data": "HashString",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Private / Public",
+          "data": "IsPrivate",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Creator",
+          "data": "Creator",
+          "condition": "Nonempty only"
+        },
+        {
+          "label": "Created",
+          "data": "DateCreated",
+          "condition": "Only > 0"
+        },
+        {
+          "label": "Comment",
+          "data": "Comment",
+          "condition": "Nonempty only"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Torrent information",
+          "access_key": "I",
+          "behavior": "Expand metadata."
+        },
+        {
+          "label": "Copy hash",
+          "behavior": "Copies selected row.Hash; useful even without a loaded magnet."
+        },
+        {
+          "label": "Copy magnet",
+          "behavior": "Copies full MagnetLink only while matching loaded General details expose a nonempty value."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 169,
+          "end_line": 176
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 204,
+          "end_line": 207
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 291
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 671,
+          "end_line": 675
+        }
+      ],
+      "grades": {
+        "utility": 4,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 4,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Useful identity is exposed with distinct action labels and factual date omission. Already loaded Source, file count and full total size are not shown; these are separate candidate omissions, not all mandatory metadata."
+      }
+    },
+    {
+      "id": "files_search_tree",
+      "view": "Files",
+      "name": "Searchable hierarchical file browser and aligned header",
+      "spatial_order": 0,
+      "control": "Native TextBox, TreeView with TreeViewItem hierarchy and one view-owned metric projection",
+      "fields": [
+        {
+          "label": "Name",
+          "data": "Basename; stable full relative Path tooltip",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Wanted",
+          "data": "FileStat.Wanted; folder Yes/No/Mixed; Unknown absent stat",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Progress",
+          "data": "Completed / Length; P0; zero-length displays 0%",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Size",
+          "data": "Leaf length or descendant length sum",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Priority",
+          "data": "Low / Normal / High; Mixed folder; Unknown absent stat",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "File search",
+          "shortcut": "Ctrl+F",
+          "behavior": "Case-insensitive relative path substring; filters roots/leaves, does not alter wanted state."
+        },
+        {
+          "label": "Enter tree",
+          "shortcut": "Enter in search/editor",
+          "behavior": "Moves focus to native Files TreeView."
+        },
+        {
+          "label": "Clear search",
+          "shortcut": "Escape when query nonempty",
+          "behavior": "Clears query and focuses tree."
+        },
+        {
+          "label": "Expand/collapse/select",
+          "behavior": "Native TreeView hierarchy and multiple selection; folders start collapsed; drag/drop/reordering disabled."
+        },
+        {
+          "label": "Copy paths",
+          "shortcut": "Ctrl+C outside text editor",
+          "behavior": "Copies selected root-relative file/folder paths, excluding descendant duplicates when parent selected."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 3,
+          "end_line": 18
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 185,
+          "end_line": 225
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 369,
+          "end_line": 486
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 507,
+          "end_line": 512
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 643,
+          "end_line": 653
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 677,
+          "end_line": 709
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "Compact one-line header and native hierarchy preserve density. Global metric widths use realized rows, so changing realized content can change column width; actual scroll-time stability is runtime-unverified."
+      },
+      "header_order": [
+        "Name",
+        "Wanted",
+        "Progress",
+        "Size",
+        "Priority"
+      ],
+      "row_order": [
+        "Name",
+        "Wanted",
+        "Progress",
+        "Size",
+        "Priority"
+      ],
+      "column_layout": "Name star; four metrics measured fresh from header and realized rows using one off-tree TextBlock with actual typography. Row width/visibility/margins bind to header; native indentation preserved. Zero ColumnSpacing; 12 DIP visible-metric leading margins.",
+      "narrow_behavior": "View-wide hides Priority first, then Size if measured minimum cannot fit; Wanted and Progress remain. Hidden values remain in single-file selected facts. Filename length never independently hides a row's metrics.",
+      "scrolling": "TreeView occupies the only star row and native viewport; Search/commands/header/selected footer fixed. Only realized visual rows are traversed for layout, no all-file measurement scan.",
+      "source_mapping": "Original DTO ordinal file index is retained on leaf nodes. Folder commands flatten descendant indices; rebuilding occurs when count/path changes, then stat values refresh."
+    },
+    {
+      "id": "files_selection_facts",
+      "view": "Files",
+      "name": "Selected file facts and bulk scope",
+      "spatial_order": 1,
+      "control": "Selectable wrapping fixed-footer TextBlock",
+      "fields": [
+        {
+          "label": "Single leaf",
+          "data": "Full relative Path; Wanted; Progress; Size; Priority",
+          "condition": "Exactly one actual leaf index >=0"
+        },
+        {
+          "label": "Folder / multiple selection",
+          "data": "Distinct descendant file count; Wanted Yes/No/Mixed; completed bytes / total bytes",
+          "condition": "Folder or multiple selected paths"
+        },
+        {
+          "label": "No selection",
+          "data": "Empty selected facts",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 487,
+          "end_line": 512
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 677,
+          "end_line": 709
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 225
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Folder commands expose affected file count and aggregate bytes without an unbounded per-selection list. A single extremely long full path still wraps in an Auto footer, which is source-visible and runtime geometry is unverified."
+      }
+    },
+    {
+      "id": "files_commands",
+      "view": "Files",
+      "name": "Direct captured-selection Download, Skip, Priority and Rename",
+      "spatial_order": 2,
+      "control": "Native CommandBar and existing native Dialogs.Form",
+      "fields": [],
+      "actions": [
+        {
+          "label": "Download",
+          "access_key": "W",
+          "behavior": "Immediately sends FilesWanted for captured distinct sorted leaf ordinals; no staged file draft."
+        },
+        {
+          "label": "Skip",
+          "access_key": "K",
+          "behavior": "Immediately sends FilesUnwanted."
+        },
+        {
+          "label": "Priority",
+          "access_key": "P",
+          "choices": [
+            "Low",
+            "Normal",
+            "High"
+          ],
+          "behavior": "Immediately sends corresponding priority array for captured leaf ordinals."
+        },
+        {
+          "label": "Rename",
+          "shortcut": "F2",
+          "behavior": "Enabled for one selected path (file or folder). Page sole modal gate; Form shows torrent identity and full relative path, one Name field, Rename commit. Invalid blank/dot/dotdot/separator/NUL name rejected; unchanged name disabled; native focus/select-all. Failed known rejection retains draft and returns Name focus. Uncertain outcome is not automatically repeated."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 194,
+          "end_line": 208
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 287,
+          "end_line": 288
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 513,
+          "end_line": 588
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 267,
+          "end_line": 301
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "Bulk commands are direct and scope-safe. Rename file/folder is real RPC behavior, with shared modal/feedback ownership. No per-row editing controls or wanted drafts clutter the tree."
+      },
+      "availability": "Commands disabled unless matching Files loaded, selected paths nonempty, Live target present and not committing. During request editor, navigation and Close are disabled. Wanted is read-only in row and changed by Download/Skip commands."
+    },
+    {
+      "id": "peers_summary",
+      "view": "Peers",
+      "name": "Connected transfer participants",
+      "spatial_order": 0,
+      "control": "Wrapping summary above shared Synapse.TableView",
+      "fields": [
+        {
+          "label": "Connected",
+          "data": "Peers.Count",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Supplying",
+          "data": "Count IsDownloadingFrom",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Receiving",
+          "data": "Count IsUploadingTo",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Active webseeds",
+          "data": "WebseedsSendingToUs",
+          "condition": "Only >0"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 144,
+          "end_line": 150
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 227,
+          "end_line": 234
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 0,
+        "rationale": "A compact operational summary exposes direction counts; webseed activity is factual and conditional. Loaded webseed URLs and discovery source counts are absent."
+      }
+    },
+    {
+      "id": "peers_table",
+      "view": "Peers",
+      "name": "Peer table",
+      "spatial_order": 1,
+      "control": "Existing virtualized Synapse.TableView; immutable wrappers replaced per snapshot",
+      "fields": [
+        {
+          "label": "Address",
+          "data": "Address:Port; IPv6 bracketed",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Download",
+          "data": "RateToClient",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Upload",
+          "data": "RateToPeer",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Peer has",
+          "data": "Progress P0",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Client",
+          "data": "ClientName; Unknown if empty",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Connection",
+          "data": "Incoming/Outgoing; TCP/µTP; Encrypted/Unencrypted",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Sort",
+          "behavior": "Address, Download, Upload, Peer has and Client schema sort registered; Connection has no registered sort."
+        },
+        {
+          "label": "Select current peer",
+          "behavior": "Shared table selection authority; selected facts refresh after source assignment and selection."
+        },
+        {
+          "label": "Copy endpoint",
+          "shortcut": "Ctrl+C outside editor",
+          "behavior": "Copies canonical endpoint including port; IPv6 bracketed."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 21,
+          "end_line": 38
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 234,
+          "end_line": 242
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 38,
+          "end_line": 40
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 146,
+          "end_line": 147
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 647,
+          "end_line": 653
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 710,
+          "end_line": 728
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "Useful transport/rates/completion/client columns share the intentional generic table. Endpoint identity avoids same-IP/different-port collisions. No country lookup, bans or speculative peer controls."
+      },
+      "column_order": [
+        "Address",
+        "Download",
+        "Upload",
+        "Peer has",
+        "Client",
+        "Connection"
+      ],
+      "numeric_alignment": [
+        "Download",
+        "Upload",
+        "Peer has"
+      ],
+      "initial_sort": "No explicit initial sort in Inspector; incoming peer order preserved until shared table sort.",
+      "column_width_defaults": "Each column starts at 150 DIP; minimum 48 DIP; maximum unlimited; visible, hideable and resizable by default. Default cell alignment Left except explicit numeric Right. No inspector-local width/visibility overrides. Source: src/Synapse/TableColumn.cs:32-44,63.",
+      "empty_states": [
+        "Loading",
+        "No connected peers",
+        "Peers unavailable"
+      ]
+    },
+    {
+      "id": "peers_selected",
+      "view": "Peers",
+      "name": "Selected peer transfer/choke/interest diagnostics",
+      "spatial_order": 2,
+      "control": "Selectable text in native vertical-auto ScrollViewer with no extra tab stop",
+      "fields": [
+        {
+          "label": "Endpoint and client",
+          "data": "Address; Client",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Current rates and peer completion",
+          "data": "Download; Upload; Progress",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Connection",
+          "data": "Incoming/Outgoing TCP/µTP Encrypted/Unencrypted",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Download state",
+          "data": "Receiving/Not receiving; Interested/Not interested; Choked/Unchoked by peer",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Upload state",
+          "data": "Sending/Not sending; Peer interested/not interested; Peer choked/unchoked by us",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 244,
+          "end_line": 246
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 159,
+          "end_line": 164
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 719,
+          "end_line": 725
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 3,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 2,
+        "rationale": "Required diagnostics are present but follow three lines of repeated table facts. Footer is bounded to one third of remaining body, so choke/interest lines may require scrolling in compact panes."
+      },
+      "scrolling": "Auto height for short facts; MaxHeight=max(0,tab height-summary height-two row gaps)/3. Text selectable; ScrollViewer IsTabStop=false. Whole Ctrl+C command copies endpoint, while native selected text can copy diagnostic text."
+    },
+    {
+      "id": "trackers_table",
+      "view": "Trackers",
+      "name": "Tracker table and tier identity",
+      "spatial_order": 0,
+      "control": "Existing virtualized Synapse.TableView",
+      "fields": [
+        {
+          "label": "Tracker",
+          "data": "Tier (one-based); Primary/Backup; Host",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Announce status",
+          "data": "Announcing if Active; Queued if Queued; otherwise state+last result if HasAnnounced; Not contacted before first announce",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Next announce",
+          "data": "Absolute timestamp; Unknown when <=0",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Seeds",
+          "data": "SeederCount; Unknown when <0",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Leechers",
+          "data": "LeecherCount; Unknown when <0",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Sort",
+          "behavior": "All five columns registered; Tracker sorts full announce URL, status sorts state enum, next/counts numeric."
+        },
+        {
+          "label": "Copy full announce URL",
+          "shortcut": "Ctrl+C outside editor",
+          "behavior": "Copies full selected tracker Announce URL, not selected facts report."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 258,
+          "end_line": 268
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 39,
+          "end_line": 41
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 151,
+          "end_line": 154
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 647,
+          "end_line": 654
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 729,
+          "end_line": 741
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "Tier/backup, current state, next time and population are useful. Table Host condenses URL; full URL remains selected/copyable. Current enum words and absolute times are implementation facts, not live-verified language fit."
+      },
+      "column_order": [
+        "Tracker",
+        "Announce status",
+        "Next announce",
+        "Seeds",
+        "Leechers"
+      ],
+      "numeric_alignment": [
+        "Seeds",
+        "Leechers"
+      ],
+      "initial_order": "Explicit Tier ascending then IsBackup ascending; no explicit initial table sort.",
+      "column_width_defaults": "Each column starts at 150 DIP; minimum 48 DIP; maximum unlimited; visible, hideable and resizable by default. Default cell alignment Left except explicit numeric Right. No inspector-local overrides. Source: src/Synapse/TableColumn.cs:32-44,63.",
+      "empty_states": [
+        "Loading",
+        "No trackers",
+        "Trackers unavailable"
+      ]
+    },
+    {
+      "id": "trackers_selected",
+      "view": "Trackers",
+      "name": "Last completed announce/scrape diagnostics",
+      "spatial_order": 1,
+      "control": "Selectable text in bounded native ScrollViewer",
+      "fields": [
+        {
+          "label": "Full announce URL",
+          "data": "Announce",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Last announce time",
+          "data": "LastAnnounceTime when HasAnnounced; Not contacted otherwise",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Last announce outcome",
+          "data": "Timed out / Success / Failed + nonempty nonduplicate LastAnnounceResult",
+          "condition": "HasAnnounced; independent of current Active/Queued state"
+        },
+        {
+          "label": "Returned peers",
+          "data": "LastAnnouncePeerCount; Unknown before first announce",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Last scrape time",
+          "data": "LastScrapeTime when HasScraped; Not contacted otherwise",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Last scrape result",
+          "data": "Nonempty LastScrapeResult",
+          "condition": "HasScraped only"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 267,
+          "end_line": 268
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 160,
+          "end_line": 164
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 742,
+          "end_line": 761
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Current announce activity does not erase the last completed result. Full URLs can wrap; native bounded footer prevents table starvation. Negative returned-peer values have no normalization in current formatter."
+      },
+      "scrolling": "MaxHeight=max(0,tab height-command strip height-two row gaps)/3; Auto height otherwise; no additional ScrollViewer tab stop."
+    },
+    {
+      "id": "trackers_commands",
+      "view": "Trackers",
+      "name": "Tracker list editing and reannounce",
+      "spatial_order": 2,
+      "control": "Inline native Edit/Reannounce; multiline TextBox replacing table/facts; pinned Save/Cancel footer",
+      "fields": [],
+      "actions": [
+        {
+          "label": "Edit",
+          "access_key": "E",
+          "behavior": "Resolves a General draft first, then creates the sole captured-hash tracker baseline and focuses Announce URLs."
+        },
+        {
+          "label": "Save",
+          "shortcut": "Ctrl+S",
+          "behavior": "Sends full TrackerList once using TorrentSet. Nonblank lines must be absolute HTTP/HTTPS/UDP URLs; blank lines retain tiers. Accent primary action; saving locks editing/navigation/Close."
+        },
+        {
+          "label": "Cancel",
+          "behavior": "Uses existing dirty guard (Save/Discard/Cancel); on accepted leave closes editor and returns Edit focus."
+        },
+        {
+          "label": "Reannounce",
+          "access_key": "R",
+          "behavior": "TorrentReannounce for selected torrent, not only current tracker; shared commit gate during await. Errors inline."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 254,
+          "end_line": 278
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 304,
+          "end_line": 368
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 590,
+          "end_line": 598
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Real tier editing and reannounce exist. Edit/Save differs appropriately from direct Reannounce. Cancel invoking a Save/Discard/Cancel dialog rather than immediate discard is safe but requires an extra decision."
+      },
+      "editor_help": "One URL per line; separate tiers with a blank line (tooltip).",
+      "availability": "Only matching Live Tracker details can start editing/reannounce; retained draft remains read-only offline; data fields preserved after failure."
+    },
+    {
+      "id": "speed_plot",
+      "view": "Speed",
+      "name": "Recent observed download/upload time plot",
+      "spatial_order": 0,
+      "control": "Custom two-path finite panel; no settings or controls",
+      "fields": [
+        {
+          "label": "Current download rate",
+          "data": "Row.DownloadSpeed; solid trace legend",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Current upload rate",
+          "data": "Row.UploadSpeed; dashed trace legend",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Download trace",
+          "data": "SpeedSample.Download",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Upload trace",
+          "data": "SpeedSample.Upload",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Observed seconds",
+          "data": "Last.Time - First.Time",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Peak download",
+          "data": "Max sample.Download",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Peak upload",
+          "data": "Max sample.Upload",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Collecting speed history",
+          "data": "No observed samples",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 282,
+          "end_line": 290
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 599,
+          "end_line": 605
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 9,
+          "end_line": 84
+        },
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 5,
+          "end_line": 145
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 141,
+          "end_line": 143
+        },
+        {
+          "file": "src/TinyTorrent.Core/Tick.cs",
+          "line": 28
+        }
+      ],
+      "grades": {
+        "utility": 4,
+        "placement": 4,
+        "ergonomics": 3,
+        "intuitiveness": 3,
+        "necessity": 3,
+        "wow": 2,
+        "bloat": 1,
+        "rationale": "This is an actual elapsed-time plot with both directions and gaps, not speed settings. It lacks visible axes/rate scale and plot interrogation; source establishes these omissions, visual legibility is not measured."
+      },
+      "purpose": "Selected-torrent recent throughput while this view is observed; limits are edited in General, not Speed.",
+      "time_axis": "Monotonic TimeSpan sample timestamps normalized across observed span; no sample-index-as-time approximation.",
+      "vertical_axis": "Both traces share automatic joint peak, minimum numeric scale 1; no tick labels or visible y-axis units.",
+      "gaps": "StartsSegment begins a new PathFigure, avoiding lines across missing observation intervals.",
+      "history": "At most 32 samples (src/TinyTorrent.Core/Torrent.cs:71,206) in the existing row history companion. Starts observing only active Speed selection, released on leaving view/disconnect; reconnect starts a new life. Existing two-second session tick owns observations, so continuously observed history spans roughly 62 seconds at capacity; actual label uses timestamps.",
+      "interaction": "HitTestVisible=false, no hover cursor, zoom, period selector or settings. FocusView directs keyboard to native view navigation.",
+      "scope_limit": "It is not all-time/session-wide traffic history and does not retain hidden Speed payload indefinitely."
+    },
+    {
+      "id": "pieces_map",
+      "view": "Pieces",
+      "name": "Adaptive aggregated piece availability map",
+      "spatial_order": 0,
+      "control": "One focusable UserControl group; one raster bitmap plus transient overlay",
+      "fields": [
+        {
+          "label": "Have",
+          "data": "PieceBitfield.Has or negative Availability",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Missing",
+          "data": "PieceCount-Have",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Have percentage",
+          "data": "Have/PieceCount; P1",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "No current peer",
+          "data": "Availability==0 for a missing piece; Unknown when no availability list",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Rare",
+          "data": "Missing availability <=max(1,ceil(maxAvailability*0.15)); Unknown when no availability list",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Piece count",
+          "data": "PieceCount",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Nominal piece size",
+          "data": "PieceSize",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Unknown",
+          "data": "Missing bitfield Have and no corresponding availability entry",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 292,
+          "end_line": 300
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 35,
+          "end_line": 82
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 169,
+          "end_line": 213
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 251,
+          "end_line": 306
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 400,
+          "end_line": 409
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 5,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 4,
+        "bloat": 1,
+        "rationale": "The approved map concept summarizes piece distribution without thousands of controls. Rarity and absence are local current-peer observations. Visual wow grade is conceptual/source-based; actual rendering has not been inspected."
+      },
+      "visual_contract": "16-DIP blocks, 4-DIP gaps, 8-block bands, 6-DIP band gutter. Dynamically groups contiguous ordered pieces into ranges to fit width and height; no scrolling map.",
+      "legend_order": [
+        "Have",
+        "Common",
+        "Rare (hatched)",
+        "No current peer (outlined)",
+        "Unknown"
+      ],
+      "encoding": "Native theme brushes: success Have, accent Common, caution Rare hatch, critical No current peer outline, foreground Unknown; mixed range corner marker; high-contrast-specific patterns. Have does not assert individually verified.",
+      "small_size": "Below minimum map geometry/not loaded/no valid window theme observer, clears bitmap/layout/obsolete keyboard range; retains factual count/nominal size for known pieces. Metadata unavailable when PieceCount<=0.",
+      "completion_effect": "Short overlay completion flash on newly Have pieces, only when animations enabled and range geometry stable; rendering subscription stops after flash or Release.",
+      "scope": "All torrent pieces, including pieces of skipped files; connected-peer availability, not guaranteed swarm-wide availability."
+    },
+    {
+      "id": "pieces_interaction",
+      "view": "Pieces",
+      "name": "Keyboard range exploration and truthful copy",
+      "spatial_order": 1,
+      "control": "Native focus visuals and one tooltip; read-only automation Value group",
+      "fields": [
+        {
+          "label": "Selected range",
+          "data": "One-based first piece–last piece",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Range state counts",
+          "data": "Have; Unknown; Common; Rare; No current peer",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Explore range",
+          "shortcut": "Plain arrow keys",
+          "behavior": "Left/Right adjacent aggregated range; Up/Down current map column stride; clamps valid block index."
+        },
+        {
+          "label": "First/last range",
+          "shortcut": "Home / End",
+          "behavior": "Selects first/last current range."
+        },
+        {
+          "label": "Copy range facts",
+          "shortcut": "Ctrl+C",
+          "behavior": "Uses shared page clipboard owner."
+        },
+        {
+          "label": "Pointer hover",
+          "behavior": "Selects actual hit block; gaps close hover tooltip; same current-range facts as keyboard focus."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 309,
+          "end_line": 315
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 356,
+          "end_line": 397
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 3,
+        "necessity": 4,
+        "wow": 3,
+        "bloat": 1,
+        "rationale": "A single focus stop exposes range facts without per-piece automation children. Keyboard focus opens the same tooltip and blur closes it. Aggregation is adaptive, so a block is not necessarily one piece."
+      },
+      "automation": "AutomationControlType.Group with read-only IValueProvider SelectedFacts; Name Pieces map; dynamic HelpText; Value change announcement on navigation. No RangeValue provider or per-block accessible child.",
+      "limitations": "Does not show exact byte size of last piece/range, download priority per piece, verification state, or swarm-wide copy count."
+    },
+    {
+      "id": "draft_lifetime",
+      "view": "Shared",
+      "name": "One staged General/Trackers draft and modal authority",
+      "spatial_order": 3,
+      "control": "One EditSession plus page sole ShowDialog gate",
+      "fields": [
+        {
+          "label": "Draft target",
+          "data": "Captured Hash, editor type, baseline, Clean/Dirty/Saving",
+          "condition": "Always when matching details are available"
+        },
+        {
+          "label": "Leave confirmation identity",
+          "data": "Full torrent name/hash in scrolling content; fixed Unsaved changes title",
+          "condition": "Always when matching details are available"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Save / Discard / Cancel",
+          "behavior": "Required before changing selected target, clearing/multiselect selection, hiding Details, switching connection, closing window, or destructive selected-target actions. Cancel preserves target/draft and reveals its editor. Save only Live; failure prevents leaving."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 51,
+          "end_line": 58
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 91,
+          "end_line": 108
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 329,
+          "end_line": 368
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 585,
+          "end_line": 616
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 641,
+          "end_line": 668
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1166
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1275
+        }
+      ],
+      "grades": {
+        "utility": 5,
+        "placement": 4,
+        "ergonomics": 4,
+        "intuitiveness": 4,
+        "necessity": 5,
+        "wow": 1,
+        "bloat": 1,
+        "rationale": "Single captured-target draft prevents accidental cross-torrent saves. View switching retains a draft rather than prompting every time; attempting the other editor resolves the existing draft."
+      },
+      "view_switch_policy": "Ordinary six-view switching retains the one draft; active detail payload releases. Starting General while tracker draft exists, or Edit Trackers while General draft exists, resolves it first.",
+      "offline_policy": "Target and draft retained but commit disabled; non-Live core clears active Detail/FileCatalog and speed observation. Live retry preserves hash/tab/draft.",
+      "pending_input": "ResolveDraft flushes pending General NumberBox text before judging dirty state; SaveDraft flushes again. Failed validation focuses exact field; no automatic focus jump merely on a retry/data refresh."
+    }
+  ],
+  "keyboard": {
+    "shared": [
+      {
+        "chord": "Alt+1…Alt+6",
+        "behavior": "Select respective view then FocusView."
+      },
+      {
+        "chord": "Ctrl+Tab / Ctrl+Shift+Tab",
+        "behavior": "Next/previous view then FocusView."
+      },
+      {
+        "chord": "F6 / Shift+F6",
+        "behavior": "Shell group focus cycle."
+      },
+      {
+        "chord": "Alt+D",
+        "behavior": "Show Details and focus active view."
+      },
+      {
+        "chord": "Alt+Z",
+        "behavior": "Focus visible divider outside inspector."
+      },
+      {
+        "chord": "Alt+Left",
+        "behavior": "Compact inspector Back."
+      },
+      {
+        "chord": "F5",
+        "behavior": "Live contextual detail Retry only; not committing."
+      },
+      {
+        "chord": "Escape",
+        "behavior": "File query clear first; otherwise existing draft guard when not handled by child."
+      }
+    ],
+    "modifier_policy": "Exact shared Dialogs.Modifiers matching, including Control/Shift/Alt/Windows. Native child handled keys and open popup priority take precedence; AltGr is not treated as a plain Alt or Control shortcut.",
+    "navigation_focus": "F6 selects the actual in-tree on-screen native current NavigationViewItem; otherwise focuses native TopNavOverflowButton, never a closed flyout item.",
+    "active_view_entry": {
+      "General": "Limits Expander, or Honor session limits if a revealed enabled General editor",
+      "Files": "File search",
+      "Peers": "Peer table",
+      "Trackers": "Tracker editor when draft exists, otherwise Edit",
+      "Speed": "View navigation",
+      "Pieces": "Pieces map"
+    },
+    "evidence": [
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+        "line": 606,
+        "end_line": 659
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+        "line": 718,
+        "end_line": 728
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+        "line": 778,
+        "end_line": 894
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+        "line": 374,
+        "end_line": 385
+      }
+    ]
+  },
+  "lifecycle": {
+    "polling": "Only current hash/current non-Speed view detail read on existing Session loop. Speed uses the existing tick history owner, no extra RPC. Normal detail changes are matching identity/life guarded.",
+    "file_metadata": "Core retains immutable Files catalog while same target can reuse it; repeated Files ticks read only FileStats when catalog/edit-date valid. Rename or edit-date invalidates catalog; uncertain rename never automatically resends and forces refresh in current life.",
+    "hidden_ui": "Release clears file wrappers/ItemsSource, peer/tracker ItemsSource, bitmap/overlay/layout/tooltip/flash and SpeedChart sample reference. A single staged General/Tracker draft may survive view navigation; hidden expensive pieces/history payload does not.",
+    "theme": "Pieces uses native ThemeResource brush DPs, per-brush Color callbacks, actual-theme queue and one window ThemeSettings observer lazily created only active/loaded/valid AppWindowId. Release unsubscribes callbacks/observer and invalidates queued revisions. No palette cache or always-running timer.",
+    "virtualized_lists": "Peers and Trackers reuse Synapse.TableView. Files retains native TreeView virtualization and only realized rows for layout. Source inspection does not establish measured memory/frame cost.",
+    "evidence": [
+      {
+        "file": "src/TinyTorrent.Core/Session.cs",
+        "line": 154,
+        "end_line": 164
+      },
+      {
+        "file": "src/TinyTorrent.Core/Session.cs",
+        "line": 754,
+        "end_line": 864
+      },
+      {
+        "file": "src/TinyTorrent.Core/Session.cs",
+        "line": 267,
+        "end_line": 301
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+        "line": 124,
+        "end_line": 136
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+        "line": 95,
+        "end_line": 167
+      },
+      {
+        "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+        "line": 199,
+        "end_line": 245
+      },
+      {
+        "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+        "line": 128,
+        "end_line": 145
+      }
+    ]
+  },
+  "supported_but_not_displayed": [
+    {
+      "view": "General",
+      "fields": [
+        "Source"
+      ],
+      "potential_utility": "Where the torrent originated; useful sharing/provenance if field meaningful/nonempty.",
+      "priority": "Medium; conditional display, not a compulsory empty field.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 26
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 204,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "view": "General",
+      "fields": [
+        "TotalSize",
+        "FileCount"
+      ],
+      "potential_utility": "Full torrent size/count next to selected-file size clarifies selection scope, especially partial download.",
+      "priority": "High for TotalSize when differs from SizeWhenDone; FileCount useful compact context.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 35,
+          "end_line": 40
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 187,
+          "end_line": 189
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 200,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "view": "General",
+      "fields": [
+        "StartDate",
+        "ActivityDate",
+        "SecondsDownloading",
+        "SecondsSeeding"
+      ],
+      "potential_utility": "Last activity, running duration and seeding duration help stalled/long-running diagnostic tasks.",
+      "priority": "Medium/high conditional diagnostic disclosure; no requirement to dump every timestamp.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 32,
+          "end_line": 33
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 53,
+          "end_line": 54
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 200,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "view": "General",
+      "fields": [
+        "PieceCount",
+        "PieceSize"
+      ],
+      "potential_utility": "Basic torrent topology; already visible in Pieces, so duplication is optional.",
+      "priority": "Low/optional here.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 37,
+          "end_line": 38
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 212
+        }
+      ]
+    },
+    {
+      "view": "General",
+      "fields": [
+        "TorrentFile",
+        "PrimaryMimeType",
+        "EtaIdle",
+        "IsFinished",
+        "SequentialDownloadFromPiece"
+      ],
+      "potential_utility": "Some advanced/internal values; not automatically necessary user-facing fields.",
+      "priority": "Low/conditional; distinguish fetched surface from required UI.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 28,
+          "end_line": 69
+        }
+      ]
+    },
+    {
+      "view": "Peers",
+      "fields": [
+        "PeersFrom.FromCache",
+        "PeersFrom.FromDht",
+        "PeersFrom.FromIncoming",
+        "PeersFrom.FromLpd",
+        "PeersFrom.FromLtep",
+        "PeersFrom.FromPex",
+        "PeersFrom.FromTracker"
+      ],
+      "potential_utility": "Discovery-source diagnostics for no/poor connectivity.",
+      "priority": "Medium; compact aggregate conditional disclosure rather than seven default rows.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 86
+        },
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 120,
+          "end_line": 127
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 148,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "view": "Peers",
+      "fields": [
+        "Webseeds URLs",
+        "MaxConnectedPeers"
+      ],
+      "potential_utility": "Read/copy actual webseed endpoints and explain peer cap. Active webseed count already displayed.",
+      "priority": "Medium for URLs, lower for repeated cap if General Peer limit already covers user need.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 87,
+          "end_line": 89
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 148,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "view": "Trackers",
+      "fields": [
+        "DownloadCount"
+      ],
+      "potential_utility": "Tracker-reported completed download count, when nonnegative/known.",
+      "priority": "Medium/optional selected facts; different from seeds/leechers.",
+      "evidence": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 158
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 742,
+          "end_line": 758
+        }
+      ]
+    },
+    {
+      "view": "Trackers",
+      "fields": [
+        "ScrapeState",
+        "LastScrapeSucceeded",
+        "LastScrapeTimedOut",
+        "NextScrapeTime",
+        "Scrape URL"
+      ],
+      "potential_utility": "Independent scrape scheduling/outcome diagnostics; existing selected text only displays time/result.",
+      "priority": "Medium conditional diagnostics; do not add five default columns.",
+      "evidence": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 135,
+          "end_line": 155
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 755,
+          "end_line": 758
+        }
+      ]
+    }
+  ],
+  "unavailable_or_uncertain": [
+    {
+      "view": "Peers",
+      "information": "Country/GeoIP/AS name; resolved hostname",
+      "status": "Not in current Peer DTO; requires additional lookup/data source. Current scope cannot honestly display it.",
+      "evidence": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 99,
+          "end_line": 118
+        }
+      ]
+    },
+    {
+      "view": "Peers",
+      "information": "Peer identifier and per-peer cumulative bytes",
+      "status": "DTO includes PeerId/BytesToClient/BytesToPeer but presence varies by Transmission RPC version. This audit did not verify negotiated daemon population or presence markers; do not assume default zeros are known counters.",
+      "evidence": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 103,
+          "end_line": 109
+        }
+      ]
+    },
+    {
+      "view": "Peers",
+      "information": "Ban/add peer action",
+      "status": "No such action in this inspector; no capability claim made from DTOs alone. Additional RPC support must be verified before classifying as a missing feasible control.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 710,
+          "end_line": 728
+        }
+      ]
+    },
+    {
+      "view": "Trackers",
+      "information": "DownloaderCount",
+      "status": "DTO field exists but daemon-version/population support is unverified here; unknown/negative sentinel handling required before exposing.",
+      "evidence": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 159
+        }
+      ]
+    },
+    {
+      "view": "Pieces",
+      "information": "Exact last-piece/range byte count",
+      "status": "Pieces projection lacks TotalSize; PieceSize is nominal. Cannot accurately compute final truncated piece/range bytes from current data.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 97,
+          "end_line": 103
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 359,
+          "end_line": 360
+        }
+      ]
+    },
+    {
+      "view": "Pieces",
+      "information": "Individually verified piece state; whole swarm-wide availability",
+      "status": "Bitfield means Have, not proof of individual verification. Availability pertains to current peers, not complete swarm knowledge.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 400,
+          "end_line": 406
+        }
+      ]
+    },
+    {
+      "view": "Speed",
+      "information": "Historical data before opening Speed; all-time/session aggregate plot",
+      "status": "Not collected by this visible selected-torrent observation path; requires changed retention/product behavior, not a missing label.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 141,
+          "end_line": 143
+        },
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 128,
+          "end_line": 145
+        }
+      ]
+    }
+  ],
+  "ergonomic_concerns": [
+    {
+      "confidence": "High source-observable",
+      "priority": 1,
+      "issue": "General promotes a long settings editor ahead of transfer/identity diagnostics; keyboard entry defaults to Limits.",
+      "effect": "A user investigating a selected torrent must open lower disclosures; entering General via shortcuts places focus on configuration rather than the overview.",
+      "minimal_candidate": "Reorder compact diagnostic General facts first and keep Limits as later explicit configuration disclosure; design review required.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 122,
+          "end_line": 176
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 616,
+          "end_line": 624
+        }
+      ]
+    },
+    {
+      "confidence": "High source-observable",
+      "priority": 1,
+      "issue": "Selected-file size is shown, but all-file byte total is not, although already loaded.",
+      "effect": "Partial selections lack immediately visible full-vs-selected size context.",
+      "minimal_candidate": "Conditional full size beside selected size; avoid duplicating Pieces count/size everywhere.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 187,
+          "end_line": 189
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 39,
+          "end_line": 40
+        }
+      ]
+    },
+    {
+      "confidence": "High source-observable; short-pane impact runtime-unverified",
+      "priority": 2,
+      "issue": "Selected peer diagnostics repeat table identity/rates/connection before choke/interest lines; facts viewport is bounded.",
+      "effect": "Essential choke/interest facts can be below repeated facts and need scrolling.",
+      "minimal_candidate": "Keep endpoint readable, prioritize choke/interest diagnosis; avoid repeated row data in default selected-facts block.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 163
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 723,
+          "end_line": 725
+        }
+      ]
+    },
+    {
+      "confidence": "High source-observable",
+      "priority": 2,
+      "issue": "Speed plot has no visible rate-axis scale or time-axis tick labels and no hover interrogation.",
+      "effect": "Viewer sees shape/current rates/span/peaks but cannot read an intermediate graph value or stable y-scale.",
+      "minimal_candidate": "Only after design review, compact factual axis limits or hover facts using existing samples; no new timer/history owner.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 47,
+          "end_line": 84
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 603,
+          "end_line": 604
+        }
+      ]
+    },
+    {
+      "confidence": "Source-derived risk; runtime-unverified",
+      "priority": 3,
+      "issue": "Files metric widths are based on current realized rows and recalculated on row load.",
+      "effect": "Widths could change during scrolling when wider metric values appear; no observed jitter claim.",
+      "minimal_candidate": "Observe actual scroll/text-scale behavior before altering the one-owner layout.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 379,
+          "end_line": 460
+        }
+      ]
+    },
+    {
+      "confidence": "Source-derived risk; runtime-unverified",
+      "priority": 3,
+      "issue": "Long wrapping single-file path in fixed Auto selected footer can raise semantic minimum considerably.",
+      "effect": "Very long paths or high text scaling can reduce tree viewport; compact full-pane switch may be reached.",
+      "minimal_candidate": "Measure through real desktop before proposing bounded path disclosure; full copy/identity must remain.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 225
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 76
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 491
+        }
+      ]
+    }
+  ],
+  "user_journeys": [
+    {
+      "task": "Read selected torrent progress",
+      "steps": [
+        "Select one torrent in main table.",
+        "Alt+D opens Details.",
+        "General presents status, meaningful progress, both rates and stopping/stalled diagnostics.",
+        "Alt+T opens transfer totals; Alt+I opens metadata."
+      ],
+      "friction": "General keyboard entry targets Limits; full byte total and temporal diagnostics are absent.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 178,
+          "end_line": 207
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 606,
+          "end_line": 624
+        }
+      ]
+    },
+    {
+      "task": "Change per-torrent download limit",
+      "steps": [
+        "General: Alt+L opens Limits.",
+        "Alt+D toggles download limit; Alt+N enters value.",
+        "Ctrl+S flushes pending NumberBox text, validates, sends captured-hash options.",
+        "On failure retained draft stays editable; on success changes saved and disclosure closes."
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 122,
+          "end_line": 137
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 293,
+          "end_line": 327
+        }
+      ]
+    },
+    {
+      "task": "Download only chosen files",
+      "steps": [
+        "Alt+2 selects Files.",
+        "Ctrl+F filters names; Enter enters tree.",
+        "Use native folder expansion/multiple selection.",
+        "Read Wanted and affected-count footer.",
+        "Alt+W Download or Alt+K Skip applies captured descendant file ordinals directly."
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 487,
+          "end_line": 522
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 640,
+          "end_line": 646
+        }
+      ]
+    },
+    {
+      "task": "Rename a folder safely",
+      "steps": [
+        "Files: select one folder/path.",
+        "F2 opens shared Rename Form with full identity.",
+        "Enter valid changed basename; commit Rename.",
+        "Known rejection retains name/focus; uncertain response is not automatically repeated and Core refreshes catalog."
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 525,
+          "end_line": 588
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 267,
+          "end_line": 301
+        }
+      ]
+    },
+    {
+      "task": "Diagnose slow peers",
+      "steps": [
+        "Alt+3 opens Peers.",
+        "Read connected/supplying/receiving counts; sort Download or Peer has.",
+        "Select peer; inspect directional interest/choke facts.",
+        "Ctrl+C copies full endpoint."
+      ],
+      "friction": "Loaded discovery-source counts and webseed URLs are unavailable in UI; compact footer may scroll.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 148,
+          "end_line": 149
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 723,
+          "end_line": 725
+        }
+      ]
+    },
+    {
+      "task": "Repair tracker configuration",
+      "steps": [
+        "Alt+4 opens Trackers.",
+        "Select row; inspect last completed result independent of current activity; Ctrl+C copies full URL.",
+        "Alt+E opens tier list; edit one URL per line with blank tier separators.",
+        "Ctrl+S saves; Alt+R Reannounce is a torrent-wide direct command."
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 304,
+          "end_line": 368
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 590,
+          "end_line": 598
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 742,
+          "end_line": 758
+        }
+      ]
+    },
+    {
+      "task": "Observe recent throughput",
+      "steps": [
+        "Alt+5 opens Speed.",
+        "Wait existing tick observations.",
+        "Read solid download/dashed upload, current rates, span and both peaks."
+      ],
+      "friction": "Observation starts here; no earlier history or intermediate readout.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 599,
+          "end_line": 605
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 47,
+          "end_line": 84
+        }
+      ]
+    },
+    {
+      "task": "Explore unavailable/rare piece ranges",
+      "steps": [
+        "Alt+6 focuses Pieces map.",
+        "Read all-piece summary and legend.",
+        "Arrow/Home/End explore adaptive ranges; focused tooltip reports truthful counts.",
+        "Ctrl+C copies current range facts."
+      ],
+      "friction": "One block may aggregate multiple pieces; nominal piece size does not give exact last-range bytes.",
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 356,
+          "end_line": 385
+        }
+      ]
+    },
+    {
+      "task": "Leave a dirty draft or recover a failed detail read",
+      "steps": [
+        "Target change, Details close or window close invokes Save/Discard/Cancel; Cancel preserves target and editor.",
+        "Live detail failure shows contextual unavailable row.",
+        "F5 clears failure and next existing tick retries without new poller or focus jump."
+      ],
+      "evidence": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 329,
+          "end_line": 355
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 177,
+          "end_line": 183
+        }
+      ]
+    }
+  ],
+  "runtime_unverified": [
+    "Actual Light/Dark/High Contrast pixels and contrast ratios",
+    "Window/pane minima at large text scale and narrow widths",
+    "Native table/tree accessibility through external UI Automation",
+    "Real scroll-time Files metric stability",
+    "Keyboard focus presentation inside native overflow/popups",
+    "Actual daemon population/version support of modern peer/tracker fields",
+    "Measured frame/memory costs of dynamic snapshots and raster draw"
+  ]
+}

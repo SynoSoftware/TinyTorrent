@@ -46,11 +46,20 @@ internal sealed record TorrentFacts(
     string Name,
     long AddedDate,
     long TotalSize,
-    string DownloadDir);
+    string DownloadDir,
+    IReadOnlyList<string>? Labels = null);
 
 /// <summary>
 /// What the interface must learn once per connection. Reading <c>units</c> is also what proves
 /// the connection: it draws the session-id challenge, and that challenge is the only place the
 /// daemon's RPC version is revealed.
 /// </summary>
-internal sealed record SessionFacts(Units Units);
+internal sealed record SessionFacts(Units Units, bool AltSpeedEnabled = false, string DownloadDir = "");
+
+internal sealed record SessionStatus(
+    bool AltSpeedEnabled,
+    string DownloadDir,
+    bool? SeedRatioLimited = null,
+    double? SeedRatioLimit = null,
+    bool? IdleSeedingLimitEnabled = null,
+    int? IdleSeedingLimit = null);

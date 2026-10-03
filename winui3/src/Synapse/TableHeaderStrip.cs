@@ -66,6 +66,7 @@ public sealed partial class TableHeaderStrip : Control
         GotFocus += OnHeaderGotFocus;
         ContextRequested += OnContextRequested;
         _cancelOnEscape = OnRootKeyDown;
+        Unloaded += (_, _) => CancelGesture();
     }
 
     private enum HeaderGesture
@@ -199,6 +200,13 @@ public sealed partial class TableHeaderStrip : Control
 
     protected override void OnKeyDown(KeyRoutedEventArgs e)
     {
+        FindCell(e.OriginalSource as DependencyObject, out bool passive);
+        if (e.Handled || !passive)
+        {
+            base.OnKeyDown(e);
+            return;
+        }
+
         // Section 9 and 12: primary activation on the active passive header runs the sort cycle.
         // A key pressed inside a control the host put in a header template is that control's.
         if (e.Key is VirtualKey.Enter or VirtualKey.Space)

@@ -1,0 +1,922 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-14",
+  "scope": "Functionality comparison after current Inspector refinements; proposed evidence only, not implementation authorization.",
+  "method": "Current WinUI/Transmission/Session source plus independent qBittorrent inventory. Official Transmission main RPC spec consulted for standard external boundaries. No builds, tests, GUI, production edits or extra agents.",
+  "comparison_source": {
+    "file": "docs/qbittorrent-properties-inventory.json",
+    "checkout": "release-5.1.0beta1-552-g9560ef02a",
+    "note": "Source snapshot, not claim about current installed release."
+  },
+  "status_legend": {
+    "exists": "Current UI or current contract already performs the workflow.",
+    "loaded_unshown": "Data already in current selected detail projection but not rendered.",
+    "rpc_exists_not_exposed": "Existing mutator capability can provide an absent presentation/shortcut.",
+    "rpc_not_required": "Pure local OS/presentation workflow; no daemon command needed.",
+    "unsupported_standard_rpc": "No corresponding command in inspected standard RPC/current wrapper; engine-internal or custom extensions not proven.",
+    "unverified_or_requires_policy_change": "Cannot promise functionality from current data/lifecycle; version/capability/retention must be decided.",
+    "loaded_unshown_version_dependent": "DTO exists, but daemon-version field presence must be established."
+  },
+  "priority_scale": "1=high-value feasible workflow/data refinement; 2=useful after bounded design/capability review; 3=unsupported, niche or retention-policy change to defer.",
+  "constraints": [
+    "Preserve intentional Synapse torrent table and approved Pieces-map appearance.",
+    "Reuse single Session.Request/current-tick snapshot, single tracker/general draft, single page modal/clipboard/local-open authority.",
+    "Native contextual actions and TreeView hierarchy, no second generic file table/control system.",
+    "No new timer/RPC client/hidden payload cache/palette/dependency."
+  ],
+  "findings": [
+    {
+      "id": "files_open",
+      "workflow": "Open a selected downloaded file",
+      "priority": 1,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "not_exposed",
+        "detail": "No Files Open action, double-click open or tree Enter-open handler. Existing Enter handler only transfers focus from file search/editor to tree. General Open opens the torrent DownloadDir."
+      },
+      "capability": {
+        "status": "rpc_not_required",
+        "boundary": "Local OS workflow, not a Transmission RPC. Existing local connection identity, DownloadDir, relative file Path, Length and Completed are sufficient to attempt opening a known completed local file. A remote daemon path is not a local path."
+      },
+      "proposed_minimal_owner": {
+        "owner": "TorrentPage existing local shell-launch owner; Inspector only supplies captured file path/target and native command wiring.",
+        "minimal": "Offer Open only for one actual local file with meaningful known completion; use the existing launch/error route, never a second process-launch helper."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 90
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 643,
+          "end_line": 648
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 685,
+          "end_line": 697
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1467,
+          "end_line": 1476
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 23
+        },
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 95
+        }
+      ],
+      "risks": [
+        "Resolve relative path under captured local DownloadDir using native path APIs; preserve root containment.",
+        "Incomplete download directory/.part filename is not represented by the current file DTO; do not advertise exact incomplete-file opening.",
+        "Actual local existence, registered handler and OS errors require runtime validation."
+      ]
+    },
+    {
+      "id": "files_containing_folder",
+      "workflow": "Open a selected file's containing folder or selected folder",
+      "priority": 1,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "not_exposed",
+        "detail": "General Open reaches torrent root only. Files footer has full relative path but no per-path containing-folder action."
+      },
+      "capability": {
+        "status": "rpc_not_required",
+        "boundary": "Local connection and a captured relative path permit local folder navigation; remote paths cannot be opened through the user's OS."
+      },
+      "proposed_minimal_owner": {
+        "owner": "TorrentPage existing OpenFolder/process/error authority.",
+        "minimal": "Extend existing local-open route to a captured contained folder path; expose a native Files action/context command rather than a new file browser."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 50
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 631
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1467,
+          "end_line": 1476
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 509,
+          "end_line": 514
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 685,
+          "end_line": 697
+        }
+      ],
+      "risks": [
+        "File path may not yet exist or data may be elsewhere while incomplete.",
+        "Selection may change during a queued command; capture target/path before launching.",
+        "Folder commands should distinguish torrent root, selected folder and containing folder."
+      ]
+    },
+    {
+      "id": "files_context",
+      "workflow": "Use right-click or keyboard context menu for selected file actions",
+      "priority": 1,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "not_exposed",
+        "detail": "Native CommandBar offers Download, Skip, Priority and Rename; no Files MenuFlyout/context wiring is present."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "All existing wanted/priority/rename commands are real and can be invoked from another native presentation. Local Open/Folder remains a separate local-only capability."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector existing ChangeFiles, RenameFile, SelectedPaths and shared page modal gate.",
+        "minimal": "One native contextual MenuFlyout calls the same command methods for a captured/native accepted selection; do not duplicate wanted/priority/rename implementations."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 194,
+          "end_line": 208
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 509,
+          "end_line": 526
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 529,
+          "end_line": 590
+        }
+      ],
+      "risks": [
+        "Right-click on an unselected row must have explicit native selection behavior, not silently mutate previous selected files.",
+        "Keyboard ContextMenu/Shift+F10 must reach the same selection and native flyout.",
+        "Do not add independent draft/modal flags."
+      ]
+    },
+    {
+      "id": "files_wanted_keyboard",
+      "workflow": "Toggle download inclusion from the selected tree row(s)",
+      "priority": 1,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "partly_exists",
+        "detail": "Wanted is read-only Yes/No/Mixed/Unknown. Alt+W Download and Alt+K Skip commit the selection; no Space wanted-toggle shortcut or inline wanted checkbox."
+      },
+      "capability": {
+        "status": "rpc_exists_not_exposed",
+        "boundary": "TorrentSet.FilesWanted and FilesUnwanted already support captured original ordinal arrays; no new backend capability is needed."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector existing SelectedPaths/ChangeFiles command authority.",
+        "minimal": "A deliberate tree-only wanted shortcut can call the existing direct command. Define mixed-selection policy once (for example all wanted => Skip, otherwise Download); retain read-only Wanted and native tree selection."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 14
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 195,
+          "end_line": 203
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 515,
+          "end_line": 524
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 630,
+          "end_line": 660
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 107,
+          "end_line": 109
+        }
+      ],
+      "risks": [
+        "Native TreeView Space may already select; explicit product design is required before repurposing it.",
+        "Guard exact modifiers, native popup/editor priority, Live presence and IsCommitting.",
+        "No empty ordinal array: Transmission treats empty file arrays as all files; current ChangeFiles protects this."
+      ]
+    },
+    {
+      "id": "files_sort",
+      "workflow": "Sort displayed files by name, size, progress or priority",
+      "priority": 2,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "not_exposed",
+        "detail": "Header is descriptive, not sortable. Tree builds in original torrent-file enumeration order; no sort direction state or sort commands."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "Current UI wrappers expose Name/Length/Completed/Priority. Sorting is a presentation operation; original leaf Index must remain the RPC identity."
+      },
+      "proposed_minimal_owner": {
+        "owner": "InspectorFile tree projection plus Inspector's existing view/layout owner.",
+        "minimal": "Start with one explicit sibling Name sort if justified. Keep folders/hierarchy and original indices; use native command/header presentation without creating another generic table/control system."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 210,
+          "end_line": 224
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 374
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 685,
+          "end_line": 711
+        }
+      ],
+      "risks": [
+        "Folder grouping, natural/culture filename ordering and unknown/mixed values need a written policy.",
+        "Do not sort flat DTO ordinals then send displayed position as index.",
+        "Do not Clear/Move displayed collections or rescan every file for each frame; selection/expansion preservation requires source review and runtime verification."
+      ]
+    },
+    {
+      "id": "files_tree_practicality",
+      "workflow": "Find nested files and expand/collapse folders efficiently",
+      "priority": 2,
+      "qbittorrent_inventory_group": "content",
+      "current": {
+        "status": "exists_with_gaps",
+        "detail": "Native multi-select TreeView starts folders collapsed. File search is relative-path substring; nonempty search switches to a flat list of matching leaves. No Expand all/Collapse all or saved expansion is exposed."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "Current native TreeView handles hierarchy; existing roots/Children/Path can support bounded navigation. Wildcards/regex/drag export are product features, not missing RPC."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector existing tree/filter projection.",
+        "minimal": "Preserve substring search and native hierarchy; if users need it, one scoped Expand/Collapse command for current folder is smaller than global eager expansion or a second navigator."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 4
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 193
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 224
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 483,
+          "end_line": 488
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 699,
+          "end_line": 711
+        }
+      ],
+      "risks": [
+        "Search deliberately flattens matching leaves; full Path tooltip/selected facts are necessary for duplicate basenames.",
+        "Automatic recursive expansion can realize many rows and defeat compactness.",
+        "Actual deep-tree keyboard/scroll performance and high text-scale geometry remain unverified."
+      ]
+    },
+    {
+      "id": "trackers_crud",
+      "workflow": "Add, edit or remove tracker URLs",
+      "priority": 1,
+      "qbittorrent_inventory_group": "trackers",
+      "current": {
+        "status": "exists",
+        "detail": "Edit opens full Announce URLs draft. Adding/removing/replacing text then Save sends the entire tiered list. Ctrl+C copies full selected URL. No individual Add/Edit/Remove row menu, F2 editor or Delete remove command."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "TorrentSet.TrackerList implements all list CRUD. Standard RPC also lists deprecated tracker_add/remove/replace, recommending tracker_list; new request types are unnecessary.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3.2 torrent_set"
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector sole Tracker edit baseline/lifetime and SaveDraft.",
+        "minimal": "If direct CRUD is desired, native row commands should modify/enter the existing TrackerList draft with captured selected URL/tier and existing confirmation. Reuse full-list Save; no parallel per-row RPC path."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 254,
+          "end_line": 278
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 304,
+          "end_line": 368
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 134,
+          "end_line": 135
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 91,
+          "end_line": 95
+        }
+      ],
+      "risks": [
+        "Duplicate URLs/tiers must be mapped from TrackerList rather than blind global string replacement.",
+        "Concurrent external edits can be overwritten by whole-list save; existing staged baseline is the authority.",
+        "Known rejection preserves draft; uncertain mutating RPC must not be automatically repeated."
+      ]
+    },
+    {
+      "id": "trackers_tiers",
+      "workflow": "Move tracker between tiers or change primary ordering",
+      "priority": 2,
+      "qbittorrent_inventory_group": "trackers",
+      "current": {
+        "status": "exists_indirectly",
+        "detail": "Blank lines in Announce URLs define tiers; users can reorder URLs/groups manually. Table shows one-based Tier and Primary/Backup but no Up/Down or tier command."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "Tier/order is represented in TrackerList and TrackerStats.Tier/IsBackup. Standard whole-list RPC already supports it."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector existing tracker draft text/baseline.",
+        "minimal": "Keep list editing as complete functionality; optional native Move to tier command should edit the same draft and Save path, not add a second tier model."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 275
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 320,
+          "end_line": 324
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 364,
+          "end_line": 368
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 735
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 134,
+          "end_line": 135
+        },
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 131,
+          "end_line": 139
+        }
+      ],
+      "risks": [
+        "Backend Primary/Backup is operational selection, not a stable user-set radio option.",
+        "Tier row selection and draft text must resolve duplicated URLs without an independent catalog.",
+        "Do not copy qB protocol-specific tier behavior that is unavailable in Transmission."
+      ]
+    },
+    {
+      "id": "trackers_selected_reannounce",
+      "workflow": "Force announce to one selected tracker instead of whole torrent",
+      "priority": 3,
+      "qbittorrent_inventory_group": "trackers",
+      "current": {
+        "status": "torrent_wide_exists",
+        "detail": "Reannounce sends TorrentReannounce with selected torrent Hash only; tracker row selection does not narrow operation."
+      },
+      "capability": {
+        "status": "unsupported_standard_rpc",
+        "boundary": "Standard torrent_reannounce accepts torrent ids only, no tracker id/URL selector. Current request shape matches it.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3.1 Torrent action requests"
+      },
+      "proposed_minimal_owner": {
+        "owner": "Keep existing Inspector Reannounce/Session.Request authority.",
+        "minimal": "Retain truthful torrent-wide action. Do not offer selected-tracker reannounce unless a custom daemon API is separately evidenced."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 592,
+          "end_line": 600
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 45
+        }
+      ],
+      "risks": [
+        "Label/tooltip must not imply selected tracker scope.",
+        "No speculative custom RPC or remove/readd workaround.",
+        "Backend announce cooldown/acceptance remains daemon policy."
+      ]
+    },
+    {
+      "id": "peers_discovery",
+    "workflow": "Diagnose the original discovery sources of current connected peers",
+      "priority": 1,
+      "qbittorrent_inventory_group": "trackers",
+      "current": {
+        "status": "loaded_unshown",
+        "detail": "Peers summary shows connected/supplying/receiving; PeersFrom counts are already loaded but not rendered. Preferences exposes PEX, DHT and local discovery session controls."
+      },
+      "capability": {
+        "status": "loaded_unshown",
+        "boundary": "TorrentPeers.PeersFrom contains FromCache/Dht/Incoming/Lpd/Ltep/Pex/Tracker. Upstream maps RPC peers_from to peer_from_count, incremented on connection creation and decremented on disconnect, classified by original from_first/fromFirst. These are connected-peer provenance counts, not counts of actively transferring peers, service health, historical total discoveries or fake tracker rows. Modern known_peers_from is a separate counter not in this projection."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector existing Peers summary/selected facts; Session remains detail snapshot authority.",
+        "minimal": "Conditional compact discovery facts in Peers, using current counts. If linking to settings, route existing Preferences owner rather than duplicate discovery toggles in Trackers."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 82,
+          "end_line": 89
+        },
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 120,
+          "end_line": 127
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 146,
+          "end_line": 150
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Preferences/PreferencesDialog.cs",
+          "line": 400,
+          "end_line": 402
+        }
+      ],
+      "risks": [
+        "Do not equate connected-source counts with actively supplying/receiving peers, healthy discovery services or unique global population.",
+        "Zero count is a valid value, not necessarily disabled/unsupported.",
+        "Session feature enable state is separate from torrent discovery-source counts."
+      ]
+    },
+    {
+      "id": "webseeds_read",
+      "workflow": "Read or copy HTTP/webseed endpoints",
+      "priority": 1,
+      "qbittorrent_inventory_group": "webseeds",
+      "current": {
+        "status": "loaded_unshown",
+        "detail": "Only nonzero active webseed count is appended to Peers summary. Full Webseeds string URLs are fetched but no list/copy workflow is exposed."
+      },
+      "capability": {
+        "status": "loaded_unshown",
+        "boundary": "TorrentPeers.Webseeds is current standard read projection; no additional RPC/timer needed. Modern upstream webseeds_ex can expose more per-source detail but is not current contract.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3.3 webseeds/webseeds_ex"
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector Peers current detail view; shared clipboard owner.",
+        "minimal": "A conditional compact read-only native source list/disclosure in Peers with URL copy is smaller than adding a seventh HTTP Sources tab. Do not hold hidden source payload."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 87,
+          "end_line": 88
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 148,
+          "end_line": 149
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 676
+        }
+      ],
+      "risks": [
+        "URLs are provenance/source strings; opening them is not equivalent to opening downloaded content.",
+        "Long URLs need finite scrolling/full copy, not unbounded default field dump.",
+        "Modern per-webseed rate/state requires version support and a current DTO before display."
+      ]
+    },
+    {
+      "id": "webseeds_crud",
+      "workflow": "Add, edit or remove HTTP sources",
+      "priority": 3,
+      "qbittorrent_inventory_group": "webseeds",
+      "current": {
+        "status": "not_exposed",
+        "detail": "No webseed mutation commands or editor."
+      },
+      "capability": {
+        "status": "unsupported_standard_rpc",
+        "boundary": "Inspected current standard torrent_set documents no webseed add/remove/edit mutation, and TorrentSet has no such fields. Read support does not establish write support.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3.2 mutator versus 3.3 accessor"
+      },
+      "proposed_minimal_owner": {
+        "owner": "No production owner should be added for unsupported mutation.",
+        "minimal": "Expose read/copy first; defer editable sources until an actual supported daemon command is evidenced."
+      },
+      "source_refs": [
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 89,
+          "end_line": 136
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 87
+        }
+      ],
+      "risks": [
+        "Do not simulate CRUD by altering metainfo/readding torrent, which changes task/lifetime semantics.",
+        "qB capability comes from its different engine API.",
+        "Custom daemon extensions, if any, were not proven in this audit."
+      ]
+    },
+    {
+      "id": "peers_add_ban",
+      "workflow": "Manually add an endpoint or permanently ban a peer",
+      "priority": 3,
+      "qbittorrent_inventory_group": "peers",
+      "current": {
+        "status": "not_exposed",
+        "detail": "Peers has table/diagnostics/copy only. Session-wide blocklist preferences exist; no individual endpoint add/ban request."
+      },
+      "capability": {
+        "status": "unsupported_standard_rpc",
+        "boundary": "Inspected standard RPC has no peer-add or individual permanent-IP-ban method. Blocklist URL/enabled plus blocklist_update is a different session-wide mechanism, not a substitute.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3 Torrent requests; 4.3 Blocklist"
+      },
+      "proposed_minimal_owner": {
+        "owner": "Keep peer copy in Inspector and blocklist management in existing Preferences/Session owners.",
+        "minimal": "Do not add dead Add/Ban controls. If custom engine support later exists, design explicit session-wide ban scope/confirmation first."
+      },
+      "source_refs": [
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 35,
+          "end_line": 49
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 89,
+          "end_line": 136
+        },
+        {
+          "file": "src/Transmission/Requests.cs",
+          "line": 184
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Preferences/PreferencesDialog.cs",
+          "line": 472,
+          "end_line": 473
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 713,
+          "end_line": 731
+        }
+      ],
+      "risks": [
+        "No inference of unsupported engine-internal functions from standard RPC absence; conclusion is specifically current external contract.",
+        "A peer endpoint includes port; permanent IP ban has broader scope.",
+        "Local blocklist file writes would require a separate authorized backend workflow and are not ordinary peer UI editing."
+      ]
+    },
+    {
+      "id": "general_copy_availability",
+      "workflow": "Copy hash, magnet or location while data loads, changes view or disconnects",
+      "priority": 2,
+      "qbittorrent_inventory_group": "information",
+      "current": {
+        "status": "exists_with_availability_limits",
+        "detail": "Copy hash reads retained selected row.Hash. Copy path and magnet require matching loaded General details; detail Release hides/clears ordinary loaded values, while dirty editor lifetime can retain drafts. General local Open is based on configured connection identity."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "Hash available from light row; magnet/location values come from existing current General projection. No copy RPC is needed."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector current matching-detail availability projection and page single clipboard/local-open authority.",
+        "minimal": "Keep current stale-target protection. Any offline copy improvement should use an already authoritative retained row field, not a hidden General cache."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 90,
+          "end_line": 108
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 124,
+          "end_line": 137
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 291,
+          "end_line": 294
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 673,
+          "end_line": 676
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1479,
+          "end_line": 1484
+        }
+      ],
+      "risks": [
+        "Retained editor text is not proof of loaded current target metadata.",
+        "CopyMagnet should not re-query silently or create an independent state authority.",
+        "Hash algorithm is not exposed as separate v1/v2 identifiers in current contract; do not label current HashString as both."
+      ]
+    },
+    {
+      "id": "general_temporal",
+      "workflow": "Read active/seeding durations, last activity and provenance",
+      "priority": 2,
+      "qbittorrent_inventory_group": "transfer",
+      "current": {
+        "status": "partly_exists_loaded_unshown",
+        "detail": "Latest refinement exposes known Last activity in Transfer details; Added/Completed and Creator/Created/Comment exist. SecondsDownloading/SecondsSeeding/StartDate and Source are loaded but unshown."
+      },
+      "capability": {
+        "status": "loaded_unshown",
+        "boundary": "Current TorrentGeneral contains these values. Source is a source/provenance string; this audit does not establish it as the original HTTP add URL or an actionable URL."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Inspector ShowGeneral existing conditional Transfer/Information projections.",
+        "minimal": "If prioritised, add compact known download/seeding duration diagnostics to existing disclosure; conditionally show meaningful Source without assuming URL semantics."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 26,
+          "end_line": 33
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 53,
+          "end_line": 54
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 200,
+          "end_line": 209
+        }
+      ],
+      "risks": [
+        "ActivityDate is backend activity time, not Last seen complete; qB's fact cannot be relabelled onto it.",
+        "No independent clock/timer needed for backend cumulative durations.",
+        "Unknown timestamps and incomplete metadata must remain truthful; avoid dumping all loaded fields."
+      ]
+    },
+    {
+      "id": "speed_scale",
+      "workflow": "Read a specific throughput/time value from the graph",
+      "priority": 1,
+      "qbittorrent_inventory_group": "speed",
+      "current": {
+        "status": "partly_exists",
+        "detail": "Per-torrent current rates, observed seconds and both peaks are shown. Two traces use actual timestamps and joint auto peak. No visible axes, tick labels, rate scale or hover readout."
+      },
+      "capability": {
+        "status": "exists",
+        "boundary": "Current bounded SpeedSample timestamps/rates are sufficient for compact scale/hover facts; no RPC needed."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Existing SpeedView plot plus Inspector Speed labels; Session remains sole samples owner.",
+        "minimal": "Add the smallest factual displayed rate/time bounds or selected hover facts using current samples, with accessible text. Preserve both traces/gaps and finite geometry."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 47,
+          "end_line": 84
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 601,
+          "end_line": 607
+        },
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 5
+        }
+      ],
+      "risks": [
+        "Auto scale can change as old peaks leave history; unlabeled shape is not a stable absolute scale.",
+        "Accessible keyboard alternative must not create many plot focus stops.",
+        "qB graph is session-wide; selected-torrent units/scope must remain explicit."
+      ]
+    },
+    {
+      "id": "speed_long_history",
+      "workflow": "Choose longer observation periods or graph categories",
+      "priority": 3,
+      "qbittorrent_inventory_group": "speed",
+      "current": {
+        "status": "not_exposed_by_current_policy",
+        "detail": "Current selected-torrent view observes at most 32 two-second samples (roughly 62 seconds span continuously); observations stop when hidden. No period selector, persistent long history or overhead/DHT/tracker categories."
+      },
+      "capability": {
+        "status": "unverified_or_requires_policy_change",
+        "boundary": "Longer selected-torrent history requires changed bounded retention policy. Session aggregates exist separately, but per-category qB traces are not in current SpeedSample/SessionStatistics contract."
+      },
+      "proposed_minimal_owner": {
+        "owner": "Core existing SpeedHistoryBuffer/Session observation authority if a new retention requirement is accepted; never UI-owned timer/history.",
+        "minimal": "Do not add qB period menu before data exists. First clarify need/scope and memory budget; keeping current short observed history is a deliberate lean boundary."
+      },
+      "source_refs": [
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 5,
+          "end_line": 8
+        },
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 65,
+          "end_line": 85
+        },
+        {
+          "file": "src/TinyTorrent.Core/SpeedHistoryBuffer.cs",
+          "line": 128,
+          "end_line": 145
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 141,
+          "end_line": 143
+        },
+        {
+          "file": "src/TinyTorrent.Core/Torrent.cs",
+          "line": 71
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 15
+        }
+      ],
+      "risks": [
+        "Background history retention conflicts with current release-hidden policy unless explicitly revised.",
+        "Whole-session graph in torrent properties can mislead selection scope.",
+        "More samples/categories need executable/memory/runtime justification; no currently proven source for category payloads."
+      ]
+    },
+    {
+      "id": "pieces_file_range",
+      "workflow": "Locate a selected file/folder's pieces in the existing map",
+      "priority": 2,
+      "qbittorrent_inventory_group": "piece_progress",
+      "current": {
+        "status": "loaded_unshown_version_dependent",
+        "detail": "Files DTO already includes BeginPiece/EndPiece; current InspectorFile does not expose them and Pieces map only shows all pieces. No file-to-range navigation."
+      },
+      "capability": {
+        "status": "loaded_unshown_version_dependent",
+        "boundary": "Supporting Transmission 4.1/RPC6 supplies file piece ranges. Older standard versions omit them; current nonnullable ints default to zero, so absence is not distinguishable by value alone.",
+        "official_source": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md",
+        "section": "3.3 files; 4.1.0 RPC6 changelog"
+      },
+      "proposed_minimal_owner": {
+        "owner": "Core current FileCatalog/contract for support truth; Inspector captured file range command; existing PiecesView selection/highlight range owner.",
+        "minimal": "Only after capability verification, a Files Show pieces command can enter the existing map and focus/highlight captured range(s). Preserve approved whole-map appearance and no second map/file-range framework."
+      },
+      "source_refs": [
+        {
+          "file": "src/Transmission/Torrent.cs",
+          "line": 95
+        },
+        {
+          "file": "src/TinyTorrent.Core/Inspector.cs",
+          "line": 71,
+          "end_line": 75
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 685,
+          "end_line": 708
+        },
+        {
+          "file": "src/TinyTorrent.Core/Session.cs",
+          "line": 779,
+          "end_line": 799
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 251,
+          "end_line": 306
+        },
+        {
+          "file": "src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 356,
+          "end_line": 386
+        },
+        {
+          "file": "tests/Transmission.Tests/DecodeTests.cs",
+          "line": 40,
+          "end_line": 41
+        }
+      ],
+      "risks": [
+        "Begin/end inclusivity and zero-length/shared-piece behavior must be confirmed against actual engine, not guessed.",
+        "Do not infer older zero ranges as file genuinely occupying piece zero.",
+        "Multi-folder selection can contain noncontiguous ranges; no misleading min/max contiguous span.",
+        "Map aggregates ranges to fit viewport; highlight must not replace map semantics or retain hidden all-file payloads."
+      ]
+    }
+  ],
+  "highest_value_feasible": [
+    "files_open",
+    "files_containing_folder",
+    "files_context",
+    "files_wanted_keyboard",
+    "peers_discovery",
+    "webseeds_read",
+    "speed_scale"
+  ],
+  "existing_complete_but_less_direct": [
+    "trackers_crud",
+    "trackers_tiers",
+    "files_tree_practicality",
+    "general_copy_availability"
+  ],
+  "do_not_fake": [
+    "trackers_selected_reannounce",
+    "webseeds_crud",
+    "peers_add_ban"
+  ],
+  "next_verification": [
+    "Native TreeView Space/context behavior and deep-tree selection",
+    "Local actual/incomplete path mapping",
+    "Actual negotiated BeginPiece/EndPiece support and inclusivity",
+    "Live rendered graph scale/focus/HC accessibility",
+    "Whole-list tracker draft conflict policy"
+  ],
+  "additional_data_boundaries": [
+    {
+      "topic": "Effective download/upload ceiling",
+      "status": "session_fields_not_currently_projected",
+      "current": "General edits per-torrent DownloadLimited/DownloadLimit, UploadLimited/UploadLimit and HonorsSessionLimits. Session exposes AltSpeedEnabled plus SeedingLimits; these are insufficient to report the actual effective rate ceiling.",
+      "needed": "Existing session_get supports regular global limit values/enabled flags, alternative limit values and current alternative activation. UI Preferences Settings has these properties, but the current Core SessionStatus tick projection does not. Effective bandwidth-group limits may also apply and are not represented in current General/Session data.",
+      "minimal_owner": "Only if accepted, extend the existing Core SessionStatus projection/read and expose one truthful effective-limit projection; Inspector displays it. No inspector query, timer or calculation from seeding globals.",
+      "source_refs": [
+        { "file": "src/TinyTorrent.Core/Projections.cs", "line": 59, "end_line": 65 },
+        { "file": "src/TinyTorrent.Core/Session.cs", "line": 133, "end_line": 148 },
+        { "file": "src/TinyTorrent.Ui/Preferences/Settings.cs", "line": 18, "end_line": 28 },
+        { "file": "src/TinyTorrent.Core/Inspector.cs", "line": 58, "end_line": 62 }
+      ],
+      "risk": "Distinguish configured per-torrent limit from effective inherited constraints; alternative mode and global competition are not seeding conditions. Do not promise measured throughput from a maximum ceiling."
+    }
+  ],
+  "semantics_verification": {
+    "peers_from": "Verified against upstream main: rpcimpl.cc make_peer_counts_map reads tr_stat.peers_from; torrent.cc stats maps swarm_stats.peer_from_count; peer-mgr.cc updates it on connection create/remove keyed by from_first. Transmission 4.0.6 peer-mgr.cc likewise updates peer_from_count on create/remove keyed by fromFirst. This is current connected provenance, not current transferring activity or known-peer inventory.",
+    "sources": [
+      { "url": "https://github.com/transmission/transmission/blob/main/libtransmission/rpcimpl.cc", "line": 627, "end_line": 639 },
+      { "url": "https://github.com/transmission/transmission/blob/main/libtransmission/torrent.cc", "line": 1210, "end_line": 1217 },
+      { "url": "https://github.com/transmission/transmission/blob/main/libtransmission/peer-mgr.cc", "line": 507, "end_line": 508 },
+      { "url": "https://github.com/transmission/transmission/blob/main/libtransmission/peer-mgr.cc", "line": 1348, "end_line": 1353 },
+      { "url": "https://github.com/transmission/transmission/blob/4.0.6/libtransmission/peer-mgr.cc", "line": 375, "end_line": 376 },
+      { "url": "https://github.com/transmission/transmission/blob/4.0.6/libtransmission/peer-mgr.cc", "line": 923, "end_line": 929 }
+    ],
+    "runtime": "Actual daemon version and returned field population were not queried."
+  },
+  "official_sources": [
+    {
+      "title": "Transmission RPC specification",
+      "url": "https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md"
+    },
+    {
+      "title": "Transmission 4.0.6 RPC specification (older field boundary)",
+      "url": "https://github.com/transmission/transmission/blob/4.0.6/docs/rpc-spec.md"
+    }
+  ]
+}

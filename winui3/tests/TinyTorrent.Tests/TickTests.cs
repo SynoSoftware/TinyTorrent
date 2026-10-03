@@ -13,7 +13,7 @@ public sealed class TickTests
     [TestMethod]
     public void TheFirstTickReadsEverything()
     {
-        TickPlan plan = Tick.Compose(new TickInputs(null, null, 0, false, false));
+        TickPlan plan = Tick.Compose(new TickInputs(null, null, 0, false, false, 0));
 
         Assert.IsTrue(plan.Sweep);
         Assert.IsTrue(plan.Torrents);
@@ -24,7 +24,7 @@ public sealed class TickTests
     {
         SessionStatistics quiet = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 0);
 
-        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, false));
+        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, false, 1));
 
         Assert.IsFalse(plan.Torrents);
         Assert.IsFalse(plan.Sweep);
@@ -35,7 +35,7 @@ public sealed class TickTests
     {
         SessionStatistics busy = Stats(torrents: 12, active: 1, paused: 11, down: 0, up: 0);
 
-        Assert.IsTrue(Tick.Compose(new TickInputs(busy, busy, 12, false, false)).Torrents);
+        Assert.IsTrue(Tick.Compose(new TickInputs(busy, busy, 12, false, false, 1)).Torrents);
     }
 
     [TestMethod]
@@ -43,7 +43,7 @@ public sealed class TickTests
     {
         SessionStatistics seeding = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 4096);
 
-        Assert.IsTrue(Tick.Compose(new TickInputs(seeding, seeding, 12, false, false)).Torrents);
+        Assert.IsTrue(Tick.Compose(new TickInputs(seeding, seeding, 12, false, false, 1)).Torrents);
     }
 
     [TestMethod]
@@ -51,7 +51,7 @@ public sealed class TickTests
     {
         SessionStatistics quiet = Stats(torrents: 13, active: 0, paused: 13, down: 0, up: 0);
 
-        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, false));
+        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, false, 1));
 
         Assert.IsTrue(plan.Sweep, "one integer disagreeing is what catches a removal we missed");
         Assert.IsTrue(plan.Torrents);
@@ -63,7 +63,7 @@ public sealed class TickTests
         SessionStatistics before = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 0);
         SessionStatistics after = Stats(torrents: 12, active: 0, paused: 11, down: 0, up: 0);
 
-        Assert.IsTrue(Tick.Compose(new TickInputs(after, before, 12, false, false)).Torrents);
+        Assert.IsTrue(Tick.Compose(new TickInputs(after, before, 12, false, false, 1)).Torrents);
     }
 
     [TestMethod]
@@ -71,7 +71,7 @@ public sealed class TickTests
     {
         SessionStatistics quiet = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 0);
 
-        Assert.IsTrue(Tick.Compose(new TickInputs(quiet, quiet, 12, true, false)).Torrents);
+        Assert.IsTrue(Tick.Compose(new TickInputs(quiet, quiet, 12, true, false, 1)).Torrents);
     }
 
     [TestMethod]
@@ -79,10 +79,36 @@ public sealed class TickTests
     {
         SessionStatistics quiet = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 0);
 
-        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, true));
+        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, true, 1));
 
         Assert.IsTrue(plan.Sweep);
         Assert.IsTrue(plan.Torrents);
+    }
+
+    [TestMethod]
+    [DataRow(29L, false)]
+    [DataRow(30L, true)]
+    [DataRow(31L, false)]
+    [DataRow(60L, true)]
+    public void QuietSweepsRepairCounterInvisibleChanges(long ticks, bool sweep)
+    {
+        SessionStatistics quiet = Stats(torrents: 12, active: 0, paused: 12, down: 0, up: 0);
+
+        TickPlan plan = Tick.Compose(new TickInputs(quiet, quiet, 12, false, false, ticks));
+
+        Assert.AreEqual(sweep, plan.Sweep);
+        Assert.AreEqual(sweep, plan.Torrents);
+    }
+
+    [TestMethod]
+    public void AnActiveSessionKeepsItsDeltaAtTheQuietSweepBoundary()
+    {
+        SessionStatistics busy = Stats(torrents: 12, active: 1, paused: 11, down: 0, up: 0);
+
+        TickPlan plan = Tick.Compose(new TickInputs(busy, busy, 12, false, false, 30));
+
+        Assert.IsTrue(plan.Torrents);
+        Assert.IsFalse(plan.Sweep);
     }
 
     [TestMethod]

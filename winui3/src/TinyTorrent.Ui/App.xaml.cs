@@ -1,30 +1,44 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
+using Windows.ApplicationModel.Activation;
 
 namespace TinyTorrent_Ui;
 
-/// <summary>
-/// Provides application-specific behavior to supplement the default Application class.
-/// </summary>
 public partial class App : Application
 {
-    private Window? _window;
+    internal static string LocalPath =>
+        Microsoft.Windows.Storage.ApplicationData.GetForUnpackaged("TinyTorrent", "TinyTorrent").LocalPath;
 
-    /// <summary>
-    /// Initializes the singleton application object.  This is the first line of authored code
-    /// executed, and as such is the logical equivalent of main() or WinMain().
-    /// </summary>
-    public App()
-    {
-        InitializeComponent();
-    }
+    private MainWindow? _window;
+    private AppInstance? _instance;
 
-    /// <summary>
-    /// Invoked when the application is launched.
-    /// </summary>
-    /// <param name="args">Details about the launch request and process.</param>
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    public App() => InitializeComponent();
+
+    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        _instance = AppInstance.FindOrRegisterForKey("TinyTorrent.Ui");
+        if (!_instance.IsCurrent)
+        {
+            await _instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs());
+            Exit();
+            return;
+        }
+        DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+        _instance.Activated += (_, activation) => dispatcher.TryEnqueue(() =>
+        {
+            _window?.BringToFront();
+            if (activation.Data is ILaunchActivatedEventArgs launch && Engine.AddSource(launch.Arguments) is string source)
+            {
+                _window?.Page.AddSource(source);
+            }
+        });
         _window = new MainWindow();
+        if (Engine.AddSource(Environment.GetCommandLineArgs()) is string source)
+        {
+            _window.Page.AddSource(source);
+        }
+        _window.Closed += (_, _) => _instance.UnregisterKey();
         _window.Activate();
     }
 }

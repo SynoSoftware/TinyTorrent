@@ -12,6 +12,299 @@ namespace TinyTorrent_Tests;
 public sealed class SessionTests
 {
     [TestMethod]
+    public void ADisconnectDuringOptimisticPublicationDoesNotSendOrReportFailure() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        Torrent row = host.Row(0);
+        host.Session.Changed += (_, _) =>
+        {
+            if (row.Status == TorrentStatus.Stopped)
+            {
+                host.Session.Disconnect();
+            }
+        };
+
+        await host.Session.Stop([row]);
+
+        Assert.IsTrue(host.Session.State is SessionState.Idle);
+        Assert.AreEqual(0, host.Failures.Count);
+        Assert.IsFalse(host.Calls.Any(call => call.Root.ValueKind == System.Text.Json.JsonValueKind.Object &&
+            call.Method == "torrent_stop"));
+    });
+
+    [TestMethod]
+    public void AFailedRemovalAfterAnOverlappingReorderReturnsToTheList() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        Torrent row = host.Row(1);
+        TaskCompletionSource<HttpStatusCode> held = host.Hold("torrent_remove");
+        Task removing = host.Session.Remove([row], deleteData: false);
+        Assert.IsFalse(row.IsPresent);
+
+        await host.Session.Reorder([row], QueueMove.Top);
+        held.SetResult(HttpStatusCode.InternalServerError);
+        await removing;
+        await host.Tick();
+
+        Assert.IsTrue(row.IsPresent);
+        Assert.AreEqual(1, host.Failures.Count);
+    });
+
+    [TestMethod]
+    public void EmptyCommandsDoNotSendRequests() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+
+        await host.Session.Start([]);
+        await host.Session.StartNow([]);
+        await host.Session.Stop([]);
+        await host.Session.Verify([]);
+        await host.Session.Remove([], deleteData: false);
+
+        Assert.AreEqual(0, host.Calls.Count);
+        Assert.AreEqual(0, host.Failures.Count);
+    });
+
+    [TestMethod]
+    public void PendingFactsAreRefetchedAfterTheDaemonGoesQuiet() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new(rows: 1);
+        host.GoQuiet();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        await host.Tick();
+
+        host.Edit(0, Daemon.Summary(0) with { EditDate = 1, RateDownload = 0, RateUpload = 0 },
+            Daemon.Facts(0, "renamed.iso"));
+        await host.Tick();
+        Assert.AreEqual("session_stats", host.LastPoll);
+        await host.Tick();
+        Assert.AreEqual("session_stats+torrent_get", host.LastPoll);
+        await host.Tick();
+
+        Assert.AreEqual("session_stats+torrent_get+torrent_get", host.LastPoll);
+        Assert.AreEqual("renamed.iso", host.Row(0).Name);
+        await host.Tick();
+        Assert.AreEqual("session_stats", host.LastPoll);
+    });
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void QuietExternalChangesConvergeWithoutCounterChanges(bool replace) => Pump.Run(async () =>
+    {
+        using SessionHarness host = new(rows: 1);
+        host.GoQuiet();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        await host.Tick();
+        Torrent original = host.Row(0);
+
+        if (replace)
+        {
+            host.Populate(1, firstId: 1);
+            host.GoQuiet();
+        }
+        else
+        {
+            int paused = host.Paused;
+            host.Edit(0, Daemon.Summary(0) with { EditDate = 1, RateDownload = 0, RateUpload = 0 },
+                Daemon.Facts(0, "external.iso"));
+            host.Paused = paused;
+        }
+
+        while (host.Ticked < 30)
+        {
+            await host.Tick();
+            Assert.AreEqual("session_stats", host.LastPoll);
+            Assert.AreSame(original, host.Row(0));
+            Assert.AreNotEqual("external.iso", host.Row(0).Name);
+        }
+        await host.Tick();
+
+        Assert.AreEqual("session_stats+torrent_get+torrent_get", host.LastPoll);
+        Assert.AreEqual(1, host.Session.Torrents.Count);
+        if (replace)
+        {
+            Assert.AreNotSame(original, host.Row(0));
+            Assert.AreEqual(Daemon.Facts(1).HashString, host.Row(0).Hash);
+        }
+        else
+        {
+            Assert.AreSame(original, host.Row(0));
+            Assert.AreEqual("external.iso", host.Row(0).Name);
+        }
+    });
+
+    [TestMethod]
+    public void GlobalSeedingRulesReflectTheConnectedEngine() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.SeedRatioLimited = true;
+        host.SeedRatioLimit = 3;
+        host.IdleSeedingLimitEnabled = true;
+        host.IdleSeedingLimit = 45;
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        Assert.IsNull(host.Session.SeedingLimits);
+        await host.Tick();
+
+        Assert.AreEqual(new SeedingLimits(true, 3, true, 45), host.Session.SeedingLimits);
+        host.SeedRatioLimited = false;
+        host.IdleSeedingLimitEnabled = false;
+        await host.Tick();
+        Assert.AreEqual(new SeedingLimits(false, 3, false, 45), host.Session.SeedingLimits);
+    });
+
+    [TestMethod]
+    public void AnUncertainAdditionReconcilesBeforeAnotherAttempt() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        host.GoQuiet();
+        await host.Tick();
+        await host.Tick();
+        await host.Until(() => host.IsPolling, "a poll already in flight");
+        var parkedPoll = host.Calls[^1];
+        Assert.AreEqual("session_stats", parkedPoll.Method);
+        TaskCompletionSource<HttpStatusCode> held = host.Hold("torrent_add");
+        Task<TorrentAdded> adding = host.Session.Request(new TorrentAdd { Filename = "magnet:?xt=urn:btih:example" });
+        held.SetResult(HttpStatusCode.InternalServerError);
+        await Assert.ThrowsAsync<RpcTransportException>(() => adding);
+        int afterOutcome = host.Calls.Count;
+
+        await host.Tick();
+        await host.Tick();
+        var sweep = host.Calls.Skip(afterOutcome).FirstOrDefault(call =>
+            call.Root.ValueKind == System.Text.Json.JsonValueKind.Array && call.Elements.Count == 3);
+        Assert.IsNotNull(sweep, "a new full reconciliation must start after the uncertain outcome");
+        CollectionAssert.AreEqual(new[] { "session_stats", "torrent_get", "torrent_get" },
+            sweep.Elements.Select(request => request.GetProperty("method").GetString()!).ToArray());
+        Assert.IsFalse(sweep.Elements[1].GetProperty("params").TryGetProperty("ids", out _));
+        Assert.IsFalse(sweep.Elements[2].GetProperty("params").TryGetProperty("ids", out _));
+        Assert.AreEqual(1, host.Calls.Count(call => call.Root.ValueKind == System.Text.Json.JsonValueKind.Object &&
+            call.Method == "torrent_add"));
+    });
+
+    [TestMethod]
+    [DataRow("torrent_set")]
+    [DataRow("torrent_set_location")]
+    public void AnUncertainTorrentEditReconcilesWithoutRepeatingTheWrite(string method) => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        host.GoQuiet();
+        await host.Tick();
+        await host.Tick();
+        await host.Until(() => host.IsPolling, "a poll already in flight");
+
+        TorrentIds ids = TorrentIds.Of(host.Row(0).Hash);
+        IRpcRequest<Empty> request = method == "torrent_set"
+            ? new TorrentSet(ids) { Labels = ["Work"] }
+            : new TorrentSetLocation(ids, @"D:\Moved", Move: true);
+        TaskCompletionSource<HttpStatusCode> held = host.Hold(method);
+        Task<Empty> editing = host.Session.Request(request);
+        held.SetResult(HttpStatusCode.InternalServerError);
+        await Assert.ThrowsAsync<RpcTransportException>(() => editing);
+        int afterOutcome = host.Calls.Count;
+
+        await host.Tick();
+        await host.Tick();
+        var sweep = host.Calls.Skip(afterOutcome).FirstOrDefault(call =>
+            call.Root.ValueKind == System.Text.Json.JsonValueKind.Array && call.Elements.Count == 3);
+        Assert.IsNotNull(sweep, "the uncertain edit must schedule a new full reconciliation");
+        CollectionAssert.AreEqual(new[] { "session_stats", "torrent_get", "torrent_get" },
+            sweep.Elements.Select(item => item.GetProperty("method").GetString()!).ToArray());
+        Assert.IsFalse(sweep.Elements[1].GetProperty("params").TryGetProperty("ids", out _));
+        Assert.IsFalse(sweep.Elements[2].GetProperty("params").TryGetProperty("ids", out _));
+        Assert.AreEqual(1, host.Calls.Count(call => call.Root.ValueKind == System.Text.Json.JsonValueKind.Object &&
+            call.Method == method));
+    });
+
+    [TestMethod]
+    public void TheExistingTickUpdatesAlternativeSpeedAndCurrentDiskSpace() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        Assert.AreEqual(false, host.Session.AltSpeedEnabled);
+        Assert.AreEqual(host.DownloadDir, host.Session.Space!.Path);
+        Assert.AreEqual(host.FreeBytes, host.Session.Space.SizeBytes);
+
+        host.AltSpeedEnabled = true;
+        host.FreeBytes = 5_000_000_000;
+        await host.Tick();
+        Assert.AreEqual(true, host.Session.AltSpeedEnabled);
+        Assert.AreEqual(host.FreeBytes, host.Session.Space!.SizeBytes);
+
+        host.DownloadDir = @"E:\Downloads";
+        await host.Tick();
+        Assert.AreEqual(host.DownloadDir, host.Session.DownloadDir);
+        Assert.IsNull(host.Session.Space, "space from the prior directory must not appear beside the new one");
+        await host.Tick();
+        Assert.AreEqual(host.DownloadDir, host.Session.Space!.Path);
+    });
+
+    [TestMethod]
+    public void ARequestWithoutAConnectionReturnsAReadableFailure() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => host.Session.Request(new TorrentStop(TorrentIds.Of("hash"))));
+
+        Assert.AreEqual("There is no connection to the daemon.", error.Message);
+        Assert.AreEqual(0, host.Failures.Count);
+    });
+
+    [TestMethod]
+    public void ASuccessfulRequestForcesTheNextPollToReconcile() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+        host.GoQuiet();
+        await host.Tick();
+        await host.Tick();
+        Assert.AreEqual("session_stats", host.LastPoll);
+
+        await host.Session.Request(new TorrentSet(TorrentIds.Of(host.Row(0).Hash)) { Labels = ["Work"] });
+        await host.Tick();
+
+        Assert.AreEqual("session_stats+torrent_get+torrent_get", host.LastPoll);
+    });
+
+    [TestMethod]
+    public void ADisconnectCancelsARequestAndItsLateAnswer() => Pump.Run(async () =>
+    {
+        using SessionHarness host = new();
+        host.Session.Connect();
+        await host.Until(() => host.Session.State is SessionState.Live, "live");
+        await host.Tick();
+
+        TaskCompletionSource<HttpStatusCode> held = host.Hold("torrent_set");
+        Task<Empty> request = host.Session.Request(new TorrentSet(TorrentIds.Of(host.Row(0).Hash)));
+        host.Session.Disconnect();
+        held.SetResult(HttpStatusCode.OK);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => request);
+        Assert.IsTrue(host.Session.State is SessionState.Idle);
+    });
+
+    [TestMethod]
     public void AConnectAfterADisconnectLeavesOneSessionAndItIsTheNewOne() => Pump.Run(async () =>
     {
         using SessionHarness host = new();

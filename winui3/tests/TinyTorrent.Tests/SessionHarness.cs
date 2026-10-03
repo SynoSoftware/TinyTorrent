@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using TinyTorrent;
@@ -18,7 +19,7 @@ namespace TinyTorrent_Tests;
 /// </remarks>
 internal sealed class Pump : SynchronizationContext
 {
-    private readonly Queue<(SendOrPostCallback Work, object? State)> _queue = new();
+    private readonly ConcurrentQueue<(SendOrPostCallback Work, object? State)> _queue = new();
 
     public override void Post(SendOrPostCallback work, object? state) => _queue.Enqueue((work, state));
 
@@ -37,10 +38,9 @@ internal sealed class Pump : SynchronizationContext
 
             while (!task.IsCompleted)
             {
-                if (pump._queue.Count > 0)
+                if (pump._queue.TryDequeue(out (SendOrPostCallback Work, object? State) next))
                 {
-                    (SendOrPostCallback work, object? state) = pump._queue.Dequeue();
-                    work(state);
+                    next.Work(next.State);
                     continue;
                 }
 
@@ -147,6 +147,28 @@ internal sealed class SessionHarness : IDisposable
     /// <summary>While false the daemon is not listening, which is what a stopped engine looks like.</summary>
     internal bool Reachable { get; set; } = true;
 
+    internal HttpStatusCode? Refused { get; set; }
+
+    internal bool IsPolling => _polling is not null;
+
+    internal string? DetailJson { get; set; }
+
+    internal RpcError? DetailError { get; set; }
+
+    internal bool AltSpeedEnabled { get; set; }
+
+    internal string DownloadDir { get; set; } = @"D:\Downloads";
+
+    internal long FreeBytes { get; set; } = 10_000_000_000;
+
+    internal bool SeedRatioLimited { get; set; }
+
+    internal double SeedRatioLimit { get; set; } = 2;
+
+    internal bool IdleSeedingLimitEnabled { get; set; }
+
+    internal int IdleSeedingLimit { get; set; } = 30;
+
     internal IReadOnlyList<Call> Calls => _daemon.Calls;
 
     /// <summary>
@@ -154,9 +176,17 @@ internal sealed class SessionHarness : IDisposable
     /// <c>session_stats+torrent_get+torrent_get</c>, a delta one <c>torrent_get</c>, and a tick
     /// against a quiet daemon reads <c>session_stats</c> alone.
     /// </summary>
-    internal string LastPoll => string.Join("+", Methods(_daemon.Calls[^1]));
+    internal string LastPoll => string.Join("+", Methods(_daemon.Calls.Last(call =>
+        Methods(call).Any(method => method is not "session_get" and not "free_space"))));
 
     internal Torrent Row(int index) => Session.Torrents.Rows[index];
+
+    internal void Edit(int index, TorrentSummary summary, TorrentFacts facts)
+    {
+        _summaries[index] = summary;
+        _facts[index] = facts;
+        Paused++;
+    }
 
     /// <summary>The world the daemon answers from, replaced whole.</summary>
     internal void Populate(int count, int firstId = 0)
@@ -265,11 +295,13 @@ internal sealed class SessionHarness : IDisposable
     /// Which of the two torrent_get projections a request asks for. The field list is derived from
     /// the projection type, and only the static one carries the hash.
     /// </summary>
-    private static bool WantsFacts(JsonElement request)
+    private static bool WantsFacts(JsonElement request) => Wants(request, "hash_string");
+
+    private static bool Wants(JsonElement request, string name)
     {
         foreach (JsonElement field in request.GetProperty("params").GetProperty("fields").EnumerateArray())
         {
-            if (field.GetString() == "hash_string")
+            if (field.GetString() == name)
             {
                 return true;
             }
@@ -313,12 +345,17 @@ internal sealed class SessionHarness : IDisposable
 
     private async Task<HttpResponseMessage> Answer(Call call, int index, CancellationToken token)
     {
+        if (Refused is { } refused)
+        {
+            return new HttpResponseMessage(refused);
+        }
+
         if (!Reachable)
         {
             throw new HttpRequestException("nothing is listening on that port.");
         }
 
-        if (call.Root.ValueKind == JsonValueKind.Array)
+        if (call.Root.ValueKind == JsonValueKind.Array && Methods(call).Contains("session_stats"))
         {
             await Gate(token).ConfigureAwait(true);
 
@@ -329,6 +366,11 @@ internal sealed class SessionHarness : IDisposable
             }
 
             return FakeDaemon.Json("[" + string.Join(",", answers) + "]");
+        }
+
+        if (call.Root.ValueKind == JsonValueKind.Array)
+        {
+            return FakeDaemon.Json("[" + string.Join(",", call.Root.EnumerateArray().Select(One)) + "]");
         }
 
         if (call.Method == "session_stats")
@@ -356,12 +398,31 @@ internal sealed class SessionHarness : IDisposable
     {
         int id = request.GetProperty("id").GetInt32();
 
+        bool detail = request.GetProperty("method").GetString() == "torrent_get" &&
+            (Wants(request, "files") || Wants(request, "file_stats") || Wants(request, "peers") || Wants(request, "pieces") ||
+             Wants(request, "tracker_list") || Wants(request, "comment"));
+        if (detail && DetailError is { } error)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                id,
+                error = new { code = (int)error, message = "unsupported detail field" },
+            });
+        }
+
         string result = request.GetProperty("method").GetString() switch
         {
-            "session_get" => JsonSerializer.Serialize(new SessionFacts(Scale), Answers),
+            "session_get" when Wants(request, "units") => JsonSerializer.Serialize(
+                new SessionFacts(Scale, AltSpeedEnabled, DownloadDir), Answers),
+            "session_get" => JsonSerializer.Serialize(new SessionStatus(AltSpeedEnabled, DownloadDir,
+                SeedRatioLimited, SeedRatioLimit, IdleSeedingLimitEnabled, IdleSeedingLimit), Answers),
+            "free_space" => JsonSerializer.Serialize(new DiskSpace(
+                request.GetProperty("params").GetProperty("path").GetString()!, FreeBytes, 100_000_000_000), Answers),
             "session_stats" => JsonSerializer.Serialize(
                 new SessionStatistics(Active, Paused, _summaries.Count, Down, Up, Nothing, Nothing),
                 Answers),
+            "torrent_get" when DetailJson is not null && detail => DetailJson,
             "torrent_get" when WantsFacts(request) => JsonSerializer.Serialize(
                 new TorrentGetResult<TorrentFacts>(_facts),
                 Answers),

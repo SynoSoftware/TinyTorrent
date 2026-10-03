@@ -87,10 +87,10 @@ internal sealed class TableSelectionModel
     // ------------------------------------------------------------------ pointer and keyboard
 
     /// <summary>
-    /// Section 13's pointer rules. The mode's own semantics live here so the input layer only has
-    /// to report which gesture happened.
+    /// Section 13's click, tap and Space rules. The mode's semantics live here so every input
+    /// path reports the same selection action.
     /// </summary>
-    internal bool PointerSelect(object item, bool ctrl, bool shift, IReadOnlyList<object> view)
+    internal bool Select(object item, bool ctrl, bool shift, IReadOnlyList<object> view)
     {
         if (!IsEligible(item))
         {
@@ -133,7 +133,7 @@ internal sealed class TableSelectionModel
             return false;
         }
 
-        List<object> next = new(_selected);
+        List<object> next = Mode == ListViewSelectionMode.Single ? new() : new(_selected);
         if (_selected.Contains(item))
         {
             next.RemoveAll(candidate => _identity.Equals(candidate, item));
@@ -144,6 +144,23 @@ internal sealed class TableSelectionModel
         }
 
         return Apply(Limit(next), item, item, item);
+    }
+
+    internal bool Navigate(object item, bool ctrl, bool shift, IReadOnlyList<object> view)
+    {
+        if (!IsEligible(item))
+        {
+            return false;
+        }
+
+        if (shift && AllowsMultiple)
+        {
+            return Range(item, add: ctrl, view);
+        }
+
+        return ctrl || Mode == ListViewSelectionMode.Multiple
+            ? Apply(new List<object>(_selected), item, Anchor, item)
+            : Replace(item);
     }
 
     /// <summary>
@@ -221,7 +238,8 @@ internal sealed class TableSelectionModel
     /// anchor especially must not move: a Shift marquee re-projects its range from that anchor on
     /// every pointer move, and an anchor that followed the result would walk with it.
     /// </summary>
-    internal bool SetMarqueeSelection(List<object> items) => Apply(Limit(items), Current, Anchor, Focus);
+    internal bool SetMarqueeSelection(List<object> items, IReadOnlyList<object> view) =>
+        Apply(ResolveSelection(items, null, view, out _), Current, Anchor, Focus);
 
     // ------------------------------------------------------------------ programmatic and source
 
@@ -231,6 +249,14 @@ internal sealed class TableSelectionModel
     /// one step, and silently when the resulting identities are unchanged.
     /// </summary>
     internal bool SetSelection(IEnumerable<object> items, object? currentItem, IReadOnlyList<object> view)
+    {
+        List<object> resolved = ResolveSelection(items, currentItem, view, out object? current);
+        current ??= resolved.Count > 0 ? resolved[0] : null;
+        return Apply(resolved, current, current, current);
+    }
+
+    private List<object> ResolveSelection(
+        IEnumerable<object> items, object? currentItem, IReadOnlyList<object> view, out object? current)
     {
         HashSet<object> requested = new(_identity);
         foreach (object item in items)
@@ -242,7 +268,7 @@ internal sealed class TableSelectionModel
         }
 
         List<object> resolved = new();
-        object? current = null;
+        current = null;
         foreach (object item in view)
         {
             if (!IsEligible(item))
@@ -261,9 +287,7 @@ internal sealed class TableSelectionModel
             }
         }
 
-        resolved = Limit(resolved);
-        current ??= resolved.Count > 0 ? resolved[0] : null;
-        return Apply(resolved, current, current, current);
+        return Limit(resolved);
     }
 
     /// <summary>

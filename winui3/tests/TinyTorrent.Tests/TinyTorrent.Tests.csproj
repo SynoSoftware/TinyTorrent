@@ -19,6 +19,7 @@
          session's whole poll loop with no socket; a second copy here would be a second thing to
          keep in step with the client's header handling and 409 replay. -->
     <Compile Include="..\Transmission.Tests\FakeDaemon.cs" Link="FakeDaemon.cs" />
+    <Compile Include="..\..\src\TinyTorrent.Ui\Dialogs\Metainfo.cs" Link="Metainfo.cs" />
   </ItemGroup>
 
   <ItemGroup>

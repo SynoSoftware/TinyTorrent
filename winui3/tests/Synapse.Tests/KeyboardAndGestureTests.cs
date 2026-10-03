@@ -65,6 +65,71 @@ public class KeyboardAndGestureTests
     });
 
     [TestMethod]
+    public Task CtrlArrowKeepsThePacketAndRangeAnchor() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(8);
+        h.Click(h[1]);
+        h.Click(h[3], ctrl: true);
+
+        h.MoveBy(1, extend: false, ctrl: true);
+        h.MoveBy(1, extend: false, ctrl: true);
+        CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
+        Assert.AreEqual("k5", h.CurrentKey());
+
+        h.MoveBy(-1, extend: true);
+        CollectionAssert.AreEqual(new[] { "k3", "k4" }, h.SelectedKeys());
+    });
+
+    [TestMethod]
+    public Task MultipleNavigationKeepsThePacketAndSpaceTogglesTheFocusedRow() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            8, t => t.SelectionMode = ListViewSelectionMode.Multiple);
+        h.Click(h[1]);
+        h.Click(h[3]);
+
+        h.MoveBy(1, extend: false);
+        CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
+        Assert.AreEqual("k4", h.CurrentKey());
+        Assert.IsTrue(h.Space());
+        CollectionAssert.AreEqual(new[] { "k1", "k3", "k4" }, h.SelectedKeys());
+        Assert.IsTrue(h.Space());
+        CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
+    });
+
+    [TestMethod]
+    public Task SpaceSelectsPhysicalFocusRatherThanTheLogicalCurrent() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(6);
+        h.Click(h[1]);
+        ListViewItem row = (ListViewItem)h.HostedList().ContainerFromItem(h[3]);
+        Assert.IsTrue(row.Focus(FocusState.Keyboard));
+
+        Assert.IsTrue(h.Space());
+        CollectionAssert.AreEqual(new[] { "k3" }, h.SelectedKeys());
+        Assert.AreEqual("k3", h.CurrentKey());
+        Assert.IsTrue(h.Space(ctrl: true));
+        Assert.AreEqual(0, h.SelectedKeys().Length);
+        Assert.AreEqual("k3", h.CurrentKey());
+    });
+
+    [TestMethod]
+    public Task TouchTapSelectsTheRowAndEmptySurfaceClearsIt() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(6);
+        ListViewItem row = (ListViewItem)h.HostedList().ContainerFromItem(h[2]);
+        Assert.IsTrue(h.Tap(row));
+        CollectionAssert.AreEqual(new[] { "k2" }, h.SelectedKeys());
+        CollectionAssert.AreEqual(new[] { "k2" }, h.ContainerSelectedKeys());
+        Assert.AreEqual("k2", h.CurrentKey());
+        Assert.AreEqual(1, h.Events);
+
+        Assert.IsTrue(h.Tap(h.HostedList()));
+        Assert.AreEqual(0, h.SelectedKeys().Length);
+        Assert.IsNull(h.CurrentKey());
+    });
+
+    [TestMethod]
     public Task HomeAndEndMoveToTheFirstAndLastRow() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(8);
@@ -201,6 +266,7 @@ public class KeyboardAndGestureTests
         Assert.IsFalse(
             h.RowSurfaceHasFocus(),
             "A single-line TextBox leaves the arrow keys unhandled; the table must not act on them.");
+        Assert.IsFalse(h.Space(), "Space belongs to the cell editor.");
     });
 
     [TestMethod]
@@ -218,6 +284,9 @@ public class KeyboardAndGestureTests
 
         TextBox editor = SelectionHarness.Descendant<TextBox>(container)!;
         Assert.AreEqual("Suppressed", h.HitTest(editor));
+        Assert.IsFalse(h.Tap(editor), "A touch tap belongs to the cell editor.");
+        Assert.IsFalse(h.Tap(button), "A touch tap belongs to the cell button.");
+        Assert.AreEqual(0, h.SelectedKeys().Length);
     });
 
     [TestMethod]

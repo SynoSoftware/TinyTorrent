@@ -54,6 +54,7 @@ public enum TorrentFields
     Added = 1 << 10,
     CompletedOn = 1 << 11,
     Error = 1 << 12,
+    Labels = 1 << 13,
 }
 
 /// <summary>
@@ -136,6 +137,8 @@ public sealed class Torrent : INotifyPropertyChanged
     /// <summary>The folder the daemon is writing into, for Open folder.</summary>
     public string DownloadDir { get; private set; } = string.Empty;
 
+    public IReadOnlyList<string> Labels { get; private set; } = [];
+
     /// <summary>
     /// When the torrent was last edited, as the daemon counts it. Nothing displays it; it is the
     /// one value that tells the cache a rename or a label change happened, and therefore that
@@ -146,6 +149,8 @@ public sealed class Torrent : INotifyPropertyChanged
     // -------------------------------------------------------- domain values
 
     public string Name => _name;
+
+    public override string ToString() => Name;
 
     /// <summary>
     /// <see cref="Name"/> reduced to the bytes the culture orders it by, built on first use.
@@ -293,9 +298,6 @@ public sealed class Torrent : INotifyPropertyChanged
 
     public string CompletedOnText => _completedOnText ??= TorrentFormat.Absolute(_completedOn);
 
-    /// <summary>A magnet link built from what the row already holds, so no field is fetched for it.</summary>
-    public string MagnetLink => $"magnet:?xt=urn:btih:{Hash}&dn={Uri.EscapeDataString(_name)}";
-
     // --------------------------------------------------------------- updates
 
     /// <summary>
@@ -305,6 +307,14 @@ public sealed class Torrent : INotifyPropertyChanged
     public void PushSpeedSample(double bytesPerSecond)
     {
         SpeedHistory.Push(bytesPerSecond);
+        _speedRevision++;
+        Raise(nameof(SpeedRevision));
+    }
+
+    internal void SampleSpeed(TimeSpan time, bool observe)
+    {
+        bool uploading = _status is TorrentStatus.Seed or TorrentStatus.SeedWait;
+        SpeedHistory.Push(time, _downloadSpeed, _uploadSpeed, uploading, observe);
         _speedRevision++;
         Raise(nameof(SpeedRevision));
     }
@@ -328,7 +338,7 @@ public sealed class Torrent : INotifyPropertyChanged
     /// </summary>
     internal TorrentFields Apply(TorrentSummary wire)
     {
-        TorrentFields changed = TorrentFields.None;
+        TorrentFields changed = SetPresence(TorrentPresence.Confirmed);
         EditDate = wire.EditDate;
 
         if (Set(ref _status, wire.Status, nameof(Status)) |
@@ -359,6 +369,7 @@ public sealed class Torrent : INotifyPropertyChanged
         if (Set(ref _metadataProgress, wire.MetadataPercentComplete, nameof(GhostLabel)))
         {
             Raise(nameof(HasGhostLabel));
+            Raise(nameof(RowOpacity));
         }
 
         if (Set(ref _downloadSpeed, wire.RateDownload, nameof(DownloadSpeed)) |
@@ -417,6 +428,14 @@ public sealed class Torrent : INotifyPropertyChanged
 
         Id = facts.Id;
         DownloadDir = facts.DownloadDir;
+
+        IReadOnlyList<string> labels = facts.Labels ?? [];
+        if (!Labels.SequenceEqual(labels, StringComparer.Ordinal))
+        {
+            Labels = labels;
+            changed |= TorrentFields.Labels;
+            Raise(nameof(Labels));
+        }
 
         if (!string.Equals(_name, facts.Name, StringComparison.Ordinal))
         {

@@ -1,6 +1,9 @@
 #pragma once
 #include <windows.h>
 
+/* Windows' default ServicesPipeTimeout is the engine readiness and shutdown allowance. */
+#define ServiceResponseTimeoutMs 30000
+
 /* transmission-daemon.exe, started beside the tray in its own configuration directory on a
    port the OS chooses. The tray owns it; the interface never starts one. */
 
@@ -19,16 +22,17 @@ typedef enum
 #define EngineAddFinished  (WM_APP + 2)
 
 /* Starts the supervising thread, which adopts a running engine or launches one. Returns
-   as soon as the thread exists; readiness arrives as EngineStateChanged. */
-BOOL EngineOpen(HWND notify);
+   as soon as the thread exists; readiness arrives as EngineStateChanged. With launch FALSE,
+   only adopts our persisted engine, never starts one or seeds its settings. */
+BOOL EngineOpen(HWND notify, BOOL launch);
 
 /* Hands the argument to torrent_add verbatim -- it accepts a local path or a magnet URI, so
    there is nothing to read and nothing to encode. Queued behind the launch if one is running. */
 void EngineAdd(const wchar_t *argument);
 
 /* session_close, then waits for the engine to go. Safe to call twice, and bounded so the
-   caller cannot hang. */
-void EngineStop(void);
+   caller cannot hang. Returns FALSE when shutdown was not confirmed. */
+BOOL EngineStop(void);
 
 /* Ends the supervising thread and leaves the engine running for the next launch to adopt. */
 void EngineClose(void);

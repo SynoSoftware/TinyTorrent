@@ -121,6 +121,17 @@ internal sealed class TableMarquee
         _scroller = null;
     }
 
+    internal void Refresh()
+    {
+        if (_rows is null)
+        {
+            return;
+        }
+
+        _covered.RemoveWhere(index => index >= _rows.Items.Count);
+        UpdateCoverage(CurrentRect());
+    }
+
     // ------------------------------------------------------------------ geometry
 
     private void Advance(bool alwaysReport)
@@ -162,7 +173,7 @@ internal sealed class TableMarquee
         }
 
         int first = panel.FirstCacheIndex;
-        int last = panel.LastCacheIndex;
+        int last = Math.Min(panel.LastCacheIndex, _rows.Items.Count - 1);
         if (first < 0 || last < first)
         {
             return false;

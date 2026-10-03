@@ -101,6 +101,20 @@ public class SelectionTests
     });
 
     [TestMethod]
+    public Task SingleCtrlSelectionReplacesAnotherRowAndDeselectsTheSameRow() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(
+            6, t => t.SelectionMode = ListViewSelectionMode.Single);
+        h.Click(h[1]);
+        h.Click(h[4], ctrl: true);
+        CollectionAssert.AreEqual(new[] { "k4" }, h.SelectedKeys());
+
+        h.Click(h[4], ctrl: true);
+        Assert.AreEqual(0, h.SelectedKeys().Length);
+        Assert.AreEqual("k4", h.CurrentKey());
+    });
+
+    [TestMethod]
     public Task MultipleTogglesOnAPlainClickAndKeepsMany() => TestHost.RunAsync(async () =>
     {
         SelectionHarness h = await SelectionHarness.LoadAsync(

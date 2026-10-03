@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using Transmission;
 
@@ -68,6 +69,11 @@ public sealed class Session : IDisposable
     private SessionState _state = new SessionState.Idle();
     private SessionStatistics? _last;
     private SessionStatistics? _before;
+    private InspectorSelection? _inspector;
+    private TorrentDetail? _detail;
+    private SessionStatus? _status;
+    private Disk? _disk;
+    private long _started;
 
     private bool _mutated;
     private bool _sweepForced;
@@ -111,12 +117,52 @@ public sealed class Session : IDisposable
     /// <summary>Raised when a command the user asked for did not happen.</summary>
     public event EventHandler<string>? Failed;
 
+    public event EventHandler<TorrentDetail?>? DetailChanged;
+
     public SessionState State => _state;
 
     public TorrentCache Torrents { get; } = new();
 
     /// <summary>The daemon's own totals, from the most recent tick.</summary>
     public SessionStatistics? Stats => _last;
+
+    public TorrentDetail? Detail => _detail;
+
+    public string? DetailError => _state is SessionState.Live ? _inspector?.Failure : null;
+
+    public bool? AltSpeedEnabled => _status?.AltSpeedEnabled;
+
+    public string? DownloadDir => _status?.DownloadDir;
+
+    public DiskSpace? Space => _disk?.Space;
+
+    public string? SpaceError => _disk?.Error;
+
+    public IReadOnlyList<SpeedSample>? SpeedHistory =>
+        _state is SessionState.Live && _inspector?.Tab == InspectorTab.Speed
+            ? InspectedTorrent?.SpeedHistory.Transfers : null;
+
+    public SeedingLimits? SeedingLimits => _status is
+        { SeedRatioLimited: { } ratioLimited, SeedRatioLimit: { } ratio,
+          IdleSeedingLimitEnabled: { } idleLimited, IdleSeedingLimit: { } idle }
+        ? new SeedingLimits(ratioLimited, ratio, idleLimited, idle) : null;
+
+    private Torrent? InspectedTorrent => _inspector is { } selection
+        ? Torrents.Rows.FirstOrDefault(row => string.Equals(row.Hash, selection.Hash, StringComparison.Ordinal))
+        : null;
+
+    public void Inspect(Torrent? row, InspectorTab tab)
+    {
+        if (_inspector?.Hash == row?.Hash && _inspector?.Tab == tab)
+        {
+            return;
+        }
+
+        FileCatalog? files = _inspector?.Hash == row?.Hash ? _inspector?.Files : null;
+        InspectedTorrent?.SpeedHistory.StopObserving();
+        _inspector = row is null ? null : new InspectorSelection(row.Hash, tab, Files: files);
+        SetDetail(null);
+    }
 
     public void Connect()
     {
@@ -125,12 +171,53 @@ public sealed class Session : IDisposable
             return;
         }
 
+        Begin();
+    }
+
+    public void Retry()
+    {
+        if (_state is SessionState.Live && _inspector is { Failure: not null } selection)
+        {
+            _inspector = selection with { Failure = null };
+            SetDetail(null, notify: true);
+            return;
+        }
+
+        if (_state is not (SessionState.Blocked or SessionState.Retrying))
+        {
+            return;
+        }
+
+        Cancel();
+        Begin();
+    }
+
+    private void Begin()
+    {
         CancellationTokenSource life = new();
         _life = life;
         _ = Run(life);
     }
 
     public void Disconnect()
+    {
+        if (_life is null)
+        {
+            return;
+        }
+
+        Cancel();
+
+        InspectedTorrent?.SpeedHistory.StopObserving();
+        _inspector = null;
+        _status = null;
+        _disk = null;
+        SetDetail(null);
+
+        Move(new SessionState.Idle());
+    }
+
+    private void Cancel()
     {
         if (_life is not { } life)
         {
@@ -144,8 +231,6 @@ public sealed class Session : IDisposable
         _life = null;
         life.Cancel();
         life.Dispose();
-
-        Move(new SessionState.Idle());
     }
 
     public void Dispose()
@@ -161,9 +246,66 @@ public sealed class Session : IDisposable
 
     // ------------------------------------------------------------- commands
 
+    public async Task<TResult> Request<TResult>(
+        IRpcRequest<TResult> request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (_state is not SessionState.Live || _client is not { } client || _life is not { } life)
+        {
+            throw new InvalidOperationException("There is no connection to the daemon.");
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, life.Token);
+        TResult result;
+        try
+        {
+            result = await client.Send(request, linked.Token).ConfigureAwait(true);
+            linked.Token.ThrowIfCancellationRequested();
+        }
+        catch (Exception error) when (request is (TorrentAdd or TorrentSet or TorrentSetLocation or TorrentRenamePath) &&
+            (error is RpcTransportException or OperationCanceledException))
+        {
+            if (ReferenceEquals(_client, client) && ReferenceEquals(_life, life))
+            {
+                _mutated = true;
+                _sweepForced = true;
+                if (request is TorrentRenamePath && _inspector is { } current)
+                {
+                    _inspector = current with { Files = null };
+                }
+            }
+
+            throw;
+        }
+
+        if (!ReferenceEquals(_client, client) || !ReferenceEquals(_life, life))
+        {
+            throw new OperationCanceledException("The connection changed before the request completed.");
+        }
+
+        if (request is IRpcRequest<Empty> or TorrentAdd or TorrentRenamePath or BlocklistUpdate)
+        {
+            _mutated = true;
+            _sweepForced = true;
+            if (_disk is { Error: not null })
+            {
+                _disk = null;
+            }
+        }
+
+        if (request is TorrentRenamePath && _inspector is { } selection)
+        {
+            _inspector = selection with { Files = null };
+        }
+
+        return result;
+    }
+
     public Task Start(IReadOnlyList<Torrent> rows) => Mutate(
         rows,
-        new TorrentStart(Ids(rows)),
+        ids => new TorrentStart(ids),
         // Queued, not running: whether the daemon starts it at once depends on the queue, so
         // "Downloading" here would be a claim the very next tick has to take back.
         row => new TorrentEdit.Change(
@@ -172,24 +314,24 @@ public sealed class Session : IDisposable
 
     public Task StartNow(IReadOnlyList<Torrent> rows) => Mutate(
         rows,
-        new TorrentStartNow(Ids(rows)),
+        ids => new TorrentStartNow(ids),
         row => new TorrentEdit.Change(
             row,
             Status: row.Progress >= 1 ? TorrentStatus.Seed : TorrentStatus.Download));
 
     public Task Stop(IReadOnlyList<Torrent> rows) => Mutate(
         rows,
-        new TorrentStop(Ids(rows)),
+        ids => new TorrentStop(ids),
         row => new TorrentEdit.Change(row, Status: TorrentStatus.Stopped));
 
     public Task Verify(IReadOnlyList<Torrent> rows) => Mutate(
         rows,
-        new TorrentVerify(Ids(rows)),
+        ids => new TorrentVerify(ids),
         row => new TorrentEdit.Change(row, Status: TorrentStatus.CheckWait));
 
     public Task Remove(IReadOnlyList<Torrent> rows, bool deleteData) => Mutate(
         rows,
-        new TorrentRemove(Ids(rows), deleteData),
+        ids => new TorrentRemove(ids, deleteData),
         row => new TorrentEdit.Change(row, Presence: TorrentPresence.Removing));
 
     /// <summary>Put the packet immediately before <paramref name="before"/>, or at the end.</summary>
@@ -231,12 +373,12 @@ public sealed class Session : IDisposable
             }
         }
 
-        await Send(new TorrentEdit(changes), token => _client!.Send(batch, token)).ConfigureAwait(true);
+        await Send(new TorrentEdit(changes), (client, token) => client.Send(batch, token)).ConfigureAwait(true);
     }
 
     private async Task Mutate<TResult>(
         IReadOnlyList<Torrent> rows,
-        IRpcRequest<TResult> request,
+        Func<TorrentIds, IRpcRequest<TResult>> request,
         Func<Torrent, TorrentEdit.Change> change)
     {
         if (rows.Count == 0)
@@ -250,30 +392,42 @@ public sealed class Session : IDisposable
             changes.Add(change(row));
         }
 
-        await Send(new TorrentEdit(changes), token => _client!.Send(request, token)).ConfigureAwait(true);
+        IRpcRequest<TResult> command = request(Ids(rows));
+        await Send(new TorrentEdit(changes), (client, token) => client.Send(command, token)).ConfigureAwait(true);
     }
 
-    private async Task Send(TorrentEdit edit, Func<CancellationToken, Task> send)
+    private async Task Send(TorrentEdit edit, Func<RpcClient, CancellationToken, Task> send)
     {
-        if (_state is not SessionState.Live || _client is null || _life is null)
+        if (_state is not SessionState.Live || _client is not { } client || _life is not { } life)
         {
             Failed?.Invoke(this, "There is no connection to the daemon.");
             return;
         }
 
+        CancellationToken token = life.Token;
         Optimistic pending = Show(edit);
         _mutated = true;
 
         try
         {
-            await send(_life.Token).ConfigureAwait(true);
+            token.ThrowIfCancellationRequested();
+            await send(client, token).ConfigureAwait(true);
+            if (!ReferenceEquals(_client, client) || !ReferenceEquals(_life, life))
+            {
+                return;
+            }
             pending.AckedAt = _ticks;
+            _mutated = true;
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception error)
         {
+            if (!ReferenceEquals(_client, client) || !ReferenceEquals(_life, life))
+            {
+                return;
+            }
             Undo(pending);
             Failed?.Invoke(this, error.Message);
         }
@@ -441,13 +595,20 @@ public sealed class Session : IDisposable
             // challenge, and the version header on that challenge is the only place the daemon
             // ever says it is new enough to speak this dialect.
             SessionFacts facts = await client.Send(new SessionGet<SessionFacts>(), token).ConfigureAwait(true);
+            token.ThrowIfCancellationRequested();
 
+            InspectedTorrent?.SpeedHistory.StopObserving();
             Torrents.Adopt(TorrentFormat.From(facts.Units));
             _last = null;
             _before = null;
             _refetch.Clear();
             _optimism.Clear();
             _sweepForced = false;
+            _inspector = _inspector is { } selection ? selection with { Failure = null, Files = null } : null;
+            _status = new SessionStatus(facts.AltSpeedEnabled, facts.DownloadDir);
+            _disk = null;
+            _started = Stopwatch.GetTimestamp();
+            SetDetail(null);
 
             Move(life, new SessionState.Live(_address));
 
@@ -475,19 +636,20 @@ public sealed class Session : IDisposable
     private async Task Once(RpcClient client, CancellationToken token)
     {
         TickPlan plan = Tick.Compose(
-            new TickInputs(_last, _before, Torrents.Count, _mutated, _sweepForced));
+            new TickInputs(_last, _before, Torrents.Count, _mutated, _sweepForced, _ticks));
 
         _mutated = false;
 
         TickChange change = new(TorrentFields.None, NeedsSweep: false, TickChange.Nothing);
         SessionStatistics stats;
 
-        if (!plan.Torrents)
+        if (!plan.Torrents && _refetch.Count == 0)
         {
             stats = await client.Send(new SessionStats(), token).ConfigureAwait(true);
         }
         else if (plan.Sweep)
         {
+            _sweepForced = false;
             (stats, TorrentGetResult<TorrentSummary> summaries, TorrentGetResult<TorrentFacts> facts) =
                 await client.Send(
                     new SessionStats(),
@@ -496,8 +658,8 @@ public sealed class Session : IDisposable
                     token)
                 .ConfigureAwait(true);
 
+            token.ThrowIfCancellationRequested();
             change = Torrents.Sweep(summaries.Torrents, facts.Torrents);
-            _sweepForced = false;
             _refetch.Clear();
         }
         else if (_refetch.Count > 0)
@@ -510,6 +672,7 @@ public sealed class Session : IDisposable
                     token)
                 .ConfigureAwait(true);
 
+            token.ThrowIfCancellationRequested();
             change = Torrents.Delta(summaries.Torrents, summaries.Removed);
             change = change with { Fields = change.Fields | Torrents.Facts(facts.Torrents) };
             _refetch.Clear();
@@ -522,14 +685,14 @@ public sealed class Session : IDisposable
                     token)
                 .ConfigureAwait(true);
 
+            token.ThrowIfCancellationRequested();
             change = Torrents.Delta(summaries.Torrents, summaries.Removed);
         }
 
-        // Every tick, including the statistics-only one above, which merges nothing. The ring
-        // holds 32 samples at one tick each, and the cell draws that as a 64-second window; a ring
-        // that advanced only when a row was in a merge would stand still against a quiet daemon
-        // while still being read as the same window.
-        Torrents.Sample();
+        token.ThrowIfCancellationRequested();
+
+        Torrents.Sample(Stopwatch.GetElapsedTime(_started),
+            _inspector is { Tab: InspectorTab.Speed } observed ? observed.Hash : null);
 
         _before = _last;
         _last = stats;
@@ -553,7 +716,163 @@ public sealed class Session : IDisposable
             Torrents.Order();
         }
 
+        await ReadStatus(client, token).ConfigureAwait(true);
         Changed?.Invoke(this, fields);
+
+        await ReadDetail(client, token).ConfigureAwait(true);
+    }
+
+    private sealed record InspectorSelection(
+        string Hash,
+        InspectorTab Tab,
+        string? Failure = null,
+        FileCatalog? Files = null);
+
+    private sealed record FileCatalog(IReadOnlyList<TorrentFile> Files, long EditDate);
+
+    private sealed record Disk(string Path, DiskSpace? Space, string? Error = null);
+
+    private async Task ReadStatus(RpcClient client, CancellationToken token)
+    {
+        string? path = _status?.DownloadDir;
+        SessionStatus status;
+        Disk? disk = _disk;
+        if (string.IsNullOrWhiteSpace(path) || disk is { Error: not null } && disk.Path == path)
+        {
+            status = await client.Send(new SessionGet<SessionStatus>(), token).ConfigureAwait(true);
+        }
+        else
+        {
+            try
+            {
+                DiskSpace space;
+                (status, space) = await client.Send(
+                    new SessionGet<SessionStatus>(), new FreeSpace(path), token).ConfigureAwait(true);
+                disk = new Disk(path, space);
+            }
+            catch (RpcMethodException error) when (error.Method == "free_space")
+            {
+                status = await client.Send(new SessionGet<SessionStatus>(), token).ConfigureAwait(true);
+                disk = new Disk(path, null, error.Message);
+            }
+        }
+
+        token.ThrowIfCancellationRequested();
+        _status = status;
+        _disk = disk?.Path == status.DownloadDir ? disk : null;
+    }
+
+    private async Task ReadDetail(RpcClient client, CancellationToken token)
+    {
+        if (_inspector is not { } selection || selection.Tab == InspectorTab.Speed || selection.Failure is not null)
+        {
+            return;
+        }
+
+        Torrent? row = Torrents.Rows.FirstOrDefault(candidate =>
+            string.Equals(candidate.Hash, selection.Hash, StringComparison.Ordinal));
+        if (row is null || !row.IsPresent)
+        {
+            SetDetail(null);
+            return;
+        }
+
+        TorrentIds ids = TorrentIds.Of(selection.Hash);
+        object? value;
+        string? hash;
+        switch (selection.Tab)
+        {
+            case InspectorTab.General:
+                TorrentGeneral? general = await Read(new TorrentGet<TorrentGeneral>(ids));
+                value = general;
+                hash = general?.HashString;
+                break;
+            case InspectorTab.Files:
+                if (selection.Files is not { } catalog || catalog.EditDate != row.EditDate || row.HasGhostLabel)
+                {
+                    TorrentFiles? files = await Read(new TorrentGet<TorrentFiles>(ids));
+                    if (files is not null && string.Equals(files.HashString, selection.Hash, StringComparison.Ordinal) &&
+                        ReferenceEquals(_client, client) && ReferenceEquals(_inspector, selection))
+                    {
+                        token.ThrowIfCancellationRequested();
+                        selection = selection with { Files = new FileCatalog(files.Files, row.EditDate) };
+                        _inspector = selection;
+                    }
+
+                    value = files;
+                    hash = files?.HashString;
+                }
+                else
+                {
+                    TorrentFileStats? stats = await Read(new TorrentGet<TorrentFileStats>(ids));
+                    value = stats is null ? null : new TorrentFiles(stats.Id, stats.HashString, catalog.Files, stats.FileStats);
+                    hash = stats?.HashString;
+                }
+                break;
+            case InspectorTab.Peers:
+                TorrentPeers? peers = await Read(new TorrentGet<TorrentPeers>(ids));
+                value = peers;
+                hash = peers?.HashString;
+                break;
+            case InspectorTab.Trackers:
+                TorrentTrackers? trackers = await Read(new TorrentGet<TorrentTrackers>(ids));
+                value = trackers;
+                hash = trackers?.HashString;
+                break;
+            case InspectorTab.Pieces:
+                TorrentPieces? pieces = await Read(new TorrentGet<TorrentPieces>(ids));
+                value = pieces;
+                hash = pieces?.HashString;
+                break;
+            default:
+                return;
+        }
+
+        token.ThrowIfCancellationRequested();
+        if (!ReferenceEquals(_client, client) || !ReferenceEquals(_inspector, selection))
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            SetDetail(null);
+        }
+        else if (string.Equals(hash, selection.Hash, StringComparison.Ordinal))
+        {
+            SetDetail(new TorrentDetail(selection.Hash, selection.Tab, value));
+        }
+
+        async Task<T?> Read<T>(TorrentGet<T> request) where T : class
+        {
+            try
+            {
+                TorrentGetResult<T> result = await client.Send(request, token).ConfigureAwait(true);
+                return result.Torrents.FirstOrDefault();
+            }
+            catch (RpcException error) when (error.Fault == RpcFault.Protocol)
+            {
+                token.ThrowIfCancellationRequested();
+                if (ReferenceEquals(_client, client) && ReferenceEquals(_inspector, selection))
+                {
+                    _inspector = selection with { Failure = error.Message };
+                    SetDetail(null, notify: true);
+                }
+
+                return null;
+            }
+        }
+    }
+
+    private void SetDetail(TorrentDetail? detail, bool notify = false)
+    {
+        if (_detail == detail && !notify)
+        {
+            return;
+        }
+
+        _detail = detail;
+        DetailChanged?.Invoke(this, detail);
     }
 
     private void Move(SessionState next)
@@ -564,6 +883,12 @@ public sealed class Session : IDisposable
         }
 
         _state = next;
+        if (next is not SessionState.Live)
+        {
+            InspectedTorrent?.SpeedHistory.StopObserving();
+            if (_inspector is { Files: not null } selection) _inspector = selection with { Files = null };
+            SetDetail(null, notify: true);
+        }
         StateChanged?.Invoke(this, next);
     }
 

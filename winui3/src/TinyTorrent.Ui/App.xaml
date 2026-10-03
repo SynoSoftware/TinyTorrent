@@ -38,7 +38,7 @@
                 measures 1.00:1 in contrast themes, which is the case the two-tone pair exists for.
             -->
             <ResourceDictionary.ThemeDictionaries>
-                <ResourceDictionary x:Key="Default">
+                <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="FocusStrokeColorOuterBrush" Color="Transparent" />
                     <SolidColorBrush x:Key="FocusStrokeColorInnerBrush"
                                      Color="{ThemeResource SystemAccentColorLight2}" />

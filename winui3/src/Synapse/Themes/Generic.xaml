@@ -78,21 +78,11 @@
         background stays the container's, because drawing a second fill here read as two
         backgrounds. Neither focus nor the current row is drawn at all.
 
-        The bar is the half of the selected cue that carries section 19's 3:1. Measured on the
-        rendered control against an unselected row, with the rows settled: the container's fill
-        alone is 1.08:1 in Light and 1.18:1 in Dark; the bar takes the row to 5.11:1 and 8.12:1.
-        RowCueContrastTests asserts the 3:1 and shoots earlier than that, while the rows are still
-        arriving, so it reads about 4.7:1 and 7.2:1 — the same cue, caught at about 94% opacity.
-
-        A contrast theme does not need the bar and does not take its contrast from it. Read out of
-        the live HighContrast dictionary: the container's selected fill there is
-        SystemColorHighlightColor and an unselected row is SystemColorWindowColor, both opaque, so
-        the pair is the shipped palettes in C:\Windows\Resources\Ease of Access Themes and measures
-        6.80:1 in HC1, 11.81:1 in HC2, 11.17:1 in HC Black and 7.27:1 in HC White. Computed rather
-        than rendered, because turning the system setting on is not something a test may do; both
-        colours are opaque, so nothing composites and the computed pair is the drawn pair. The bar
-        there resolves to a white system colour over that highlight fill: a visible stripe in all
-        four themes, and misleading in none.
+        The container's fill alone measured 1.08:1 in Light and 1.18:1 in Dark, so the bar must
+        carry section 19's 3:1 independently of the user's accent. The selected-item foreground
+        resolves to the primary text brush in Light/Dark and highlight text in High Contrast.
+        It keeps the same single bar while removing the accent dependency; RowCueContrastTests
+        measures the rendered cue, including a deliberately low-contrast accent brush.
 
         Not the two-tone marker pair, which would clear 3:1 in every theme and is already proven
         here: three wide, vertical, at x = 0 it is section 11's column drop marker exactly, parked
@@ -126,7 +116,7 @@
                         <Rectangle x:Name="SelectedBar"
                                    Width="3"
                                    HorizontalAlignment="Left"
-                                   Fill="{ThemeResource ListViewItemSelectionIndicatorBrush}"
+                                   Fill="{ThemeResource ListViewItemForegroundSelected}"
                                    Opacity="0" />
 
                         <!--

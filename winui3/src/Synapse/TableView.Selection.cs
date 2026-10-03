@@ -331,13 +331,7 @@ public sealed partial class TableView
             _reconcilingView = false;
         }
 
-        // A sort that stopped showing the row order ends the drag as well, even when it left every
-        // row where it was: the drop would be refused, and a drag that can end in nothing must not
-        // keep its marker up until the release.
-        if (viewMoved || !ShowsRowOrder)
-        {
-            CancelRowDrag();
-        }
+        CancelRowDrag();
 
         if (viewMoved)
         {
@@ -390,12 +384,12 @@ public sealed partial class TableView
     {
         SyncSelectionPolicy();
 
-        // A live marquee owns the selection outright, so there is nothing to reconcile: its
-        // rectangle still covers the same band of the viewport, and which rows that is now a
-        // question about the new view, not about the instances the old one held.
-        bool changed = _gesture == GesturePhase.Marquee
-            ? _selection.SetMarqueeSelection(MarqueeItems())
-            : _selection.Reconcile(View);
+        bool changed = _selection.Reconcile(View);
+        if (_gesture == GesturePhase.Marquee)
+        {
+            _marquee.Refresh();
+            changed |= _selection.SetMarqueeSelection(MarqueeItems(), View);
+        }
 
         CommitSelection(changed);
         RestoreRowFocus(rowFocus);

@@ -26,13 +26,17 @@ public class RowCueContrastTests
     [TestMethod]
     public Task TheSelectedRowCueMeetsThreeToOneInDark() => MeasureAsync(ElementTheme.Dark);
 
+    [TestMethod]
+    public Task TheSelectedRowCueDoesNotDependOnTheAccentBrush() =>
+        MeasureAsync(ElementTheme.Light, lowContrastAccent: true);
+
     // The two current-row cases are gone, not disabled. The control no longer draws a current-row
     // cue, so there is no table-owned non-text information left in that band to measure: WinUI
     // paints none either, and Fluent gives "where am I" to the focus visual, which is measured
     // separately and passes at 15.68:1 Light and 16.29:1 Dark. Section 19 lists "current" among
     // the cues requiring 3:1, so that enumeration is now wrong and is raised as an amendment.
 
-    private static Task MeasureAsync(ElementTheme theme) => TestHost.RunAsync(async () =>
+    private static Task MeasureAsync(ElementTheme theme, bool lowContrastAccent = false) => TestHost.RunAsync(async () =>
     {
         Color backdrop = theme == ElementTheme.Light
             ? Color.FromArgb(255, 243, 243, 243)
@@ -53,6 +57,11 @@ public class RowCueContrastTests
             {
                 t.RequestedTheme = theme;
                 t.Background = new SolidColorBrush(backdrop);
+                if (lowContrastAccent)
+                {
+                    t.Resources["ListViewItemSelectionIndicatorBrush"] =
+                        new SolidColorBrush(Color.FromArgb(255, 255, 185, 0));
+                }
                 foreach (Synapse.TableColumn column in t.Columns)
                 {
                     column.CellTemplate = blank;

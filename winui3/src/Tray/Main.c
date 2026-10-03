@@ -7,6 +7,8 @@
 
 #include <windowsx.h>
 #include <shellapi.h>
+#include <commctrl.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +17,7 @@ static const wchar_t ClassName[] = L"TinyTorrent.Tray";
 
 #define TrayIconMessage (WM_APP + 200)
 #define ActivationArgument 1
+#define ActivationShutdown 2
 #define IconRetryTimer 1
 
 /* NIM_ADD legitimately fails when the shell is not ready yet at logon, which is exactly the
@@ -40,6 +43,99 @@ static const char ResumeAll[] = "{\"jsonrpc\":\"2.0\",\"method\":\"torrent_start
 static NOTIFYICONDATAW g_icon;
 static HMENU g_menu;
 static UINT g_taskbarCreated;
+static UINT g_enginePortMessage;
+
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+
+static BOOL InterfacePath(wchar_t *path, DWORD capacity)
+{
+    wchar_t *name;
+    DWORD length = GetModuleFileNameW(NULL, path, capacity);
+    if (length == 0 || length >= capacity)
+        return FALSE;
+    name = wcsrchr(path, L'\\');
+    if (!name)
+        return FALSE;
+    return wcscpy_s(name + 1, capacity - (name + 1 - path), L"TinyTorrent.Ui.exe") == 0;
+}
+
+static BOOL CALLBACK CloseProcessWindow(HWND hwnd, LPARAM processId)
+{
+    DWORD owner;
+    GetWindowThreadProcessId(hwnd, &owner);
+    if (owner == (DWORD)processId && GetWindow(hwnd, GW_OWNER) == NULL)
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    return TRUE;
+}
+
+static BOOL CloseInterface(void)
+{
+    wchar_t path[MAX_PATH];
+    PROCESSENTRY32W entry = {0};
+    HANDLE snapshot;
+    BOOL closed = TRUE;
+    DWORD sessionId;
+
+    if (!InterfacePath(path, ARRAYSIZE(path)))
+        return FALSE;
+    if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId))
+        return FALSE;
+    snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return FALSE;
+    entry.dwSize = sizeof entry;
+    if (Process32FirstW(snapshot, &entry))
+    {
+        do
+        {
+            HANDLE process;
+            wchar_t executable[MAX_PATH];
+            DWORD capacity = ARRAYSIZE(executable);
+            DWORD ownerSession;
+            if (_wcsicmp(entry.szExeFile, L"TinyTorrent.Ui.exe") != 0)
+                continue;
+            if (!ProcessIdToSessionId(entry.th32ProcessID, &ownerSession) || ownerSession != sessionId)
+                continue;
+            process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, entry.th32ProcessID);
+            if (!process)
+            {
+                closed = FALSE;
+                continue;
+            }
+            if (!QueryFullProcessImageNameW(process, 0, executable, &capacity))
+                closed = FALSE;
+            else if (_wcsicmp(path, executable) == 0)
+            {
+                /* HungAppTimeout is Windows' allowance for an unresponsive desktop app. */
+                wchar_t timeoutText[32];
+                DWORD size = sizeof timeoutText;
+                DWORD timeout = 5000;
+                if (RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"HungAppTimeout",
+                                 RRF_RT_REG_SZ, NULL, timeoutText, &size) == ERROR_SUCCESS)
+                {
+                    DWORD configured = wcstoul(timeoutText, NULL, 10);
+                    if (configured != 0)
+                        timeout = configured;
+                }
+                WaitForInputIdle(process, timeout);
+                EnumWindows(CloseProcessWindow, (LPARAM)entry.th32ProcessID);
+                if (WaitForSingleObject(process, timeout) != WAIT_OBJECT_0)
+                {
+                    Log(L"the interface (pid %u) did not close; leaving the engine running", entry.th32ProcessID);
+                    closed = FALSE;
+                }
+            }
+            CloseHandle(process);
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return closed;
+}
+
+static BOOL StopEngine(void)
+{
+    return CloseInterface() && EngineStop();
+}
 
 /* A Win32 popup menu does not follow the system theme on its own. SetPreferredAppMode is
    uxtheme's own switch for it: undocumented and reached by ordinal, so it can stop working,
@@ -221,39 +317,91 @@ static void BuildMenu(void)
     SetMenuDefaultItem(g_menu, IdOpen, FALSE);
 }
 
-/* Stage 1C ships no interface, so this reports that it is missing until src/TinyTorrent.Ui
-   produces TinyTorrent.Ui.exe beside the tray. The engine's port goes on the command line,
-   and AllowSetForegroundWindow is what lets the new process take the foreground. */
-static void OpenInterface(void)
+static void OpenInterface(const wchar_t *argument)
 {
+    static const wchar_t LaunchFormat[] = L"\"%s\" -p %u";
     wchar_t path[MAX_PATH];
-    wchar_t command[MAX_PATH * 2];
-    wchar_t *lastSlash;
+    wchar_t *command;
+    size_t capacity;
     STARTUPINFOW startup;
     PROCESS_INFORMATION created;
 
-    if (GetModuleFileNameW(NULL, path, MAX_PATH) == 0)
+    if (!InterfacePath(path, ARRAYSIZE(path)))
         return;
-    lastSlash = wcsrchr(path, L'\\');
-    if (!lastSlash)
-        return;
-    *lastSlash = 0;
 
-    swprintf_s(command, MAX_PATH * 2, L"\"%s\\TinyTorrent.Ui.exe\" -p %u", path, EnginePort());
+    capacity = wcslen(path) + ARRAYSIZE(LaunchFormat) + ARRAYSIZE(L"65535");
+    if (argument)
+        capacity += ARRAYSIZE(L" --add \"\"") + wcslen(argument) * 2;
+    command = (wchar_t *)malloc(capacity * sizeof(wchar_t));
+    if (!command)
+        return;
+    if (Engine() == EngineReady)
+        swprintf_s(command, capacity, LaunchFormat, path, EnginePort());
+    else
+        swprintf_s(command, capacity, L"\"%s\"", path);
+    if (argument)
+    {
+        const wchar_t *source = argument;
+        wchar_t *destination;
+        wcscat_s(command, capacity, L" --add \"");
+        destination = command + wcslen(command);
+        while (*source)
+        {
+            size_t slashes = 0;
+            while (*source == L'\\')
+            {
+                slashes++;
+                source++;
+            }
+            /* Windows doubles backslashes before quotes and the closing delimiter. */
+            if (*source == L'\"' || *source == 0)
+                slashes *= 2;
+            while (slashes > 0)
+            {
+                *destination++ = L'\\';
+                slashes--;
+            }
+            if (*source == 0)
+                break;
+            if (*source == L'\"')
+                *destination++ = L'\\';
+            *destination++ = *source++;
+        }
+        *destination++ = L'\"';
+        *destination = 0;
+    }
 
     memset(&startup, 0, sizeof startup);
     startup.cb = sizeof startup;
 
-    if (!CreateProcessW(NULL, command, NULL, NULL, FALSE, 0, NULL, NULL, &startup, &created))
+    if (!CreateProcessW(path, command, NULL, NULL, FALSE, 0, NULL, NULL, &startup, &created))
     {
-        Log(L"could not start the interface: %s (error %u)", command, GetLastError());
-        Balloon(L"TinyTorrent", L"The interface is not installed yet.");
+        DWORD error = GetLastError();
+        wchar_t text[256];
+        Log(L"could not start the interface: %s (error %u)", command, error);
+        if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES)
+            Balloon(L"TinyTorrent", L"The interface is missing. Reinstall TinyTorrent to restore it.");
+        else
+        {
+            swprintf_s(text, ARRAYSIZE(text), L"The interface could not start (Windows error %u). Open the log folder for details.", error);
+            Balloon(L"TinyTorrent", text);
+        }
+        free(command);
         return;
     }
 
     AllowSetForegroundWindow(created.dwProcessId);
     CloseHandle(created.hThread);
     CloseHandle(created.hProcess);
+    free(command);
+}
+
+static void Add(const wchar_t *argument)
+{
+    if (Setting(SettingSilentAdd, 1))
+        EngineAdd(argument);
+    else
+        OpenInterface(argument);
 }
 
 static void Call(const char *json, const wchar_t *what)
@@ -268,16 +416,62 @@ static void Call(const char *json, const wchar_t *what)
         Log(L"%s failed: %s", what, message);
 }
 
-static void Exit(HWND hwnd)
+static int ExitChoice(HWND hwnd)
 {
-    if (Setting(SettingExitStopsEngine, 0))
-        EngineStop();
+    typedef HRESULT (WINAPI *ShowDialog)(const TASKDIALOGCONFIG *, int *, int *, BOOL *);
+    DWORD behavior = Setting(SettingExitBehavior, Setting(SettingExitStopsEngine, 0));
+    HMODULE controls;
+    ShowDialog show;
+    TASKDIALOGCONFIG dialog = {0};
+    TASKDIALOG_BUTTON buttons[] = {{IDYES, L"Stop the engine"}, {IDNO, L"Leave the engine running"}};
+    int chosen = IDCANCEL;
+    BOOL remember = FALSE;
+    HRESULT result;
+
+    if (behavior != 2)
+        return behavior == 1 ? IDYES : IDNO;
+    controls = LoadLibraryExW(L"comctl32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    show = controls ? (ShowDialog)GetProcAddress(controls, "TaskDialogIndirect") : NULL;
+    dialog.cbSize = sizeof dialog;
+    dialog.hwndParent = hwnd;
+    dialog.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_POSITION_RELATIVE_TO_WINDOW;
+    dialog.pszWindowTitle = L"TinyTorrent";
+    dialog.pszMainInstruction = L"Stop the engine when exiting?";
+    dialog.pszContent = L"Leaving the engine running keeps your transfers active.";
+    dialog.cButtons = ARRAYSIZE(buttons);
+    dialog.pButtons = buttons;
+    dialog.nDefaultButton = IDNO;
+    dialog.pszVerificationText = L"Remember this choice";
+    result = show ? show(&dialog, &chosen, NULL, &remember) : E_NOTIMPL;
+    if (controls)
+        FreeLibrary(controls);
+    if (FAILED(result))
+    {
+        Log(L"could not show the exit choice (HRESULT %08lx)", result);
+        return IDCANCEL;
+    }
+    if (remember && (chosen == IDYES || chosen == IDNO))
+        SetSetting(SettingExitBehavior, chosen == IDYES ? 1 : 0);
+    return chosen;
+}
+
+static BOOL Exit(HWND hwnd, BOOL shutdown)
+{
+    int chosen = shutdown ? IDYES : ExitChoice(hwnd);
+    if (chosen == IDCANCEL)
+        return FALSE;
+    if (chosen == IDYES && !StopEngine())
+    {
+        Balloon(L"TinyTorrent", L"TinyTorrent could not close safely. The engine was left running. See the log for details.");
+        return FALSE;
+    }
 
     /* The icon comes off after the engine is joined. The other order makes the app look
        closed while it is still writing resume files. */
     Shell_NotifyIconW(NIM_DELETE, &g_icon);
     EngineClose();
     DestroyWindow(hwnd);
+    return TRUE;
 }
 
 static void Command(HWND hwnd, UINT id, BOOL turtle)
@@ -285,7 +479,7 @@ static void Command(HWND hwnd, UINT id, BOOL turtle)
     switch (id)
     {
     case IdOpen:
-        OpenInterface();
+        OpenInterface(NULL);
         break;
     case IdPause:
         Call(PauseAll, L"Pause all");
@@ -306,7 +500,7 @@ static void Command(HWND hwnd, UINT id, BOOL turtle)
         ShellExecuteW(NULL, L"open", LogFolder(), NULL, NULL, SW_SHOWNORMAL);
         break;
     case IdExit:
-        Exit(hwnd);
+        Exit(hwnd, FALSE);
         break;
     }
 }
@@ -346,9 +540,14 @@ static void ShowMenu(HWND hwnd, int x, int y)
         Command(hwnd, chosen, turtle);
 }
 
-static void Activated(const COPYDATASTRUCT *data)
+static BOOL Activated(HWND hwnd, const COPYDATASTRUCT *data)
 {
     const wchar_t *argument;
+
+    if (!data)
+        return FALSE;
+    if (data->dwData == ActivationShutdown && data->cbData == 0)
+        return Exit(hwnd, TRUE);
 
     /* Any process in this session can find the window by its class name and send it one of
        these, so nothing in the payload is taken on trust. A block that is not a whole number
@@ -358,16 +557,17 @@ static void Activated(const COPYDATASTRUCT *data)
         data->cbData == 0 ||
         data->cbData % sizeof(wchar_t) != 0)
     {
-        return;
+        return FALSE;
     }
 
     argument = (const wchar_t *)data->lpData;
     if (!argument || argument[data->cbData / sizeof(wchar_t) - 1] != 0)
-        return;
+        return FALSE;
 
     /* The sender's memory is only valid for the duration of the message, and EngineAdd
        copies before it returns. */
-    EngineAdd(argument);
+    Add(argument);
+    return TRUE;
 }
 
 static void AddFinished(BOOL added, wchar_t *outcome)
@@ -384,9 +584,11 @@ static void AddFinished(BOOL added, wchar_t *outcome)
 
 static LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    if (g_enginePortMessage && message == g_enginePortMessage)
+        return Engine() == EngineReady ? EnginePort() : 0;
     /* Broadcast when Explorer restarts. A message-only window never receives it, which is
        why this one is an ordinary top-level window that is simply never shown. */
-    if (message == g_taskbarCreated)
+    if (g_taskbarCreated && message == g_taskbarCreated)
     {
         Log(L"Explorer restarted; re-adding the tray icon");
         ShowIcon(hwnd);
@@ -401,7 +603,7 @@ static LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, 
         {
         case NIN_SELECT:
         case NIN_KEYSELECT:
-            OpenInterface();
+            OpenInterface(NULL);
             return 0;
         case WM_CONTEXTMENU:
             ShowMenu(hwnd, GET_X_LPARAM(wParam), GET_Y_LPARAM(wParam));
@@ -410,8 +612,7 @@ static LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, 
         return 0;
 
     case WM_COPYDATA:
-        Activated((const COPYDATASTRUCT *)lParam);
-        return TRUE;
+        return Activated(hwnd, (const COPYDATASTRUCT *)lParam);
 
     case WM_TIMER:
         if (wParam == IconRetryTimer)
@@ -434,14 +635,14 @@ static LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, 
     case WM_QUERYENDSESSION:
         if (!ShutdownBlockReasonCreate(hwnd, L"Stopping the TinyTorrent engine"))
             Log(L"could not ask Windows for shutdown time (error %u)", GetLastError());
-        EngineStop();
+        StopEngine();
         ShutdownBlockReasonDestroy(hwnd);
         return TRUE;
 
     case WM_ENDSESSION:
         if (wParam)
         {
-            EngineStop();
+            StopEngine();
             Shell_NotifyIconW(NIM_DELETE, &g_icon);
         }
         return 0;
@@ -454,17 +655,56 @@ static LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, 
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
+static HANDLE LockStartup(void)
+{
+    HANDLE mutex = CreateMutexW(NULL, FALSE, ClassName);
+    DWORD waited;
+
+    if (!mutex)
+        return NULL;
+    waited = WaitForSingleObject(mutex, ServiceResponseTimeoutMs);
+    if (waited != WAIT_OBJECT_0 && waited != WAIT_ABANDONED)
+    {
+        CloseHandle(mutex);
+        return NULL;
+    }
+    return mutex;
+}
+
+static void UnlockStartup(HANDLE mutex)
+{
+    ReleaseMutex(mutex);
+    CloseHandle(mutex);
+}
+
 /* The tray is the single instance, so a second launch hands its argument over and leaves.
    The old implementation called FindWindowW against a message-only window, which top-level
    search can never find, and then posted a payload-free double-click -- so opening a torrent
    while the tray ran did nothing at all. */
-static BOOL Forwarded(const wchar_t *argument)
+static int Forwarded(HWND existing, const wchar_t *argument, BOOL shutdown)
 {
-    HWND existing = FindWindowW(ClassName, NULL);
     COPYDATASTRUCT data;
 
-    if (!existing)
-        return FALSE;
+    if (shutdown)
+    {
+        DWORD processId;
+        HANDLE process;
+        BOOL stopped;
+        DWORD_PTR reply = FALSE;
+        GetWindowThreadProcessId(existing, &processId);
+        process = OpenProcess(SYNCHRONIZE, FALSE, processId);
+        if (!process)
+            return 1;
+        memset(&data, 0, sizeof data);
+        data.dwData = ActivationShutdown;
+        /* Allows the supervisor's launch and stop budgets, UI close and thread teardown. */
+        stopped = SendMessageTimeoutW(existing, WM_COPYDATA, 0, (LPARAM)&data,
+                                     SMTO_BLOCK, ServiceResponseTimeoutMs * 4, &reply) != 0 && reply != 0;
+        if (stopped)
+            stopped = WaitForSingleObject(process, ServiceResponseTimeoutMs) == WAIT_OBJECT_0;
+        CloseHandle(process);
+        return stopped ? 0 : 1;
+    }
 
     if (argument)
     {
@@ -478,7 +718,7 @@ static BOOL Forwarded(const wchar_t *argument)
         PostMessageW(existing, TrayIconMessage, 0, MAKELPARAM(NIN_SELECT, IconApp));
     }
 
-    return TRUE;
+    return 0;
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR commandLine, int show)
@@ -489,6 +729,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR commandLine, i
     int count = 0;
     wchar_t **arguments;
     const wchar_t *argument = NULL;
+    BOOL shutdown;
+    int forwarded;
+    HANDLE startup;
 
     (void)previous;
     (void)commandLine;
@@ -502,14 +745,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR commandLine, i
     if (arguments && count > 1)
         argument = arguments[1];
 
-    if (Forwarded(argument))
-        return 0;
+    shutdown = argument && wcscmp(argument, L"--shutdown") == 0;
+    startup = LockStartup();
+    if (!startup)
+    {
+        LocalFree(arguments);
+        return 1;
+    }
+    hwnd = FindWindowW(ClassName, NULL);
+    if (hwnd)
+    {
+        UnlockStartup(startup);
+        forwarded = Forwarded(hwnd, argument, shutdown);
+        LocalFree(arguments);
+        return forwarded;
+    }
 
     LogOpen();
     Log(L"tray starting");
 
     AllowDarkMenus();
-    RegisterAssociations();
+    if (!shutdown)
+        RegisterAssociations();
 
     memset(&windowClass, 0, sizeof windowClass);
     windowClass.cbSize = sizeof windowClass;
@@ -517,26 +774,56 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR commandLine, i
     windowClass.hInstance = instance;
     windowClass.lpszClassName = ClassName;
     if (!RegisterClassExW(&windowClass))
+    {
+        UnlockStartup(startup);
+        LocalFree(arguments);
         return 1;
+    }
 
     /* An ordinary top-level window that is never shown, so it receives the TaskbarCreated
        broadcast; WS_EX_TOOLWINDOW keeps it out of Alt+Tab. */
     hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, ClassName, L"TinyTorrent", WS_OVERLAPPED,
                            0, 0, 0, 0, NULL, NULL, instance, NULL);
     if (!hwnd)
+    {
+        UnlockStartup(startup);
+        LocalFree(arguments);
         return 1;
+    }
 
     g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+    g_enginePortMessage = RegisterWindowMessageW(L"TinyTorrent.EnginePort");
+
+    if (!EngineOpen(hwnd, !shutdown))
+    {
+        Log(L"could not start the engine supervisor");
+        if (shutdown)
+        {
+            DestroyWindow(hwnd);
+            UnlockStartup(startup);
+            LocalFree(arguments);
+            return 1;
+        }
+    }
+
+    if (shutdown)
+    {
+        BOOL stopped = StopEngine();
+        EngineClose();
+        DestroyWindow(hwnd);
+        UnlockStartup(startup);
+        LocalFree(arguments);
+        return stopped ? 0 : 1;
+    }
 
     BuildMenu();
     PrepareIcon(hwnd, instance);
     ShowIcon(hwnd);
-
-    if (!EngineOpen(hwnd))
-        Log(L"could not start the engine supervisor");
+    UnlockStartup(startup);
 
     if (argument)
-        EngineAdd(argument);
+        Add(argument);
+    LocalFree(arguments);
 
     while (GetMessageW(&message, NULL, 0, 0) > 0)
     {

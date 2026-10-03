@@ -154,34 +154,63 @@ int RpcSend(const char *json, char *reply, int replyMax)
     return status;
 }
 
-static const char *FindValue(const char *json, const char *key)
+static const char *FindValue(const char *json, const char *key, BOOL topLevel)
 {
-    char quoted[64];
-    const char *found;
+    size_t length = strlen(key);
+    const char *at = json;
+    int depth = 0;
 
-    if (sprintf_s(quoted, sizeof quoted, "\"%s\"", key) < 0)
-        return NULL;
-
-    found = strstr(json, quoted);
-    if (!found)
-        return NULL;
-
-    found += strlen(quoted);
-    while (*found == ' ' || *found == '\t' || *found == '\r' || *found == '\n')
-        found++;
-    if (*found != ':')
-        return NULL;
-
-    found++;
-    while (*found == ' ' || *found == '\t' || *found == '\r' || *found == '\n')
-        found++;
-
-    return found;
+    while (*at)
+    {
+        if (*at == '{' || *at == '[')
+        {
+            depth++;
+            at++;
+        }
+        else if (*at == '}' || *at == ']')
+        {
+            if (--depth <= 0)
+                return NULL;
+            at++;
+        }
+        else if (*at == '"')
+        {
+            const char *name = ++at;
+            while (*at && *at != '"')
+            {
+                if (*at == '\\' && at[1])
+                    at++;
+                at++;
+            }
+            if (!*at)
+                return NULL;
+            if ((!topLevel || depth == 1) &&
+                (size_t)(at - name) == length && strncmp(name, key, length) == 0)
+            {
+                const char *value = at + 1;
+                while (*value == ' ' || *value == '\t' || *value == '\r' || *value == '\n')
+                    value++;
+                if (*value == ':')
+                {
+                    value++;
+                    while (*value == ' ' || *value == '\t' || *value == '\r' || *value == '\n')
+                        value++;
+                    return value;
+                }
+            }
+            at++;
+        }
+        else
+        {
+            at++;
+        }
+    }
+    return NULL;
 }
 
 BOOL JsonNumber(const char *json, const char *key, long long *value)
 {
-    const char *at = FindValue(json, key);
+    const char *at = FindValue(json, key, FALSE);
     long long sign = 1;
     long long result = 0;
     BOOL any = FALSE;
@@ -210,7 +239,7 @@ BOOL JsonNumber(const char *json, const char *key, long long *value)
 
 BOOL JsonBool(const char *json, const char *key, BOOL *value)
 {
-    const char *at = FindValue(json, key);
+    const char *at = FindValue(json, key, FALSE);
 
     if (!at)
         return FALSE;
@@ -228,9 +257,8 @@ BOOL JsonBool(const char *json, const char *key, BOOL *value)
     return FALSE;
 }
 
-BOOL JsonString(const char *json, const char *key, wchar_t *value, int valueMax)
+static BOOL ReadString(const char *at, wchar_t *value, int valueMax)
 {
-    const char *at = FindValue(json, key);
     char decoded[1024];
     int used = 0;
 
@@ -267,12 +295,18 @@ BOOL JsonString(const char *json, const char *key, wchar_t *value, int valueMax)
     return MultiByteToWideChar(CP_UTF8, 0, decoded, -1, value, valueMax) > 0;
 }
 
+BOOL JsonString(const char *json, const char *key, wchar_t *value, int valueMax)
+{
+    return ReadString(FindValue(json, key, FALSE), value, valueMax);
+}
+
 BOOL RpcFailed(const char *reply, wchar_t *message, int messageMax)
 {
-    if (!strstr(reply, "\"error\""))
+    const char *error = FindValue(reply, "error", TRUE);
+    if (!error || *error != '{')
         return FALSE;
 
-    if (!JsonString(reply, "message", message, messageMax))
+    if (!ReadString(FindValue(error, "message", TRUE), message, messageMax))
         wcscpy_s(message, messageMax, L"the engine rejected the request");
 
     return TRUE;

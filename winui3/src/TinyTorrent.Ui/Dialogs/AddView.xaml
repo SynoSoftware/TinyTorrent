@@ -1,0 +1,70 @@
+<UserControl
+    x:Class="TinyTorrent_Ui.AddView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TinyTorrent_Ui">
+    <UserControl.Resources>
+        <DataTemplate x:Key="FileTemplate" x:DataType="local:AddFile">
+            <Grid ColumnSpacing="16" Padding="0,4" SizeChanged="OnLayoutChanged" AutomationProperties.Name="{x:Bind Name}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Spacing="2" ToolTipService.ToolTip="{x:Bind Name}">
+                    <TextBlock Text="{x:Bind FileName}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind ParentPath}" Visibility="{x:Bind local:AddView.TextVisibility(ParentPath), Mode=OneTime}" TextTrimming="CharacterEllipsis" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{x:Bind Size}" VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid x:Name="LayoutRoot" SizeChanged="OnLayoutChanged">
+        <StackPanel x:Name="MainView" Spacing="16">
+            <StackPanel x:Name="SourceRegion" Spacing="12">
+                <StackPanel x:Name="SourceActions" Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="BrowseButton" Content="Browse" Click="OnBrowse" AccessKey="B" ToolTipService.ToolTip="Choose a .torrent file" AutomationProperties.HelpText="Choose a .torrent file" />
+                    <Button x:Name="PasteButton" Content="Paste" Click="OnPaste" AccessKey="P" ToolTipService.ToolTip="Paste a magnet link or URL" AutomationProperties.HelpText="Paste a magnet link or URL" />
+                </StackPanel>
+                <StackPanel x:Name="LinkPanel" Spacing="8">
+                    <TextBox x:Name="LinkInput" Header="Magnet link or URL" TextChanged="OnLinkChanged" />
+                    <TextBlock x:Name="LinkError" Visibility="{x:Bind local:AddView.TextVisibility(LinkError.Text), Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+                <TextBlock x:Name="SourceName" Visibility="Collapsed" Style="{ThemeResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.HeadingLevel="Level2" />
+                <TextBlock x:Name="UnknownFiles" Text="Files unknown" Visibility="Collapsed" ToolTipService.ToolTip="File choices become available after adding and receiving metadata." AutomationProperties.HelpText="File choices become available after adding and receiving metadata." />
+            </StackPanel>
+            <Grid x:Name="FileRegion" RowSpacing="8" Visibility="Collapsed">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <StackPanel x:Name="FileTools" Spacing="8">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Files" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                        <Button x:Name="AllButton" Grid.Column="1" Content="Select all" Click="OnAll" ToolTipService.ToolTip="Select all files (Ctrl+A in the file list)" AutomationProperties.HelpText="Select all files (Ctrl+A in the file list)" />
+                        <Button x:Name="NoneButton" Grid.Column="2" Content="None" Click="OnNone" AccessKey="N" />
+                    </Grid>
+                    <TextBlock x:Name="SelectionSummary" AutomationProperties.LiveSetting="Polite" />
+                    <TextBox x:Name="Search" Header="Search files" AutomationProperties.Name="Search files" TextChanged="OnSearch" KeyDown="OnSearchKey" ToolTipService.ToolTip="Search files (Ctrl+F)" AutomationProperties.HelpText="Search files (Ctrl+F)" />
+                </StackPanel>
+                <ListView x:Name="Files" Grid.Row="1" SizeChanged="OnLayoutChanged" SelectionMode="Multiple" IsMultiSelectCheckBoxEnabled="True" ItemTemplate="{StaticResource FileTemplate}" SelectionChanged="OnSelectionChanged" KeyDown="OnFilesKey" AutomationProperties.Name="Files">
+                    <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListView.ItemContainerStyle>
+                </ListView>
+            </Grid>
+            <StackPanel x:Name="DestinationRegion" Spacing="12">
+                <StackPanel x:Name="LocalDestination" Spacing="8">
+                    <TextBlock Text="Save to" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <Grid x:Name="PathDisplay" ColumnSpacing="2" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock x:Name="FolderParent" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="FolderLeaf" Grid.Column="1" Text="No folder selected" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <Button x:Name="ChangeButton" Content="Browse" Click="OnChange" AccessKey="D" />
+                        <Button x:Name="CopyButton" Grid.Column="1" Content="Copy" Click="OnCopy" IsEnabled="False" />
+                    </Grid>
+                </StackPanel>
+                <TextBox x:Name="RemotePath" Visibility="Collapsed" TextChanged="OnPathChanged" />
+                <Button x:Name="SpaceButton" Content="Check space" Click="OnCheckSpace" IsEnabled="False" />
+                <TextBlock x:Name="SpaceResult" Visibility="{x:Bind local:AddView.TextVisibility(SpaceResult.Text), Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <InfoBar x:Name="SpaceWarning" Severity="Warning" IsClosable="False" />
+                <CheckBox x:Name="StartDownloading" Content="Start downloading" IsChecked="True" AccessKey="S" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

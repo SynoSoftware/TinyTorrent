@@ -1,0 +1,43 @@
+<UserControl
+    x:Class="TinyTorrent_Ui.TrackerEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TinyTorrent_Ui"
+    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+  <UserControl.Resources>
+    <DataTemplate x:Key="TrackerTemplate" x:DataType="local:TrackerEntry">
+      <TextBlock Text="{x:Bind Caption, Mode=OneWay}" TextTrimming="CharacterEllipsis"
+                 ToolTipService.ToolTip="{x:Bind Url, Mode=OneWay}" />
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid x:Name="Layout" RowSpacing="8">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Grid>
+      <ListView x:Name="Entries" SelectionMode="Single" SelectionChanged="SelectionChanged"
+                KeyDown="ListKeyDown" ItemTemplate="{StaticResource TrackerTemplate}"
+                AutomationProperties.Name="Tracker draft" />
+      <TextBlock x:Name="EmptyText" Text="No trackers" Visibility="Collapsed"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Grid>
+    <Grid x:Name="Fields" Grid.Row="1" ColumnSpacing="12" RowSpacing="8" SizeChanged="FieldsSizeChanged">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <TextBox x:Name="UrlField" Header="Announce URL" TextChanged="UrlChanged" IsEnabled="False" />
+      <ComboBox x:Name="TierField" Grid.Column="1" Header="Tier" SelectionChanged="TierChanged" IsEnabled="False" />
+    </Grid>
+    <StackPanel x:Name="Commands" Grid.Row="2" Orientation="Horizontal" Spacing="8">
+      <Button x:Name="AddButton" Content="Add" AccessKey="A" Click="AddTracker" ToolTipService.ToolTip="Add tracker (Alt+A)" />
+      <Button x:Name="RemoveButton" Content="Remove" Click="RemoveTracker" IsEnabled="False" />
+    </StackPanel>
+  </Grid>
+</UserControl>

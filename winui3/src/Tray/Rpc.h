@@ -24,7 +24,7 @@ int RpcSend(const char *json, char *reply, int replyMax);
    whether a call worked, and every caller that cares must ask this too. */
 BOOL RpcFailed(const char *reply, wchar_t *message, int messageMax);
 
-/* A scanner, not a parser. It finds the first "key" anywhere in the document, so it is only
+/* A scanner, not a parser. It finds the first member named "key" anywhere in the document, so it is only
    safe on replies where the key cannot also appear nested. That holds for every reply the
    tray reads: session_stats nests only cumulative_stats and current_stats, whose members are
    *_bytes, files_added, seconds_active and session_count -- none of the four names below. */

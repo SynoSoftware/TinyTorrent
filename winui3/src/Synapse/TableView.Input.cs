@@ -122,6 +122,8 @@ public sealed partial class TableView
             UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnRowsPointerCaptureLost), true);
         _itemsView.AddHandler(
             UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(OnRowsDoubleTapped), true);
+        _itemsView.AddHandler(
+            UIElement.TappedEvent, new TappedEventHandler(OnRowsTapped), true);
 
         // Deliberately not handledEventsToo: a cell control that shows its own context flyout marks
         // this handled, and section 15 leaves that control its own menu.
@@ -155,6 +157,8 @@ public sealed partial class TableView
             UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnRowsPointerCaptureLost));
         _itemsView.RemoveHandler(
             UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(OnRowsDoubleTapped));
+        _itemsView.RemoveHandler(
+            UIElement.TappedEvent, new TappedEventHandler(OnRowsTapped));
         _itemsView.ContextRequested -= OnRowsContextRequested;
         _itemsView.SelectionChanged -= OnHostedSelectionChanged;
 
@@ -417,7 +421,7 @@ public sealed partial class TableView
     {
         if (_gestureItem is object item)
         {
-            ApplyPointerSelection(item, _gestureCtrl, _gestureShift);
+            SelectItem(item, _gestureCtrl, _gestureShift);
             return;
         }
 
@@ -425,11 +429,42 @@ public sealed partial class TableView
         CommitSelection(_selection.Clear());
     }
 
-    /// <summary>Section 13's pointer rules, applied through the table's own model.</summary>
-    private void ApplyPointerSelection(object item, bool ctrl, bool shift)
+    /// <summary>Section 13's click, tap, and Space selection, applied through one model operation.</summary>
+    private void SelectItem(object item, bool ctrl, bool shift)
     {
         SyncSelectionPolicy();
-        CommitSelection(_selection.PointerSelect(item, ctrl, shift, View));
+        CommitSelection(_selection.Select(item, ctrl, shift, View));
+    }
+
+    private void OnRowsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (e.PointerDeviceType == PointerDeviceType.Touch
+            && SelectFromTap(e.OriginalSource as DependencyObject,
+                IsDown(VirtualKey.Control), IsDown(VirtualKey.Shift)))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool SelectFromTap(DependencyObject? source, bool ctrl, bool shift)
+    {
+        TableHit hit = HitTest(source, out object? item);
+        if (hit == TableHit.Suppressed)
+        {
+            return false;
+        }
+
+        if (item is not null)
+        {
+            SelectItem(item, ctrl, shift);
+        }
+        else
+        {
+            SyncSelectionPolicy();
+            CommitSelection(_selection.Clear());
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -496,7 +531,7 @@ public sealed partial class TableView
     /// key pressed or released mid-drag does not change the rule the user started under.
     /// </summary>
     private void ApplyMarqueeCoverage() =>
-        CommitSelection(_selection.SetMarqueeSelection(MarqueeItems()));
+        CommitSelection(_selection.SetMarqueeSelection(MarqueeItems(), View));
 
     /// <summary>
     /// What the rectangle selects, under the modifier the gesture started with. Read on every
@@ -579,7 +614,7 @@ public sealed partial class TableView
 
         List<object> restored = new(_gestureSelection);
         CancelGesture();
-        return _selection.SetMarqueeSelection(restored);
+        return _selection.SetMarqueeSelection(restored, View);
     }
 
     // ------------------------------------------------------------------ row drag
@@ -928,7 +963,12 @@ public sealed partial class TableView
             return;
         }
 
-        if (_itemsView is null || RowSurfaceFocusState() == FocusState.Unfocused)
+        if (e.Handled || _itemsView is null || RowSurfaceFocusState() == FocusState.Unfocused)
+        {
+            return;
+        }
+
+        if (IsDown(VirtualKey.Menu) || IsDown(VirtualKey.LeftWindows) || IsDown(VirtualKey.RightWindows))
         {
             return;
         }
@@ -938,14 +978,15 @@ public sealed partial class TableView
 
         e.Handled = e.Key switch
         {
-            VirtualKey.Up => MoveCurrentBy(-1, shift),
-            VirtualKey.Down => MoveCurrentBy(1, shift),
-            VirtualKey.PageUp => MoveCurrentBy(-RowsPerPage(), shift),
-            VirtualKey.PageDown => MoveCurrentBy(RowsPerPage(), shift),
-            VirtualKey.Home => MoveCurrentToEdge(first: true, shift),
-            VirtualKey.End => MoveCurrentToEdge(first: false, shift),
+            VirtualKey.Up => MoveCurrentBy(-1, shift, ctrl),
+            VirtualKey.Down => MoveCurrentBy(1, shift, ctrl),
+            VirtualKey.PageUp => MoveCurrentBy(-RowsPerPage(), shift, ctrl),
+            VirtualKey.PageDown => MoveCurrentBy(RowsPerPage(), shift, ctrl),
+            VirtualKey.Home => MoveCurrentToEdge(first: true, shift, ctrl),
+            VirtualKey.End => MoveCurrentToEdge(first: false, shift, ctrl),
             VirtualKey.A when ctrl => SelectAllFromKeyboard(),
             VirtualKey.Enter => InvokeCurrentItem(),
+            VirtualKey.Space => SelectFocusedItem(ctrl, shift),
             _ => false,
         };
     }
@@ -1024,7 +1065,7 @@ public sealed partial class TableView
         return false;
     }
 
-    private bool MoveCurrentBy(int delta, bool extend)
+    private bool MoveCurrentBy(int delta, bool extend, bool ctrl)
     {
         List<object> eligible = EligibleItems();
         if (eligible.Count == 0)
@@ -1037,10 +1078,10 @@ public sealed partial class TableView
             ? (delta > 0 ? 0 : eligible.Count - 1)
             : Math.Clamp(index + delta, 0, eligible.Count - 1);
 
-        return MoveCurrentTo(eligible[target], extend);
+        return MoveCurrentTo(eligible[target], extend, ctrl);
     }
 
-    private bool MoveCurrentToEdge(bool first, bool extend)
+    private bool MoveCurrentToEdge(bool first, bool extend, bool ctrl)
     {
         List<object> eligible = EligibleItems();
         if (eligible.Count == 0)
@@ -1048,14 +1089,12 @@ public sealed partial class TableView
             return false;
         }
 
-        return MoveCurrentTo(first ? eligible[0] : eligible[^1], extend);
+        return MoveCurrentTo(first ? eligible[0] : eligible[^1], extend, ctrl);
     }
 
-    private bool MoveCurrentTo(object item, bool extend)
+    private bool MoveCurrentTo(object item, bool extend, bool ctrl)
     {
-        CommitSelection(extend
-            ? _selection.Range(item, add: false, View)
-            : _selection.Replace(item));
+        CommitSelection(_selection.Navigate(item, ctrl, extend, View));
 
         ScrollItemIntoView(item);
 
@@ -1063,6 +1102,26 @@ public sealed partial class TableView
         // reached from the arrow, Home, End and page keys, and section 19 requires a visible focus
         // cue for exactly this case.
         FocusRow(item, FocusState.Keyboard);
+        return true;
+    }
+
+    private bool SelectFocusedItem(bool ctrl, bool shift)
+    {
+        if (_itemsView is null || RowSurfaceFocusState() == FocusState.Unfocused)
+        {
+            return false;
+        }
+
+        object? item = FocusManager.GetFocusedElement(XamlRoot) is ListViewItem row
+            ? _itemsView.ItemFromContainer(row)
+            : _selection.Current;
+        SyncSelectionPolicy();
+        if (item is null || !_selection.IsEligible(item))
+        {
+            return false;
+        }
+
+        SelectItem(item, ctrl, shift);
         return true;
     }
 

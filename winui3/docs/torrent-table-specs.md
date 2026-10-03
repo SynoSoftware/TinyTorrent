@@ -330,15 +330,16 @@ interaction predicate, and every column's sort key with it. The control stays
 non-generic because WinUI 3 XAML cannot instantiate an open generic; a
 non-generic class can still have a generic method, and XAML never sees one.
 
-The table captures the schema exactly once, at its first `Loaded` event. A host
+The table captures the structural schema exactly once, at its first `Loaded` event. A host
 may populate it in XAML or code before then; calling `Schema<TRow>()`
 afterwards, changing a setup-only value, or structurally adding, removing, or
 replacing a column afterwards, is a configuration error. This fixed schema
 keeps cell templates, persisted layout, identity semantics, and selection rules
 stable. Runtime changes belong in bindable state or the resolved layout, not in
-the schema.
+the schema. Localized presentation text, including `DisplayName`, remains live
+under section 6.1; changing language does not change structural schema.
 
-`Columns` form the immutable baseline. The table keeps separate effective
+The structural values of `Columns` form the immutable baseline. The table keeps separate effective
 order, visibility, width overrides, and sort state. A drag, resize, visibility
 change, or an assignment to `Layout` MUST NOT mutate the definitions.
 `ResetColumnLayout()` restores the captured baseline. Because that baseline has
@@ -643,9 +644,11 @@ disagreement is no longer representable.
 `HeaderTemplate` is the composition point for an icon, visual label, tooltip,
 or embedded header control. `TableView` deliberately has no separate header
 icon, description, or renderer-metadata API; those are ordinary host content.
-There are no dependency properties on `TableColumn`: sortability is setup-only
-by design, and a localized `DisplayName` already resolves through
-`{StaticResource}`.
+Sortability and structural column definitions are setup-only. `DisplayName` is
+live presentation state: its update must reach generated headers, menus, and
+automation names in place. A one-time `{StaticResource}` lookup is insufficient
+for that contract. Use ordinary observable presentation/binding behavior for
+this value; it does not make the structural schema mutable.
 
 ### 6.1 Column invariants
 
@@ -656,7 +659,8 @@ Required invariants:
   snapshot and is left in declared order after every column a restore did name.
   When supplied it is stable, unique, and non-empty.
 - `DisplayName` is a non-empty localized plain-text name used by generated menus
-  and UI Automation; it need not match the visual header exactly.
+  and UI Automation; it need not match the visual header exactly. It may change
+  after `Loaded` when presentation language changes.
 - `CellTemplate` receives the row item as its `DataContext`/content.
 - `Width`, `MinWidth`, and persisted widths are finite
   device-independent pixels (DIPs). `Width` is greater than zero;
@@ -678,9 +682,19 @@ Required invariants:
 
 The table validates every column definition when it captures the schema at
 `Loaded`. Missing or duplicate values are configuration errors rather than an
-unusable header later. Changing a captured column definition or sort key after
-that point is unsupported and is a configuration error. Values bound inside a
-cell or header template remain live; only the schema definition is fixed.
+unusable header later. Changing a captured structural column definition or sort
+key after that point is unsupported and is a configuration error. Values bound
+inside a cell or header template remain live, as does localized presentation
+text. Column identity, templates, comparers, and layout defaults remain fixed.
+
+A language change refreshes `DisplayName`, generated headers, open menu labels,
+and accessibility metadata through their existing owners. Preserve column
+instances, effective widths/order/visibility, sort state, rows, selection, focus,
+and active edits. Do not rebuild the schema, recreate the table, reset layout, or
+automatically refit every column to change text. Host-provided header templates
+use live localized bindings; translated presentation is never a persistence key.
+The desktop [localisation contract](../../docs/localisation.md) owns catalogues,
+language selection, fallback, and composition protection.
 
 The declared defaults are: visible, hideable, resizable, non-sortable,
 left-aligned, a `Width` of 150 DIPs, a `MinWidth` of 48 DIPs, and an
@@ -1157,10 +1171,17 @@ Keyboard selection:
 - Home/End moves to the first/last row;
 - Shift+Home/End extends to the first/last row;
 - Page Up/Page Down retain normal list-page navigation;
+- Ctrl navigation moves current/focus without replacing selection or its anchor;
+- in `Multiple`, unmodified navigation likewise preserves selection;
 - Ctrl+A selects all rows when multiple selection is enabled;
 - Enter invokes the current row;
-- Space retains native selection semantics unless consumed by an interactive
-  cell control.
+- Space selects the focused passive row using the mode's normal selection
+  semantics and Ctrl/Shift modifiers; interactive cell controls retain Space.
+
+Touch selection occurs on a recognized passive-row tap through the same selection
+model as click and Space. A pan or press-and-hold does not begin that selection
+path; scrolling and context recognition remain native. Tapping empty row surface
+clears selection, and interactive descendants keep their own input.
 
 The control MUST scroll the current item into view when keyboard navigation
 moves beyond the viewport.
@@ -1531,6 +1552,11 @@ itself MUST:
   because Fluent gives position to the focus visual and choice to selection.
   Current remains a model concept that section 13 needs for the anchor and for
   range selection, and nothing measures it because nothing paints it;
+- use one full-height selected-row bar with the existing platform
+  `ListViewItemForegroundSelected` brush. Its Light/Dark treatment is neutral,
+  independent of the user's accent; High Contrast uses system highlight text.
+  This resource choice requires rendered contrast verification and does not
+  itself establish the 3:1 measurement;
 - end a row's own fill at its last column rather than at the edge of the list,
   and show the move cursor over a row that can be dragged. The space to the
   right of the last column belongs to no row, and section 14's marquee is

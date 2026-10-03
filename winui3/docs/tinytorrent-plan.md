@@ -1,4 +1,12 @@
-# TinyTorrent — the approved plan
+# TinyTorrent — historical client plan
+
+**Authority update, 2026-10-03:** The [desktop architecture](../../docs/desktop-architecture.md)
+supersedes this document's runtime, engine, transport, feature scope, packaging,
+and migration instructions. [Localisation](../../docs/localisation.md) and
+[testing](../../docs/testing.md) have their own current authorities. The former
+approval and implementation stages below are historical evidence. Retain useful
+interaction/control guidance only where it fits the current local-libtorrent
+scope; this document does not authorize implementation or restore removed features.
 
 The design of record for the three-process client: the C tray, the bundled Transmission engine, and
 the on-demand WinUI 3 interface, plus the reusable table API underneath the list. Approved by the
@@ -509,9 +517,13 @@ Qt's 3 seconds is derived from nothing.
 **What varies is the batch's contents, not the interval.** Every tick carries `session_stats`. The
 `torrent_get` element is added only when the *previous* tick's stats say there is something to learn:
 active count above zero, non-zero session rates, a mutation landed, `torrent_count` disagreeing with
-the cache, or the paused count moving. With everything stopped the tick is a few dozen bytes.
+the cache, or the paused count moving. With everything stopped most ticks are a few dozen bytes;
+every 30 completed ticks requests a full summary/facts sweep. That repair cadence is the daemon's
+60-second recent-change window divided by the existing two-second tick, without another timer or
+setting. Quiet external edits converge within 30 successful polls, nominally one minute plus
+accumulated request time.
 
-So there is no idle interval to choose, **no second number to argue about, and no "poll interval"
+So there is no idle interval to choose, **no independently chosen cadence, and no "poll interval"
 setting to drift** — one of the four settings the old frontend gave two owners and two defaults.
 
 Non-overlapping ticks need no flag: the timer is non-repeating and restarts from the tick's own
@@ -519,14 +531,15 @@ completion. A tick cannot overlap because the next one does not exist until this
 
 ### Why a missed removal cannot go unnoticed
 
-`session_stats.torrent_count` rides every tick. Any membership drift — a removal we missed, an add
-from elsewhere, a watch-folder add — makes it disagree with the cache count, and the next tick is
+`session_stats.torrent_count` rides every tick. Membership drift that changes the count — a removal
+we missed, an add from elsewhere, a watch-folder add — makes it disagree with the cache, and the next tick is
 promoted to a full sweep. **One integer compare, within one tick, whether or not we were even
 connected when it happened.** An add can never be missed anyway: constructing a torrent calls
 `mark_changed()`, so it is always in the next delta.
 
-That demotes the 60-second sweep from safety net to a named residual case: with everything stopped,
-another client can rename a torrent or change its labels, and neither moves a counter we watch.
+An equal-count removal/addition, rename or label edit can leave every watched counter unchanged.
+The periodic quiet sweep repairs these cases through the existing poll/cache owners, including
+changes older than the daemon's delta-retention window. Other quiet ticks remain statistics-only.
 
 **Rows absent from a delta have their rates zeroed.** Provable, not a heuristic: any byte moved bumps
 `date_changed`, so a torrent missing from a delta has moved nothing for ≥60 s while the daemon's rate
@@ -679,8 +692,9 @@ that tree. Every part of managing `transmission-daemon.exe` is new work.
   `GetSystemMetrics(SM_CXSMICON)` always returns the 96-DPI value and the shell upscales a 16 px icon.
   Compounding it, four of the five entries in the current `.ico` are **non-square** (16×17, 24×26,
   32×35, 48×52), so every small render is a stretch. Ship square 16/20/24/32/40/48/64/256.
-- **No dark-mode menu.** A Win32 popup menu renders light on a dark taskbar without `SetPreferredAppMode`
-  or owner-draw.
+- **Retired appearance finding:** the old requirement to force a dark tray menu
+  with undocumented hooks or owner-draw is withdrawn. Follow the desktop
+  architecture's standard Win32 menu contract.
 - No `WM_QUERYENDSESSION` handling — covered above, and it is why every Windows restart currently
   costs a full re-verify.
 - `WINHTTP_ACCESS_TYPE_DEFAULT_PROXY` on a `127.0.0.1` connection, which subjects loopback traffic to
@@ -1279,10 +1293,10 @@ the bootstrap initializer, so a machine without the runtime fails before `Main` 
 The installer checks for it and fetches it; the tray should also fail gracefully rather than
 launching a UI that dies silently.
 
-**Three things a native tray gets wrong if nobody says them.** The icon disappears when Explorer
-restarts unless `TaskbarCreated` is registered and handled. A Win32 popup menu does **not** follow
-dark mode on its own — it needs the undocumented `SetPreferredAppMode`, or owner-draw, and without
-either it is a white menu on a dark desktop. And the tray must run **non-elevated**: started elevated
+**Historical native tray notes.** The icon disappears when Explorer
+restarts unless `TaskbarCreated` is registered and handled. The previous advice
+to force dark menus is withdrawn; the desktop architecture owns menu behavior.
+The tray must run **non-elevated**: started elevated
 by an installer it will not accept drag-and-drop from Explorer and will look broken for a reason
 nobody guesses.
 

@@ -240,6 +240,10 @@ public sealed partial class TableView : Control
     {
         _detached = true;
         _settleDue?.Stop();
+        if (!CancelCommittedGesture())
+        {
+            CancelGesture();
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -248,6 +252,7 @@ public sealed partial class TableView : Control
 
         if (_schemaCaptured)
         {
+            RebuildView();
             return;
         }
 

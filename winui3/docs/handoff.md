@@ -1,16 +1,28 @@
 # TinyTorrent — handover
 
+**Current direction, 2026-10-03:** [Desktop architecture](../../docs/desktop-architecture.md),
+[localisation](../../docs/localisation.md), and [testing](../../docs/testing.md)
+govern the new local-libtorrent product. Implementation is paused. Runtime and
+release decisions below belong to the historical Transmission client; use them
+as evidence, not instructions to preserve its architecture or features.
+
+Historical delivery work, 2026-09-13, is tracked in `delivery-validation.md`. The accepted
+interface proposal and its review gates are in `design-review.md`. Read those records
+before the historical notes below. Desktop verification is stopped by the user; source
+and build work must not be described as visual or usability acceptance.
+
 Where the work stands, what is waiting on the owner, and the things that cost time to learn. Written
 because the owner is pausing; read it before starting, then consult it.
 
-It carries only what the repository cannot tell you. The design is in `tinytorrent-plan.md`, what was
+It carries only what the repository cannot tell you. The historical design is in `tinytorrent-plan.md`, what was
 built is in `git log`, and what the table must do is in `torrent-table-specs.md`.
 
 ## Which document is which
 
 | Document | What it is |
 |---|---|
-| `tinytorrent-plan.md` | The approved plan for the whole client — three processes, the transport, the session, the tray, the table API. **The design of record.** Describes work that is already built as if it were future; that is expected. |
+| `../../docs/desktop-architecture.md` | Current runtime, product scope, ownership, and migration authority. |
+| `tinytorrent-plan.md` | Historical three-process Transmission plan and implementation rationale; current scope takes precedence. |
 | `torrent-table-specs.md` | The table's normative specification. Sections 1–20 and Appendix B bind; Appendix A is reference, and A.1 is the torrent host's column profile. |
 | `tableview-winui3-design.md` | How the specification is built in WinUI 3. The specification wins where they differ; that document says so itself. |
 | `tableview-implementation-plan.md` | The table control's own build order, from before the client work started. |
@@ -27,15 +39,15 @@ Stages are the ones named in `tinytorrent-plan.md`; that document says what each
 |---|---|
 | 0 projects, 1A table API, 1B transport, 1C tray | Committed in `3ea4363` |
 | 3 session layer | Committed in `bff687a`, together with the selection cue, the demo harness and the column guard |
-| 2 drive all 24 RPC methods against a live daemon | **Not started** |
-| 4 UI shell | **Not started** |
-| 5 inspector, including the Pieces map | **Not started** |
-| 6 dialogs, preferences, connection profiles | **Not started** |
+| 2 drive all 24 RPC methods against a live daemon | Passed against isolated Transmission 4.1.1; connectivity limits in delivery validation |
+| 4 UI shell | Implemented; revised design integration and desktop acceptance pending |
+| 5 inspector, including the Pieces map | Six views implemented; source corrections reviewed, desktop acceptance pending |
+| 6 dialogs, preferences, connection profiles | Revised native controls and recovery passed source review/Release build; desktop acceptance and TOFU remain open |
 | 7 Inno Setup installer | **Not started** |
 
-**Stages 4 to 6 are the bulk of what remains.** Everything committed so far is plumbing beneath them:
-a table control, a protocol library, a session that merges ticks, and a tray. There is no window, no
-inspector and no dialog. Judge remaining effort by that, not by the number of stages left.
+Stages 4–6 now have production implementations. They have not passed the owner's
+requested final interface test. Release staging is being verified separately; it is
+not an installer or a clean-machine acceptance result.
 
 **Stage 3 shipped ahead of stage 2, out of the planned order.** The session layer was built against
 fakes rather than against a daemon that stage 2 would have driven first. That is why the transport is
@@ -45,25 +57,20 @@ the least-proven committed piece — see *What is verified* below.
 
 Both are settled enough to work around and neither can be closed by an engineer.
 
-### The accent bar's contrast is unbounded
+### Selection contrast requires rendered verification
 
-The selected-row cue is an accent bar. It draws from the platform's selection-indicator brush, which
-follows the user's accent colour. So its contrast is whatever the user picked, and no measurement
-taken here holds anywhere else.
+The 2026-10-02 fix/polish iteration resolves the earlier accent choice by keeping the
+single selected-row bar and using the platform `ListViewItemForegroundSelected`
+brush. Light/Dark resolve to primary text; High Contrast resolves to system
+highlight text. The selection bar is now neutral rather than accent-coloured,
+without an additional cue or a new resource key.
 
-Measured on this machine's default blue: **5.11:1 Light, 8.12:1 Dark**, against the §19 requirement
-of 3:1 for a non-text cue. Windows ships Gold `#FFB900` as a standard swatch, which lands near
-**2.03:1 in Light**. So `RowCueContrastTests` passes here and would fail on a machine set to Gold.
-Same code, different result.
-
-Three options were put to the owner:
-
-1. Accept that the cue is accent-dependent, and scope the test to the default palette.
-2. Make the cue accent-independent, and lose the accent identity the owner asked for.
-3. Keep the bar, and add a second cue that carries the 3:1 on its own.
-
-`tinytorrent-plan.md` records the constraint this disproved: "measured ≥3:1" is not a property any
-accent-derived cue can hold.
+The previous accent bar measured 5.11:1 Light and 8.12:1 Dark with this machine's
+blue accent, but standard Gold landed near 2.03:1 in Light. Those measurements
+describe the replaced implementation. The new brush removes that accent
+dependency; it does not establish rendered compliance. `RowCueContrastTests`
+includes a low-contrast accent override and remains unrun during this iteration,
+along with actual Light/Dark/High Contrast and touch/keyboard acceptance.
 
 ### The GPLv3 election
 
@@ -72,10 +79,10 @@ source link is sufficient. GPLv2 §3 alone would not allow that — it offers on
 a three-year written offer, or passing along an offer received. The link route is GPLv3 §6(d), and
 Transmission is GPLv2-or-later, so the election is available.
 
-Nothing acts on it yet. The installer that must carry `LICENSES\transmission-COPYING.txt`, the
-statement of election and the version-pinned source link is stage 7, which does not exist. The
-separate question of whether shipping an unmodified binary spoken to over a documented protocol is
-aggregation rather than a combined work is still open, and is the owner's to confirm before release.
+The staged candidate now carries the licence, election and source record for the tested
+Transmission 4.1.1 bytes; see `../LICENSES/transmission-4.1.1.md` for the exact evidence
+and remaining provenance limits. Stage 7's installer and clean-machine verification
+remain open. This candidate is not a distribution-readiness claim.
 
 ## Traps
 
@@ -110,10 +117,9 @@ a port you started yourself. The plan's own rig uses 9199.
 
 ### The real table sources are under `src/Synapse/`
 
-`winui3/TableCellsPanel.cs` and `winui3/TableRowVisual.cs` **at the repository root** are stale
-uncompiled duplicates whose contents differ from the real files. No project builds them. They exist
-only because nothing has deleted them, and they will mislead a grep. Take `src/Synapse/` as the
-source and disregard a hit in either root file.
+`src/Synapse/` is the sole table implementation. The divergent, uncompiled copies of
+`TableCellsPanel.cs` and `TableRowVisual.cs` formerly at the `winui3/` root were removed
+during the 2026-10-02 review.
 
 ### Two suites are cheap; one takes the machine
 

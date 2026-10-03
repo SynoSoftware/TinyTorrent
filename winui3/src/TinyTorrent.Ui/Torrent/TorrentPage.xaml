@@ -6,8 +6,12 @@
     xmlns:local="using:TinyTorrent_Ui"
     xmlns:tt="using:TinyTorrent"
     xmlns:t="using:Synapse"
+    xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    AllowDrop="True"
+    DragOver="OnDragOver"
+    Drop="OnDrop"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -237,167 +241,132 @@
 
     </Page.Resources>
 
-    <Grid Padding="12" RowSpacing="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <Grid x:Name="Shell" Padding="12" RowSpacing="8" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <!-- filter strip: state filter and text search are the host's, never the table's -->
-        <Grid Grid.Row="0" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Torrents" VerticalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level1"
+                           Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ComboBox x:Name="Connections" Grid.Column="1" Header="Connection"
+                          MinWidth="160" SelectionChanged="OnConnectionChanged"
+                          AutomationProperties.Name="Connection" />
+                <Button x:Name="ConnectionsButton" Grid.Column="2" Content="Connections" VerticalAlignment="Bottom"
+                        Click="OnConnectionsClick" />
+            </Grid>
 
-            <TextBlock Grid.Column="0"
-                       Text="Torrents"
-                       VerticalAlignment="Center"
-                       Style="{StaticResource SubtitleTextBlockStyle}" />
+            <CommandBar x:Name="Commands" Grid.Row="1" DefaultLabelPosition="Right" HorizontalContentAlignment="Stretch">
+                <CommandBar.Content>
+                    <Grid x:Name="SearchTools" SizeChanged="OnSearchLayoutChanged">
+                        <Grid x:Name="SearchFields" HorizontalAlignment="Left" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <AutoSuggestBox x:Name="SearchBox" MaxWidth="220" MinWidth="{ThemeResource TextControlThemeMinWidth}" VerticalAlignment="Center"
+                                            PlaceholderText="Search torrent names" QueryIcon="Find"
+                                            TextChanged="OnSearchTextChanged"
+                                            AutomationProperties.Name="Search torrents" />
+                            <DropDownButton x:Name="FilterButton" Grid.Column="1" Content="Filter" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            SizeChanged="OnSearchLayoutChanged" ToolTipService.ToolTip="Filter torrents (Ctrl+Shift+F)"
+                                            AutomationProperties.Name="Filter torrents">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout x:Name="Filters" Opening="OnFiltersOpening" Closed="OnFiltersClosed">
+                                        <RadioMenuFlyoutItem x:Name="AllFilter" Text="All torrents" Tag="all" GroupName="TorrentFilter" Click="OnFilterClick" />
+                                        <RadioMenuFlyoutItem Text="Downloading" Tag="downloading" GroupName="TorrentFilter" Click="OnFilterClick" />
+                                        <RadioMenuFlyoutItem Text="Seeding" Tag="seeding" GroupName="TorrentFilter" Click="OnFilterClick" />
+                                        <RadioMenuFlyoutItem Text="Paused" Tag="paused" GroupName="TorrentFilter" Click="OnFilterClick" />
+                                        <RadioMenuFlyoutItem Text="Errors" Tag="error" GroupName="TorrentFilter" Click="OnFilterClick" />
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutSubItem x:Name="LabelsMenu" Text="Labels" />
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </Grid>
+                    </Grid>
+                </CommandBar.Content>
+                <AppBarButton x:Name="AddButton" Label="Add" Click="OnAddClick" KeyboardAcceleratorTextOverride="Ctrl+O" />
+                <AppBarButton x:Name="StartButton" Label="Start" IsEnabled="False" Click="OnStartClick" />
+                <AppBarButton x:Name="PauseButton" Label="Pause" IsEnabled="False" Click="OnPauseClick" />
+                <AppBarButton x:Name="RemoveButton" Label="Remove" IsEnabled="False" Click="OnRemoveClick" />
+                <CommandBar.SecondaryCommands>
+                    <AppBarToggleButton x:Name="DetailsButton" Label="Details" Click="OnDetailsClick" />
+                    <AppBarButton x:Name="FitButton" Label="Fit columns" Click="OnFitColumnsClick" />
+                    <AppBarButton x:Name="PreferencesButton" Label="Preferences" KeyboardAcceleratorTextOverride="Ctrl+,"
+                                  Click="OnPreferencesClick" />
+                    <AppBarButton x:Name="AppearanceButton" Label="Appearance">
+                        <AppBarButton.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="System" Tag="Default" Click="OnThemeClick" />
+                                <MenuFlyoutItem Text="Light" Tag="Light" Click="OnThemeClick" />
+                                <MenuFlyoutItem Text="Dark" Tag="Dark" Click="OnThemeClick" />
+                            </MenuFlyout>
+                        </AppBarButton.Flyout>
+                    </AppBarButton>
+                </CommandBar.SecondaryCommands>
+            </CommandBar>
 
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        Spacing="4"
-                        VerticalAlignment="Center">
-                <ToggleButton x:Name="FilterAll"
-                              Content="All"
-                              Tag="all"
-                              IsChecked="True"
-                              Click="OnFilterClick" />
-                <ToggleButton x:Name="FilterDownloading"
-                              Content="Downloading"
-                              Tag="downloading"
-                              Click="OnFilterClick" />
-                <ToggleButton x:Name="FilterSeeding"
-                              Content="Seeding"
-                              Tag="seeding"
-                              Click="OnFilterClick" />
+            <StackPanel Grid.Row="2" Spacing="8">
+                <InfoBar x:Name="ConnectionNotice" IsOpen="False" IsClosable="False">
+                    <InfoBar.ActionButton>
+                        <Button x:Name="RetryButton" Content="Retry" Click="OnRetryClick" AccessKey="R" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+                <InfoBar x:Name="CommandNotice" Severity="Error" Title="Action failed" IsOpen="False" />
             </StackPanel>
 
-            <AutoSuggestBox Grid.Column="3"
-                            x:Name="SearchBox"
-                            Width="260"
-                            VerticalAlignment="Center"
-                            PlaceholderText="Search names"
-                            QueryIcon="Find"
-                            TextChanged="OnSearchTextChanged"
-                            AutomationProperties.Name="Search torrents" />
-
-            <Button Grid.Column="4"
-                    Content="Fit all columns"
-                    VerticalAlignment="Center"
-                    Click="OnFitColumnsClick"
-                    ToolTipService.ToolTip="Fit every visible column to the content on screen" />
-
-        </Grid>
-
-        <!--
-            The gestures below are the table's, and none of them announces itself on screen. A host
-            that ships this table would teach them once; this sample has to teach them every time.
-        -->
-        <Border Grid.Row="1"
-                Padding="12,8"
-                CornerRadius="4"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                BorderThickness="1"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <FontIcon Grid.Column="0"
-                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                          Glyph="&#xE946;"
-                          FontSize="15"
-                          VerticalAlignment="Top"
-                          Margin="0,1,0,0"
-                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                <TextBlock Grid.Column="1" TextWrapping="Wrap" LineHeight="19">
-                    <Run FontWeight="SemiBold">Fit one column</Run>
-                    <Run>— double-click the line between two headers, or right-click a header.</Run>
-                    <LineBreak />
-                    <Run FontWeight="SemiBold">Fit every column</Run>
-                    <Run>— the Fit all columns button.</Run>
-                    <LineBreak />
-                    <Run FontWeight="SemiBold">Reorder columns</Run>
-                    <Run>— drag a header sideways onto the insertion line.</Run>
-                    <LineBreak />
-                    <Run FontWeight="SemiBold">Select rows</Run>
-                    <Run>— click, Shift-click for a range, Ctrl-click to add one.</Run>
-                    <LineBreak />
-                    <Run FontWeight="SemiBold">Reorder rows</Run>
-                    <Run>— drag the selection, or right-click a row for Move up and Move down. Watch the Queue column.</Run>
-                </TextBlock>
-            </Grid>
-        </Border>
-
-        <t:TableView x:Name="Table"
-                     Grid.Row="2"
-                     AutomationProperties.Name="Torrents"
-                     IsFitAllButtonEnabled="True"
-                     IsRowReorderingEnabled="True"
-                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                     BorderThickness="1"
-                     CornerRadius="4"
-                     LayoutChanged="OnLayoutChanged"
-                     SelectionStateChanged="OnSelectionStateChanged"
-                     RowContextRequested="OnRowContextRequested"
-                     RowsReorderRequested="OnRowsReorderRequested">
-
-            <t:TableView.LoadingContent>
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="12">
-                    <ProgressRing IsActive="True" Width="32" Height="32" />
-                    <TextBlock Text="Contacting the daemon"
-                               HorizontalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
-            </t:TableView.LoadingContent>
-
-            <t:TableView.EmptyContent>
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="8">
-                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                              Glyph="&#xE896;"
-                              FontSize="28"
-                              Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Text="No torrents yet"
-                               HorizontalAlignment="Center"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Text="Add a torrent file or a magnet link to start."
-                               HorizontalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
-            </t:TableView.EmptyContent>
-
-            <t:TableView.NoResultsContent>
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="8">
-                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                              Glyph="&#xE721;"
-                              FontSize="28"
-                              Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock x:Name="NoResultsHeadline"
-                               Text="No matching torrents"
-                               HorizontalAlignment="Center"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Text="Change the filter or clear the search box."
-                               HorizontalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
-            </t:TableView.NoResultsContent>
-
+            <Grid x:Name="ContentArea" Grid.Row="3" SizeChanged="OnContentSizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition x:Name="InspectorRow" Height="Auto" />
+                </Grid.RowDefinitions>
+                <t:TableView x:Name="Table"
+                             AutomationProperties.Name="Torrents"
+                             IsFitAllButtonEnabled="True"
+                             IsRowReorderingEnabled="True"
+                             LayoutChanged="OnLayoutChanged"
+                             SelectionStateChanged="OnSelectionStateChanged"
+                             RowContextRequested="OnRowContextRequested"
+                             RowsReorderRequested="OnRowsReorderRequested">
+                    <t:TableView.LoadingContent>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                            <ProgressRing IsActive="True" Width="32" Height="32" />
+                            <TextBlock x:Name="LoadingText" Text="Connecting to the engine"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </t:TableView.LoadingContent>
+                    <t:TableView.EmptyContent>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                            <TextBlock x:Name="EmptyHeadline" Text="No torrents yet"
+                                       HorizontalAlignment="Center"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <Button x:Name="EmptyAddButton" Content="Add" Click="OnAddClick"
+                                    ToolTipService.ToolTip="Add a torrent file or a magnet link" />
+                        </StackPanel>
+                    </t:TableView.EmptyContent>
+                    <t:TableView.NoResultsContent>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                            <TextBlock Text="No matching torrents" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <Button x:Name="ResetButton" Content="Reset" HorizontalAlignment="Center" Click="OnResetClick"
+                                    ToolTipService.ToolTip="Show all torrents" />
+                        </StackPanel>
+                    </t:TableView.NoResultsContent>
             <t:TableView.Columns>
                 <t:TableColumn x:Name="NameColumn"
                                Id="name"
@@ -471,64 +440,60 @@
                                IsVisible="False"
                                CellTemplate="{StaticResource CompletedOnCell}" />
             </t:TableView.Columns>
-        </t:TableView>
-
-        <!--
-            Every table event the host receives, newest first. It is the only place a negative
-            result shows: a drop that changes nothing adds no line.
-        -->
-        <Border Grid.Row="3"
-                Height="132"
-                Padding="10,6"
-                CornerRadius="4"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                BorderThickness="1"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-            <Grid RowSpacing="4">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0"
-                               Text="Table events"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-
-                    <TextBlock Grid.Column="1"
-                               x:Name="StatusLine"
-                               VerticalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               TextTrimming="CharacterEllipsis" />
-
-                    <Button Grid.Column="2"
-                            Content="Clear"
-                            Padding="10,2"
-                            Click="OnClearEventsClick" />
+                </t:TableView>
+                <local:DetailsSplitter x:Name="InspectorDivider" Grid.Row="1" Height="{x:Bind Shell.RowSpacing, Mode=OneTime}"
+                                  Visibility="Collapsed" IsTabStop="True" UseSystemFocusVisuals="True"
+                                  AutomationProperties.Name="Resize torrent details"
+                                  ToolTipService.ToolTip="Drag to resize details, or use Up and Down arrows"
+                                  DragDelta="OnInspectorDragDelta" KeyDown="OnInspectorKeyDown">
+                    <local:DetailsSplitter.Template>
+                        <ControlTemplate TargetType="local:DetailsSplitter">
+                            <primitives:Thumb x:Name="PART_Thumb" IsTabStop="False" AutomationProperties.AccessibilityView="Raw">
+                            <primitives:Thumb.Template>
+                            <ControlTemplate TargetType="primitives:Thumb">
+                            <Grid x:Name="DividerSurface" Background="{ThemeResource ControlFillColorDefaultBrush}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="DividerSurface.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" /></VisualState.Setters></VisualState>
+                                        <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="DividerSurface.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" /></VisualState.Setters></VisualState>
+                                        <VisualState x:Name="Disabled" />
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                        BorderThickness="0,1,0,0" VerticalAlignment="Center" />
+                            </Grid>
+                            </ControlTemplate>
+                            </primitives:Thumb.Template>
+                            </primitives:Thumb>
+                        </ControlTemplate>
+                    </local:DetailsSplitter.Template>
+                </local:DetailsSplitter>
+                <Grid x:Name="InspectorHost" Grid.Row="2" Visibility="Collapsed">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Button x:Name="DetailsBack" Content="Back" ToolTipService.ToolTip="Back to torrents"
+                            Visibility="Collapsed" Click="OnDetailsBack" />
+                    <local:InspectorView x:Name="Inspector" Grid.Row="1" SizeChanged="OnInspectorSizeChanged" />
                 </Grid>
-
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Auto"
-                              AutomationProperties.Name="Table events">
-                    <ItemsControl ItemsSource="{x:Bind Events}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <TextBlock Text="{x:Bind}"
-                                           FontFamily="Consolas"
-                                           FontSize="12"
-                                           TextWrapping="NoWrap" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
             </Grid>
-        </Border>
-    </Grid>
+
+            <Grid Grid.Row="4" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusLine" Text="Connecting" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           ToolTipService.ToolTip="{x:Bind StatusLine.Text, Mode=OneWay}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SpaceText" Grid.Column="1" Text="Free space unavailable" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                    <ToolTipService.ToolTip><ToolTip x:Name="SpaceTooltip" /></ToolTipService.ToolTip>
+                </TextBlock>
+                <ToggleButton x:Name="AltSpeedButton" Grid.Column="2" Content="Alternative limits"
+                              IsEnabled="False" Click="OnAltSpeedClick"
+                              ToolTipService.ToolTip="Use the alternative download and upload limits" />
+            </Grid>
+        </Grid>
 </Page>

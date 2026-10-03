@@ -10,9 +10,9 @@ namespace Synapse;
 /// row template's root, wrapping the cells panel.
 /// </summary>
 /// <remarks>
-/// The container cannot supply the selected cue on its own. Its fill measures 1.08:1 in Light and
-/// 1.18:1 in Dark against section 19's 3:1 requirement, so the bar in the template carries the
-/// rest; a contrast theme is the one place the fill already meets it.
+/// The container's fill measured 1.08:1 in Light and 1.18:1 in Dark against section 19's 3:1
+/// requirement. The template's single bar uses the selected-item foreground so its contrast
+/// does not depend on the user's accent.
 /// </remarks>
 public sealed partial class TableRowVisual : ContentControl
 {

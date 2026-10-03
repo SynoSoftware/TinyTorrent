@@ -246,10 +246,12 @@ text:
 
 - **Local text search.** Removed from the component. The host filters before
   assigning `ItemsSource`.
-- **Runtime schema changes.** Columns, search fields, selection mode, the
+- **Runtime schema changes.** Structural column definitions, search fields, selection mode, the
   identity selector, the interaction predicate and every comparer are captured
   once at first `Loaded`. No column can be added at runtime, ever. Lifting this
-  later is a breaking change to the contract, not an addition.
+  later is a breaking change to the contract, not an addition. Localized
+  presentation text is the live exception defined by the current table
+  specification §6.1; changing it does not recapture the schema.
 
 ---
 

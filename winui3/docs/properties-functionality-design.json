@@ -1,0 +1,743 @@
+{
+  "scope": "WinUI3 torrent properties FUNCTIONALITY, not label-only redesign",
+  "date": "2026-09-14",
+  "method": "Independent read-only functionality design from current local WinUI/qB source and native WinApp find-ui scenarios. No production edits/build/GUI.",
+  "native_authority": {
+    "skill": "C:/Users/user/.codex/skills/winui-design/SKILL.md",
+    "cli": "C:/Users/user/.nuget/packages/microsoft.windows.sdk.buildtools.winapp/0.6.1/tools/win-x64/winapp.exe",
+    "verified_scenarios": [
+      "gallery-treeview-2",
+      "gallery-commandbarflyout-1",
+      "gallery-menuflyout-5"
+    ],
+    "decision": "Keep data-bound native TreeView and existing command owners; MenuFlyout is smaller for these textual context commands than adding another CommandBarFlyout toolbar layer."
+  },
+  "qb_snapshot": "9560ef02ae0c3eac88a59e65387c4f7050605192",
+  "grade_scale": {
+    "min": 0,
+    "max": 5,
+    "basis": "Subjective source-based value, not live validation or measured performance",
+    "bloat": "Higher is worse: extra controls/state/implementation/runtime burden"
+  },
+  "preserve": [
+    "Six existing tab order General/Files/Peers/Trackers/Speed/Pieces",
+    "Lower resizable inspector",
+    "All 11 main torrent columns",
+    "Pieces bitmap map",
+    "One file geometry/selection/gesture/draft/save owner",
+    "Existing native brushes/typography/Lucide authority",
+    "F6/Alt+1..6/Ctrl+Tab/text editing shortcuts"
+  ],
+  "already_done": [
+    "General subset Total size",
+    "Transfer/Information before Limits",
+    "Known Last activity in Transfer",
+    "Peer selected-facts deduplication/direction-specific diagnosis",
+    "Tracker plain outcome and truthful relative next",
+    "Clean General read-first focus; tracker table focus; dirty editor preserved",
+    "Shared Files headers/narrow-column hiding",
+    "Speed actual elapsed x and explicit gap segments"
+  ],
+  "candidates": [
+    {
+      "id": "files-context",
+      "rank": 1,
+      "tab": "Files",
+      "title": "Native file context menu sharing existing commands",
+      "decision": "now",
+      "status": "missing",
+      "origin": "qB parity, native Windows adaptation",
+      "grades": {
+        "utility": 5,
+        "necessity": 5,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 1
+      },
+      "native_interaction": "One MenuFlyout: Open/Folder when local, Download/Skip, Priority submenu, Rename, Copy. Reuse existing toolbar handlers and SelectedPaths packet; no second command implementation.",
+      "focus_state": "Shift+F10/Menu opens on current row; right-click preserves selected packet when invoked inside it, targets invoked unselected row otherwise. Close returns to same row. Existing editor Ctrl+C unaffected.",
+      "acceptance": [
+        "Toolbar/menu invoke identical SelectedPaths and ChangeFiles behavior",
+        "Folder selection normalizes descendants once",
+        "Unselected right-click acts on clicked row, not stale selection",
+        "No RPC when menu closes without command",
+        "Native selection gestures retained"
+      ],
+      "cost": "Adds only native menu objects and command wiring; no dependency/runtime service. Instantiate on demand; avoid persistent per-row flyouts.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 423,
+          "note": "Native qB file context actions"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 515,
+          "note": "Existing mutation authority"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 508,
+          "note": "Canonical SelectedPaths"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 224,
+          "note": "Native multiple-selection TreeView"
+        }
+      ]
+    },
+    {
+      "id": "files-open",
+      "rank": 2,
+      "tab": "Files",
+      "title": "Open selected local file through one Windows command",
+      "decision": "now",
+      "status": "missing",
+      "origin": "qB parity",
+      "grades": {
+        "utility": 5,
+        "necessity": 5,
+        "ergonomics": 5,
+        "wow": 3,
+        "bloat": 1
+      },
+      "native_interaction": "Open command in file menu and toolbar overflow; Enter on selected file invokes same owner. Use platform file association only for exactly one existing local target.",
+      "focus_state": "Enter in Search still focuses tree; text editors retain Enter semantics. Local selected file required; remote target never interpreted as local path. No silent opening of absent or renamed-incomplete target.",
+      "acceptance": [
+        "One local selected existing file opens exact target",
+        "No-selection/multi-selection/remote commands unavailable",
+        "Selected folder Enter opens existing local folder or retains defined native tree behavior consistently",
+        "No mutation/RPC needed to launch local target",
+        "Errors use existing ErrorBar"
+      ],
+      "cost": "One native shell launch path, existing file/index/name data; no new opener service/dependency. Actual path handling must account for backend incomplete names before enabling file Open.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 90,
+          "note": "Open doubleclick and Enter"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 144,
+          "note": "Native Enter file opening"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 648,
+          "note": "Current Enter only moves search focus"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/TorrentPage.xaml.cs",
+          "line": 1467,
+          "note": "Existing folder shell launch owner"
+        }
+      ]
+    },
+    {
+      "id": "files-folder",
+      "rank": 3,
+      "tab": "Files",
+      "title": "Reveal selected file in its local containing folder",
+      "decision": "now",
+      "status": "missing",
+      "origin": "qB parity, Windows Explorer adaptation",
+      "grades": {
+        "utility": 5,
+        "necessity": 4,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 1
+      },
+      "native_interaction": "Folder command beside Open in file MenuFlyout; selected file reveals its containing folder, selected folder opens that folder. Root torrent Folder already exists in General; this command is specific to selected path.",
+      "focus_state": "Keyboard Menu then Folder; same selected-row focus return; local-only with known directory. No extra always-visible button unless necessary.",
+      "acceptance": [
+        "Nested file goes to its directory instead of torrent root",
+        "Known existing containing directory remains usable even if file not yet created",
+        "Remote location cannot launch Windows Explorer against remote server filesystem string"
+      ],
+      "cost": "Reuse one local shell owner with target distinction; no polling, dependency or path cache.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 425,
+          "note": "Open containing folder"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 90,
+          "note": "Local/remote owner"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 691,
+          "note": "Full selected file Path"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 671,
+          "note": "Current General folder action"
+        }
+      ]
+    },
+    {
+      "id": "tracker-edit-target",
+      "rank": 4,
+      "tab": "Trackers",
+      "title": "Edit selected tracker in one native staged list editor",
+      "decision": "now",
+      "status": "whole-list Edit exists; selected-row targeting missing",
+      "origin": "qB parity adapted to one WinUI draft",
+      "grades": {
+        "utility": 5,
+        "necessity": 4,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 2
+      },
+      "native_interaction": "Replace multiline raw editor in the same surface with native staged list and one selected URL TextBox. Edit/F2/context route shares one canonical tier/URL draft and existing editor owner.",
+      "focus_state": "F2 enters selected URL; Add creates empty entry in selected tier and focuses URL. Delete removes only with draft list focus; TextBox Delete stays native. Arrows navigate rows, Ctrl+S existing Save, Escape existing resolution. Cancel returns status row. No per-row editable control/tab stops.",
+      "acceptance": [
+        "No parallel raw editor or independent URL text cache",
+        "Unedited tier groups and duplicate occurrences round-trip exactly",
+        "Add supports empty list and last removal uses backend-valid empty list",
+        "Invalid input remains editable and prevents Save through existing error path",
+        "No synthetic discovery or backup status row guessed as draft entry",
+        "No RPC before Save; one whole TrackerList request",
+        "Refresh cannot overwrite staged edits"
+      ],
+      "cost": "Medium effort justified by ordinary task completion. Small private domain draft, one parser/serializer, existing save owner; no generic framework/dependency. Allocated only while editing.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 107,
+          "note": "F2/doubleclick edit"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 365,
+          "note": "Existing editor/draft entry"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 324,
+          "note": "One TrackerList save contract"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 260,
+          "note": "Existing multiline editor"
+        }
+      ]
+    },
+    {
+      "id": "tracker-add",
+      "rank": 5,
+      "tab": "Trackers",
+      "title": "Add tracker through existing staged editor",
+      "decision": "now",
+      "status": "possible manually; explicit workflow missing",
+      "origin": "qB parity adapted to one draft",
+      "grades": {
+        "utility": 4,
+        "necessity": 4,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 2
+      },
+      "native_interaction": "Add in the same native staged editor creates empty URL entry in selected tier and focuses URL TextBox. Native tier ComboBox offers existing or explicit new tier. No raw blank-line task or separate modal.",
+      "focus_state": "Zero trackers supports Add. Invalid new entry stays editable draft and blocks Save until valid or removed. Existing save/cancel/prompts own transitions.",
+      "acceptance": [
+        "Empty tracker list supports Add",
+        "Existing URLs and tiers unchanged until user edits",
+        "Saving validates exact raw list via existing SaveDraft",
+        "Draft prompt preserves pending edits across tab/current torrent switches"
+      ],
+      "cost": "Shares the same canonical ordered tier/URL draft and controls as Edit; no Add dialog, raw editor or request path.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 365,
+          "note": "Add trackers"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 365,
+          "note": "Canonical draft"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Core/Inspector.cs",
+          "line": 91,
+          "note": "Loaded TrackerList"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 260,
+          "note": "Existing editor tier help"
+        }
+      ]
+    },
+    {
+      "id": "tracker-remove",
+      "rank": 6,
+      "tab": "Trackers",
+      "title": "Stage selected tracker removal in the canonical list draft",
+      "decision": "now",
+      "status": "manual edit possible; selected removal missing",
+      "origin": "qB parity with explicit staged WinUI semantics",
+      "grades": {
+        "utility": 4,
+        "necessity": 4,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 2
+      },
+      "native_interaction": "Remove deletes selected canonical staged entry, selects adjacent entry, removes empty tier group canonically. Save applies whole list; Cancel resolves/discards; no immediate TrackerRemove RPC.",
+      "focus_state": "Delete only with draft list focus; URL TextBox Delete stays text editing. Map runtime row only by provable tier/URL/occurrence. Preserve dirty draft; no synthetic discovery row deletion.",
+      "acceptance": [
+        "No parallel raw editor or independent URL text cache",
+        "Unedited tier groups and duplicate occurrences round-trip exactly",
+        "Add supports empty list and last removal uses backend-valid empty list",
+        "Invalid input remains editable and prevents Save through existing error path",
+        "No synthetic discovery or backup status row guessed as draft entry",
+        "No RPC before Save; one whole TrackerList request",
+        "Refresh cannot overwrite staged edits"
+      ],
+      "cost": "Shares one ordered tier/URL draft parser/serializer and existing save; no parallel string-line deletion logic.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 372,
+          "note": "Remove tracker"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 322,
+          "note": "Whole-list validation and save"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 339,
+          "note": "Draft resolution owner"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/Transmission/Requests.cs",
+          "line": 135,
+          "note": "TrackerList contract"
+        }
+      ]
+    },
+    {
+      "id": "copy-context",
+      "rank": 7,
+      "tab": "Peers / Trackers / Files",
+      "title": "Expose existing copy actions in native context menus",
+      "decision": "now",
+      "status": "Ctrl+C already implemented; mouse/context path incomplete",
+      "origin": "qB parity",
+      "grades": {
+        "utility": 4,
+        "necessity": 4,
+        "ergonomics": 5,
+        "wow": 1,
+        "bloat": 1
+      },
+      "native_interaction": "Copy in Peer and Tracker MenuFlyout invokes existing current endpoint/URL copy; Files Copy invokes selected path packet. Keep Ctrl+C behavior identical; use Lucide icon authority.",
+      "focus_state": "Current peer/tracker required; multiple Files use existing selection. Standard editor Ctrl+C remains native. Menu dismissal returns to table row.",
+      "acceptance": [
+        "Copy and Ctrl+C produce exactly same text",
+        "IPv6 retains brackets and port",
+        "Unknown/no current row disables Copy",
+        "Menu does not change backend state"
+      ],
+      "cost": "On-demand native menu items; no new clipboard data authority or per-row menu allocation.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 307,
+          "note": "Copy peer endpoint"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/trackerlist/trackerlistwidget.cpp",
+          "line": 374,
+          "note": "Copy tracker URL"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 650,
+          "note": "Existing shared Ctrl+C projection"
+        }
+      ]
+    },
+    {
+      "id": "files-download-skip",
+      "rank": 8,
+      "tab": "Files",
+      "title": "Keep inclusion commands separate from row selection",
+      "decision": "now",
+      "status": "existing behavior; menu route added by files-context",
+      "origin": "Windows adaptation, not literal qB checkbox parity",
+      "grades": {
+        "utility": 5,
+        "necessity": 5,
+        "ergonomics": 4,
+        "wow": 2,
+        "bloat": 1
+      },
+      "native_interaction": "Retain Download and Skip actions operating on SelectedPaths; expose them through MenuFlyout/access keys already present. Native TreeView checkboxes continue to mean selection.",
+      "focus_state": "Do not commandeer native Space to mutate wanted state. Selected packet remains after successful operation; repeated commands use one ChangeFiles owner and _committing guard.",
+      "acceptance": [
+        "Selected folder applies to descendant indices once",
+        "Actual Wanted changes only after RPC/refresh confirms",
+        "Mixed selection commands set a uniform requested wanted value",
+        "No second wanted bool or optimistic checkbox state"
+      ],
+      "cost": "Reuse all existing mutation logic. No additional in-row control, per-row event or state.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 249,
+          "note": "qB Space changes download checkbox"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 224,
+          "note": "WinUI native multi-selection differs"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 515,
+          "note": "Download/Skip mutation authority"
+        }
+      ]
+    },
+    {
+      "id": "tracker-tiers",
+      "rank": 9,
+      "tab": "Trackers",
+      "title": "Move selected tracker tier within existing staged list",
+      "decision": "later",
+      "status": "basic tier assignment included with staged editor; advanced reorder deferred",
+      "origin": "qB parity",
+      "grades": {
+        "utility": 3,
+        "necessity": 2,
+        "ergonomics": 3,
+        "wow": 2,
+        "bloat": 3
+      },
+      "native_interaction": "Basic tier assignment belongs to the same native staged editor ComboBox. Defer Move Up/Down and reorder gestures until demonstrated need. Display sort never changes canonical tier order.",
+      "focus_state": "Selection maps to a unique tier; boundary actions disabled. Existing Save/Cancel owner. Do not add arbitrary per-tracker reorder gesture.",
+      "acceptance": [
+        "Multiple trackers per tier preserved",
+        "Table sort remains presentation and does not reorder backend",
+        "No server change before Save",
+        "Can explain text-tier mutation without new state owner"
+      ],
+      "cost": "Canonical tier groups already required by staged CRUD. Extra reorder commands must justify need; no second raw editor.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/propertieswidget.cpp",
+          "line": 121,
+          "note": "qB tier buttons"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Core/Inspector.cs",
+          "line": 94,
+          "note": "Raw list authority"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 733,
+          "note": "Current tier identity display"
+        }
+      ]
+    },
+    {
+      "id": "peer-diagnostic-copy",
+      "rank": 10,
+      "tab": "Peers",
+      "title": "Copy a bounded diagnostic snapshot for troubleshooting",
+      "decision": "later",
+      "status": "missing; selected choke facts now implemented",
+      "origin": "Novel workflow using loaded capabilities; not qB parity claim",
+      "grades": {
+        "utility": 3,
+        "necessity": 2,
+        "ergonomics": 4,
+        "wow": 2,
+        "bloat": 2
+      },
+      "native_interaction": "Copy details secondary native menu action copies current peer endpoint and existing direction-specific facts; optionally loaded peer-source counters/active webseed information with explicit session/torrent scope. No support service/upload/log collector.",
+      "focus_state": "Copy endpoint retains Ctrl+C; Copy details distinct intentional menu command. Loaded/stale state explicit. No source field is claimed active merely because URL exists.",
+      "acceptance": [
+        "No extra RPC or network request",
+        "Bounded clipboard snapshot has exact loaded identity",
+        "Source counters labeled counts, not rates or causes",
+        "Unknown and zero remain distinct where contract permits"
+      ],
+      "cost": "Text projection from existing loaded snapshot only. Defer absent demonstrated support/user journey because extra labels alone are not functionality.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Core/Inspector.cs",
+          "line": 82,
+          "note": "Loaded peers/source/webseeds"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/Transmission/Torrent.cs",
+          "line": 120,
+          "note": "Source count contract"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 723,
+          "note": "Selected diagnostic facts"
+        }
+      ]
+    },
+    {
+      "id": "file-piece-link",
+      "rank": 11,
+      "tab": "Files -> Pieces",
+      "title": "Show selected file's existing piece range",
+      "decision": "later",
+      "status": "missing",
+      "origin": "Novel direct workflow; qB has Shift-hover file info on bars, not this exact navigation",
+      "grades": {
+        "utility": 3,
+        "necessity": 2,
+        "ergonomics": 3,
+        "wow": 4,
+        "bloat": 3
+      },
+      "native_interaction": "Pieces command in Files menu selects a known single file, navigates existing Pieces tab and highlights its BeginPiece/EndPiece range using one transient range on existing bitmap geometry.",
+      "focus_state": "Enter existing map keyboard path; Escape/focus return retains normal tab navigation. Range is annotation, not second map selection state. Folder/multiple selection deferred to avoid many ranges.",
+      "acceptance": [
+        "BeginPiece/EndPiece require Transmission4.1/RPC6 capability or exact derivation from ordered file lengths and PieceSize; default zero on old engines is ambiguous",
+        "Piece endpoints inclusive/exclusive semantics verified from backend before use",
+        "File/torrent identity remains current across async detail load",
+        "Map visual/completion states preserved",
+        "No per-piece objects, all-file scan, extra RPC or permanent cross-tab selection authority"
+      ],
+      "cost": "Count native bitmap overlay/geometry changes first. One two-integer range and existing draw pass maximum; if additional rendering system required, reject.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/Transmission/Torrent.cs",
+          "line": 95,
+          "note": "BeginPiece/EndPiece already exposed"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/PiecesView.cs",
+          "line": 40,
+          "note": "Existing bitmap/layout owner"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/piecesbar.cpp",
+          "line": 276,
+          "note": "qB Shift-hover detail precedent"
+        }
+      ]
+    },
+    {
+      "id": "speed-inspection",
+      "rank": 12,
+      "tab": "Speed",
+      "title": "Inspect one timestamp/rate in existing bounded torrent history",
+      "decision": "later",
+      "status": "history/gap axis already correct; interactive sample inspection missing",
+      "origin": "Novel compact workflow, not qB ten-trace parity",
+      "grades": {
+        "utility": 3,
+        "necessity": 2,
+        "ergonomics": 3,
+        "wow": 3,
+        "bloat": 2
+      },
+      "native_interaction": "Potential native tooltip and keyboard left/right sample inspection using existing bounded samples. Preserve download/upload distinction and actual elapsed-time spacing/gaps; no extra period picker until longer data exists.",
+      "focus_state": "One existing tab focus region; no focusable control per point. Unknown gaps never interpolated as activity. Read-only on-demand history remains bounded.",
+      "acceptance": [
+        "Exact sample timestamp and rates copied/read without synthetic values",
+        "Reconnect/disconnected gaps visibly retained",
+        "No new polling/storage/graph dependency",
+        "Keyboard never needs to Tab through samples"
+      ],
+      "cost": "One sample index and geometry hit calculation only. Current chart is noninteractive, so added focus/automation work must justify observed need.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 33,
+          "note": "Bounded existing trace rendering"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/SpeedView.cs",
+          "line": 65,
+          "note": "Actual sample timestamp x and StartsSegment gap"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/speedwidget.cpp",
+          "line": 134,
+          "note": "qB graphs are session-wide, not target behavior"
+        }
+      ]
+    },
+    {
+      "id": "general-diagnosis-existing",
+      "rank": 13,
+      "tab": "General",
+      "title": "Preserve completed diagnosis-to-Peers/Pieces route",
+      "decision": "reject",
+      "status": "already implemented; reject duplicate implementation",
+      "origin": "Current WinUI behavior, informed by qB diagnostic coverage",
+      "grades": {
+        "utility": 5,
+        "necessity": 5,
+        "ergonomics": 5,
+        "wow": 2,
+        "bloat": 0
+      },
+      "native_interaction": "Existing stalled Peers/Pieces native buttons already navigate and focus corresponding tab. Newly completed Total size, Transfer/Information before Limits, Last activity, truthful tracker status/next and read-first focus are refinements already done.",
+      "focus_state": "Preserve existing SelectView/FocusView and draft-resolution boundaries. No separate 'health' score, diagnosis assistant or alternate inspector.",
+      "acceptance": [
+        "Existing route stays primary",
+        "Do not repeat fulfilled label/focus recommendations as new functionality",
+        "No claim of inferred cause from observed availability"
+      ],
+      "cost": "Zero new implementation; preserve one navigation owner.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 107,
+          "note": "Existing stalled action controls"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 672,
+          "note": "Existing tab routes"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 190,
+          "note": "Subset full size now implemented"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 205,
+          "note": "Last activity now implemented"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 608,
+          "note": "Read-first focus now implemented"
+        }
+      ]
+    },
+    {
+      "id": "checkbox-parity",
+      "rank": 14,
+      "tab": "Files",
+      "title": "Duplicate qB wanted checkbox beside native selection checkbox",
+      "decision": "reject",
+      "status": "intentionally not implemented",
+      "origin": "Literal qB interaction copy rejected for WinUI",
+      "grades": {
+        "utility": 3,
+        "necessity": 1,
+        "ergonomics": 1,
+        "wow": 1,
+        "bloat": 4
+      },
+      "native_interaction": "Do not add a second visually similar checkbox per row or replace native selection with bespoke behavior. Current distinct Download/Skip is safer.",
+      "focus_state": "Native Space/multiple selection behavior remains platform-owned. Accessible naming alone does not distinguish two checkboxes visually.",
+      "acceptance": [
+        "Any future replacement must first demonstrate unmistakable selection vs wanted interaction with no additional tab stops",
+        "No wanted bool stored independently of backend file stats"
+      ],
+      "cost": "Per-row controls, state synchronization, automation and gesture complexity exceed demonstrated benefit.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml",
+          "line": 224,
+          "note": "Multiple TreeView selection"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/torrentcontentwidget.cpp",
+          "line": 249,
+          "note": "qB download-checkbox keyboard behavior"
+        }
+      ]
+    },
+    {
+      "id": "unsupported-expert-surface",
+      "rank": 15,
+      "tab": "Peers / Trackers / Speed",
+      "title": "Do not port unsupported/excess expert capabilities",
+      "decision": "reject",
+      "status": "unsupported or unnecessary",
+      "origin": "qB parity selectively rejected",
+      "grades": {
+        "utility": 2,
+        "necessity": 0,
+        "ergonomics": 1,
+        "wow": 2,
+        "bloat": 5
+      },
+      "native_interaction": "Reject GeoIP/reverseDNS/ban/manual peers without justified backend capability; per-tracker reannounce when API is torrent-wide; qB ten session traces and 24h history in selected-torrent properties; new Sources tab.",
+      "focus_state": "Existing Reannounce remains torrent-wide with explicit help. Preserve six tab identities, existing compact peer columns and on-demand snapshots.",
+      "acceptance": [
+        "No UI command promises RPC scope narrower than real request",
+        "No new service/database/icon runtime/history subsystem",
+        "No inaccessible fields or guessed data exposed"
+      ],
+      "cost": "Potential new datasets/dependencies/backend API/runtime work lacks explicit size/memory/cost justification; rejected.",
+      "evidence": [
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Ui/Torrent/InspectorView.xaml.cs",
+          "line": 592,
+          "note": "Torrent-wide Reannounce"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/peerlistwidget.cpp",
+          "line": 352,
+          "note": "qB session ban capability"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/3rdparty/qbittorrent/src/gui/properties/speedwidget.cpp",
+          "line": 134,
+          "note": "qB session traces"
+        },
+        {
+          "file": "C:/SynoSoftware/TinyTorrent/winui3/src/TinyTorrent.Core/Inspector.cs",
+          "line": 5,
+          "note": "Existing six tab contract"
+        }
+      ]
+    }
+  ],
+  "delivery_sequence": [
+    "Files context menu + Open/Folder through one command owner",
+    "Expose current copy in context menus",
+    "One native staged tracker editor replaces raw form: selected Edit, Add/Remove, basic tier assignment, existing Save/Cancel",
+    "Preserve current wanted commands; do not copy checkbox keyboard conflict",
+    "Only after measured need: tier manipulation, peer diagnostic copy, map range link, sample inspection"
+  ],
+  "validation_limit": "Design gate only. Production behavior must later be built and either validated through user-visible interface with explicit permission or delivered explicitly unvalidated.",
+  "tracker_editor_design_gate": {
+    "comparison": "A raw-editor shortcuts: lower patch cost but users still manage URL lines and blank-line tiers; ergonomics 2/5. B native staged list: medium cost, clear selected-row Add/Edit/Remove; ergonomics 5/5. Choose B replacing A.",
+    "authority": "One canonical ordered tier-group/URL-entry draft initialized once from TrackerList. Raw text is load/save serialization only, never another editable or cached draft. Existing _edit save/cancel/dirty transitions remain.",
+    "layout": "Reuse editor region: native staged ListView, one selected URL TextBox, Add/Remove, native tier ComboBox, existing Save/Cancel. No new modal/tab/card or surface help.",
+    "tier_identity": "Ordered raw groups define tier identity; runtime TrackerStat IDs, display sort and ordinal do not. Duplicate URLs are separate entries. Target exact tier/URL/occurrence only when provable, otherwise enter draft without guessing. Remove empty groups canonically; preserve order and serialize blank-line boundaries once.",
+    "keyboard": "F2 enters selected URL; Add creates empty entry in selected tier and focuses URL. Delete removes only with draft list focus; TextBox Delete stays native. Arrows navigate rows, Ctrl+S existing Save, Escape existing resolution. Cancel returns status row. No per-row editable control/tab stops.",
+    "state": "Selected draft entry owns all in-progress text including invalid values. Row switch preserves text without RPC. Refresh never overwrites draft. Save validates every entry and serializes once; error retains draft; clean exit has no mutation.",
+    "acceptance": [
+      "No parallel raw editor or independent URL text cache",
+      "Unedited tier groups and duplicate occurrences round-trip exactly",
+      "Add supports empty list and last removal uses backend-valid empty list",
+      "Invalid input remains editable and prevents Save through existing error path",
+      "No synthetic discovery or backup status row guessed as draft entry",
+      "No RPC before Save; one whole TrackerList request",
+      "Refresh cannot overwrite staged edits"
+    ],
+    "cost": "Medium effort justified by ordinary task completion. Small private domain draft, one parser/serializer, existing save owner; no generic framework/dependency. Allocated only while editing."
+  }
+}

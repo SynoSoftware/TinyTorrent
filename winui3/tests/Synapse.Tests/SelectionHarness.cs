@@ -100,12 +100,19 @@ internal sealed class SelectionHarness
 
     /// <summary>What the pointer arbiter calls once it has resolved a row and its modifiers.</summary>
     internal void Click(Row row, bool ctrl = false, bool shift = false) =>
-        Invoke("ApplyPointerSelection", row, ctrl, shift);
+        Invoke("SelectItem", row, ctrl, shift);
 
-    internal bool MoveBy(int delta, bool extend) => (bool)Invoke("MoveCurrentBy", delta, extend)!;
+    internal bool MoveBy(int delta, bool extend, bool ctrl = false) =>
+        (bool)Invoke("MoveCurrentBy", delta, extend, ctrl)!;
 
-    internal bool MoveToEdge(bool first, bool extend) =>
-        (bool)Invoke("MoveCurrentToEdge", first, extend)!;
+    internal bool MoveToEdge(bool first, bool extend, bool ctrl = false) =>
+        (bool)Invoke("MoveCurrentToEdge", first, extend, ctrl)!;
+
+    internal bool Space(bool ctrl = false, bool shift = false) =>
+        (bool)Invoke("SelectFocusedItem", ctrl, shift)!;
+
+    internal bool Tap(DependencyObject source, bool ctrl = false, bool shift = false) =>
+        (bool)Invoke("SelectFromTap", source, ctrl, shift)!;
 
     internal bool SelectAll() => (bool)Invoke("SelectAllFromKeyboard")!;
 

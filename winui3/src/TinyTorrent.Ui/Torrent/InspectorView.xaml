@@ -1,0 +1,333 @@
+<UserControl x:Class="TinyTorrent_Ui.InspectorView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:TinyTorrent_Ui" xmlns:t="using:Synapse" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" KeyDown="InspectorKeyDown">
+  <UserControl.Resources>
+    <DataTemplate x:Key="FileTemplate" x:DataType="local:InspectorFile">
+      <TreeViewItem ItemsSource="{x:Bind Children}" IsExpanded="False" HorizontalContentAlignment="Stretch" AutomationProperties.Name="{x:Bind Path}">
+        <Grid x:Name="FileRow" Padding="0,4" Loaded="FileRowLoaded" SizeChanged="FileLayoutChanged">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Path}" />
+          <TextBlock Grid.Column="1" Text="{x:Bind Wanted,Mode=OneWay}" />
+          <TextBlock Grid.Column="2" Text="{x:Bind Progress,Mode=OneWay}" TextAlignment="Right" />
+          <TextBlock Grid.Column="3" Text="{x:Bind Size,Mode=OneWay}" TextAlignment="Right" />
+          <TextBlock Grid.Column="4" Text="{x:Bind Priority,Mode=OneWay}" />
+        </Grid>
+      </TreeViewItem>
+    </DataTemplate>
+    <DataTemplate x:Key="PeerAddressTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind Address}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="PeerClientTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind Client}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="PeerProgressTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind Progress}" />
+    </DataTemplate>
+    <DataTemplate x:Key="PeerDownloadTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind Download}" />
+    </DataTemplate>
+    <DataTemplate x:Key="PeerUploadTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind Upload}" />
+    </DataTemplate>
+    <DataTemplate x:Key="PeerStateTemplate" x:DataType="local:InspectorPeer">
+      <TextBlock Text="{x:Bind State}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="TrackerAddressTemplate" x:DataType="local:InspectorTracker">
+      <TextBlock Text="{x:Bind Address}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="TrackerStateTemplate" x:DataType="local:InspectorTracker">
+      <TextBlock Text="{x:Bind State}" TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+    <DataTemplate x:Key="TrackerSeedsTemplate" x:DataType="local:InspectorTracker">
+      <TextBlock Text="{x:Bind Seeds}" />
+    </DataTemplate>
+    <DataTemplate x:Key="TrackerLeechesTemplate" x:DataType="local:InspectorTracker">
+      <TextBlock Text="{x:Bind Leeches}" />
+    </DataTemplate>
+    <DataTemplate x:Key="TrackerNextTemplate" x:DataType="local:InspectorTracker">
+      <TextBlock Text="{x:Bind Next}" />
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid x:Name="Root" RowSpacing="8">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Grid x:Name="TitleRow" ColumnSpacing="12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="TitleText" Text="No selection" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <Button x:Name="CloseButton" Grid.Column="1" Content="Close" Click="CloseInspector" />
+    </Grid>
+    <NavigationView x:Name="Views" Grid.Row="1" PaneDisplayMode="Top" IsSettingsVisible="False" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" SelectionFollowsFocus="Enabled" SelectionChanged="ViewChanged" AutomationProperties.Name="Inspector views">
+      <NavigationView.MenuItems>
+        <NavigationViewItem Content="General" />
+        <NavigationViewItem Content="Files" />
+        <NavigationViewItem Content="Peers" />
+        <NavigationViewItem Content="Trackers" />
+        <NavigationViewItem Content="Speed" />
+        <NavigationViewItem Content="Pieces" />
+      </NavigationView.MenuItems>
+      <Grid x:Name="ViewContent" RowSpacing="8">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error" />
+        <Grid x:Name="UnavailableRow" Grid.Row="1" ColumnSpacing="8" Visibility="Collapsed">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="UnavailableText" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+          <Button x:Name="RetryDetails" Grid.Column="1" Content="Retry" Click="RetryInspector" ToolTipService.ToolTip="Retry the current torrent view (F5)" />
+        </Grid>
+        <Grid Grid.Row="2">
+          <TextBlock x:Name="EmptyText" Text="No selection" Visibility="Collapsed" />
+          <Grid x:Name="GeneralView" RowSpacing="8">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <StackPanel Spacing="12">
+                <StackPanel x:Name="PrimaryRow" Spacing="8">
+                  <TextBlock x:Name="StatusText" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                  <TextBlock x:Name="EngineError" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                  <TextBlock x:Name="GeneralText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                  <ProgressBar x:Name="ProgressBar" Maximum="100" />
+                  <TextBlock x:Name="RatesText" TextWrapping="Wrap" />
+                  <TextBlock x:Name="StoppingText" TextWrapping="Wrap" />
+                  <StackPanel x:Name="StalledActions" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                    <Button x:Name="StalledPeersButton" Content="Peers" Click="ShowStalledPeers" />
+                    <Button x:Name="StalledPiecesButton" Content="Pieces" Click="ShowStalledPieces" />
+                  </StackPanel>
+                </StackPanel>
+                <StackPanel Spacing="8">
+                  <TextBlock x:Name="LocationLabel" Text="Folder" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                  <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="OpenButton" Content="Open" AccessKey="O" Click="OpenLocation" />
+                    <Button x:Name="ChangeButton" Content="Change" AccessKey="M" Click="ChangeFolder" />
+                    <Button x:Name="CopyPathButton" Content="Copy" AccessKey="C" Click="CopyPath" />
+                  </StackPanel>
+                </StackPanel>
+                <Expander x:Name="Transfer" Header="Transfer details" AccessKey="T" HorizontalAlignment="Stretch">
+                  <TextBlock x:Name="TransferText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                </Expander>
+                <Expander x:Name="Information" Header="Torrent information" AccessKey="I" HorizontalAlignment="Stretch">
+                  <StackPanel Spacing="8">
+                    <TextBlock x:Name="MetadataText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button x:Name="CopyHashButton" Content="Copy hash" Click="CopyHash" ToolTipService.ToolTip="Copy torrent hash" />
+                      <Button x:Name="CopyMagnetButton" Content="Copy magnet" Click="CopyMagnet" />
+                    </StackPanel>
+                  </StackPanel>
+                </Expander>
+                <Expander x:Name="Limits" Header="Limits and behavior" AccessKey="L" Expanding="LimitsOpening" HorizontalAlignment="Stretch">
+                  <ContentControl x:Name="GeneralEditor" IsEnabled="False" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="12">
+                      <CheckBox x:Name="SessionLimits" Content="Honor session limits" AccessKey="H" Checked="OptionChanged" Unchecked="OptionChanged" />
+                      <Grid ColumnSpacing="12" RowSpacing="12" SizeChanged="LimitColumnsChanged">
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="8">
+                          <CheckBox x:Name="DownEnabled" Content="Download limit (kB/s)" AccessKey="D" Checked="OptionChanged" Unchecked="OptionChanged" />
+                          <NumberBox x:Name="DownLimit" AccessKey="N" ValidationMode="Disabled" ValueChanged="NumberChanged" AutomationProperties.Name="Download limit in kB/s" />
+                        </StackPanel>
+                        <StackPanel x:Name="UploadLimits" Grid.Column="1" Spacing="8">
+                          <CheckBox x:Name="UpEnabled" Content="Upload limit (kB/s)" AccessKey="U" Checked="OptionChanged" Unchecked="OptionChanged" />
+                          <NumberBox x:Name="UpLimit" AccessKey="V" ValidationMode="Disabled" ValueChanged="NumberChanged" AutomationProperties.Name="Upload limit in kB/s" />
+                        </StackPanel>
+                      </Grid>
+                      <ComboBox x:Name="RatioChoice" Header="Seeding ratio" AccessKey="R" SelectionChanged="ChoiceChanged">
+                        <x:String>Session setting</x:String>
+                        <x:String>Stop at ratio</x:String>
+                        <x:String>Unlimited</x:String>
+                      </ComboBox>
+                      <NumberBox x:Name="RatioLimit" Header="Ratio" AccessKey="A" ValidationMode="Disabled" ValueChanged="NumberChanged" />
+                      <ComboBox x:Name="IdleChoice" Header="Seeding idle time" AccessKey="S" SelectionChanged="ChoiceChanged">
+                        <x:String>Session setting</x:String>
+                        <x:String>Stop after idle time</x:String>
+                        <x:String>Unlimited</x:String>
+                      </ComboBox>
+                      <NumberBox x:Name="IdleLimit" Header="Idle minutes" AccessKey="B" ValidationMode="Disabled" ValueChanged="NumberChanged" />
+                      <ComboBox x:Name="BandwidthChoice" Header="Bandwidth priority" AccessKey="P" SelectionChanged="ChoiceChanged">
+                        <x:String>Low</x:String>
+                        <x:String>Normal</x:String>
+                        <x:String>High</x:String>
+                      </ComboBox>
+                      <NumberBox x:Name="PeerLimit" Header="Peer limit" AccessKey="G" ValidationMode="Disabled" ValueChanged="NumberChanged" />
+                      <CheckBox x:Name="Sequential" Content="Sequential download" AccessKey="Q" Checked="OptionChanged" Unchecked="OptionChanged" />
+                    </StackPanel>
+                  </ContentControl>
+                </Expander>
+              </StackPanel>
+            </ScrollViewer>
+            <StackPanel x:Name="GeneralFooter" Grid.Row="1" Visibility="Collapsed" Orientation="Horizontal" Spacing="8">
+              <Button x:Name="ApplyOptions" Content="Apply" Style="{StaticResource AccentButtonStyle}" Click="ApplyGeneral" />
+              <Button x:Name="DiscardOptions" Content="Discard" AccessKey="Z" Click="DiscardGeneral" />
+            </StackPanel>
+          </Grid>
+          <Grid x:Name="FilesView" Visibility="Collapsed" RowSpacing="8" SizeChanged="FileLayoutChanged">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBox x:Name="FileSearch" Header="Search files" AutomationProperties.Name="Search files" TextChanged="SearchFiles" />
+            <ContentControl x:Name="FilesEditor" Grid.Row="1" IsEnabled="False" HorizontalContentAlignment="Stretch">
+              <CommandBar DefaultLabelPosition="Right">
+                <AppBarButton x:Name="OpenFileButton" Label="Open" AccessKey="O" Click="OpenFile" ToolTipService.ToolTip="Open selected file (Enter)" />
+                <AppBarButton x:Name="FileFolderButton" Label="Folder" AccessKey="D" Click="OpenFileFolder" ToolTipService.ToolTip="Open the selected folder or reveal the file in Explorer" />
+                <AppBarButton x:Name="FileSortButton" Label="Sort" AccessKey="S">
+                  <AppBarButton.Flyout>
+                    <MenuFlyout x:Name="FileSortMenu" Opening="FileSortOpening" Closed="FileSortClosed">
+                      <RadioMenuFlyoutItem Text="Name" Tag="Name" GroupName="FileSortField" Click="FileSortChanged" />
+                      <RadioMenuFlyoutItem Text="Size" Tag="Size" GroupName="FileSortField" Click="FileSortChanged" />
+                      <RadioMenuFlyoutItem Text="Progress" Tag="Progress" GroupName="FileSortField" Click="FileSortChanged" />
+                      <RadioMenuFlyoutItem Text="Priority" Tag="Priority" GroupName="FileSortField" Click="FileSortChanged" />
+                      <RadioMenuFlyoutItem Text="Wanted" Tag="Wanted" GroupName="FileSortField" Click="FileSortChanged" />
+                      <MenuFlyoutSeparator />
+                      <RadioMenuFlyoutItem Text="Ascending" Tag="Ascending" GroupName="FileSortDirection" Click="FileSortChanged" />
+                      <RadioMenuFlyoutItem Text="Descending" Tag="Descending" GroupName="FileSortDirection" Click="FileSortChanged" />
+                    </MenuFlyout>
+                  </AppBarButton.Flyout>
+                </AppBarButton>
+                <AppBarButton x:Name="DownloadFilesButton" Label="Download" AccessKey="W" Click="DownloadFiles" />
+                <AppBarButton x:Name="SkipFilesButton" Label="Skip" AccessKey="K" Click="SkipFiles" />
+                <AppBarButton x:Name="PriorityButton" Label="Priority" AccessKey="P">
+                  <AppBarButton.Flyout>
+                    <MenuFlyout>
+                      <MenuFlyoutItem Text="Low" Tag="-1" Click="SetFilePriority" />
+                      <MenuFlyoutItem Text="Normal" Tag="0" Click="SetFilePriority" />
+                      <MenuFlyoutItem Text="High" Tag="1" Click="SetFilePriority" />
+                    </MenuFlyout>
+                  </AppBarButton.Flyout>
+                </AppBarButton>
+                <AppBarButton x:Name="RenameButton" Label="Rename" Click="RenameFile" />
+                <AppBarButton x:Name="FilePiecesButton" Label="Pieces" AccessKey="I" Click="ShowFilePieces" ToolTipService.ToolTip="Show the selected file's pieces" />
+              </CommandBar>
+            </ContentControl>
+            <Grid x:Name="FileHeader" Grid.Row="2" SizeChanged="FileLayoutChanged">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="0" />
+                <ColumnDefinition Width="0" />
+                <ColumnDefinition Width="0" />
+                <ColumnDefinition Width="0" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="Name" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="1" Text="Wanted" Margin="12,0,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="2" Text="Progress" Margin="12,0,0,0" TextAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="3" Text="Size" Margin="12,0,0,0" TextAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="4" Text="Priority" Margin="12,0,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+            <TreeView x:Name="FilesList" Grid.Row="3" AutomationProperties.Name="Files: name, wanted, progress, size, priority" SelectionMode="Multiple" CanDragItems="False" AllowDrop="False" ItemTemplate="{StaticResource FileTemplate}" SelectionChanged="FilesSelected" />
+            <TextBlock x:Name="FileFacts" Grid.Row="4" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+          </Grid>
+          <Grid x:Name="PeersView" Visibility="Collapsed" RowSpacing="8" SizeChanged="FactsSizeChanged">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="PeerText" TextWrapping="Wrap" SizeChanged="FactsSizeChanged" />
+            <t:TableView x:Name="PeersList" Grid.Row="1" EmptyContent="No connected peers">
+              <t:TableView.Columns>
+                <t:TableColumn x:Name="PeerAddressColumn" DisplayName="Address" CellTemplate="{StaticResource PeerAddressTemplate}" />
+                <t:TableColumn x:Name="PeerDownloadColumn" DisplayName="Download" CellAlignment="Right" CellTemplate="{StaticResource PeerDownloadTemplate}" />
+                <t:TableColumn x:Name="PeerUploadColumn" DisplayName="Upload" CellAlignment="Right" CellTemplate="{StaticResource PeerUploadTemplate}" />
+                <t:TableColumn x:Name="PeerProgressColumn" DisplayName="Peer has" CellAlignment="Right" CellTemplate="{StaticResource PeerProgressTemplate}" />
+                <t:TableColumn x:Name="PeerClientColumn" DisplayName="Client" CellTemplate="{StaticResource PeerClientTemplate}" />
+                <t:TableColumn DisplayName="Connection" CellTemplate="{StaticResource PeerStateTemplate}" />
+              </t:TableView.Columns>
+            </t:TableView>
+            <ScrollViewer x:Name="PeerFactsScroll" Grid.Row="2" MaxHeight="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+              <StackPanel Spacing="8">
+                <TextBlock x:Name="PeerFacts" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                <Expander x:Name="PeerSources" Header="Sources" AccessKey="S" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ToolTipService.ToolTip="Where connected peers were discovered">
+                  <StackPanel Spacing="8">
+                    <TextBlock x:Name="PeerSourcesText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <TextBox x:Name="WebseedUrls" Header="Webseeds" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Webseed URLs" />
+                  </StackPanel>
+                </Expander>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+          <Grid x:Name="TrackersView" Visibility="Collapsed" RowSpacing="8" SizeChanged="FactsSizeChanged">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel x:Name="TrackerCommands" Orientation="Horizontal" Spacing="8" SizeChanged="FactsSizeChanged">
+              <Button x:Name="EditTrackersButton" Content="Edit" AccessKey="E" Click="EditTrackers" />
+              <Button x:Name="ReannounceButton" Content="Reannounce" AccessKey="R" Click="Reannounce" />
+            </StackPanel>
+            <t:TableView x:Name="TrackersList" Grid.Row="1" EmptyContent="No trackers">
+              <t:TableView.Columns>
+                <t:TableColumn x:Name="TrackerAddressColumn" DisplayName="Tracker" CellTemplate="{StaticResource TrackerAddressTemplate}" />
+                <t:TableColumn x:Name="TrackerStateColumn" DisplayName="Announce status" CellTemplate="{StaticResource TrackerStateTemplate}" />
+                <t:TableColumn x:Name="TrackerNextColumn" DisplayName="Next announce" CellTemplate="{StaticResource TrackerNextTemplate}" />
+                <t:TableColumn x:Name="TrackerSeedsColumn" DisplayName="Seeds" CellAlignment="Right" CellTemplate="{StaticResource TrackerSeedsTemplate}" />
+                <t:TableColumn x:Name="TrackerLeechesColumn" DisplayName="Leechers" CellAlignment="Right" CellTemplate="{StaticResource TrackerLeechesTemplate}" />
+              </t:TableView.Columns>
+            </t:TableView>
+            <ScrollViewer x:Name="TrackerFactsScroll" Grid.Row="2" MaxHeight="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+              <TextBlock x:Name="TrackerFacts" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </ScrollViewer>
+            <Grid x:Name="TrackerEditView" Grid.Row="1" Grid.RowSpan="2" Visibility="Collapsed" RowSpacing="8">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <local:TrackerEditor x:Name="TrackerEditor" VerticalAlignment="Stretch" />
+              <StackPanel x:Name="TrackerFooter" Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="ApplyTrackers" Content="Save" Style="{StaticResource AccentButtonStyle}" Click="SaveTrackers" />
+                <Button x:Name="CancelTrackers" Content="Cancel" Click="CancelTrackerEdit" />
+              </StackPanel>
+        </Grid>
+      </Grid>
+      <Grid x:Name="SpeedView" Visibility="Collapsed" RowSpacing="8">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="SpeedText" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
+        <local:SpeedView x:Name="SpeedChart" Grid.Row="1" Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+        <TextBlock x:Name="SpeedWindow" Grid.Row="2" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+      </Grid>
+      <Grid x:Name="PiecesViewPanel" Visibility="Collapsed" RowSpacing="8">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="PiecesText" TextWrapping="Wrap" />
+        <local:PiecesView x:Name="PiecesMap" Grid.Row="1" VerifiedBrush="{ThemeResource SystemFillColorSuccessBrush}" ForegroundBrush="{ThemeResource TextFillColorPrimaryBrush}" CommonBrush="{ThemeResource AccentFillColorDefaultBrush}" RareBrush="{ThemeResource SystemFillColorCautionBrush}" DeadBrush="{ThemeResource SystemFillColorCriticalBrush}" CompletionBrush="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+        <TextBlock x:Name="PiecesLegend" Grid.Row="2" Text="Have · Common · Rare (hatched) · No current peer (outlined) · Unknown" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+      </Grid>
+        </Grid>
+      </Grid>
+    </NavigationView>
+  </Grid>
+</UserControl>
+
+

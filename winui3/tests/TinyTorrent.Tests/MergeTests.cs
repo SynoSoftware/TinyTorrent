@@ -9,6 +9,56 @@ namespace TinyTorrent_Tests;
 public sealed class MergeTests
 {
     [TestMethod]
+    public void AnObservedTorrentRestoresItsPresence()
+    {
+        TorrentCache cache = Populated(1);
+        Torrent row = cache.Rows[0];
+        row.SetPresence(TorrentPresence.Removing);
+
+        TickChange change = cache.Delta([Daemon.Summary(0)], null);
+
+        Assert.IsTrue(row.IsPresent);
+        Assert.AreEqual(TorrentFields.Membership, change.Fields & TorrentFields.Membership);
+        row.SetPresence(TorrentPresence.Removing);
+        (List<TorrentSummary> summaries, List<TorrentFacts> facts) = Daemon.Population(1);
+        change = cache.Sweep(summaries, facts);
+        Assert.IsTrue(row.IsPresent);
+        Assert.AreEqual(TorrentFields.Membership, change.Fields & TorrentFields.Membership);
+    }
+
+    [TestMethod]
+    public void MetadataCompletionRefreshesRowOpacity()
+    {
+        TorrentCache cache = Populated(1);
+        Torrent row = cache.Rows[0];
+        cache.Delta([Daemon.Summary(0) with { MetadataPercentComplete = 0 }], null);
+        Assert.AreEqual(0.55, row.RowOpacity);
+        List<string?> notifications = [];
+        row.PropertyChanged += (_, change) => notifications.Add(change.PropertyName);
+
+        cache.Delta([Daemon.Summary(0)], null);
+
+        Assert.AreEqual(1.0, row.RowOpacity);
+        CollectionAssert.Contains(notifications, nameof(Torrent.RowOpacity));
+    }
+
+    [TestMethod]
+    public void LabelsRefreshThroughTheFactsOwner()
+    {
+        TorrentCache cache = Populated(1);
+        Torrent row = cache.Rows[0];
+        List<string?> notifications = [];
+        row.PropertyChanged += (_, change) => notifications.Add(change.PropertyName);
+
+        TorrentFields changed = cache.Facts([Daemon.Facts(0) with { Labels = ["Work", "Linux"] }]);
+
+        Assert.AreEqual(TorrentFields.Labels, changed);
+        CollectionAssert.AreEqual(new[] { "Work", "Linux" }, row.Labels.ToArray());
+        CollectionAssert.AreEqual(new[] { nameof(Torrent.Labels) }, notifications.ToArray());
+        Assert.AreEqual(TorrentFields.None, cache.Facts([Daemon.Facts(0) with { Labels = ["Work", "Linux"] }]));
+    }
+
+    [TestMethod]
     public void ASweepBuildsTheListInQueueOrder()
     {
         TorrentCache cache = Populated(5);

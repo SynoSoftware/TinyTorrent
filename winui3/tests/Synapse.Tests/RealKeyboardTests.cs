@@ -70,6 +70,26 @@ public class RealKeyboardTests
     });
 
     [TestMethod]
+    public Task CtrlArrowAndSpaceBuildADiscontiguousSelection() => TestHost.RunAsync(async () =>
+    {
+        SelectionHarness h = await SelectionHarness.LoadAsync(8);
+        InputInjector injector = await FocusWindowAndCreateInjectorAsync(h.Table);
+        h.Click(h[1]);
+        FocusRow(h, 1);
+
+        await PressAsync(injector, VirtualKey.Down, VirtualKey.Control);
+        await PressAsync(injector, VirtualKey.Down, VirtualKey.Control);
+        CollectionAssert.AreEqual(new[] { "k1" }, h.SelectedKeys());
+        Assert.AreEqual("k3", h.CurrentKey());
+
+        await PressAsync(injector, VirtualKey.Space, VirtualKey.Control);
+        CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.SelectedKeys());
+        CollectionAssert.AreEqual(new[] { "k1", "k3" }, h.ContainerSelectedKeys());
+        await PressAsync(injector, VirtualKey.Space, VirtualKey.Control);
+        CollectionAssert.AreEqual(new[] { "k1" }, h.SelectedKeys());
+    });
+
+    [TestMethod]
     public Task RealArrowKeysDoNotMoveTheCurrentRowFromInsideACellEditor() => TestHost.RunAsync(async () =>
     {
         DataTemplate cell = (DataTemplate)XamlReader.Load(EditorCellXaml);
@@ -92,6 +112,8 @@ public class RealKeyboardTests
         // One key press. A single-line TextBox leaves Down unhandled, so gating on Handled would
         // move the current row here.
         await PressAsync(injector, VirtualKey.Down);
+        await PressAsync(injector, VirtualKey.Space);
+        Assert.AreEqual(" ", editor.Text, "Space must remain text input in a cell editor.");
 
         Assert.AreEqual(
             "k1",

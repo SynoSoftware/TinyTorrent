@@ -202,18 +202,14 @@ public sealed class TorrentCache
     internal void Order() => _rows.Sort(static (a, b) => a.QueuePosition.CompareTo(b.QueuePosition));
 
     /// <summary>
-    /// One sparkline sample per row. The tick is the caller, and it calls this on every tick,
-    /// whatever that tick asked the daemon for - which is what makes the ring a true 64-second
-    /// window rather than one that stands still whenever a merge does. A quiet daemon is answered
-    /// with statistics alone and merges nothing, so a sample taken inside the merge would leave
-    /// every row's ring holding the same picture while the cell still read it as that window. It
-    /// is an array write and a raise with no listener for every row a template is not reading.
+    /// One sample per completed tick, including quiet ticks. Only the visible Speed selection
+    /// retains the opposite direction and elapsed time needed by the inspector.
     /// </summary>
-    internal void Sample()
+    internal void Sample(TimeSpan time, string? observedHash)
     {
         foreach (Torrent row in _rows)
         {
-            row.PushSpeedSample(row.ActiveSpeed);
+            row.SampleSpeed(time, string.Equals(row.Hash, observedHash, StringComparison.Ordinal));
         }
     }
 }
